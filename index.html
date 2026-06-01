@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Mini Arcade — A pocketful of games</title>
+<link rel="stylesheet" href="css/style.css">
+
+<!-- PWA: installable, full-screen, offline -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#05060f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mini Arcade">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+</head>
+<body>
+<div id="app">
+
+  <!-- MENU -->
+  <div id="menu">
+    <div class="title">MINI ARCADE</div>
+    <div class="subtitle">Pick a game. Beat your best. No downloads, no dependencies.</div>
+    <div class="grid" id="game-grid"><!-- cards injected by arcade.js --></div>
+    <div class="footer">Use ⎋ Esc or the Menu button to return here · Built with vanilla JS</div>
+  </div>
+
+  <!-- GAME STAGE -->
+  <div id="stage">
+    <div id="topbar">
+      <button class="back-btn" id="back-btn">‹ Menu</button>
+      <span id="game-name"></span>
+    </div>
+    <div id="game-root"><!-- active game mounts here --></div>
+  </div>
+
+</div>
+
+<!-- Framework first, then each game self-registers -->
+<script src="js/arcade.js"></script>
+<script src="js/games/stardrifter.js"></script>
+<script src="js/games/snake.js"></script>
+<script src="js/games/breakout.js"></script>
+<script src="js/games/memory.js"></script>
+<script src="js/games/reaction.js"></script>
+<script src="js/games/tictactoe.js"></script>
+
+<!-- Register the service worker for offline / installable play -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed:', err));
+    });
+  }
+</script>
+</body>
+</html>
