@@ -156,7 +156,7 @@ PUBLIC.start = function (root, api) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0,
-      anim: { phase: 0, lean: 0, squash: 0, look: 1, lookY: 0, blink: 0, blinkT: rand(1500, 4000), mouth: 0 },
+      anim: { phase: 0, lean: 0, squash: 0 },
     };
   }
   function loadLevel(i, keepRun) {
@@ -307,20 +307,14 @@ PUBLIC.start = function (root, api) {
   // ---------- animation params (real-time smoothing) ----------
   function animate(dt) {
     const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / MAXV, 0, 1);
-    if (player.grounded) a.phase += (sp * 0.045 + 0.002) * dt;   // run cycle speed ~ ground speed
-    else a.phase += 0.004 * dt;
-    const leanTarget = clamp(player.vx * 0.045, -0.42, 0.42) + (player.grounded ? 0 : clamp(player.vy * 0.012, -0.15, 0.2));
-    a.lean = lerp(a.lean, leanTarget, 1 - Math.pow(0.001, dt / 1000));
-    a.squash = lerp(a.squash, 0, 1 - Math.pow(0.0005, dt / 1000)); // ease squash/stretch back to 0
-    a.look = lerp(a.look, player.facing, 0.2);
-    a.lookY = lerp(a.lookY, clamp(player.vy * 0.04, -1, 1.4), 0.2);
-    // blink
-    a.blinkT -= dt;
-    if (a.blink > 0) a.blink -= dt;
-    else if (a.blinkT <= 0) { a.blink = 110; a.blinkT = rand(1800, 5000); }
-    // mouth: 0 idle small, opens in air / on fast fall
-    const mouthTarget = !player.grounded ? clamp(0.3 + player.vy * 0.05, 0.2, 1) : (moveAmt > 0.4 ? 0.35 : 0.12);
-    a.mouth = lerp(a.mouth, mouthTarget, 0.18);
+    // run-cycle phase advances with ground speed (dt is in ms). Tuned so the
+    // gait reads at ~1.5–2 strides/sec at top speed — not a blur.
+    if (player.grounded) a.phase += (sp * 0.0030 + 0.0009) * dt;
+    else a.phase += 0.0016 * dt;                       // slow flail in the air
+    const leanTarget = clamp(player.vx * 0.035, -0.34, 0.34)
+      + (player.grounded ? 0 : clamp(player.vy * 0.010, -0.12, 0.16));
+    a.lean = lerp(a.lean, leanTarget, 1 - Math.pow(0.0015, dt / 1000));
+    a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000)); // ease impact squash back
     return moveAmt;
   }
 
@@ -330,8 +324,8 @@ PUBLIC.start = function (root, api) {
     const min = Math.abs(l1 - l2) + 0.01, max = l1 + l2 - 0.01;
     if (d < min) d = min; if (d > max) d = max;
     if (d === 0) d = 0.01;
-    const ux = dx / Math.hypot(dx, dy || 1), uy = dy / Math.hypot(dx, dy || 1);
-    const ex = ax + ux * d, ey = ay + uy * d;                     // clamped end
+    const len = Math.hypot(dx, dy) || 1;
+    const ex = ax + (dx / len) * d, ey = ay + (dy / len) * d;     // clamped end
     const a = (d * d + l1 * l1 - l2 * l2) / (2 * d);
     const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
     const baseX = ax + (ex - ax) * (a / d), baseY = ay + (ey - ay) * (a / d);
@@ -339,116 +333,116 @@ PUBLIC.start = function (root, api) {
     return { jx: baseX + px * h * bend, jy: baseY + py * h * bend, ex, ey };
   }
 
-  // ---------- draw the stick figure (origin at feet) ----------
-  function limb(ax, ay, jx, jy, bx, by, w1, w2) {
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(jx, jy); ctx.lineWidth = w1; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(jx, jy); ctx.lineTo(bx, by); ctx.lineWidth = w2; ctx.stroke();
+  // ---------- draw the stick figure (rubber-hose; origin at feet) ----------
+  // A limb is drawn as ONE smooth curve that bows toward its IK joint, so the
+  // body reads as flexible/noodly rather than two stiff rods.
+  function noodle(ax, ay, jx, jy, bx, by, w) {
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = w;
+    // pull the control point past the joint a touch to exaggerate the bend
+    const cx = jx + (jx - (ax + bx) / 2) * 0.35, cy = jy + (jy - (ay + by) / 2) * 0.35;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(cx, cy, bx, by); ctx.stroke();
   }
+  function foot(x, y, f, ang) {
+    ctx.lineCap = 'round'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(ang) * f * 7, y + Math.sin(ang) * 7);
+    ctx.stroke();
+  }
+
   function drawStick(moveAmt) {
-    const a = player.anim, f = player.facing;
-    // metrics
-    const hipH = 30, torso = 26, neck = 4, headR = 8.5;
-    const thigh = 17, shin = 16, uArm = 13, fArm = 12;
-    const stride = 16, lift = 14, armSwing = 11;
+    const a = player.anim, f = player.facing, p = a.phase, air = !player.grounded;
+    const now = performance.now();
+    // metrics — slightly short hips + long legs so knees stay comfortably bent (flexible)
+    const hipH = 26, torso = 24, neck = 3, headR = 9;
+    const thigh = 18, shin = 17, uArm = 13, fArm = 12;
+    const strideH = 13, lift = 12, armStride = 10, bounceAmp = 6, sway = 2.2, stanceW = 5;
+
+    // bouncy vertical motion of the whole upper body; stance feet stay planted
+    // so the legs compress/extend — that's the bounce. Breathing when idle.
+    const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));
+    const breathe = (1 - moveAmt) * Math.sin(now * 0.0027) * 1.3;
 
     ctx.save();
     ctx.translate(player.x, player.y);
-    // squash & stretch around feet: a.squash >0 squash (wider/shorter), <0 stretch
-    const sy = 1 - a.squash * 0.45, sx = 1 + a.squash * 0.40;
+    // squash & stretch: impact squash + a subtle run pulse synced to the bounce
+    const runPulse = moveAmt * Math.cos(2 * p) * 0.05;
+    const sy = (1 - a.squash * 0.45) * (1 + runPulse);
+    const sx = (1 + a.squash * 0.42) * (1 - runPulse * 0.6);
     ctx.scale(sx, sy);
 
-    // joints in local space (origin = feet, up = -y)
-    const hipX = 0, hipY = -hipH;
+    const hipX = sway * moveAmt * Math.sin(p);
+    const hipY = -hipH - bob + breathe;
     const upX = Math.sin(a.lean) * f, upY = -Math.cos(a.lean);
     const shX = hipX + upX * torso, shY = hipY + upY * torso;
     const headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
 
-    const dark = '#2a2f45', darker = '#1b2034';
-    ctx.strokeStyle = dark; ctx.fillStyle = dark;
+    const dark = '#2a2f45', far = '#1f2438';
 
-    const air = !player.grounded;
-
-    // ----- legs (far first for depth) -----
-    function legTarget(phase, planted) {
+    // foot target on the ground for a running gait (swing arc forward, drag back)
+    function footPos(theta, legSign) {
       if (air) {
-        // tuck knees up in the air; reach a little when falling
-        const tuck = clamp(0.5 + player.vy * 0.03, 0.1, 1);
-        const fx = f * (8 - tuck * 4) * (planted ? 0.4 : 1);
-        const fy = -hipH * 0.45 * tuck - (player.vy > 4 ? -player.vy * 0.6 : 0);
-        return { x: hipX + fx, y: Math.min(0, fy) };
+        const tuck = clamp(0.65 - player.vy * 0.045, 0, 1);       // tuck rising, reach falling
+        return { x: legSign * 5 + f * 3, y: -tuck * 13 + Math.max(0, player.vy) * 0.4, ang: 0 };
       }
-      const swing = Math.sin(phase);
-      const fx = f * swing * stride * moveAmt + (planted ? -f * 3 : f * 3) * (1 - moveAmt);
-      const fy = -Math.max(0, swing) * lift * moveAmt;   // lift during forward swing
-      return { x: hipX + fx, y: fy };
+      let c = ((theta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const front = f * strideH, back = -f * strideH;
+      let fx, fy, ang;
+      if (c < Math.PI) {                                          // swing: arc foot forward
+        const t = c / Math.PI, e = t * t * (3 - 2 * t);
+        fx = back + (front - back) * e; fy = -lift * Math.sin(Math.PI * t); ang = -0.3 * (1 - t);
+      } else {                                                    // stance: drag back, planted
+        const t = (c - Math.PI) / Math.PI;
+        fx = front + (back - front) * t; fy = 0; ang = 0;
+      }
+      return { x: fx * moveAmt + legSign * stanceW * (1 - moveAmt), y: fy * moveAmt, ang };
     }
-    const legA = legTarget(a.phase, false);
-    const legB = legTarget(a.phase + Math.PI, true);
-    // far leg (slightly faded + thinner)
-    ctx.strokeStyle = darker;
-    let k = ik(hipX, hipY, legB.x, legB.y, thigh, shin, f);
-    limb(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 5, 4.5);
-    foot(k.ex, k.ey, f);
 
-    // ----- far arm -----
-    function armTarget(phase) {
+    // arm hand target (pendulum swing opposite the legs; raises in the air)
+    function handPos(theta) {
       if (air) {
-        const raise = clamp(0.6 - player.vy * 0.03, -0.4, 1); // arms up rising, out when falling
-        return { x: shX + f * (4 + (1 - raise) * 10), y: shY - raise * 16 + (1 - raise) * 6 };
+        const raise = clamp(0.75 - player.vy * 0.05, -0.5, 1);
+        return { x: shX + f * (5 + (1 - raise) * 9), y: shY - raise * 17 + (1 - raise) * 8 };
       }
-      const swing = Math.sin(phase);
-      return { x: shX + f * swing * armSwing * moveAmt + f * 2, y: shY + (uArm + fArm) * 0.66 - Math.max(0, -swing) * 4 * moveAmt };
+      const sw = Math.sin(theta);
+      return { x: shX + f * sw * armStride * moveAmt + f * 1.5,
+               y: shY + (uArm + fArm) * 0.62 - Math.max(0, sw) * 5 * moveAmt };
     }
-    const armB = armTarget(a.phase);          // opposite phase to legA
-    let ka = ik(shX, shY, armB.x, armB.y, uArm, fArm, -f);
-    limb(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 4.5, 4);
 
-    // ----- torso -----
-    ctx.strokeStyle = dark; ctx.lineWidth = 6; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
+    // ----- far arm + far leg (drawn first, darker for depth) -----
+    ctx.strokeStyle = far;
+    let h = handPos(p);                       // far arm: phase p
+    let ka = ik(shX, shY, h.x, h.y, uArm, fArm, -f);
+    noodle(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 4.5);
+
+    let lt = footPos(p + Math.PI, +1);        // far leg (foot anchored to ground y≈0)
+    let k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, f);
+    noodle(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 5);
+    foot(k.ex, k.ey, f, lt.ang);
+
+    // ----- torso (flexible curved spine with secondary sway) -----
+    ctx.strokeStyle = dark;
+    const spine = f * (1.2 + Math.sin(p) * 2 * moveAmt);
+    noodle(hipX, hipY, (hipX + shX) / 2 + spine, (hipY + shY) / 2, shX, shY, 6);
 
     // ----- near leg -----
-    k = ik(hipX, hipY, legA.x, legA.y, thigh, shin, f);
-    limb(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 5.5, 5);
-    foot(k.ex, k.ey, f);
+    lt = footPos(p, -1);
+    k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, f);
+    noodle(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 5.5);
+    foot(k.ex, k.ey, f, lt.ang);
 
-    // ----- head -----
-    ctx.beginPath(); ctx.arc(headCX, headCY, headR, 0, Math.PI * 2);
-    ctx.fillStyle = dark; ctx.fill();
-    drawFace(headCX, headCY, headR, a, f);
+    // ----- head (plain, faceless) with a soft highlight for form -----
+    const hg = ctx.createRadialGradient(headCX - headR * 0.3, headCY - headR * 0.4, 1, headCX, headCY, headR);
+    hg.addColorStop(0, '#3a4264'); hg.addColorStop(1, dark);
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(headCX, headCY, headR, 0, Math.PI * 2); ctx.fill();
 
-    // ----- near arm -----
-    const armA = armTarget(a.phase + Math.PI);
-    ka = ik(shX, shY, armA.x, armA.y, uArm, fArm, -f);
+    // ----- near arm (front, full color) -----
+    h = handPos(p + Math.PI);
+    ka = ik(shX, shY, h.x, h.y, uArm, fArm, -f);
     ctx.strokeStyle = dark;
-    limb(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 5, 4.5);
+    noodle(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 5);
 
     ctx.restore();
-  }
-  function foot(x, y, f) {
-    ctx.lineCap = 'round'; ctx.lineWidth = 4.5;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + f * 6, y); ctx.stroke();
-  }
-  function drawFace(cx, cy, r, a, f) {
-    // eyes look toward movement; blink squashes them
-    const lookX = a.look * r * 0.28, lookY = a.lookY * r * 0.18;
-    const eo = r * 0.34, ey = cy - r * 0.12 + lookY, ex = cx + lookX;
-    const open = a.blink > 0 ? 0.12 : 1;
-    ctx.fillStyle = '#eaf2ff';
-    for (const s of [-1, 1]) {
-      ctx.save(); ctx.translate(ex + s * eo * 0.7 + f * 1.5, ey); ctx.scale(1, open);
-      ctx.beginPath(); ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    }
-    // mouth: grows into an "o" in the air
-    const m = a.mouth;
-    ctx.strokeStyle = '#eaf2ff'; ctx.fillStyle = '#eaf2ff'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
-    const mx = cx + lookX * 0.6 + f * 1.5, my = cy + r * 0.42;
-    if (m > 0.45) {
-      ctx.beginPath(); ctx.ellipse(mx, my, r * 0.16, r * 0.1 + m * r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-    } else {
-      ctx.beginPath(); ctx.arc(mx, my - r * 0.05, r * 0.22, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
-    }
   }
 
   // ---------- world rendering ----------
