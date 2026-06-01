@@ -1,13 +1,12 @@
 name: Deploy to GitHub Pages
 
 # Publishes the static arcade to GitHub Pages so it can be opened (and
-# installed) on any phone via a public URL. Runs on the default branch and
-# on the feature branch so you can try it before merging.
+# installed) on any phone via a public URL. Deploys from the default branch,
+# which is what the auto-created github-pages environment permits.
 on:
   push:
     branches:
       - main
-      - claude/fun-gaming-app-ozyzf
   workflow_dispatch:
 
 permissions:
