@@ -1,9 +1,9 @@
-/* Stick Leap — a reach-the-flag platformer with a fully procedural,
-   IK-driven stick figure. The character has no sprites: every limb is solved
-   each frame from joint angles, so the run cycle, jump anticipation, landing
-   squash-and-stretch, idle breathing and facial expression are all animated
-   live. Controls: ←/→ or A/D to run, Space/↑/W to jump (hold for height),
-   plus on-screen touch buttons. Single jump with coyote-time + jump buffer. */
+/* Stick Leap — a reach-the-flag platformer with a procedural, IK-driven
+   stick figure in a classic "stickman games" style: a bold solid-black
+   figure on a light background. No sprites — every limb is solved each frame,
+   giving a live run cycle, jump anticipation, landing squash-and-stretch and
+   idle breathing. Controls: ←/→ or A/D to run, Space/↑/W to jump (hold for
+   height), plus on-screen touch buttons. Single jump with coyote + buffer. */
 (() => {
 const PUBLIC = {
   id: 'stickrun',
@@ -18,7 +18,7 @@ const STEP = 1000 / 60;          // fixed physics timestep (ms)
 const GRA = 0.62, MAXV = 3.7, RUN_ACC = 0.7, AIR_ACC = 0.45;
 const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
-const PW = 18, PH = 46;          // player collision box (w, h); y = feet (bottom)
+const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
 
 // ---------- levels (world coords, y down) ----------
 const G = 470;
@@ -91,9 +91,11 @@ PUBLIC.start = function (root, api) {
   const hud = document.createElement('div');
   hud.className = 'hud';
   hud.style.display = 'none';
+  hud.style.color = '#1a1a1a';              // dark text for the light game background
+  hud.style.textShadow = '0 1px 2px rgba(255,255,255,.6)';
   hud.innerHTML = `<span>LVL <b id="sr-lvl">1</b>/3</span>
-    <span class="a">🪙 <b id="sr-coins">0</b></span>
-    <span class="b">⏱ <b id="sr-time">0.0</b></span>`;
+    <span>🪙 <b id="sr-coins" style="color:#b8860b">0</b></span>
+    <span>⏱ <b id="sr-time">0.0</b></span>`;
   root.appendChild(hud);
 
   const style = document.createElement('style');
@@ -102,10 +104,10 @@ PUBLIC.start = function (root, api) {
       opacity:.55;touch-action:none}
     .sr-left{left:max(16px,env(safe-area-inset-left))}
     .sr-right{right:max(16px,env(safe-area-inset-right))}
-    .sr-btn{width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.5);
-      background:rgba(14,18,38,.55);color:#fff;font-size:26px;font-weight:900;display:flex;
+    .sr-btn{width:68px;height:68px;border-radius:50%;border:2.5px solid rgba(22,22,22,.55);
+      background:rgba(255,255,255,.45);color:#161616;font-size:28px;font-weight:900;display:flex;
       align-items:center;justify-content:center;user-select:none;-webkit-user-select:none}
-    .sr-btn:active{background:rgba(255,159,110,.5)}
+    .sr-btn:active{background:rgba(22,22,22,.78);color:#fff}
     @media (hover:hover) and (pointer:fine){ .sr-touch{opacity:.32} }`;
   root.appendChild(style);
 
@@ -233,7 +235,7 @@ PUBLIC.start = function (root, api) {
   }
   function dust(x, y, dir) {
     for (let i = 0; i < 8; i++)
-      particles.push({ x, y, vx: rand(-1, 1) - dir * .6, vy: rand(-1.6, -.2), life: rand(220, 420), max: 420, color: '#cdd9ff', r: rand(1.5, 3) });
+      particles.push({ x, y, vx: rand(-1, 1) - dir * .6, vy: rand(-1.6, -.2), life: rand(220, 420), max: 420, color: '#8f8b7d', r: rand(1.5, 3.5) });
   }
 
   // ---------- physics ----------
@@ -333,34 +335,32 @@ PUBLIC.start = function (root, api) {
     return { jx: baseX + px * h * bend, jy: baseY + py * h * bend, ex, ey };
   }
 
-  // ---------- draw the stick figure (rubber-hose; origin at feet) ----------
-  // A limb is drawn as ONE smooth curve that bows toward its IK joint, so the
-  // body reads as flexible/noodly rather than two stiff rods.
-  function noodle(ax, ay, jx, jy, bx, by, w) {
+  // ---------- draw the stick figure (classic stickman; origin at feet) ----------
+  // Solid black, straight-segment limbs with round joints — no shading.
+  const INK = '#161616';
+  function seg(ax, ay, jx, jy, bx, by, w) {     // two-bone limb: hip→joint→foot
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = w;
-    // pull the control point past the joint a touch to exaggerate the bend
-    const cx = jx + (jx - (ax + bx) / 2) * 0.35, cy = jy + (jy - (ay + by) / 2) * 0.35;
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(cx, cy, bx, by); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(jx, jy); ctx.lineTo(bx, by); ctx.stroke();
   }
   function foot(x, y, f, ang) {
-    ctx.lineCap = 'round'; ctx.lineWidth = 5;
+    ctx.lineCap = 'round'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(x, y);
-    ctx.lineTo(x + Math.cos(ang) * f * 7, y + Math.sin(ang) * 7);
+    ctx.lineTo(x + Math.cos(ang) * f * 9, y + Math.sin(ang) * 9);
     ctx.stroke();
   }
 
   function drawStick(moveAmt) {
     const a = player.anim, f = player.facing, p = a.phase, air = !player.grounded;
     const now = performance.now();
-    // metrics — slightly short hips + long legs so knees stay comfortably bent (flexible)
-    const hipH = 26, torso = 24, neck = 3, headR = 9;
-    const thigh = 18, shin = 17, uArm = 13, fArm = 12;
-    const strideH = 13, lift = 12, armStride = 10, bounceAmp = 6, sway = 2.2, stanceW = 5;
+    // metrics — bigger, with long legs so knees stay comfortably bent
+    const hipH = 34, torso = 32, neck = 3, headR = 12;
+    const thigh = 24, shin = 22, uArm = 17, fArm = 16;
+    const strideH = 17, lift = 16, armStride = 13, bounceAmp = 8, sway = 3, stanceW = 7;
 
-    // bouncy vertical motion of the whole upper body; stance feet stay planted
-    // so the legs compress/extend — that's the bounce. Breathing when idle.
+    // bouncy vertical motion of the upper body; stance feet stay planted so the
+    // legs compress/extend — that's the bounce. Gentle breathing when idle.
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));
-    const breathe = (1 - moveAmt) * Math.sin(now * 0.0027) * 1.3;
+    const breathe = (1 - moveAmt) * Math.sin(now * 0.0027) * 1.6;
 
     ctx.save();
     ctx.translate(player.x, player.y);
@@ -376,13 +376,13 @@ PUBLIC.start = function (root, api) {
     const shX = hipX + upX * torso, shY = hipY + upY * torso;
     const headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
 
-    const dark = '#2a2f45', far = '#1f2438';
+    ctx.strokeStyle = INK; ctx.fillStyle = INK;
 
     // foot target on the ground for a running gait (swing arc forward, drag back)
     function footPos(theta, legSign) {
       if (air) {
         const tuck = clamp(0.65 - player.vy * 0.045, 0, 1);       // tuck rising, reach falling
-        return { x: legSign * 5 + f * 3, y: -tuck * 13 + Math.max(0, player.vy) * 0.4, ang: 0 };
+        return { x: legSign * 6 + f * 4, y: -tuck * 18 + Math.max(0, player.vy) * 0.5, ang: 0 };
       }
       let c = ((theta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
       const front = f * strideH, back = -f * strideH;
@@ -401,65 +401,54 @@ PUBLIC.start = function (root, api) {
     function handPos(theta) {
       if (air) {
         const raise = clamp(0.75 - player.vy * 0.05, -0.5, 1);
-        return { x: shX + f * (5 + (1 - raise) * 9), y: shY - raise * 17 + (1 - raise) * 8 };
+        return { x: shX + f * (6 + (1 - raise) * 12), y: shY - raise * 22 + (1 - raise) * 10 };
       }
       const sw = Math.sin(theta);
-      return { x: shX + f * sw * armStride * moveAmt + f * 1.5,
-               y: shY + (uArm + fArm) * 0.62 - Math.max(0, sw) * 5 * moveAmt };
+      return { x: shX + f * sw * armStride * moveAmt + f * 2,
+               y: shY + (uArm + fArm) * 0.62 - Math.max(0, sw) * 6 * moveAmt };
     }
 
-    // ----- far arm + far leg (drawn first, darker for depth) -----
-    ctx.strokeStyle = far;
-    let h = handPos(p);                       // far arm: phase p
-    let ka = ik(shX, shY, h.x, h.y, uArm, fArm, -f);
-    noodle(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 4.5);
+    // Knees bend FORWARD (in the facing direction): bend = -f.
+    // Elbows trail BACKWARD: bend = +f.
+    // ----- far limbs first (same solid black; just drawn behind) -----
+    let h = handPos(p);                       // far arm
+    let ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
+    seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6);
 
     let lt = footPos(p + Math.PI, +1);        // far leg (foot anchored to ground y≈0)
-    let k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, f);
-    noodle(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 5);
+    let k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
+    seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 7);
     foot(k.ex, k.ey, f, lt.ang);
 
-    // ----- torso (flexible curved spine with secondary sway) -----
-    ctx.strokeStyle = dark;
-    const spine = f * (1.2 + Math.sin(p) * 2 * moveAmt);
-    noodle(hipX, hipY, (hipX + shX) / 2 + spine, (hipY + shY) / 2, shX, shY, 6);
+    // ----- torso -----
+    ctx.lineCap = 'round'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
 
     // ----- near leg -----
     lt = footPos(p, -1);
-    k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, f);
-    noodle(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 5.5);
+    k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
+    seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
     foot(k.ex, k.ey, f, lt.ang);
 
-    // ----- head (plain, faceless) with a soft highlight for form -----
-    const hg = ctx.createRadialGradient(headCX - headR * 0.3, headCY - headR * 0.4, 1, headCX, headCY, headR);
-    hg.addColorStop(0, '#3a4264'); hg.addColorStop(1, dark);
-    ctx.fillStyle = hg;
+    // ----- head (plain solid black) -----
     ctx.beginPath(); ctx.arc(headCX, headCY, headR, 0, Math.PI * 2); ctx.fill();
 
-    // ----- near arm (front, full color) -----
+    // ----- near arm -----
     h = handPos(p + Math.PI);
-    ka = ik(shX, shY, h.x, h.y, uArm, fArm, -f);
-    ctx.strokeStyle = dark;
-    noodle(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 5);
+    ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
+    seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
 
     ctx.restore();
   }
 
-  // ---------- world rendering ----------
+  // ---------- world rendering (light "stickman games" theme) ----------
   function drawBackground(L) {
-    // sky
+    // clean whiteish paper background
     const g = ctx.createLinearGradient(0, 0, 0, view.h);
-    g.addColorStop(0, '#1a2350'); g.addColorStop(1, '#0a0e1f');
+    g.addColorStop(0, '#fbfaf6'); g.addColorStop(1, '#e9e7dd');
     ctx.fillStyle = g; ctx.fillRect(0, 0, view.w, view.h);
-    // parallax hills (two layers)
-    drawHills(L, 0.25, '#141a35', view.h * 0.62, 90);
-    drawHills(L, 0.45, '#1b2444', view.h * 0.72, 70);
-    // stars/dots far
-    ctx.fillStyle = 'rgba(255,255,255,.18)';
-    for (let i = 0; i < 30; i++) {
-      const sx = (i * 137.5 - cam.x * 0.15) % (view.w + 40);
-      ctx.fillRect((sx + view.w) % (view.w + 40) - 20, (i * 53) % (view.h * 0.5), 2, 2);
-    }
+    // one faint distant hill layer for a touch of depth
+    drawHills(L, 0.3, '#dcd9cd', view.h * 0.74, 70);
   }
   function drawHills(L, par, color, baseY, amp) {
     ctx.fillStyle = color;
@@ -474,9 +463,8 @@ PUBLIC.start = function (root, api) {
   }
   function drawPlatform(p) {
     const x = p.x - cam.x, y = p.y - cam.y;
-    ctx.fillStyle = '#3b2f4a'; ctx.fillRect(x, y, p.w, p.h);          // body
-    ctx.fillStyle = '#ff9f6e'; ctx.fillRect(x, y, p.w, 7);            // lip
-    ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.fillRect(x, y + 7, p.w, 3);
+    ctx.fillStyle = '#cbc7b8'; ctx.fillRect(x, y, p.w, p.h);          // light body
+    ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 5);                 // bold black ledge
   }
   function drawCoin(c) {
     if (c.got) return;
@@ -484,15 +472,16 @@ PUBLIC.start = function (root, api) {
     const spin = Math.cos(performance.now() * 0.005 + c.x);
     ctx.save(); ctx.translate(x, y); ctx.scale(Math.abs(spin) * 0.8 + 0.2, 1);
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 9);
-    g.addColorStop(0, '#fff2b0'); g.addColorStop(.6, '#ffd45e'); g.addColorStop(1, '#e0a92e');
+    g.addColorStop(0, '#ffe07a'); g.addColorStop(.7, '#f5b424'); g.addColorStop(1, '#c8901a');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 8.5, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#8a5e10'; ctx.stroke();
     ctx.restore();
   }
   function drawFlag(L) {
     const x = L.flag.x - cam.x, y = L.flag.y - cam.y;
-    ctx.strokeStyle = '#eaf2ff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 80); ctx.stroke();
-    ctx.fillStyle = '#ff5ec4'; ctx.beginPath();
+    ctx.fillStyle = '#e23b4e'; ctx.beginPath();
     ctx.moveTo(x, y - 80);
     for (let i = 0; i <= 8; i++) {
       const t = i / 8, wob = Math.sin(flagWave + t * 6) * 5 * t;
