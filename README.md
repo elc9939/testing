@@ -1,6 +1,6 @@
-# Star Drifter 🚀
+# Mini Arcade 🕹️
 
-A fun, fast, single-file arcade game. No build step, no dependencies — just open it and play.
+A pocketful of fun browser games behind one menu. Pure vanilla HTML/CSS/JS — **no build step, no dependencies**. Just open it and play.
 
 ## Play
 
@@ -13,16 +13,44 @@ python3 -m http.server 8000
 # then visit http://localhost:8000
 ```
 
-## How to play
+Press **Esc** or the **‹ Menu** button to return to the arcade at any time. High scores are saved in your browser.
 
-Pilot your ship through an endless storm of asteroids and survive as long as you can.
+## The games
 
-- **Move:** Mouse, touch, or arrow keys / WASD
-- **🔵 Orbs** — fly into them for bonus points
-- **🛡️ Shield** — absorbs one hit
-- **🐢 Slow-mo** — briefly slows everything down
-- **✨ Score x2** — doubles points for a while
+| Game | What it is |
+| --- | --- |
+| 🚀 **Star Drifter** | Dodge an endless asteroid storm. Grab orbs for points and 🛡️/🐢/✨ power-ups. |
+| 🐍 **Neon Snake** | Classic snake — eat fruit, grow, don't crash. Speeds up as you go. |
+| 🧱 **Brick Blaster** | Paddle-and-ball brick breaker with 9 increasingly tricky levels. |
+| 🧠 **Memory Match** | Flip tiles to pair every emoji in the fewest moves. |
+| 🎯 **Reaction Rush** | 30-second target-tapping frenzy with a combo multiplier. |
+| ⭕ **Tic-Tac-Toe** | Face a flawless minimax AI. You can't win — but can you force a draw? |
 
-You have 3 lives. The longer you survive, the faster it gets. Your best score is saved locally.
+## Project layout
 
-Good luck, pilot. ✦
+```
+index.html              arcade shell + menu
+css/style.css           shared styling
+js/arcade.js            framework: game registry, menu, lifecycle, helpers
+js/games/*.js           one self-contained module per game
+```
+
+### Adding a game
+
+Each game self-registers with the shell:
+
+```js
+Arcade.register({
+  id: 'mygame', name: 'My Game', emoji: '🎮',
+  desc: 'One-line pitch shown on the menu card.',
+  color: '#5ef2ff',
+  start(root, api) { /* mount your game into `root` */ },
+  stop() { /* optional: clean up timers etc. */ },
+});
+```
+
+The `api` passed to `start` provides managed helpers that auto-clean on exit:
+`makeCanvas(root)`, `loop(cb)`, `on(target, type, fn)`, and `getBest/setBest(key)`
+for persistent high scores. Add a `<script>` tag for the new file in `index.html` and it appears on the menu.
+
+Enjoy! ✦
