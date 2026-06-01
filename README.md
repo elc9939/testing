@@ -4,13 +4,14 @@ A pocketful of fun browser games behind one menu. Pure vanilla HTML/CSS/JS — *
 
 ## 📱 Play on your phone (easiest)
 
-This repo auto-deploys to **GitHub Pages**, so you get a link you can just tap open — no computer, no setup.
-
-**One-time setup:** in the repo go to **Settings → Pages → Build and deployment → Source → "GitHub Actions"**. After that, every push runs the *Deploy to GitHub Pages* workflow and publishes the site to:
+This repo auto-deploys to **GitHub Pages**, so you get a link you can just tap open — no computer, no setup. The deploy workflow enables Pages for you on its first run, then publishes on every push to:
 
 ```
 https://elc9939.github.io/testing/
 ```
+
+> If the first deploy ever fails to self-enable, turn it on manually once at
+> **Settings → Pages → Build and deployment → Source → "GitHub Actions"** and re-run the workflow.
 
 Open that URL on your phone and play. To make it feel like a real app:
 

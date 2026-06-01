@@ -31,7 +31,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure Pages
+        # enablement: true turns on GitHub Pages (with the Actions build type)
+        # automatically on the first run, so no manual Settings toggle is needed.
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       # Assemble ONLY the static game files. This deliberately excludes
       # .env, *.json, notebooks and other repo content so nothing private
