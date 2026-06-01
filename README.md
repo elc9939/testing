@@ -43,6 +43,7 @@ Press **Esc** or the **‹ Menu** button to return to the arcade at any time.
 | 🧠 **Memory Match** | Flip tiles to pair every emoji in the fewest moves. |
 | 🎯 **Reaction Rush** | 30-second target-tapping frenzy with a combo multiplier. |
 | ⭕ **Tic-Tac-Toe** | Face a flawless minimax AI. You can't win — but can you force a draw? |
+| 🏃 **Stick Leap** | Reach-the-flag platformer starring a hand-animated stick figure (procedural IK skeleton: live run cycle, jump anticipation, landing squash, blink & expression). Run + jump across 3 levels. |
 
 ## Project layout
 
