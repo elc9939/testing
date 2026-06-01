@@ -2,18 +2,35 @@
 
 A pocketful of fun browser games behind one menu. Pure vanilla HTML/CSS/JS — **no build step, no dependencies**. Just open it and play.
 
-## Play
+## 📱 Play on your phone (easiest)
 
-Open `index.html` in any modern browser (desktop or mobile).
+This repo auto-deploys to **GitHub Pages**, so you get a link you can just tap open — no computer, no setup.
 
-Or serve it locally:
+**One-time setup:** in the repo go to **Settings → Pages → Build and deployment → Source → "GitHub Actions"**. After that, every push runs the *Deploy to GitHub Pages* workflow and publishes the site to:
+
+```
+https://elc9939.github.io/testing/
+```
+
+Open that URL on your phone and play. To make it feel like a real app:
+
+- **iPhone (Safari):** tap **Share → Add to Home Screen**.
+- **Android (Chrome):** tap **⋮ → Install app** (or *Add to Home screen*).
+
+It then launches full-screen from your home screen and **works offline** (it's an installable PWA). High scores are saved on your device.
+
+> The Pages deploy publishes **only** the game files (`index.html`, `css/`, `js/`, `icons/`, `manifest.webmanifest`, `sw.js`) — never `.env` or anything else in the repo.
+
+## Play locally
+
+Open `index.html` in any modern browser, or serve it:
 
 ```bash
 python3 -m http.server 8000
-# then visit http://localhost:8000
+# then visit http://localhost:8000  (or http://<your-computer-ip>:8000 from a phone on the same Wi-Fi)
 ```
 
-Press **Esc** or the **‹ Menu** button to return to the arcade at any time. High scores are saved in your browser.
+Press **Esc** or the **‹ Menu** button to return to the arcade at any time.
 
 ## The games
 
@@ -29,10 +46,15 @@ Press **Esc** or the **‹ Menu** button to return to the arcade at any time. Hi
 ## Project layout
 
 ```
-index.html              arcade shell + menu
+index.html              arcade shell + menu (+ PWA meta & SW registration)
 css/style.css           shared styling
 js/arcade.js            framework: game registry, menu, lifecycle, helpers
 js/games/*.js           one self-contained module per game
+manifest.webmanifest    PWA manifest (installable app metadata)
+sw.js                   service worker — caches everything for offline play
+icons/                  app icons (192/512 for PWA, 180 for iOS)
+scripts/gen-icons.js    regenerates the PNG icons (node scripts/gen-icons.js)
+.github/workflows/      GitHub Pages auto-deploy
 ```
 
 ### Adding a game

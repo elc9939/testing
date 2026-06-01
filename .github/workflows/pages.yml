@@ -1,0 +1,52 @@
+name: Deploy to GitHub Pages
+
+# Publishes the static arcade to GitHub Pages so it can be opened (and
+# installed) on any phone via a public URL. Runs on the default branch and
+# on the feature branch so you can try it before merging.
+on:
+  push:
+    branches:
+      - main
+      - claude/fun-gaming-app-ozyzf
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; newer pushes supersede in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # Assemble ONLY the static game files. This deliberately excludes
+      # .env, *.json, notebooks and other repo content so nothing private
+      # is ever published to the public site.
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp index.html manifest.webmanifest sw.js _site/
+          cp -r css js icons _site/
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
