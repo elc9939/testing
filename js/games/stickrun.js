@@ -34,8 +34,8 @@ const CLASSES = [
     style: { hipH: 44, stanceW: 10, strideH: 12, lift: 9, bounceAmp: 4.4, cadence: 0.72, armStride: 8, baseLean: 0.01, squash: 1.25,
       breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
   { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast, twitchy daggers.',
-    weapon: 'dagger', main: 'dualSlash', alt: 'throw', move: 'roll',
-    reach: 0.78, speedMul: 1.32, trail: [150, 255, 110], dur: { dualSlash: 330, throw: 170, legSweep: 260 }, moveDur: { roll: 360, slide: 300 }, dual: true,
+    weapon: 'dagger', main: 'dualSlash', alt: 'throw', move: 'slide',
+    reach: 0.78, speedMul: 1.32, trail: [150, 255, 110], dur: { dualSlash: 330, throw: 235, legSweep: 260 }, moveDur: { slide: 300 }, dual: true,
     // athletic & quick: low knife stance, long smooth strides, restless hands
     style: { hipH: 46, stanceW: 5, strideH: 15, lift: 7, bounceAmp: 1.0, cadence: 1.14, armStride: 12, baseLean: 0.08, squash: 0.9,
       breatheAmp: 1.1, breatheSpd: 0.0034, hover: 0, idle: 'sneak', spring: { lean: [150, 9], head: [120, 9], aim: [170, 12] } } },
@@ -202,7 +202,19 @@ PUBLIC.start = function (root, api) {
   const input = { left: false, right: false, down: false, jumpHeld: false };
   const pointer = { x: 0, y: 0, active: false };   // cursor, sets the attack direction
   let jumpBuf = 0;
-  const press = (held) => { if (held) { jumpBuf = BUFFER; input.jumpHeld = true; } else input.jumpHeld = false; };
+  const press = (held) => {
+    if (held && player && state === 'playing' && cls.id === 'rogue' && !player.grounded && player.coyote <= 0 && !player.rogueAirJump) {
+      player.rogueAirJump = true;
+      player.vy = JUMP * 0.78;
+      player.vx += player.facing * 1.7;
+      player.flip = { active: true, t: 0, dur: 520, dir: player.facing };
+      player.anim.squash = -0.35;
+      burst(player.x, player.y - 34, cls.color, 12, 2.8);
+      jumpBuf = 0; input.jumpHeld = true;
+      return;
+    }
+    if (held) { jumpBuf = BUFFER; input.jumpHeld = true; } else input.jumpHeld = false;
+  };
   function aimedAngle() {
     const shX = player.x, shY = player.y - 77;
     const tx = pointer.active ? pointer.x + cam.x : shX + player.facing * 60;
@@ -230,7 +242,7 @@ PUBLIC.start = function (root, api) {
   function triggerMove() {
     if (!player || state !== 'playing' || !cls.move || player.move.active) return false;
     let type = cls.move;
-    if (cls.id === 'rogue') type = input.down || Math.abs(player.vx) > 1.4 ? 'slide' : 'roll';
+    if (cls.id === 'rogue') type = 'slide';
     const dur = (cls.moveDur && cls.moveDur[type]) || 320;
     player.move = { active: true, type, t: 0, dur, struck: false };
     if (type === 'airDash') {
@@ -301,8 +313,9 @@ PUBLIC.start = function (root, api) {
   function makePlayer(spawn) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
-      grounded: false, coyote: 0, jumpCut: false, airTime: 0, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0,
+      grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0,
       move: { active: false, type: null, t: 0, dur: 0, struck: false },
+      flip: { active: false, t: 0, dur: 0, dir: 1 },
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
               struck: false, struck2: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, fly: 0, _dt: 0.016,
               bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0 },
@@ -405,6 +418,22 @@ PUBLIC.start = function (root, api) {
   // ---------- physics ----------
   function box() { return { x: player.x - PW / 2, y: player.y - PH, w: PW, h: PH }; }
   function hit(b, p) { return b.x < p.x + p.w && b.x + b.w > p.x && b.y < p.y + p.h && b.y + b.h > p.y; }
+  function pointSegDist(px, py, ax, ay, bx, by) {
+    const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1;
+    const t = clamp(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1);
+    const x = ax + vx * t, y = ay + vy * t;
+    return Math.hypot(px - x, py - y);
+  }
+  function closestPointOnSeg(px, py, ax, ay, bx, by) {
+    const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1;
+    const t = clamp(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1);
+    return { x: ax + vx * t, y: ay + vy * t };
+  }
+  function pointAabbDist(px, py, r) {
+    const dx = Math.max(r.x - px, 0, px - (r.x + r.w));
+    const dy = Math.max(r.y - py, 0, py - (r.y + r.h));
+    return Math.hypot(dx, dy);
+  }
 
   // dynamic crates: gravity, terrain + box-box collision, friction, bounce, and SPIN
   function updateBoxes() {
@@ -443,6 +472,35 @@ PUBLIC.start = function (root, api) {
   // attacks shove nearby crates
   function hitBoxes(ix, iy, dx, dy, force) {
     for (const b of boxes) if (Math.hypot(b.x + b.w / 2 - ix, b.y + b.h / 2 - iy) < 52) pushBox(b, dx, dy, force);
+  }
+  function hitBoxesSegment(ax, ay, bx, by, dx, dy, force, radius) {
+    const sx = bx - ax, sy = by - ay, sl = Math.hypot(sx, sy) || 1;
+    const nx = dx == null ? sx / sl : dx, ny = dy == null ? sy / sl : dy;
+    for (const b of boxes) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      const p = closestPointOnSeg(cx, cy, ax, ay, bx, by);
+      if (pointAabbDist(p.x, p.y, b) <= radius) pushBox(b, nx, ny, force);
+    }
+  }
+  function projectileHitsBox(p, ax, ay, b) {
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    const q = closestPointOnSeg(cx, cy, ax, ay, p.x, p.y);
+    const r = p.kind === 'dagger' || p.kind === 'arrow' ? 4.5 : p.r || 8;
+    return pointAabbDist(q.x, q.y, b) <= r;
+  }
+  function bodyCapsules() {
+    const S = cls.style, hip = { x: player.x, y: player.y - S.hipH };
+    const sh = { x: player.x + player.anim.lean * player.facing * 14, y: hip.y - 30 };
+    return [
+      { ax: sh.x, ay: sh.y, bx: hip.x, by: hip.y, r: 8 },
+      { ax: sh.x, ay: sh.y - 16, bx: sh.x, by: sh.y - 16, r: 13 },
+      { ax: hip.x - player.facing * 4, ay: hip.y, bx: player.x - 9, by: player.y, r: 5 },
+      { ax: hip.x + player.facing * 4, ay: hip.y, bx: player.x + 9, by: player.y, r: 5 },
+    ];
+  }
+  function coinTouchesPlayer(c) {
+    const coinR = 9, pad = 2;
+    return bodyCapsules().some(s => pointSegDist(c.x, c.y, s.ax, s.ay, s.bx, s.by) <= s.r + coinR + pad);
   }
   function pushBoxesRadial(x, y, force, radius) {
     for (const b of boxes) {
@@ -503,7 +561,7 @@ PUBLIC.start = function (root, api) {
     let m = MAXV * cls.speedMul;
     if (mageHovering()) m *= 1.62;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
-    if (activeMove('roll') || activeMove('slide')) m = Math.max(m, 8.0);
+    if (activeMove('slide')) m = Math.max(m, 8.0);
     if (activeMove('lanceCharge') || activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
     return m;
@@ -513,19 +571,27 @@ PUBLIC.start = function (root, api) {
     if (!m.active) return;
     m.t += STEP / m.dur;
     const t = clamp(m.t, 0, 1), bell = Math.sin(t * Math.PI);
-    if (m.type === 'roll') {
-      player.vx = player.facing * (4.8 + 3.0 * (1 - ease(t)));
-      if (!m.struck && t > 0.42) { m.struck = true; hitBoxes(player.x + player.facing * 24, player.y - 24, player.facing, -0.2, 8); }
-    } else if (m.type === 'slide') {
+    if (m.type === 'slide') {
       player.vx = player.facing * (6.8 + 1.8 * (1 - t));
       player.vy = Math.min(player.vy, 1.5);
-      if (!m.struck && t > 0.32) { m.struck = true; hitBoxes(player.x + player.facing * 34, player.y - 12, player.facing, -0.4, 14); burst(player.x + player.facing * 30, player.y - 10, cls.color, 10, 3); }
+      if (!m.struck && t > 0.32) {
+        m.struck = true;
+        hitBoxesSegment(player.x + player.facing * 4, player.y - 8, player.x + player.facing * 58, player.y - 8, player.facing, -0.35, 14, 11);
+        burst(player.x + player.facing * 30, player.y - 10, cls.color, 10, 3);
+      }
     } else if (m.type === 'shieldStep') {
       player.vx = player.facing * (3.4 + bell * 2.6);
-      if (!m.struck && t > 0.36) { m.struck = true; hitBoxes(player.x + player.facing * 36, player.y - 34, player.facing, -0.1, 18); burst(player.x + player.facing * 30, player.y - 34, cls.color, 12, 3); }
+      if (!m.struck && t > 0.36) {
+        m.struck = true;
+        hitBoxesSegment(player.x + player.facing * 28, player.y - 56, player.x + player.facing * 42, player.y - 24, player.facing, -0.1, 18, 14);
+        burst(player.x + player.facing * 30, player.y - 34, cls.color, 12, 3);
+      }
     } else if (m.type === 'brace') {
       player.vx = player.facing * (2.4 + bell * 2.2);
-      if (!m.struck && t > 0.48) { m.struck = true; hitBoxes(player.x + player.facing * 48, player.y - 42, player.facing, -0.15, 20); }
+      if (!m.struck && t > 0.48) {
+        m.struck = true;
+        hitBoxesSegment(player.x + player.facing * 10, player.y - 62, player.x + player.facing * 92, player.y - 64, player.facing, -0.05, 20, 9);
+      }
     } else if (m.type === 'airDash') {
       player.vx = player.facing * (7.4 - t * 1.4);
       player.vy = Math.min(player.vy, -0.35 + t * 1.2);
@@ -536,12 +602,25 @@ PUBLIC.start = function (root, api) {
       player.vy = Math.min(player.vy, 1.2);
     } else if (m.type === 'vault') {
       if (t < 0.56) { player.vx = player.facing * (3.8 + bell * 2.2); player.vy = Math.min(player.vy, -3.2 + t * 7); }
-      if (!m.struck && t > 0.36) { m.struck = true; hitBoxes(player.x + player.facing * 36, player.y - 34, player.facing, -0.8, 17); burst(player.x + player.facing * 28, player.y - 38, cls.color, 11, 3.2); }
+      if (!m.struck && t > 0.36) {
+        m.struck = true;
+        hitBoxesSegment(player.x + player.facing * 10, player.y - 34, player.x + player.facing * 64, player.y - 48, player.facing, -0.8, 17, 11);
+        burst(player.x + player.facing * 28, player.y - 38, cls.color, 11, 3.2);
+      }
     } else if (m.type === 'shoulder') {
       player.vx = player.facing * (5.4 + bell * 2.4);
-      if (!m.struck && t > 0.34) { m.struck = true; hitBoxes(player.x + player.facing * 36, player.y - 32, player.facing, 0, 22); burst(player.x + player.facing * 28, player.y - 32, cls.color, 12, 3); }
+      if (!m.struck && t > 0.34) {
+        m.struck = true;
+        hitBoxesSegment(player.x + player.facing * 18, player.y - 52, player.x + player.facing * 46, player.y - 28, player.facing, 0, 22, 15);
+        burst(player.x + player.facing * 28, player.y - 32, cls.color, 12, 3);
+      }
     }
     if (m.t >= 1) player.move = { active: false, type: null, t: 0, dur: 0, struck: false };
+  }
+  function updateRogueFlip() {
+    if (!player.flip || !player.flip.active) return;
+    player.flip.t += STEP / player.flip.dur;
+    if (player.flip.t >= 1) player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
   }
 
   function physics() {
@@ -551,6 +630,7 @@ PUBLIC.start = function (root, api) {
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
     else if (player.grounded) player.vx *= FRICTION;
     updateClassMove();
+    updateRogueFlip();
     player.vx = clamp(player.vx, -maxV(), maxV());
 
     const g = cls.gravityMul || 1;
@@ -612,11 +692,14 @@ PUBLIC.start = function (root, api) {
         player.grounded = Math.abs(player.y - targetY) < 8;
       }
     }
-    if (player.grounded) { player.coyote = COYOTE; player.jumpCut = false; player.airTime = 0; }
+    if (player.grounded) {
+      player.coyote = COYOTE; player.jumpCut = false; player.airTime = 0; player.rogueAirJump = false;
+      if (player.flip && player.flip.active) player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
+    }
     else { if (player.coyote > 0) player.coyote--; player.airTime++; }
 
     // coins
-    for (const c of coinsLeft) if (!c.got && Math.hypot(c.x - player.x, c.y - (player.y - PH / 2)) < 22) {
+    for (const c of coinsLeft) if (!c.got && coinTouchesPlayer(c)) {
       c.got = true; runCoins++; burst(c.x, c.y, '#ffd45e', 12, 3.5); syncHud();
     }
     // flag
@@ -631,6 +714,8 @@ PUBLIC.start = function (root, api) {
     burst(player.x, Math.min(player.y, LEVELS[li].h), '#ff6b6b', 16, 4);
     player.x = s.x; player.y = s.y; player.vx = player.vy = 0; player.grounded = false;
     player.move = { active: false, type: null, t: 0, dur: 0, struck: false };
+    player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
+    player.rogueAirJump = false;
   }
 
   function centerCam(snap) {
@@ -670,7 +755,8 @@ PUBLIC.start = function (root, api) {
     return moveAmt;
   }
   function strikePoint(type) {
-    if (type === 'throw' || type === 'arrow') return 0.24;
+    if (type === 'throw') return 0.46;
+    if (type === 'arrow') return 0.24;
     if (type === 'volley') return 0.32;
     if (type === 'cast') return 0.38;
     if (type === 'arcaneBloom' || type === 'quake') return 0.48;
@@ -698,13 +784,29 @@ PUBLIC.start = function (root, api) {
     freeze = type === 'lanceCharge' ? 44 : type === 'crush' ? 42 : type === 'shieldBash' ? 30 : type === 'legSweep' ? 22 : heavy ? 36 : 24;
     player.vx += player.facing * (type === 'lanceCharge' ? 15 : type === 'braceThrust' ? 8.5 : type === 'shieldBash' ? 6.5 : type === 'dualSlash' ? 3.6 : type === 'vaultKick' ? 7 : type === 'crush' ? 5 : 5.5);
     if (type === 'vaultKick') { player.vy = Math.min(player.vy, -4.6); player.grounded = false; }
-    const reach = type === 'lanceCharge' ? 116 : type === 'braceThrust' ? 98 : type === 'shieldBash' ? 48 : type === 'legSweep' ? 46 : type === 'crush' ? 80 : 34 + cls.reach * 36;
-    const tx = type === 'legSweep' ? player.x + player.facing * reach : player.x + Math.cos(ang) * reach;
-    const ty = type === 'legSweep' ? player.y - 12 : (player.y - 77) + Math.sin(ang) * reach;
-    const dx = type === 'legSweep' ? player.facing : Math.cos(ang), dy = type === 'legSweep' ? -0.5 : Math.sin(ang);
-    hitBoxes(tx, ty, dx, dy, type === 'lanceCharge' ? 32 : type === 'braceThrust' ? 24 : type === 'shieldBash' ? 21 : type === 'crush' ? 30 : type === 'legSweep' ? 18 : 14);
-    burst(tx, ty, cls.color, type === 'dualSlash' ? 12 : heavy ? 22 : 15, type === 'dualSlash' ? 3.4 : 5.2);
-    if (type !== 'dualSlash') burst(tx, ty, '#ffffff', heavy ? 12 : 8, 3.4);
+    const seg = meleeSegment(type, ang, phase);
+    hitBoxesSegment(seg.ax, seg.ay, seg.bx, seg.by, seg.dx, seg.dy, seg.force, seg.r);
+    burst(seg.bx, seg.by, cls.color, type === 'dualSlash' ? 12 : heavy ? 22 : 15, type === 'dualSlash' ? 3.4 : 5.2);
+    if (type !== 'dualSlash') burst(seg.bx, seg.by, '#ffffff', heavy ? 12 : 8, 3.4);
+  }
+  function meleeSegment(type, ang, phase) {
+    const f = player.facing, shX = player.x, shY = player.y - 72;
+    if (type === 'legSweep') return { ax: player.x + f * 2, ay: player.y - 10, bx: player.x + f * 64, by: player.y - 7, dx: f, dy: -0.35, force: 18, r: 10 };
+    if (type === 'shieldBash') return { ax: player.x + f * 38, ay: player.y - 56, bx: player.x + f * 42, by: player.y - 26, dx: f, dy: -0.1, force: 21, r: 15 };
+    if (type === 'lanceCharge') return { ax: shX + f * 8, ay: shY + 10, bx: shX + f * 128, by: shY + 4, dx: f, dy: -0.04, force: 32, r: 8 };
+    if (type === 'braceThrust') return { ax: shX + f * 6, ay: shY + 8, bx: shX + f * 108, by: shY + 2, dx: f, dy: -0.04, force: 24, r: 8 };
+    if (type === 'crush') return { ax: shX + f * 18, ay: shY - 8, bx: shX + f * 58, by: player.y - 12, dx: f * 0.55, dy: 0.9, force: 30, r: 18 };
+    if (type === 'staffSweep') {
+      const side = Math.cos(ang) >= 0 ? 1 : -1, a = ang + side * 0.55;
+      return { ax: shX - Math.cos(a) * 22, ay: shY - Math.sin(a) * 22, bx: shX + Math.cos(a) * 62, by: shY + Math.sin(a) * 62, dx: Math.cos(a), dy: Math.sin(a), force: 17, r: 9 };
+    }
+    if (type === 'vaultKick') return { ax: player.x + f * 8, ay: player.y - 38, bx: player.x + f * 66, by: player.y - 48, dx: f, dy: -0.7, force: 17, r: 11 };
+    if (type === 'dualSlash') {
+      const hand = phase === 0 ? 1 : -1, a = rogueSlashAngle(phase === 0 ? 0.40 : 0.68, ang, hand);
+      return { ax: shX + f * 5, ay: shY, bx: shX + Math.cos(a) * 58, by: shY + Math.sin(a) * 58, dx: Math.cos(a), dy: Math.sin(a), force: 14, r: 11 };
+    }
+    const len = type === 'lanceCharge' ? 120 : type === 'braceThrust' ? 104 : 42 + cls.reach * 32;
+    return { ax: shX, ay: shY, bx: shX + Math.cos(ang) * len, by: shY + Math.sin(ang) * len, dx: Math.cos(ang), dy: Math.sin(ang), force: 16, r: 10 };
   }
   // a fast, punchy magic bolt (size = power)
   function spawnBolt(ang, power) {
@@ -715,8 +817,8 @@ PUBLIC.start = function (root, api) {
   }
   // a straight thrown dagger that can be recovered after landing
   function spawnDagger(ang) {
-    const shX = player.x, shY = player.y - 70, spd = 21;
-    const mx = shX + Math.cos(ang) * 30, my = shY + Math.sin(ang) * 30;
+    const shX = player.x + player.facing * 11, shY = player.y - 96, spd = 22;
+    const mx = shX + Math.cos(ang) * 22, my = shY + Math.sin(ang) * 10;
     projectiles.push({ kind: 'dagger', x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: 11 });
   }
   function spawnArrow(ang, power) {
@@ -927,6 +1029,10 @@ PUBLIC.start = function (root, api) {
   function drawStick(moveAmt) {
     const a = player.anim, f = player.facing, p = a.phase, air = a.air;
     const fly = a.fly || 0, moveType = player.move.active ? player.move.type : null, moveT = player.move.active ? clamp(player.move.t, 0, 1) : 0;
+    const flipActive = player.flip && player.flip.active;
+    const flipT = flipActive ? clamp(player.flip.t, 0, 1) : 0;
+    const flipCurl = flipActive ? Math.sin(flipT * Math.PI) : 0;
+    const flipLead = flipActive ? Math.sin(flipT * Math.PI * 2) : 0;
     const now = performance.now();
     // metrics — body proportions are shared; STANCE & motion come from the class style
     const S = cls.style;
@@ -951,9 +1057,12 @@ PUBLIC.start = function (root, api) {
 
     let postureLean = 0, guardCrouch = 0;            // (no cursor aiming for now)
     if (moveType === 'slide') { postureLean -= f * 0.26; guardCrouch = 13 * Math.sin(moveT * Math.PI); }
-    else if (moveType === 'roll') { guardCrouch = 10 * Math.sin(moveT * Math.PI); }
     else if (moveType === 'shoulder' || moveType === 'shieldStep' || moveType === 'brace') postureLean += f * 0.16 * Math.sin(moveT * Math.PI);
     else if (moveType === 'airDash') postureLean += f * 0.22;
+    if (flipActive) {
+      postureLean += player.flip.dir * (Math.PI * 2 * ease(flipT) + 0.18 * flipLead);
+      guardCrouch -= 8 * flipCurl;
+    }
 
     // ----- attack scalars (whole-body reaction) -----
     let atkLean = 0, atkHip = 0, slashT = null, stabT = null, lungeT = null, castT = null, throwT = null, shootT = null;
@@ -963,7 +1072,7 @@ PUBLIC.start = function (root, api) {
       else if (ty === 'lunge' || ty === 'lanceCharge') { lungeT = t; const l = Math.max(0, lungeReach(t)); atkHip = f * l * 20; atkLean = f * l * 0.19; }
       else if (ty === 'cast' || ty === 'arcaneBloom') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
       else if (ty === 'arrow' || ty === 'volley') { shootT = t; atkHip = -f * bell * 2; atkLean = -f * bell * 0.05; }
-      else if (ty === 'throw') { throwT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.10; }
+      else if (ty === 'throw') { throwT = t; atkHip = f * bell * 3; atkLean = -f * 0.08 + f * bell * 0.14; }
       else { slashT = t; atkHip = f * bell * (ty === 'dualSlash' ? 4 : 6); atkLean = f * bell * (ty === 'dualSlash' ? 0.11 : 0.16); }   // slash body commit
     }
 
@@ -973,18 +1082,17 @@ PUBLIC.start = function (root, api) {
     const sy = (1 - a.squash * 0.40 * S.squash) * (1 + runPulse);
     const sx = (1 + a.squash * 0.36 * S.squash) * (1 - runPulse * 0.6);
     ctx.scale(sx, sy);
-    if (moveType === 'roll') {
-      ctx.translate(0, -24);
-      ctx.rotate(f * Math.PI * 2 * ease(moveT));
-      ctx.translate(0, 24);
-    }
 
     const hipX = sway * moveAmt * Math.sin(p) * (1 - air) + atkHip + idleX;
-    const hipY = -hipH + bob + guardCrouch + breathe + idleY;
+    const hipY = -hipH + bob + guardCrouch + breathe + idleY - flipCurl * 7;
     const lean = a.lean + atkLean + postureLean;
     const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
     const shX = hipX + upX * torso, shY = hipY + upY * torso;
-    const headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
+    let headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
+    if (flipActive) {
+      headCX = lerp(headCX, hipX - player.flip.dir * (8 + flipLead * 5), flipCurl * 0.55);
+      headCY = lerp(headCY, hipY - 18 + Math.abs(flipLead) * 5, flipCurl * 0.55);
+    }
 
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
 
@@ -1012,8 +1120,10 @@ PUBLIC.start = function (root, api) {
         const sweep = Math.sin(Math.min(1, a.atkT) * Math.PI);
         foot.x = frontLeg ? f * (18 + 30 * sweep) : -f * 10;
         foot.y = frontLeg ? -2 : -8;
-      } else if (moveType === 'roll') {
-        foot.x = legSign * 8; foot.y = -18 + legSign * 3;
+      } else if (flipActive) {
+        const kick = Math.sin((flipT + (legSign > 0 ? 0.10 : -0.06)) * Math.PI * 2);
+        foot.x = lerp(foot.x, -player.flip.dir * (12 + flipCurl * 16) + legSign * (7 - flipCurl * 2) + kick * 3, flipCurl);
+        foot.y = lerp(foot.y, -18 + legSign * 4 + flipCurl * 9, flipCurl);
       }
       return foot;
     }
@@ -1029,7 +1139,11 @@ PUBLIC.start = function (root, api) {
         hand.x = lerp(hand.x, shX - f * (18 + Math.sin(theta) * 5), fly);
         hand.y = lerp(hand.y, shY + 14 + Math.cos(theta) * 5, fly);
       }
-      if (moveType === 'roll') { hand.x = shX; hand.y = shY + 20; }
+      if (flipActive) {
+        const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
+        hand.x = lerp(hand.x, shX - player.flip.dir * (12 + flipCurl * 14) + sweep * 5, flipCurl);
+        hand.y = lerp(hand.y, shY + 10 + flipCurl * 12, flipCurl);
+      }
       return hand;
     }
 
@@ -1141,9 +1255,19 @@ PUBLIC.start = function (root, api) {
       } else if (stabT !== null) {
         const sr = Math.max(0, stabReach(stabT)); stretch = 1 + sr * 0.8; ext = sr;
       } else if (throwT !== null) {
-        // cock back, then whip forward (knife released at the strike frame)
-        if (throwT < 0.24) { aim = a.atkAim - 0.42 * f * ease(throwT / 0.24); ext = -0.18 * ease(throwT / 0.24); }
-        else { ext = 0.92 - 0.92 * ease(clamp((throwT - 0.24) / 0.34, 0, 1)); stretch = 1 + Math.max(0, ext) * 0.38; }
+        const wind = -Math.PI / 2 - f * 0.62;
+        if (throwT < 0.36) {
+          aim = lerpAngle(a.atkAim, wind, ease(throwT / 0.36));
+          ext = 0.42 + 0.18 * ease(throwT / 0.36);
+        } else if (throwT < 0.56) {
+          aim = lerpAngle(wind, a.atkAim, ease((throwT - 0.36) / 0.20));
+          ext = 0.96;
+          stretch = 1.24;
+        } else {
+          aim = lerpAngle(a.atkAim, a.atkAim + f * 0.28, ease(clamp((throwT - 0.56) / 0.44, 0, 1)));
+          ext = lerp(0.88, 0.46, ease(clamp((throwT - 0.56) / 0.44, 0, 1)));
+          stretch = 1.08;
+        }
       } else if (shootT !== null) {
         aim = a.atkAim;
         const draw = shootT < 0.28 ? ease(shootT / 0.28) : 1 - ease(clamp((shootT - 0.28) / 0.34, 0, 1));
@@ -1176,8 +1300,10 @@ PUBLIC.start = function (root, api) {
         drawAim = f > 0 ? -1.08 : Math.PI + 1.08;
         handT = { x: shX + f * 12, y: shY + 12 };
       } else if (cls.id === 'rogue') {
-        drawAim = f > 0 ? 0.12 : Math.PI - 0.12;
-        handT = { x: shX + f * 16, y: shY + 22 };
+        drawAim = flipActive ? -Math.PI / 2 + player.flip.dir * 0.35 : f > 0 ? 0.12 : Math.PI - 0.12;
+        handT = flipActive
+          ? { x: shX - player.flip.dir * (10 + flipCurl * 12), y: shY + 10 + flipCurl * 12 }
+          : { x: shX + f * 16, y: shY + 22 };
       } else if (cls.weapon === 'sword') {
         drawAim = f > 0 ? -0.20 : Math.PI + 0.20;
         handT = { x: shX + f * 14, y: shY + 18 };
@@ -1375,6 +1501,7 @@ PUBLIC.start = function (root, api) {
         const L = LEVELS[li];
         for (let i = projectiles.length - 1; i >= 0; i--) {
           const b = projectiles[i];
+          const px = b.x, py = b.y;
           b.x += b.vx; b.y += b.vy; b.life -= dt;
           if (b.kind === 'dagger') { b.vy += 0.18; }          // thrown knives arc slightly, without spinning
           else if (b.kind === 'arrow') { b.vy += 0.045; b.angle = Math.atan2(b.vy, b.vx); }
@@ -1393,7 +1520,7 @@ PUBLIC.start = function (root, api) {
               vx: rand(-0.5, 0.5), vy: rand(-0.6, 0.2), life: rand(220, 430), max: 430, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1.2, 3.2) });
             if (b.age > 430) b.life = 0;
           }
-          const crate = boxes.find(bx => b.x > bx.x && b.x < bx.x + bx.w && b.y > bx.y && b.y < bx.y + bx.h);
+          const crate = boxes.find(bx => projectileHitsBox(b, px, py, bx));
           if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); }
           const dead = b.life <= 0 || crate || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
           if (dead) {
