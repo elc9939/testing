@@ -233,6 +233,19 @@ PUBLIC.start = function (root, api) {
     }
     // choose the attack direction from the cursor at the moment of the click
     a.atkAim = aimedAngle();
+    // with no cursor (touch), auto-aim melee at a nearby dummy/enemy ahead so taps
+    // connect — the arc sweep then covers head-to-body. (Basis for enemy targeting.)
+    if (!pointer.active && dummies && dummies.length) {
+      const kind = attackArc(type);
+      if (kind === 'arc' || kind === 'chop' || kind === 'thrust') {
+        let tgt = null, td = 160;
+        for (const d of dummies) {
+          const cx = d.pts.chest.x, cy = d.pts.chest.y, dist = Math.hypot(cx - player.x, cy - (player.y - 60));
+          if (dist < td && Math.sign(cx - player.x) === player.facing) { td = dist; tgt = { x: cx, y: cy }; }
+        }
+        if (tgt) a.atkAim = Math.atan2(tgt.y - (player.y - 77), tgt.x - player.x);
+      }
+    }
     if (pointer.active) player.facing = Math.cos(a.atkAim) >= 0 ? 1 : -1;   // turn to face it
     a.aimShown = a.atkAim; a.aimShownV = 0;  // seed the blade spring so it whips from the start
     a.atkActive = true; a.atkType = type; a.atkT = 0; a.struck = false;
@@ -478,7 +491,7 @@ PUBLIC.start = function (root, api) {
   // attacks shove nearby crates
   function hitBoxes(ix, iy, dx, dy, force) {
     for (const b of boxes) if (Math.hypot(b.x + b.w / 2 - ix, b.y + b.h / 2 - iy) < 52) pushBox(b, dx, dy, force);
-    if (dummies) for (const d of dummies) if (Math.hypot(d.x - ix, (d.y - DUMMY.hipH * 0.7) - iy) < 54) hurtDummy(d, dx, dy, force, ix, iy);
+    if (dummies) for (const d of dummies) { const n = dummyNearest(d, ix, iy); if (n.p && n.d < 42) hurtDummy(d, dx, dy, force, ix, iy); }
   }
   function hitBoxesSegment(ax, ay, bx, by, dx, dy, force, radius) {
     const sx = bx - ax, sy = by - ay, sl = Math.hypot(sx, sy) || 1;
@@ -517,97 +530,148 @@ PUBLIC.start = function (root, api) {
       if (d < radius) pushBox(b, (cx - x) / (d || 1), (cy - y) / (d || 1), force * (1 - d / radius));
     }
     if (dummies) for (const d of dummies) {
-      const cx = d.x, cy = d.y - DUMMY.hipH * 0.7, dd = Math.hypot(cx - x, cy - y);
-      if (dd < radius + 20) hurtDummy(d, (cx - x) / (dd || 1), (cy - y) / (dd || 1), force * (1 - dd / (radius + 20)), cx, cy);
+      const n = dummyNearest(d, x, y);
+      if (n.p && n.d < radius + 16) hurtDummy(d, (n.p.x - x) / (n.d || 1), (n.p.y - y) / (n.d || 1), force * (1 - n.d / (radius + 16)), n.p.x, n.p.y);
     }
   }
 
   // ===========================================================================
-  // ENEMY TRAINING DUMMY
-  // A stick figure with the same body proportions and gravity/ground physics as
-  // the hero. It's rooted to a weighted base, so attacks knock it back and tip
-  // it over — torso, head and limbs ragdoll on a spring — then it wobbles back
-  // upright, ready for the next hit. A sandbox for tuning hit reactions before
-  // real enemies exist.
+  // ENEMY TRAINING DUMMY — verlet ragdoll
+  // A jointed stick body of point-masses connected by distance-constraint bones.
+  // The feet are PINNED to the ground (sticky feet); everything above hangs and
+  // swings under gravity (floppy joints). A weak "muscle" pulls only the spine &
+  // legs back toward an upright rest pose, so it self-rights but stays loose.
+  // Hits apply an impulse at the ACTUAL impact point on the body, so a blow to
+  // the head, an arm or the gut whips that part and propagates through the rest.
   // ===========================================================================
-  const DUMMY = { hipH: 46, torso: 30, neck: 4, headR: 12, uArm: 18, fArm: 16, thigh: 24, shin: 24 };
-  const DUMMY_ARM_REST = [[11, 30], [-9, 30]], DUMMY_LEG_REST = [[8, DUMMY.hipH], [-8, DUMMY.hipH]];
+  // proportions match the hero exactly (thigh/shin 24, torso 30, uArm/fArm ~18/16,
+  // headR 12), so the dummy is a clone of the character — the base for real enemies.
+  const DUMMY = { headR: 12 };
+  const DUMMY_REST = {                         // offsets from the foot anchor (y up = negative)
+    footL: [-8, 0], footR: [8, 0],
+    kneeL: [-8, -24], kneeR: [8, -24],
+    hip: [0, -48], chest: [0, -78], head: [0, -94],
+    elbowL: [-11, -64], handL: [-13, -48], elbowR: [11, -64], handR: [13, -48],
+  };
+  const DUMMY_BONES = [
+    ['footL', 'kneeL'], ['kneeL', 'hip'], ['footR', 'kneeR'], ['kneeR', 'hip'],
+    ['hip', 'chest'], ['chest', 'head'],
+    ['chest', 'elbowL'], ['elbowL', 'handL'], ['chest', 'elbowR'], ['elbowR', 'handR'],
+  ];
+  const DUMMY_LIMBS = [                         // drawn as 2-segment limbs (root, joint, tip, width)
+    ['hip', 'kneeL', 'footL', 7], ['hip', 'kneeR', 'footR', 7],
+    ['chest', 'elbowL', 'handL', 6], ['chest', 'elbowR', 'handR', 6],
+  ];
+  // muscle = how strongly a joint is pulled back to upright. Spine/legs hold the
+  // stand; arms & head are 0/tiny so they dangle and fling freely.
+  const DUMMY_MUSCLE = { hip: 0.050, chest: 0.032, head: 0.020, kneeL: 0.040, kneeR: 0.040 };
+  const DG = 0.62, DDAMP = 0.985, DSOLVE = 6;
   function makeDummy(x, y) {
-    return {
-      x, y, baseX: x, vx: 0, vy: 0, grounded: false, facing: -1,
-      lean: 0, leanV: 0, head: 0, headV: 0, flash: 0, _dt: 0.016,
-      arms: DUMMY_ARM_REST.map(r => ({ x: r[0], y: r[1], xV: 0, yV: 0 })),
-      legs: DUMMY_LEG_REST.map(r => ({ x: r[0], y: r[1], xV: 0, yV: 0 })),
-    };
+    const pts = {};
+    for (const k in DUMMY_REST) {
+      const wx = x + DUMMY_REST[k][0], wy = y + DUMMY_REST[k][1];
+      pts[k] = { x: wx, y: wy, px: wx, py: wy, pin: k === 'footL' || k === 'footR' };
+    }
+    const bones = DUMMY_BONES.map(([a, b]) => [a, b, Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y)]);
+    return { baseX: x, baseY: y, pts, bones, flash: 0 };
   }
   function updateDummies(dt) {
     if (!dummies) return;
-    const L = LEVELS[li];
+    const steps = Math.max(1, Math.round(dt / 16.7));    // keep verlet stable if dt is large
     for (const d of dummies) {
-      d._dt = Math.min(dt, 32) / 1000;
       d.flash = Math.max(0, d.flash - dt);
-      d.vy = Math.min(d.vy + GRA, TERMINAL);             // same gravity as the hero
-      d.x += d.vx; d.y += d.vy;
-      d.grounded = false;
-      for (const p of L.platforms)
-        if (d.x > p.x && d.x < p.x + p.w && d.y > p.y - 1 && d.y - d.vy <= p.y + 8 && d.vy >= 0) { d.y = p.y; d.vy = 0; d.grounded = true; }
-      for (const b of boxes)
-        if (d.x > b.x && d.x < b.x + b.w && d.y > b.y - 1 && d.y - d.vy <= b.y + 10 && d.vy >= 0) { d.y = b.y; d.vy = 0; d.grounded = true; }
-      if (d.grounded) { d.vx += (d.baseX - d.x) * 0.022; d.vx *= 0.84; }   // weighted base eases it home
-      else d.vx *= 0.99;
-      if (d.y > L.h + 200) { d.x = d.baseX; d.y = L.spawn.y; d.vx = d.vy = 0; }
-      springTo(d, 'lean', 0, 60, 9, d._dt);              // torso wobbles back upright
-      springTo(d, 'head', 0, 95, 12, d._dt);
-      d.arms.forEach((a, i) => { springTo(a, 'x', DUMMY_ARM_REST[i][0], 120, 13, d._dt); springTo(a, 'y', DUMMY_ARM_REST[i][1], 120, 13, d._dt); });
-      d.legs.forEach((g, i) => { springTo(g, 'x', DUMMY_LEG_REST[i][0], 150, 16, d._dt); springTo(g, 'y', DUMMY_LEG_REST[i][1], 175, 18, d._dt); });
+      for (let s = 0; s < steps; s++) dummyStep(d);
     }
   }
+  function dummyStep(d) {
+    const groundY = d.baseY;
+    // integrate
+    for (const k in d.pts) {
+      const p = d.pts[k];
+      if (p.pin) { p.x = d.baseX + DUMMY_REST[k][0]; p.y = groundY; p.px = p.x; p.py = p.y; continue; }
+      const vx = (p.x - p.px) * DDAMP, vy = (p.y - p.py) * DDAMP;
+      p.px = p.x; p.py = p.y;
+      p.x += vx; p.y += vy + DG;
+    }
+    // muscles pull the spine & legs toward the upright rest pose (self-righting)
+    for (const k in DUMMY_MUSCLE) {
+      const p = d.pts[k];
+      p.x += (d.baseX + DUMMY_REST[k][0] - p.x) * DUMMY_MUSCLE[k];
+      p.y += (d.baseY + DUMMY_REST[k][1] - p.y) * DUMMY_MUSCLE[k];
+    }
+    // satisfy bone lengths + pins + floor
+    for (let it = 0; it < DSOLVE; it++) {
+      for (const [a, b, len] of d.bones) {
+        const pa = d.pts[a], pb = d.pts[b];
+        const dx = pb.x - pa.x, dy = pb.y - pa.y, dd = Math.hypot(dx, dy) || 1;
+        const diff = (dd - len) / dd;
+        const wa = pa.pin ? 0 : (pb.pin ? 1 : 0.5), wb = pb.pin ? 0 : (pa.pin ? 1 : 0.5);
+        pa.x += dx * diff * wa; pa.y += dy * diff * wa;
+        pb.x -= dx * diff * wb; pb.y -= dy * diff * wb;
+      }
+      for (const k in d.pts) {
+        const p = d.pts[k];
+        if (p.pin) { p.x = d.baseX + DUMMY_REST[k][0]; p.y = groundY; }
+        else if (p.y > groundY) { p.y = groundY; p.px = p.x + (p.x - p.px) * 0.4; }   // floor + a little slide friction
+      }
+    }
+  }
+  function dummyNearest(d, x, y) {
+    let best = null, bd = Infinity;
+    for (const k in d.pts) { const p = d.pts[k]; if (p.pin) continue; const dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = p; } }
+    return { p: best, d: bd };
+  }
+  // apply an impulse AT a point on the body (displacing a verlet node = giving it velocity)
   function hurtDummy(d, nx, ny, force, hx, hy) {
-    const k = clamp(force, 4, 40);
+    const k = clamp(force, 4, 44);
     nx = nx || 0; ny = ny || 0;
-    d.vx += nx * k * 0.28;                               // knockback
-    d.vy += Math.min(0, ny) * k * 0.10 - k * 0.06;       // a little pop off the ground
-    d.leanV += nx * k * 0.0022;                          // tip away from the blow
-    d.headV += nx * 0.6 + rand(-0.5, 0.5);
-    d.arms[0].xV += nx * k * 0.7 + rand(-2, 2); d.arms[0].yV += -k * 0.35 + rand(-2, 1);   // limbs fling out
-    d.arms[1].xV += nx * k * 0.6 + rand(-2, 2); d.arms[1].yV += -k * 0.28 + rand(-2, 1);
-    d.legs[0].xV += nx * k * 0.18 + rand(-1, 1);
-    d.legs[1].xV += nx * k * 0.14 + rand(-1, 1);
+    const near = dummyNearest(d, hx, hy);
+    if (!near.p) return;
+    const imp = k * 0.85;
+    near.p.x += nx * imp + rand(-1, 1); near.p.y += ny * imp - k * 0.12 + rand(-1, 1);
+    // a softer share to every other joint so the whole body reacts to the blow
+    for (const key in d.pts) {
+      const p = d.pts[key]; if (p.pin || p === near.p) continue;
+      const dist = Math.hypot(p.x - hx, p.y - hy) + 8, f2 = k * 0.9 / dist;
+      p.x += nx * f2; p.y += ny * f2;
+    }
     d.flash = 200;
     burst(hx, hy, '#ffd089', Math.min(18, 6 + (k | 0)), 4.2);
     burst(hx, hy, '#d9534f', 8, 3.2);
-    freeze = Math.max(freeze, Math.min(26, 10 + k * 0.4));
+    freeze = Math.max(freeze, Math.min(24, 8 + k * 0.35));
   }
   function hitDummiesSegment(ax, ay, bx, by, nx, ny, force, radius) {
     if (!dummies) return;
     for (const d of dummies) {
-      const cx = d.x, cy = d.y - DUMMY.hipH * 0.7;
-      const p = closestPointOnSeg(cx, cy, ax, ay, bx, by);
-      if (Math.hypot(p.x - cx, p.y - cy) <= (radius || 10) + 18) hurtDummy(d, nx, ny, force, p.x, p.y);
+      // find the body point the blade passes closest to — that's where it lands
+      let best = null, bd = Infinity;
+      for (const k in d.pts) {
+        const p = d.pts[k], cp = closestPointOnSeg(p.x, p.y, ax, ay, bx, by);
+        const dd = Math.hypot(cp.x - p.x, cp.y - p.y);
+        if (dd < bd) { bd = dd; best = p; }
+      }
+      if (best && bd <= (radius || 10) + 12) hurtDummy(d, nx, ny, force, best.x, best.y);
     }
   }
   function drawDummy(d) {
-    const D = DUMMY, f = d.facing;
-    const groundY = d.y - cam.y;
-    const hipX = d.x - cam.x, hipY = groundY - D.hipH;
-    const upX = Math.sin(d.lean), upY = -Math.cos(d.lean);
-    const shX = hipX + upX * D.torso, shY = hipY + upY * D.torso;
-    const headCX = shX + upX * (D.neck + D.headR) + d.head * 0.6, headCY = shY + upY * (D.neck + D.headR);
+    const P = k => ({ x: d.pts[k].x - cam.x, y: d.pts[k].y - cam.y });
     const hot = clamp(d.flash / 200, 0, 1);
-    const ink = hot > 0.02 ? '#a9544b' : '#6f6150';
+    const ink = hot > 0.02 ? '#a9544b' : INK;        // black like the hero; flushes red when struck
+    const fL = P('footL'), fR = P('footR'), midX = (fL.x + fR.x) / 2, baseY = Math.max(fL.y, fR.y);
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    // planted base
+    // sticky-foot base pad
     ctx.fillStyle = '#5a4d3d';
-    ctx.beginPath(); ctx.moveTo(hipX - 16, groundY + 2); ctx.lineTo(hipX + 16, groundY + 2);
-    ctx.lineTo(hipX + 9, groundY - 8); ctx.lineTo(hipX - 9, groundY - 8); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(midX - 17, baseY + 3); ctx.lineTo(midX + 17, baseY + 3);
+    ctx.lineTo(midX + 9, baseY - 7); ctx.lineTo(midX - 9, baseY - 7); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = ink; ctx.fillStyle = ink;
-    for (const g of d.legs) { const k = ik(hipX, hipY, hipX + g.x, hipY + g.y, D.thigh, D.shin, -f, 0.6); seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 7); }
-    ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
-    ctx.beginPath(); ctx.arc(headCX, headCY, D.headR, 0, Math.PI * 2); ctx.fill();
-    for (const a of d.arms) { const k = ik(shX, shY, shX + a.x, shY + a.y, D.uArm, D.fArm, f); seg(shX, shY, k.jx, k.jy, k.ex, k.ey, 6); }
-    // bullseye target on the chest
-    const tx = lerp(hipX, shX, 0.5), ty = lerp(hipY, shY, 0.5);
+    for (const [a, j, b, w] of DUMMY_LIMBS) { const pa = P(a), pj = P(j), pb = P(b); seg(pa.x, pa.y, pj.x, pj.y, pb.x, pb.y, w); }
+    const hip = P('hip'), chest = P('chest'), head = P('head');
+    ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(chest.x, chest.y); ctx.stroke();   // torso
+    ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(chest.x, chest.y); ctx.lineTo(head.x, head.y); ctx.stroke(); // neck
+    ctx.beginPath(); ctx.arc(head.x, head.y, DUMMY.headR, 0, Math.PI * 2); ctx.fill();
+    // bullseye on the chest
+    const tx = lerp(hip.x, chest.x, 0.55), ty = lerp(hip.y, chest.y, 0.55);
     ctx.beginPath(); ctx.arc(tx, ty, 7, 0, Math.PI * 2); ctx.fillStyle = '#e7e0d2'; ctx.fill();
     ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
     ctx.restore();
@@ -895,12 +959,12 @@ PUBLIC.start = function (root, api) {
     freeze = type === 'lanceCharge' ? 44 : type === 'crush' ? 42 : type === 'shieldBash' ? 30 : type === 'legSweep' ? 22 : heavy ? 36 : 24;
     player.vx += player.facing * (type === 'lanceCharge' ? 15 : type === 'braceThrust' ? 8.5 : type === 'shieldBash' ? 6.5 : type === 'dualSlash' ? 3.6 : type === 'vaultKick' ? 7 : type === 'crush' ? 5 : 5.5);
     if (type === 'vaultKick') { player.vy = Math.min(player.vy, -4.6); player.grounded = false; }
-    const seg = meleeSegment(type, ang, phase);
-    hitBoxesSegment(seg.ax, seg.ay, seg.bx, seg.by, seg.dx, seg.dy, seg.force, seg.r);
+    const seg = meleeSweepHit(type, ang);     // sweeps the arc; hits crates + dummy at the contact point
     burst(seg.bx, seg.by, cls.color, type === 'dualSlash' ? 12 : heavy ? 22 : 15, type === 'dualSlash' ? 3.4 : 5.2);
     if (type !== 'dualSlash') burst(seg.bx, seg.by, '#ffffff', heavy ? 12 : 8, 3.4);
   }
-  function meleeSegment(type, ang, phase) {
+  function meleeSegment(type, ang, t) {
+    if (t == null) t = strikePoint(type);
     const f = player.facing, shX = player.x, shY = player.y - 72;
     if (type === 'legSweep') return { ax: player.x + f * 2, ay: player.y - 10, bx: player.x + f * 64, by: player.y - 7, dx: f, dy: -0.35, force: 18, r: 10 };
     if (type === 'shieldBash') return { ax: player.x + f * 38, ay: player.y - 56, bx: player.x + f * 42, by: player.y - 26, dx: f, dy: -0.1, force: 21, r: 15 };
@@ -914,7 +978,7 @@ PUBLIC.start = function (root, api) {
     if (type === 'vaultKick') return { ax: player.x + f * 8, ay: player.y - 38, bx: player.x + f * 66, by: player.y - 48, dx: f, dy: -0.7, force: 17, r: 11 };
     // every other weapon swing (incl. the rogue's single dual-wield strike): the
     // hit blade IS the drawn blade, sampled from the same pose+variant at impact.
-    const pose = weaponPose(type, strikePoint(type), ang, f, player.anim.atkVar);
+    const pose = weaponPose(type, t, ang, f, player.anim.atkVar);
     const ch = armChain(shX, shY, pose.shAng, pose.elBend);
     const bladeAng = ch.foreAng + pose.wrBend;
     const wl = WLEN[cls.weapon] || 24;
@@ -923,6 +987,30 @@ PUBLIC.start = function (root, api) {
     const force = FORCE[type] != null ? FORCE[type] : 16;
     const r = type === 'crush' ? 18 : (type === 'lanceCharge' || type === 'braceThrust') ? 9 : 11;
     return { ax: ch.hx, ay: ch.hy, bx: tx, by: ty, dx: Math.cos(bladeAng), dy: Math.sin(bladeAng), force, r };
+  }
+  // Sample the blade across the cut window and test the WHOLE swept arc — so an
+  // overhead slash connects with a head-height target on the way down, not just
+  // at one instant. Each crate/dummy is hit at most once per strike.
+  function meleeSweepHit(type, ang) {
+    const sp = strikePoint(type), ts = [sp - 0.16, sp - 0.08, sp, sp + 0.06];
+    const crateSeen = new Set(), dBest = new Map();
+    let impact = null;
+    for (const tt of ts) {
+      const s = meleeSegment(type, ang, clamp(tt, 0, 1));
+      if (!impact || Math.abs(tt - sp) < 0.001) impact = s;
+      for (const b of boxes) {
+        if (crateSeen.has(b)) continue;
+        const p = closestPointOnSeg(b.x + b.w / 2, b.y + b.h / 2, s.ax, s.ay, s.bx, s.by);
+        if (pointAabbDist(p.x, p.y, b) <= s.r) { pushBox(b, s.dx, s.dy, s.force); crateSeen.add(b); }
+      }
+      if (dummies) for (const d of dummies) for (const k in d.pts) {
+        const p = d.pts[k], cp = closestPointOnSeg(p.x, p.y, s.ax, s.ay, s.bx, s.by);
+        const dist = Math.hypot(cp.x - p.x, cp.y - p.y);
+        if (dist <= s.r + 13) { const cur = dBest.get(d); if (!cur || dist < cur.dist) dBest.set(d, { dist, p, nx: s.dx, ny: s.dy, force: s.force }); }
+      }
+    }
+    for (const [d, h] of dBest) hurtDummy(d, h.nx, h.ny, h.force, h.p.x, h.p.y);
+    return impact;
   }
   // a fast, punchy magic bolt (size = power)
   function spawnBolt(ang, power) {
@@ -1688,8 +1776,8 @@ PUBLIC.start = function (root, api) {
           const crate = boxes.find(bx => projectileHitsBox(b, px, py, bx));
           if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); }
           const rp = (b.kind === 'dagger' || b.kind === 'arrow') ? 14 : (b.r || 8) + 14;
-          const struckDummy = dummies && dummies.find(d => Math.hypot(d.x - b.x, (d.y - DUMMY.hipH * 0.7) - b.y) < rp);
-          if (struckDummy) { const sp = Math.hypot(b.vx, b.vy) || 1; hurtDummy(struckDummy, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y); }
+          const struckDummy = dummies && dummies.find(d => dummyNearest(d, b.x, b.y).d < rp);
+          if (struckDummy) { const sp = Math.hypot(b.vx, b.vy) || 1, nn = dummyNearest(struckDummy, b.x, b.y); hurtDummy(struckDummy, b.vx / sp, b.vy / sp, b.hit || 10, nn.p.x, nn.p.y); }
           const dead = b.life <= 0 || crate || struckDummy || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
           if (dead) {
             if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
@@ -1709,6 +1797,9 @@ PUBLIC.start = function (root, api) {
   });
 
   showMenu();
+  // test seam (no-op in production): lets the headless harness drive internals
+  if (typeof window !== 'undefined' && window.__stickTest)
+    window.__stickTest({ play, onStrike, triggerAttack, get player() { return player; }, get dummies() { return dummies; }, get cls() { return cls; } });
 };
 
 Arcade.register(PUBLIC);
