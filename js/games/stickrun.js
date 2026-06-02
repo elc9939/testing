@@ -25,14 +25,26 @@ const PW = 20, PH = 58;          // player collision box (w, h); y = feet (botto
 // reach: weapon reach multiplier; speedMul: run-speed multiplier; trail: RGB of
 // the swing/cast trail; dur: per-move animation lengths (ms); ranged: casts bolts.
 const CLASSES = [
-  { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Balanced blade — slash & stab.',
-    weapon: 'sword', moves: ['slash', 'stab'], reach: 1.0, speedMul: 1.0, trail: [120, 170, 255], dur: { slash: 380, stab: 300, kick: 400 } },
-  { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast, short daggers. Quick combos.',
-    weapon: 'dagger', moves: ['slash', 'stab'], reach: 0.78, speedMul: 1.2, trail: [150, 255, 110], dur: { slash: 220, stab: 190, kick: 320 } },
-  { id: 'lancer', name: 'Lancer', emoji: '🔱', color: '#ffd45e', blurb: 'Long spear — huge reach thrusts.',
-    weapon: 'spear', moves: ['stab'], reach: 1.0, speedMul: 0.95, trail: [255, 212, 94], dur: { stab: 340, kick: 420 } },
-  { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Staff caster — fires magic bolts.',
-    weapon: 'staff', moves: ['cast'], reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 360, kick: 420 }, ranged: true },
+  { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Heavy, grounded blade.',
+    weapon: 'sword', moves: ['slash', 'stab'], reach: 1.0, speedMul: 1.0, trail: [120, 170, 255], dur: { slash: 380, stab: 300, kick: 400 },
+    // heavy & grounded: wide stance, slow heavy cadence, big steps, stiff/weighty springs
+    style: { hipH: 45, stanceW: 7, strideH: 12, lift: 10, bounceAmp: 4.5, cadence: 0.85, armStride: 9, baseLean: 0, squash: 1.15,
+      breatheAmp: 1.6, breatheSpd: 0.0021, hover: 0, idle: 'shift', spring: { lean: [80, 19], head: [70, 19], aim: [110, 21] } } },
+  { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast, twitchy daggers.',
+    weapon: 'dagger', moves: ['slash', 'stab'], reach: 0.78, speedMul: 1.2, trail: [150, 255, 110], dur: { slash: 220, stab: 190, kick: 320 },
+    // light & snappy: narrow high stance, forward lean, fast cadence, lots of overshoot
+    style: { hipH: 47, stanceW: 3, strideH: 8, lift: 13, bounceAmp: 3.5, cadence: 1.5, armStride: 12, baseLean: 0.13, squash: 0.9,
+      breatheAmp: 1.0, breatheSpd: 0.006, hover: 0, idle: 'bounce', spring: { lean: [140, 9], head: [120, 9], aim: [165, 12] } } },
+  { id: 'lancer', name: 'Lancer', emoji: '🔱', color: '#ffd45e', blurb: 'Disciplined spear reach.',
+    weapon: 'spear', moves: ['stab'], reach: 1.0, speedMul: 0.95, trail: [255, 212, 94], dur: { stab: 340, kick: 420 },
+    // poised & deliberate: wide low brace, controlled, minimal bounce, stiff springs
+    style: { hipH: 43, stanceW: 9, strideH: 12, lift: 8, bounceAmp: 2.0, cadence: 0.82, armStride: 7, baseLean: 0.05, squash: 1.0,
+      breatheAmp: 1.1, breatheSpd: 0.0017, hover: 0, idle: 'still', spring: { lean: [95, 21], head: [85, 21], aim: [120, 23] } } },
+  { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Floaty staff caster.',
+    weapon: 'staff', moves: ['cast'], reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 360, kick: 420 }, ranged: true,
+    // ethereal & floaty: tall, drifting cadence, soft springs, gently hovers off the ground
+    style: { hipH: 49, stanceW: 4, strideH: 7, lift: 8, bounceAmp: 2.5, cadence: 0.8, armStride: 7, baseLean: -0.05, squash: 0.85,
+      breatheAmp: 2.4, breatheSpd: 0.0016, hover: 6, idle: 'float', spring: { lean: [60, 10], head: [55, 11], aim: [90, 12] } } },
 ];
 
 // ---------- levels (world coords, y down) ----------
@@ -385,16 +397,16 @@ PUBLIC.start = function (root, api) {
   // a procedural swing on top. Exponential smoothing keeps it fluid and stable.
   const maxV = () => MAXV * cls.speedMul;
   function animate(dt) {
-    const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / maxV(), 0, 1);
-    a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt;  // gait cycle
+    const a = player.anim, S = cls.style, sp = Math.abs(player.vx), moveAmt = clamp(sp / maxV(), 0, 1);
+    a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt * S.cadence;  // class gait tempo
     a.air = lerp(a.air, player.grounded ? 0 : 1, 1 - Math.pow(0.0006, dt / 1000));
     a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000));
-    // ---- secondary-motion springs (the fluidity layer) ----
+    // ---- secondary-motion springs, tuned per class (the fluidity + personality layer) ----
     const dts = Math.min(dt, 32) / 1000;          // clamp for stability
-    const leanTarget = clamp(player.vx * 0.02, -0.14, 0.14);
-    springTo(a, 'lean', leanTarget, 95, 14, dts);             // torso whips on start/stop/turn
-    springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), 80, 16, dts);  // head trails the body
-    springAngle(a, 'aimShown', a.aimTarget, 130, 19, dts);    // sword lags & overshoots its target
+    const leanTarget = clamp(player.vx * 0.02, -0.14, 0.14) + S.baseLean;
+    springTo(a, 'lean', leanTarget, S.spring.lean[0], S.spring.lean[1], dts);
+    springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), S.spring.head[0], S.spring.head[1], dts);
+    springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
     if (a.atkActive) {
       a.atkT += dt / (cls.dur[a.atkType] || 320);
       // mage: release a bolt mid-cast
@@ -506,14 +518,21 @@ PUBLIC.start = function (root, api) {
   function drawStick(moveAmt) {
     const a = player.anim, f = player.facing, p = a.phase, air = a.air;
     const now = performance.now();
-    // metrics — hips sit just under leg length so legs are nearly straight at rest
-    const hipH = 47, torso = 30, neck = 4, headR = 12;
+    // metrics — body proportions are shared; STANCE & motion come from the class style
+    const S = cls.style;
+    const hipH = S.hipH, torso = 30, neck = 4, headR = 12;
     const thigh = 24, shin = 24, uArm = 18, fArm = 16, armLen = uArm + fArm;
-    const strideH = 9, lift = 10, armStride = 9, bounceAmp = 2.5, sway = 2, stanceW = 3;
+    const strideH = S.strideH, lift = S.lift, armStride = S.armStride, bounceAmp = S.bounceAmp, sway = 2, stanceW = S.stanceW;
     const guardReach = armLen * 0.6;            // bent-elbow "on guard" hold
 
+    const idleAmt = (1 - moveAmt) * (1 - air);
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));   // downward compression
-    const breathe = (1 - moveAmt) * (1 - air) * Math.sin(now * 0.0026) * 1.4;
+    const breathe = idleAmt * Math.sin(now * S.breatheSpd) * S.breatheAmp;
+    // signature idle flourish + hover (the "personality" beat)
+    let idleX = 0, idleY = 0, hoverY = 0;
+    if (S.idle === 'shift') idleX = Math.sin(now * 0.0016) * 2.6 * idleAmt;             // Knight: slow weight shift
+    else if (S.idle === 'bounce') idleY = -Math.abs(Math.sin(now * 0.006)) * 3.2 * idleAmt; // Rogue: bounce on toes
+    else if (S.idle === 'float') hoverY = (S.hover + Math.sin(now * 0.0018) * 3) * idleAmt;  // Mage: hover & drift
 
     // ----- combat posture (subtle; based on the calm, smoothed guard aim) -----
     const highness = clamp(-Math.sin(a.aim), -1, 1);   // +1 aim up, -1 aim down
@@ -531,14 +550,14 @@ PUBLIC.start = function (root, api) {
     }
 
     ctx.save();
-    ctx.translate(player.x, player.y);
+    ctx.translate(player.x, player.y - hoverY);         // hoverY floats the whole figure (Mage)
     const runPulse = moveAmt * (1 - air) * Math.cos(2 * p) * 0.04;
-    const sy = (1 - a.squash * 0.40) * (1 + runPulse);
-    const sx = (1 + a.squash * 0.36) * (1 - runPulse * 0.6);
+    const sy = (1 - a.squash * 0.40 * S.squash) * (1 + runPulse);
+    const sx = (1 + a.squash * 0.36 * S.squash) * (1 - runPulse * 0.6);
     ctx.scale(sx, sy);
 
-    const hipX = sway * moveAmt * Math.sin(p) * (1 - air) + atkHip;
-    const hipY = -hipH + bob + guardCrouch + breathe;
+    const hipX = sway * moveAmt * Math.sin(p) * (1 - air) + atkHip + idleX;
+    const hipY = -hipH + bob + guardCrouch + breathe + idleY;
     const lean = a.lean + atkLean + postureLean;
     const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
     const shX = hipX + upX * torso, shY = hipY + upY * torso;
