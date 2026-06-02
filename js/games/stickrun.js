@@ -27,23 +27,23 @@ const PW = 20, PH = 58;          // player collision box (w, h); y = feet (botto
 const CLASSES = [
   { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Heavy, grounded blade.',
     weapon: 'sword', moves: ['slash', 'stab'], reach: 1.0, speedMul: 1.0, trail: [120, 170, 255], dur: { slash: 380, stab: 300, kick: 400 },
-    // heavy & grounded: wide stance, slow heavy cadence, big steps, stiff/weighty springs
-    style: { hipH: 45, stanceW: 7, strideH: 12, lift: 10, bounceAmp: 4.5, cadence: 0.85, armStride: 9, baseLean: 0, squash: 1.15,
-      breatheAmp: 1.6, breatheSpd: 0.0021, hover: 0, idle: 'shift', spring: { lean: [80, 19], head: [70, 19], aim: [110, 21] } } },
+    // heavy & lumbering: low hunched hips, big slow bounce, deep landing squash
+    style: { hipH: 42, stanceW: 8, strideH: 13, lift: 10, bounceAmp: 5.5, cadence: 0.78, armStride: 10, baseLean: 0.02, squash: 1.3,
+      breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [100, 21] } } },
   { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast, twitchy daggers.',
-    weapon: 'dagger', moves: ['slash', 'stab'], reach: 0.78, speedMul: 1.2, trail: [150, 255, 110], dur: { slash: 220, stab: 190, kick: 320 },
-    // light & snappy: narrow high stance, forward lean, fast cadence, lots of overshoot
-    style: { hipH: 47, stanceW: 3, strideH: 8, lift: 13, bounceAmp: 3.5, cadence: 1.5, armStride: 12, baseLean: 0.13, squash: 0.9,
-      breatheAmp: 1.0, breatheSpd: 0.006, hover: 0, idle: 'bounce', spring: { lean: [140, 9], head: [120, 9], aim: [165, 12] } } },
+    weapon: 'dagger', moves: ['slash', 'stab'], reach: 0.78, speedMul: 1.3, trail: [150, 255, 110], dur: { slash: 220, stab: 190, kick: 320 },
+    // sneaky & quick: slight crouch, long low glide strides, minimal bounce, forward lean
+    style: { hipH: 45, stanceW: 4, strideH: 13, lift: 7, bounceAmp: 1.6, cadence: 1.25, armStride: 9, baseLean: 0.17, squash: 0.9,
+      breatheAmp: 1.0, breatheSpd: 0.004, hover: 0, idle: 'sneak', spring: { lean: [150, 9], head: [120, 9], aim: [170, 12] } } },
   { id: 'lancer', name: 'Lancer', emoji: '🔱', color: '#ffd45e', blurb: 'Disciplined spear reach.',
     weapon: 'spear', moves: ['stab'], reach: 1.0, speedMul: 0.95, trail: [255, 212, 94], dur: { stab: 340, kick: 420 },
-    // poised & deliberate: wide low brace, controlled, minimal bounce, stiff springs
-    style: { hipH: 43, stanceW: 9, strideH: 12, lift: 8, bounceAmp: 2.0, cadence: 0.82, armStride: 7, baseLean: 0.05, squash: 1.0,
-      breatheAmp: 1.1, breatheSpd: 0.0017, hover: 0, idle: 'still', spring: { lean: [95, 21], head: [85, 21], aim: [120, 23] } } },
+    // tall & disciplined: erect posture, long deliberate strides, almost no bounce, steady arms
+    style: { hipH: 47, stanceW: 10, strideH: 16, lift: 8, bounceAmp: 1.2, cadence: 0.92, armStride: 6, baseLean: 0.04, squash: 0.95,
+      breatheAmp: 1.0, breatheSpd: 0.0016, hover: 0, idle: 'brace', spring: { lean: [110, 22], head: [95, 22], aim: [125, 24] } } },
   { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Floaty staff caster.',
     weapon: 'staff', moves: ['cast'], reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 360, kick: 420 }, ranged: true,
-    // ethereal & floaty: tall, drifting cadence, soft springs, gently hovers off the ground
-    style: { hipH: 49, stanceW: 4, strideH: 7, lift: 8, bounceAmp: 2.5, cadence: 0.8, armStride: 7, baseLean: -0.05, squash: 0.85,
+    // ethereal: glides with feet barely lifting and hovers even while moving
+    style: { hipH: 49, stanceW: 4, strideH: 9, lift: 5, bounceAmp: 1.0, cadence: 0.75, armStride: 6, baseLean: -0.05, squash: 0.8,
       breatheAmp: 2.4, breatheSpd: 0.0016, hover: 6, idle: 'float', spring: { lean: [60, 10], head: [55, 11], aim: [90, 12] } } },
 ];
 
@@ -235,7 +235,8 @@ PUBLIC.start = function (root, api) {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0,
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
-              aim: 0, castFired: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0 },
+              castFired: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, lastFacing: 0, _dt: 0.016,
+              bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0 },
     };
   }
   function loadLevel(i, keepRun) {
@@ -274,9 +275,8 @@ PUBLIC.start = function (root, api) {
         <small>${c.blurb}</small>
       </button>`).join('');
     ov.innerHTML = `<h2>Stick Leap</h2>
-      <p class="msg">Choose your class. Run with ←/→ or A/D, jump with Space / ↑. Your weapon rests
-      on guard; click (or J) to attack toward the cursor, right-click to stab/thrust, K to kick.
-      Grab coins and reach the 🚩 flag.</p>
+      <p class="msg">Choose your class. Run with ←/→ or A/D, jump with Space / ↑. Click (or J) to
+      attack, right-click to stab/thrust, K to kick. Grab coins and reach the 🚩 flag.</p>
       <div class="sr-classes">${cards}</div>`;
     loadLevel(0, false);
   }
@@ -403,6 +403,7 @@ PUBLIC.start = function (root, api) {
     a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000));
     // ---- secondary-motion springs, tuned per class (the fluidity + personality layer) ----
     const dts = Math.min(dt, 32) / 1000;          // clamp for stability
+    a._dt = dts;                                  // shared with the hand springs in drawStick
     const leanTarget = clamp(player.vx * 0.02, -0.14, 0.14) + S.baseLean;
     springTo(a, 'lean', leanTarget, S.spring.lean[0], S.spring.lean[1], dts);
     springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), S.spring.head[0], S.spring.head[1], dts);
@@ -413,17 +414,12 @@ PUBLIC.start = function (root, api) {
       if (a.atkType === 'cast' && !a.castFired && a.atkT >= 0.4) { a.castFired = true; castBolt(); }
       if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; }
     }
-    // when standing still, turn to face the cursor (so aiming reads naturally)
-    if (!input.left && !input.right && pointer.active && player.grounded)
-      player.facing = (pointer.x + cam.x) >= player.x ? 1 : -1;
     return moveAmt;
   }
-  // spawn a magic bolt from roughly the staff tip, toward the cursor
+  // spawn a magic bolt from roughly the staff tip, firing in the facing direction
   function castBolt() {
     const shX = player.x, shY = player.y - 77;            // approx shoulder
-    const tx = pointer.active ? pointer.x + cam.x : shX + player.facing * 60;
-    const ty = pointer.active ? pointer.y + cam.y : shY;
-    const ang = Math.atan2(ty - shY, tx - shX), sp = 8.5;
+    const ang = Math.atan2(-0.12, player.facing), sp = 8.5;   // forward, slightly up
     const mx = shX + Math.cos(ang) * 46, my = shY + Math.sin(ang) * 46;
     projectiles.push({ x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 1100, color: cls.color });
     burst(mx, my, cls.color, 8, 2.5);
@@ -530,14 +526,13 @@ PUBLIC.start = function (root, api) {
     const breathe = idleAmt * Math.sin(now * S.breatheSpd) * S.breatheAmp;
     // signature idle flourish + hover (the "personality" beat)
     let idleX = 0, idleY = 0, hoverY = 0;
-    if (S.idle === 'shift') idleX = Math.sin(now * 0.0016) * 2.6 * idleAmt;             // Knight: slow weight shift
-    else if (S.idle === 'bounce') idleY = -Math.abs(Math.sin(now * 0.006)) * 3.2 * idleAmt; // Rogue: bounce on toes
-    else if (S.idle === 'float') hoverY = (S.hover + Math.sin(now * 0.0018) * 3) * idleAmt;  // Mage: hover & drift
+    if (S.idle === 'shift') idleX = Math.sin(now * 0.0016) * 2.6 * idleAmt;              // Knight: heavy weight shift
+    else if (S.idle === 'sneak') idleX = Math.sin(now * 0.003) * 1.3 * idleAmt;          // Rogue: low restless sway
+    else if (S.idle === 'brace') idleY = Math.sin(now * 0.0014) * 0.7 * idleAmt;         // Lancer: barely moves
+    else if (S.idle === 'float')                                                         // Mage: hovers even while moving
+      hoverY = S.hover * (0.45 + 0.55 * idleAmt) + Math.sin(now * 0.0019) * 3 * idleAmt + Math.sin(now * 0.0027) * 1.3;
 
-    // ----- combat posture (subtle; based on the calm, smoothed guard aim) -----
-    const highness = clamp(-Math.sin(a.aim), -1, 1);   // +1 aim up, -1 aim down
-    const postureLean = -highness * 0.04 * (1 - air);  // gentle: lean a touch with aim
-    const guardCrouch = Math.max(0, -highness) * 3 * (1 - air);
+    const postureLean = 0, guardCrouch = 0;            // (no cursor aiming for now)
 
     // ----- attack scalars (whole-body reaction) -----
     let atkLean = 0, atkHip = 0, slashT = null, stabT = null, castT = null, kickT = null;
@@ -587,9 +582,11 @@ PUBLIC.start = function (root, api) {
       return { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
     }
 
-    // ----- back arm -----
+    // ----- back arm (ragdoll: hand position springs loosely so the elbow swings) -----
     let h = armHand(p);
-    let ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
+    if (a.bhx === null) { a.bhx = h.x; a.bhy = h.y; }
+    springTo(a, 'bhx', h.x, 120, 12, a._dt); springTo(a, 'bhy', h.y, 120, 12, a._dt);
+    let ka = ik(shX, shY, a.bhx, a.bhy, uArm, fArm, f);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6);
 
     // ----- far leg ----- (knees bend forward: bend = -f)
@@ -610,34 +607,29 @@ PUBLIC.start = function (root, api) {
     k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
     seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
-    // ----- weapon arm: rests in a calm guard, only commits to the cursor on attacks -----
-    const shoulderWX = player.x + shX, shoulderWY = player.y + shY;
-    const curWX = pointer.active ? pointer.x + cam.x : shoulderWX + f * 60;
-    const curWY = pointer.active ? pointer.y + cam.y : shoulderWY + 6;
-    const cursorAng = Math.atan2(curWY - shoulderWY, curWX - shoulderWX);
-    const restAng = f > 0 ? -0.12 : Math.PI + 0.12;          // natural forward-ish guard
-    // guard only loosely tracks the cursor (40%), eased over time -> not twitchy
-    a.aim = lerpAngle(a.aim, lerpAngle(restAng, cursorAng, 0.4), 0.16);
+    // ----- weapon arm: natural forward guard; attacks play in the facing direction -----
+    const s = f > 0 ? 1 : -1;
+    const restAng = Math.atan2(-0.32, f);            // forward + slightly up, mirrored by facing
+    const extTarget = armLen * cls.reach;
+    let aim = restAng, reach = guardReach;
+    if (slashT !== null) { aim = restAng + s * slashAngle(slashT); reach = guardReach + (extTarget * 0.98 - guardReach) * 0.5 * Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI)); }
+    else if (stabT !== null) { reach = guardReach + (extTarget - guardReach) * stabReach(stabT); }
+    else if (castT !== null) { reach = guardReach + (extTarget - guardReach) * Math.max(0, Math.sin(Math.min(1, castT) * Math.PI)); }
 
-    const extTarget = armLen * cls.reach;                    // full-extension reach for this class
-    let aim, reach;
-    if (slashT !== null) { aim = cursorAng + slashAngle(slashT); reach = guardReach + (extTarget * 0.98 - guardReach) * 0.5 * Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI)); }
-    else if (stabT !== null) { aim = cursorAng; reach = guardReach + (extTarget - guardReach) * stabReach(stabT); }
-    else if (castT !== null) { aim = cursorAng; reach = guardReach + (extTarget - guardReach) * Math.max(0, Math.sin(Math.min(1, castT) * Math.PI)); }
-    else { aim = a.aim; reach = guardReach; }                // calm guard when not attacking
-
-    // the spring chases this target so the blade lags & overshoots (secondary motion)
-    a.aimTarget = aim;
+    if (a.lastFacing !== f) { a.aimShown = aim; a.aimShownV = 0; a.lastFacing = f; }   // snap on turn -> no arm twist
+    a.aimTarget = aim;                               // angle spring (in animate) -> blade lags & overshoots
     const drawAim = a.aimShown;
-    h = { x: shX + Math.cos(drawAim) * reach, y: shY + Math.sin(drawAim) * reach };
-    ka = ik(shX, shY, h.x, h.y, uArm, fArm, 1);
+    const thx = shX + Math.cos(drawAim) * reach, thy = shY + Math.sin(drawAim) * reach;
+    if (a.whx === null) { a.whx = thx; a.why = thy; }
+    springTo(a, 'whx', thx, 230, 24, a._dt); springTo(a, 'why', thy, 230, 24, a._dt);  // slight hand give
+    ka = ik(shX, shY, a.whx, a.why, uArm, fArm, s);  // bend = s -> elbow stays down both facings
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
     drawWeapon(ka.ex, ka.ey, drawAim);
 
     // record weapon tip for the swing trail (only on the sweeping melee attacks)
     if (slashT !== null || stabT !== null) {
       const wl = WLEN[cls.weapon] || 24;
-      slashTrail.push({ x: player.x + ka.ex + Math.cos(drawAim) * wl, y: player.y + ka.ey + Math.sin(drawAim) * wl, life: 150 });
+      slashTrail.push({ x: player.x + ka.ex + Math.cos(drawAim) * wl, y: (player.y - hoverY) + ka.ey + Math.sin(drawAim) * wl, life: 150 });
       if (slashTrail.length > 26) slashTrail.shift();
     }
 
