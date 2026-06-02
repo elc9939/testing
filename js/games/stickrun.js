@@ -21,6 +21,7 @@ const COYOTE = 7, BUFFER = 7, CUT = 0.42;
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
 const ROGUE_MAX_KNIVES = 5, ROGUE_REGEN = 1550;
 const MAGE_HOVER_HEIGHT = 42;
+const MAGE_HOVER_STEP = 92;
 
 // ---------- RPG classes (data-driven so more can be added easily) ----------
 // weapon: how the held weapon is drawn; moves: primary attacks cycled per click;
@@ -41,7 +42,7 @@ const CLASSES = [
       breatheAmp: 1.1, breatheSpd: 0.0034, hover: 0, idle: 'sneak', spring: { lean: [150, 9], head: [120, 9], aim: [170, 12] } } },
   { id: 'lancer', name: 'Lancer', emoji: '🔱', color: '#ffd45e', blurb: 'Disciplined spear reach.',
     weapon: 'lance', main: 'braceThrust', alt: 'lanceCharge', move: 'brace',
-    reach: 1.18, speedMul: 0.82, trail: [255, 212, 94], dur: { braceThrust: 380, lanceCharge: 560 }, moveDur: { brace: 620 }, tank: true,
+    reach: 1.18, speedMul: 0.82, trail: [255, 212, 94], dur: { braceThrust: 520, lanceCharge: 640 }, moveDur: { brace: 620 }, tank: true,
     // tall & tanky: rooted feet, small bounce, hands braced around the lance
     style: { hipH: 47, stanceW: 13, strideH: 13, lift: 6, bounceAmp: 0.8, cadence: 0.74, armStride: 4, baseLean: 0.02, squash: 0.75,
       breatheAmp: 0.75, breatheSpd: 0.0013, hover: 0, idle: 'lance', spring: { lean: [85, 24], head: [75, 24], aim: [110, 25] } } },
@@ -66,7 +67,69 @@ const CLASSES = [
     reach: 1.08, speedMul: 0.84, trail: [199, 155, 255], dur: { crush: 430, quake: 520 }, moveDur: { shoulder: 360 }, tank: true,
     style: { hipH: 43, stanceW: 12, strideH: 10, lift: 6, bounceAmp: 3.2, cadence: 0.66, armStride: 7, baseLean: 0.03, squash: 1.35,
       breatheAmp: 1.6, breatheSpd: 0.0014, hover: 0, idle: 'heavy', spring: { lean: [72, 25], head: [66, 24], aim: [105, 24] } } },
-];
+].filter(c => c.id !== 'monk' && c.id !== 'warden');
+
+// ---------- action timeline library ----------
+// Every satisfying move needs the same bones: a readable wind-up, an active
+// window, and a recovery/cancel tail. Keeping that data together lets the combat
+// feel be tuned without chasing scattered timing constants through the file.
+const DEFAULT_ATTACK = {
+  kind: 'melee', strike: 0.50, hitstop: 24, impulse: 5.5, durScale: 1.2,
+  phases: { anticipation: [0.00, 0.30], active: [0.38, 0.62], recovery: [0.62, 1.00] },
+  sweep: [-0.16, -0.08, 0.00, 0.06],
+};
+const ATTACK_TIMELINES = {
+  slash: { kind: 'melee', strike: 0.50, hitstop: 24, impulse: 5.8, tags: ['blade', 'combo'] },
+  dualSlash: { kind: 'melee', strike: 0.44, hitstop: 22, impulse: 3.6, tags: ['blade', 'fast'],
+    phases: { anticipation: [0.00, 0.20], active: [0.26, 0.60], recovery: [0.60, 1.00] },
+    sweep: [-0.12, -0.06, 0.00, 0.06] },
+  rogueStab: { kind: 'melee', strike: 0.42, hitstop: 18, impulse: 4.0, tags: ['blade', 'fast', 'stab'],
+    phases: { anticipation: [0.00, 0.22], active: [0.32, 0.54], recovery: [0.54, 1.00] },
+    sweep: [-0.07, 0.00, 0.07] },
+  legSweep: { kind: 'melee', strike: 0.38, hitstop: 22, impulse: 4.2, tags: ['low', 'control'] },
+  shieldBash: { kind: 'melee', strike: 0.38, hitstop: 30, impulse: 6.5, tags: ['guard', 'bash'] },
+  lanceSwing: { kind: 'melee', strike: 0.50, hitstop: 34, impulse: 6.8, tags: ['reach', 'heavy', 'swing'],
+    phases: { anticipation: [0.00, 0.34], active: [0.40, 0.68], recovery: [0.68, 1.00] },
+    sweep: [-0.18, -0.08, 0.00, 0.08, 0.16] },
+  braceThrust: { kind: 'melee', strike: 0.56, hitstop: 40, impulse: 10.5, tags: ['reach', 'heavy', 'stab'],
+    phases: { anticipation: [0.00, 0.40], active: [0.48, 0.70], recovery: [0.70, 1.00] },
+    sweep: [-0.10, -0.04, 0.00, 0.08] },
+  lanceCharge: { kind: 'melee', strike: 0.58, hitstop: 42, impulse: 9.0, tags: ['reach', 'heavy', 'charge'],
+    phases: { anticipation: [0.00, 0.26], active: [0.28, 0.76], recovery: [0.76, 1.00] },
+    sweep: [-0.08, -0.02, 0.00, 0.08] },
+  crush: { kind: 'melee', strike: 0.50, hitstop: 42, impulse: 5.0, tags: ['heavy', 'impact'] },
+  staffSweep: { kind: 'melee', strike: 0.50, hitstop: 26, impulse: 5.5, tags: ['staff', 'arc'] },
+  vaultKick: { kind: 'melee', strike: 0.50, hitstop: 24, impulse: 7.0, tags: ['air', 'kick'] },
+  throw: { kind: 'projectile', strike: 0.46, hitstop: 0, impulse: 0, tags: ['projectile', 'ammo'],
+    phases: { anticipation: [0.00, 0.28], active: [0.40, 0.50], recovery: [0.50, 1.00] } },
+  arrow: { kind: 'projectile', strike: 0.24, hitstop: 0, impulse: 0, tags: ['projectile'],
+    phases: { anticipation: [0.00, 0.16], active: [0.21, 0.30], recovery: [0.30, 1.00] } },
+  volley: { kind: 'projectile', strike: 0.32, hitstop: 0, impulse: 0, tags: ['projectile', 'burst'] },
+  cast: { kind: 'projectile', strike: 0.38, hitstop: 0, impulse: 0, tags: ['magic'] },
+  arcaneBloom: { kind: 'projectile', strike: 0.48, hitstop: 0, impulse: 0, tags: ['magic', 'area'] },
+  quake: { kind: 'area', strike: 0.48, hitstop: 46, impulse: 0, tags: ['area', 'heavy'] },
+};
+const DEFAULT_MOTION = {
+  phases: { anticipation: [0.00, 0.18], active: [0.18, 0.72], recovery: [0.72, 1.00] },
+  tags: ['move'],
+};
+const MOTION_TIMELINES = {
+  slide: { tags: ['move', 'low', 'attack'], phases: { anticipation: [0.00, 0.12], active: [0.12, 0.66], recovery: [0.66, 1.00] } },
+  airDash: { tags: ['move', 'air', 'burst'], phases: { anticipation: [0.00, 0.10], active: [0.10, 0.78], recovery: [0.78, 1.00] } },
+  brace: { tags: ['move', 'tank', 'reach'], phases: { anticipation: [0.00, 0.28], active: [0.28, 0.78], recovery: [0.78, 1.00] } },
+  shieldStep: { tags: ['move', 'guard'], phases: { anticipation: [0.00, 0.18], active: [0.18, 0.70], recovery: [0.70, 1.00] } },
+  shoulder: { tags: ['move', 'tank', 'bash'], phases: { anticipation: [0.00, 0.16], active: [0.16, 0.68], recovery: [0.68, 1.00] } },
+  backstep: { tags: ['move', 'evade'], phases: { anticipation: [0.00, 0.08], active: [0.08, 0.70], recovery: [0.70, 1.00] } },
+  vault: { tags: ['move', 'air', 'staff'], phases: { anticipation: [0.00, 0.20], active: [0.20, 0.72], recovery: [0.72, 1.00] } },
+};
+
+function withDefaults(spec, fallback) {
+  return Object.assign({}, fallback, spec || {}, {
+    phases: Object.assign({}, fallback.phases, (spec && spec.phases) || {}),
+  });
+}
+function attackSpec(type) { return withDefaults(ATTACK_TIMELINES[type], DEFAULT_ATTACK); }
+function motionSpec(type) { return withDefaults(MOTION_TIMELINES[type], DEFAULT_MOTION); }
 
 // ---------- levels (world coords, y down) ----------
 const G = 470;
@@ -233,6 +296,9 @@ PUBLIC.start = function (root, api) {
     }
     // choose the attack direction from the cursor at the moment of the click
     a.atkAim = aimedAngle();
+    if (cls.id === 'lancer' && (type === 'braceThrust' || type === 'lanceCharge')) {
+      a.atkAim = player.facing > 0 ? -0.03 : Math.PI + 0.03;
+    }
     // with no cursor (touch), auto-aim melee at a nearby dummy/enemy ahead so taps
     // connect — the arc sweep then covers head-to-body. (Basis for enemy targeting.)
     if (!pointer.active && dummies && dummies.length) {
@@ -248,7 +314,8 @@ PUBLIC.start = function (root, api) {
     }
     if (pointer.active) player.facing = Math.cos(a.atkAim) >= 0 ? 1 : -1;   // turn to face it
     a.aimShown = a.atkAim; a.aimShownV = 0;  // seed the blade spring so it whips from the start
-    a.atkActive = true; a.atkType = type; a.atkT = 0; a.struck = false;
+    a.action = startAttackAction(type);
+    a.atkActive = true; a.atkType = type; a.atkT = 0; a.atkDur = a.action.dur; a.atkPhase = 'anticipation'; a.struck = false;
     a.struck2 = false;
     a.atkVar = (Math.random() * 64) | 0;     // vary the swing so motions aren't identical
     // rogue dual-wield: one tap = one hand, alternating each strike
@@ -266,7 +333,7 @@ PUBLIC.start = function (root, api) {
     let type = cls.move;
     if (cls.id === 'rogue') type = 'slide';
     const dur = (cls.moveDur && cls.moveDur[type]) || 320;
-    player.move = { active: true, type, t: 0, dur, struck: false };
+    player.move = startMotion(type, dur);
     if (type === 'airDash') {
       const dir = input.left && !input.right ? -1 : input.right && !input.left ? 1 : player.facing;
       player.facing = dir;
@@ -287,7 +354,17 @@ PUBLIC.start = function (root, api) {
     }
     return true;
   }
-  const mainAttack = () => triggerAttack(cls.id === 'rogue' && input.down ? 'legSweep' : cls.main);
+  function rogueMainAttackType() {
+    if (input.down) return 'legSweep';
+    const i = player && player.anim ? (player.anim.rogueComboNext || 0) : 0;
+    return i === 2 || i === 4 ? 'rogueStab' : 'dualSlash';
+  }
+  function mainAttack() {
+    const type = cls.id === 'rogue' ? rogueMainAttackType() : cls.main;
+    const ok = triggerAttack(type);
+    if (ok && cls.id === 'rogue' && type !== 'legSweep') player.anim.rogueComboNext = ((player.anim.rogueComboNext || 0) + 1) % 5;
+    return ok;
+  }
   const altAttack = () => triggerAttack(cls.alt);
   api.on(view.canvas, 'mousemove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
   api.on(view.canvas, 'mousedown', e => {
@@ -298,6 +375,7 @@ PUBLIC.start = function (root, api) {
 
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
+    if (k === 'f2' || k === ';') { debug.enabled = !debug.enabled; e.preventDefault(); return; }
     if (k === 'arrowleft' || k === 'a') input.left = true;
     else if (k === 'arrowright' || k === 'd') input.right = true;
     else if (k === 'arrowdown' || k === 's') input.down = true;
@@ -331,16 +409,20 @@ PUBLIC.start = function (root, api) {
   let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, droppedKnives, boxes, dummies;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0;   // hit-stop, last anim amount
+  const debug = {
+    enabled: typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'),
+    segments: [], body: true, weapons: true, projectiles: true, dummies: true, coins: true,
+  };
 
   function makePlayer(spawn) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0,
-      move: { active: false, type: null, t: 0, dur: 0, struck: false },
+      move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
       flip: { active: false, t: 0, dur: 0, dir: 1 },
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
               struck: false, struck2: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, fly: 0, _dt: 0.016,
-              atkVar: 0, rogueHand: 0, rogueHandNext: 0,
+              atkVar: 0, rogueHand: 0, rogueHandNext: 0, rogueComboNext: 0, atkDur: 320, atkPhase: 'idle', action: null,
               bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0,
               shAng: 0, shAngV: 0, elAng: 0, elAngV: 0, blAng: 0, blAngV: 0 },
     };
@@ -364,6 +446,51 @@ PUBLIC.start = function (root, api) {
     syncHud();
   }
   function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function timelinePhase(spec, t) {
+    const p = spec.phases || DEFAULT_ATTACK.phases;
+    if (t < p.anticipation[1]) return 'anticipation';
+    if (t < p.active[1]) return t >= p.active[0] ? 'active' : 'commit';
+    return 'recovery';
+  }
+  function phaseAmount(spec, name, t) {
+    const p = spec.phases && spec.phases[name];
+    if (!p) return 0;
+    return clamp((t - p[0]) / Math.max(0.001, p[1] - p[0]), 0, 1);
+  }
+  function attackDuration(type) {
+    const spec = attackSpec(type);
+    return ((cls.dur && cls.dur[type]) || spec.dur || 320) * (spec.durScale || 1);
+  }
+  function startAttackAction(type) {
+    const spec = attackSpec(type), dur = attackDuration(type);
+    return { type, spec, t: 0, dur, phase: 'anticipation', active: false, recovery: 0 };
+  }
+  function startMotion(type, dur) {
+    const spec = motionSpec(type);
+    return { active: true, type, t: 0, dur, struck: false, spec, phase: 'anticipation' };
+  }
+  function currentActionLayer() {
+    const a = player && player.anim;
+    if (!a || !a.atkActive) return { active: false, type: null, t: 0, phase: 'idle', spec: DEFAULT_ATTACK, commit: 0, activeAmt: 0, recovery: 0 };
+    const spec = a.action ? a.action.spec : attackSpec(a.atkType);
+    const t = clamp(a.atkT, 0, 1);
+    return {
+      active: true,
+      type: a.atkType,
+      t,
+      phase: timelinePhase(spec, t),
+      spec,
+      commit: Math.sin(phaseAmount(spec, 'anticipation', t) * Math.PI * 0.5),
+      activeAmt: Math.sin(phaseAmount(spec, 'active', t) * Math.PI),
+      recovery: phaseAmount(spec, 'recovery', t),
+    };
+  }
+  function rememberDebugSegment(kind, ax, ay, bx, by, r, color, life) {
+    if (!debug.enabled) return;
+    debug.segments.push({ kind, ax, ay, bx, by, r: r || 2, color: color || '#ff405f', life: life || 220, max: life || 220 });
+    if (debug.segments.length > 80) debug.segments.shift();
+  }
 
   function syncHud() {
     document.getElementById('sr-lvl').textContent = li + 1;
@@ -502,6 +629,7 @@ PUBLIC.start = function (root, api) {
   function hitBoxesSegment(ax, ay, bx, by, dx, dy, force, radius) {
     const sx = bx - ax, sy = by - ay, sl = Math.hypot(sx, sy) || 1;
     const nx = dx == null ? sx / sl : dx, ny = dy == null ? sy / sl : dy;
+    rememberDebugSegment('ability', ax, ay, bx, by, radius || 10, '#ffb020', 220);
     for (const b of boxes) {
       const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
       const p = closestPointOnSeg(cx, cy, ax, ay, bx, by);
@@ -512,8 +640,23 @@ PUBLIC.start = function (root, api) {
   function projectileHitsBox(p, ax, ay, b) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     const q = closestPointOnSeg(cx, cy, ax, ay, p.x, p.y);
-    const r = p.kind === 'dagger' || p.kind === 'arrow' ? 4.5 : p.r || 8;
+    const r = projectileRadius(p);
     return pointAabbDist(q.x, q.y, b) <= r;
+  }
+  function projectileRadius(p) {
+    return p.kind === 'dagger' || p.kind === 'arrow' ? 4.5 : p.r || 8;
+  }
+  function projectileHitsDummy(p, ax, ay, d) {
+    const r = projectileRadius(p) + 13;
+    let best = null, bd = Infinity;
+    for (const k in d.pts) {
+      const pt = d.pts[k];
+      if (pt.pin) continue;
+      const q = closestPointOnSeg(pt.x, pt.y, ax, ay, p.x, p.y);
+      const dd = Math.hypot(q.x - pt.x, q.y - pt.y);
+      if (dd < bd) { bd = dd; best = pt; }
+    }
+    return bd <= r ? { p: best, d: bd } : null;
   }
   function bodyCapsules() {
     const S = cls.style, hip = { x: player.x, y: player.y - S.hipH };
@@ -686,22 +829,34 @@ PUBLIC.start = function (root, api) {
     ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
     ctx.restore();
   }
-  function hoverSurfaceY(x, maxDrop) {
-    const L = LEVELS[li], bottom = player.y + maxDrop;
+  function hoverSurfaceY(x, maxDrop, maxRise) {
+    const L = LEVELS[li], bottom = player.y + maxDrop, top = player.y - (maxRise == null ? 4 : maxRise);
     let y = Infinity;
-    for (const p of L.platforms) if (x > p.x - 10 && x < p.x + p.w + 10 && p.y >= player.y - 4 && p.y <= bottom) y = Math.min(y, p.y);
-    for (const b of boxes) if (x > b.x - 10 && x < b.x + b.w + 10 && b.y >= player.y - 4 && b.y <= bottom) y = Math.min(y, b.y);
+    for (const p of L.platforms) if (x > p.x - 14 && x < p.x + p.w + 14 && p.y >= top && p.y <= bottom) y = Math.min(y, p.y);
+    for (const b of boxes) if (x > b.x - 14 && x < b.x + b.w + 14 && b.y >= top && b.y <= bottom) y = Math.min(y, b.y);
     return y === Infinity ? null : y;
   }
   // Hover target that also peeks ahead in the travel direction and takes the
   // TOPMOST surface, so the mage rises early to scale up over a higher ledge/crate.
   function mageHoverSurface() {
     const dir = player.vx > 0.3 ? 1 : player.vx < -0.3 ? -1 : player.facing;
-    const here = hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 150);
-    const ahead = hoverSurfaceY(player.x + dir * PW * 0.9, MAGE_HOVER_HEIGHT + 150);
-    if (here === null) return ahead;
-    if (ahead === null) return here;
-    return Math.min(here, ahead);
+    const samples = [
+      hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 150, MAGE_HOVER_STEP),
+      hoverSurfaceY(player.x + dir * 34, MAGE_HOVER_HEIGHT + 150, MAGE_HOVER_STEP),
+      hoverSurfaceY(player.x + dir * 70, MAGE_HOVER_HEIGHT + 150, MAGE_HOVER_STEP),
+    ].filter(y => y !== null);
+    return samples.length ? Math.min(...samples) : null;
+  }
+  function mageHoverStepOver(solid) {
+    if (!cls.fly || !mageHovering() || Math.abs(player.vx) < 0.15) return false;
+    const targetY = solid.y - MAGE_HOVER_HEIGHT;
+    const rise = player.y - targetY;
+    if (rise <= 0 || rise > MAGE_HOVER_STEP) return false;
+    player.y = lerp(player.y, targetY, 0.42);
+    player.vy = Math.min(player.vy, -0.55);
+    player.grounded = false;
+    player.anim.squash = Math.min(player.anim.squash, -0.12);
+    return true;
   }
   function spawnDroppedKnife(x, y, angle, vx, vy) {
     droppedKnives.push({ x, y, vx: (vx || 0) * 0.12, vy: (vy || 0) * 0.12, angle, grounded: false, life: 9000 });
@@ -746,9 +901,10 @@ PUBLIC.start = function (root, api) {
   }
   function maxV() {
     let m = MAXV * cls.speedMul;
-    if (mageHovering()) m *= 1.62;
+    if (mageHovering()) m *= 1.24;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
     if (activeMove('slide')) m = Math.max(m, 8.0);
+    if (player && player.anim && player.anim.atkActive && player.anim.atkType === 'lanceCharge') m = Math.max(m, 8.8);
     if (activeMove('lanceCharge') || activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
     return m;
@@ -758,6 +914,7 @@ PUBLIC.start = function (root, api) {
     if (!m.active) return;
     m.t += STEP / m.dur;
     const t = clamp(m.t, 0, 1), bell = Math.sin(t * Math.PI);
+    m.phase = timelinePhase(m.spec || DEFAULT_MOTION, t);
     if (m.type === 'slide') {
       player.vx = player.facing * (6.8 + 1.8 * (1 - t));
       player.vy = Math.min(player.vy, 1.5);
@@ -802,12 +959,28 @@ PUBLIC.start = function (root, api) {
         burst(player.x + player.facing * 28, player.y - 32, cls.color, 12, 3);
       }
     }
-    if (m.t >= 1) player.move = { active: false, type: null, t: 0, dur: 0, struck: false };
+    if (m.t >= 1) player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
   }
   function updateRogueFlip() {
     if (!player.flip || !player.flip.active) return;
     player.flip.t += STEP / player.flip.dur;
     if (player.flip.t >= 1) player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
+  }
+  function updateAttackMotion() {
+    const a = player.anim;
+    if (!a.atkActive || a.atkType !== 'lanceCharge') return;
+    const t = clamp(a.atkT, 0, 1);
+    if (t < 0.22) {
+      player.vx *= 0.72;                         // plant before the drive
+      return;
+    }
+    if (t < 0.78) {
+      const drive = Math.sin(clamp((t - 0.22) / 0.56, 0, 1) * Math.PI);
+      player.vx = player.facing * (5.4 + drive * 3.4);
+      player.vy = Math.min(player.vy, 1.4);
+      if (Math.random() < 0.28) particles.push({ x: player.x - player.facing * rand(12, 28), y: player.y - rand(8, 34),
+        vx: -player.facing * rand(0.3, 1.0), vy: rand(-0.25, 0.45), life: rand(120, 240), max: 240, color: cls.color, r: rand(1, 2.3) });
+    }
   }
 
   function physics() {
@@ -818,21 +991,22 @@ PUBLIC.start = function (root, api) {
     else if (player.grounded) player.vx *= FRICTION;
     updateClassMove();
     updateRogueFlip();
+    updateAttackMotion();
     player.vx = clamp(player.vx, -maxV(), maxV());
 
     const g = cls.gravityMul || 1;
     if (cls.fly && mageHovering()) {
       jumpBuf = 0;
       const surface = mageHoverSurface();
-      player.vy = Math.min(player.vy + GRA * 0.18, TERMINAL * 0.45);
+      player.vy = Math.min(player.vy + GRA * 0.12, TERMINAL * 0.38);
       if (surface !== null) {
         const targetY = surface - MAGE_HOVER_HEIGHT;
-        player.vy += clamp((targetY - player.y) * 0.095, -1.9, 1.1);   // stronger lift to climb higher terrain
-        if (player.y > targetY - 2 && player.vy > 0) player.vy *= 0.34;
+        player.vy += clamp((targetY - player.y) * 0.060, -1.05, 0.72);   // gentle lift toward hover height
+        if (player.y > targetY - 2 && player.vy > 0) player.vy *= 0.45;
       } else {
-        player.vy += clamp((-0.18 - player.vy) * 0.08, -0.36, 0.28);
+        player.vy += clamp((-0.12 - player.vy) * 0.055, -0.24, 0.18);
       }
-      player.vy = clamp(player.vy, -6.8, 4.5);
+      player.vy = clamp(player.vy, -4.2, 3.4);
     } else {
       // jump (buffered + coyote)
       if (jumpBuf > 0 && (player.grounded || player.coyote > 0)) {
@@ -851,10 +1025,12 @@ PUBLIC.start = function (root, api) {
     // integrate + collide (x then y) — against terrain, then crates
     player.x += player.vx;
     for (const p of L.platforms) if (hit(box(), p)) {
+      if (mageHoverStepOver(p)) continue;
       if (player.vx > 0) player.x = p.x - PW / 2; else if (player.vx < 0) player.x = p.x + p.w + PW / 2;
       player.vx = 0;
     }
     for (const b of boxes) if (hit(box(), b)) {           // shove crates sideways (heavier = harder)
+      if (mageHoverStepOver(b)) continue;
       const sturdy = cls.tank || activeMove('brace') || activeMove('shoulder') || activeMove('shieldStep');
       const shove = sturdy ? 1.35 : 0.85, loss = sturdy ? 0.78 : 0.5;
       if (player.vx > 0) { b.x = player.x + PW / 2; b.vx = Math.max(b.vx, (player.vx * shove + 0.6) / b.m); player.vx *= loss; b.va += sturdy ? 0.025 : 0.012; }
@@ -901,7 +1077,7 @@ PUBLIC.start = function (root, api) {
     const s = LEVELS[li].spawn;
     burst(player.x, Math.min(player.y, LEVELS[li].h), '#ff6b6b', 16, 4);
     player.x = s.x; player.y = s.y; player.vx = player.vy = 0; player.grounded = false;
-    player.move = { active: false, type: null, t: 0, dur: 0, struck: false };
+    player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
     player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
     player.rogueAirJump = false;
   }
@@ -932,26 +1108,27 @@ PUBLIC.start = function (root, api) {
     springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), S.spring.head[0], S.spring.head[1], dts);
     springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
     if (a.atkActive) {
-      a.atkT += dt / ((cls.dur[a.atkType] || 320) * 1.2);
+      if (!a.action || a.action.type !== a.atkType) a.action = startAttackAction(a.atkType);
+      a.atkDur = a.action.dur;
+      a.atkT += dt / a.atkDur;
+      a.action.t = a.atkT;
+      a.action.phase = timelinePhase(a.action.spec, clamp(a.atkT, 0, 1));
+      a.action.active = a.action.phase === 'active';
+      a.action.recovery = phaseAmount(a.action.spec, 'recovery', a.atkT);
+      a.atkPhase = a.action.phase;
       const sp = strikePoint(a.atkType);
       if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType, a.rogueHand); }   // impact / release moment
-      if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; }
+      if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; a.atkPhase = 'idle'; a.action = null; }
     }
     return moveAmt;
   }
   function strikePoint(type) {
-    if (type === 'throw') return 0.46;
-    if (type === 'arrow') return 0.24;
-    if (type === 'volley') return 0.32;
-    if (type === 'cast') return 0.38;
-    if (type === 'arcaneBloom' || type === 'quake') return 0.48;
-    if (type === 'shieldBash' || type === 'legSweep') return 0.38;
-    if (type === 'lanceCharge') return 0.52;
-    return 0.5;
+    return attackSpec(type).strike;
   }
   // fired once at the impact/release frame
   function onStrike(type, phase) {
     const ang = player.anim.atkAim;
+    const spec = attackSpec(type);
     if (type === 'cast') { spawnBolt(ang, 1.4); return; }
     if (type === 'arcaneBloom') { spawnMageSigil(ang); return; }
     if (type === 'throw') { spawnDagger(ang); return; }
@@ -959,15 +1136,15 @@ PUBLIC.start = function (root, api) {
     if (type === 'volley') { for (const d of [-0.12, 0, 0.12]) spawnArrow(ang + d, 0.92); return; }
     if (type === 'quake') {
       const qx = player.x + player.facing * 26, qy = player.y - 10;
-      freeze = 46; player.vx *= 0.35;
+      freeze = spec.hitstop; player.vx *= 0.35;
       burst(qx, qy, cls.color, 30, 5.6); burst(qx, qy, '#ffffff', 10, 3.2);
       pushBoxesRadial(qx, qy, 28, 128);
       return;
     }
     // melee: light hit-stop, body follow-through, crate impulse, impact burst
-    const heavy = type === 'lanceCharge' || type === 'braceThrust' || type === 'crush';
-    freeze = type === 'lanceCharge' ? 44 : type === 'crush' ? 42 : type === 'shieldBash' ? 30 : type === 'legSweep' ? 22 : heavy ? 36 : 24;
-    player.vx += player.facing * (type === 'lanceCharge' ? 15 : type === 'braceThrust' ? 8.5 : type === 'shieldBash' ? 6.5 : type === 'dualSlash' ? 3.6 : type === 'vaultKick' ? 7 : type === 'crush' ? 5 : 5.5);
+    const heavy = spec.tags && spec.tags.includes('heavy');
+    freeze = spec.hitstop;
+    player.vx += player.facing * spec.impulse;
     if (type === 'vaultKick') { player.vy = Math.min(player.vy, -4.6); player.grounded = false; }
     const seg = meleeSweepHit(type, ang);     // sweeps the arc; hits crates + dummy at the contact point
     burst(seg.bx, seg.by, cls.color, type === 'dualSlash' ? 12 : heavy ? 22 : 15, type === 'dualSlash' ? 3.4 : 5.2);
@@ -978,8 +1155,6 @@ PUBLIC.start = function (root, api) {
     const f = player.facing, shX = player.x, shY = player.y - 72;
     if (type === 'legSweep') return { ax: player.x + f * 2, ay: player.y - 10, bx: player.x + f * 64, by: player.y - 7, dx: f, dy: -0.35, force: 18, r: 10 };
     if (type === 'shieldBash') return { ax: player.x + f * 38, ay: player.y - 56, bx: player.x + f * 42, by: player.y - 26, dx: f, dy: -0.1, force: 21, r: 15 };
-    if (type === 'lanceCharge') return { ax: shX + f * 8, ay: shY + 10, bx: shX + f * 128, by: shY + 4, dx: f, dy: -0.04, force: 32, r: 8 };
-    if (type === 'braceThrust') return { ax: shX + f * 6, ay: shY + 8, bx: shX + f * 108, by: shY + 2, dx: f, dy: -0.04, force: 24, r: 8 };
     if (type === 'crush') return { ax: shX + f * 18, ay: shY - 8, bx: shX + f * 58, by: player.y - 12, dx: f * 0.55, dy: 0.9, force: 30, r: 18 };
     if (type === 'staffSweep') {
       const side = Math.cos(ang) >= 0 ? 1 : -1, a = ang + side * 0.55;
@@ -994,22 +1169,29 @@ PUBLIC.start = function (root, api) {
     const ch = armChain(shX, shY, pose.shAng, pose.elBend);
     const bladeAng = ch.foreAng + pose.wrBend;
     const wl = WLEN[cls.weapon] || 24;
-    const tx = ch.hx + Math.cos(bladeAng) * wl, ty = ch.hy + Math.sin(bladeAng) * wl;
-    const FORCE = { lanceCharge: 32, braceThrust: 24, crush: 30, staffSweep: 17, stab: 16, lunge: 18 };
+    const bx = ch.hx + Math.cos(bladeAng) * wl, by = ch.hy + Math.sin(bladeAng) * wl;
+    let ax = ch.hx, ay = ch.hy;
+    if (cls.weapon === 'lance') {
+      const start = type === 'lanceSwing' ? -10 : 24;
+      ax = ch.hx + Math.cos(bladeAng) * start;
+      ay = ch.hy + Math.sin(bladeAng) * start;
+    }
+    const FORCE = { lanceSwing: 26, lanceCharge: 30, braceThrust: 28, rogueStab: 15, crush: 30, staffSweep: 17, stab: 18, lunge: 18 };
     const force = FORCE[type] != null ? FORCE[type] : 16;
-    const r = type === 'crush' ? 18 : (type === 'lanceCharge' || type === 'braceThrust') ? 9 : 11;
-    return { ax: ch.hx, ay: ch.hy, bx: tx, by: ty, dx: Math.cos(bladeAng), dy: Math.sin(bladeAng), force, r };
+    const r = type === 'crush' ? 18 : type === 'lanceSwing' ? 13 : (type === 'lanceCharge' || type === 'braceThrust') ? 10 : type === 'rogueStab' ? 8 : 11;
+    return { ax, ay, bx, by, dx: Math.cos(bladeAng), dy: Math.sin(bladeAng), force, r };
   }
   // Sample the blade across the cut window and test the WHOLE swept arc — so an
   // overhead slash connects with a head-height target on the way down, not just
   // at one instant. Each crate/dummy is hit at most once per strike.
   function meleeSweepHit(type, ang) {
-    const sp = strikePoint(type), ts = [sp - 0.16, sp - 0.08, sp, sp + 0.06];
+    const spec = attackSpec(type), sp = strikePoint(type), ts = (spec.sweep || DEFAULT_ATTACK.sweep).map(o => sp + o);
     const crateSeen = new Set(), dBest = new Map();
     let impact = null;
     for (const tt of ts) {
       const s = meleeSegment(type, ang, clamp(tt, 0, 1));
       if (!impact || Math.abs(tt - sp) < 0.001) impact = s;
+      rememberDebugSegment('weapon', s.ax, s.ay, s.bx, s.by, s.r, '#ff405f', 260);
       for (const b of boxes) {
         if (crateSeen.has(b)) continue;
         const p = closestPointOnSeg(b.x + b.w / 2, b.y + b.h / 2, s.ax, s.ay, s.bx, s.by);
@@ -1105,11 +1287,11 @@ PUBLIC.start = function (root, api) {
   }
   // thrust reach (0=drawn-in .. >1 = overshoot): big load, explosive lunge-out, recover
   function stabReach(t) {
-    if (t < 0.34) return lerp(0, -0.45, ease(t / 0.34));           // pull way back to load
-    if (t < 0.44) return -0.45;                                    // hold
-    if (t < 0.54) return lerp(-0.45, 1.25, ease((t - 0.44) / 0.10)); // explosive thrust (overshoots)
-    if (t < 0.70) return 1.25;                                     // hold full extension
-    return lerp(1.25, 0, ease((t - 0.70) / 0.30));                 // retract
+    if (t < 0.36) return lerp(0, -0.62, ease(t / 0.36));             // deeper draw-back
+    if (t < 0.48) return -0.62;                                      // readable brace
+    if (t < 0.58) return lerp(-0.62, 1.62, ease((t - 0.48) / 0.10));  // hard extension
+    if (t < 0.72) return 1.62;                                       // hold the point out
+    return lerp(1.62, 0, ease((t - 0.72) / 0.28));                   // recover
   }
   function lungeReach(t) {
     if (t < 0.26) return lerp(0, -0.28, ease(t / 0.26));
@@ -1141,7 +1323,7 @@ PUBLIC.start = function (root, api) {
   }
   function attackArc(type) {
     if (type === 'crush') return 'chop';
-    if (type === 'stab' || type === 'lunge' || type === 'braceThrust' || type === 'lanceCharge') return 'thrust';
+    if (type === 'stab' || type === 'rogueStab' || type === 'lunge' || type === 'braceThrust' || type === 'lanceCharge') return 'thrust';
     if (type === 'cast' || type === 'arcaneBloom') return 'cast';
     if (type === 'throw') return 'throw';
     if (type === 'arrow' || type === 'volley') return 'shoot';
@@ -1203,10 +1385,25 @@ PUBLIC.start = function (root, api) {
       wrBend = s * kfa(t, [[0, 0.20], [0.36, 0.85], [0.52, -0.45], [0.66, 0.00], [1, 0.20]]);
     } else if (arc === 'thrust') {
       const P = THRUST_VARIANTS[v % THRUST_VARIANTS.length];
-      // straight stab: coil the elbow to draw the hand in, then explode it out
-      shAng = aim + s * 0.05 * Math.sin(clamp(t, 0, 1) * Math.PI);
-      elBend = s * kfa(t, [[0, -0.40], [0.32, -P.coil], [0.42 + P.hold, -P.coil], [0.54, P.lo], [0.70, P.lo], [1, -0.60]]);
-      wrBend = s * kfa(t, [[0, 0.20], [0.44, 0.45], [0.54, 0.00], [1, 0.15]]);
+      const big = type === 'braceThrust' || type === 'lanceCharge' || type === 'stab';
+      const lance = type === 'braceThrust' || type === 'lanceCharge';
+      // straight stab: visibly draw the weapon back, square the shoulder, then
+      // punch the point forward so the hitbox extends with the lance tip.
+      shAng = aim + s * kfa(t, big
+        ? lance
+          ? [[0, 0.00], [0.34, -0.08], [0.50, -0.09], [0.58, 0.025], [0.74, 0.01], [1, 0.00]]
+          : [[0, 0.00], [0.34, -0.22], [0.48, -0.26], [0.58, 0.08], [0.74, 0.04], [1, 0.00]]
+        : [[0, 0.00], [0.32, -0.08], [0.54, 0.05], [1, 0.00]]);
+      elBend = s * kfa(t, big
+        ? lance
+          ? [[0, -0.45], [0.24, -1.35], [0.34, -1.50], [0.44, P.lo + 0.05], [0.74, P.lo], [1, -0.62]]
+          : [[0, -0.50], [0.34, -2.35], [0.48, -2.35], [0.58, P.lo + 0.12], [0.74, P.lo], [1, -0.70]]
+        : [[0, -0.40], [0.32, -P.coil], [0.42 + P.hold, -P.coil], [0.54, P.lo], [0.70, P.lo], [1, -0.60]]);
+      wrBend = s * kfa(t, big
+        ? lance
+          ? [[0, 0.12], [0.34, 0.26], [0.44, -0.03], [0.74, 0.00], [1, 0.12]]
+          : [[0, 0.22], [0.46, 0.58], [0.58, -0.04], [0.74, 0.02], [1, 0.16]]
+        : [[0, 0.20], [0.44, 0.45], [0.54, 0.00], [1, 0.15]]);
     } else if (arc === 'cast') {
       const bell = Math.sin(clamp(t, 0, 1) * Math.PI);
       shAng = aim - s * 0.10 * (1 - bell);
@@ -1246,7 +1443,7 @@ PUBLIC.start = function (root, api) {
   }
 
   // blade/weapon length per class (used for the swing trail + bolt origin)
-  const WLEN = { sword: 30, dagger: 23, spear: 50, lance: 82, staff: 46, bow: 34, bo: 52, hammer: 46 };
+  const WLEN = { sword: 40, dagger: 23, spear: 50, lance: 88, staff: 46, bow: 34, bo: 52, hammer: 46 };
   // draw the held weapon from the hand along `ang`; `scale` stretches it lengthwise (smear)
   function drawWeapon(hx, hy, ang, scale) {
     ctx.save();
@@ -1266,7 +1463,7 @@ PUBLIC.start = function (root, api) {
     const handle = (back) => { ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.moveTo(hx - dx * back, hy - dy * back); ctx.lineTo(hx + dx * 2, hy + dy * 2); ctx.stroke(); };
 
-    if (cls.weapon === 'sword') { handle(5); guard(6); blade(30, 3, '#7d828c'); }
+    if (cls.weapon === 'sword') { handle(7); guard(7); blade(40, 3.4, '#7d828c'); }
     else if (cls.weapon === 'dagger') { handle(4); guard(4); blade(16, 2.6, '#9aa0aa'); }
     else if (cls.weapon === 'spear') {
       handle(8);
@@ -1413,8 +1610,40 @@ PUBLIC.start = function (root, api) {
     return { shAng, elBend, wrBend };
   }
 
+  function solveHeroRagdoll(a, target) {
+    const R = a.rag || (a.rag = { init: false });
+    const lenHC = Math.hypot(target.shX - target.hipX, target.shY - target.hipY);
+    const lenCH = Math.hypot(target.headCX - target.shX, target.headCY - target.shY);
+    if (!R.init || target.flipActive && !R.flip) {
+      R.cx = target.shX; R.cy = target.shY; R.cpx = target.shX; R.cpy = target.shY;
+      R.hx = target.headCX; R.hy = target.headCY; R.hpx = target.headCX; R.hpy = target.headCY;
+      R.init = true;
+    }
+    R.flip = target.flipActive;
+    const KC = target.flipActive ? 0.7 : 0.30, KH = target.flipActive ? 0.7 : 0.26, DMP = 0.90;
+    const dvx = player.vx - (R.lvx || 0); R.lvx = player.vx;
+    const dsq = a.squash - (R.lsq || 0); R.lsq = a.squash;
+    let impX = clamp(-dvx, -3, 3) * 1.4, impY = clamp(dsq, -1, 1) * 6;
+    if (a.atkActive && a.struck && !R.struckSeen) { impX += -target.f * 2.4; impY -= 1.2; R.struckSeen = true; }
+    if (!a.atkActive) R.struckSeen = false;
+    let cvx = (R.cx - R.cpx) * DMP, cvy = (R.cy - R.cpy) * DMP;
+    R.cpx = R.cx; R.cpy = R.cy; R.cx += cvx + impX; R.cy += cvy + impY;
+    let hvx = (R.hx - R.hpx) * DMP, hvy = (R.hy - R.hpy) * DMP;
+    R.hpx = R.hx; R.hpy = R.hy; R.hx += hvx + impX * 0.7; R.hy += hvy + impY * 0.7;
+    R.cx += (target.shX - R.cx) * KC; R.cy += (target.shY - R.cy) * KC;
+    R.hx += (target.headCX - R.hx) * KH; R.hy += (target.headCY - R.hy) * KH;
+    for (let it = 0; it < 3; it++) {
+      let dx = R.cx - target.hipX, dy = R.cy - target.hipY, dd = Math.hypot(dx, dy) || 1, df = (dd - lenHC) / dd;
+      R.cx -= dx * df; R.cy -= dy * df;
+      let ex = R.hx - R.cx, ey = R.hy - R.cy, ed = Math.hypot(ex, ey) || 1, ef = (ed - lenCH) / ed * 0.5;
+      R.cx += ex * ef; R.cy += ey * ef; R.hx -= ex * ef; R.hy -= ey * ef;
+    }
+    return { shX: R.cx, shY: R.cy, headCX: R.hx, headCY: R.hy };
+  }
+
   function drawStick(moveAmt) {
     const a = player.anim, f = player.facing, p = a.phase, air = a.air;
+    const actionLayer = currentActionLayer();
     const fly = a.fly || 0, moveType = player.move.active ? player.move.type : null, moveT = player.move.active ? clamp(player.move.t, 0, 1) : 0;
     const flipActive = player.flip && player.flip.active;
     const flipT = flipActive ? clamp(player.flip.t, 0, 1) : 0;
@@ -1443,19 +1672,19 @@ PUBLIC.start = function (root, api) {
     hoverY = fly * (S.hover + Math.sin(now * 0.004) * 1.8);
 
     let postureLean = 0, guardCrouch = 0;            // (no cursor aiming for now)
-    if (moveType === 'slide') { postureLean -= f * 0.26; guardCrouch = 13 * Math.sin(moveT * Math.PI); }
+    if (moveType === 'slide') { postureLean -= f * 0.62; guardCrouch = 24 * Math.sin(moveT * Math.PI); }
     else if (moveType === 'shoulder' || moveType === 'shieldStep' || moveType === 'brace') postureLean += f * 0.16 * Math.sin(moveT * Math.PI);
     else if (moveType === 'airDash') postureLean += f * 0.22;
     if (flipActive) {
-      postureLean += player.flip.dir * (Math.PI * 2 * ease(flipT) + 0.18 * flipLead);
-      guardCrouch -= 8 * flipCurl;
+      postureLean += player.flip.dir * (Math.PI * 2 * ease(flipT) + 0.22 * flipLead);
+      guardCrouch -= 14 * flipCurl;
     }
 
     // ----- attack scalars (whole-body reaction) -----
     let atkLean = 0, atkHip = 0, clipHipY = 0, clipHeadX = 0, slashT = null, stabT = null, lungeT = null, castT = null, throwT = null, shootT = null;
     a._clip = null;
-    if (a.atkActive) {
-      const t = a.atkT, ty = a.atkType, bell = Math.max(0, Math.sin(Math.min(1, t) * Math.PI));
+    if (actionLayer.active) {
+      const t = actionLayer.t, ty = actionLayer.type, bell = Math.max(0, Math.sin(Math.min(1, t) * Math.PI));
       const clip = actionClip(ty, t, f);                  // full-body clip (prototype: knight slash)
       if (clip) {
         slashT = t;                                       // front arm still runs the swing engine
@@ -1463,7 +1692,8 @@ PUBLIC.start = function (root, api) {
         const w = clip.weight;
         atkLean = clip.spine * w; atkHip = clip.hipX * w; clipHipY = clip.hipY * w; clipHeadX = clip.headX * w;
       }
-      else if (ty === 'stab' || ty === 'braceThrust') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * (ty === 'braceThrust' ? 14 : 11); atkLean = f * l * 0.10; }
+      else if (ty === 'lanceSwing') { slashT = t; atkHip = f * bell * 10; atkLean = f * bell * 0.22; }
+      else if (ty === 'stab' || ty === 'rogueStab' || ty === 'braceThrust') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * (ty === 'braceThrust' ? 19 : ty === 'rogueStab' ? 7 : 13); atkLean = f * l * (ty === 'braceThrust' ? 0.18 : ty === 'rogueStab' ? 0.08 : 0.12); }
       else if (ty === 'lunge' || ty === 'lanceCharge') { lungeT = t; const l = Math.max(0, lungeReach(t)); atkHip = f * l * 20; atkLean = f * l * 0.19; }
       else if (ty === 'cast' || ty === 'arcaneBloom') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
       else if (ty === 'arrow' || ty === 'volley') { shootT = t; atkHip = -f * bell * 2; atkLean = -f * bell * 0.05; }
@@ -1490,37 +1720,10 @@ PUBLIC.start = function (root, api) {
     }
     headCX += clipHeadX;                                  // clip: head leads the cut
 
-    // ----- ACTIVE RAGDOLL torso: chest & head are verlet masses muscled toward
-    // the animation pose (above). Momentum, landings/jumps and attack recoil push
-    // them around; bones to the (rooted) hip keep the body intact; the arms IK off
-    // the PHYSICAL chest, so the whole upper body reacts. Stiff = looks animated,
-    // loosen RAG_KC/RAG_KH for a floppier feel. -----
-    {
-      const R = a.rag || (a.rag = { init: false });
-      const lenHC = Math.hypot(shX - hipX, shY - hipY), lenCH = Math.hypot(headCX - shX, headCY - shY);
-      if (!R.init || flipActive && !R.flip) { R.cx = shX; R.cy = shY; R.cpx = shX; R.cpy = shY; R.hx = headCX; R.hy = headCY; R.hpx = headCX; R.hpy = headCY; R.init = true; }
-      R.flip = flipActive;
-      const KC = flipActive ? 0.7 : 0.30, KH = flipActive ? 0.7 : 0.26, DMP = 0.90;
-      // impulses from the body's own motion
-      const dvx = player.vx - (R.lvx || 0); R.lvx = player.vx;
-      const dsq = a.squash - (R.lsq || 0); R.lsq = a.squash;
-      let impX = clamp(-dvx, -3, 3) * 1.4, impY = clamp(dsq, -1, 1) * 6;
-      if (a.atkActive && a.struck && !R.struckSeen) { impX += -f * 2.4; impY -= 1.2; R.struckSeen = true; }
-      if (!a.atkActive) R.struckSeen = false;
-      let cvx = (R.cx - R.cpx) * DMP, cvy = (R.cy - R.cpy) * DMP;
-      R.cpx = R.cx; R.cpy = R.cy; R.cx += cvx + impX; R.cy += cvy + impY;
-      let hvx = (R.hx - R.hpx) * DMP, hvy = (R.hy - R.hpy) * DMP;
-      R.hpx = R.hx; R.hpy = R.hy; R.hx += hvx + impX * 0.7; R.hy += hvy + impY * 0.7;
-      R.cx += (shX - R.cx) * KC; R.cy += (shY - R.cy) * KC;
-      R.hx += (headCX - R.hx) * KH; R.hy += (headCY - R.hy) * KH;
-      for (let it = 0; it < 3; it++) {
-        let dx = R.cx - hipX, dy = R.cy - hipY, dd = Math.hypot(dx, dy) || 1, df = (dd - lenHC) / dd;
-        R.cx -= dx * df; R.cy -= dy * df;
-        let ex = R.hx - R.cx, ey = R.hy - R.cy, ed = Math.hypot(ex, ey) || 1, ef = (ed - lenCH) / ed * 0.5;
-        R.cx += ex * ef; R.cy += ey * ef; R.hx -= ex * ef; R.hy -= ey * ef;
-      }
-      shX = R.cx; shY = R.cy; headCX = R.hx; headCY = R.hy;
-    }
+    // Physics reaction layer: the animated chest/head targets are solved through
+    // a light active-ragdoll pass before arms and head render from the result.
+    const ragPose = solveHeroRagdoll(a, { hipX, hipY, shX, shY, headCX, headCY, flipActive, f });
+    shX = ragPose.shX; shY = ragPose.shY; headCX = ragPose.headCX; headCY = ragPose.headCY;
 
     // clip rotation: shear the shoulder girdle & hip line to fake torso/hip twist.
     // Front shoulder/hip drive toward the cut; back ones pull away (counter-rotate).
@@ -1549,8 +1752,9 @@ PUBLIC.start = function (root, api) {
       }
       if (moveType === 'slide') {
         const frontLeg = legSign === -1;
-        foot.x = frontLeg ? f * (26 + 8 * Math.sin(moveT * Math.PI)) : -f * 15;
-        foot.y = frontLeg ? -1 : -9;
+        const slide = Math.sin(moveT * Math.PI);
+        foot.x = frontLeg ? f * (42 + 12 * slide) : -f * (24 + 8 * slide);
+        foot.y = frontLeg ? -1 : -15;
       } else if (a.atkActive && a.atkType === 'legSweep') {
         const frontLeg = legSign === -1;
         const sweep = Math.sin(Math.min(1, a.atkT) * Math.PI);
@@ -1558,8 +1762,8 @@ PUBLIC.start = function (root, api) {
         foot.y = frontLeg ? -2 : -8;
       } else if (flipActive) {
         const kick = Math.sin((flipT + (legSign > 0 ? 0.10 : -0.06)) * Math.PI * 2);
-        foot.x = lerp(foot.x, -player.flip.dir * (12 + flipCurl * 16) + legSign * (7 - flipCurl * 2) + kick * 3, flipCurl);
-        foot.y = lerp(foot.y, -18 + legSign * 4 + flipCurl * 9, flipCurl);
+        foot.x = lerp(foot.x, -player.flip.dir * (6 + flipCurl * 7) + legSign * (5 - flipCurl * 4) + kick * 2, flipCurl);
+        foot.y = lerp(foot.y, -26 + legSign * 2 + flipCurl * 4, flipCurl);
       } else if (a._clip) {
         // clip weight-shift: plant the front foot & push off the back heel
         const c = a._clip, frontLeg = legSign === -1, wt = c.weight;
@@ -1580,10 +1784,16 @@ PUBLIC.start = function (root, api) {
         hand.x = lerp(hand.x, shX - f * (18 + Math.sin(theta) * 5), fly);
         hand.y = lerp(hand.y, shY + 14 + Math.cos(theta) * 5, fly);
       }
+      if (moveType === 'slide') {
+        const front = theta === p;
+        const slide = Math.sin(moveT * Math.PI);
+        hand.x = lerp(hand.x, shX + f * (front ? 32 : -18), slide);
+        hand.y = lerp(hand.y, shY + (front ? 18 : 24), slide);
+      }
       if (flipActive) {
         const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
-        hand.x = lerp(hand.x, shX - player.flip.dir * (12 + flipCurl * 14) + sweep * 5, flipCurl);
-        hand.y = lerp(hand.y, shY + 10 + flipCurl * 12, flipCurl);
+        hand.x = lerp(hand.x, shX - player.flip.dir * (5 + flipCurl * 7) + sweep * 3, flipCurl);
+        hand.y = lerp(hand.y, shY + 18 + flipCurl * 4, flipCurl);
       }
       return hand;
     }
@@ -1609,10 +1819,11 @@ PUBLIC.start = function (root, api) {
     } else if (cls.weapon === 'lance') {
       h = { x: shX - f * 4, y: shY + 18 };
     } else if (cls.weapon === 'staff' || cls.weapon === 'bo') {
-      // off hand grips the staff (tucked in toward the front hand) when floating
-      h = fly > 0.25 ? { x: shX + f * 8, y: shY + 16 } : { x: shX - f * 8, y: shY + 18 };
+      if (a.atkActive && (a.atkType === 'cast' || a.atkType === 'arcaneBloom' || a.atkType === 'staffSweep' || a.atkType === 'vaultKick')) {
+        h = fly > 0.25 ? { x: shX - f * 12, y: shY + 18 } : { x: shX - f * 10, y: shY + 20 };
+      }
     } else if (cls.weapon === 'bow') {
-      h = { x: shX - f * 10, y: shY + 10 };
+      if (a.atkActive && (a.atkType === 'arrow' || a.atkType === 'volley')) h = { x: shX - f * 10, y: shY + 10 };
     }
     if (a._clip && offhandAim == null) {                  // off arm counter-balances the swing
       h = { x: h.x + a._clip.offArm * a._clip.weight * 18, y: h.y - Math.abs(a._clip.offArm) * a._clip.weight * 7 };
@@ -1699,8 +1910,10 @@ PUBLIC.start = function (root, api) {
       } else if (cls.id === 'rogue') {
         drawAim = flipActive ? -Math.PI / 2 + player.flip.dir * 0.35 : f > 0 ? 0.12 : Math.PI - 0.12;
         handT = flipActive
-          ? { x: shX - player.flip.dir * (10 + flipCurl * 12), y: shY + 10 + flipCurl * 12 }
-          : { x: shX + f * 16, y: shY + 22 };
+          ? { x: shX - player.flip.dir * (5 + flipCurl * 7), y: shY + 18 + flipCurl * 4 }
+          : moveType === 'slide'
+            ? { x: shX + f * 34, y: shY + 20 }
+            : { x: shX + f * 16, y: shY + 22 };
       } else if (cls.weapon === 'sword') {
         drawAim = f > 0 ? -0.20 : Math.PI + 0.20;
         handT = { x: shX + f * 14, y: shY + 18 };
@@ -1794,6 +2007,90 @@ PUBLIC.start = function (root, api) {
     ctx.closePath(); ctx.fill();
   }
 
+  function drawDebugCapsule(ax, ay, bx, by, r, color, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha == null ? 0.55 : alpha;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(1, r * 2);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.globalAlpha *= 0.9;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(ax, ay, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  function drawWorldDebug() {
+    if (!debug.enabled || !player) return;
+    if (debug.coins) {
+      ctx.save();
+      ctx.strokeStyle = '#d9a600';
+      ctx.globalAlpha = 0.36;
+      ctx.lineWidth = 1.5;
+      for (const c of coinsLeft) if (!c.got) { ctx.beginPath(); ctx.arc(c.x, c.y, 11, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.restore();
+    }
+    if (debug.body) for (const s of bodyCapsules()) drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, '#00a7ff', 0.22);
+    if (debug.dummies) {
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#7a5cff';
+      ctx.fillStyle = '#7a5cff';
+      for (const d of dummies) {
+        for (const [a, b] of DUMMY_BONES) {
+          const pa = d.pts[a], pb = d.pts[b];
+          ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+        }
+        for (const k in d.pts) {
+          const p = d.pts[k];
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.pin ? 3 : 4, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+    if (debug.weapons || debug.projectiles) for (const s of debug.segments) {
+      if (s.kind === 'projectile' && !debug.projectiles) continue;
+      if (s.kind !== 'projectile' && !debug.weapons) continue;
+      drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, s.color, clamp(s.life / s.max, 0.12, 0.55));
+    }
+    if (debug.weapons && player.anim.atkActive && attackSpec(player.anim.atkType).kind === 'melee') {
+      const a = player.anim, spec = attackSpec(a.atkType), sp = strikePoint(a.atkType);
+      for (const off of spec.sweep || DEFAULT_ATTACK.sweep) {
+        const s = meleeSegment(a.atkType, a.atkAim, clamp(sp + off, 0, 1));
+        drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, '#ff405f', off === 0 ? 0.36 : 0.18);
+      }
+    }
+  }
+  function drawDebugPanel(moveAmt) {
+    if (!debug.enabled || !player) return;
+    const action = currentActionLayer();
+    const move = player.move && player.move.active ? `${player.move.type} ${player.move.phase} ${player.move.t.toFixed(2)}` : 'idle';
+    const atk = action.active ? `${action.type} ${action.phase} ${action.t.toFixed(2)}` : 'idle';
+    const lines = [
+      `DBG ${cls.name}`,
+      `atk ${atk}`,
+      `move ${move}`,
+      `vel ${player.vx.toFixed(1)}, ${player.vy.toFixed(1)}  anim ${moveAmt.toFixed(2)}`,
+      `body ${bodyCapsules().length}  traces ${debug.segments.length}`,
+    ];
+    ctx.save();
+    ctx.font = '12px ui-monospace, SFMono-Regular, Consolas, monospace';
+    ctx.textBaseline = 'top';
+    const w = Math.max(...lines.map(s => ctx.measureText(s).width)) + 16;
+    const h = lines.length * 16 + 12;
+    const x = 12, y = 58;
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.strokeStyle = 'rgba(22,22,22,.22)';
+    ctx.lineWidth = 1;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    ctx.fillStyle = '#161616';
+    for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x + 8, y + 6 + i * 16);
+    ctx.restore();
+  }
+
   function render(moveAmt) {
     const L = LEVELS[li];
     drawBackground(L);
@@ -1873,7 +2170,9 @@ PUBLIC.start = function (root, api) {
       }
     }
     drawStick(moveAmt);
+    drawWorldDebug();
     ctx.restore();
+    drawDebugPanel(moveAmt);
   }
 
   // ---------- main loop (fixed-step physics + smooth anim/render) ----------
@@ -1894,6 +2193,7 @@ PUBLIC.start = function (root, api) {
         }
         updateDroppedKnives(dt);
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
+        for (let i = debug.segments.length - 1; i >= 0; i--) { if ((debug.segments[i].life -= dt) <= 0) debug.segments.splice(i, 1); }
         const L = LEVELS[li];
         for (let i = projectiles.length - 1; i >= 0; i--) {
           const b = projectiles[i];
@@ -1918,10 +2218,15 @@ PUBLIC.start = function (root, api) {
           }
           const crate = boxes.find(bx => projectileHitsBox(b, px, py, bx));
           if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); }
-          const rp = (b.kind === 'dagger' || b.kind === 'arrow') ? 14 : (b.r || 8) + 14;
-          const struckDummy = dummies && dummies.find(d => dummyNearest(d, b.x, b.y).d < rp);
-          if (struckDummy) { const sp = Math.hypot(b.vx, b.vy) || 1, nn = dummyNearest(struckDummy, b.x, b.y); hurtDummy(struckDummy, b.vx / sp, b.vy / sp, b.hit || 10, nn.p.x, nn.p.y); }
-          const dead = b.life <= 0 || crate || struckDummy || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
+          let struckDummy = null, dummyHit = null;
+          if (dummies) for (const d of dummies) {
+            const h = projectileHitsDummy(b, px, py, d);
+            if (h) { struckDummy = d; dummyHit = h; break; }
+          }
+          if (struckDummy && dummyHit) { const sp = Math.hypot(b.vx, b.vy) || 1; hurtDummy(struckDummy, b.vx / sp, b.vy / sp, b.hit || 10, dummyHit.p.x, dummyHit.p.y); }
+          rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
+          const hitPlatform = L.platforms.some(pl => projectileHitsBox(b, px, py, pl));
+          const dead = b.life <= 0 || crate || struckDummy || hitPlatform;
           if (dead) {
             if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
             else if (b.kind === 'sigil') explodeSigil(b);
