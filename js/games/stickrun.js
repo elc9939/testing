@@ -41,7 +41,7 @@ const CLASSES = [
     style: { hipH: 47, stanceW: 10, strideH: 16, lift: 8, bounceAmp: 1.2, cadence: 0.92, armStride: 6, baseLean: 0.04, squash: 0.95,
       breatheAmp: 1.0, breatheSpd: 0.0016, hover: 0, idle: 'brace', spring: { lean: [110, 22], head: [95, 22], aim: [125, 24] } } },
   { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Floaty staff caster.',
-    weapon: 'staff', moves: ['cast'], reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 360, kick: 420 }, ranged: true, gravityMul: 0.55,
+    weapon: 'staff', moves: ['cast'], reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 360, kick: 420 }, ranged: true, gravityMul: 0.55, fly: true,
     // ethereal: glides with feet barely lifting and hovers even while moving
     style: { hipH: 49, stanceW: 4, strideH: 9, lift: 5, bounceAmp: 1.0, cadence: 0.75, armStride: 6, baseLean: -0.05, squash: 0.8,
       breatheAmp: 2.4, breatheSpd: 0.0016, hover: 6, idle: 'float', spring: { lean: [60, 10], head: [55, 11], aim: [90, 12] } } },
@@ -236,7 +236,7 @@ PUBLIC.start = function (root, api) {
   // ---------- game state ----------
   let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles;
   let cls = CLASSES[0];   // selected class
-  let freeze = 0, shake = 0, lastMoveAmt = 0;   // hit-stop, screen shake, last anim amount
+  let freeze = 0, lastMoveAmt = 0;   // hit-stop, last anim amount
 
   function makePlayer(spawn) {
     return {
@@ -257,7 +257,7 @@ PUBLIC.start = function (root, api) {
     particles = [];
     slashTrail = [];
     projectiles = [];
-    flagWave = 0; freeze = 0; shake = 0;
+    flagWave = 0; freeze = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
     centerCam(true);
     syncHud();
@@ -346,17 +346,23 @@ PUBLIC.start = function (root, api) {
     else if (player.grounded) player.vx *= FRICTION;
     player.vx = clamp(player.vx, -maxV(), maxV());
 
-    // jump (buffered + coyote)
-    if (jumpBuf > 0 && (player.grounded || player.coyote > 0)) {
-      player.vy = JUMP; player.grounded = false; player.coyote = 0; jumpBuf = 0; player.jumpCut = false;
-      player.anim.squash = -0.5;            // stretch on takeoff
+    const g = cls.gravityMul || 1;
+    if (cls.fly) {
+      // Mage levitates: hold to rise/float instead of a one-shot jump
+      if (input.jumpHeld) player.vy -= 0.95;
+      player.vy = clamp(player.vy, -4.2, TERMINAL * g);
+      jumpBuf = 0;
+      player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);   // gentle gravity pulls back down
+    } else {
+      // jump (buffered + coyote)
+      if (jumpBuf > 0 && (player.grounded || player.coyote > 0)) {
+        player.vy = JUMP; player.grounded = false; player.coyote = 0; jumpBuf = 0; player.jumpCut = false;
+        player.anim.squash = -0.5;            // stretch on takeoff
+      }
+      if (jumpBuf > 0) jumpBuf--;
+      if (!input.jumpHeld && player.vy < 0 && !player.jumpCut) { player.vy *= CUT; player.jumpCut = true; }  // variable height
+      player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);
     }
-    if (jumpBuf > 0) jumpBuf--;
-    // variable height
-    if (!input.jumpHeld && player.vy < 0 && !player.jumpCut) { player.vy *= CUT; player.jumpCut = true; }
-
-    const g = cls.gravityMul || 1;                 // Mage floats (passive low gravity)
-    player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);
 
     // integrate + collide (x then y)
     player.x += player.vx;
@@ -431,9 +437,7 @@ PUBLIC.start = function (root, api) {
   function onStrike(type) {
     if (type === 'cast') return;                       // bolt carries its own impact
     freeze = type === 'stab' ? 65 : 55;                // hit-stop (ms freeze-frame)
-    shake = type === 'stab' ? 4.5 : 3.5;               // subtle now
     player.vx += player.facing * (type === 'stab' ? 8 : 5.5);   // explosive lunge
-    player.anim.squash = -0.5;                         // stretch pop
     const ang = player.anim.atkAim, reach = 34 + cls.reach * 36;
     const tx = player.x + Math.cos(ang) * reach, ty = (player.y - 77) + Math.sin(ang) * reach;
     burst(tx, ty, cls.color, 16, 6);
@@ -739,7 +743,6 @@ PUBLIC.start = function (root, api) {
     const L = LEVELS[li];
     drawBackground(L);
     ctx.save();
-    if (shake > 0.4) ctx.translate((Math.random() * 2 - 1) * shake, (Math.random() * 2 - 1) * shake);  // screen shake
     for (const p of L.platforms) drawPlatform(p);
     for (const c of coinsLeft) drawCoin(c);
     drawFlag(L);
@@ -798,7 +801,6 @@ PUBLIC.start = function (root, api) {
           if (dead) { burst(b.x, b.y, b.color, 10, 3); projectiles.splice(i, 1); }
         }
       }
-      shake *= Math.pow(0.82, dt / 16);     // screen-shake decay (runs through hit-stop)
       centerCam(false);
     }
     const moveAmt = player ? (freeze > 0 ? lastMoveAmt : (lastMoveAmt = animate(dt))) : 0;
