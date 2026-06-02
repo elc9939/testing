@@ -18,8 +18,9 @@ const STEP = 1000 / 60;          // fixed physics timestep (ms)
 const GRA = 0.62, MAXV = 3.7, RUN_ACC = 0.7, AIR_ACC = 0.45;
 const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
-const FLOAT_FUEL = 620;          // ms of lift a flyer (Mage) gets before needing to touch down
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
+const ROGUE_MAX_KNIVES = 5, ROGUE_REGEN = 1550;
+const MAGE_HOVER_HEIGHT = 34;
 
 // ---------- RPG classes (data-driven so more can be added easily) ----------
 // weapon: how the held weapon is drawn; moves: primary attacks cycled per click;
@@ -32,17 +33,17 @@ const CLASSES = [
     style: { hipH: 44, stanceW: 8, strideH: 13, lift: 10, bounceAmp: 5.5, cadence: 0.78, armStride: 11, baseLean: 0.02, squash: 1.3,
       breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
   { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast, twitchy daggers.',
-    weapon: 'dagger', main: 'slash', alt: 'throw', reach: 0.78, speedMul: 1.3, trail: [150, 255, 110], dur: { slash: 230, throw: 240 }, dual: true,
+    weapon: 'dagger', main: 'dualSlash', alt: 'throw', reach: 0.78, speedMul: 1.3, trail: [150, 255, 110], dur: { dualSlash: 250, throw: 170 }, dual: true,
     // athletic & quick: upright, long smooth strides, low bounce, only a slight lean
     style: { hipH: 46, stanceW: 4, strideH: 15, lift: 7, bounceAmp: 1.1, cadence: 1.1, armStride: 12, baseLean: 0.06, squash: 0.9,
       breatheAmp: 1.1, breatheSpd: 0.0034, hover: 0, idle: 'sneak', spring: { lean: [150, 9], head: [120, 9], aim: [170, 12] } } },
   { id: 'lancer', name: 'Lancer', emoji: '🔱', color: '#ffd45e', blurb: 'Disciplined spear reach.',
-    weapon: 'spear', main: 'stab', alt: 'slash', reach: 1.0, speedMul: 0.95, trail: [255, 212, 94], dur: { stab: 340, slash: 420 },
+    weapon: 'spear', main: 'stab', alt: 'lunge', reach: 1.0, speedMul: 0.95, trail: [255, 212, 94], dur: { stab: 340, lunge: 430 },
     // tall & disciplined: erect posture, long deliberate strides, almost no bounce, steady arms
     style: { hipH: 47, stanceW: 10, strideH: 16, lift: 8, bounceAmp: 1.2, cadence: 0.92, armStride: 6, baseLean: 0.04, squash: 0.95,
       breatheAmp: 1.0, breatheSpd: 0.0016, hover: 0, idle: 'brace', spring: { lean: [110, 22], head: [95, 22], aim: [125, 24] } } },
   { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Floaty staff caster.',
-    weapon: 'staff', main: 'cast', alt: 'castSpread', reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 210, castSpread: 300 }, ranged: true, gravityMul: 0.55, fly: true,
+    weapon: 'staff', main: 'cast', alt: 'arcaneBloom', reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 210, arcaneBloom: 420 }, ranged: true, gravityMul: 0.55, fly: true,
     // ethereal: glides with feet barely lifting and hovers even while moving
     style: { hipH: 49, stanceW: 4, strideH: 9, lift: 5, bounceAmp: 1.0, cadence: 0.75, armStride: 6, baseLean: -0.05, squash: 0.8,
       breatheAmp: 2.4, breatheSpd: 0.0016, hover: 6, idle: 'float', spring: { lean: [60, 10], head: [55, 11], aim: [90, 12] } } },
@@ -140,6 +141,7 @@ PUBLIC.start = function (root, api) {
   hud.style.textShadow = '0 1px 2px rgba(255,255,255,.6)';
   hud.innerHTML = `<span>LVL <b id="sr-lvl">1</b>/3</span>
     <span>🪙 <b id="sr-coins" style="color:#b8860b">0</b></span>
+    <span id="sr-ammo" style="display:none">🔪 <b id="sr-knives">0</b></span>
     <span>⏱ <b id="sr-time">0.0</b></span>`;
   root.appendChild(hud);
 
@@ -186,6 +188,12 @@ PUBLIC.start = function (root, api) {
     if (!player || state !== 'playing' || !type) return false;
     const a = player.anim;
     if (a.atkActive) return false;           // one swing at a time
+    if (cls.id === 'rogue' && type === 'throw') {
+      if (player.knifeAmmo <= 0) return false;
+      player.knifeAmmo--;
+      player.knifeRegen = 0;
+      syncHud();
+    }
     // choose the attack direction from the cursor at the moment of the click
     const shX = player.x, shY = player.y - 77;
     const tx = pointer.active ? pointer.x + cam.x : shX + player.facing * 60;
@@ -233,14 +241,14 @@ PUBLIC.start = function (root, api) {
   api.on(btnAlt, 'pointerdown', e => { e.preventDefault(); altAttack(); });
 
   // ---------- game state ----------
-  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, boxes;
+  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, droppedKnives, boxes;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0;   // hit-stop, last anim amount
 
   function makePlayer(spawn) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
-      grounded: false, coyote: 0, jumpCut: false, airTime: 0, floatFuel: FLOAT_FUEL,
+      grounded: false, coyote: 0, jumpCut: false, airTime: 0, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0,
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
               struck: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, _dt: 0.016,
               bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0 },
@@ -256,6 +264,7 @@ PUBLIC.start = function (root, api) {
     particles = [];
     slashTrail = [];
     projectiles = [];
+    droppedKnives = [];
     boxes = (L.boxes || []).map(b => ({ x: b[0], y: b[1] - 14, w: 44, h: 44, vx: 0, vy: 0, angle: 0, va: 0, m: 1.6 }));
     flagWave = 0; freeze = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
@@ -269,6 +278,11 @@ PUBLIC.start = function (root, api) {
     const got = totalCoins - coinsLeft.filter(c => !c.got).length;
     document.getElementById('sr-coins').textContent = got;
     document.getElementById('sr-time').textContent = (runTime / 1000).toFixed(1);
+    const ammo = document.getElementById('sr-ammo');
+    if (ammo) {
+      ammo.style.display = cls.id === 'rogue' && state === 'playing' ? 'inline' : 'none';
+      document.getElementById('sr-knives').textContent = player ? player.knifeAmmo : ROGUE_MAX_KNIVES;
+    }
   }
 
   function showMenu() {
@@ -283,7 +297,7 @@ PUBLIC.start = function (root, api) {
         <small>${c.blurb}</small>
       </button>`).join('');
     ov.innerHTML = `<h2>Stick Leap</h2>
-      <p class="msg">Choose your class. Run with ←/→ or A/D, jump with Space / ↑ (Mage holds to float).
+      <p class="msg">Choose your class. Run with ←/→ or A/D, jump with Space / ↑ (Mage hovers over ground).
       Left-click (or J) = main attack, right-click (or L) = special — aimed at the cursor. Knock the
       crates around, grab coins, reach the 🚩 flag.</p>
       <div class="sr-classes">${cards}</div>`;
@@ -376,6 +390,55 @@ PUBLIC.start = function (root, api) {
   function hitBoxes(ix, iy, dx, dy, force) {
     for (const b of boxes) if (Math.hypot(b.x + b.w / 2 - ix, b.y + b.h / 2 - iy) < 52) pushBox(b, dx, dy, force);
   }
+  function pushBoxesRadial(x, y, force, radius) {
+    for (const b of boxes) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      const d = Math.hypot(cx - x, cy - y);
+      if (d < radius) pushBox(b, (cx - x) / (d || 1), (cy - y) / (d || 1), force * (1 - d / radius));
+    }
+  }
+  function hoverSurfaceY(x, maxDrop) {
+    const L = LEVELS[li], bottom = player.y + maxDrop;
+    let y = Infinity;
+    for (const p of L.platforms) if (x > p.x - 10 && x < p.x + p.w + 10 && p.y >= player.y - 4 && p.y <= bottom) y = Math.min(y, p.y);
+    for (const b of boxes) if (x > b.x - 10 && x < b.x + b.w + 10 && b.y >= player.y - 4 && b.y <= bottom) y = Math.min(y, b.y);
+    return y === Infinity ? null : y;
+  }
+  function spawnDroppedKnife(x, y, angle, vx, vy) {
+    droppedKnives.push({ x, y, vx: (vx || 0) * 0.12, vy: (vy || 0) * 0.12, angle, grounded: false, life: 9000 });
+  }
+  function updateDroppedKnives(dt) {
+    const L = LEVELS[li];
+    for (let i = droppedKnives.length - 1; i >= 0; i--) {
+      const k = droppedKnives[i];
+      k.life -= dt;
+      if (!k.grounded) {
+        k.vy = Math.min(k.vy + 0.45, 12);
+        k.x += k.vx; k.y += k.vy;
+        k.vx *= 0.98;
+        for (const p of L.platforms) if (k.x > p.x && k.x < p.x + p.w && k.y > p.y - 3 && k.y < p.y + p.h) {
+          k.y = p.y - 3; k.vx = k.vy = 0; k.grounded = true;
+        }
+      }
+      if (k.grounded && cls.id === 'rogue' && player.knifeAmmo < ROGUE_MAX_KNIVES && Math.hypot(k.x - player.x, k.y - (player.y - 25)) < 28) {
+        player.knifeAmmo++;
+        player.knifeRegen = 0;
+        burst(k.x, k.y, '#cfd6df', 8, 2.4);
+        syncHud();
+        droppedKnives.splice(i, 1);
+      } else if (k.life <= 0) droppedKnives.splice(i, 1);
+    }
+  }
+  function updateRogueAmmo() {
+    if (cls.id !== 'rogue') return;
+    if (player.knifeAmmo >= ROGUE_MAX_KNIVES) { player.knifeRegen = 0; return; }
+    player.knifeRegen += STEP;
+    while (player.knifeRegen >= ROGUE_REGEN && player.knifeAmmo < ROGUE_MAX_KNIVES) {
+      player.knifeRegen -= ROGUE_REGEN;
+      player.knifeAmmo++;
+      burst(player.x, player.y - 32, '#cfd6df', 5, 1.8);
+    }
+  }
 
   function physics() {
     const L = LEVELS[li];
@@ -387,11 +450,16 @@ PUBLIC.start = function (root, api) {
 
     const g = cls.gravityMul || 1;
     if (cls.fly) {
-      // Mage levitates: hold to gain a little height (limited fuel), then it floats/sinks
-      if (input.jumpHeld && player.floatFuel > 0) { player.vy -= 1.0; player.floatFuel -= STEP; }
-      player.vy = clamp(player.vy, -3.4, TERMINAL * g);
       jumpBuf = 0;
-      player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);   // gentle gravity pulls back down
+      const surface = hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 95);
+      if (input.jumpHeld) player.vy -= 0.22;
+      player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);
+      if (surface !== null) {
+        const targetY = surface - MAGE_HOVER_HEIGHT;
+        player.vy += clamp((targetY - player.y) * 0.07, -0.75, 0.95);
+        if (player.y > targetY - 2 && player.vy > 0) player.vy *= 0.42;
+      }
+      player.vy = clamp(player.vy, -4.2, TERMINAL * g);
     } else {
       // jump (buffered + coyote)
       if (jumpBuf > 0 && (player.grounded || player.coyote > 0)) {
@@ -402,6 +470,7 @@ PUBLIC.start = function (root, api) {
       if (!input.jumpHeld && player.vy < 0 && !player.jumpCut) { player.vy *= CUT; player.jumpCut = true; }  // variable height
       player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);
     }
+    updateRogueAmmo();
 
     updateBoxes();   // crates move under their own physics each step
 
@@ -427,7 +496,15 @@ PUBLIC.start = function (root, api) {
       if (player.vy > 0 && (player.y - player.vy) <= b.y + 8) { player.y = b.y; player.grounded = true; player.vy = 0; }
       else if (player.vy < 0 && (player.y - PH - player.vy) >= b.y + b.h - 8) { player.y = b.y + b.h + PH; player.vy = 0; b.vy += 1; }
     }
-    if (player.grounded) { player.coyote = COYOTE; player.jumpCut = false; player.airTime = 0; player.floatFuel = FLOAT_FUEL; }
+    if (cls.fly) {
+      const surface = hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 95);
+      if (surface !== null) {
+        const targetY = surface - MAGE_HOVER_HEIGHT;
+        if (player.y > targetY) { player.y = lerp(player.y, targetY, 0.55); player.vy = Math.min(player.vy, 0); }
+        player.grounded = Math.abs(player.y - targetY) < 8;
+      }
+    }
+    if (player.grounded) { player.coyote = COYOTE; player.jumpCut = false; player.airTime = 0; }
     else { if (player.coyote > 0) player.coyote--; player.airTime++; }
 
     // coins
@@ -474,7 +551,7 @@ PUBLIC.start = function (root, api) {
     springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
     if (a.atkActive) {
       a.atkT += dt / ((cls.dur[a.atkType] || 320) * 1.2);
-      const sp = (a.atkType === 'cast' || a.atkType === 'castSpread' || a.atkType === 'throw') ? 0.4 : 0.5;
+      const sp = a.atkType === 'throw' ? 0.24 : a.atkType === 'cast' ? 0.38 : a.atkType === 'arcaneBloom' ? 0.48 : 0.5;
       if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType); }   // impact / release moment
       if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; }
     }
@@ -484,16 +561,16 @@ PUBLIC.start = function (root, api) {
   function onStrike(type) {
     const ang = player.anim.atkAim;
     if (type === 'cast') { spawnBolt(ang, 1.4); return; }
-    if (type === 'castSpread') { for (const d of [-0.22, 0, 0.22]) spawnBolt(ang + d, 1.1); return; }
+    if (type === 'arcaneBloom') { spawnMageSigil(ang); return; }
     if (type === 'throw') { spawnDagger(ang); return; }
-    // melee (slash / stab): hit-stop, lunge, crate impulse, impact burst
-    freeze = type === 'stab' ? 65 : 55;
-    player.vx += player.facing * (type === 'stab' ? 8 : 6);
-    const reach = 34 + cls.reach * 36;
+    // melee: light hit-stop, body follow-through, crate impulse, impact burst
+    freeze = type === 'lunge' ? 36 : type === 'stab' ? 34 : 26;
+    player.vx += player.facing * (type === 'lunge' ? 13 : type === 'stab' ? 8 : type === 'dualSlash' ? 5 : 6);
+    const reach = type === 'lunge' ? 92 : 34 + cls.reach * 36;
     const tx = player.x + Math.cos(ang) * reach, ty = (player.y - 77) + Math.sin(ang) * reach;
-    hitBoxes(tx, ty, Math.cos(ang), Math.sin(ang), type === 'stab' ? 16 : 14);
-    burst(tx, ty, cls.color, 16, 6);
-    burst(tx, ty, '#ffffff', 10, 4.5);
+    hitBoxes(tx, ty, Math.cos(ang), Math.sin(ang), type === 'lunge' ? 24 : type === 'stab' ? 16 : 14);
+    burst(tx, ty, cls.color, type === 'dualSlash' ? 20 : 16, 5.2);
+    burst(tx, ty, '#ffffff', type === 'dualSlash' ? 8 : 10, 3.6);
   }
   // a fast, punchy magic bolt (size = power)
   function spawnBolt(ang, power) {
@@ -502,11 +579,30 @@ PUBLIC.start = function (root, api) {
     projectiles.push({ kind: 'bolt', x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1100, color: cls.color, r: 9 * power, hit: 13 * power, sparkle: 2 });
     burst(mx, my, '#ffffff', 16, 5); burst(mx, my, cls.color, 22, 4.2);
   }
-  // a spinning thrown dagger
+  // a straight thrown dagger that can be recovered after landing
   function spawnDagger(ang) {
     const shX = player.x, shY = player.y - 70, spd = 21;
     const mx = shX + Math.cos(ang) * 30, my = shY + Math.sin(ang) * 30;
-    projectiles.push({ kind: 'dagger', x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, spin: 0.5, hit: 11 });
+    projectiles.push({ kind: 'dagger', x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: 11 });
+  }
+  function spawnMageSigil(ang) {
+    const shX = player.x, shY = player.y - 76;
+    const mx = shX + Math.cos(ang) * 42, my = shY + Math.sin(ang) * 42;
+    projectiles.push({ kind: 'sigil', x: mx, y: my, vx: Math.cos(ang) * 5.8, vy: Math.sin(ang) * 5.8,
+      life: 620, age: 0, color: cls.color, r: 16, hit: 18, angle: ang });
+    burst(mx, my, '#ffffff', 18, 3.2);
+    burst(mx, my, cls.color, 32, 3.8);
+  }
+  function explodeSigil(b) {
+    burst(b.x, b.y, b.color, 34, 5.2);
+    burst(b.x, b.y, '#ffffff', 18, 3.6);
+    pushBoxesRadial(b.x, b.y, 18, 92);
+    for (let i = 0; i < 8; i++) {
+      const a = b.angle + i * Math.PI / 4 + Math.sin(b.age * 0.02) * 0.25;
+      const spd = 9.5;
+      projectiles.push({ kind: 'bolt', x: b.x, y: b.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+        life: 520, color: b.color, r: 5.5, hit: 8, sparkle: 1 });
+    }
   }
 
   // ---------- IK (two-bone) ----------
@@ -544,6 +640,15 @@ PUBLIC.start = function (root, api) {
     if (t < 0.62) return lerpAngle(wind, bite, ease((t - 0.40) / 0.22));
     return lerpAngle(bite, settle, ease((t - 0.62) / 0.38));
   }
+  function rogueSlashAngle(t, baseAim, hand) {
+    const side = Math.cos(baseAim) >= 0 ? 1 : -1;
+    const offset = hand * side;
+    const wind = baseAim - offset * 0.78;
+    const bite = baseAim + offset * 0.58;
+    if (t < 0.22) return lerpAngle(baseAim, wind, ease(t / 0.22));
+    if (t < 0.58) return lerpAngle(wind, bite, ease((t - 0.22) / 0.36));
+    return lerpAngle(bite, baseAim + offset * 0.08, ease((t - 0.58) / 0.42));
+  }
   // thrust reach (0=drawn-in .. >1 = overshoot): big load, explosive lunge-out, recover
   function stabReach(t) {
     if (t < 0.34) return lerp(0, -0.45, ease(t / 0.34));           // pull way back to load
@@ -551,6 +656,12 @@ PUBLIC.start = function (root, api) {
     if (t < 0.54) return lerp(-0.45, 1.25, ease((t - 0.44) / 0.10)); // explosive thrust (overshoots)
     if (t < 0.70) return 1.25;                                     // hold full extension
     return lerp(1.25, 0, ease((t - 0.70) / 0.30));                 // retract
+  }
+  function lungeReach(t) {
+    if (t < 0.26) return lerp(0, -0.28, ease(t / 0.26));
+    if (t < 0.46) return lerp(-0.28, 1.42, ease((t - 0.26) / 0.20));
+    if (t < 0.66) return 1.42;
+    return lerp(1.42, 0.12, ease((t - 0.66) / 0.34));
   }
 
   // ---------- draw the stick figure (classic stickman; origin at feet) ----------
@@ -628,13 +739,14 @@ PUBLIC.start = function (root, api) {
     const postureLean = 0, guardCrouch = 0;            // (no cursor aiming for now)
 
     // ----- attack scalars (whole-body reaction) -----
-    let atkLean = 0, atkHip = 0, slashT = null, stabT = null, castT = null, throwT = null;
+    let atkLean = 0, atkHip = 0, slashT = null, stabT = null, lungeT = null, castT = null, throwT = null;
     if (a.atkActive) {
       const t = a.atkT, ty = a.atkType, bell = Math.max(0, Math.sin(Math.min(1, t) * Math.PI));
       if (ty === 'stab') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * 11; atkLean = f * l * 0.10; }   // big lunge
-      else if (ty === 'cast' || ty === 'castSpread') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
-      else if (ty === 'throw') { throwT = t; atkHip = f * bell * 4; atkLean = f * bell * 0.13; }
-      else { slashT = t; atkHip = f * bell * 6; atkLean = f * bell * 0.16; }   // overhead slash body commit
+      else if (ty === 'lunge') { lungeT = t; const l = Math.max(0, lungeReach(t)); atkHip = f * l * 18; atkLean = f * l * 0.18; }
+      else if (ty === 'cast' || ty === 'arcaneBloom') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
+      else if (ty === 'throw') { throwT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.10; }
+      else { slashT = t; atkHip = f * bell * (ty === 'dualSlash' ? 4 : 6); atkLean = f * bell * (ty === 'dualSlash' ? 0.11 : 0.16); }   // slash body commit
     }
 
     ctx.save();
@@ -676,12 +788,27 @@ PUBLIC.start = function (root, api) {
     }
 
     // ----- back arm (ragdoll: hand position springs loosely so the elbow swings) -----
-    let h = armHand(p);
+    let h = armHand(p), offhandAim = null, offhandStretch = 1;
+    if (cls.id === 'rogue' && slashT !== null) {
+      const cut = clamp((slashT - 0.16) / 0.42, 0, 1);
+      offhandAim = rogueSlashAngle(slashT, a.atkAim, -1);
+      offhandStretch = 1 + Math.sin(cut * Math.PI) * 0.28;
+      const reach = guardReach + (armLen * 0.82 - guardReach) * (0.42 + 0.58 * Math.sin(Math.min(1, slashT) * Math.PI));
+      h = { x: shX + Math.cos(offhandAim) * reach, y: shY + Math.sin(offhandAim) * reach };
+    }
     if (a.bhx === null) { a.bhx = h.x; a.bhy = h.y; }
-    springTo(a, 'bhx', h.x, 120, 12, a._dt); springTo(a, 'bhy', h.y, 120, 12, a._dt);
-    let ka = ik(shX, shY, a.bhx, a.bhy, uArm, fArm, f);
-    seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6);
-    if (cls.dual) drawWeapon(ka.ex, ka.ey, Math.atan2(ka.ey - ka.jy, ka.ex - ka.jx), 1);   // Rogue's off-hand dagger
+    springTo(a, 'bhx', h.x, offhandAim ? 180 : 120, offhandAim ? 17 : 12, a._dt);
+    springTo(a, 'bhy', h.y, offhandAim ? 180 : 120, offhandAim ? 17 : 12, a._dt);
+    let ka = ik(shX, shY, a.bhx, a.bhy, uArm * offhandStretch, fArm * offhandStretch, f);
+    seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6 / Math.sqrt(offhandStretch));
+    if (cls.dual) {
+      const offAng = offhandAim != null ? offhandAim : Math.atan2(ka.ey - ka.jy, ka.ex - ka.jx);
+      drawWeapon(ka.ex, ka.ey, offAng, offhandStretch);
+      if (offhandAim != null) {
+        slashTrail.push({ x: player.x + ka.ex + Math.cos(offAng) * WLEN.dagger * offhandStretch, y: (player.y - hoverY) + ka.ey + Math.sin(offAng) * WLEN.dagger * offhandStretch, life: 170 });
+        if (slashTrail.length > 38) slashTrail.shift();
+      }
+    }
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
     let lt = legFoot(p + Math.PI, +1);
@@ -705,7 +832,14 @@ PUBLIC.start = function (root, api) {
     if (attacking) {
       let aim = a.atkAim, ext = 0;
       if (slashT !== null) {
-        if (cls.id === 'knight') {
+        if (cls.id === 'rogue') {
+          aim = rogueSlashAngle(slashT, a.atkAim, 1);
+          const cut = clamp((slashT - 0.16) / 0.42, 0, 1);
+          stretch = 1 + Math.sin(cut * Math.PI) * 0.34;
+          ext = slashT < 0.22 ? lerp(0.38, 0.56, ease(slashT / 0.22))
+            : slashT < 0.58 ? lerp(0.56, 0.95, ease(cut))
+            : lerp(0.95, 0.50, ease((slashT - 0.58) / 0.42));
+        } else if (cls.id === 'knight') {
           aim = knightSwipeAngle(slashT, a.atkAim);
           const cut = clamp((slashT - 0.34) / 0.24, 0, 1);
           const recover = clamp((slashT - 0.62) / 0.38, 0, 1);
@@ -723,14 +857,16 @@ PUBLIC.start = function (root, api) {
           stretch = 1 + Math.sin(chop * Math.PI) * 1.1;               // up to ~2.1x at the cut
           ext = 0.55 + 0.45 * Math.sin(Math.min(1, slashT) * Math.PI);
         }
+      } else if (lungeT !== null) {
+        const lr = Math.max(0, lungeReach(lungeT)); stretch = 1 + lr * 0.45; ext = lr * 1.08;
       } else if (stabT !== null) {
         const sr = Math.max(0, stabReach(stabT)); stretch = 1 + sr * 0.8; ext = sr;
       } else if (throwT !== null) {
         // cock back, then whip forward (knife released at the strike frame)
-        if (throwT < 0.4) { aim = a.atkAim - 0.5 * f * ease(throwT / 0.4); ext = -0.3 * ease(throwT / 0.4); }
-        else { ext = 1.1 - 1.1 * ease(clamp((throwT - 0.4) / 0.3, 0, 1)); stretch = 1 + Math.max(0, ext) * 0.7; }
+        if (throwT < 0.24) { aim = a.atkAim - 0.42 * f * ease(throwT / 0.24); ext = -0.18 * ease(throwT / 0.24); }
+        else { ext = 0.92 - 0.92 * ease(clamp((throwT - 0.24) / 0.34, 0, 1)); stretch = 1 + Math.max(0, ext) * 0.38; }
       } else if (castT !== null) {
-        const cr = Math.max(0, Math.sin(Math.min(1, castT) * Math.PI)); stretch = 1 + cr * 0.5; ext = cr;
+        const cr = Math.max(0, Math.sin(Math.min(1, castT) * Math.PI)); stretch = 1 + cr * (a.atkType === 'arcaneBloom' ? 0.34 : 0.42); ext = cr;
       }
       const armLenS = (uArm + fArm) * stretch, extTargetS = armLenS * cls.reach;
       const reach = guardReach + (extTargetS - guardReach) * ext;
@@ -742,8 +878,8 @@ PUBLIC.start = function (root, api) {
       drawAim = null;
     }
     if (a.whx === null) { a.whx = handT.x; a.why = handT.y; }
-    springTo(a, 'whx', handT.x, attacking ? 300 : 150, attacking ? 26 : 14, a._dt);
-    springTo(a, 'why', handT.y, attacking ? 300 : 150, attacking ? 26 : 14, a._dt);
+    springTo(a, 'whx', handT.x, attacking ? 220 : 150, attacking ? 19 : 14, a._dt);
+    springTo(a, 'why', handT.y, attacking ? 220 : 150, attacking ? 19 : 14, a._dt);
     const wbend = attacking ? (Math.cos(a.atkAim) >= 0 ? 1 : -1) : f;
     ka = ik(shX, shY, a.whx, a.why, uArm * stretch, fArm * stretch, wbend);   // bones stretch too
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7 / Math.sqrt(stretch));        // thins as it stretches
@@ -751,7 +887,7 @@ PUBLIC.start = function (root, api) {
     drawWeapon(ka.ex, ka.ey, wAng, stretch);
 
     // swing trail on the sweeping melee attacks
-    if (slashT !== null || stabT !== null) {
+    if (slashT !== null || stabT !== null || lungeT !== null) {
       const wl = (WLEN[cls.weapon] || 24) * stretch;
       slashTrail.push({ x: player.x + ka.ex + Math.cos(wAng) * wl, y: (player.y - hoverY) + ka.ey + Math.sin(wAng) * wl, life: 220 });
       if (slashTrail.length > 34) slashTrail.shift();
@@ -842,9 +978,17 @@ PUBLIC.start = function (root, api) {
       ctx.beginPath(); ctx.arc(pt.x - cam.x, pt.y - cam.y, pt.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    for (const k of droppedKnives) {
+      ctx.save(); ctx.translate(k.x - cam.x, k.y - cam.y); ctx.rotate(k.angle);
+      ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(1, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(1, -2); ctx.lineTo(11, 0); ctx.lineTo(1, 2); ctx.closePath();
+      ctx.fillStyle = '#cfd6df'; ctx.fill(); ctx.lineWidth = 1; ctx.stroke();
+      ctx.restore();
+    }
     // figure (translate by camera)
     ctx.translate(-cam.x, -cam.y);
-    // projectiles: glowing bolts and spinning thrown daggers
+    // projectiles: glowing bolts, sigils, and thrown daggers
     for (const b of projectiles) {
       if (b.kind === 'dagger') {
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
@@ -853,6 +997,19 @@ PUBLIC.start = function (root, api) {
         ctx.beginPath();                                                              // blade
         ctx.moveTo(2, -2.4); ctx.lineTo(14, 0); ctx.lineTo(2, 2.4); ctx.closePath();
         ctx.fillStyle = '#cfd6df'; ctx.fill(); ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.restore();
+      } else if (b.kind === 'sigil') {
+        const r = b.r || 16;
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle + (b.age || 0) * 0.014);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 2.2);
+        g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.45, b.color); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = b.color; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+        for (let i = 0; i < 4; i++) {
+          const a = i * Math.PI / 2;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * (r + 8), Math.sin(a) * (r + 8)); ctx.stroke();
+        }
         ctx.restore();
       } else {
         const r = b.r || 10;
@@ -893,12 +1050,13 @@ PUBLIC.start = function (root, api) {
           const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.12; pt.life -= dt;
           if (pt.life <= 0) particles.splice(i, 1);
         }
+        updateDroppedKnives(dt);
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
         const L = LEVELS[li];
         for (let i = projectiles.length - 1; i >= 0; i--) {
           const b = projectiles[i];
           b.x += b.vx; b.y += b.vy; b.life -= dt;
-          if (b.kind === 'dagger') { b.angle += b.spin; b.vy += 0.18; }          // thrown knives arc slightly
+          if (b.kind === 'dagger') { b.vy += 0.18; }          // thrown knives arc slightly, without spinning
           else if (b.kind === 'bolt') {
             for (let s = 0; s < (b.sparkle || 1); s++) if (Math.random() < 0.65) {
               const trail = rand(0.12, 0.45);
@@ -906,13 +1064,24 @@ PUBLIC.start = function (root, api) {
                 vx: -b.vx * rand(0.01, 0.035) + rand(-0.45, 0.45), vy: -b.vy * rand(0.01, 0.035) + rand(-0.45, 0.45),
                 life: rand(180, 360), max: 360, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.7) });
             }
+          } else if (b.kind === 'sigil') {
+            b.age += dt;
+            b.angle += 0.045;
+            b.vx *= 0.985; b.vy *= 0.985;
+            if (Math.random() < 0.9) particles.push({ x: b.x + rand(-10, 10), y: b.y + rand(-10, 10),
+              vx: rand(-0.5, 0.5), vy: rand(-0.6, 0.2), life: rand(220, 430), max: 430, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1.2, 3.2) });
+            if (b.age > 430) b.life = 0;
           }
           const crate = boxes.find(bx => b.x > bx.x && b.x < bx.x + bx.w && b.y > bx.y && b.y < bx.y + bx.h);
           if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); }
           const dead = b.life <= 0 || crate || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
           if (dead) {
-            burst(b.x, b.y, b.color, b.kind === 'bolt' ? 20 : 10, b.kind === 'bolt' ? 4 : 3);
-            if (b.kind === 'bolt') burst(b.x, b.y, '#ffffff', 10, 3.4);
+            if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
+            else if (b.kind === 'sigil') explodeSigil(b);
+            else {
+              burst(b.x, b.y, b.color, b.kind === 'bolt' ? 20 : 10, b.kind === 'bolt' ? 4 : 3);
+              if (b.kind === 'bolt') burst(b.x, b.y, '#ffffff', 10, 3.4);
+            }
             projectiles.splice(i, 1);
           }
         }
