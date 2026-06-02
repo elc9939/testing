@@ -28,8 +28,8 @@ const MAGE_HOVER_HEIGHT = 42;
 // the swing/cast trail; dur: per-move animation lengths (ms); ranged: casts bolts.
 const CLASSES = [
   { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Heavy, grounded blade.',
-    weapon: 'sword', offhand: 'shield', main: 'slash', alt: 'shieldBash', move: 'shieldStep',
-    reach: 1.0, speedMul: 0.98, trail: [120, 170, 255], dur: { slash: 360, shieldBash: 260 }, moveDur: { shieldStep: 320 },
+    weapon: 'sword', offhand: 'shield', main: 'slash', alt: 'hslash', move: 'shieldStep',
+    reach: 1.0, speedMul: 0.98, trail: [120, 170, 255], dur: { slash: 380, hslash: 400, shieldBash: 260 }, moveDur: { shieldStep: 320 },
     // armored duelist: grounded sword stance with a shield-side weight shift
     style: { hipH: 44, stanceW: 10, strideH: 12, lift: 9, bounceAmp: 4.4, cadence: 0.72, armStride: 8, baseLean: 0.01, squash: 1.25,
       breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
@@ -981,8 +981,10 @@ PUBLIC.start = function (root, api) {
     }
     if (type === 'vaultKick') return { ax: player.x + f * 8, ay: player.y - 38, bx: player.x + f * 66, by: player.y - 48, dx: f, dy: -0.7, force: 17, r: 11 };
     // every other weapon swing (incl. the rogue's single dual-wield strike): the
-    // hit blade IS the drawn blade, sampled from the same pose+variant at impact.
-    const pose = weaponPose(type, t, ang, f, player.anim.atkVar);
+    // hit blade IS the drawn blade, sampled from the same pose at impact. If a
+    // full-body clip drives the arm, the hitbox follows its arc too.
+    const clip = actionClip(type, t, f);
+    const pose = (clip && clip.arm) ? clip.arm(t, ang, f) : weaponPose(type, t, ang, f, player.anim.atkVar);
     const ch = armChain(shX, shY, pose.shAng, pose.elBend);
     const bladeAng = ch.foreAng + pose.wrBend;
     const wl = WLEN[cls.weapon] || 24;
@@ -1346,25 +1348,43 @@ PUBLIC.start = function (root, api) {
   // Returns null for actions not yet ported, which fall back to the legacy path.
   // ===========================================================================
   function actionClip(type, t, f) {
-    if (type === 'slash') return slashClip(t, f);
+    if (type === 'slash') return slashClip(t, f, false);    // diagonal saber cut
+    if (type === 'hslash') return slashClip(t, f, true);    // horizontal waist cut
     return null;
   }
-  function slashClip(t, f) {
+  // A real slash is a ROTATION, not a lean: the body coils (shoulders wind back
+  // past the hips), then uncoils ground->hips->torso->arm->blade, the blade arcs
+  // ACROSS the body, and the whole thing FOLLOWS THROUGH past the target. These
+  // tracks express that — shoulderShear/hipPivot fake the torso/hip twist on our
+  // 2D figure, the off arm counter-rotates, and the arm arcs across the centerline.
+  function slashClip(t, f, horiz) {
     return {
-      weight: clamp(Math.min(t, 1 - t) / 0.12, 0, 1),                 // ease in & out
-      // torso winds BACK (anticipation) then drives INTO the cut (follow through)
-      spine: f * kfa(t, [[0, 0], [0.26, -0.34], [0.34, -0.36], [0.52, 0.42], [0.72, 0.16], [1, 0]]),
-      // hips load back, then thrust forward through contact
-      hipX: f * kfa(t, [[0, 0], [0.28, -7], [0.34, -7], [0.52, 12], [0.74, 5], [1, 0]]),
-      // slight crouch on the load, push up out of the cut
-      hipY: kfa(t, [[0, 0], [0.30, 5], [0.40, 4], [0.55, -3], [0.8, 0], [1, 0]]),
-      // head leads the blade down
-      headX: f * kfa(t, [[0, 0], [0.28, -5], [0.52, 8], [0.8, 3], [1, 0]]),
-      // weight: 0 = back foot .. 1 = front foot (drives a plant + push-off)
-      weightShift: kfa(t, [[0, 0.5], [0.30, 0.15], [0.52, 0.92], [0.8, 0.70], [1, 0.5]]),
-      // off arm counter-balances the swing
-      offArm: f * kfa(t, [[0, 0], [0.30, 0.5], [0.52, -0.7], [0.8, -0.2], [1, 0]]),
+      weight: clamp(Math.min(t, 1 - t) / 0.10, 0, 1),
+      // lateral spine bend: away on the coil, hard INTO the cut on release
+      spine: f * kfa(t, [[0, 0], [0.30, -0.30], [0.40, -0.32], [0.50, 0.30], [0.60, 0.46], [0.85, 0.18], [1, 0]]),
+      // hips step/drive forward through contact
+      hipX: f * kfa(t, [[0, 0], [0.30, -6], [0.40, -6], [0.55, 14], [0.78, 7], [1, 0]]),
+      hipY: horiz ? 0 : kfa(t, [[0, 0], [0.34, 5], [0.50, 3], [0.60, -3], [1, 0]]),
+      headX: f * kfa(t, [[0, 0], [0.30, -5], [0.55, 9], [0.85, 3], [1, 0]]),
+      weightShift: kfa(t, [[0, 0.5], [0.34, 0.12], [0.55, 0.95], [0.85, 0.70], [1, 0.5]]),
+      // SHOULDER GIRDLE shear = torso rotation: wound back on the coil, whips through
+      shoulderShear: f * kfa(t, [[0, 0], [0.30, -9], [0.40, -10], [0.52, 8], [0.62, 12], [0.85, 5], [1, 0]]),
+      // HIPS rotate, leading the shoulders slightly (separation)
+      hipPivot: f * kfa(t, [[0, 0], [0.26, -5], [0.40, -6], [0.50, 7], [0.62, 9], [0.85, 4], [1, 0]]),
+      // off arm counter-rotates HARD the opposite way (sells the twist)
+      offArm: f * kfa(t, [[0, 0], [0.30, 0.7], [0.52, -1.0], [0.78, -0.4], [1, 0]]),
+      arm: (tt, aim, ff) => slashArm(tt, aim, horiz),
     };
+  }
+  // weapon-arm arc for a slash: coil over the back shoulder, cut down-and-ACROSS
+  // through the aim, follow through past it. Arm stays bent (rotation gives reach).
+  function slashArm(t, aim, horiz) {
+    const s = (Math.cos(aim) >= 0 ? 1 : -1);
+    const top = horiz ? -1.4 : -2.0, end = horiz ? 1.0 : 1.45;
+    const shAng = aim + s * kfa(t, [[0, 0.2], [0.26, top], [0.36, top], [0.52, end * 0.5], [0.64, end], [1, end * 0.7]]);
+    const elBend = s * kfa(t, [[0, -0.7], [0.36, -1.35], [0.52, -0.5], [0.64, -0.45], [1, -0.8]]);
+    const wrBend = s * kfa(t, [[0, 0.5], [0.36, 1.1], [0.52, -0.7], [0.66, -0.2], [1, 0.3]]);
+    return { shAng, elBend, wrBend };
   }
 
   function drawStick(moveAmt) {
@@ -1476,6 +1496,14 @@ PUBLIC.start = function (root, api) {
       shX = R.cx; shY = R.cy; headCX = R.hx; headCY = R.hy;
     }
 
+    // clip rotation: shear the shoulder girdle & hip line to fake torso/hip twist.
+    // Front shoulder/hip drive toward the cut; back ones pull away (counter-rotate).
+    const sgShear = a._clip ? (a._clip.shoulderShear || 0) * a._clip.weight : 0;
+    const hipShear = a._clip ? (a._clip.hipPivot || 0) * a._clip.weight : 0;
+    const shFX = shX + sgShear, shFY = shY - Math.abs(sgShear) * 0.18;   // weapon-side shoulder
+    const shBX = shX - sgShear, shBY = shY + Math.abs(sgShear) * 0.18;   // off-side shoulder
+    const hipFX = hipX + hipShear, hipBX = hipX - hipShear;              // near/far leg roots
+
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
 
     // foot target: blend the ground running gait with an air pose by `air`
@@ -1551,7 +1579,7 @@ PUBLIC.start = function (root, api) {
       h = { x: shX - f * 9, y: shY + 20 };                        // off dagger held at low guard
     } else if (cls.offhand === 'shield') {
       const push = (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? Math.sin(Math.min(1, a.atkT || moveT) * Math.PI) : 0;
-      h = { x: shX + f * (14 + push * 24), y: shY + 14 - push * 8 };
+      h = { x: shBX + f * (14 + push * 24), y: shBY + 14 - push * 8 };
     } else if (cls.weapon === 'lance') {
       h = { x: shX - f * 4, y: shY + 18 };
     } else if (cls.weapon === 'staff' || cls.weapon === 'bo') {
@@ -1566,8 +1594,8 @@ PUBLIC.start = function (root, api) {
     if (a.bhx === null) { a.bhx = h.x; a.bhy = h.y; }
     springTo(a, 'bhx', h.x, offhandAim ? 180 : 120, offhandAim ? 17 : 12, a._dt);
     springTo(a, 'bhy', h.y, offhandAim ? 180 : 120, offhandAim ? 17 : 12, a._dt);
-    let ka = ik(shX, shY, a.bhx, a.bhy, uArm * offhandStretch, fArm * offhandStretch, f);
-    seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6 / Math.sqrt(offhandStretch));
+    let ka = ik(shBX, shBY, a.bhx, a.bhy, uArm * offhandStretch, fArm * offhandStretch, f);
+    seg(shBX, shBY, ka.jx, ka.jy, ka.ex, ka.ey, 6 / Math.sqrt(offhandStretch));
     if (cls.dual) {
       let offAng = offhandAim != null ? offhandAim : Math.atan2(ka.ey - ka.jy, ka.ex - ka.jx);
       if (knifeTrick) offAng += f * Math.PI * 4 * knifeTrick;
@@ -1582,8 +1610,8 @@ PUBLIC.start = function (root, api) {
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
     let lt = legFoot(p + Math.PI, +1);
-    let k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f, 0.6);
-    seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 7);
+    let k = ik(hipBX, hipY, hipBX + lt.x, lt.y, thigh, shin, -f, 0.6);
+    seg(hipBX, hipY, k.jx, k.jy, k.ex, k.ey, 7);
 
     // ----- torso + head -----
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
@@ -1593,8 +1621,8 @@ PUBLIC.start = function (root, api) {
 
     // ----- near leg -----
     lt = legFoot(p, -1);
-    k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f, 0.6);
-    seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
+    k = ik(hipFX, hipY, hipFX + lt.x, lt.y, thigh, shin, -f, 0.6);
+    seg(hipFX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
     // ----- weapon arm: ARTICULATED chain driven by joint angles -----
     // Attacks run through one shared swing engine (weaponPose): the shoulder
@@ -1604,12 +1632,13 @@ PUBLIC.start = function (root, api) {
     // rogue dual-wield: one tap = one hand. When the OFF (back) hand is striking
     // (rogueOff, computed above), the front arm just holds guard.
     if (attacking && !rogueOff) {
-      const pose = weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
+      // a full-body clip can author its own arm arc; else use the generic engine
+      const pose = (a._clip && a._clip.arm) ? a._clip.arm(a.atkT, a.atkAim, f) : weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
       springAngle(a, 'shAng', pose.shAng, 240, 22, a._dt);                            // shoulder leads
       springAngle(a, 'elAng', pose.elBend, 240, 20, a._dt);                           // elbow lags -> whip
       springAngle(a, 'blAng', pose.shAng + pose.elBend + pose.wrBend, 220, 16, a._dt); // blade wrist
-      const wc = armChain(shX, shY, a.shAng, a.elAng);
-      seg(shX, shY, wc.ex, wc.ey, wc.hx, wc.hy, 7);
+      const wc = armChain(shFX, shFY, a.shAng, a.elAng);
+      seg(shFX, shFY, wc.ex, wc.ey, wc.hx, wc.hy, 7);
       drawWeapon(wc.hx, wc.hy, a.blAng, 1);
       const kind = attackArc(a.atkType);
       if (kind === 'arc' || kind === 'chop' || kind === 'thrust') {                   // trail on melee arcs
