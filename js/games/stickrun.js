@@ -28,8 +28,8 @@ const MAGE_HOVER_HEIGHT = 42;
 // the swing/cast trail; dur: per-move animation lengths (ms); ranged: casts bolts.
 const CLASSES = [
   { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Heavy, grounded blade.',
-    weapon: 'sword', offhand: 'shield', main: 'slash', alt: 'hslash', move: 'shieldStep',
-    reach: 1.0, speedMul: 0.98, trail: [120, 170, 255], dur: { slash: 380, hslash: 400, shieldBash: 260 }, moveDur: { shieldStep: 320 },
+    weapon: 'sword', offhand: 'shield', main: 'slash', alt: 'shieldBash', move: 'shieldStep',
+    reach: 1.0, speedMul: 0.98, trail: [120, 170, 255], dur: { slash: 380, shieldBash: 260 }, moveDur: { shieldStep: 320 },
     // armored duelist: grounded sword stance with a shield-side weight shift
     style: { hipH: 44, stanceW: 10, strideH: 12, lift: 9, bounceAmp: 4.4, cadence: 0.72, armStride: 8, baseLean: 0.01, squash: 1.25,
       breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
@@ -253,6 +253,12 @@ PUBLIC.start = function (root, api) {
     a.atkVar = (Math.random() * 64) | 0;     // vary the swing so motions aren't identical
     // rogue dual-wield: one tap = one hand, alternating each strike
     if (cls.id === 'rogue' && type === 'dualSlash') { a.rogueHand = a.rogueHandNext | 0; a.rogueHandNext = a.rogueHand ? 0 : 1; }
+    // knight slash combo: chain taps cycle diagonal -> horizontal -> overhead
+    if (type === 'slash') {
+      const nowMs = performance.now();
+      a.slashFlavor = (nowMs - (a.comboAt || 0) < 850) ? ((a.slashFlavor | 0) + 1) % 3 : 0;
+      a.comboAt = nowMs;
+    }
     return true;
   }
   function triggerMove() {
@@ -1348,8 +1354,7 @@ PUBLIC.start = function (root, api) {
   // Returns null for actions not yet ported, which fall back to the legacy path.
   // ===========================================================================
   function actionClip(type, t, f) {
-    if (type === 'slash') return slashClip(t, f, false);    // diagonal saber cut
-    if (type === 'hslash') return slashClip(t, f, true);    // horizontal waist cut
+    if (type === 'slash') return slashClip(t, f, player.anim.slashFlavor | 0);  // combo flavor
     return null;
   }
   // BODY mechanics baked from real CMU swordplay mocap (subject 02, trial 08) via
@@ -1368,37 +1373,40 @@ PUBLIC.start = function (root, api) {
     offArm: [[0, 0], [0.1, 0.765], [0.2, 0.974], [0.3, 1], [0.4, 0.983], [0.5, 0.952], [0.6, 0.914], [0.7, 0.872], [0.8, 0.841], [0.9, 0.846], [1, 0.858]],
     weightShift: [[0, 0], [0.1, 0], [0.2, 0], [0.3, 0.097], [0.4, 0.177], [0.5, 0.257], [0.6, 0.321], [0.7, 0.438], [0.8, 0.69], [0.9, 0.956], [1, 1]],
   };
-  function slashClip(t, f, horiz) {
+  // Knight slash combo: consecutive taps cycle distinct cuts for variety.
+  //  flavor 0 = diagonal (real mocap body), 1 = horizontal (authored body),
+  //  2 = overhead (mocap body, steep vertical arm).
+  function slashClip(t, f, flavor) {
     const W = clamp(Math.min(t, 1 - t) / 0.10, 0, 1);
-    if (!horiz) {                                  // DIAGONAL = real mocap body + authored arm
-      const M = MOCAP_SLASH;
+    if (flavor === 1) {                            // HORIZONTAL — hand-authored body
       return {
         weight: W,
-        spine: f * kfa(t, M.spine), hipX: f * kfa(t, M.hipX), hipY: kfa(t, M.hipY),
-        headX: f * kfa(t, M.headX), weightShift: kfa(t, M.weightShift),
-        shoulderShear: f * kfa(t, M.shoulderShear), hipPivot: f * kfa(t, M.hipPivot),
-        offArm: f * kfa(t, M.offArm) * 1.0, arm: (tt, aim) => slashArm(tt, aim, false),
+        spine: f * kfa(t, [[0, 0], [0.30, -0.30], [0.40, -0.32], [0.50, 0.30], [0.60, 0.46], [0.85, 0.18], [1, 0]]),
+        hipX: f * kfa(t, [[0, 0], [0.30, -6], [0.40, -6], [0.55, 14], [0.78, 7], [1, 0]]),
+        hipY: 0,
+        headX: f * kfa(t, [[0, 0], [0.30, -5], [0.55, 9], [0.85, 3], [1, 0]]),
+        weightShift: kfa(t, [[0, 0.5], [0.34, 0.12], [0.55, 0.95], [0.85, 0.70], [1, 0.5]]),
+        shoulderShear: f * kfa(t, [[0, 0], [0.30, -9], [0.40, -10], [0.52, 8], [0.62, 12], [0.85, 5], [1, 0]]),
+        hipPivot: f * kfa(t, [[0, 0], [0.26, -5], [0.40, -6], [0.50, 7], [0.62, 9], [0.85, 4], [1, 0]]),
+        offArm: f * kfa(t, [[0, 0], [0.30, 0.7], [0.52, -1.0], [0.78, -0.4], [1, 0]]),
+        arm: (tt, aim) => slashArm(tt, aim, 'horiz'),
       };
     }
-    // HORIZONTAL = hand-authored body (for A/B against the mocap one)
+    const M = MOCAP_SLASH, style = flavor === 2 ? 'over' : 'diag';   // real mocap body
     return {
       weight: W,
-      spine: f * kfa(t, [[0, 0], [0.30, -0.30], [0.40, -0.32], [0.50, 0.30], [0.60, 0.46], [0.85, 0.18], [1, 0]]),
-      hipX: f * kfa(t, [[0, 0], [0.30, -6], [0.40, -6], [0.55, 14], [0.78, 7], [1, 0]]),
-      hipY: 0,
-      headX: f * kfa(t, [[0, 0], [0.30, -5], [0.55, 9], [0.85, 3], [1, 0]]),
-      weightShift: kfa(t, [[0, 0.5], [0.34, 0.12], [0.55, 0.95], [0.85, 0.70], [1, 0.5]]),
-      shoulderShear: f * kfa(t, [[0, 0], [0.30, -9], [0.40, -10], [0.52, 8], [0.62, 12], [0.85, 5], [1, 0]]),
-      hipPivot: f * kfa(t, [[0, 0], [0.26, -5], [0.40, -6], [0.50, 7], [0.62, 9], [0.85, 4], [1, 0]]),
-      offArm: f * kfa(t, [[0, 0], [0.30, 0.7], [0.52, -1.0], [0.78, -0.4], [1, 0]]),
-      arm: (tt, aim) => slashArm(tt, aim, true),
+      spine: f * kfa(t, M.spine), hipX: f * kfa(t, M.hipX), hipY: kfa(t, M.hipY),
+      headX: f * kfa(t, M.headX), weightShift: kfa(t, M.weightShift),
+      shoulderShear: f * kfa(t, M.shoulderShear), hipPivot: f * kfa(t, M.hipPivot),
+      offArm: f * kfa(t, M.offArm), arm: (tt, aim) => slashArm(tt, aim, style),
     };
   }
   // weapon-arm arc for a slash: coil over the back shoulder, cut down-and-ACROSS
   // through the aim, follow through past it. Arm stays bent (rotation gives reach).
-  function slashArm(t, aim, horiz) {
+  function slashArm(t, aim, style) {
     const s = (Math.cos(aim) >= 0 ? 1 : -1);
-    const top = horiz ? -1.4 : -2.0, end = horiz ? 1.0 : 1.45;
+    const top = style === 'horiz' ? -1.4 : style === 'over' ? -2.4 : -2.0;
+    const end = style === 'horiz' ? 1.0 : style === 'over' ? 1.6 : 1.45;
     const shAng = aim + s * kfa(t, [[0, 0.2], [0.26, top], [0.36, top], [0.52, end * 0.5], [0.64, end], [1, end * 0.7]]);
     const elBend = s * kfa(t, [[0, -0.7], [0.36, -1.35], [0.52, -0.5], [0.64, -0.45], [1, -0.8]]);
     const wrBend = s * kfa(t, [[0, 0.5], [0.36, 1.1], [0.52, -0.7], [0.66, -0.2], [1, 0.3]]);
@@ -1633,8 +1641,12 @@ PUBLIC.start = function (root, api) {
 
     // ----- torso + head -----
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
-    ctx.lineCap = 'round'; ctx.lineWidth = 8;
-    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();          // spine
+    // pelvis + shoulder bars: keep the (sheared) leg & arm roots attached to the
+    // spine so the body never separates, and they read as the hips/shoulders turning
+    if (hipFX !== hipBX) { ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hipBX, hipY); ctx.lineTo(hipFX, hipY); ctx.stroke(); }
+    if (shFX !== shBX || shFY !== shBY) { ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(shBX, shBY); ctx.lineTo(shFX, shFY); ctx.stroke(); }
     ctx.beginPath(); ctx.arc(headCX + a.headLag * (1 - air), headCY, headR, 0, Math.PI * 2); ctx.fill();
 
     // ----- near leg -----
