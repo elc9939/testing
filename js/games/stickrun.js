@@ -1336,6 +1336,37 @@ PUBLIC.start = function (root, api) {
     ctx.restore();
   }
 
+  // ===========================================================================
+  // ANIMATION CLIPS (prototype pipeline — currently the knight slash)
+  // A clip authors the WHOLE body for an action over normalised time t, as named
+  // tracks (spine lean, hip drive, head lead, weight shift, off-arm balance). The
+  // front/weapon arm keeps the weaponPose swing engine; the clip wraps the body
+  // around it so the slash is a coordinated full-body move, tuned in ONE place.
+  // `weight` is an ease-in/out envelope used to blend the clip over locomotion.
+  // Returns null for actions not yet ported, which fall back to the legacy path.
+  // ===========================================================================
+  function actionClip(type, t, f) {
+    if (type === 'slash') return slashClip(t, f);
+    return null;
+  }
+  function slashClip(t, f) {
+    return {
+      weight: clamp(Math.min(t, 1 - t) / 0.12, 0, 1),                 // ease in & out
+      // torso winds BACK (anticipation) then drives INTO the cut (follow through)
+      spine: f * kfa(t, [[0, 0], [0.26, -0.34], [0.34, -0.36], [0.52, 0.42], [0.72, 0.16], [1, 0]]),
+      // hips load back, then thrust forward through contact
+      hipX: f * kfa(t, [[0, 0], [0.28, -7], [0.34, -7], [0.52, 12], [0.74, 5], [1, 0]]),
+      // slight crouch on the load, push up out of the cut
+      hipY: kfa(t, [[0, 0], [0.30, 5], [0.40, 4], [0.55, -3], [0.8, 0], [1, 0]]),
+      // head leads the blade down
+      headX: f * kfa(t, [[0, 0], [0.28, -5], [0.52, 8], [0.8, 3], [1, 0]]),
+      // weight: 0 = back foot .. 1 = front foot (drives a plant + push-off)
+      weightShift: kfa(t, [[0, 0.5], [0.30, 0.15], [0.52, 0.92], [0.8, 0.70], [1, 0.5]]),
+      // off arm counter-balances the swing
+      offArm: f * kfa(t, [[0, 0], [0.30, 0.5], [0.52, -0.7], [0.8, -0.2], [1, 0]]),
+    };
+  }
+
   function drawStick(moveAmt) {
     const a = player.anim, f = player.facing, p = a.phase, air = a.air;
     const fly = a.fly || 0, moveType = player.move.active ? player.move.type : null, moveT = player.move.active ? clamp(player.move.t, 0, 1) : 0;
@@ -1375,10 +1406,18 @@ PUBLIC.start = function (root, api) {
     }
 
     // ----- attack scalars (whole-body reaction) -----
-    let atkLean = 0, atkHip = 0, slashT = null, stabT = null, lungeT = null, castT = null, throwT = null, shootT = null;
+    let atkLean = 0, atkHip = 0, clipHipY = 0, clipHeadX = 0, slashT = null, stabT = null, lungeT = null, castT = null, throwT = null, shootT = null;
+    a._clip = null;
     if (a.atkActive) {
       const t = a.atkT, ty = a.atkType, bell = Math.max(0, Math.sin(Math.min(1, t) * Math.PI));
-      if (ty === 'stab' || ty === 'braceThrust') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * (ty === 'braceThrust' ? 14 : 11); atkLean = f * l * 0.10; }
+      const clip = actionClip(ty, t, f);                  // full-body clip (prototype: knight slash)
+      if (clip) {
+        slashT = t;                                       // front arm still runs the swing engine
+        a._clip = clip;
+        const w = clip.weight;
+        atkLean = clip.spine * w; atkHip = clip.hipX * w; clipHipY = clip.hipY * w; clipHeadX = clip.headX * w;
+      }
+      else if (ty === 'stab' || ty === 'braceThrust') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * (ty === 'braceThrust' ? 14 : 11); atkLean = f * l * 0.10; }
       else if (ty === 'lunge' || ty === 'lanceCharge') { lungeT = t; const l = Math.max(0, lungeReach(t)); atkHip = f * l * 20; atkLean = f * l * 0.19; }
       else if (ty === 'cast' || ty === 'arcaneBloom') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
       else if (ty === 'arrow' || ty === 'volley') { shootT = t; atkHip = -f * bell * 2; atkLean = -f * bell * 0.05; }
@@ -1394,7 +1433,7 @@ PUBLIC.start = function (root, api) {
     ctx.scale(sx, sy);
 
     const hipX = sway * moveAmt * Math.sin(p) * (1 - air) + atkHip + idleX;
-    const hipY = -hipH + bob + guardCrouch + breathe + idleY - flipCurl * 7;
+    const hipY = -hipH + bob + guardCrouch + breathe + idleY - flipCurl * 7 + clipHipY;
     const lean = a.lean + atkLean + postureLean;
     const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
     let shX = hipX + upX * torso, shY = hipY + upY * torso;
@@ -1403,6 +1442,7 @@ PUBLIC.start = function (root, api) {
       headCX = lerp(headCX, hipX - player.flip.dir * (8 + flipLead * 5), flipCurl * 0.55);
       headCY = lerp(headCY, hipY - 18 + Math.abs(flipLead) * 5, flipCurl * 0.55);
     }
+    headCX += clipHeadX;                                  // clip: head leads the cut
 
     // ----- ACTIVE RAGDOLL torso: chest & head are verlet masses muscled toward
     // the animation pose (above). Momentum, landings/jumps and attack recoil push
@@ -1466,6 +1506,11 @@ PUBLIC.start = function (root, api) {
         const kick = Math.sin((flipT + (legSign > 0 ? 0.10 : -0.06)) * Math.PI * 2);
         foot.x = lerp(foot.x, -player.flip.dir * (12 + flipCurl * 16) + legSign * (7 - flipCurl * 2) + kick * 3, flipCurl);
         foot.y = lerp(foot.y, -18 + legSign * 4 + flipCurl * 9, flipCurl);
+      } else if (a._clip) {
+        // clip weight-shift: plant the front foot & push off the back heel
+        const c = a._clip, frontLeg = legSign === -1, wt = c.weight;
+        if (frontLeg) { foot.x = lerp(foot.x, f * (12 + c.weightShift * 9), wt * 0.85); foot.y = lerp(foot.y, 0, wt * 0.85); }
+        else { foot.x = lerp(foot.x, -f * 10, wt * 0.7); foot.y = lerp(foot.y, lerp(0, -8, c.weightShift), wt * 0.7); }
       }
       return foot;
     }
@@ -1514,6 +1559,9 @@ PUBLIC.start = function (root, api) {
       h = fly > 0.25 ? { x: shX + f * 8, y: shY + 16 } : { x: shX - f * 8, y: shY + 18 };
     } else if (cls.weapon === 'bow') {
       h = { x: shX - f * 10, y: shY + 10 };
+    }
+    if (a._clip && offhandAim == null) {                  // off arm counter-balances the swing
+      h = { x: h.x + a._clip.offArm * a._clip.weight * 18, y: h.y - Math.abs(a._clip.offArm) * a._clip.weight * 7 };
     }
     if (a.bhx === null) { a.bhx = h.x; a.bhy = h.y; }
     springTo(a, 'bhx', h.x, offhandAim ? 180 : 120, offhandAim ? 17 : 12, a._dt);
