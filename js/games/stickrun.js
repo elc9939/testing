@@ -97,6 +97,20 @@ PUBLIC.start = function (root, api) {
   const ctx = view.ctx;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
+  // spring-damper smoothing for secondary motion (lag + overshoot = "life").
+  // o[key] is the value, o[key+'V'] its velocity. k=stiffness, d=damping
+  // (underdamped d < 2*sqrt(k) overshoots). dt in seconds.
+  function springTo(o, key, target, k, d, dt) {
+    const v = o[key + 'V'] || 0;
+    const nv = v + ((target - o[key]) * k - v * d) * dt;
+    o[key] += nv * dt; o[key + 'V'] = nv;
+  }
+  function springAngle(o, key, target, k, d, dt) {     // shortest-path angular spring
+    const diff = Math.atan2(Math.sin(target - o[key]), Math.cos(target - o[key]));
+    const v = o[key + 'V'] || 0;
+    const nv = v + (diff * k - v * d) * dt;
+    o[key] += nv * dt; o[key + 'V'] = nv;
+  }
 
   // ---------- DOM: overlay, HUD, touch buttons ----------
   const ov = document.createElement('div');
@@ -208,7 +222,8 @@ PUBLIC.start = function (root, api) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0,
-      anim: { phase: 0, lean: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0, aim: 0, castFired: false },
+      anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
+              aim: 0, castFired: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0 },
     };
   }
   function loadLevel(i, keepRun) {
@@ -373,9 +388,13 @@ PUBLIC.start = function (root, api) {
     const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / maxV(), 0, 1);
     a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt;  // gait cycle
     a.air = lerp(a.air, player.grounded ? 0 : 1, 1 - Math.pow(0.0006, dt / 1000));
-    const leanTarget = clamp(player.vx * 0.016, -0.12, 0.12);           // subtle, upright
-    a.lean = lerp(a.lean, leanTarget, 1 - Math.pow(0.02, dt / 1000));
     a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000));
+    // ---- secondary-motion springs (the fluidity layer) ----
+    const dts = Math.min(dt, 32) / 1000;          // clamp for stability
+    const leanTarget = clamp(player.vx * 0.02, -0.14, 0.14);
+    springTo(a, 'lean', leanTarget, 95, 14, dts);             // torso whips on start/stop/turn
+    springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), 80, 16, dts);  // head trails the body
+    springAngle(a, 'aimShown', a.aimTarget, 130, 19, dts);    // sword lags & overshoots its target
     if (a.atkActive) {
       a.atkT += dt / (cls.dur[a.atkType] || 320);
       // mage: release a bolt mid-cast
@@ -562,7 +581,7 @@ PUBLIC.start = function (root, api) {
     // ----- torso + head -----
     ctx.lineCap = 'round'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
-    ctx.beginPath(); ctx.arc(headCX, headCY, headR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(headCX + a.headLag * (1 - air), headCY, headR, 0, Math.PI * 2); ctx.fill();
 
     // ----- near leg (or front kick) -----
     if (kickT !== null) {
@@ -588,15 +607,18 @@ PUBLIC.start = function (root, api) {
     else if (castT !== null) { aim = cursorAng; reach = guardReach + (extTarget - guardReach) * Math.max(0, Math.sin(Math.min(1, castT) * Math.PI)); }
     else { aim = a.aim; reach = guardReach; }                // calm guard when not attacking
 
-    h = { x: shX + Math.cos(aim) * reach, y: shY + Math.sin(aim) * reach };
+    // the spring chases this target so the blade lags & overshoots (secondary motion)
+    a.aimTarget = aim;
+    const drawAim = a.aimShown;
+    h = { x: shX + Math.cos(drawAim) * reach, y: shY + Math.sin(drawAim) * reach };
     ka = ik(shX, shY, h.x, h.y, uArm, fArm, 1);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
-    drawWeapon(ka.ex, ka.ey, aim);
+    drawWeapon(ka.ex, ka.ey, drawAim);
 
     // record weapon tip for the swing trail (only on the sweeping melee attacks)
     if (slashT !== null || stabT !== null) {
       const wl = WLEN[cls.weapon] || 24;
-      slashTrail.push({ x: player.x + ka.ex + Math.cos(aim) * wl, y: player.y + ka.ey + Math.sin(aim) * wl, life: 150 });
+      slashTrail.push({ x: player.x + ka.ex + Math.cos(drawAim) * wl, y: player.y + ka.ey + Math.sin(drawAim) * wl, life: 150 });
       if (slashTrail.length > 26) slashTrail.shift();
     }
 
