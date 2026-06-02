@@ -430,8 +430,8 @@ PUBLIC.start = function (root, api) {
   // a forward lunge, a body-stretch pop, and an impact burst at the weapon tip.
   function onStrike(type) {
     if (type === 'cast') return;                       // bolt carries its own impact
-    freeze = type === 'stab' ? 80 : 70;                // hit-stop (ms freeze-frame)
-    shake = type === 'stab' ? 13 : 11;
+    freeze = type === 'stab' ? 65 : 55;                // hit-stop (ms freeze-frame)
+    shake = type === 'stab' ? 4.5 : 3.5;               // subtle now
     player.vx += player.facing * (type === 'stab' ? 8 : 5.5);   // explosive lunge
     player.anim.squash = -0.5;                         // stretch pop
     const ang = player.anim.atkAim, reach = 34 + cls.reach * 36;
@@ -498,10 +498,11 @@ PUBLIC.start = function (root, api) {
 
   // blade/weapon length per class (used for the swing trail + bolt origin)
   const WLEN = { sword: 30, dagger: 16, spear: 50, staff: 32 };
-  // draw the held weapon from the hand along `ang`, per the selected class
-  function drawWeapon(hx, hy, ang) {
-    const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
+  // draw the held weapon from the hand along `ang`; `scale` stretches it lengthwise (smear)
+  function drawWeapon(hx, hy, ang, scale) {
+    const L = scale || 1, dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
     const blade = (len, halfW, fill) => {
+      len *= L;
       ctx.beginPath();
       ctx.moveTo(hx + dx * 3 + nx * halfW, hy + dy * 3 + ny * halfW);
       ctx.lineTo(hx + dx * len, hy + dy * len);
@@ -520,18 +521,18 @@ PUBLIC.start = function (root, api) {
     else if (cls.weapon === 'spear') {
       handle(8);
       ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;   // wooden shaft
-      ctx.beginPath(); ctx.moveTo(hx - dx * 8, hy - dy * 8); ctx.lineTo(hx + dx * 42, hy + dy * 42); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(hx - dx * 8, hy - dy * 8); ctx.lineTo(hx + dx * 42 * L, hy + dy * 42 * L); ctx.stroke();
       // steel head
       ctx.beginPath();
-      ctx.moveTo(hx + dx * 42 + nx * 3.5, hy + dy * 42 + ny * 3.5);
-      ctx.lineTo(hx + dx * 50, hy + dy * 50);
-      ctx.lineTo(hx + dx * 42 - nx * 3.5, hy + dy * 42 - ny * 3.5);
+      ctx.moveTo(hx + dx * 42 * L + nx * 3.5, hy + dy * 42 * L + ny * 3.5);
+      ctx.lineTo(hx + dx * 50 * L, hy + dy * 50 * L);
+      ctx.lineTo(hx + dx * 42 * L - nx * 3.5, hy + dy * 42 * L - ny * 3.5);
       ctx.closePath(); ctx.fillStyle = '#9aa0aa'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke();
     } else { // staff
       ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;   // shaft
-      ctx.beginPath(); ctx.moveTo(hx - dx * 6, hy - dy * 6); ctx.lineTo(hx + dx * 30, hy + dy * 30); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(hx - dx * 6, hy - dy * 6); ctx.lineTo(hx + dx * 30 * L, hy + dy * 30 * L); ctx.stroke();
       // glowing orb at the tip (class colour)
-      const ox = hx + dx * 32, oy = hy + dy * 32;
+      const ox = hx + dx * 32 * L, oy = hy + dy * 32 * L;
       const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, 9);
       g.addColorStop(0, '#ffffff'); g.addColorStop(.5, cls.color); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ox, oy, 9, 0, Math.PI * 2); ctx.fill();
@@ -634,36 +635,46 @@ PUBLIC.start = function (root, api) {
     k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f, 0.6);
     seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
-    // ----- weapon arm: rests & swings with the run; on attack it drives toward the cursor -----
+    // ----- weapon arm: rests & swings with the run; attacks drive toward the cursor -----
+    // Limbs STRETCH (smear) during the fast snap, then snap back — wide & punchy.
     const attacking = a.atkActive;
-    const extTarget = armLen * cls.reach;
-    let handT, drawAim;
+    let handT, drawAim, stretch = 1;
     if (attacking) {
-      let aim = a.atkAim;
-      if (slashT !== null) aim += slashAngle(slashT);                 // sweep around the chosen direction
-      let reach = guardReach;
-      if (slashT !== null) reach = guardReach + (extTarget * 1.0 - guardReach) * 0.7 * Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI));
-      else if (stabT !== null) reach = guardReach + (extTarget * 1.12 - guardReach) * stabReach(stabT);
-      else if (castT !== null) reach = guardReach + (extTarget - guardReach) * Math.max(0, Math.sin(Math.min(1, castT) * Math.PI));
+      let aim = a.atkAim, ext;
+      if (slashT !== null) {
+        aim += slashAngle(slashT);
+        const chop = clamp((slashT - 0.44) / 0.22, 0, 1);            // 0..1 across the chop
+        stretch = 1 + Math.sin(chop * Math.PI) * 1.0;                // up to 2x at the snap
+        ext = Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI));
+      } else if (stabT !== null) {
+        const sr = Math.max(0, stabReach(stabT));
+        stretch = 1 + sr * 0.8; ext = sr;                           // long during the thrust
+      } else if (castT !== null) {
+        const cr = Math.max(0, Math.sin(Math.min(1, castT) * Math.PI));
+        stretch = 1 + cr * 0.5; ext = cr;
+      } else ext = 0;
+      const armLenS = (uArm + fArm) * stretch, extTargetS = armLenS * cls.reach;
+      const reach = guardReach + (extTargetS - guardReach) * ext;
       a.aimTarget = aim;
-      drawAim = a.aimShown;                                           // angle spring -> blade whips & overshoots
+      drawAim = a.aimShown;                                          // angle spring -> blade whips & overshoots
       handT = { x: shX + Math.cos(drawAim) * reach, y: shY + Math.sin(drawAim) * reach };
     } else {
-      handT = armHand(p + Math.PI);                                   // rest: swing opposite the back arm
-      drawAim = null;                                                 // weapon angle follows the forearm
+      handT = armHand(p + Math.PI);                                  // rest: swing opposite the back arm
+      drawAim = null;
     }
     if (a.whx === null) { a.whx = handT.x; a.why = handT.y; }
-    springTo(a, 'whx', handT.x, attacking ? 260 : 150, attacking ? 26 : 14, a._dt);
-    springTo(a, 'why', handT.y, attacking ? 260 : 150, attacking ? 26 : 14, a._dt);
+    springTo(a, 'whx', handT.x, attacking ? 300 : 150, attacking ? 26 : 14, a._dt);
+    springTo(a, 'why', handT.y, attacking ? 300 : 150, attacking ? 26 : 14, a._dt);
     const wbend = attacking ? (Math.cos(a.atkAim) >= 0 ? 1 : -1) : f;
-    ka = ik(shX, shY, a.whx, a.why, uArm, fArm, wbend);
-    seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
-    const wAng = drawAim != null ? drawAim : Math.atan2(ka.ey - ka.jy, ka.ex - ka.jx);  // carried along forearm at rest
-    drawWeapon(ka.ex, ka.ey, wAng);
+    // stretch the arm bones too so the whole limb elongates during the snap
+    ka = ik(shX, shY, a.whx, a.why, uArm * stretch, fArm * stretch, wbend);
+    seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7 / Math.sqrt(stretch));   // thins as it stretches
+    const wAng = drawAim != null ? drawAim : Math.atan2(ka.ey - ka.jy, ka.ex - ka.jx);
+    drawWeapon(ka.ex, ka.ey, wAng, stretch);
 
     // record weapon tip for the swing trail (only on the sweeping melee attacks)
     if (slashT !== null || stabT !== null) {
-      const wl = WLEN[cls.weapon] || 24;
+      const wl = (WLEN[cls.weapon] || 24) * stretch;
       slashTrail.push({ x: player.x + ka.ex + Math.cos(wAng) * wl, y: (player.y - hoverY) + ka.ey + Math.sin(wAng) * wl, life: 220 });
       if (slashTrail.length > 34) slashTrail.shift();
     }
