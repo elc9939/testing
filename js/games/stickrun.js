@@ -562,10 +562,14 @@ PUBLIC.start = function (root, api) {
     ['hip', 'kneeL', 'footL', 7], ['hip', 'kneeR', 'footR', 7],
     ['chest', 'elbowL', 'handL', 6], ['chest', 'elbowR', 'handR', 6],
   ];
-  // muscle = how strongly a joint is pulled back to upright. Spine/legs hold the
-  // stand; arms & head are 0/tiny so they dangle and fling freely.
-  const DUMMY_MUSCLE = { hip: 0.050, chest: 0.032, head: 0.020, kneeL: 0.040, kneeR: 0.040 };
-  const DG = 0.62, DDAMP = 0.985, DSOLVE = 6;
+  // muscle = how strongly each joint is pulled back to its upright rest pose
+  // (an "active ragdoll"). Core & legs are stiff so it STANDS; arms & head are
+  // soft so they stay floppy and fling when hit, then ease back.
+  const DUMMY_MUSCLE = {
+    hip: 0.26, chest: 0.20, head: 0.11, kneeL: 0.22, kneeR: 0.22,
+    elbowL: 0.06, handL: 0.05, elbowR: 0.06, handR: 0.05,
+  };
+  const DG = 0.48, DDAMP = 0.985, DSOLVE = 6;
   function makeDummy(x, y) {
     const pts = {};
     for (const k in DUMMY_REST) {
