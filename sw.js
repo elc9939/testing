@@ -1,6 +1,6 @@
 /* Service worker: precache the whole arcade so it runs fully offline once
    installed. Bump CACHE when assets change to roll out a fresh copy. */
-const CACHE = 'mini-arcade-v25';
+const CACHE = 'mini-arcade-v26';
 const ASSETS = [
   './',
   './index.html',
