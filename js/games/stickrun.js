@@ -237,6 +237,9 @@ PUBLIC.start = function (root, api) {
     a.aimShown = a.atkAim; a.aimShownV = 0;  // seed the blade spring so it whips from the start
     a.atkActive = true; a.atkType = type; a.atkT = 0; a.struck = false;
     a.struck2 = false;
+    a.atkVar = (Math.random() * 64) | 0;     // vary the swing so motions aren't identical
+    // rogue dual-wield: one tap = one hand, alternating each strike
+    if (cls.id === 'rogue' && type === 'dualSlash') { a.rogueHand = a.rogueHandNext | 0; a.rogueHandNext = a.rogueHand ? 0 : 1; }
     return true;
   }
   function triggerMove() {
@@ -306,7 +309,7 @@ PUBLIC.start = function (root, api) {
   api.on(btnMove, 'pointerdown', e => { e.preventDefault(); triggerMove(); });
 
   // ---------- game state ----------
-  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, droppedKnives, boxes;
+  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, droppedKnives, boxes, dummies;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0;   // hit-stop, last anim amount
 
@@ -318,6 +321,7 @@ PUBLIC.start = function (root, api) {
       flip: { active: false, t: 0, dur: 0, dir: 1 },
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
               struck: false, struck2: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, fly: 0, _dt: 0.016,
+              atkVar: 0, rogueHand: 0, rogueHandNext: 0,
               bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0,
               shAng: 0, shAngV: 0, elAng: 0, elAngV: 0, blAng: 0, blAngV: 0 },
     };
@@ -334,6 +338,7 @@ PUBLIC.start = function (root, api) {
     projectiles = [];
     droppedKnives = [];
     boxes = (L.boxes || []).map(b => ({ x: b[0], y: b[1] - 14, w: 44, h: 44, vx: 0, vy: 0, angle: 0, va: 0, m: 1.6 }));
+    dummies = (L.dummies || [[L.spawn.x + 210, L.spawn.y]]).map(p => makeDummy(p[0], p[1]));
     flagWave = 0; freeze = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
     centerCam(true);
@@ -473,6 +478,7 @@ PUBLIC.start = function (root, api) {
   // attacks shove nearby crates
   function hitBoxes(ix, iy, dx, dy, force) {
     for (const b of boxes) if (Math.hypot(b.x + b.w / 2 - ix, b.y + b.h / 2 - iy) < 52) pushBox(b, dx, dy, force);
+    if (dummies) for (const d of dummies) if (Math.hypot(d.x - ix, (d.y - DUMMY.hipH * 0.7) - iy) < 54) hurtDummy(d, dx, dy, force, ix, iy);
   }
   function hitBoxesSegment(ax, ay, bx, by, dx, dy, force, radius) {
     const sx = bx - ax, sy = by - ay, sl = Math.hypot(sx, sy) || 1;
@@ -482,6 +488,7 @@ PUBLIC.start = function (root, api) {
       const p = closestPointOnSeg(cx, cy, ax, ay, bx, by);
       if (pointAabbDist(p.x, p.y, b) <= radius) pushBox(b, nx, ny, force);
     }
+    hitDummiesSegment(ax, ay, bx, by, nx, ny, force, radius);
   }
   function projectileHitsBox(p, ax, ay, b) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -509,6 +516,101 @@ PUBLIC.start = function (root, api) {
       const d = Math.hypot(cx - x, cy - y);
       if (d < radius) pushBox(b, (cx - x) / (d || 1), (cy - y) / (d || 1), force * (1 - d / radius));
     }
+    if (dummies) for (const d of dummies) {
+      const cx = d.x, cy = d.y - DUMMY.hipH * 0.7, dd = Math.hypot(cx - x, cy - y);
+      if (dd < radius + 20) hurtDummy(d, (cx - x) / (dd || 1), (cy - y) / (dd || 1), force * (1 - dd / (radius + 20)), cx, cy);
+    }
+  }
+
+  // ===========================================================================
+  // ENEMY TRAINING DUMMY
+  // A stick figure with the same body proportions and gravity/ground physics as
+  // the hero. It's rooted to a weighted base, so attacks knock it back and tip
+  // it over — torso, head and limbs ragdoll on a spring — then it wobbles back
+  // upright, ready for the next hit. A sandbox for tuning hit reactions before
+  // real enemies exist.
+  // ===========================================================================
+  const DUMMY = { hipH: 46, torso: 30, neck: 4, headR: 12, uArm: 18, fArm: 16, thigh: 24, shin: 24 };
+  const DUMMY_ARM_REST = [[11, 30], [-9, 30]], DUMMY_LEG_REST = [[8, DUMMY.hipH], [-8, DUMMY.hipH]];
+  function makeDummy(x, y) {
+    return {
+      x, y, baseX: x, vx: 0, vy: 0, grounded: false, facing: -1,
+      lean: 0, leanV: 0, head: 0, headV: 0, flash: 0, _dt: 0.016,
+      arms: DUMMY_ARM_REST.map(r => ({ x: r[0], y: r[1], xV: 0, yV: 0 })),
+      legs: DUMMY_LEG_REST.map(r => ({ x: r[0], y: r[1], xV: 0, yV: 0 })),
+    };
+  }
+  function updateDummies(dt) {
+    if (!dummies) return;
+    const L = LEVELS[li];
+    for (const d of dummies) {
+      d._dt = Math.min(dt, 32) / 1000;
+      d.flash = Math.max(0, d.flash - dt);
+      d.vy = Math.min(d.vy + GRA, TERMINAL);             // same gravity as the hero
+      d.x += d.vx; d.y += d.vy;
+      d.grounded = false;
+      for (const p of L.platforms)
+        if (d.x > p.x && d.x < p.x + p.w && d.y > p.y - 1 && d.y - d.vy <= p.y + 8 && d.vy >= 0) { d.y = p.y; d.vy = 0; d.grounded = true; }
+      for (const b of boxes)
+        if (d.x > b.x && d.x < b.x + b.w && d.y > b.y - 1 && d.y - d.vy <= b.y + 10 && d.vy >= 0) { d.y = b.y; d.vy = 0; d.grounded = true; }
+      if (d.grounded) { d.vx += (d.baseX - d.x) * 0.022; d.vx *= 0.84; }   // weighted base eases it home
+      else d.vx *= 0.99;
+      if (d.y > L.h + 200) { d.x = d.baseX; d.y = L.spawn.y; d.vx = d.vy = 0; }
+      springTo(d, 'lean', 0, 60, 9, d._dt);              // torso wobbles back upright
+      springTo(d, 'head', 0, 95, 12, d._dt);
+      d.arms.forEach((a, i) => { springTo(a, 'x', DUMMY_ARM_REST[i][0], 120, 13, d._dt); springTo(a, 'y', DUMMY_ARM_REST[i][1], 120, 13, d._dt); });
+      d.legs.forEach((g, i) => { springTo(g, 'x', DUMMY_LEG_REST[i][0], 150, 16, d._dt); springTo(g, 'y', DUMMY_LEG_REST[i][1], 175, 18, d._dt); });
+    }
+  }
+  function hurtDummy(d, nx, ny, force, hx, hy) {
+    const k = clamp(force, 4, 40);
+    nx = nx || 0; ny = ny || 0;
+    d.vx += nx * k * 0.28;                               // knockback
+    d.vy += Math.min(0, ny) * k * 0.10 - k * 0.06;       // a little pop off the ground
+    d.leanV += nx * k * 0.0022;                          // tip away from the blow
+    d.headV += nx * 0.6 + rand(-0.5, 0.5);
+    d.arms[0].xV += nx * k * 0.7 + rand(-2, 2); d.arms[0].yV += -k * 0.35 + rand(-2, 1);   // limbs fling out
+    d.arms[1].xV += nx * k * 0.6 + rand(-2, 2); d.arms[1].yV += -k * 0.28 + rand(-2, 1);
+    d.legs[0].xV += nx * k * 0.18 + rand(-1, 1);
+    d.legs[1].xV += nx * k * 0.14 + rand(-1, 1);
+    d.flash = 200;
+    burst(hx, hy, '#ffd089', Math.min(18, 6 + (k | 0)), 4.2);
+    burst(hx, hy, '#d9534f', 8, 3.2);
+    freeze = Math.max(freeze, Math.min(26, 10 + k * 0.4));
+  }
+  function hitDummiesSegment(ax, ay, bx, by, nx, ny, force, radius) {
+    if (!dummies) return;
+    for (const d of dummies) {
+      const cx = d.x, cy = d.y - DUMMY.hipH * 0.7;
+      const p = closestPointOnSeg(cx, cy, ax, ay, bx, by);
+      if (Math.hypot(p.x - cx, p.y - cy) <= (radius || 10) + 18) hurtDummy(d, nx, ny, force, p.x, p.y);
+    }
+  }
+  function drawDummy(d) {
+    const D = DUMMY, f = d.facing;
+    const groundY = d.y - cam.y;
+    const hipX = d.x - cam.x, hipY = groundY - D.hipH;
+    const upX = Math.sin(d.lean), upY = -Math.cos(d.lean);
+    const shX = hipX + upX * D.torso, shY = hipY + upY * D.torso;
+    const headCX = shX + upX * (D.neck + D.headR) + d.head * 0.6, headCY = shY + upY * (D.neck + D.headR);
+    const hot = clamp(d.flash / 200, 0, 1);
+    const ink = hot > 0.02 ? '#a9544b' : '#6f6150';
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // planted base
+    ctx.fillStyle = '#5a4d3d';
+    ctx.beginPath(); ctx.moveTo(hipX - 16, groundY + 2); ctx.lineTo(hipX + 16, groundY + 2);
+    ctx.lineTo(hipX + 9, groundY - 8); ctx.lineTo(hipX - 9, groundY - 8); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = ink; ctx.fillStyle = ink;
+    for (const g of d.legs) { const k = ik(hipX, hipY, hipX + g.x, hipY + g.y, D.thigh, D.shin, -f, 0.6); seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 7); }
+    ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
+    ctx.beginPath(); ctx.arc(headCX, headCY, D.headR, 0, Math.PI * 2); ctx.fill();
+    for (const a of d.arms) { const k = ik(shX, shY, shX + a.x, shY + a.y, D.uArm, D.fArm, f); seg(shX, shY, k.jx, k.jy, k.ex, k.ey, 6); }
+    // bullseye target on the chest
+    const tx = lerp(hipX, shX, 0.5), ty = lerp(hipY, shY, 0.5);
+    ctx.beginPath(); ctx.arc(tx, ty, 7, 0, Math.PI * 2); ctx.fillStyle = '#e7e0d2'; ctx.fill();
+    ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
+    ctx.restore();
   }
   function hoverSurfaceY(x, maxDrop) {
     const L = LEVELS[li], bottom = player.y + maxDrop;
@@ -516,6 +618,16 @@ PUBLIC.start = function (root, api) {
     for (const p of L.platforms) if (x > p.x - 10 && x < p.x + p.w + 10 && p.y >= player.y - 4 && p.y <= bottom) y = Math.min(y, p.y);
     for (const b of boxes) if (x > b.x - 10 && x < b.x + b.w + 10 && b.y >= player.y - 4 && b.y <= bottom) y = Math.min(y, b.y);
     return y === Infinity ? null : y;
+  }
+  // Hover target that also peeks ahead in the travel direction and takes the
+  // TOPMOST surface, so the mage rises early to scale up over a higher ledge/crate.
+  function mageHoverSurface() {
+    const dir = player.vx > 0.3 ? 1 : player.vx < -0.3 ? -1 : player.facing;
+    const here = hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 150);
+    const ahead = hoverSurfaceY(player.x + dir * PW * 0.9, MAGE_HOVER_HEIGHT + 150);
+    if (here === null) return ahead;
+    if (ahead === null) return here;
+    return Math.min(here, ahead);
   }
   function spawnDroppedKnife(x, y, angle, vx, vy) {
     droppedKnives.push({ x, y, vx: (vx || 0) * 0.12, vy: (vy || 0) * 0.12, angle, grounded: false, life: 9000 });
@@ -637,16 +749,16 @@ PUBLIC.start = function (root, api) {
     const g = cls.gravityMul || 1;
     if (cls.fly && mageHovering()) {
       jumpBuf = 0;
-      const surface = hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 150);
+      const surface = mageHoverSurface();
       player.vy = Math.min(player.vy + GRA * 0.18, TERMINAL * 0.45);
       if (surface !== null) {
         const targetY = surface - MAGE_HOVER_HEIGHT;
-        player.vy += clamp((targetY - player.y) * 0.075, -1.05, 1.0);
+        player.vy += clamp((targetY - player.y) * 0.095, -1.9, 1.1);   // stronger lift to climb higher terrain
         if (player.y > targetY - 2 && player.vy > 0) player.vy *= 0.34;
       } else {
         player.vy += clamp((-0.18 - player.vy) * 0.08, -0.36, 0.28);
       }
-      player.vy = clamp(player.vy, -5.2, 4.5);
+      player.vy = clamp(player.vy, -6.8, 4.5);
     } else {
       // jump (buffered + coyote)
       if (jumpBuf > 0 && (player.grounded || player.coyote > 0)) {
@@ -660,6 +772,7 @@ PUBLIC.start = function (root, api) {
     updateRogueAmmo();
 
     updateBoxes();   // crates move under their own physics each step
+    updateDummies(STEP);
 
     // integrate + collide (x then y) — against terrain, then crates
     player.x += player.vx;
@@ -686,7 +799,7 @@ PUBLIC.start = function (root, api) {
       else if (player.vy < 0 && (player.y - PH - player.vy) >= b.y + b.h - 8) { player.y = b.y + b.h + PH; player.vy = 0; b.vy += 1; }
     }
     if (cls.fly && mageHovering()) {
-      const surface = hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 150);
+      const surface = mageHoverSurface();
       if (surface !== null) {
         const targetY = surface - MAGE_HOVER_HEIGHT;
         if (player.y > targetY) { player.y = lerp(player.y, targetY, 0.55); player.vy = Math.min(player.vy, 0); }
@@ -747,10 +860,7 @@ PUBLIC.start = function (root, api) {
     if (a.atkActive) {
       a.atkT += dt / ((cls.dur[a.atkType] || 320) * 1.2);
       const sp = strikePoint(a.atkType);
-      if (a.atkType === 'dualSlash') {
-        if (!a.struck && a.atkT >= 0.34) { a.struck = true; onStrike(a.atkType, 0); }
-        if (!a.struck2 && a.atkT >= 0.64) { a.struck2 = true; onStrike(a.atkType, 1); }
-      } else if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType, 0); }   // impact / release moment
+      if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType, a.rogueHand); }   // impact / release moment
       if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; }
     }
     return moveAmt;
@@ -802,13 +912,9 @@ PUBLIC.start = function (root, api) {
       return { ax: shX - Math.cos(a) * 22, ay: shY - Math.sin(a) * 22, bx: shX + Math.cos(a) * 62, by: shY + Math.sin(a) * 62, dx: Math.cos(a), dy: Math.sin(a), force: 17, r: 9 };
     }
     if (type === 'vaultKick') return { ax: player.x + f * 8, ay: player.y - 38, bx: player.x + f * 66, by: player.y - 48, dx: f, dy: -0.7, force: 17, r: 11 };
-    if (type === 'dualSlash') {
-      const hand = phase === 0 ? 1 : -1, a = rogueSlashAngle(phase === 0 ? 0.40 : 0.68, ang, hand);
-      return { ax: shX + f * 5, ay: shY, bx: shX + Math.cos(a) * 58, by: shY + Math.sin(a) * 58, dx: Math.cos(a), dy: Math.sin(a), force: 14, r: 11 };
-    }
-    // every other weapon swing: the hit blade IS the drawn blade, sampled from
-    // the same pose at the impact frame (hand -> weapon tip).
-    const pose = weaponPose(type, strikePoint(type), ang, f);
+    // every other weapon swing (incl. the rogue's single dual-wield strike): the
+    // hit blade IS the drawn blade, sampled from the same pose+variant at impact.
+    const pose = weaponPose(type, strikePoint(type), ang, f, player.anim.atkVar);
     const ch = armChain(shX, shY, pose.shAng, pose.elBend);
     const bladeAng = ch.foreAng + pose.wrBend;
     const wl = WLEN[cls.weapon] || 24;
@@ -947,29 +1053,59 @@ PUBLIC.start = function (root, api) {
   // wrist bends for an attack at normalised time t. `s` mirrors the whole motion
   // by which way you're aiming, so a swing always cocks up-and-back then cuts
   // down-and-through, for either facing.
-  function weaponPose(type, t, aim, f) {
+  // Each archetype has a few authored variants; every attack picks one
+  // (a.atkVar) so repeated strikes use different angles/patterns instead of the
+  // same canned motion. `back` leans the wind-up off straight-up; `over` is how
+  // far the cut overshoots past the aim before settling.
+  const ARC_VARIANTS = [
+    { back: 0.34, over: 0.80, raiseT: 0.20, cutT: 0.52, coil: 1.20, whip: 0.92 }, // overhead diagonal
+    { back: 0.05, over: 1.08, raiseT: 0.15, cutT: 0.47, coil: 1.38, whip: 1.10 }, // wide power swing
+    { back: 0.66, over: 0.52, raiseT: 0.23, cutT: 0.56, coil: 1.05, whip: 0.80 }, // steep chop
+    { back: -0.50, over: 0.78, raiseT: 0.18, cutT: 0.50, coil: 1.12, whip: 0.98, rising: true }, // rising uppercut
+  ];
+  const CHOP_VARIANTS = [{ lean: 0.45 }, { lean: 0.05 }, { lean: 0.80 }];
+  const THRUST_VARIANTS = [{ coil: 2.00, hold: 0.10, lo: -0.05 }, { coil: 1.70, hold: 0.04, lo: 0.10 }];
+  const THROW_VARIANTS = [{ raiseT: 0.20, over: 0.00 }, { raiseT: 0.16, over: 0.14 }];
+  function weaponPose(type, t, aim, f, v) {
+    v = v | 0;
     const s = (Math.cos(aim) >= 0 ? 1 : -1);
     const arc = attackArc(type);
     let shAng, elBend, wrBend;
     if (arc === 'arc') {
-      // diagonal slash: raise above the aim, hold, then snap down through it
-      shAng = aim + s * kfa(t, [[0, 0.10], [0.26, -0.95], [0.36, -0.95], [0.58, 0.72], [1, 0.18]]);
-      // elbow coils tight on the wind-up, then snaps open at the cut (the whip)
-      elBend = s * kfa(t, [[0, -0.55], [0.34, -1.20], [0.50, -0.12], [0.62, 0.06], [1, -0.55]]);
-      // blade lays back over the shoulder, then whips forward, leading the hand
-      wrBend = s * kfa(t, [[0, 0.30], [0.36, 0.90], [0.50, -0.55], [0.66, -0.08], [1, 0.28]]);
+      const P = ARC_VARIANTS[v % ARC_VARIANTS.length];
+      const holdEnd = P.raiseT + 0.08;
+      if (P.rising) {
+        // uppercut: drop low & back, then cut UP through the aim
+        const low = Math.PI / 2 + s * P.back;
+        shAng = t < P.raiseT ? lerpAngle(aim, low, ease(t / P.raiseT))
+          : t < holdEnd ? low
+            : t < P.cutT ? lerpAngle(low, aim - s * P.over, ease((t - holdEnd) / (P.cutT - holdEnd)))
+              : lerpAngle(aim - s * P.over, aim - s * 0.10, ease((t - P.cutT) / (1 - P.cutT)));
+      } else {
+        // raise to the TOP (up & back) FAST, hold, then SLAM down through the aim —
+        // the momentum starts from the top, and only the slam tracks the aim.
+        const top = -Math.PI / 2 + s * P.back;
+        shAng = t < P.raiseT ? lerpAngle(aim, top, ease(t / P.raiseT))
+          : t < holdEnd ? top
+            : t < P.cutT ? lerpAngle(top, aim + s * P.over, ease((t - holdEnd) / (P.cutT - holdEnd)))
+              : lerpAngle(aim + s * P.over, aim + s * 0.12, ease((t - P.cutT) / (1 - P.cutT)));
+      }
+      elBend = s * kfa(t, [[0, -0.55], [holdEnd, -P.coil], [P.cutT - 0.02, -0.12], [P.cutT + 0.10, 0.06], [1, -0.55]]);
+      wrBend = s * kfa(t, [[0, 0.30], [holdEnd + 0.02, P.whip], [P.cutT - 0.02, -0.55], [P.cutT + 0.12, -0.08], [1, 0.28]]);
+      if (P.rising) { elBend = -elBend; wrBend = -wrBend; }
     } else if (arc === 'chop') {
-      // overhead: raise straight up, slam straight down through the aim
+      const P = CHOP_VARIANTS[v % CHOP_VARIANTS.length];
       const up = -Math.PI / 2;
-      shAng = t < 0.40 ? lerpAngle(aim, up, ease(t / 0.40))
-        : t < 0.58 ? lerpAngle(up, aim + s * 0.45, ease((t - 0.40) / 0.18))
-          : lerpAngle(aim + s * 0.45, aim, ease((t - 0.58) / 0.42));
-      elBend = s * kfa(t, [[0, -0.40], [0.40, -1.30], [0.56, -0.05], [0.70, 0.05], [1, -0.50]]);
-      wrBend = s * kfa(t, [[0, 0.20], [0.40, 0.85], [0.56, -0.45], [0.70, 0.00], [1, 0.20]]);
+      shAng = t < 0.36 ? lerpAngle(aim, up, ease(t / 0.36))
+        : t < 0.52 ? lerpAngle(up, aim + s * P.lean, ease((t - 0.36) / 0.16))
+          : lerpAngle(aim + s * P.lean, aim, ease((t - 0.52) / 0.48));
+      elBend = s * kfa(t, [[0, -0.40], [0.36, -1.30], [0.52, -0.05], [0.66, 0.05], [1, -0.50]]);
+      wrBend = s * kfa(t, [[0, 0.20], [0.36, 0.85], [0.52, -0.45], [0.66, 0.00], [1, 0.20]]);
     } else if (arc === 'thrust') {
+      const P = THRUST_VARIANTS[v % THRUST_VARIANTS.length];
       // straight stab: coil the elbow to draw the hand in, then explode it out
       shAng = aim + s * 0.05 * Math.sin(clamp(t, 0, 1) * Math.PI);
-      elBend = s * kfa(t, [[0, -0.40], [0.34, -2.00], [0.44, -2.00], [0.54, -0.05], [0.70, -0.05], [1, -0.60]]);
+      elBend = s * kfa(t, [[0, -0.40], [0.32, -P.coil], [0.42 + P.hold, -P.coil], [0.54, P.lo], [0.70, P.lo], [1, -0.60]]);
       wrBend = s * kfa(t, [[0, 0.20], [0.44, 0.45], [0.54, 0.00], [1, 0.15]]);
     } else if (arc === 'cast') {
       const bell = Math.sin(clamp(t, 0, 1) * Math.PI);
@@ -977,11 +1113,13 @@ PUBLIC.start = function (root, api) {
       elBend = s * lerp(-1.00, -0.20, bell);
       wrBend = s * 0.15 * (1 - bell);
     } else if (arc === 'throw') {
-      const up = -Math.PI / 2;
-      shAng = t < 0.36 ? lerpAngle(aim, up, ease(t / 0.36))
-        : t < 0.56 ? lerpAngle(up, aim, ease((t - 0.36) / 0.20)) : aim;
-      elBend = s * kfa(t, [[0, -0.50], [0.36, -1.50], [0.50, -0.10], [0.62, 0.05], [1, -0.50]]);
-      wrBend = s * kfa(t, [[0, 0.30], [0.36, 1.00], [0.52, -0.50], [0.66, -0.05], [1, 0.20]]);
+      const P = THROW_VARIANTS[v % THROW_VARIANTS.length];
+      const up = -Math.PI / 2, back = P.raiseT, fwd = P.raiseT + 0.16;
+      shAng = t < back ? lerpAngle(aim, up, ease(t / back))
+        : t < fwd ? lerpAngle(up, aim - s * P.over, ease((t - back) / 0.16))
+          : lerpAngle(aim - s * P.over, aim, ease(clamp((t - fwd) / 0.30, 0, 1)));
+      elBend = s * kfa(t, [[0, -0.50], [back, -1.50], [fwd, -0.10], [fwd + 0.10, 0.05], [1, -0.50]]);
+      wrBend = s * kfa(t, [[0, 0.30], [back, 1.00], [fwd, -0.50], [fwd + 0.12, -0.05], [1, 0.20]]);
     } else if (arc === 'shoot') {
       shAng = aim; elBend = s * -0.15; wrBend = 0;     // bow arm holds steady toward the aim
     } else if (arc === 'bash') {
@@ -1008,7 +1146,7 @@ PUBLIC.start = function (root, api) {
   }
 
   // blade/weapon length per class (used for the swing trail + bolt origin)
-  const WLEN = { sword: 30, dagger: 16, spear: 50, lance: 82, staff: 46, bow: 34, bo: 52, hammer: 46 };
+  const WLEN = { sword: 30, dagger: 23, spear: 50, lance: 82, staff: 46, bow: 34, bo: 52, hammer: 46 };
   // draw the held weapon from the hand along `ang`; `scale` stretches it lengthwise (smear)
   function drawWeapon(hx, hy, ang, scale) {
     ctx.save();
@@ -1227,23 +1365,29 @@ PUBLIC.start = function (root, api) {
       return hand;
     }
 
+    // rogue dual-wield strikes alternate hands; this swing belongs to the off hand
+    const rogueOff = cls.id === 'rogue' && a.atkActive && a.atkType === 'dualSlash' && a.rogueHand === 1;
     // ----- back arm (ragdoll: hand position springs loosely so the elbow swings) -----
     const knifeTrick = cls.id === 'rogue' && !a.atkActive && idleAmt > 0.72 && ((now % 4300) / 4300) > 0.70
       ? ease((((now % 4300) / 4300) - 0.70) / 0.30) : 0;
     let h = armHand(p), offhandAim = null, offhandStretch = 1;
-    if (cls.id === 'rogue' && slashT !== null && rogueSlashActive(slashT, -1)) {
-      const cut = rogueSlashCut(slashT, -1);
-      offhandAim = rogueSlashAngle(slashT, a.atkAim, -1);
-      offhandStretch = 1 + Math.sin(cut * Math.PI) * 0.28;
-      const reach = guardReach + (armLen * 0.86 - guardReach) * (0.35 + 0.65 * Math.sin(cut * Math.PI));
-      h = { x: shX + Math.cos(offhandAim) * reach, y: shY + Math.sin(offhandAim) * reach };
+    if (rogueOff && slashT !== null) {
+      // full-range off-hand swing (uses the same raise-to-top engine as the front hand)
+      const pose = weaponPose('dualSlash', slashT, a.atkAim, f, a.atkVar);
+      const bc = armChain(shX, shY, pose.shAng, pose.elBend);
+      offhandAim = bc.foreAng + pose.wrBend;
+      offhandStretch = 1 + Math.sin(clamp(slashT, 0, 1) * Math.PI) * 0.18;
+      h = { x: bc.hx, y: bc.hy };
+    } else if (cls.id === 'rogue') {
+      h = { x: shX - f * 9, y: shY + 20 };                        // off dagger held at low guard
     } else if (cls.offhand === 'shield') {
       const push = (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? Math.sin(Math.min(1, a.atkT || moveT) * Math.PI) : 0;
       h = { x: shX + f * (14 + push * 24), y: shY + 14 - push * 8 };
     } else if (cls.weapon === 'lance') {
       h = { x: shX - f * 4, y: shY + 18 };
     } else if (cls.weapon === 'staff' || cls.weapon === 'bo') {
-      h = { x: shX - f * (fly ? 14 : 8), y: shY + 18 + fly * 7 };
+      // off hand grips the staff (tucked in toward the front hand) when floating
+      h = fly > 0.25 ? { x: shX + f * 8, y: shY + 16 } : { x: shX - f * 8, y: shY + 18 };
     } else if (cls.weapon === 'bow') {
       h = { x: shX - f * 10, y: shY + 10 };
     }
@@ -1285,9 +1429,10 @@ PUBLIC.start = function (root, api) {
     // leads, the elbow & wrist lag then SNAP, so the blade whips through the arc.
     // The joint angles are spring-smoothed for secondary motion (no bone-stretch).
     const attacking = a.atkActive;
-    const rogueDual = cls.id === 'rogue' && attacking && a.atkType === 'dualSlash';
-    if (attacking && !rogueDual) {
-      const pose = weaponPose(a.atkType, a.atkT, a.atkAim, f);
+    // rogue dual-wield: one tap = one hand. When the OFF (back) hand is striking
+    // (rogueOff, computed above), the front arm just holds guard.
+    if (attacking && !rogueOff) {
+      const pose = weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
       springAngle(a, 'shAng', pose.shAng, 240, 22, a._dt);                            // shoulder leads
       springAngle(a, 'elAng', pose.elBend, 240, 20, a._dt);                           // elbow lags -> whip
       springAngle(a, 'blAng', pose.shAng + pose.elBend + pose.wrBend, 220, 16, a._dt); // blade wrist
@@ -1301,30 +1446,16 @@ PUBLIC.start = function (root, api) {
         if (slashTrail.length > 34) slashTrail.shift();
       }
     } else {
-      // Resting holds + rogue dual-wield keep their hand-target IK for now; we
-      // capture the resulting joint angles so the swing engine starts seamlessly.
+      // Resting holds (and rogue front hand holding guard while the off hand
+      // swings); we capture the joint angles so the swing engine starts seamlessly.
       let handT, drawAim, stretch = 1;
-      if (rogueDual) {
-        let aim = a.atkAim, ext = 0.44;
-        if (rogueSlashActive(slashT, 1)) {
-          aim = rogueSlashAngle(slashT, a.atkAim, 1);
-          const cut = rogueSlashCut(slashT, 1);
-          stretch = 1 + Math.sin(cut * Math.PI) * 0.34;
-          ext = cut < 0.28 ? lerp(0.38, 0.58, ease(cut / 0.28))
-            : cut < 0.68 ? lerp(0.58, 0.96, ease((cut - 0.28) / 0.40))
-            : lerp(0.96, 0.46, ease((cut - 0.68) / 0.32));
-        } else { aim = a.atkAim - f * 0.18; }
-        a.aimTarget = aim;
-        drawAim = a.aimShown;
-        const armLenS = (uArm + fArm) * stretch, extTargetS = armLenS * cls.reach;
-        const reach = guardReach + (extTargetS - guardReach) * ext;
-        handT = { x: shX + Math.cos(drawAim) * reach, y: shY + Math.sin(drawAim) * reach };
-      } else if (cls.weapon === 'lance') {
+      if (cls.weapon === 'lance') {
         drawAim = f > 0 ? -0.04 : Math.PI + 0.04;
         handT = { x: shX + f * 18, y: shY + 16 };
       } else if (cls.weapon === 'staff') {
-        drawAim = fly > 0.25 ? Math.atan2(player.vy * 0.18, f) : -Math.PI / 2 + f * 0.16;
-        handT = { x: shX + f * (fly > 0.25 ? 22 : 12), y: shY + (fly > 0.25 ? 6 : 19) };
+        // hold the staff steady forward-and-down while floating (no vy jitter)
+        drawAim = fly > 0.25 ? (f > 0 ? 0.5 : Math.PI - 0.5) : -Math.PI / 2 + f * 0.16;
+        handT = { x: shX + f * (fly > 0.25 ? 18 : 12), y: shY + (fly > 0.25 ? 12 : 19) };
       } else if (cls.weapon === 'bow') {
         drawAim = f > 0 ? 0 : Math.PI;
         handT = { x: shX + f * 17, y: shY + 7 };
@@ -1347,19 +1478,13 @@ PUBLIC.start = function (root, api) {
         drawAim = null;
       }
       if (a.whx === null) { a.whx = handT.x; a.why = handT.y; }
-      springTo(a, 'whx', handT.x, rogueDual ? 220 : 150, rogueDual ? 19 : 14, a._dt);
-      springTo(a, 'why', handT.y, rogueDual ? 220 : 150, rogueDual ? 19 : 14, a._dt);
-      const wbend = rogueDual ? (Math.cos(a.atkAim) >= 0 ? 1 : -1) : f;
-      ka = ik(shX, shY, a.whx, a.why, uArm * stretch, fArm * stretch, wbend);
+      springTo(a, 'whx', handT.x, 150, 14, a._dt);
+      springTo(a, 'why', handT.y, 150, 14, a._dt);
+      ka = ik(shX, shY, a.whx, a.why, uArm * stretch, fArm * stretch, f);
       seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7 / Math.sqrt(stretch));
       let wAng = drawAim != null ? drawAim : Math.atan2(ka.ey - ka.jy, ka.ex - ka.jx);
-      if (knifeTrick && !rogueDual) wAng += f * Math.PI * 4 * knifeTrick;
+      if (knifeTrick) wAng += f * Math.PI * 4 * knifeTrick;
       drawWeapon(ka.ex, ka.ey, wAng, stretch);
-      if (rogueDual && slashT !== null) {
-        const wl = (WLEN[cls.weapon] || 24) * stretch;
-        slashTrail.push({ x: player.x + ka.ex + Math.cos(wAng) * wl, y: (player.y - hoverY) + ka.ey + Math.sin(wAng) * wl, life: 220 });
-        if (slashTrail.length > 34) slashTrail.shift();
-      }
       // seed the swing-engine joints from the current pose for a seamless handoff
       if (!attacking) {
         a.shAng = Math.atan2(ka.jy - shY, ka.jx - shX); a.shAngV = 0;
@@ -1445,6 +1570,7 @@ PUBLIC.start = function (root, api) {
     for (const p of L.platforms) drawPlatform(p);
     for (const c of coinsLeft) drawCoin(c);
     for (const b of boxes) drawBox(b);
+    for (const d of dummies) drawDummy(d);
     drawFlag(L);
     // particles
     for (const pt of particles) {
@@ -1561,7 +1687,10 @@ PUBLIC.start = function (root, api) {
           }
           const crate = boxes.find(bx => projectileHitsBox(b, px, py, bx));
           if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); }
-          const dead = b.life <= 0 || crate || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
+          const rp = (b.kind === 'dagger' || b.kind === 'arrow') ? 14 : (b.r || 8) + 14;
+          const struckDummy = dummies && dummies.find(d => Math.hypot(d.x - b.x, (d.y - DUMMY.hipH * 0.7) - b.y) < rp);
+          if (struckDummy) { const sp = Math.hypot(b.vx, b.vy) || 1; hurtDummy(struckDummy, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y); }
+          const dead = b.life <= 0 || crate || struckDummy || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
           if (dead) {
             if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
             else if (b.kind === 'sigil') explodeSigil(b);
