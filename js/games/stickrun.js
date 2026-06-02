@@ -18,6 +18,7 @@ const STEP = 1000 / 60;          // fixed physics timestep (ms)
 const GRA = 0.62, MAXV = 3.7, RUN_ACC = 0.7, AIR_ACC = 0.45;
 const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
+const FLOAT_FUEL = 620;          // ms of lift a flyer (Mage) gets before needing to touch down
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
 
 // ---------- RPG classes (data-driven so more can be added easily) ----------
@@ -67,6 +68,7 @@ const LEVELS = [
     ],
     coins: [[300, G - 60], [420, G - 60], [690, G - 120], [860, G - 60],
             [1180, G - 130], [1520, G - 60], [1640, G - 120]],
+    boxes: [[330, G - 30], [770, G - 30], [1500, G - 30]],
     flag: { x: 1860, y: G },
   }),
   lvl({
@@ -82,6 +84,7 @@ const LEVELS = [
     ],
     coins: [[250, G - 60], [540, G - 120], [795, G - 190], [1060, G - 120],
             [1380, G - 60], [1500, G - 130], [1720, G - 140], [2050, G - 60], [2180, G - 60]],
+    boxes: [[200, G - 30], [1380, G - 30], [2080, G - 30]],
     flag: { x: 2270, y: G },
   }),
   lvl({
@@ -100,6 +103,7 @@ const LEVELS = [
     coins: [[455, G - 100], [675, G - 150], [900, G - 210], [1135, G - 150],
             [1355, G - 90], [1580, G - 170], [1820, G - 120],
             [2120, G - 60], [2260, G - 110], [2400, G - 60]],
+    boxes: [[160, G - 30], [2120, G - 30], [2300, G - 30]],
     flag: { x: 2470, y: G },
   }),
 ];
@@ -234,14 +238,14 @@ PUBLIC.start = function (root, api) {
   api.on(btnKick, 'pointerdown', e => { e.preventDefault(); triggerAttack('kick'); });
 
   // ---------- game state ----------
-  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles;
+  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, boxes;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0;   // hit-stop, last anim amount
 
   function makePlayer(spawn) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
-      grounded: false, coyote: 0, jumpCut: false, airTime: 0,
+      grounded: false, coyote: 0, jumpCut: false, airTime: 0, floatFuel: FLOAT_FUEL,
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
               castFired: false, struck: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, _dt: 0.016,
               bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0 },
@@ -257,6 +261,7 @@ PUBLIC.start = function (root, api) {
     particles = [];
     slashTrail = [];
     projectiles = [];
+    boxes = (L.boxes || []).map(b => ({ x: b[0], y: b[1], w: 30, h: 30, vx: 0, vy: 0 }));
     flagWave = 0; freeze = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
     centerCam(true);
@@ -338,6 +343,35 @@ PUBLIC.start = function (root, api) {
   function box() { return { x: player.x - PW / 2, y: player.y - PH, w: PW, h: PH }; }
   function hit(b, p) { return b.x < p.x + p.w && b.x + b.w > p.x && b.y < p.y + p.h && b.y + b.h > p.y; }
 
+  // dynamic crates: gravity, terrain + box-box collision, friction, small bounce
+  function updateBoxes() {
+    const L = LEVELS[li];
+    for (const b of boxes) {
+      b.vy = Math.min(b.vy + 0.6, 16);
+      // horizontal
+      b.x += b.vx;
+      for (const p of L.platforms) if (hit(b, p)) { b.x = b.vx > 0 ? p.x - b.w : p.x + p.w; b.vx *= -0.2; }
+      for (const o of boxes) if (o !== b && hit(b, o)) { b.x = b.x < o.x ? o.x - b.w : o.x + o.w; const t = b.vx; b.vx = o.vx * 0.4; o.vx = t * 0.4; }
+      // vertical
+      let onG = false;
+      b.y += b.vy;
+      for (const p of L.platforms) if (hit(b, p)) { if (b.vy > 0) { b.y = p.y - b.h; onG = true; b.vy = b.vy > 4 ? -b.vy * 0.22 : 0; } else if (b.vy < 0) { b.y = p.y + p.h; b.vy = 0; } }
+      for (const o of boxes) if (o !== b && hit(b, o)) { if (b.vy > 0) { b.y = o.y - b.h; onG = true; b.vy = 0; } else if (b.vy < 0) { b.y = o.y + o.h; b.vy = 0; } }
+      b.vx *= onG ? 0.85 : 0.995;
+      if (Math.abs(b.vx) < 0.05) b.vx = 0;
+      if (b.y > L.h + 300) { b.y = -40; b.x = LEVELS[li].spawn.x + 200; b.vy = 0; b.vx = 0; }   // recycle out of pits
+    }
+  }
+  // attacks shove nearby crates
+  function hitBoxes(ix, iy, dx, dy, force) {
+    for (const b of boxes) {
+      if (Math.hypot(b.x + b.w / 2 - ix, b.y + b.h / 2 - iy) < 48) {
+        b.vx += dx * force; b.vy += dy * force - 2.5;
+        burst(b.x + b.w / 2, b.y + b.h / 2, '#caa15a', 8, 3);
+      }
+    }
+  }
+
   function physics() {
     const L = LEVELS[li];
     const acc = player.grounded ? RUN_ACC : AIR_ACC;
@@ -348,9 +382,9 @@ PUBLIC.start = function (root, api) {
 
     const g = cls.gravityMul || 1;
     if (cls.fly) {
-      // Mage levitates: hold to rise/float instead of a one-shot jump
-      if (input.jumpHeld) player.vy -= 0.95;
-      player.vy = clamp(player.vy, -4.2, TERMINAL * g);
+      // Mage levitates: hold to gain a little height (limited fuel), then it floats/sinks
+      if (input.jumpHeld && player.floatFuel > 0) { player.vy -= 1.0; player.floatFuel -= STEP; }
+      player.vy = clamp(player.vy, -3.4, TERMINAL * g);
       jumpBuf = 0;
       player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);   // gentle gravity pulls back down
     } else {
@@ -364,11 +398,17 @@ PUBLIC.start = function (root, api) {
       player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);
     }
 
-    // integrate + collide (x then y)
+    updateBoxes();   // crates move under their own physics each step
+
+    // integrate + collide (x then y) — against terrain, then crates
     player.x += player.vx;
     for (const p of L.platforms) if (hit(box(), p)) {
       if (player.vx > 0) player.x = p.x - PW / 2; else if (player.vx < 0) player.x = p.x + p.w + PW / 2;
       player.vx = 0;
+    }
+    for (const b of boxes) if (hit(box(), b)) {           // shove crates sideways
+      if (player.vx > 0) { b.x = player.x + PW / 2; b.vx = Math.max(b.vx, player.vx * 0.85 + 0.6); player.vx *= 0.4; }
+      else if (player.vx < 0) { b.x = player.x - PW / 2 - b.w; b.vx = Math.min(b.vx, player.vx * 0.85 - 0.6); player.vx *= 0.4; }
     }
     player.y += player.vy;
     player.grounded = false;
@@ -378,7 +418,11 @@ PUBLIC.start = function (root, api) {
       if (player.vy > 6) player.anim.squash = clamp(player.vy / TERMINAL, 0, 1) * 0.9; // squash on impact
       player.vy = 0;
     }
-    if (player.grounded) { player.coyote = COYOTE; player.jumpCut = false; player.airTime = 0; }
+    for (const b of boxes) if (hit(box(), b)) {           // stand on / bonk crates
+      if (player.vy > 0 && (player.y - player.vy) <= b.y + 8) { player.y = b.y; player.grounded = true; player.vy = 0; }
+      else if (player.vy < 0 && (player.y - PH - player.vy) >= b.y + b.h - 8) { player.y = b.y + b.h + PH; player.vy = 0; b.vy += 1; }
+    }
+    if (player.grounded) { player.coyote = COYOTE; player.jumpCut = false; player.airTime = 0; player.floatFuel = FLOAT_FUEL; }
     else { if (player.coyote > 0) player.coyote--; player.airTime++; }
 
     // coins
@@ -425,7 +469,7 @@ PUBLIC.start = function (root, api) {
     springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
     if (a.atkActive) {
       a.atkT += dt / ((cls.dur[a.atkType] || 320) * 1.25);   // a touch slower = weightier
-      const sp = a.atkType === 'slash' ? 0.52 : a.atkType === 'stab' ? 0.5 : a.atkType === 'cast' ? 0.4 : 0.4;
+      const sp = a.atkType === 'slash' ? 0.49 : a.atkType === 'stab' ? 0.5 : a.atkType === 'cast' ? 0.4 : 0.4;
       if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType); }   // impact moment
       if (a.atkType === 'cast' && !a.castFired && a.atkT >= 0.4) { a.castFired = true; castBolt(); }
       if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; }
@@ -436,10 +480,16 @@ PUBLIC.start = function (root, api) {
   // a forward lunge, a body-stretch pop, and an impact burst at the weapon tip.
   function onStrike(type) {
     if (type === 'cast') return;                       // bolt carries its own impact
+    if (type === 'kick') {                             // forward stomp that boots crates
+      freeze = 45; player.vx += player.facing * 3;
+      hitBoxes(player.x + player.facing * 26, player.y - 16, player.facing, -0.4, 17);
+      return;
+    }
     freeze = type === 'stab' ? 65 : 55;                // hit-stop (ms freeze-frame)
     player.vx += player.facing * (type === 'stab' ? 8 : 5.5);   // explosive lunge
     const ang = player.anim.atkAim, reach = 34 + cls.reach * 36;
     const tx = player.x + Math.cos(ang) * reach, ty = (player.y - 77) + Math.sin(ang) * reach;
+    hitBoxes(tx, ty, Math.cos(ang), Math.sin(ang), type === 'stab' ? 16 : 13);
     burst(tx, ty, cls.color, 16, 6);
     burst(tx, ty, '#ffffff', 10, 4.5);
   }
@@ -476,12 +526,12 @@ PUBLIC.start = function (root, api) {
     if (t < 0.45) return lerp(-0.3, 1, ease((t - 0.18) / 0.27));
     return lerp(1, 0, ease((t - 0.45) / 0.55));
   }
-  // huge slash arc: slow wind-up, an anticipation HOLD, then an explosive chop
+  // a diagonal SLASH: cock up from the aim, hold, then cut straight down through it
   function slashAngle(t) {
-    if (t < 0.36) return lerp(0, -2.4, ease(t / 0.36));            // big slow windup, way back
-    if (t < 0.46) return -2.4;                                     // hold (anticipation)
-    if (t < 0.60) return lerp(-2.4, 2.2, ease((t - 0.46) / 0.14)); // EXPLOSIVE chop through
-    return lerp(2.2, 0, ease((t - 0.60) / 0.40));                  // recover
+    if (t < 0.32) return lerp(0, -1.15, ease(t / 0.32));           // raise to above the aim
+    if (t < 0.42) return -1.15;                                    // hold (anticipation)
+    if (t < 0.56) return lerp(-1.15, 1.25, ease((t - 0.42) / 0.14)); // fast cut down through the aim
+    return lerp(1.25, 0, ease((t - 0.56) / 0.44));                 // recover
   }
   // thrust reach (0=drawn-in .. >1 = overshoot): big load, explosive lunge-out, recover
   function stabReach(t) {
@@ -647,7 +697,7 @@ PUBLIC.start = function (root, api) {
       let aim = a.atkAim, ext;
       if (slashT !== null) {
         aim += slashAngle(slashT);
-        const chop = clamp((slashT - 0.44) / 0.22, 0, 1);            // 0..1 across the chop
+        const chop = clamp((slashT - 0.42) / 0.16, 0, 1);            // 0..1 across the cut
         stretch = 1 + Math.sin(chop * Math.PI) * 1.0;                // up to 2x at the snap
         ext = Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI));
       } else if (stabT !== null) {
@@ -711,6 +761,17 @@ PUBLIC.start = function (root, api) {
     ctx.fillStyle = '#cbc7b8'; ctx.fillRect(x, y, p.w, p.h);          // light body
     ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 5);                 // bold black ledge
   }
+  function drawBox(b) {
+    const x = b.x - cam.x, y = b.y - cam.y;
+    ctx.fillStyle = '#bb8a4e'; ctx.fillRect(x, y, b.w, b.h);              // wood
+    ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.lineJoin = 'miter';
+    ctx.strokeRect(x + 1.5, y + 1.5, b.w - 3, b.h - 3);
+    ctx.lineWidth = 1.5;                                                  // plank cross
+    ctx.beginPath();
+    ctx.moveTo(x + 2, y + 2); ctx.lineTo(x + b.w - 2, y + b.h - 2);
+    ctx.moveTo(x + b.w - 2, y + 2); ctx.lineTo(x + 2, y + b.h - 2);
+    ctx.stroke();
+  }
   function drawCoin(c) {
     if (c.got) return;
     const x = c.x - cam.x, y = c.y - cam.y;
@@ -745,6 +806,7 @@ PUBLIC.start = function (root, api) {
     ctx.save();
     for (const p of L.platforms) drawPlatform(p);
     for (const c of coinsLeft) drawCoin(c);
+    for (const b of boxes) drawBox(b);
     drawFlag(L);
     // particles
     for (const pt of particles) {
@@ -797,7 +859,9 @@ PUBLIC.start = function (root, api) {
         const L = LEVELS[li];
         for (let i = projectiles.length - 1; i >= 0; i--) {
           const b = projectiles[i]; b.x += b.vx; b.y += b.vy; b.life -= dt;
-          const dead = b.life <= 0 || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
+          const crate = boxes.find(bx => b.x > bx.x && b.x < bx.x + bx.w && b.y > bx.y && b.y < bx.y + bx.h);
+          if (crate) { crate.vx += b.vx * 0.6; crate.vy += b.vy * 0.6 - 2; }     // bolts knock crates
+          const dead = b.life <= 0 || crate || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
           if (dead) { burst(b.x, b.y, b.color, 10, 3); projectiles.splice(i, 1); }
         }
       }
