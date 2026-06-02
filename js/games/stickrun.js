@@ -119,7 +119,8 @@ PUBLIC.start = function (root, api) {
   }
   const padL = document.createElement('div'); padL.className = 'sr-touch sr-left';
   const padR = document.createElement('div'); padR.className = 'sr-touch sr-right';
-  const btnLeft = mkBtn(padL, '◀'), btnRight = mkBtn(padL, '▶'), btnJump = mkBtn(padR, '⤒');
+  const btnLeft = mkBtn(padL, '◀'), btnRight = mkBtn(padL, '▶');
+  const btnPunch = mkBtn(padR, '✊'), btnKick = mkBtn(padR, '🦵'), btnJump = mkBtn(padR, '⤒');
   root.appendChild(padL); root.appendChild(padR);
   padL.style.display = padR.style.display = 'none';
 
@@ -127,12 +128,20 @@ PUBLIC.start = function (root, api) {
   const input = { left: false, right: false, jumpHeld: false };
   let jumpBuf = 0;
   const press = (held) => { if (held) { jumpBuf = BUFFER; input.jumpHeld = true; } else input.jumpHeld = false; };
+  function triggerAttack(type) {
+    if (!player || state !== 'playing') return;
+    const a = player.anim;
+    if (a.atkActive) return;                 // one swing at a time
+    a.atkActive = true; a.atkType = type; a.atkT = 0;
+  }
 
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'arrowleft' || k === 'a') input.left = true;
     else if (k === 'arrowright' || k === 'd') input.right = true;
     else if (k === 'arrowup' || k === 'w' || k === ' ') { if (!e.repeat) press(true); e.preventDefault(); }
+    else if (k === 'j') { if (!e.repeat) triggerAttack('punch'); }
+    else if (k === 'k') { if (!e.repeat) triggerAttack('kick'); }
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
   });
   api.on(window, 'keyup', e => {
@@ -150,6 +159,8 @@ PUBLIC.start = function (root, api) {
   hold(btnLeft, v => input.left = v);
   hold(btnRight, v => input.right = v);
   hold(btnJump, v => press(v));
+  api.on(btnPunch, 'pointerdown', e => { e.preventDefault(); triggerAttack('punch'); });
+  api.on(btnKick, 'pointerdown', e => { e.preventDefault(); triggerAttack('kick'); });
 
   // ---------- game state ----------
   let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave;
@@ -158,7 +169,7 @@ PUBLIC.start = function (root, api) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0,
-      anim: { phase: 0, lean: 0, squash: 0 },
+      anim: { phase: 0, lean: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0 },
     };
   }
   function loadLevel(i, keepRun) {
@@ -190,7 +201,8 @@ PUBLIC.start = function (root, api) {
     ov.classList.remove('hidden');
     ov.innerHTML = `<h2>Stick Leap</h2>
       <p class="msg">Run with ←/→ or A/D, jump with Space / ↑ (hold longer to jump higher).
-      On a phone, use the on-screen buttons. Grab coins and reach the 🚩 flag across 3 levels.</p>
+      Attack with J (punch) and K (kick) — or the on-screen buttons on a phone.
+      Grab coins and reach the 🚩 flag across 3 levels.</p>
       <button class="btn" data-act="play" style="background:#ff9f6e;box-shadow:0 0 22px rgba(255,159,110,.5)">PLAY ▸</button>`;
     loadLevel(0, false);
   }
@@ -233,10 +245,6 @@ PUBLIC.start = function (root, api) {
       particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1, life: rand(300, 650), max: 650, color, r: rand(1.5, 3.5) });
     }
   }
-  function dust(x, y, dir) {
-    for (let i = 0; i < 8; i++)
-      particles.push({ x, y, vx: rand(-1, 1) - dir * .6, vy: rand(-1.6, -.2), life: rand(220, 420), max: 420, color: '#8f8b7d', r: rand(1.5, 3.5) });
-  }
 
   // ---------- physics ----------
   function box() { return { x: player.x - PW / 2, y: player.y - PH, w: PW, h: PH }; }
@@ -254,7 +262,6 @@ PUBLIC.start = function (root, api) {
     if (jumpBuf > 0 && (player.grounded || player.coyote > 0)) {
       player.vy = JUMP; player.grounded = false; player.coyote = 0; jumpBuf = 0; player.jumpCut = false;
       player.anim.squash = -0.5;            // stretch on takeoff
-      dust(player.x, player.y, player.facing);
     }
     if (jumpBuf > 0) jumpBuf--;
     // variable height
@@ -268,19 +275,16 @@ PUBLIC.start = function (root, api) {
       if (player.vx > 0) player.x = p.x - PW / 2; else if (player.vx < 0) player.x = p.x + p.w + PW / 2;
       player.vx = 0;
     }
-    const wasAir = !player.grounded;
     player.y += player.vy;
-    let landed = false;
     player.grounded = false;
     for (const p of L.platforms) if (hit(box(), p)) {
-      if (player.vy > 0) { player.y = p.y; player.grounded = true; landed = true; }
+      if (player.vy > 0) { player.y = p.y; player.grounded = true; }
       else if (player.vy < 0) player.y = p.y + p.h + PH;
       if (player.vy > 6) player.anim.squash = clamp(player.vy / TERMINAL, 0, 1) * 0.9; // squash on impact
       player.vy = 0;
     }
     if (player.grounded) { player.coyote = COYOTE; player.jumpCut = false; player.airTime = 0; }
     else { if (player.coyote > 0) player.coyote--; player.airTime++; }
-    if (landed && wasAir && Math.abs(player.vx) >= 0) dust(player.x, player.y, 0);
 
     // coins
     for (const c of coinsLeft) if (!c.got && Math.hypot(c.x - player.x, c.y - (player.y - PH / 2)) < 22) {
@@ -306,17 +310,20 @@ PUBLIC.start = function (root, api) {
     if (snap) { cam.x = tx; cam.y = ty; } else { cam.x = lerp(cam.x, tx, 0.12); cam.y = lerp(cam.y, ty, 0.12); }
   }
 
-  // ---------- animation params (real-time smoothing) ----------
+  // ---------- continuous animation system ----------
+  // Everything is driven smoothly from the body's velocity and a few eased
+  // signals (no discrete walk/run/jump/idle states): `moveAmt` blends standing
+  // into running, `a.air` blends ground pose into an air pose, and attacks layer
+  // a procedural swing on top. Exponential smoothing keeps it fluid and stable.
+  const ATK = { punch: 320, kick: 400 };          // swing durations (ms)
   function animate(dt) {
     const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / MAXV, 0, 1);
-    // run-cycle phase advances with ground speed (dt is in ms). Tuned so the
-    // gait reads at ~1.5–2 strides/sec at top speed — not a blur.
-    if (player.grounded) a.phase += (sp * 0.0030 + 0.0009) * dt;
-    else a.phase += 0.0016 * dt;                       // slow flail in the air
-    const leanTarget = clamp(player.vx * 0.035, -0.34, 0.34)
-      + (player.grounded ? 0 : clamp(player.vy * 0.010, -0.12, 0.16));
-    a.lean = lerp(a.lean, leanTarget, 1 - Math.pow(0.0015, dt / 1000));
-    a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000)); // ease impact squash back
+    a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt;  // gait cycle
+    a.air = lerp(a.air, player.grounded ? 0 : 1, 1 - Math.pow(0.0006, dt / 1000));
+    const leanTarget = clamp(player.vx * 0.016, -0.12, 0.12);           // subtle, upright
+    a.lean = lerp(a.lean, leanTarget, 1 - Math.pow(0.02, dt / 1000));
+    a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000));
+    if (a.atkActive) { a.atkT += dt / ATK[a.atkType]; if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; } }
     return moveAmt;
   }
 
@@ -325,7 +332,6 @@ PUBLIC.start = function (root, api) {
     let dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy);
     const min = Math.abs(l1 - l2) + 0.01, max = l1 + l2 - 0.01;
     if (d < min) d = min; if (d > max) d = max;
-    if (d === 0) d = 0.01;
     const len = Math.hypot(dx, dy) || 1;
     const ex = ax + (dx / len) * d, ey = ay + (dy / len) * d;     // clamped end
     const a = (d * d + l1 * l1 - l2 * l2) / (2 * d);
@@ -335,106 +341,107 @@ PUBLIC.start = function (root, api) {
     return { jx: baseX + px * h * bend, jy: baseY + py * h * bend, ex, ey };
   }
 
+  const ease = x => x * x * (3 - 2 * x);
+  // attack strike profile: brief windup (pull back), fast strike out, ease back
+  function strike(t) {
+    if (t < 0.18) return -0.3 * ease(t / 0.18);
+    if (t < 0.45) return lerp(-0.3, 1, ease((t - 0.18) / 0.27));
+    return lerp(1, 0, ease((t - 0.45) / 0.55));
+  }
+
   // ---------- draw the stick figure (classic stickman; origin at feet) ----------
-  // Solid black, straight-segment limbs with round joints — no shading.
+  // Solid black, straight two-bone limbs, no feet, no shading.
   const INK = '#161616';
-  function seg(ax, ay, jx, jy, bx, by, w) {     // two-bone limb: hip→joint→foot
+  function seg(ax, ay, jx, jy, bx, by, w) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = w;
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(jx, jy); ctx.lineTo(bx, by); ctx.stroke();
   }
-  function foot(x, y, f, ang) {
-    ctx.lineCap = 'round'; ctx.lineWidth = 8;
-    ctx.beginPath(); ctx.moveTo(x, y);
-    ctx.lineTo(x + Math.cos(ang) * f * 9, y + Math.sin(ang) * 9);
-    ctx.stroke();
-  }
 
   function drawStick(moveAmt) {
-    const a = player.anim, f = player.facing, p = a.phase, air = !player.grounded;
+    const a = player.anim, f = player.facing, p = a.phase, air = a.air;
     const now = performance.now();
-    // metrics — bigger, with long legs so knees stay comfortably bent
-    const hipH = 34, torso = 32, neck = 3, headR = 12;
-    const thigh = 24, shin = 22, uArm = 17, fArm = 16;
-    const strideH = 17, lift = 16, armStride = 13, bounceAmp = 8, sway = 3, stanceW = 7;
+    // metrics — upright: hips sit high so the legs are nearly straight when standing
+    const hipH = 40, torso = 30, neck = 4, headR = 12;
+    const thigh = 24, shin = 23, uArm = 18, fArm = 16;
+    const strideH = 15, lift = 13, armStride = 11, bounceAmp = 4, sway = 2.4, stanceW = 5;
 
-    // bouncy vertical motion of the upper body; stance feet stay planted so the
-    // legs compress/extend — that's the bounce. Gentle breathing when idle.
+    // vertical hip bob (legs stay planted -> springy compression); idle breathing
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));
-    const breathe = (1 - moveAmt) * Math.sin(now * 0.0027) * 1.6;
+    const breathe = (1 - moveAmt) * (1 - air) * Math.sin(now * 0.0026) * 1.5;
+
+    // attack layer (scalars first so the whole body can react)
+    let atkLean = 0, atkHip = 0, punchT = null, kickT = null;
+    if (a.atkActive) {
+      const e = strike(a.atkT);
+      if (a.atkType === 'punch') { punchT = e; atkLean = f * Math.max(0, e) * 0.10; atkHip = f * Math.max(0, e) * 3; }
+      else { kickT = e; atkLean = -f * Math.max(0, e) * 0.05; atkHip = -f * Math.max(0, e) * 2; }
+    }
 
     ctx.save();
     ctx.translate(player.x, player.y);
-    // squash & stretch: impact squash + a subtle run pulse synced to the bounce
-    const runPulse = moveAmt * Math.cos(2 * p) * 0.05;
-    const sy = (1 - a.squash * 0.45) * (1 + runPulse);
-    const sx = (1 + a.squash * 0.42) * (1 - runPulse * 0.6);
+    const runPulse = moveAmt * (1 - air) * Math.cos(2 * p) * 0.04;
+    const sy = (1 - a.squash * 0.40) * (1 + runPulse);
+    const sx = (1 + a.squash * 0.36) * (1 - runPulse * 0.6);
     ctx.scale(sx, sy);
 
-    const hipX = sway * moveAmt * Math.sin(p);
+    const hipX = sway * moveAmt * Math.sin(p) * (1 - air) + atkHip;
     const hipY = -hipH - bob + breathe;
-    const upX = Math.sin(a.lean) * f, upY = -Math.cos(a.lean);
+    const lean = a.lean + atkLean;
+    const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
     const shX = hipX + upX * torso, shY = hipY + upY * torso;
     const headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
 
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
 
-    // foot target on the ground for a running gait (swing arc forward, drag back)
-    function footPos(theta, legSign) {
-      if (air) {
-        const tuck = clamp(0.65 - player.vy * 0.045, 0, 1);       // tuck rising, reach falling
-        return { x: legSign * 6 + f * 4, y: -tuck * 18 + Math.max(0, player.vy) * 0.5, ang: 0 };
-      }
+    // foot target: blend the ground running gait with an air pose by `air`
+    function legFoot(theta, legSign) {
       let c = ((theta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
       const front = f * strideH, back = -f * strideH;
-      let fx, fy, ang;
-      if (c < Math.PI) {                                          // swing: arc foot forward
-        const t = c / Math.PI, e = t * t * (3 - 2 * t);
-        fx = back + (front - back) * e; fy = -lift * Math.sin(Math.PI * t); ang = -0.3 * (1 - t);
-      } else {                                                    // stance: drag back, planted
-        const t = (c - Math.PI) / Math.PI;
-        fx = front + (back - front) * t; fy = 0; ang = 0;
-      }
-      return { x: fx * moveAmt + legSign * stanceW * (1 - moveAmt), y: fy * moveAmt, ang };
+      let gx, gy;
+      if (c < Math.PI) { const t = c / Math.PI, e = ease(t); gx = back + (front - back) * e; gy = -lift * Math.sin(Math.PI * t); }
+      else { const t = (c - Math.PI) / Math.PI; gx = front + (back - front) * t; gy = 0; }
+      gx = gx * moveAmt + legSign * stanceW * (1 - moveAmt); gy *= moveAmt;
+      const tuck = clamp(0.45 - player.vy * 0.03, -0.25, 0.6);  // tuck up rising, reach down falling
+      const ax = legSign * 5 + f * 5 * Math.max(0, tuck), ay = -tuck * 11;
+      return { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
     }
-
-    // arm hand target (pendulum swing opposite the legs; raises in the air)
-    function handPos(theta) {
-      if (air) {
-        const raise = clamp(0.75 - player.vy * 0.05, -0.5, 1);
-        return { x: shX + f * (6 + (1 - raise) * 12), y: shY - raise * 22 + (1 - raise) * 10 };
-      }
+    // hand target: ground swing blended with a raised air pose
+    function armHand(theta) {
       const sw = Math.sin(theta);
-      return { x: shX + f * sw * armStride * moveAmt + f * 2,
-               y: shY + (uArm + fArm) * 0.62 - Math.max(0, sw) * 6 * moveAmt };
+      const gx = shX + f * sw * armStride * moveAmt + f * 2;
+      const gy = shY + (uArm + fArm) * 0.78 - Math.max(0, sw) * 5 * moveAmt;   // 0.78 -> straighter arms
+      const raise = clamp(0.6 - player.vy * 0.045, -0.4, 1);
+      const ax = shX + f * (6 + (1 - raise) * 10), ay = shY - raise * 18 + (1 - raise) * 8;
+      return { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
     }
 
-    // Knees bend FORWARD (in the facing direction): bend = -f.
-    // Elbows trail BACKWARD: bend = +f.
-    // ----- far limbs first (same solid black; just drawn behind) -----
-    let h = handPos(p);                       // far arm
+    // knees bend forward (bend = -f); elbows trail back (bend = +f)
+    // ----- far arm -----
+    let h = armHand(p);
     let ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6);
 
-    let lt = footPos(p + Math.PI, +1);        // far leg (foot anchored to ground y≈0)
+    // ----- far leg -----
+    let lt = legFoot(p + Math.PI, +1);
     let k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
     seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 7);
-    foot(k.ex, k.ey, f, lt.ang);
 
-    // ----- torso -----
+    // ----- torso + head -----
     ctx.lineCap = 'round'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
-
-    // ----- near leg -----
-    lt = footPos(p, -1);
-    k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
-    seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
-    foot(k.ex, k.ey, f, lt.ang);
-
-    // ----- head (plain solid black) -----
     ctx.beginPath(); ctx.arc(headCX, headCY, headR, 0, Math.PI * 2); ctx.fill();
 
-    // ----- near arm -----
-    h = handPos(p + Math.PI);
+    // ----- near leg (or front kick) -----
+    if (kickT !== null) {
+      const ke = Math.max(0, kickT), reach = (thigh + shin) * 0.86;
+      lt = { x: f * (stanceW * 0.4 + reach * ke), y: lerp(0, -hipH * 0.62, ke) };
+    } else lt = legFoot(p, -1);
+    k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
+    seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
+
+    // ----- near arm (or punch) -----
+    if (punchT !== null) { const reach = (uArm + fArm) * 0.98; h = { x: shX + f * reach * punchT, y: shY + 3 }; }
+    else h = armHand(p + Math.PI);
     ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
 
