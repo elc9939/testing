@@ -1352,28 +1352,46 @@ PUBLIC.start = function (root, api) {
     if (type === 'hslash') return slashClip(t, f, true);    // horizontal waist cut
     return null;
   }
-  // A real slash is a ROTATION, not a lean: the body coils (shoulders wind back
-  // past the hips), then uncoils ground->hips->torso->arm->blade, the blade arcs
-  // ACROSS the body, and the whole thing FOLLOWS THROUGH past the target. These
-  // tracks express that — shoulderShear/hipPivot fake the torso/hip twist on our
-  // 2D figure, the off arm counter-rotates, and the arm arcs across the centerline.
+  // BODY mechanics baked from real CMU swordplay mocap (subject 02, trial 08) via
+  // scripts/bvh2clip.js — the timing/shape is recorded human motion (weight transfer
+  // onto the front foot, torso twist peaking mid-cut, hips driving forward, the dip
+  // then push). Amplitudes are normalised to our units; the weapon-arm path stays
+  // authored because a sword arm points out-of-plane and doesn't survive a 2D
+  // projection. The horizontal variant keeps the hand-authored body for comparison.
+  const MOCAP_SLASH = {
+    spine: [[0, 0], [0.1, 0.013], [0.2, 0.023], [0.3, 0.022], [0.4, 0.029], [0.5, 0.02], [0.6, -0.009], [0.7, -0.078], [0.8, -0.211], [0.9, -0.363], [1, -0.46]],
+    hipX: [[0, 0], [0.1, 1.019], [0.2, 2.653], [0.3, 4.302], [0.4, 5.662], [0.5, 6.849], [0.6, 7.835], [0.7, 8.935], [0.8, 10.655], [0.9, 12.653], [1, 14]],
+    hipY: [[0, 0], [0.1, 0.129], [0.2, 0.327], [0.3, 0.478], [0.4, 0.606], [0.5, 0.741], [0.6, 0.785], [0.7, 0.405], [0.8, -1.115], [0.9, -3.791], [1, -6]],
+    headX: [[0, 0], [0.1, 0.409], [0.2, 0.949], [0.3, 1.181], [0.4, 1.266], [0.5, 1.036], [0.6, 0.29], [0.7, -1.149], [0.8, -3.68], [0.9, -6.769], [1, -9]],
+    shoulderShear: [[0, 0], [0.1, 2.579], [0.2, 6.171], [0.3, 9.135], [0.4, 11.057], [0.5, 11.946], [0.6, 12], [0.7, 11.221], [0.8, 9.891], [0.9, 8.497], [1, 7.724]],
+    hipPivot: [[0, 0], [0.1, 2.521], [0.2, 5.714], [0.3, 7.931], [0.4, 8.993], [0.5, 9], [0.6, 8.177], [0.7, 7.021], [0.8, 5.669], [0.9, 4.586], [1, 4.13]],
+    offArm: [[0, 0], [0.1, 0.765], [0.2, 0.974], [0.3, 1], [0.4, 0.983], [0.5, 0.952], [0.6, 0.914], [0.7, 0.872], [0.8, 0.841], [0.9, 0.846], [1, 0.858]],
+    weightShift: [[0, 0], [0.1, 0], [0.2, 0], [0.3, 0.097], [0.4, 0.177], [0.5, 0.257], [0.6, 0.321], [0.7, 0.438], [0.8, 0.69], [0.9, 0.956], [1, 1]],
+  };
   function slashClip(t, f, horiz) {
+    const W = clamp(Math.min(t, 1 - t) / 0.10, 0, 1);
+    if (!horiz) {                                  // DIAGONAL = real mocap body + authored arm
+      const M = MOCAP_SLASH;
+      return {
+        weight: W,
+        spine: f * kfa(t, M.spine), hipX: f * kfa(t, M.hipX), hipY: kfa(t, M.hipY),
+        headX: f * kfa(t, M.headX), weightShift: kfa(t, M.weightShift),
+        shoulderShear: f * kfa(t, M.shoulderShear), hipPivot: f * kfa(t, M.hipPivot),
+        offArm: f * kfa(t, M.offArm) * 1.0, arm: (tt, aim) => slashArm(tt, aim, false),
+      };
+    }
+    // HORIZONTAL = hand-authored body (for A/B against the mocap one)
     return {
-      weight: clamp(Math.min(t, 1 - t) / 0.10, 0, 1),
-      // lateral spine bend: away on the coil, hard INTO the cut on release
+      weight: W,
       spine: f * kfa(t, [[0, 0], [0.30, -0.30], [0.40, -0.32], [0.50, 0.30], [0.60, 0.46], [0.85, 0.18], [1, 0]]),
-      // hips step/drive forward through contact
       hipX: f * kfa(t, [[0, 0], [0.30, -6], [0.40, -6], [0.55, 14], [0.78, 7], [1, 0]]),
-      hipY: horiz ? 0 : kfa(t, [[0, 0], [0.34, 5], [0.50, 3], [0.60, -3], [1, 0]]),
+      hipY: 0,
       headX: f * kfa(t, [[0, 0], [0.30, -5], [0.55, 9], [0.85, 3], [1, 0]]),
       weightShift: kfa(t, [[0, 0.5], [0.34, 0.12], [0.55, 0.95], [0.85, 0.70], [1, 0.5]]),
-      // SHOULDER GIRDLE shear = torso rotation: wound back on the coil, whips through
       shoulderShear: f * kfa(t, [[0, 0], [0.30, -9], [0.40, -10], [0.52, 8], [0.62, 12], [0.85, 5], [1, 0]]),
-      // HIPS rotate, leading the shoulders slightly (separation)
       hipPivot: f * kfa(t, [[0, 0], [0.26, -5], [0.40, -6], [0.50, 7], [0.62, 9], [0.85, 4], [1, 0]]),
-      // off arm counter-rotates HARD the opposite way (sells the twist)
       offArm: f * kfa(t, [[0, 0], [0.30, 0.7], [0.52, -1.0], [0.78, -0.4], [1, 0]]),
-      arm: (tt, aim, ff) => slashArm(tt, aim, horiz),
+      arm: (tt, aim) => slashArm(tt, aim, true),
     };
   }
   // weapon-arm arc for a slash: coil over the back shoulder, cut down-and-ACROSS
