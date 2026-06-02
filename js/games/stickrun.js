@@ -1397,11 +1397,43 @@ PUBLIC.start = function (root, api) {
     const hipY = -hipH + bob + guardCrouch + breathe + idleY - flipCurl * 7;
     const lean = a.lean + atkLean + postureLean;
     const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
-    const shX = hipX + upX * torso, shY = hipY + upY * torso;
+    let shX = hipX + upX * torso, shY = hipY + upY * torso;
     let headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
     if (flipActive) {
       headCX = lerp(headCX, hipX - player.flip.dir * (8 + flipLead * 5), flipCurl * 0.55);
       headCY = lerp(headCY, hipY - 18 + Math.abs(flipLead) * 5, flipCurl * 0.55);
+    }
+
+    // ----- ACTIVE RAGDOLL torso: chest & head are verlet masses muscled toward
+    // the animation pose (above). Momentum, landings/jumps and attack recoil push
+    // them around; bones to the (rooted) hip keep the body intact; the arms IK off
+    // the PHYSICAL chest, so the whole upper body reacts. Stiff = looks animated,
+    // loosen RAG_KC/RAG_KH for a floppier feel. -----
+    {
+      const R = a.rag || (a.rag = { init: false });
+      const lenHC = Math.hypot(shX - hipX, shY - hipY), lenCH = Math.hypot(headCX - shX, headCY - shY);
+      if (!R.init || flipActive && !R.flip) { R.cx = shX; R.cy = shY; R.cpx = shX; R.cpy = shY; R.hx = headCX; R.hy = headCY; R.hpx = headCX; R.hpy = headCY; R.init = true; }
+      R.flip = flipActive;
+      const KC = flipActive ? 0.7 : 0.30, KH = flipActive ? 0.7 : 0.26, DMP = 0.90;
+      // impulses from the body's own motion
+      const dvx = player.vx - (R.lvx || 0); R.lvx = player.vx;
+      const dsq = a.squash - (R.lsq || 0); R.lsq = a.squash;
+      let impX = clamp(-dvx, -3, 3) * 1.4, impY = clamp(dsq, -1, 1) * 6;
+      if (a.atkActive && a.struck && !R.struckSeen) { impX += -f * 2.4; impY -= 1.2; R.struckSeen = true; }
+      if (!a.atkActive) R.struckSeen = false;
+      let cvx = (R.cx - R.cpx) * DMP, cvy = (R.cy - R.cpy) * DMP;
+      R.cpx = R.cx; R.cpy = R.cy; R.cx += cvx + impX; R.cy += cvy + impY;
+      let hvx = (R.hx - R.hpx) * DMP, hvy = (R.hy - R.hpy) * DMP;
+      R.hpx = R.hx; R.hpy = R.hy; R.hx += hvx + impX * 0.7; R.hy += hvy + impY * 0.7;
+      R.cx += (shX - R.cx) * KC; R.cy += (shY - R.cy) * KC;
+      R.hx += (headCX - R.hx) * KH; R.hy += (headCY - R.hy) * KH;
+      for (let it = 0; it < 3; it++) {
+        let dx = R.cx - hipX, dy = R.cy - hipY, dd = Math.hypot(dx, dy) || 1, df = (dd - lenHC) / dd;
+        R.cx -= dx * df; R.cy -= dy * df;
+        let ex = R.hx - R.cx, ey = R.hy - R.cy, ed = Math.hypot(ex, ey) || 1, ef = (ed - lenCH) / ed * 0.5;
+        R.cx += ex * ef; R.cy += ey * ef; R.hx -= ex * ef; R.hy -= ey * ef;
+      }
+      shX = R.cx; shY = R.cy; headCX = R.hx; headCY = R.hy;
     }
 
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
