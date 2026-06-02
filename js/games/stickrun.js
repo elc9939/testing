@@ -127,23 +127,29 @@ PUBLIC.start = function (root, api) {
   // ---------- input ----------
   const input = { left: false, right: false, jumpHeld: false };
   const pointer = { x: 0, y: 0, active: false };   // cursor, for sword aiming
-  let jumpBuf = 0;
+  let jumpBuf = 0, comboNext = 'slash';            // primary attack alternates slash/stab
   const press = (held) => { if (held) { jumpBuf = BUFFER; input.jumpHeld = true; } else input.jumpHeld = false; };
   function triggerAttack(type) {
-    if (!player || state !== 'playing') return;
+    if (!player || state !== 'playing') return false;
     const a = player.anim;
-    if (a.atkActive) return;                 // one swing at a time
+    if (a.atkActive) return false;           // one swing at a time
     a.atkActive = true; a.atkType = type; a.atkT = 0;
+    return true;
   }
+  function primaryAttack() { if (triggerAttack(comboNext)) comboNext = comboNext === 'slash' ? 'stab' : 'slash'; }
   api.on(view.canvas, 'mousemove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
-  api.on(view.canvas, 'mousedown', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; triggerAttack('slash'); });
+  api.on(view.canvas, 'mousedown', e => {
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; e.preventDefault();
+    if (e.button === 2) triggerAttack('stab'); else primaryAttack();   // right-click = stab
+  });
+  api.on(view.canvas, 'contextmenu', e => e.preventDefault());
 
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'arrowleft' || k === 'a') input.left = true;
     else if (k === 'arrowright' || k === 'd') input.right = true;
     else if (k === 'arrowup' || k === 'w' || k === ' ') { if (!e.repeat) press(true); e.preventDefault(); }
-    else if (k === 'j') { if (!e.repeat) triggerAttack('slash'); }
+    else if (k === 'j') { if (!e.repeat) primaryAttack(); }
     else if (k === 'k') { if (!e.repeat) triggerAttack('kick'); }
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
   });
@@ -162,11 +168,11 @@ PUBLIC.start = function (root, api) {
   hold(btnLeft, v => input.left = v);
   hold(btnRight, v => input.right = v);
   hold(btnJump, v => press(v));
-  api.on(btnPunch, 'pointerdown', e => { e.preventDefault(); triggerAttack('slash'); });
+  api.on(btnPunch, 'pointerdown', e => { e.preventDefault(); primaryAttack(); });
   api.on(btnKick, 'pointerdown', e => { e.preventDefault(); triggerAttack('kick'); });
 
   // ---------- game state ----------
-  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave;
+  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail;
 
   function makePlayer(spawn) {
     return {
@@ -183,6 +189,7 @@ PUBLIC.start = function (root, api) {
     totalCoins = coinsLeft.length;
     cam = { x: 0, y: 0 };
     particles = [];
+    slashTrail = [];
     flagWave = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
     centerCam(true);
@@ -203,8 +210,8 @@ PUBLIC.start = function (root, api) {
     padL.style.display = padR.style.display = 'none';
     ov.classList.remove('hidden');
     ov.innerHTML = `<h2>Stick Leap</h2>
-      <p class="msg">Run with ←/→ or A/D, jump with Space / ↑ (hold for height). Your sword aims
-      at the mouse — click or press J to slash, K to kick (or the on-screen buttons on a phone).
+      <p class="msg">Run with ←/→ or A/D, jump with Space / ↑. Your sword stays on guard, aimed
+      at the mouse — click (or J) to alternate slash &amp; stab, right-click to stab, K to kick.
       Grab coins and reach the 🚩 flag across 3 levels.</p>
       <button class="btn" data-act="play" style="background:#ff9f6e;box-shadow:0 0 22px rgba(255,159,110,.5)">PLAY ▸</button>`;
     loadLevel(0, false);
@@ -318,7 +325,7 @@ PUBLIC.start = function (root, api) {
   // signals (no discrete walk/run/jump/idle states): `moveAmt` blends standing
   // into running, `a.air` blends ground pose into an air pose, and attacks layer
   // a procedural swing on top. Exponential smoothing keeps it fluid and stable.
-  const ATK = { slash: 360, kick: 400 };          // swing durations (ms)
+  const ATK = { slash: 380, stab: 300, kick: 400 };   // swing durations (ms)
   function animate(dt) {
     const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / MAXV, 0, 1);
     a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt;  // gait cycle
@@ -354,11 +361,18 @@ PUBLIC.start = function (root, api) {
     if (t < 0.45) return lerp(-0.3, 1, ease((t - 0.18) / 0.27));
     return lerp(1, 0, ease((t - 0.45) / 0.55));
   }
-  // sword swing arc (angle offset added to the aim): raise up, chop through, recover
+  // dramatic sword swing arc (angle offset added to aim): big windup, fast chop
   function slashAngle(t) {
-    if (t < 0.22) return lerp(0, -1.0, ease(t / 0.22));            // windup (raise)
-    if (t < 0.5) return lerp(-1.0, 0.9, ease((t - 0.22) / 0.28));  // chop down/through
-    return lerp(0.9, 0, ease((t - 0.5) / 0.5));                    // recover to aim
+    if (t < 0.26) return lerp(0, -1.5, ease(t / 0.26));            // big windup (raise back)
+    if (t < 0.5) return lerp(-1.5, 1.4, ease((t - 0.26) / 0.24));  // fast chop through
+    return lerp(1.4, 0, ease((t - 0.5) / 0.5));                    // recover to aim
+  }
+  // thrust profile (hand reach 0=guard .. 1=full extension): windup, snap out, recover
+  function stabReach(t) {
+    if (t < 0.24) return lerp(0, -0.28, ease(t / 0.24));           // pull back to load
+    if (t < 0.42) return lerp(-0.28, 1, ease((t - 0.24) / 0.18));  // snap forward
+    if (t < 0.58) return 1;                                        // hold extension
+    return lerp(1, 0, ease((t - 0.58) / 0.42));                    // retract to guard
   }
 
   // ---------- draw the stick figure (classic stickman; origin at feet) ----------
@@ -392,21 +406,31 @@ PUBLIC.start = function (root, api) {
   function drawStick(moveAmt) {
     const a = player.anim, f = player.facing, p = a.phase, air = a.air;
     const now = performance.now();
-    // metrics — hips sit high (close to leg length) so legs are nearly straight
-    const hipH = 46, torso = 30, neck = 4, headR = 12;
-    const thigh = 24, shin = 24, uArm = 18, fArm = 16;
-    const strideH = 11, lift = 11, armStride = 10, bounceAmp = 2.5, sway = 2.2, stanceW = 4;
+    // metrics — hips sit just under leg length so legs are nearly straight at rest
+    const hipH = 47, torso = 30, neck = 4, headR = 12;
+    const thigh = 24, shin = 24, uArm = 18, fArm = 16, armLen = uArm + fArm;
+    const strideH = 9, lift = 10, armStride = 9, bounceAmp = 2.5, sway = 2, stanceW = 3;
+    const guardReach = armLen * 0.6;            // bent-elbow "on guard" hold
 
-    // hip bob COMPRESSES DOWNWARD on the beat (knees bend to absorb), so the
-    // straightest pose is at rest. Gentle breathing when idle.
-    const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));
+    const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));   // downward compression
     const breathe = (1 - moveAmt) * (1 - air) * Math.sin(now * 0.0026) * 1.4;
 
-    // attack scalars (so the body can react); slash is handled on the aim arm
-    let atkLean = 0, atkHip = 0, slashT = null, kickT = null;
+    // ----- aim & combat posture (provisional shoulder for posture decisions) -----
+    const apShX = player.x, apShY = player.y - (hipH + torso);
+    let aimWX = pointer.active ? pointer.x + cam.x : apShX + f * 60;
+    let aimWY = pointer.active ? pointer.y + cam.y : apShY + 6;
+    const aim0 = Math.atan2(aimWY - apShY, aimWX - apShX);
+    const highness = clamp(-Math.sin(aim0), -1, 1);    // +1 aim up, -1 aim down
+    const postureLean = -highness * 0.06 * (1 - air);  // lean back aiming high, into it aiming low
+    const guardCrouch = Math.max(0, -highness) * 5 * (1 - air);   // settle low when aiming down
+
+    // ----- attack scalars (whole-body reaction) -----
+    let atkLean = 0, atkHip = 0, slashT = null, stabT = null, kickT = null;
     if (a.atkActive) {
-      if (a.atkType === 'kick') { const e = strike(a.atkT); kickT = e; atkLean = -f * Math.max(0, e) * 0.05; atkHip = -f * Math.max(0, e) * 2; }
-      else { slashT = a.atkT; atkLean = f * Math.sin(Math.min(1, a.atkT) * Math.PI) * 0.06; }
+      const t = a.atkT;
+      if (a.atkType === 'kick') { const e = strike(t); kickT = e; atkLean = -f * Math.max(0, e) * 0.05; atkHip = -f * Math.max(0, e) * 2; }
+      else if (a.atkType === 'stab') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * 6; atkLean = f * l * 0.05; }   // lunge
+      else { slashT = t; const sw = Math.sin(Math.min(1, t) * Math.PI); atkHip = f * sw * 4; atkLean = f * sw * 0.10; }
     }
 
     ctx.save();
@@ -417,8 +441,8 @@ PUBLIC.start = function (root, api) {
     ctx.scale(sx, sy);
 
     const hipX = sway * moveAmt * Math.sin(p) * (1 - air) + atkHip;
-    const hipY = -hipH + bob + breathe;          // +bob = downward compression
-    const lean = a.lean + atkLean;
+    const hipY = -hipH + bob + guardCrouch + breathe;
+    const lean = a.lean + atkLean + postureLean;
     const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
     const shX = hipX + upX * torso, shY = hipY + upY * torso;
     const headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
@@ -433,21 +457,21 @@ PUBLIC.start = function (root, api) {
       if (c < Math.PI) { const t = c / Math.PI, e = ease(t); gx = back + (front - back) * e; gy = -lift * Math.sin(Math.PI * t); }
       else { const t = (c - Math.PI) / Math.PI; gx = front + (back - front) * t; gy = 0; }
       gx = gx * moveAmt + legSign * stanceW * (1 - moveAmt); gy *= moveAmt;
-      const tuck = clamp(0.4 - player.vy * 0.03, -0.3, 0.55);   // tuck up rising, reach down falling
+      const tuck = clamp(0.4 - player.vy * 0.03, -0.3, 0.55);
       const ax = legSign * 4 + f * 5 * Math.max(0, tuck), ay = -tuck * 10;
       return { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
     }
-    // hand target for the FREE (back) arm: straighter at rest, swings when running
+    // free (back) arm: straight at rest, swings when running
     function armHand(theta) {
       const sw = Math.sin(theta), ratio = lerp(0.92, 0.74, moveAmt);
       const gx = shX + f * sw * armStride * moveAmt + f * 2;
-      const gy = shY + (uArm + fArm) * ratio - Math.max(0, sw) * 5 * moveAmt;
+      const gy = shY + armLen * ratio - Math.max(0, sw) * 5 * moveAmt;
       const raise = clamp(0.55 - player.vy * 0.045, -0.4, 1);
       const ax = shX + f * (6 + (1 - raise) * 10), ay = shY - raise * 18 + (1 - raise) * 8;
       return { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
     }
 
-    // ----- back arm (free; swings with the run) -----
+    // ----- back arm -----
     let h = armHand(p);
     let ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6);
@@ -470,18 +494,25 @@ PUBLIC.start = function (root, api) {
     k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
     seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
-    // ----- sword arm: aims toward the cursor; slashes on attack -----
+    // ----- sword arm: on-guard aim at the cursor; slash/stab on attack -----
     const shoulderWX = player.x + shX, shoulderWY = player.y + shY;
-    let aimWX, aimWY;
-    if (pointer.active) { aimWX = pointer.x + cam.x; aimWY = pointer.y + cam.y; }
-    else { aimWX = shoulderWX + f * 60; aimWY = shoulderWY + 6; }   // default: point forward
+    aimWX = pointer.active ? pointer.x + cam.x : shoulderWX + f * 60;
+    aimWY = pointer.active ? pointer.y + cam.y : shoulderWY + 6;
     let aim = Math.atan2(aimWY - shoulderWY, aimWX - shoulderWX);
-    if (slashT !== null) aim += slashAngle(slashT);
-    const reach = (uArm + fArm) * (slashT !== null ? 0.99 : 0.9);
+    let reach = guardReach;                      // resting guard = bent elbow, blade trained on target
+    if (slashT !== null) { aim += slashAngle(slashT); reach = guardReach + (armLen * 0.98 - guardReach) * 0.5 * Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI)); }
+    else if (stabT !== null) { reach = guardReach + (armLen * 1.0 - guardReach) * stabReach(stabT); }
     h = { x: shX + Math.cos(aim) * reach, y: shY + Math.sin(aim) * reach };
     ka = ik(shX, shY, h.x, h.y, uArm, fArm, 1);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
     drawWeapon(ka.ex, ka.ey, aim);
+
+    // record blade tip for the swing trail (world coords)
+    if (a.atkActive) {
+      const tipX = player.x + ka.ex + Math.cos(aim) * 30, tipY = player.y + ka.ey + Math.sin(aim) * 30;
+      slashTrail.push({ x: tipX, y: tipY, life: 150 });
+      if (slashTrail.length > 26) slashTrail.shift();
+    }
 
     ctx.restore();
   }
@@ -555,6 +586,17 @@ PUBLIC.start = function (root, api) {
     ctx.globalAlpha = 1;
     // figure (translate by camera)
     ctx.translate(-cam.x, -cam.y);
+    // sword swing trail: a fading steel-blue arc through the recent blade tips
+    if (slashTrail.length > 1) {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (let i = 1; i < slashTrail.length; i++) {
+        const a0 = slashTrail[i - 1], a1 = slashTrail[i];
+        const al = clamp(a1.life / 150, 0, 1);
+        ctx.strokeStyle = `rgba(120,170,255,${al * 0.7})`;
+        ctx.lineWidth = 2 + al * 6;
+        ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.stroke();
+      }
+    }
     drawStick(moveAmt);
     ctx.restore();
   }
@@ -568,6 +610,12 @@ PUBLIC.start = function (root, api) {
       let guard = 0;
       while (acc >= STEP && guard++ < 5) { physics(); acc -= STEP; if (state !== 'playing') break; }
       flagWave += dt * 0.006;
+      // age effects: particles fly & fade; the sword trail fades out
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.12; pt.life -= dt;
+        if (pt.life <= 0) particles.splice(i, 1);
+      }
+      for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
       centerCam(false);
     }
     const moveAmt = (player ? animate(dt) : 0);
