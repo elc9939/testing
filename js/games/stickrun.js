@@ -27,10 +27,10 @@ const PW = 20, PH = 58;          // player collision box (w, h); y = feet (botto
 // the swing/cast trail; dur: per-move animation lengths (ms); ranged: casts bolts.
 const CLASSES = [
   { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Heavy, grounded blade.',
-    weapon: 'sword', main: 'slash', alt: 'stab', reach: 1.0, speedMul: 1.0, trail: [120, 170, 255], dur: { slash: 360, stab: 300 },
+    weapon: 'sword', main: 'slash', alt: 'stab', reach: 1.0, speedMul: 1.0, trail: [120, 170, 255], dur: { slash: 320, stab: 300 },
     // heavy & lumbering: big slow bounce, deep landing squash
     style: { hipH: 44, stanceW: 8, strideH: 13, lift: 10, bounceAmp: 5.5, cadence: 0.78, armStride: 11, baseLean: 0.02, squash: 1.3,
-      breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [100, 21] } } },
+      breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
   { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast, twitchy daggers.',
     weapon: 'dagger', main: 'slash', alt: 'throw', reach: 0.78, speedMul: 1.3, trail: [150, 255, 110], dur: { slash: 230, throw: 240 }, dual: true,
     // athletic & quick: upright, long smooth strides, low bounce, only a slight lean
@@ -497,14 +497,14 @@ PUBLIC.start = function (root, api) {
   }
   // a fast, punchy magic bolt (size = power)
   function spawnBolt(ang, power) {
-    const shX = player.x, shY = player.y - 77, spd = 14;
+    const shX = player.x, shY = player.y - 77, spd = 19;
     const mx = shX + Math.cos(ang) * 46, my = shY + Math.sin(ang) * 46;
-    projectiles.push({ kind: 'bolt', x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1100, color: cls.color, r: 9 * power, hit: 13 * power });
-    burst(mx, my, '#ffffff', 9, 4); burst(mx, my, cls.color, 8, 3);
+    projectiles.push({ kind: 'bolt', x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1100, color: cls.color, r: 9 * power, hit: 13 * power, sparkle: 2 });
+    burst(mx, my, '#ffffff', 16, 5); burst(mx, my, cls.color, 22, 4.2);
   }
   // a spinning thrown dagger
   function spawnDagger(ang) {
-    const shX = player.x, shY = player.y - 70, spd = 15;
+    const shX = player.x, shY = player.y - 70, spd = 21;
     const mx = shX + Math.cos(ang) * 30, my = shY + Math.sin(ang) * 30;
     projectiles.push({ kind: 'dagger', x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, spin: 0.5, hit: 11 });
   }
@@ -533,6 +533,16 @@ PUBLIC.start = function (root, api) {
     if (t < 0.42) return -1.15;                                    // hold (anticipation)
     if (t < 0.56) return lerp(-1.15, 1.25, ease((t - 0.42) / 0.14)); // fast cut down through the aim
     return lerp(1.25, 0, ease((t - 0.56) / 0.44));                 // recover
+  }
+  function knightSwipeAngle(t, baseAim) {
+    const side = Math.cos(baseAim) >= 0 ? 1 : -1;
+    const wind = baseAim - side * 1.0;
+    const bite = baseAim + side * 0.55;
+    const settle = baseAim + side * 0.12;
+    if (t < 0.28) return lerpAngle(baseAim, wind, ease(t / 0.28));
+    if (t < 0.40) return wind;
+    if (t < 0.62) return lerpAngle(wind, bite, ease((t - 0.40) / 0.22));
+    return lerpAngle(bite, settle, ease((t - 0.62) / 0.38));
   }
   // thrust reach (0=drawn-in .. >1 = overshoot): big load, explosive lunge-out, recover
   function stabReach(t) {
@@ -695,14 +705,24 @@ PUBLIC.start = function (root, api) {
     if (attacking) {
       let aim = a.atkAim, ext = 0;
       if (slashT !== null) {
-        // OVERHEAD slash: raise the weapon overhead, then cut straight down through the aim
-        const up = -Math.PI / 2;
-        if (slashT < 0.4) aim = lerpAngle(a.atkAim, up, ease(slashT / 0.4));
-        else if (slashT < 0.56) aim = lerpAngle(up, a.atkAim + 0.55, ease((slashT - 0.4) / 0.16));
-        else aim = lerpAngle(a.atkAim + 0.55, a.atkAim, ease((slashT - 0.56) / 0.44));
-        const chop = clamp((slashT - 0.4) / 0.16, 0, 1);
-        stretch = 1 + Math.sin(chop * Math.PI) * 1.1;               // up to ~2.1x at the cut
-        ext = 0.55 + 0.45 * Math.sin(Math.min(1, slashT) * Math.PI);
+        if (cls.id === 'knight') {
+          aim = knightSwipeAngle(slashT, a.atkAim);
+          const cut = clamp((slashT - 0.34) / 0.24, 0, 1);
+          const recover = clamp((slashT - 0.62) / 0.38, 0, 1);
+          stretch = 1 + Math.sin(cut * Math.PI) * 0.7;
+          ext = slashT < 0.34 ? lerp(0.40, 0.52, ease(slashT / 0.34))
+            : slashT < 0.62 ? lerp(0.52, 1.0, ease(cut))
+            : lerp(1.0, 0.58, ease(recover));
+        } else {
+          // OVERHEAD slash: raise the weapon overhead, then cut straight down through the aim
+          const up = -Math.PI / 2;
+          if (slashT < 0.4) aim = lerpAngle(a.atkAim, up, ease(slashT / 0.4));
+          else if (slashT < 0.56) aim = lerpAngle(up, a.atkAim + 0.55, ease((slashT - 0.4) / 0.16));
+          else aim = lerpAngle(a.atkAim + 0.55, a.atkAim, ease((slashT - 0.56) / 0.44));
+          const chop = clamp((slashT - 0.4) / 0.16, 0, 1);
+          stretch = 1 + Math.sin(chop * Math.PI) * 1.1;               // up to ~2.1x at the cut
+          ext = 0.55 + 0.45 * Math.sin(Math.min(1, slashT) * Math.PI);
+        }
       } else if (stabT !== null) {
         const sr = Math.max(0, stabReach(stabT)); stretch = 1 + sr * 0.8; ext = sr;
       } else if (throwT !== null) {
@@ -879,10 +899,22 @@ PUBLIC.start = function (root, api) {
           const b = projectiles[i];
           b.x += b.vx; b.y += b.vy; b.life -= dt;
           if (b.kind === 'dagger') { b.angle += b.spin; b.vy += 0.18; }          // thrown knives arc slightly
+          else if (b.kind === 'bolt') {
+            for (let s = 0; s < (b.sparkle || 1); s++) if (Math.random() < 0.65) {
+              const trail = rand(0.12, 0.45);
+              particles.push({ x: b.x - b.vx * trail + rand(-2.5, 2.5), y: b.y - b.vy * trail + rand(-2.5, 2.5),
+                vx: -b.vx * rand(0.01, 0.035) + rand(-0.45, 0.45), vy: -b.vy * rand(0.01, 0.035) + rand(-0.45, 0.45),
+                life: rand(180, 360), max: 360, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.7) });
+            }
+          }
           const crate = boxes.find(bx => b.x > bx.x && b.x < bx.x + bx.w && b.y > bx.y && b.y < bx.y + bx.h);
           if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); }
           const dead = b.life <= 0 || crate || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
-          if (dead) { burst(b.x, b.y, b.color, 10, 3); projectiles.splice(i, 1); }
+          if (dead) {
+            burst(b.x, b.y, b.color, b.kind === 'bolt' ? 20 : 10, b.kind === 'bolt' ? 4 : 3);
+            if (b.kind === 'bolt') burst(b.x, b.y, '#ffffff', 10, 3.4);
+            projectiles.splice(i, 1);
+          }
         }
       }
       centerCam(false);
