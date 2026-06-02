@@ -189,7 +189,7 @@ PUBLIC.start = function (root, api) {
     a.atkAim = Math.atan2(ty - shY, tx - shX);
     if (pointer.active) player.facing = Math.cos(a.atkAim) >= 0 ? 1 : -1;   // turn to face it
     a.aimShown = a.atkAim; a.aimShownV = 0;  // seed the blade spring so it whips from the start
-    a.atkActive = true; a.atkType = type; a.atkT = 0; a.castFired = false;
+    a.atkActive = true; a.atkType = type; a.atkT = 0; a.castFired = false; a.struck = false;
     return true;
   }
   function primaryAttack() {
@@ -236,13 +236,14 @@ PUBLIC.start = function (root, api) {
   // ---------- game state ----------
   let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles;
   let cls = CLASSES[0];   // selected class
+  let freeze = 0, shake = 0, lastMoveAmt = 0;   // hit-stop, screen shake, last anim amount
 
   function makePlayer(spawn) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0,
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
-              castFired: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, _dt: 0.016,
+              castFired: false, struck: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, _dt: 0.016,
               bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0 },
     };
   }
@@ -256,7 +257,7 @@ PUBLIC.start = function (root, api) {
     particles = [];
     slashTrail = [];
     projectiles = [];
-    flagWave = 0;
+    flagWave = 0; freeze = 0; shake = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
     centerCam(true);
     syncHud();
@@ -417,12 +418,26 @@ PUBLIC.start = function (root, api) {
     springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), S.spring.head[0], S.spring.head[1], dts);
     springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
     if (a.atkActive) {
-      a.atkT += dt / (cls.dur[a.atkType] || 320);
-      // mage: release a bolt mid-cast
+      a.atkT += dt / ((cls.dur[a.atkType] || 320) * 1.25);   // a touch slower = weightier
+      const sp = a.atkType === 'slash' ? 0.52 : a.atkType === 'stab' ? 0.5 : a.atkType === 'cast' ? 0.4 : 0.4;
+      if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType); }   // impact moment
       if (a.atkType === 'cast' && !a.castFired && a.atkT >= 0.4) { a.castFired = true; castBolt(); }
       if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; }
     }
     return moveAmt;
+  }
+  // the "powerful" payload fired once at the impact frame: hit-stop, screen shake,
+  // a forward lunge, a body-stretch pop, and an impact burst at the weapon tip.
+  function onStrike(type) {
+    if (type === 'cast') return;                       // bolt carries its own impact
+    freeze = type === 'stab' ? 80 : 70;                // hit-stop (ms freeze-frame)
+    shake = type === 'stab' ? 13 : 11;
+    player.vx += player.facing * (type === 'stab' ? 8 : 5.5);   // explosive lunge
+    player.anim.squash = -0.5;                         // stretch pop
+    const ang = player.anim.atkAim, reach = 34 + cls.reach * 36;
+    const tx = player.x + Math.cos(ang) * reach, ty = (player.y - 77) + Math.sin(ang) * reach;
+    burst(tx, ty, cls.color, 16, 6);
+    burst(tx, ty, '#ffffff', 10, 4.5);
   }
   // spawn a magic bolt from roughly the staff tip, toward the chosen attack direction
   function castBolt() {
@@ -457,18 +472,20 @@ PUBLIC.start = function (root, api) {
     if (t < 0.45) return lerp(-0.3, 1, ease((t - 0.18) / 0.27));
     return lerp(1, 0, ease((t - 0.45) / 0.55));
   }
-  // big dramatic sword swing arc (angle offset added to aim): huge windup, fast chop
+  // huge slash arc: slow wind-up, an anticipation HOLD, then an explosive chop
   function slashAngle(t) {
-    if (t < 0.28) return lerp(0, -2.0, ease(t / 0.28));            // big windup (raise way back)
-    if (t < 0.52) return lerp(-2.0, 1.9, ease((t - 0.28) / 0.24)); // fast chop all the way through
-    return lerp(1.9, 0, ease((t - 0.52) / 0.48));                  // recover
+    if (t < 0.36) return lerp(0, -2.4, ease(t / 0.36));            // big slow windup, way back
+    if (t < 0.46) return -2.4;                                     // hold (anticipation)
+    if (t < 0.60) return lerp(-2.4, 2.2, ease((t - 0.46) / 0.14)); // EXPLOSIVE chop through
+    return lerp(2.2, 0, ease((t - 0.60) / 0.40));                  // recover
   }
-  // thrust profile (hand reach 0=guard .. 1=full extension): windup, snap out, recover
+  // thrust reach (0=drawn-in .. >1 = overshoot): big load, explosive lunge-out, recover
   function stabReach(t) {
-    if (t < 0.24) return lerp(0, -0.28, ease(t / 0.24));           // pull back to load
-    if (t < 0.42) return lerp(-0.28, 1, ease((t - 0.24) / 0.18));  // snap forward
-    if (t < 0.58) return 1;                                        // hold extension
-    return lerp(1, 0, ease((t - 0.58) / 0.42));                    // retract to guard
+    if (t < 0.34) return lerp(0, -0.45, ease(t / 0.34));           // pull way back to load
+    if (t < 0.44) return -0.45;                                    // hold
+    if (t < 0.54) return lerp(-0.45, 1.25, ease((t - 0.44) / 0.10)); // explosive thrust (overshoots)
+    if (t < 0.70) return 1.25;                                     // hold full extension
+    return lerp(1.25, 0, ease((t - 0.70) / 0.30));                 // retract
   }
 
   // ---------- draw the stick figure (classic stickman; origin at feet) ----------
@@ -647,8 +664,8 @@ PUBLIC.start = function (root, api) {
     // record weapon tip for the swing trail (only on the sweeping melee attacks)
     if (slashT !== null || stabT !== null) {
       const wl = WLEN[cls.weapon] || 24;
-      slashTrail.push({ x: player.x + ka.ex + Math.cos(wAng) * wl, y: (player.y - hoverY) + ka.ey + Math.sin(wAng) * wl, life: 150 });
-      if (slashTrail.length > 26) slashTrail.shift();
+      slashTrail.push({ x: player.x + ka.ex + Math.cos(wAng) * wl, y: (player.y - hoverY) + ka.ey + Math.sin(wAng) * wl, life: 220 });
+      if (slashTrail.length > 34) slashTrail.shift();
     }
 
     ctx.restore();
@@ -711,6 +728,7 @@ PUBLIC.start = function (root, api) {
     const L = LEVELS[li];
     drawBackground(L);
     ctx.save();
+    if (shake > 0.4) ctx.translate((Math.random() * 2 - 1) * shake, (Math.random() * 2 - 1) * shake);  // screen shake
     for (const p of L.platforms) drawPlatform(p);
     for (const c of coinsLeft) drawCoin(c);
     drawFlag(L);
@@ -729,15 +747,15 @@ PUBLIC.start = function (root, api) {
       g.addColorStop(0, '#ffffff'); g.addColorStop(.5, b.color); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, 11, 0, Math.PI * 2); ctx.fill();
     }
-    // weapon swing trail: a fading arc (class colour) through the recent tips
+    // weapon swing trail: a bold fading arc (class colour) through the recent tips
     if (slashTrail.length > 1) {
       const [tr, tg, tb] = cls.trail;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       for (let i = 1; i < slashTrail.length; i++) {
         const a0 = slashTrail[i - 1], a1 = slashTrail[i];
-        const al = clamp(a1.life / 150, 0, 1);
-        ctx.strokeStyle = `rgba(${tr},${tg},${tb},${al * 0.7})`;
-        ctx.lineWidth = 2 + al * 6;
+        const al = clamp(a1.life / 220, 0, 1);
+        ctx.strokeStyle = `rgba(${tr},${tg},${tb},${al * 0.85})`;
+        ctx.lineWidth = 3 + al * 13;
         ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.stroke();
       }
     }
@@ -749,27 +767,30 @@ PUBLIC.start = function (root, api) {
   let acc = 0;
   api.loop(dt => {
     if (state === 'playing') {
-      runTime += dt;
-      acc += dt;
-      let guard = 0;
-      while (acc >= STEP && guard++ < 5) { physics(); acc -= STEP; if (state !== 'playing') break; }
-      flagWave += dt * 0.006;
-      // age effects: particles fly & fade; the sword trail fades out
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.12; pt.life -= dt;
-        if (pt.life <= 0) particles.splice(i, 1);
+      if (freeze > 0) { freeze -= dt; }     // hit-stop: pause sim, hold the frame
+      else {
+        runTime += dt;
+        acc += dt;
+        let guard = 0;
+        while (acc >= STEP && guard++ < 5) { physics(); acc -= STEP; if (state !== 'playing') break; }
+        flagWave += dt * 0.006;
+        // age effects: particles fly & fade; the sword trail fades out
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.12; pt.life -= dt;
+          if (pt.life <= 0) particles.splice(i, 1);
+        }
+        for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
+        const L = LEVELS[li];
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+          const b = projectiles[i]; b.x += b.vx; b.y += b.vy; b.life -= dt;
+          const dead = b.life <= 0 || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
+          if (dead) { burst(b.x, b.y, b.color, 10, 3); projectiles.splice(i, 1); }
+        }
       }
-      for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
-      // magic bolts: travel, fade, and burst on hitting terrain
-      const L = LEVELS[li];
-      for (let i = projectiles.length - 1; i >= 0; i--) {
-        const b = projectiles[i]; b.x += b.vx; b.y += b.vy; b.life -= dt;
-        const dead = b.life <= 0 || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
-        if (dead) { burst(b.x, b.y, b.color, 10, 3); projectiles.splice(i, 1); }
-      }
+      shake *= Math.pow(0.82, dt / 16);     // screen-shake decay (runs through hit-stop)
       centerCam(false);
     }
-    const moveAmt = (player ? animate(dt) : 0);
+    const moveAmt = player ? (freeze > 0 ? lastMoveAmt : (lastMoveAmt = animate(dt))) : 0;
     if (player) render(moveAmt);
   });
 
