@@ -20,6 +20,21 @@ const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
 
+// ---------- RPG classes (data-driven so more can be added easily) ----------
+// weapon: how the held weapon is drawn; moves: primary attacks cycled per click;
+// reach: weapon reach multiplier; speedMul: run-speed multiplier; trail: RGB of
+// the swing/cast trail; dur: per-move animation lengths (ms); ranged: casts bolts.
+const CLASSES = [
+  { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Balanced blade — slash & stab.',
+    weapon: 'sword', moves: ['slash', 'stab'], reach: 1.0, speedMul: 1.0, trail: [120, 170, 255], dur: { slash: 380, stab: 300, kick: 400 } },
+  { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast, short daggers. Quick combos.',
+    weapon: 'dagger', moves: ['slash', 'stab'], reach: 0.78, speedMul: 1.2, trail: [150, 255, 110], dur: { slash: 220, stab: 190, kick: 320 } },
+  { id: 'lancer', name: 'Lancer', emoji: '🔱', color: '#ffd45e', blurb: 'Long spear — huge reach thrusts.',
+    weapon: 'spear', moves: ['stab'], reach: 1.0, speedMul: 0.95, trail: [255, 212, 94], dur: { stab: 340, kick: 420 } },
+  { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Staff caster — fires magic bolts.',
+    weapon: 'staff', moves: ['cast'], reach: 0.95, speedMul: 0.9, trail: [255, 140, 220], dur: { cast: 360, kick: 420 }, ranged: true },
+];
+
 // ---------- levels (world coords, y down) ----------
 const G = 470;
 function lvl(data) {
@@ -108,7 +123,15 @@ PUBLIC.start = function (root, api) {
       background:rgba(255,255,255,.45);color:#161616;font-size:28px;font-weight:900;display:flex;
       align-items:center;justify-content:center;user-select:none;-webkit-user-select:none}
     .sr-btn:active{background:rgba(22,22,22,.78);color:#fff}
-    @media (hover:hover) and (pointer:fine){ .sr-touch{opacity:.32} }`;
+    @media (hover:hover) and (pointer:fine){ .sr-touch{opacity:.32} }
+    .sr-classes{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:560px}
+    .sr-class{cursor:pointer;width:124px;display:flex;flex-direction:column;align-items:center;gap:5px;
+      padding:14px 10px;border-radius:14px;background:rgba(20,24,40,.7);border:2px solid var(--cc);
+      color:#eaf2ff;transition:transform .12s,box-shadow .2s}
+    .sr-class:hover{transform:translateY(-3px);box-shadow:0 0 20px var(--cc)}
+    .sr-class:active{transform:translateY(-1px) scale(.98)}
+    .sr-class b{font-size:17px;letter-spacing:.5px}
+    .sr-class small{opacity:.72;font-size:11.5px;line-height:1.3}`;
   root.appendChild(style);
 
   function mkBtn(cls, label) {
@@ -120,27 +143,33 @@ PUBLIC.start = function (root, api) {
   const padL = document.createElement('div'); padL.className = 'sr-touch sr-left';
   const padR = document.createElement('div'); padR.className = 'sr-touch sr-right';
   const btnLeft = mkBtn(padL, '◀'), btnRight = mkBtn(padL, '▶');
-  const btnPunch = mkBtn(padR, '🗡'), btnKick = mkBtn(padR, '🦵'), btnJump = mkBtn(padR, '⤒');
+  const btnPunch = mkBtn(padR, '⚔'), btnKick = mkBtn(padR, '🦵'), btnJump = mkBtn(padR, '⤒');
   root.appendChild(padL); root.appendChild(padR);
   padL.style.display = padR.style.display = 'none';
 
   // ---------- input ----------
   const input = { left: false, right: false, jumpHeld: false };
   const pointer = { x: 0, y: 0, active: false };   // cursor, for sword aiming
-  let jumpBuf = 0, comboNext = 'slash';            // primary attack alternates slash/stab
+  let jumpBuf = 0, comboIdx = 0;                    // primary attack cycles the class's moves
   const press = (held) => { if (held) { jumpBuf = BUFFER; input.jumpHeld = true; } else input.jumpHeld = false; };
   function triggerAttack(type) {
-    if (!player || state !== 'playing') return false;
+    if (!player || state !== 'playing' || !type) return false;
     const a = player.anim;
     if (a.atkActive) return false;           // one swing at a time
-    a.atkActive = true; a.atkType = type; a.atkT = 0;
+    a.atkActive = true; a.atkType = type; a.atkT = 0; a.castFired = false;
     return true;
   }
-  function primaryAttack() { if (triggerAttack(comboNext)) comboNext = comboNext === 'slash' ? 'stab' : 'slash'; }
+  function primaryAttack() {
+    const moves = cls.moves;
+    if (triggerAttack(moves[comboIdx % moves.length])) comboIdx++;
+  }
+  function secondaryAttack() {                // right-click: stab if the class has it, else primary
+    if (cls.moves.indexOf('stab') >= 0) triggerAttack('stab'); else primaryAttack();
+  }
   api.on(view.canvas, 'mousemove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
   api.on(view.canvas, 'mousedown', e => {
     pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; e.preventDefault();
-    if (e.button === 2) triggerAttack('stab'); else primaryAttack();   // right-click = stab
+    if (e.button === 2) secondaryAttack(); else primaryAttack();
   });
   api.on(view.canvas, 'contextmenu', e => e.preventDefault());
 
@@ -172,13 +201,14 @@ PUBLIC.start = function (root, api) {
   api.on(btnKick, 'pointerdown', e => { e.preventDefault(); triggerAttack('kick'); });
 
   // ---------- game state ----------
-  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail;
+  let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles;
+  let cls = CLASSES[0];   // selected class
 
   function makePlayer(spawn) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0,
-      anim: { phase: 0, lean: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0 },
+      anim: { phase: 0, lean: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0, aim: 0, castFired: false },
     };
   }
   function loadLevel(i, keepRun) {
@@ -190,6 +220,7 @@ PUBLIC.start = function (root, api) {
     cam = { x: 0, y: 0 };
     particles = [];
     slashTrail = [];
+    projectiles = [];
     flagWave = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
     centerCam(true);
@@ -209,14 +240,22 @@ PUBLIC.start = function (root, api) {
     hud.style.display = 'none';
     padL.style.display = padR.style.display = 'none';
     ov.classList.remove('hidden');
+    const cards = CLASSES.map(c => `
+      <button class="sr-class" data-cls="${c.id}" style="--cc:${c.color}">
+        <span style="font-size:30px">${c.emoji}</span>
+        <b style="color:${c.color}">${c.name}</b>
+        <small>${c.blurb}</small>
+      </button>`).join('');
     ov.innerHTML = `<h2>Stick Leap</h2>
-      <p class="msg">Run with ←/→ or A/D, jump with Space / ↑. Your sword stays on guard, aimed
-      at the mouse — click (or J) to alternate slash &amp; stab, right-click to stab, K to kick.
-      Grab coins and reach the 🚩 flag across 3 levels.</p>
-      <button class="btn" data-act="play" style="background:#ff9f6e;box-shadow:0 0 22px rgba(255,159,110,.5)">PLAY ▸</button>`;
+      <p class="msg">Choose your class. Run with ←/→ or A/D, jump with Space / ↑. Your weapon rests
+      on guard; click (or J) to attack toward the cursor, right-click to stab/thrust, K to kick.
+      Grab coins and reach the 🚩 flag.</p>
+      <div class="sr-classes">${cards}</div>`;
     loadLevel(0, false);
   }
-  function play() {
+  function play(clsId) {
+    if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
+    comboIdx = 0;
     state = 'playing';
     ov.classList.add('hidden');
     hud.style.display = 'flex';
@@ -246,7 +285,11 @@ PUBLIC.start = function (root, api) {
       ${isBest ? '<div class="new-best">★ NEW BEST! ★</div>' : '<div style="height:20px"></div>'}
       <button class="btn" data-act="play" style="background:#ff9f6e;box-shadow:0 0 22px rgba(255,159,110,.5)">PLAY AGAIN ↻</button>`;
   }
-  ov.addEventListener('click', e => { if (e.target.dataset.act === 'play') play(); });
+  ov.addEventListener('click', e => {
+    const card = e.target.closest && e.target.closest('[data-cls]');
+    if (card) { play(card.dataset.cls); return; }
+    if (e.target.dataset.act === 'play') play();   // win-screen: replay same class
+  });
 
   // ---------- particles ----------
   function burst(x, y, color, n, spd) {
@@ -266,7 +309,7 @@ PUBLIC.start = function (root, api) {
     if (input.left && !input.right) { player.vx -= acc; player.facing = -1; }
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
     else if (player.grounded) player.vx *= FRICTION;
-    player.vx = clamp(player.vx, -MAXV, MAXV);
+    player.vx = clamp(player.vx, -maxV(), maxV());
 
     // jump (buffered + coyote)
     if (jumpBuf > 0 && (player.grounded || player.coyote > 0)) {
@@ -325,19 +368,34 @@ PUBLIC.start = function (root, api) {
   // signals (no discrete walk/run/jump/idle states): `moveAmt` blends standing
   // into running, `a.air` blends ground pose into an air pose, and attacks layer
   // a procedural swing on top. Exponential smoothing keeps it fluid and stable.
-  const ATK = { slash: 380, stab: 300, kick: 400 };   // swing durations (ms)
+  const maxV = () => MAXV * cls.speedMul;
   function animate(dt) {
-    const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / MAXV, 0, 1);
+    const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / maxV(), 0, 1);
     a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt;  // gait cycle
     a.air = lerp(a.air, player.grounded ? 0 : 1, 1 - Math.pow(0.0006, dt / 1000));
     const leanTarget = clamp(player.vx * 0.016, -0.12, 0.12);           // subtle, upright
     a.lean = lerp(a.lean, leanTarget, 1 - Math.pow(0.02, dt / 1000));
     a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000));
-    if (a.atkActive) { a.atkT += dt / ATK[a.atkType]; if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; } }
+    if (a.atkActive) {
+      a.atkT += dt / (cls.dur[a.atkType] || 320);
+      // mage: release a bolt mid-cast
+      if (a.atkType === 'cast' && !a.castFired && a.atkT >= 0.4) { a.castFired = true; castBolt(); }
+      if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; }
+    }
     // when standing still, turn to face the cursor (so aiming reads naturally)
     if (!input.left && !input.right && pointer.active && player.grounded)
       player.facing = (pointer.x + cam.x) >= player.x ? 1 : -1;
     return moveAmt;
+  }
+  // spawn a magic bolt from roughly the staff tip, toward the cursor
+  function castBolt() {
+    const shX = player.x, shY = player.y - 77;            // approx shoulder
+    const tx = pointer.active ? pointer.x + cam.x : shX + player.facing * 60;
+    const ty = pointer.active ? pointer.y + cam.y : shY;
+    const ang = Math.atan2(ty - shY, tx - shX), sp = 8.5;
+    const mx = shX + Math.cos(ang) * 46, my = shY + Math.sin(ang) * 46;
+    projectiles.push({ x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 1100, color: cls.color });
+    burst(mx, my, cls.color, 8, 2.5);
   }
 
   // ---------- IK (two-bone) ----------
@@ -355,6 +413,7 @@ PUBLIC.start = function (root, api) {
   }
 
   const ease = x => x * x * (3 - 2 * x);
+  const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
   // attack strike profile: brief windup (pull back), fast strike out, ease back
   function strike(t) {
     if (t < 0.18) return -0.3 * ease(t / 0.18);
@@ -383,24 +442,46 @@ PUBLIC.start = function (root, api) {
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(jx, jy); ctx.lineTo(bx, by); ctx.stroke();
   }
 
-  // a steel sword held in the hand, pointing along `ang`
+  // blade/weapon length per class (used for the swing trail + bolt origin)
+  const WLEN = { sword: 30, dagger: 16, spear: 50, staff: 32 };
+  // draw the held weapon from the hand along `ang`, per the selected class
   function drawWeapon(hx, hy, ang) {
     const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
-    const tipX = hx + dx * 30, tipY = hy + dy * 30;
-    // handle (behind the grip)
-    ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.moveTo(hx - dx * 5, hy - dy * 5); ctx.lineTo(hx + dx * 2, hy + dy * 2); ctx.stroke();
-    // crossguard
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(hx + nx * 6, hy + ny * 6); ctx.lineTo(hx - nx * 6, hy - ny * 6); ctx.stroke();
-    // tapered steel blade
-    ctx.beginPath();
-    ctx.moveTo(hx + dx * 3 + nx * 3, hy + dy * 3 + ny * 3);
-    ctx.lineTo(tipX, tipY);
-    ctx.lineTo(hx + dx * 3 - nx * 3, hy + dy * 3 - ny * 3);
-    ctx.closePath();
-    ctx.fillStyle = '#7d828c'; ctx.fill();
-    ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
+    const blade = (len, halfW, fill) => {
+      ctx.beginPath();
+      ctx.moveTo(hx + dx * 3 + nx * halfW, hy + dy * 3 + ny * halfW);
+      ctx.lineTo(hx + dx * len, hy + dy * len);
+      ctx.lineTo(hx + dx * 3 - nx * halfW, hy + dy * 3 - ny * halfW);
+      ctx.closePath();
+      ctx.fillStyle = fill; ctx.fill();
+      ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
+    };
+    const guard = (hw) => { ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(hx + nx * hw, hy + ny * hw); ctx.lineTo(hx - nx * hw, hy - ny * hw); ctx.stroke(); };
+    const handle = (back) => { ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(hx - dx * back, hy - dy * back); ctx.lineTo(hx + dx * 2, hy + dy * 2); ctx.stroke(); };
+
+    if (cls.weapon === 'sword') { handle(5); guard(6); blade(30, 3, '#7d828c'); }
+    else if (cls.weapon === 'dagger') { handle(4); guard(4); blade(16, 2.6, '#9aa0aa'); }
+    else if (cls.weapon === 'spear') {
+      handle(8);
+      ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;   // wooden shaft
+      ctx.beginPath(); ctx.moveTo(hx - dx * 8, hy - dy * 8); ctx.lineTo(hx + dx * 42, hy + dy * 42); ctx.stroke();
+      // steel head
+      ctx.beginPath();
+      ctx.moveTo(hx + dx * 42 + nx * 3.5, hy + dy * 42 + ny * 3.5);
+      ctx.lineTo(hx + dx * 50, hy + dy * 50);
+      ctx.lineTo(hx + dx * 42 - nx * 3.5, hy + dy * 42 - ny * 3.5);
+      ctx.closePath(); ctx.fillStyle = '#9aa0aa'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke();
+    } else { // staff
+      ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;   // shaft
+      ctx.beginPath(); ctx.moveTo(hx - dx * 6, hy - dy * 6); ctx.lineTo(hx + dx * 30, hy + dy * 30); ctx.stroke();
+      // glowing orb at the tip (class colour)
+      const ox = hx + dx * 32, oy = hy + dy * 32;
+      const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, 9);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(.5, cls.color); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ox, oy, 9, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   function drawStick(moveAmt) {
@@ -415,21 +496,18 @@ PUBLIC.start = function (root, api) {
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));   // downward compression
     const breathe = (1 - moveAmt) * (1 - air) * Math.sin(now * 0.0026) * 1.4;
 
-    // ----- aim & combat posture (provisional shoulder for posture decisions) -----
-    const apShX = player.x, apShY = player.y - (hipH + torso);
-    let aimWX = pointer.active ? pointer.x + cam.x : apShX + f * 60;
-    let aimWY = pointer.active ? pointer.y + cam.y : apShY + 6;
-    const aim0 = Math.atan2(aimWY - apShY, aimWX - apShX);
-    const highness = clamp(-Math.sin(aim0), -1, 1);    // +1 aim up, -1 aim down
-    const postureLean = -highness * 0.06 * (1 - air);  // lean back aiming high, into it aiming low
-    const guardCrouch = Math.max(0, -highness) * 5 * (1 - air);   // settle low when aiming down
+    // ----- combat posture (subtle; based on the calm, smoothed guard aim) -----
+    const highness = clamp(-Math.sin(a.aim), -1, 1);   // +1 aim up, -1 aim down
+    const postureLean = -highness * 0.04 * (1 - air);  // gentle: lean a touch with aim
+    const guardCrouch = Math.max(0, -highness) * 3 * (1 - air);
 
     // ----- attack scalars (whole-body reaction) -----
-    let atkLean = 0, atkHip = 0, slashT = null, stabT = null, kickT = null;
+    let atkLean = 0, atkHip = 0, slashT = null, stabT = null, castT = null, kickT = null;
     if (a.atkActive) {
       const t = a.atkT;
       if (a.atkType === 'kick') { const e = strike(t); kickT = e; atkLean = -f * Math.max(0, e) * 0.05; atkHip = -f * Math.max(0, e) * 2; }
-      else if (a.atkType === 'stab') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * 6; atkLean = f * l * 0.05; }   // lunge
+      else if (a.atkType === 'stab') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * 6; atkLean = f * l * 0.05; }
+      else if (a.atkType === 'cast') { castT = t; const l = Math.max(0, Math.sin(Math.min(1, t) * Math.PI)); atkHip = f * l * 3; atkLean = f * l * 0.04; }
       else { slashT = t; const sw = Math.sin(Math.min(1, t) * Math.PI); atkHip = f * sw * 4; atkLean = f * sw * 0.10; }
     }
 
@@ -494,23 +572,31 @@ PUBLIC.start = function (root, api) {
     k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
     seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
-    // ----- sword arm: on-guard aim at the cursor; slash/stab on attack -----
+    // ----- weapon arm: rests in a calm guard, only commits to the cursor on attacks -----
     const shoulderWX = player.x + shX, shoulderWY = player.y + shY;
-    aimWX = pointer.active ? pointer.x + cam.x : shoulderWX + f * 60;
-    aimWY = pointer.active ? pointer.y + cam.y : shoulderWY + 6;
-    let aim = Math.atan2(aimWY - shoulderWY, aimWX - shoulderWX);
-    let reach = guardReach;                      // resting guard = bent elbow, blade trained on target
-    if (slashT !== null) { aim += slashAngle(slashT); reach = guardReach + (armLen * 0.98 - guardReach) * 0.5 * Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI)); }
-    else if (stabT !== null) { reach = guardReach + (armLen * 1.0 - guardReach) * stabReach(stabT); }
+    const curWX = pointer.active ? pointer.x + cam.x : shoulderWX + f * 60;
+    const curWY = pointer.active ? pointer.y + cam.y : shoulderWY + 6;
+    const cursorAng = Math.atan2(curWY - shoulderWY, curWX - shoulderWX);
+    const restAng = f > 0 ? -0.12 : Math.PI + 0.12;          // natural forward-ish guard
+    // guard only loosely tracks the cursor (40%), eased over time -> not twitchy
+    a.aim = lerpAngle(a.aim, lerpAngle(restAng, cursorAng, 0.4), 0.16);
+
+    const extTarget = armLen * cls.reach;                    // full-extension reach for this class
+    let aim, reach;
+    if (slashT !== null) { aim = cursorAng + slashAngle(slashT); reach = guardReach + (extTarget * 0.98 - guardReach) * 0.5 * Math.max(0, Math.sin(Math.min(1, slashT) * Math.PI)); }
+    else if (stabT !== null) { aim = cursorAng; reach = guardReach + (extTarget - guardReach) * stabReach(stabT); }
+    else if (castT !== null) { aim = cursorAng; reach = guardReach + (extTarget - guardReach) * Math.max(0, Math.sin(Math.min(1, castT) * Math.PI)); }
+    else { aim = a.aim; reach = guardReach; }                // calm guard when not attacking
+
     h = { x: shX + Math.cos(aim) * reach, y: shY + Math.sin(aim) * reach };
     ka = ik(shX, shY, h.x, h.y, uArm, fArm, 1);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
     drawWeapon(ka.ex, ka.ey, aim);
 
-    // record blade tip for the swing trail (world coords)
-    if (a.atkActive) {
-      const tipX = player.x + ka.ex + Math.cos(aim) * 30, tipY = player.y + ka.ey + Math.sin(aim) * 30;
-      slashTrail.push({ x: tipX, y: tipY, life: 150 });
+    // record weapon tip for the swing trail (only on the sweeping melee attacks)
+    if (slashT !== null || stabT !== null) {
+      const wl = WLEN[cls.weapon] || 24;
+      slashTrail.push({ x: player.x + ka.ex + Math.cos(aim) * wl, y: player.y + ka.ey + Math.sin(aim) * wl, life: 150 });
       if (slashTrail.length > 26) slashTrail.shift();
     }
 
@@ -586,13 +672,20 @@ PUBLIC.start = function (root, api) {
     ctx.globalAlpha = 1;
     // figure (translate by camera)
     ctx.translate(-cam.x, -cam.y);
-    // sword swing trail: a fading steel-blue arc through the recent blade tips
+    // magic bolts
+    for (const b of projectiles) {
+      const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 11);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(.5, b.color); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, 11, 0, Math.PI * 2); ctx.fill();
+    }
+    // weapon swing trail: a fading arc (class colour) through the recent tips
     if (slashTrail.length > 1) {
+      const [tr, tg, tb] = cls.trail;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       for (let i = 1; i < slashTrail.length; i++) {
         const a0 = slashTrail[i - 1], a1 = slashTrail[i];
         const al = clamp(a1.life / 150, 0, 1);
-        ctx.strokeStyle = `rgba(120,170,255,${al * 0.7})`;
+        ctx.strokeStyle = `rgba(${tr},${tg},${tb},${al * 0.7})`;
         ctx.lineWidth = 2 + al * 6;
         ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.stroke();
       }
@@ -616,6 +709,13 @@ PUBLIC.start = function (root, api) {
         if (pt.life <= 0) particles.splice(i, 1);
       }
       for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
+      // magic bolts: travel, fade, and burst on hitting terrain
+      const L = LEVELS[li];
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const b = projectiles[i]; b.x += b.vx; b.y += b.vy; b.life -= dt;
+        const dead = b.life <= 0 || L.platforms.some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h);
+        if (dead) { burst(b.x, b.y, b.color, 10, 3); projectiles.splice(i, 1); }
+      }
       centerCam(false);
     }
     const moveAmt = (player ? animate(dt) : 0);
