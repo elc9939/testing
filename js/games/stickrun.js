@@ -120,12 +120,13 @@ PUBLIC.start = function (root, api) {
   const padL = document.createElement('div'); padL.className = 'sr-touch sr-left';
   const padR = document.createElement('div'); padR.className = 'sr-touch sr-right';
   const btnLeft = mkBtn(padL, '◀'), btnRight = mkBtn(padL, '▶');
-  const btnPunch = mkBtn(padR, '✊'), btnKick = mkBtn(padR, '🦵'), btnJump = mkBtn(padR, '⤒');
+  const btnPunch = mkBtn(padR, '🗡'), btnKick = mkBtn(padR, '🦵'), btnJump = mkBtn(padR, '⤒');
   root.appendChild(padL); root.appendChild(padR);
   padL.style.display = padR.style.display = 'none';
 
   // ---------- input ----------
   const input = { left: false, right: false, jumpHeld: false };
+  const pointer = { x: 0, y: 0, active: false };   // cursor, for sword aiming
   let jumpBuf = 0;
   const press = (held) => { if (held) { jumpBuf = BUFFER; input.jumpHeld = true; } else input.jumpHeld = false; };
   function triggerAttack(type) {
@@ -134,13 +135,15 @@ PUBLIC.start = function (root, api) {
     if (a.atkActive) return;                 // one swing at a time
     a.atkActive = true; a.atkType = type; a.atkT = 0;
   }
+  api.on(view.canvas, 'mousemove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
+  api.on(view.canvas, 'mousedown', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; triggerAttack('slash'); });
 
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'arrowleft' || k === 'a') input.left = true;
     else if (k === 'arrowright' || k === 'd') input.right = true;
     else if (k === 'arrowup' || k === 'w' || k === ' ') { if (!e.repeat) press(true); e.preventDefault(); }
-    else if (k === 'j') { if (!e.repeat) triggerAttack('punch'); }
+    else if (k === 'j') { if (!e.repeat) triggerAttack('slash'); }
     else if (k === 'k') { if (!e.repeat) triggerAttack('kick'); }
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
   });
@@ -159,7 +162,7 @@ PUBLIC.start = function (root, api) {
   hold(btnLeft, v => input.left = v);
   hold(btnRight, v => input.right = v);
   hold(btnJump, v => press(v));
-  api.on(btnPunch, 'pointerdown', e => { e.preventDefault(); triggerAttack('punch'); });
+  api.on(btnPunch, 'pointerdown', e => { e.preventDefault(); triggerAttack('slash'); });
   api.on(btnKick, 'pointerdown', e => { e.preventDefault(); triggerAttack('kick'); });
 
   // ---------- game state ----------
@@ -200,8 +203,8 @@ PUBLIC.start = function (root, api) {
     padL.style.display = padR.style.display = 'none';
     ov.classList.remove('hidden');
     ov.innerHTML = `<h2>Stick Leap</h2>
-      <p class="msg">Run with ←/→ or A/D, jump with Space / ↑ (hold longer to jump higher).
-      Attack with J (punch) and K (kick) — or the on-screen buttons on a phone.
+      <p class="msg">Run with ←/→ or A/D, jump with Space / ↑ (hold for height). Your sword aims
+      at the mouse — click or press J to slash, K to kick (or the on-screen buttons on a phone).
       Grab coins and reach the 🚩 flag across 3 levels.</p>
       <button class="btn" data-act="play" style="background:#ff9f6e;box-shadow:0 0 22px rgba(255,159,110,.5)">PLAY ▸</button>`;
     loadLevel(0, false);
@@ -315,7 +318,7 @@ PUBLIC.start = function (root, api) {
   // signals (no discrete walk/run/jump/idle states): `moveAmt` blends standing
   // into running, `a.air` blends ground pose into an air pose, and attacks layer
   // a procedural swing on top. Exponential smoothing keeps it fluid and stable.
-  const ATK = { punch: 320, kick: 400 };          // swing durations (ms)
+  const ATK = { slash: 360, kick: 400 };          // swing durations (ms)
   function animate(dt) {
     const a = player.anim, sp = Math.abs(player.vx), moveAmt = clamp(sp / MAXV, 0, 1);
     a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt;  // gait cycle
@@ -324,6 +327,9 @@ PUBLIC.start = function (root, api) {
     a.lean = lerp(a.lean, leanTarget, 1 - Math.pow(0.02, dt / 1000));
     a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000));
     if (a.atkActive) { a.atkT += dt / ATK[a.atkType]; if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; } }
+    // when standing still, turn to face the cursor (so aiming reads naturally)
+    if (!input.left && !input.right && pointer.active && player.grounded)
+      player.facing = (pointer.x + cam.x) >= player.x ? 1 : -1;
     return moveAmt;
   }
 
@@ -348,6 +354,12 @@ PUBLIC.start = function (root, api) {
     if (t < 0.45) return lerp(-0.3, 1, ease((t - 0.18) / 0.27));
     return lerp(1, 0, ease((t - 0.45) / 0.55));
   }
+  // sword swing arc (angle offset added to the aim): raise up, chop through, recover
+  function slashAngle(t) {
+    if (t < 0.22) return lerp(0, -1.0, ease(t / 0.22));            // windup (raise)
+    if (t < 0.5) return lerp(-1.0, 0.9, ease((t - 0.22) / 0.28));  // chop down/through
+    return lerp(0.9, 0, ease((t - 0.5) / 0.5));                    // recover to aim
+  }
 
   // ---------- draw the stick figure (classic stickman; origin at feet) ----------
   // Solid black, straight two-bone limbs, no feet, no shading.
@@ -357,24 +369,44 @@ PUBLIC.start = function (root, api) {
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(jx, jy); ctx.lineTo(bx, by); ctx.stroke();
   }
 
+  // a steel sword held in the hand, pointing along `ang`
+  function drawWeapon(hx, hy, ang) {
+    const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
+    const tipX = hx + dx * 30, tipY = hy + dy * 30;
+    // handle (behind the grip)
+    ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(hx - dx * 5, hy - dy * 5); ctx.lineTo(hx + dx * 2, hy + dy * 2); ctx.stroke();
+    // crossguard
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(hx + nx * 6, hy + ny * 6); ctx.lineTo(hx - nx * 6, hy - ny * 6); ctx.stroke();
+    // tapered steel blade
+    ctx.beginPath();
+    ctx.moveTo(hx + dx * 3 + nx * 3, hy + dy * 3 + ny * 3);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(hx + dx * 3 - nx * 3, hy + dy * 3 - ny * 3);
+    ctx.closePath();
+    ctx.fillStyle = '#7d828c'; ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
+  }
+
   function drawStick(moveAmt) {
     const a = player.anim, f = player.facing, p = a.phase, air = a.air;
     const now = performance.now();
-    // metrics — upright: hips sit high so the legs are nearly straight when standing
-    const hipH = 40, torso = 30, neck = 4, headR = 12;
-    const thigh = 24, shin = 23, uArm = 18, fArm = 16;
-    const strideH = 15, lift = 13, armStride = 11, bounceAmp = 4, sway = 2.4, stanceW = 5;
+    // metrics — hips sit high (close to leg length) so legs are nearly straight
+    const hipH = 46, torso = 30, neck = 4, headR = 12;
+    const thigh = 24, shin = 24, uArm = 18, fArm = 16;
+    const strideH = 11, lift = 11, armStride = 10, bounceAmp = 2.5, sway = 2.2, stanceW = 4;
 
-    // vertical hip bob (legs stay planted -> springy compression); idle breathing
+    // hip bob COMPRESSES DOWNWARD on the beat (knees bend to absorb), so the
+    // straightest pose is at rest. Gentle breathing when idle.
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));
-    const breathe = (1 - moveAmt) * (1 - air) * Math.sin(now * 0.0026) * 1.5;
+    const breathe = (1 - moveAmt) * (1 - air) * Math.sin(now * 0.0026) * 1.4;
 
-    // attack layer (scalars first so the whole body can react)
-    let atkLean = 0, atkHip = 0, punchT = null, kickT = null;
+    // attack scalars (so the body can react); slash is handled on the aim arm
+    let atkLean = 0, atkHip = 0, slashT = null, kickT = null;
     if (a.atkActive) {
-      const e = strike(a.atkT);
-      if (a.atkType === 'punch') { punchT = e; atkLean = f * Math.max(0, e) * 0.10; atkHip = f * Math.max(0, e) * 3; }
-      else { kickT = e; atkLean = -f * Math.max(0, e) * 0.05; atkHip = -f * Math.max(0, e) * 2; }
+      if (a.atkType === 'kick') { const e = strike(a.atkT); kickT = e; atkLean = -f * Math.max(0, e) * 0.05; atkHip = -f * Math.max(0, e) * 2; }
+      else { slashT = a.atkT; atkLean = f * Math.sin(Math.min(1, a.atkT) * Math.PI) * 0.06; }
     }
 
     ctx.save();
@@ -385,7 +417,7 @@ PUBLIC.start = function (root, api) {
     ctx.scale(sx, sy);
 
     const hipX = sway * moveAmt * Math.sin(p) * (1 - air) + atkHip;
-    const hipY = -hipH - bob + breathe;
+    const hipY = -hipH + bob + breathe;          // +bob = downward compression
     const lean = a.lean + atkLean;
     const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
     const shX = hipX + upX * torso, shY = hipY + upY * torso;
@@ -401,27 +433,26 @@ PUBLIC.start = function (root, api) {
       if (c < Math.PI) { const t = c / Math.PI, e = ease(t); gx = back + (front - back) * e; gy = -lift * Math.sin(Math.PI * t); }
       else { const t = (c - Math.PI) / Math.PI; gx = front + (back - front) * t; gy = 0; }
       gx = gx * moveAmt + legSign * stanceW * (1 - moveAmt); gy *= moveAmt;
-      const tuck = clamp(0.45 - player.vy * 0.03, -0.25, 0.6);  // tuck up rising, reach down falling
-      const ax = legSign * 5 + f * 5 * Math.max(0, tuck), ay = -tuck * 11;
+      const tuck = clamp(0.4 - player.vy * 0.03, -0.3, 0.55);   // tuck up rising, reach down falling
+      const ax = legSign * 4 + f * 5 * Math.max(0, tuck), ay = -tuck * 10;
       return { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
     }
-    // hand target: ground swing blended with a raised air pose
+    // hand target for the FREE (back) arm: straighter at rest, swings when running
     function armHand(theta) {
-      const sw = Math.sin(theta);
+      const sw = Math.sin(theta), ratio = lerp(0.92, 0.74, moveAmt);
       const gx = shX + f * sw * armStride * moveAmt + f * 2;
-      const gy = shY + (uArm + fArm) * 0.78 - Math.max(0, sw) * 5 * moveAmt;   // 0.78 -> straighter arms
-      const raise = clamp(0.6 - player.vy * 0.045, -0.4, 1);
+      const gy = shY + (uArm + fArm) * ratio - Math.max(0, sw) * 5 * moveAmt;
+      const raise = clamp(0.55 - player.vy * 0.045, -0.4, 1);
       const ax = shX + f * (6 + (1 - raise) * 10), ay = shY - raise * 18 + (1 - raise) * 8;
       return { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
     }
 
-    // knees bend forward (bend = -f); elbows trail back (bend = +f)
-    // ----- far arm -----
+    // ----- back arm (free; swings with the run) -----
     let h = armHand(p);
     let ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 6);
 
-    // ----- far leg -----
+    // ----- far leg ----- (knees bend forward: bend = -f)
     let lt = legFoot(p + Math.PI, +1);
     let k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
     seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 7);
@@ -434,16 +465,23 @@ PUBLIC.start = function (root, api) {
     // ----- near leg (or front kick) -----
     if (kickT !== null) {
       const ke = Math.max(0, kickT), reach = (thigh + shin) * 0.86;
-      lt = { x: f * (stanceW * 0.4 + reach * ke), y: lerp(0, -hipH * 0.62, ke) };
+      lt = { x: f * (stanceW * 0.4 + reach * ke), y: lerp(0, -hipH * 0.6, ke) };
     } else lt = legFoot(p, -1);
     k = ik(hipX, hipY, hipX + lt.x, lt.y, thigh, shin, -f);
     seg(hipX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
-    // ----- near arm (or punch) -----
-    if (punchT !== null) { const reach = (uArm + fArm) * 0.98; h = { x: shX + f * reach * punchT, y: shY + 3 }; }
-    else h = armHand(p + Math.PI);
-    ka = ik(shX, shY, h.x, h.y, uArm, fArm, f);
+    // ----- sword arm: aims toward the cursor; slashes on attack -----
+    const shoulderWX = player.x + shX, shoulderWY = player.y + shY;
+    let aimWX, aimWY;
+    if (pointer.active) { aimWX = pointer.x + cam.x; aimWY = pointer.y + cam.y; }
+    else { aimWX = shoulderWX + f * 60; aimWY = shoulderWY + 6; }   // default: point forward
+    let aim = Math.atan2(aimWY - shoulderWY, aimWX - shoulderWX);
+    if (slashT !== null) aim += slashAngle(slashT);
+    const reach = (uArm + fArm) * (slashT !== null ? 0.99 : 0.9);
+    h = { x: shX + Math.cos(aim) * reach, y: shY + Math.sin(aim) * reach };
+    ka = ik(shX, shY, h.x, h.y, uArm, fArm, 1);
     seg(shX, shY, ka.jx, ka.jy, ka.ex, ka.ey, 7);
+    drawWeapon(ka.ex, ka.ey, aim);
 
     ctx.restore();
   }
