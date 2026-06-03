@@ -142,6 +142,7 @@ const LEVELS = [
     coins: [[300, G - 60], [420, G - 60], [690, G - 120], [860, G - 60],
             [1180, G - 130], [1520, G - 60], [1640, G - 120]],
     boxes: [[330, G - 30], [770, G - 30], [1500, G - 30]],
+    enemies: [[1560, G, 1450, 1790]],
     flag: { x: 1860, y: G },
   }),
   lvl({
@@ -195,6 +196,7 @@ const TEST_ARENA = lvl({
           [1380, G - 58], [1810, G - 168], [2140, G - 58]],
   boxes: [[330, G - 30], [820, G - 66], [1320, G - 30], [2060, G - 30]],
   dummies: [[310, G], [610, G], [1120, G - 72], [1520, G], [2120, G]],
+  enemies: [[1460, G, 1300, 1640]],
   flag: { x: 2300, y: G },
 });
 
@@ -305,9 +307,6 @@ PUBLIC.start = function (root, api) {
     }
     // choose the attack direction from the cursor at the moment of the click
     a.atkAim = aimedAngle();
-    if (cls.id === 'lancer' && (type === 'braceThrust' || type === 'lanceCharge')) {
-      a.atkAim = player.facing > 0 ? -0.03 : Math.PI + 0.03;
-    }
     // with no cursor (touch), auto-aim melee at a nearby dummy/enemy ahead so taps
     // connect — the arc sweep then covers head-to-body. (Basis for enemy targeting.)
     if (!pointer.active && dummies && dummies.length) {
@@ -327,6 +326,7 @@ PUBLIC.start = function (root, api) {
     a.atkActive = true; a.atkType = type; a.atkT = 0; a.atkDur = a.action.dur; a.atkPhase = 'anticipation'; a.struck = false;
     a.struck2 = false;
     a.atkVar = (Math.random() * 64) | 0;     // vary the swing so motions aren't identical
+    if (isLancerAttack(type)) player.vx *= 0.18;
     // rogue dual-wield: one tap = one hand, alternating each strike
     if (cls.id === 'rogue' && type === 'dualSlash') { a.rogueHand = a.rogueHandNext | 0; a.rogueHandNext = a.rogueHand ? 0 : 1; }
     // knight slash combo: chain taps cycle diagonal -> horizontal -> overhead
@@ -426,7 +426,7 @@ PUBLIC.start = function (root, api) {
   function makePlayer(spawn) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
-      grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0,
+      grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0,
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
       flip: { active: false, t: 0, dur: 0, dir: 1 },
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
@@ -449,6 +449,12 @@ PUBLIC.start = function (root, api) {
     droppedKnives = [];
     boxes = (L.boxes || []).map(b => ({ x: b[0], y: b[1] - 14, w: 44, h: 44, vx: 0, vy: 0, angle: 0, va: 0, m: 1.6 }));
     dummies = (L.dummies || [[L.spawn.x + 210, L.spawn.y]]).map(p => makeDummy(p[0], p[1]));
+    for (const e of L.enemies || []) dummies.push(makeDummy(e[0], e[1], {
+      kind: 'enemy',
+      patrolMin: e[2] == null ? e[0] - 120 : e[2],
+      patrolMax: e[3] == null ? e[0] + 120 : e[3],
+      hp: e[4] == null ? 4 : e[4],
+    }));
     flagWave = 0; freeze = 0;
     if (!keepRun) { runCoins = 0; runTime = 0; deaths = 0; }
     centerCam(true);
@@ -737,22 +743,59 @@ PUBLIC.start = function (root, api) {
     elbowL: 0.06, handL: 0.05, elbowR: 0.06, handR: 0.05,
   };
   const DG = 0.48, DDAMP = 0.985, DSOLVE = 6;
-  function makeDummy(x, y) {
+  function makeDummy(x, y, opts) {
+    opts = opts || {};
     const pts = {};
     for (const k in DUMMY_REST) {
       const wx = x + DUMMY_REST[k][0], wy = y + DUMMY_REST[k][1];
       pts[k] = { x: wx, y: wy, px: wx, py: wy, pin: k === 'footL' || k === 'footR' };
     }
     const bones = DUMMY_BONES.map(([a, b]) => [a, b, Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y)]);
-    return { baseX: x, baseY: y, pts, bones, flash: 0 };
+    return {
+      baseX: x, baseY: y, homeX: x, pts, bones, flash: 0,
+      kind: opts.kind || 'dummy',
+      patrolMin: opts.patrolMin == null ? x - 90 : opts.patrolMin,
+      patrolMax: opts.patrolMax == null ? x + 90 : opts.patrolMax,
+      dir: opts.dir || (Math.random() < 0.5 ? -1 : 1),
+      hp: opts.hp || 1,
+      attackCd: 0,
+      defeated: false,
+    };
   }
   function updateDummies(dt) {
     if (!dummies) return;
     const steps = Math.max(1, Math.round(dt / 16.7));    // keep verlet stable if dt is large
     for (const d of dummies) {
       d.flash = Math.max(0, d.flash - dt);
+      updateEnemyAI(d, dt);
       for (let s = 0; s < steps; s++) dummyStep(d);
     }
+  }
+  function updateEnemyAI(d, dt) {
+    if (!player || state !== 'playing' || d.kind !== 'enemy' || d.defeated) return;
+    d.attackCd = Math.max(0, d.attackCd - dt);
+    const dx = player.x - d.baseX, dy = player.y - d.baseY;
+    const sees = Math.abs(dx) < 270 && Math.abs(dy) < 95;
+    if (sees && Math.abs(dx) > 10) d.dir = dx > 0 ? 1 : -1;
+    const speed = sees ? 0.72 : 0.34;
+    d.baseX = clamp(d.baseX + d.dir * speed, d.patrolMin, d.patrolMax);
+    if (!sees && (d.baseX <= d.patrolMin + 1 || d.baseX >= d.patrolMax - 1)) d.dir *= -1;
+    const n = dummyNearest(d, player.x, player.y - 36);
+    if (n.p && n.d < 34 && d.attackCd <= 0 && (!player.invuln || player.invuln <= 0)) {
+      d.attackCd = 850;
+      bumpPlayerFromEnemy(d);
+    }
+  }
+  function bumpPlayerFromEnemy(d) {
+    const dir = player.x >= d.baseX ? 1 : -1;
+    player.invuln = 700;
+    player.vx += dir * 5.2;
+    player.vy = Math.min(player.vy, -4.0);
+    player.grounded = false;
+    player.anim.squash = -0.34;
+    freeze = Math.max(freeze, 12);
+    addShake(3.4, 120);
+    burst(player.x, player.y - 34, '#ff5a5a', 14, 3.4);
   }
   function dummyStep(d) {
     const groundY = d.baseY;
@@ -767,8 +810,9 @@ PUBLIC.start = function (root, api) {
     // muscles pull the spine & legs toward the upright rest pose (self-righting)
     for (const k in DUMMY_MUSCLE) {
       const p = d.pts[k];
-      p.x += (d.baseX + DUMMY_REST[k][0] - p.x) * DUMMY_MUSCLE[k];
-      p.y += (d.baseY + DUMMY_REST[k][1] - p.y) * DUMMY_MUSCLE[k];
+      const m = d.defeated ? DUMMY_MUSCLE[k] * 0.08 : DUMMY_MUSCLE[k];
+      p.x += (d.baseX + DUMMY_REST[k][0] - p.x) * m;
+      p.y += (d.baseY + DUMMY_REST[k][1] - p.y) * m;
     }
     // satisfy bone lengths + pins + floor
     for (let it = 0; it < DSOLVE; it++) {
@@ -807,6 +851,17 @@ PUBLIC.start = function (root, api) {
       p.x += nx * f2; p.y += ny * f2;
     }
     d.flash = 200;
+    if (d.kind === 'enemy' && !d.defeated) {
+      d.hp -= Math.max(0.5, k / 16);
+      if (d.hp <= 0) {
+        d.defeated = true;
+        d.flash = 650;
+        d.attackCd = 9999;
+        for (const foot of ['footL', 'footR']) d.pts[foot].pin = false;
+        burst(hx, hy, '#ff5a5a', 26, 5.2);
+        addShake(4.5, 150);
+      }
+    }
     burst(hx, hy, '#ffd089', Math.min(18, 6 + (k | 0)), 4.2);
     burst(hx, hy, '#d9534f', 8, 3.2);
     freeze = Math.max(freeze, Math.min(18, 6 + k * 0.28));
@@ -827,24 +882,30 @@ PUBLIC.start = function (root, api) {
   function drawDummy(d) {
     const P = k => ({ x: d.pts[k].x - cam.x, y: d.pts[k].y - cam.y });
     const hot = clamp(d.flash / 200, 0, 1);
-    const ink = hot > 0.02 ? '#a9544b' : INK;        // black like the hero; flushes red when struck
+    const enemy = d.kind === 'enemy';
+    const ink = d.defeated ? '#6a6360' : hot > 0.02 ? '#a9544b' : enemy ? '#2c1618' : INK;
     const fL = P('footL'), fR = P('footR'), midX = (fL.x + fR.x) / 2, baseY = Math.max(fL.y, fR.y);
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    // sticky-foot base pad
-    ctx.fillStyle = '#5a4d3d';
-    ctx.beginPath(); ctx.moveTo(midX - 17, baseY + 3); ctx.lineTo(midX + 17, baseY + 3);
-    ctx.lineTo(midX + 9, baseY - 7); ctx.lineTo(midX - 9, baseY - 7); ctx.closePath(); ctx.fill();
+    if (!enemy || !d.defeated) {
+      ctx.fillStyle = enemy ? '#7a2d32' : '#5a4d3d';
+      ctx.beginPath(); ctx.moveTo(midX - 17, baseY + 3); ctx.lineTo(midX + 17, baseY + 3);
+      ctx.lineTo(midX + 9, baseY - 7); ctx.lineTo(midX - 9, baseY - 7); ctx.closePath(); ctx.fill();
+    }
     ctx.strokeStyle = ink; ctx.fillStyle = ink;
     for (const [a, j, b, w] of DUMMY_LIMBS) { const pa = P(a), pj = P(j), pb = P(b); seg(pa.x, pa.y, pj.x, pj.y, pb.x, pb.y, w); }
     const hip = P('hip'), chest = P('chest'), head = P('head');
     ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(chest.x, chest.y); ctx.stroke();   // torso
     ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(chest.x, chest.y); ctx.lineTo(head.x, head.y); ctx.stroke(); // neck
     ctx.beginPath(); ctx.arc(head.x, head.y, DUMMY.headR, 0, Math.PI * 2); ctx.fill();
-    // bullseye on the chest
+    if (enemy && !d.defeated) {
+      ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 2;
+      const dir = d.dir || 1;
+      ctx.beginPath(); ctx.moveTo(head.x + dir * 2, head.y - 2); ctx.lineTo(head.x + dir * 8, head.y - 2); ctx.stroke();
+    }
     const tx = lerp(hip.x, chest.x, 0.55), ty = lerp(hip.y, chest.y, 0.55);
     ctx.beginPath(); ctx.arc(tx, ty, 7, 0, Math.PI * 2); ctx.fillStyle = '#e7e0d2'; ctx.fill();
-    ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
+    ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = enemy ? '#ff5a5a' : hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
     ctx.restore();
   }
   function hoverSurfaceY(x, maxDrop, maxRise) {
@@ -914,17 +975,23 @@ PUBLIC.start = function (root, api) {
   function activeMove(type) {
     return player && player.move && player.move.active && (!type || player.move.type === type);
   }
+  function isLancerAttack(type) {
+    return cls.id === 'lancer' && (type === 'braceThrust' || type === 'lanceCharge');
+  }
+  function lancerAttackLocked() {
+    return player && player.anim && player.anim.atkActive && isLancerAttack(player.anim.atkType);
+  }
   function mageHovering() {
     return cls.id === 'mage' && input.jumpHeld;
   }
   function maxV() {
     let m = MAXV * cls.speedMul;
-    if (mageHovering()) m *= 1.24;
+    if (mageHovering()) m *= 0.68;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
     if (activeMove('slide')) m = Math.max(m, 8.0);
-    if (player && player.anim && player.anim.atkActive && player.anim.atkType === 'lanceCharge') m = Math.max(m, 8.8);
-    if (activeMove('lanceCharge') || activeMove('shoulder')) m = Math.max(m, 7.2);
+    if (activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
+    if (lancerAttackLocked()) m = Math.min(m, 1.15);
     return m;
   }
   function updateClassMove() {
@@ -988,14 +1055,8 @@ PUBLIC.start = function (root, api) {
     const a = player.anim;
     if (!a.atkActive || a.atkType !== 'lanceCharge') return;
     const t = clamp(a.atkT, 0, 1);
-    if (t < 0.22) {
-      player.vx *= 0.72;                         // plant before the drive
-      return;
-    }
+    player.vx *= t < 0.78 ? 0.42 : 0.68;
     if (t < 0.78) {
-      const drive = Math.sin(clamp((t - 0.22) / 0.56, 0, 1) * Math.PI);
-      player.vx = player.facing * (5.4 + drive * 3.4);
-      player.vy = Math.min(player.vy, 1.4);
       if (Math.random() < 0.28) particles.push({ x: player.x - player.facing * rand(12, 28), y: player.y - rand(8, 34),
         vx: -player.facing * rand(0.3, 1.0), vy: rand(-0.25, 0.45), life: rand(120, 240), max: 240, color: cls.color, r: rand(1, 2.3) });
     }
@@ -1004,13 +1065,16 @@ PUBLIC.start = function (root, api) {
   function physics() {
     const L = levels[li];
     const acc = player.grounded ? RUN_ACC : AIR_ACC;
-    if (input.left && !input.right) { player.vx -= acc; player.facing = -1; }
+    const locked = lancerAttackLocked();
+    if (locked) player.vx *= 0.34;
+    else if (input.left && !input.right) { player.vx -= acc; player.facing = -1; }
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
     else if (player.grounded) player.vx *= FRICTION;
     updateClassMove();
     updateRogueFlip();
     updateAttackMotion();
     player.vx = clamp(player.vx, -maxV(), maxV());
+    if (player.invuln > 0) player.invuln = Math.max(0, player.invuln - STEP);
 
     const g = cls.gravityMul || 1;
     if (cls.fly && mageHovering()) {
@@ -1169,7 +1233,8 @@ PUBLIC.start = function (root, api) {
     const heavy = spec.tags && spec.tags.includes('heavy');
     freeze = spec.hitstop;
     addShake(type === 'dualSlash' || type === 'rogueStab' ? 1.6 : heavy ? 4.8 : 2.7, heavy ? 150 : 95);
-    player.vx += player.facing * spec.impulse;
+    if (isLancerAttack(type)) player.vx *= 0.18;
+    else player.vx += player.facing * spec.impulse;
     if (type === 'vaultKick') { player.vy = Math.min(player.vy, -4.6); player.grounded = false; }
     const seg = meleeSweepHit(type, ang);     // sweeps the arc; hits crates + dummy at the contact point
     burst(seg.bx, seg.by, cls.color, type === 'dualSlash' ? 12 : heavy ? 22 : 15, type === 'dualSlash' ? 3.4 : 5.2);
@@ -1195,11 +1260,11 @@ PUBLIC.start = function (root, api) {
     const bladeAng = ch.foreAng + pose.wrBend;
     const wl = WLEN[cls.weapon] || 24;
     if (type === 'braceThrust' || type === 'lanceCharge') {
-      const lineAng = f > 0 ? 0 : Math.PI;
-      const sx = ch.hx + Math.cos(lineAng) * 22, sy = ch.hy;
-      const tx = ch.hx + Math.cos(lineAng) * WLEN.lance, ty = ch.hy;
+      const lineAng = ang;
+      const sx = ch.hx + Math.cos(lineAng) * 22, sy = ch.hy + Math.sin(lineAng) * 22;
+      const tx = ch.hx + Math.cos(lineAng) * WLEN.lance, ty = ch.hy + Math.sin(lineAng) * WLEN.lance;
       const force = type === 'lanceCharge' ? 30 : 28;
-      return { ax: sx, ay: sy, bx: tx, by: ty, dx: f, dy: 0, force, r: 8 };
+      return { ax: sx, ay: sy, bx: tx, by: ty, dx: Math.cos(lineAng), dy: Math.sin(lineAng), force, r: 8 };
     }
     const bx = ch.hx + Math.cos(bladeAng) * wl, by = ch.hy + Math.sin(bladeAng) * wl;
     let ax = ch.hx, ay = ch.hy;
@@ -1418,7 +1483,7 @@ PUBLIC.start = function (root, api) {
       const big = type === 'braceThrust' || type === 'lanceCharge' || type === 'stab';
       const lance = type === 'braceThrust' || type === 'lanceCharge';
       if (lance) {
-        const line = f > 0 ? 0 : Math.PI;
+        const line = aim;
         const coil = type === 'lanceCharge'
           ? kfa(t, [[0, 1.10], [0.20, 1.48], [0.34, 0.62], [0.48, 0.12], [0.74, 0.10], [1, 0.58]])
           : kfa(t, [[0, 1.20], [0.30, 1.72], [0.42, 1.66], [0.52, 0.22], [0.74, 0.10], [1, 0.64]]);
@@ -1476,7 +1541,7 @@ PUBLIC.start = function (root, api) {
   }
 
   // visible weapon-tip length per class, used by trails and melee capsules
-  const WLEN = { sword: 40, dagger: 16, spear: 50, lance: 88, staff: 49, bow: 30, bo: 48, hammer: 46 };
+  const WLEN = { sword: 40, dagger: 16, spear: 50, lance: 88, staff: 64, bow: 30, bo: 48, hammer: 46 };
   // draw the held weapon from the hand along `ang`; `scale` stretches it lengthwise (smear)
   function drawWeapon(hx, hy, ang, scale) {
     ctx.save();
@@ -1522,11 +1587,12 @@ PUBLIC.start = function (root, api) {
       ctx.fillStyle = '#9a6b3f'; ctx.beginPath(); ctx.arc(hx - dx * 38, hy - dy * 38, 3.5, 0, Math.PI * 2); ctx.fill();
     } else if (cls.weapon === 'staff') {
       ctx.strokeStyle = '#62462c'; ctx.lineCap = 'round'; ctx.lineWidth = 4.2;
-      ctx.beginPath(); ctx.moveTo(hx - dx * 18, hy - dy * 18); ctx.lineTo(hx + dx * 44 * L, hy + dy * 44 * L); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(hx - dx * 48, hy - dy * 48); ctx.lineTo(hx + dx * 64 * L, hy + dy * 64 * L); ctx.stroke();
       ctx.strokeStyle = '#9aa0aa'; ctx.lineWidth = 2.4;
-      ctx.beginPath(); ctx.moveTo(hx + dx * 44 * L + nx * 5, hy + dy * 44 * L + ny * 5); ctx.lineTo(hx + dx * 44 * L - nx * 5, hy + dy * 44 * L - ny * 5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(hx + dx * 64 * L + nx * 5, hy + dy * 64 * L + ny * 5); ctx.lineTo(hx + dx * 64 * L - nx * 5, hy + dy * 64 * L - ny * 5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(hx - dx * 48 + nx * 4, hy - dy * 48 + ny * 4); ctx.lineTo(hx - dx * 48 - nx * 4, hy - dy * 48 - ny * 4); ctx.stroke();
       ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
-      ctx.beginPath(); ctx.arc(hx + dx * 49 * L, hy + dy * 49 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
+      ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
     } else if (cls.weapon === 'bow') {
       ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.2;
       ctx.beginPath();
@@ -1850,10 +1916,12 @@ PUBLIC.start = function (root, api) {
       h = { x: shBX + f * (14 + push * 24), y: shBY + 14 - push * 8 };
     } else if (cls.weapon === 'lance') {
       h = { x: shX - f * 4, y: shY + 18 };
-    } else if (cls.weapon === 'staff' || cls.weapon === 'bo') {
-      if (a.atkActive && (a.atkType === 'cast' || a.atkType === 'arcaneBloom' || a.atkType === 'staffSweep' || a.atkType === 'vaultKick')) {
-        h = fly > 0.25 ? { x: shX - f * 12, y: shY + 18 } : { x: shX - f * 10, y: shY + 20 };
-      }
+    } else if (cls.weapon === 'staff') {
+      h = fly > 0.25
+        ? { x: shX + f * 10, y: shY + 24 }
+        : { x: shX + f * 8, y: shY + 32 };
+    } else if (cls.weapon === 'bo') {
+      if (a.atkActive && (a.atkType === 'staffSweep' || a.atkType === 'vaultKick')) h = { x: shX - f * 10, y: shY + 20 };
     } else if (cls.weapon === 'bow') {
       if (a.atkActive && (a.atkType === 'arrow' || a.atkType === 'volley')) h = { x: shX - f * 10, y: shY + 10 };
     }
@@ -1924,9 +1992,10 @@ PUBLIC.start = function (root, api) {
         drawAim = f > 0 ? -0.04 : Math.PI + 0.04;
         handT = { x: shX + f * 18, y: shY + 16 };
       } else if (cls.weapon === 'staff') {
-        // hold the staff steady forward-and-down while floating (no vy jitter)
-        drawAim = fly > 0.25 ? (f > 0 ? 0.5 : Math.PI - 0.5) : -Math.PI / 2 + f * 0.16;
-        handT = { x: shX + f * (fly > 0.25 ? 18 : 12), y: shY + (fly > 0.25 ? 12 : 19) };
+        // two-hand staff grip; while flying the long staff stays upright and a
+        // little forward so the arms read like they are steering it.
+        drawAim = -Math.PI / 2 + f * (fly > 0.25 ? 0.24 : 0.16);
+        handT = fly > 0.25 ? { x: shX + f * 15, y: shY + 8 } : { x: shX + f * 12, y: shY + 19 };
       } else if (cls.weapon === 'bow') {
         drawAim = f > 0 ? 0 : Math.PI;
         handT = { x: shX + f * 17, y: shY + 7 };
