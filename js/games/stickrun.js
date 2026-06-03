@@ -415,7 +415,7 @@ PUBLIC.start = function (root, api) {
 
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
-    if (k === 'f2' || k === ';') { debug.enabled = !debug.enabled; e.preventDefault(); return; }
+    if (k === 'f2' || k === ';') { debug.enabled = !debug.enabled; exposeDebugApi(); e.preventDefault(); return; }
     if (k === 'arrowleft' || k === 'a') input.left = true;
     else if (k === 'arrowright' || k === 'd') input.right = true;
     else if (k === 'arrowdown' || k === 's') input.down = true;
@@ -575,6 +575,7 @@ PUBLIC.start = function (root, api) {
       crates around, grab coins, reach the 🚩 flag.</p>
       <div class="sr-classes">${cards}</div>`;
     loadLevel(0, false);
+    exposeDebugApi();
   }
   function play(clsId) {
     if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
@@ -583,6 +584,7 @@ PUBLIC.start = function (root, api) {
     hud.style.display = 'flex';
     padL.style.display = padR.style.display = 'flex';
     loadLevel(0, false);
+    exposeDebugApi();
   }
   function nextLevel() {
     if (li + 1 < levels.length) {
@@ -679,6 +681,9 @@ PUBLIC.start = function (root, api) {
     const t = clamp(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1);
     return { x: ax + vx * t, y: ay + vy * t };
   }
+  function pointInAabb(px, py, r) {
+    return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+  }
   function pointAabbDist(px, py, r) {
     const dx = Math.max(r.x - px, 0, px - (r.x + r.w));
     const dy = Math.max(r.y - py, 0, py - (r.y + r.h));
@@ -736,24 +741,20 @@ PUBLIC.start = function (root, api) {
   function hitBoxesSegment(ax, ay, bx, by, dx, dy, force, radius) {
     const sx = bx - ax, sy = by - ay, sl = Math.hypot(sx, sy) || 1;
     const nx = dx == null ? sx / sl : dx, ny = dy == null ? sy / sl : dy;
-    rememberDebugSegment('ability', ax, ay, bx, by, radius || 10, '#ffb020', 220);
+    const rr = radius || 10;
+    rememberDebugSegment('ability', ax, ay, bx, by, rr, '#ffb020', 220);
     for (const b of boxes) {
-      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-      const p = closestPointOnSeg(cx, cy, ax, ay, bx, by);
-      if (pointAabbDist(p.x, p.y, b) <= radius) pushBox(b, nx, ny, force);
+      if (segAabbDist(ax, ay, bx, by, b) <= rr) pushBox(b, nx, ny, force);
     }
     if (player.team === 'enemy') {
-      if (hero && !(hero.invuln > 0)) { const h = segHitActor(ax, ay, bx, by, radius, hero); if (h) hurtHero(nx, ny, force, h.x, h.y); }
+      if (hero && !(hero.invuln > 0)) { const h = segHitActor(ax, ay, bx, by, rr, hero); if (h) hurtHero(nx, ny, force, h.x, h.y); }
     } else {
-      hitDummiesSegment(ax, ay, bx, by, nx, ny, force, radius);
-      if (fighters) for (const e of fighters.slice()) { const h = segHitActor(ax, ay, bx, by, radius, e); if (h) hurtFighter(e, nx, ny, force, h.x, h.y); }
+      hitDummiesSegment(ax, ay, bx, by, nx, ny, force, rr);
+      if (fighters) for (const e of fighters.slice()) { const h = segHitActor(ax, ay, bx, by, rr, e); if (h) hurtFighter(e, nx, ny, force, h.x, h.y); }
     }
   }
   function projectileHitsBox(p, ax, ay, b) {
-    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-    const q = closestPointOnSeg(cx, cy, ax, ay, p.x, p.y);
-    const r = projectileRadius(p);
-    return pointAabbDist(q.x, q.y, b) <= r;
+    return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
     return p.kind === 'dagger' || p.kind === 'arrow' ? 4.5 : p.r || 8;
@@ -772,10 +773,16 @@ PUBLIC.start = function (root, api) {
   }
   // body collision capsules (torso, head, two legs) for ANY actor — the basis for
   // coin pickup, enemy hits on the hero, and the hero's hits on enemy fighters.
+  function actorAttackBodyOffset(act) {
+    const a = act && act.anim;
+    if (!a || !a.atkActive) return { x: 0, y: 0, lean: 0 };
+    return withActor(act, () => attackBodyOffset(a.atkType, clamp(a.atkT, 0, 1), act.facing));
+  }
   function actorCapsules(act) {
     const S = act.cls.style, post = actorPosture(act), hov = (act.anim.fly || 0) * (S.hover || 0);
-    const baseY = act.y - hov, hip = { x: act.x - act.facing * post.slide * 7, y: baseY - S.hipH + post.drop };
-    const lean = (act.anim.lean || 0) + post.lean;
+    const body = actorAttackBodyOffset(act);
+    const baseY = act.y - hov, hip = { x: act.x - act.facing * post.slide * 7 + body.x, y: baseY - S.hipH + post.drop + body.y };
+    const lean = (act.anim.lean || 0) + post.lean + body.lean;
     const upX = Math.sin(lean) * act.facing, upY = -Math.cos(lean);
     const sh = { x: hip.x + upX * 30, y: hip.y + upY * 30 };
     const legSpread = 9 + post.slide * 20 + post.sweep * 16;
@@ -814,6 +821,21 @@ PUBLIC.start = function (root, api) {
     return Math.min(
       pointSegDist(ax, ay, cx, cy, dx, dy), pointSegDist(bx, by, cx, cy, dx, dy),
       pointSegDist(cx, cy, ax, ay, bx, by), pointSegDist(dx, dy, ax, ay, bx, by));
+  }
+  function segAabbDist(ax, ay, bx, by, r) {
+    if (pointInAabb(ax, ay, r) || pointInAabb(bx, by, r)) return 0;
+    const x1 = r.x, y1 = r.y, x2 = r.x + r.w, y2 = r.y + r.h;
+    const edges = [
+      [x1, y1, x2, y1], [x2, y1, x2, y2],
+      [x2, y2, x1, y2], [x1, y2, x1, y1],
+    ];
+    let best = Math.min(pointAabbDist(ax, ay, r), pointAabbDist(bx, by, r));
+    for (const e of edges) {
+      const d = segSegDist(ax, ay, bx, by, e[0], e[1], e[2], e[3]);
+      if (d === 0) return 0;
+      best = Math.min(best, d);
+    }
+    return best;
   }
   // does a blade/projectile segment (radius r) strike an actor's body? returns the
   // closest contact point on the body, or null.
@@ -1087,7 +1109,7 @@ PUBLIC.start = function (root, api) {
     e.patrolMax = opts.max == null ? x + 120 : opts.max;
     e.brain = {
       dir: e.facing, atkCd: rand(300, 900), moveCd: rand(200, 700), stagger: 0, alert: 0, retreat: 0,
-      jumpCd: rand(0, 300), combo: 0, aggroRange: enemyAggro(clsId), tgt: null, pauseT: rand(0, 800),
+      jumpCd: rand(0, 300), airJumpCd: rand(120, 420), combo: 0, aggroRange: enemyAggro(clsId), tgt: null, pauseT: rand(0, 800),
     };
     return e;
   }
@@ -1102,14 +1124,14 @@ PUBLIC.start = function (root, api) {
     return solidHitsBox(r);
   }
   function fighterNavProbe(e, dir) {
-    const b = actorBox(e), cur = surfaceYFor(e, e.x, 64, 12);
-    const near = surfaceYFor(e, e.x + dir * 38, 82, 16);
-    const far = surfaceYFor(e, e.x + dir * 88, 136, 30);
+    const b = actorBox(e), cur = surfaceYFor(e, e.x, 72, 18);
+    const near = surfaceYFor(e, e.x + dir * 42, 100, 68);
+    const far = surfaceYFor(e, e.x + dir * 96, 170, 110);
     const probe = { x: dir > 0 ? b.x + b.w : b.x - 7, y: b.y + 9, w: 7, h: Math.max(16, b.h - 18) };
     return {
       blocked: solidProbe(probe),
       cur, near, far,
-      gap: cur !== null && near === null && far !== null && Math.abs(far - cur) < 62,
+      gap: cur !== null && near === null && far !== null && Math.abs(far - cur) < 94,
       ledge: cur !== null && near === null && far === null,
       stepUp: cur !== null && near !== null && near < cur - 12,
       drop: cur !== null && near !== null && near > cur + 34,
@@ -1135,14 +1157,19 @@ PUBLIC.start = function (root, api) {
       return;
     }
     if (e.grounded && b.jumpCd <= 0) {
-      const chaseUp = n.dy < -34 && n.adx < 230;
-      if (chaseUp || nav.blocked || nav.stepUp || nav.gap) {
+      const chaseUp = n.dy < -30 && n.adx < 280;
+      const surfaceLift = nav.cur !== null && nav.near !== null && nav.near < nav.cur - 8;
+      if (chaseUp || nav.blocked || nav.stepUp || nav.gap || surfaceLift) {
         it.jump = true;
         b.jumpCd = nav.gap ? 520 : 360;
       }
-    } else if (e.cls.id === 'rogue' && !e.rogueAirJump && b.jumpCd <= 0 && n.dy < -28 && n.adx < 210) {
-      it.jump = true;                            // Rogue enemy spends its double-jump to follow upward
-      b.jumpCd = 520;
+    } else if (e.cls.id === 'rogue' && !e.rogueAirJump && e.airTime > 8 && b.airJumpCd <= 0) {
+      const followUp = n.dy < -22 && n.adx < 260;
+      const saveGap = Math.abs(e.vx) > 1.1 && n.dy < 36 && n.adx < 260;
+      if (followUp || saveGap) {
+        it.jump = true;                          // Rogue enemy spends its double-jump to follow upward or clear gaps
+        b.airJumpCd = 720;
+      }
     }
   }
   // per-class engagement: how each archetype fights. `n` = {adx, face, aim, dy}.
@@ -1205,7 +1232,7 @@ PUBLIC.start = function (root, api) {
   };
   function thinkFighter(e, dt) {                 // sets intent + triggers abilities (player === e)
     const b = e.brain, it = e.intent;
-    b.atkCd = Math.max(0, b.atkCd - dt); b.moveCd = Math.max(0, b.moveCd - dt);
+    b.atkCd = Math.max(0, b.atkCd - dt); b.moveCd = Math.max(0, b.moveCd - dt); b.airJumpCd = Math.max(0, b.airJumpCd - dt);
     b.jumpCd = Math.max(0, b.jumpCd - dt);
     b.stagger = Math.max(0, b.stagger - dt); b.alert = Math.max(0, b.alert - dt); b.retreat = Math.max(0, b.retreat - dt);
     it.left = it.right = it.down = it.jumpHeld = it.jump = false;
@@ -1422,7 +1449,7 @@ PUBLIC.start = function (root, api) {
     if (activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
     if (player && actorPosture(player).down > 0) m *= 0.45;
-    if (lancerAttackLocked()) m = Math.min(m, 1.15);
+    if (lancerAttackLocked()) m = player.anim.atkType === 'lanceCharge' ? Math.max(m, 8.2) : Math.min(m, 1.15);
     return m;
   }
   function updateClassMove() {
@@ -1487,7 +1514,13 @@ PUBLIC.start = function (root, api) {
     const a = player.anim;
     if (!a.atkActive || a.atkType !== 'lanceCharge') return;
     const t = clamp(a.atkT, 0, 1);
-    player.vx *= t < 0.78 ? 0.42 : 0.68;
+    const dir = Math.cos(a.atkAim) >= 0 ? 1 : -1;
+    player.facing = dir;
+    if (t < 0.24) player.vx *= 0.28;
+    else if (t < 0.76) {
+      const drive = ease(clamp((t - 0.24) / 0.16, 0, 1)) * (1 - ease(clamp((t - 0.58) / 0.18, 0, 1)) * 0.32);
+      player.vx = dir * (4.8 + drive * 3.2);
+    } else player.vx *= 0.58;
     if (t < 0.78) {
       if (Math.random() < 0.28) particles.push({ x: player.x - player.facing * rand(12, 28), y: player.y - rand(8, 34),
         vx: -player.facing * rand(0.3, 1.0), vy: rand(-0.25, 0.45), life: rand(120, 240), max: 240, color: cls.color, r: rand(1, 2.3) });
@@ -1766,8 +1799,7 @@ PUBLIC.start = function (root, api) {
       rememberDebugSegment('weapon', s.ax, s.ay, s.bx, s.by, s.r, '#ff405f', 260);
       for (const b of boxes) {
         if (crateSeen.has(b)) continue;
-        const p = closestPointOnSeg(b.x + b.w / 2, b.y + b.h / 2, s.ax, s.ay, s.bx, s.by);
-        if (pointAabbDist(p.x, p.y, b) <= s.r) { pushBox(b, s.dx, s.dy, s.force); crateSeen.add(b); }
+        if (segAabbDist(s.ax, s.ay, s.bx, s.by, b) <= s.r) { pushBox(b, s.dx, s.dy, s.force); crateSeen.add(b); }
       }
       if (byHero) {
         if (dummies) for (const d of dummies) for (const k in d.pts) {
@@ -2268,8 +2300,8 @@ PUBLIC.start = function (root, api) {
       guardCrouch = Math.max(guardCrouch, posture.drop);
     }
     if (flipActive) {
-      postureLean += player.flip.dir * (Math.PI * 1.55 * ease(flipT) + 0.36 * flipLead);
-      guardCrouch -= 19 * flipCurl;
+      postureLean += player.flip.dir * (0.52 * flipCurl + 0.26 * flipLead);
+      guardCrouch -= 17 * flipCurl;
     }
 
     // ----- attack scalars (whole-body reaction) -----
@@ -2355,8 +2387,8 @@ PUBLIC.start = function (root, api) {
       } else if (flipActive) {
         const kick = Math.sin((flipT + (legSign > 0 ? 0.12 : -0.08)) * Math.PI * 2);
         const cross = Math.sin((flipT + (legSign > 0 ? 0.20 : -0.16)) * Math.PI * 2);
-        foot.x = lerp(foot.x, -player.flip.dir * (2 + flipLead * 5) + legSign * 4 + cross * 2.5, flipTuck);
-        foot.y = lerp(foot.y, hipY + 8 + legSign * 3 + Math.abs(kick) * 2, flipTuck);
+        foot.x = lerp(foot.x, -player.flip.dir * (3 + flipLead * 6) + legSign * 3 + cross * 2.4, flipTuck);
+        foot.y = lerp(foot.y, hipY + 3 + legSign * 2 + Math.abs(kick) * 1.5, flipTuck);
       } else if (posture.down > 0) {
         const frontLeg = legSign === -1;
         foot.x = lerp(foot.x, frontLeg ? f * 13 : -f * 11, posture.down);
@@ -2396,8 +2428,8 @@ PUBLIC.start = function (root, api) {
       }
       if (flipActive) {
         const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
-        hand.x = lerp(hand.x, shX - player.flip.dir * (6 + flipCurl * 10) + sweep * 4, flipCurl);
-        hand.y = lerp(hand.y, shY + 18 + flipCurl * 7, flipCurl);
+        hand.x = lerp(hand.x, shX - player.flip.dir * (5 + flipCurl * 8) + sweep * 3, flipCurl);
+        hand.y = lerp(hand.y, shY + 12 + flipCurl * 4, flipCurl);
       }
       return hand;
     }
@@ -2457,7 +2489,7 @@ PUBLIC.start = function (root, api) {
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
     let lt = legFoot(p + Math.PI, +1);
-    const flipLegScale = flipActive ? lerp(1, 0.78, flipTuck) : 1;
+    const flipLegScale = flipActive ? lerp(1, 0.58, flipTuck) : 1;
     const farBend = flipActive ? player.flip.dir : -f;
     const nearBend = flipActive ? -player.flip.dir : -f;
     let k = ik(hipBX, hipY, hipBX + lt.x, lt.y, thigh * flipLegScale, shin * flipLegScale, farBend, flipActive ? 1 : 0.6);
@@ -2885,10 +2917,21 @@ PUBLIC.start = function (root, api) {
     if (player) render(moveAmt);
   });
 
-  showMenu();
   // test seam (no-op in production): lets the headless harness drive internals
-  if (typeof window !== 'undefined') {
-    const testApi = {
+  let testApi;
+  function actorSnapshot(act) {
+    if (!act) return null;
+    const atk = act.anim && act.anim.atkActive ? { type: act.anim.atkType, t: act.anim.atkT, phase: act.anim.atkPhase, aim: act.anim.atkAim } : null;
+    const move = act.move && act.move.active ? { type: act.move.type, t: act.move.t, phase: act.move.phase } : null;
+    return {
+      cls: act.cls && act.cls.id, x: act.x, y: act.y, vx: act.vx, vy: act.vy,
+      facing: act.facing, grounded: act.grounded, coyote: act.coyote, airTime: act.airTime,
+      rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, hp: act.hp, maxHp: act.maxHp,
+      box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
+    };
+  }
+  function getTestApi() {
+    if (!testApi) testApi = {
       play, onStrike, triggerAttack,
       sampleMelee(type, t) {
         if (!player) return null;
@@ -2897,15 +2940,37 @@ PUBLIC.start = function (root, api) {
       bodyCapsules() { return player ? bodyCapsules() : []; },
       playerBox() { return player ? actorBox(player) : null; },
       segDistance(a, b) { return segSegDist(a.ax, a.ay, a.bx, a.by, b.ax, b.ay, b.bx, b.by); },
+      segBoxDistance(a, b) { return segAabbDist(a.ax, a.ay, a.bx, a.by, b); },
+      setDebug(v) { debug.enabled = !!v; exposeDebugApi(); },
+      state() {
+        return {
+          mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
+          player: actorSnapshot(player),
+          fighters: fighters ? fighters.map(actorSnapshot) : [],
+          boxes: boxes ? boxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, vx: b.vx, vy: b.vy })) : [],
+          coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
+          projectiles: projectiles ? projectiles.length : 0,
+          droppedKnives: droppedKnives ? droppedKnives.length : 0,
+        };
+      },
       debugSegments() { return debug.segments.slice(); },
       get player() { return player; },
       get dummies() { return dummies; },
       get fighters() { return fighters; },
       get cls() { return cls; },
     };
-    if (window.__stickTest) window.__stickTest(testApi);
-    if (debug.enabled) window.__stickDebug = testApi;
+    return testApi;
   }
+  function exposeDebugApi() {
+    if (typeof window === 'undefined') return;
+    const apiObj = getTestApi();
+    if (window.__stickTest) window.__stickTest(apiObj);
+    if (debug.enabled) window.__stickDebug = apiObj;
+    else if (window.__stickDebug === apiObj) delete window.__stickDebug;
+  }
+
+  showMenu();
+  exposeDebugApi();
 };
 
 Arcade.register(PUBLIC);
