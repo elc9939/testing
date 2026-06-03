@@ -1744,13 +1744,11 @@ PUBLIC.start = function (root, api) {
     const ragPose = solveHeroRagdoll(a, { hipX, hipY, shX, shY, headCX, headCY, flipActive, f });
     shX = ragPose.shX; shY = ragPose.shY; headCX = ragPose.headCX; headCY = ragPose.headCY;
 
-    // clip rotation: shear the shoulder girdle & hip line to fake torso/hip twist.
-    // Front shoulder/hip drive toward the cut; back ones pull away (counter-rotate).
-    const sgShear = a._clip ? (a._clip.shoulderShear || 0) * a._clip.weight : 0;
-    const hipShear = a._clip ? (a._clip.hipPivot || 0) * a._clip.weight : 0;
-    const shFX = shX + sgShear, shFY = shY - Math.abs(sgShear) * 0.18;   // weapon-side shoulder
-    const shBX = shX - sgShear, shBY = shY + Math.abs(sgShear) * 0.18;   // off-side shoulder
-    const hipFX = hipX + hipShear, hipBX = hipX - hipShear;              // near/far leg roots
+    // Stick-figure roots: limbs attach directly to the spine endpoints. The
+    // action clips still drive lean, head lead, hands, and feet, but they do not
+    // draw separate shoulder or hip structure.
+    const shFX = shX, shFY = shY, shBX = shX, shBY = shY;
+    const hipFX = hipX, hipBX = hipX;
 
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
 
@@ -1876,10 +1874,6 @@ PUBLIC.start = function (root, api) {
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();          // spine
-    // pelvis + shoulder bars: keep the (sheared) leg & arm roots attached to the
-    // spine so the body never separates, and they read as the hips/shoulders turning
-    if (hipFX !== hipBX) { ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hipBX, hipY); ctx.lineTo(hipFX, hipY); ctx.stroke(); }
-    if (shFX !== shBX || shFY !== shBY) { ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(shBX, shBY); ctx.lineTo(shFX, shFY); ctx.stroke(); }
     ctx.beginPath(); ctx.arc(headCX + a.headLag * (1 - air), headCY, headR, 0, Math.PI * 2); ctx.fill();
 
     // ----- near leg -----
