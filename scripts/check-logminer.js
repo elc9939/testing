@@ -75,6 +75,7 @@ function smokeTest() {
   ].join('\n');
 
   fs.mkdirSync(path.join(inputDir, 'archive.csv'));
+  fs.writeFileSync(path.join(inputDir, 'bad-header.csv'), 'wrong,header\n2026-06-03T01:00:00Z,ghost,login,1,200\n', 'utf8');
   fs.writeFileSync(path.join(inputDir, 'notes.txt'), 'not a CSV log\n', 'utf8');
   fs.writeFileSync(path.join(inputDir, 'events.csv'), `\uFEFF${csv}`, 'utf8');
   run('java', [
@@ -89,7 +90,7 @@ function smokeTest() {
 
   const summary = JSON.parse(fs.readFileSync(path.join(outputDir, 'summary.json'), 'utf8'));
   assertEqual(summary.totals.validEvents, 4, 'validEvents');
-  assertEqual(summary.totals.invalidLines, 1, 'invalidLines');
+  assertEqual(summary.totals.invalidLines, 2, 'invalidLines');
   assertEqual(summary.totals.totalBytes, 650, 'totalBytes');
   assertEqual(summary.counts.byAction.UPLOAD, 1, 'UPLOAD count');
 
@@ -97,6 +98,10 @@ function smokeTest() {
   const expectedError = '"events.csv","5","expected 5 fields, got 2","bad,line"';
   if (!errors.includes(expectedError)) {
     throw new Error(`errors.csv missing expected row: ${expectedError}`);
+  }
+  const expectedHeaderError = '"bad-header.csv","1","bad header","wrong,header"';
+  if (!errors.includes(expectedHeaderError)) {
+    throw new Error(`errors.csv missing expected row: ${expectedHeaderError}`);
   }
 
   const usersCsv = fs.readFileSync(path.join(outputDir, 'users.csv'), 'utf8').trim().split(/\r?\n/);
@@ -111,7 +116,7 @@ function smokeTest() {
     magic: 'L3SB',
     version: 1,
     validEvents: 4,
-    invalidLines: 1,
+    invalidLines: 2,
     totalBytes: 650,
     users: [
       { userId: 'alice', events: 2, bytes: 200 },

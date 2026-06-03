@@ -44,7 +44,7 @@ public final class LogFileTask implements Callable<FileTaskResult> {
 
         // TODO: Read the first line as the header. Increment linesRead.
         // TODO: If the header is null or doesn't match CsvLogParser.REQUIRED_HEADER (after trimming),
-        //       throw an IOException: "Bad header in " + file.getFileName().
+        //       record an error and stop processing this file.
 
         // TODO: Read remaining lines in a while loop:
         //   - Increment linesRead for each line.
@@ -57,7 +57,10 @@ public final class LogFileTask implements Callable<FileTaskResult> {
             String header = reader.readLine();
             linesRead++;
             if (header == null || !normalizeHeader(header).equals(CsvLogParser.REQUIRED_HEADER)) {
-                throw new IOException("Bad header in " + file.getFileName());
+                invalid++;
+                agg.recordInvalid();
+                errors.record(file, linesRead, "bad header", header == null ? "" : header);
+                return new FileTaskResult(file.getFileName().toString(), linesRead, invalid);
             }
             String line;
             while ((line = reader.readLine()) != null) {
