@@ -31,6 +31,9 @@ jobs:
             node --check "$file"
           done
 
+      - name: Check PWA cache manifest
+        run: node scripts/check-pwa-cache.js
+
   logminer:
     name: LogMiner compile and smoke test
     runs-on: ubuntu-latest

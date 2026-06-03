@@ -65,6 +65,7 @@ logminer/               standalone Java CSV log processing utility
 GitHub Actions runs lightweight checks on every push and pull request:
 
 - JavaScript syntax checks for the arcade and helper scripts.
+- PWA cache coverage for assets referenced by `index.html`.
 - `javac logminer/*.java` plus a LogMiner smoke test.
 
 ### Adding a game
