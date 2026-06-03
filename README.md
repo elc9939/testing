@@ -43,7 +43,7 @@ Press **Esc** or the **‹ Menu** button to return to the arcade at any time.
 | 🧠 **Memory Match** | Flip tiles to pair every emoji in the fewest moves. |
 | 🎯 **Reaction Rush** | 30-second target-tapping frenzy with a combo multiplier. |
 | ⭕ **Tic-Tac-Toe** | Face a flawless minimax AI. You can't win — but can you force a draw? |
-| 🏃 **Stick Leap** | Reach-the-flag platformer with a procedurally-animated stick fighter. Pick a class (Knight / Rogue / Lancer / Mage / Ranger) with its own weapon and an articulated, whippy swing engine. Left-click = main attack, right-click = special (each picks from a few swing variants); aim with the cursor. Fight **AI enemies that are full class fighters too** — knights press in behind a shield, rogues hit-and-run with daggers, lancers fence at spear range, mages float and rain bolts, rangers skirmish with arrows — each moving and using its abilities, then ragdolling when you drop it. Knock crates around and wallop training dummies. Run + jump across 3 levels (add `?arena` to the URL for a sandbox with one of every enemy). |
+| ⚔️ **Stick Arena** | Pick a class (Knight / Rogue / Lancer / Mage / Ranger), survive escalating waves of class bots, and turn the arena into a physics-heavy brawl. Left-click = main attack, right-click = special; aim with the cursor. Knock crates around, use platforms for space, and chain KOs for score. Want the older reach-the-flag platforming mode? Add `?classic` to the URL. |
 
 ## Project layout
 
@@ -56,8 +56,16 @@ manifest.webmanifest    PWA manifest (installable app metadata)
 sw.js                   service worker — caches everything for offline play
 icons/                  app icons (192/512 for PWA, 180 for iOS)
 scripts/gen-icons.js    regenerates the PNG icons (node scripts/gen-icons.js)
-.github/workflows/      GitHub Pages auto-deploy
+logminer/               standalone Java CSV log processing utility
+.github/workflows/      GitHub Pages deploy + CI checks
 ```
+
+## Checks
+
+GitHub Actions runs lightweight checks on every push and pull request:
+
+- JavaScript syntax checks for the arcade and helper scripts.
+- `javac logminer/*.java` plus a LogMiner smoke test.
 
 ### Adding a game
 
