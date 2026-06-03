@@ -9,10 +9,12 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifes
 const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 
 function normalizeAsset(asset) {
-  if (!asset || asset.startsWith('http:') || asset.startsWith('https:') || asset.startsWith('//')) {
+  const trimmed = (asset || '').trim();
+  if (!trimmed || trimmed.startsWith('#') || /^(?:[a-z][\w+.-]*:|\/\/)/i.test(trimmed)) {
     return null;
   }
-  return asset.startsWith('./') ? asset : `./${asset}`;
+  if (trimmed.startsWith('/')) return `.${trimmed}`;
+  return trimmed.startsWith('./') ? trimmed : `./${trimmed}`;
 }
 
 function assetPath(asset) {
@@ -23,11 +25,11 @@ function assetPath(asset) {
 
 function collectIndexAssets() {
   const assets = new Set(['./', './index.html']);
-  const attrPattern = /(?:src|href)="([^"]+)"/g;
+  const attrPattern = /\b(?:src|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+))/gi;
   let match;
 
   while ((match = attrPattern.exec(indexHtml)) !== null) {
-    const asset = normalizeAsset(match[1]);
+    const asset = normalizeAsset(match[1] || match[2] || match[3]);
     if (asset) assets.add(asset);
   }
 
