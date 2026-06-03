@@ -66,6 +66,9 @@ GitHub Actions runs lightweight checks on every push and pull request. You can
 run the same checks locally with:
 
 ```bash
+node scripts/check-all.js
+
+# Or run checks individually:
 node scripts/check-js-syntax.js
 node scripts/check-pwa-cache.js
 node scripts/check-logminer.js
