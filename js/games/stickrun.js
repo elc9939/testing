@@ -316,6 +316,13 @@ PUBLIC.start = function (root, api) {
     if (!player || state !== 'playing' || !type) return false;
     const a = player.anim;
     if (a.atkActive) return false;           // one swing at a time
+    if (cls.id === 'rogue' && type === 'legSweep') {
+      if (player.move && player.move.active && player.move.type === 'slide') {
+        player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
+        player.vx *= 0.62;
+      }
+      player.intent.down = true;
+    }
     if (cls.id === 'rogue' && type === 'throw') {
       if (player.knifeAmmo <= 0) return false;
       player.knifeAmmo--;
@@ -615,7 +622,34 @@ PUBLIC.start = function (root, api) {
   }
 
   // ---------- physics ----------
-  function box() { return { x: player.x - PW / 2, y: player.y - PH, w: PW, h: PH }; }
+  function actorPosture(act) {
+    const m = act.move && act.move.active ? act.move : null;
+    const mt = m ? clamp(m.t, 0, 1) : 0;
+    const slide = m && m.type === 'slide' ? Math.sin(mt * Math.PI) : 0;
+    const shoulder = m && (m.type === 'shoulder' || m.type === 'shieldStep' || m.type === 'brace') ? Math.sin(mt * Math.PI) : 0;
+    const sweep = act.anim && act.anim.atkActive && act.anim.atkType === 'legSweep' ? Math.sin(clamp(act.anim.atkT, 0, 1) * Math.PI) : 0;
+    const down = act.intent && act.intent.down && act.grounded && !slide ? 1 : 0;
+    const crouch = clamp(Math.max(down * 0.72, slide, sweep * 0.88), 0, 1);
+    return {
+      crouch, down, slide, sweep, shoulder,
+      drop: Math.max(down * 17, slide * 28, sweep * 22, shoulder * 5),
+      lean: -act.facing * (down * 0.16 + slide * 0.72 + sweep * 0.42) + act.facing * shoulder * 0.16,
+      w: PW + slide * 28 + sweep * 18 + shoulder * 8,
+      h: PH - Math.max(down * 15, slide * 24, sweep * 20),
+      ox: act.facing * (slide * 9 + sweep * 7 + shoulder * 4),
+    };
+  }
+  function actorBox(act) {
+    const p = actorPosture(act);
+    return { x: act.x + p.ox - p.w / 2, y: act.y - p.h, w: p.w, h: p.h, posture: p };
+  }
+  function box() { return actorBox(player); }
+  function actorHeight(act) { return actorBox(act).h; }
+  function resolveActorSide(act, solid) {
+    const b = actorBox(act);
+    if (act.vx > 0) act.x += solid.x - (b.x + b.w);
+    else if (act.vx < 0) act.x += solid.x + solid.w - b.x;
+  }
   function hit(b, p) { return b.x < p.x + p.w && b.x + b.w > p.x && b.y < p.y + p.h && b.y + b.h > p.y; }
   function pointSegDist(px, py, ax, ay, bx, by) {
     const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1;
@@ -722,14 +756,19 @@ PUBLIC.start = function (root, api) {
   // body collision capsules (torso, head, two legs) for ANY actor — the basis for
   // coin pickup, enemy hits on the hero, and the hero's hits on enemy fighters.
   function actorCapsules(act) {
-    const S = act.cls.style, hov = (act.anim.fly || 0) * (S.hover || 0);
-    const baseY = act.y - hov, hip = { x: act.x, y: baseY - S.hipH };
-    const sh = { x: act.x + act.anim.lean * act.facing * 14, y: hip.y - 30 };
+    const S = act.cls.style, post = actorPosture(act), hov = (act.anim.fly || 0) * (S.hover || 0);
+    const baseY = act.y - hov, hip = { x: act.x - act.facing * post.slide * 7, y: baseY - S.hipH + post.drop };
+    const lean = (act.anim.lean || 0) + post.lean;
+    const upX = Math.sin(lean) * act.facing, upY = -Math.cos(lean);
+    const sh = { x: hip.x + upX * 30, y: hip.y + upY * 30 };
+    const legSpread = 9 + post.slide * 20 + post.sweep * 16;
+    const backLeg = -act.facing * (9 + post.slide * 30);
+    const frontLeg = act.facing * legSpread;
     return [
       { ax: sh.x, ay: sh.y, bx: hip.x, by: hip.y, r: 8 },
       { ax: sh.x, ay: sh.y - 16, bx: sh.x, by: sh.y - 16, r: 13 },
-      { ax: hip.x - act.facing * 4, ay: hip.y, bx: act.x - 9, by: baseY, r: 5 },
-      { ax: hip.x + act.facing * 4, ay: hip.y, bx: act.x + 9, by: baseY, r: 5 },
+      { ax: hip.x - act.facing * 4, ay: hip.y, bx: act.x + backLeg, by: baseY - post.slide * 2, r: 5 },
+      { ax: hip.x + act.facing * 4, ay: hip.y, bx: act.x + frontLeg, by: baseY - post.sweep * 5, r: 5 },
     ];
   }
   function bodyCapsules() { return actorCapsules(player); }
@@ -1011,13 +1050,42 @@ PUBLIC.start = function (root, api) {
     e.patrolMax = opts.max == null ? x + 120 : opts.max;
     e.brain = {
       dir: e.facing, atkCd: rand(300, 900), moveCd: rand(200, 700), stagger: 0, alert: 0, retreat: 0,
-      combo: 0, aggroRange: enemyAggro(clsId), tgt: null, pauseT: rand(0, 800),
+      jumpCd: rand(0, 300), combo: 0, aggroRange: enemyAggro(clsId), tgt: null, pauseT: rand(0, 800),
     };
     return e;
+  }
+  function surfaceYFor(act, x, maxDrop, maxRise) {
+    const L = levels[li], bottom = act.y + (maxDrop == null ? 120 : maxDrop), top = act.y - (maxRise == null ? 8 : maxRise);
+    let y = Infinity;
+    for (const p of L.platforms) if (x > p.x - 14 && x < p.x + p.w + 14 && p.y >= top && p.y <= bottom) y = Math.min(y, p.y);
+    for (const b of boxes) if (x > b.x - 14 && x < b.x + b.w + 14 && b.y >= top && b.y <= bottom) y = Math.min(y, b.y);
+    return y === Infinity ? null : y;
+  }
+  function solidProbe(r) {
+    const L = levels[li];
+    for (const p of L.platforms) if (hit(r, p)) return true;
+    for (const b of boxes) if (hit(r, b)) return true;
+    return false;
+  }
+  function fighterNavProbe(e, dir) {
+    const b = actorBox(e), cur = surfaceYFor(e, e.x, 64, 12);
+    const near = surfaceYFor(e, e.x + dir * 38, 82, 16);
+    const far = surfaceYFor(e, e.x + dir * 88, 136, 30);
+    const probe = { x: dir > 0 ? b.x + b.w : b.x - 7, y: b.y + 9, w: 7, h: Math.max(16, b.h - 18) };
+    return {
+      blocked: solidProbe(probe),
+      cur, near, far,
+      gap: cur !== null && near === null && far !== null && Math.abs(far - cur) < 62,
+      ledge: cur !== null && near === null && far === null,
+      stepUp: cur !== null && near !== null && near < cur - 12,
+      drop: cur !== null && near !== null && near > cur + 34,
+    };
   }
   // movement intent helpers (leashed so enemies don't wander off their platform)
   function pressToward(e, dir) {
     const it = e.intent, lo = e.patrolMin - 80, hi = e.patrolMax + 80;
+    const nav = e.grounded ? fighterNavProbe(e, dir) : null;
+    if (nav && nav.ledge) return;
     if (dir > 0 && e.x < hi) it.right = true; else if (dir < 0 && e.x > lo) it.left = true;
   }
   function patrolFighter(e) {                    // unaware: amble between patrol bounds with pauses
@@ -1026,13 +1094,30 @@ PUBLIC.start = function (root, api) {
     if (b.tgt == null || Math.abs(e.x - b.tgt) < 8) { b.tgt = rand(e.patrolMin, e.patrolMax); b.pauseT = rand(300, 1200); b.dir = b.tgt >= e.x ? 1 : -1; return; }
     pressToward(e, b.tgt > e.x ? 1 : -1);
   }
+  function planFighterMobility(e, n) {
+    const b = e.brain, it = e.intent, nav = n.nav;
+    if (e.cls.fly) {
+      it.jumpHeld = b.alert > 0 && (n.dy < 80 || n.adx < 260);
+      return;
+    }
+    if (e.grounded && b.jumpCd <= 0) {
+      const chaseUp = n.dy < -34 && n.adx < 230;
+      if (chaseUp || nav.blocked || nav.stepUp || nav.gap) {
+        it.jump = true;
+        b.jumpCd = nav.gap ? 520 : 360;
+      }
+    } else if (e.cls.id === 'rogue' && !e.rogueAirJump && b.jumpCd <= 0 && n.dy < -28 && n.adx < 210) {
+      it.jump = true;                            // Rogue enemy spends its double-jump to follow upward
+      b.jumpCd = 520;
+    }
+  }
   // per-class engagement: how each archetype fights. `n` = {adx, face, aim, dy}.
   const ENEMY_BRAINS = {
     knight(e, n) {                               // press in, trade blows, shield up close
       const b = e.brain;
       if (n.adx > 60) {
         pressToward(e, n.face);
-        if (n.adx < 150 && b.moveCd <= 0 && Math.random() < 0.4) { triggerMove(); b.moveCd = rand(1400, 2200); }
+        if ((n.adx < 165 || n.nav.blocked || n.nav.stepUp) && b.moveCd <= 0 && Math.random() < 0.55) { triggerMove(); b.moveCd = rand(1150, 1900); }
       } else if (b.atkCd <= 0) {
         const bash = n.adx < 42 || Math.random() < 0.25;
         triggerAttack(bash ? 'shieldBash' : 'slash', { aim: n.aim });
@@ -1045,9 +1130,10 @@ PUBLIC.start = function (root, api) {
       if (n.adx > 48) {
         pressToward(e, n.face);
         if (n.adx > 170 && e.knifeAmmo > 0 && b.atkCd <= 0) { triggerAttack('throw', { aim: n.aim }); b.atkCd = rand(560, 900); }
-        else if (n.adx < 150 && b.moveCd <= 0 && Math.random() < 0.5) { triggerMove(); b.moveCd = rand(1100, 1700); }
+        else if (n.adx < 175 && b.moveCd <= 0 && Math.random() < 0.72) { triggerMove(); b.moveCd = rand(760, 1280); }
       } else if (b.atkCd <= 0) {
-        const type = (b.combo % 3 === 2) ? 'rogueStab' : 'dualSlash';
+        const type = (b.combo % 4 === 3 || n.dy > 16 && Math.random() < 0.35) ? 'legSweep' : (b.combo % 3 === 2) ? 'rogueStab' : 'dualSlash';
+        e.intent.down = type === 'legSweep';
         triggerAttack(type, { aim: n.aim });
         b.combo++; b.atkCd = rand(230, 360);
         if (b.combo % 3 === 0) b.retreat = rand(420, 720);
@@ -1057,7 +1143,7 @@ PUBLIC.start = function (root, api) {
       const b = e.brain;
       if (n.adx > 104) {
         pressToward(e, n.face);
-        if (n.adx < 230 && b.moveCd <= 0 && Math.random() < 0.35) { triggerAttack('lanceCharge', { aim: n.aim }); b.atkCd = 1000; b.moveCd = rand(1800, 2600); }
+        if (n.adx < 260 && b.moveCd <= 0 && Math.random() < 0.46) { triggerAttack('lanceCharge', { aim: n.aim }); b.atkCd = 1000; b.moveCd = rand(1450, 2300); }
       } else if (n.adx < 58) { pressToward(e, -n.face); }   // too close — back to range
       else if (b.atkCd <= 0) { triggerAttack('braceThrust', { aim: n.aim }); b.atkCd = rand(900, 1300); }
     },
@@ -1074,7 +1160,7 @@ PUBLIC.start = function (root, api) {
     },
     ranger(e, n) {                               // skirmisher: keep range, arrow/volley, backstep when crowded
       const b = e.brain;
-      if (n.adx < 170) { pressToward(e, -n.face); if (n.adx < 120 && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(900, 1500); } }
+      if (n.adx < 170) { pressToward(e, -n.face); if ((n.adx < 130 || n.nav.blocked) && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(760, 1300); } }
       else if (n.adx > 300) pressToward(e, n.face);
       if (b.atkCd <= 0) {
         const t = (n.adx < 250 && Math.random() < 0.3) ? 'volley' : 'arrow';
@@ -1086,6 +1172,7 @@ PUBLIC.start = function (root, api) {
   function thinkFighter(e, dt) {                 // sets intent + triggers abilities (player === e)
     const b = e.brain, it = e.intent;
     b.atkCd = Math.max(0, b.atkCd - dt); b.moveCd = Math.max(0, b.moveCd - dt);
+    b.jumpCd = Math.max(0, b.jumpCd - dt);
     b.stagger = Math.max(0, b.stagger - dt); b.alert = Math.max(0, b.alert - dt); b.retreat = Math.max(0, b.retreat - dt);
     it.left = it.right = it.down = it.jumpHeld = it.jump = false;
     if (b.stagger > 0) return;                   // reeling from a hit — drop guard, no input
@@ -1097,8 +1184,9 @@ PUBLIC.start = function (root, api) {
     e.anim.aimTarget = Math.atan2((hero.y - 44) - (e.y - 77), hero.x - e.x);
     if (b.alert <= 0) { patrolFighter(e); return; }
     if (atkLocked) return;                        // committed to a swing — let it finish
-    if (!e.cls.fly && e.grounded && dy < -46 && adx < 130) it.jump = true;   // hop up to the hero
-    (ENEMY_BRAINS[e.cls.id] || ENEMY_BRAINS.knight)(e, { dx, adx, dy, face, aim: e.anim.aimTarget });
+    const nav = fighterNavProbe(e, face);
+    planFighterMobility(e, { dx, adx, dy, face, aim: e.anim.aimTarget, nav });
+    (ENEMY_BRAINS[e.cls.id] || ENEMY_BRAINS.knight)(e, { dx, adx, dy, face, aim: e.anim.aimTarget, nav });
   }
   // trimmed locomotion/collision for an AI actor (player === e during this call)
   function stepActor(dtStep) {
@@ -1109,6 +1197,7 @@ PUBLIC.start = function (root, api) {
     else if (it.right && !it.left) { p.vx += acc; p.facing = 1; }
     else if (p.grounded) p.vx *= FRICTION;
     updateClassMove();
+    updateRogueFlip();
     updateAttackMotion();
     p.vx = clamp(p.vx, -maxV(), maxV());
     if (p.invuln > 0) p.invuln = Math.max(0, p.invuln - dtStep);
@@ -1120,15 +1209,29 @@ PUBLIC.start = function (root, api) {
       else p.vy += clamp((-0.12 - p.vy) * 0.055, -0.24, 0.18);
       p.vy = clamp(p.vy, -4.2, 3.4);
     } else {
-      if (it.jump && (p.grounded || p.coyote > 0)) { p.vy = JUMP; p.grounded = false; p.coyote = 0; p.anim.squash = -0.5; }
+      if (it.jump && cls.id === 'rogue' && !p.grounded && p.coyote <= 0 && !p.rogueAirJump) {
+        p.rogueAirJump = true;
+        p.vy = JUMP * 0.78;
+        p.vx += p.facing * 1.45;
+        p.flip = { active: true, t: 0, dur: 520, dir: p.facing };
+        p.anim.squash = -0.35;
+        burst(p.x, p.y - 34, cls.color, 8, 2.2);
+      } else if (it.jump && (p.grounded || p.coyote > 0)) {
+        p.vy = JUMP; p.grounded = false; p.coyote = 0; p.jumpCut = false; p.anim.squash = -0.5;
+      }
       p.vy = Math.min(p.vy + GRA * g, TERMINAL * g);
     }
     p.x += p.vx;
-    for (const pl of L.platforms) if (hit(box(), pl)) { if (mageHoverStepOver(pl)) continue; if (p.vx > 0) p.x = pl.x - PW / 2; else if (p.vx < 0) p.x = pl.x + pl.w + PW / 2; p.vx = 0; }
-    for (const bx of boxes) if (hit(box(), bx)) { if (mageHoverStepOver(bx)) continue; if (p.vx > 0) { bx.x = p.x + PW / 2; bx.vx = Math.max(bx.vx, (p.vx * 0.85 + 0.6) / bx.m); p.vx *= 0.5; } else if (p.vx < 0) { bx.x = p.x - PW / 2 - bx.w; bx.vx = Math.min(bx.vx, (p.vx * 0.85 - 0.6) / bx.m); p.vx *= 0.5; } }
+    for (const pl of L.platforms) if (hit(box(), pl)) { if (mageHoverStepOver(pl)) continue; resolveActorSide(p, pl); p.vx = 0; }
+    for (const bx of boxes) if (hit(box(), bx)) {
+      if (mageHoverStepOver(bx)) continue;
+      const b = box();
+      if (p.vx > 0) { bx.x = b.x + b.w; bx.vx = Math.max(bx.vx, (p.vx * 0.85 + 0.6) / bx.m); p.vx *= 0.5; }
+      else if (p.vx < 0) { bx.x = b.x - bx.w; bx.vx = Math.min(bx.vx, (p.vx * 0.85 - 0.6) / bx.m); p.vx *= 0.5; }
+    }
     p.y += p.vy; p.grounded = false;
-    for (const pl of L.platforms) if (hit(box(), pl)) { if (p.vy > 0) { p.y = pl.y; p.grounded = true; } else if (p.vy < 0) p.y = pl.y + pl.h + PH; if (p.vy > 6) p.anim.squash = clamp(p.vy / TERMINAL, 0, 1) * 0.9; p.vy = 0; }
-    for (const bx of boxes) if (hit(box(), bx)) { if (p.vy > 0 && (p.y - p.vy) <= bx.y + 8) { p.y = bx.y; p.grounded = true; p.vy = 0; } else if (p.vy < 0 && (p.y - PH - p.vy) >= bx.y + bx.h - 8) { p.y = bx.y + bx.h + PH; p.vy = 0; bx.vy += 1; } }
+    for (const pl of L.platforms) if (hit(box(), pl)) { if (p.vy > 0) { p.y = pl.y; p.grounded = true; } else if (p.vy < 0) p.y = pl.y + pl.h + actorHeight(p); if (p.vy > 6) p.anim.squash = clamp(p.vy / TERMINAL, 0, 1) * 0.9; p.vy = 0; }
+    for (const bx of boxes) if (hit(box(), bx)) { if (p.vy > 0 && (p.y - p.vy) <= bx.y + 8) { p.y = bx.y; p.grounded = true; p.vy = 0; } else if (p.vy < 0 && (p.y - actorHeight(p) - p.vy) >= bx.y + bx.h - 8) { p.y = bx.y + bx.h + actorHeight(p); p.vy = 0; bx.vy += 1; } }
     if (cls.fly && mageHovering()) { const surface = mageHoverSurface(); if (surface !== null) { const ty = surface - MAGE_HOVER_HEIGHT; if (p.y > ty) { p.y = lerp(p.y, ty, 0.55); p.vy = Math.min(p.vy, 0); } p.grounded = false; p.coyote = COYOTE; } }
     if (p.grounded) { p.coyote = COYOTE; p.airTime = 0; if (p.flip && p.flip.active) p.flip = { active: false, t: 0, dur: 0, dir: p.facing }; }
     else { if (p.coyote > 0) p.coyote--; p.airTime++; }
@@ -1283,6 +1386,7 @@ PUBLIC.start = function (root, api) {
     if (activeMove('slide')) m = Math.max(m, 8.0);
     if (activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
+    if (player && actorPosture(player).down > 0) m *= 0.45;
     if (lancerAttackLocked()) m = Math.min(m, 1.15);
     return m;
   }
@@ -1297,8 +1401,9 @@ PUBLIC.start = function (root, api) {
       player.vy = Math.min(player.vy, 1.5);
       if (!m.struck && t > 0.32) {
         m.struck = true;
-        hitBoxesSegment(player.x + player.facing * 4, player.y - 8, player.x + player.facing * 58, player.y - 8, player.facing, -0.35, 14, 11);
-        burst(player.x + player.facing * 30, player.y - 10, cls.color, 10, 3);
+        const b = actorBox(player), y = b.y + b.h - 10;
+        hitBoxesSegment(player.x + player.facing * 8, y, player.x + player.facing * 66, y - 2, player.facing, -0.35, 14, 12);
+        burst(player.x + player.facing * 30, y, cls.color, 10, 3);
       }
     } else if (m.type === 'shieldStep') {
       player.vx = player.facing * (3.4 + bell * 2.6);
@@ -1400,27 +1505,28 @@ PUBLIC.start = function (root, api) {
     player.x += player.vx;
     for (const p of L.platforms) if (hit(box(), p)) {
       if (mageHoverStepOver(p)) continue;
-      if (player.vx > 0) player.x = p.x - PW / 2; else if (player.vx < 0) player.x = p.x + p.w + PW / 2;
+      resolveActorSide(player, p);
       player.vx = 0;
     }
     for (const b of boxes) if (hit(box(), b)) {           // shove crates sideways (heavier = harder)
       if (mageHoverStepOver(b)) continue;
       const sturdy = cls.tank || activeMove('brace') || activeMove('shoulder') || activeMove('shieldStep');
       const shove = sturdy ? 1.35 : 0.85, loss = sturdy ? 0.78 : 0.5;
-      if (player.vx > 0) { b.x = player.x + PW / 2; b.vx = Math.max(b.vx, (player.vx * shove + 0.6) / b.m); player.vx *= loss; b.va += sturdy ? 0.025 : 0.012; }
-      else if (player.vx < 0) { b.x = player.x - PW / 2 - b.w; b.vx = Math.min(b.vx, (player.vx * shove - 0.6) / b.m); player.vx *= loss; b.va -= sturdy ? 0.025 : 0.012; }
+      const pb = box();
+      if (player.vx > 0) { b.x = pb.x + pb.w; b.vx = Math.max(b.vx, (player.vx * shove + 0.6) / b.m); player.vx *= loss; b.va += sturdy ? 0.025 : 0.012; }
+      else if (player.vx < 0) { b.x = pb.x - b.w; b.vx = Math.min(b.vx, (player.vx * shove - 0.6) / b.m); player.vx *= loss; b.va -= sturdy ? 0.025 : 0.012; }
     }
     player.y += player.vy;
     player.grounded = false;
     for (const p of L.platforms) if (hit(box(), p)) {
       if (player.vy > 0) { player.y = p.y; player.grounded = true; }
-      else if (player.vy < 0) player.y = p.y + p.h + PH;
+      else if (player.vy < 0) player.y = p.y + p.h + actorHeight(player);
       if (player.vy > 6) player.anim.squash = clamp(player.vy / TERMINAL, 0, 1) * 0.9; // squash on impact
       player.vy = 0;
     }
     for (const b of boxes) if (hit(box(), b)) {           // stand on / bonk crates
       if (player.vy > 0 && (player.y - player.vy) <= b.y + 8) { player.y = b.y; player.grounded = true; player.vy = 0; }
-      else if (player.vy < 0 && (player.y - PH - player.vy) >= b.y + b.h - 8) { player.y = b.y + b.h + PH; player.vy = 0; b.vy += 1; }
+      else if (player.vy < 0 && (player.y - actorHeight(player) - player.vy) >= b.y + b.h - 8) { player.y = b.y + b.h + actorHeight(player); player.vy = 0; b.vy += 1; }
     }
     if (cls.fly && mageHovering()) {
       const surface = mageHoverSurface();
@@ -1572,7 +1678,10 @@ PUBLIC.start = function (root, api) {
   function meleeSegment(type, ang, t) {
     if (t == null) t = strikePoint(type);
     const f = player.facing, root = meleeRoot(type, t), shX = root.shX, shY = root.shY, baseY = root.baseY;
-    if (type === 'legSweep') return { ax: player.x + f * 2, ay: baseY - 10, bx: player.x + f * 64, by: baseY - 7, dx: f, dy: -0.35, force: 18, r: 10 };
+    if (type === 'legSweep') {
+      const b = actorBox(player), y = b.y + b.h - 10;
+      return { ax: player.x + f * 4, ay: y, bx: player.x + f * 74, by: y - 4, dx: f, dy: -0.35, force: 18, r: 12 };
+    }
     if (type === 'shieldBash') return { ax: shX + f * 28, ay: shY + 2, bx: shX + f * 34, by: shY + 34, dx: f, dy: -0.1, force: 21, r: 15 };
     if (type === 'crush') return { ax: shX + f * 18, ay: shY - 8, bx: shX + f * 58, by: baseY - 12, dx: f * 0.55, dy: 0.9, force: 30, r: 18 };
     if (type === 'staffSweep') {
@@ -2091,6 +2200,7 @@ PUBLIC.start = function (root, api) {
     const flipActive = player.flip && player.flip.active;
     const flipT = flipActive ? clamp(player.flip.t, 0, 1) : 0;
     const flipCurl = flipActive ? Math.sin(flipT * Math.PI) : 0;
+    const flipTuck = flipActive ? ease(Math.min(1, flipCurl * 1.35)) : 0;
     const flipLead = flipActive ? Math.sin(flipT * Math.PI * 2) : 0;
     const now = performance.now();
     // metrics — body proportions are shared; STANCE & motion come from the class style
@@ -2099,6 +2209,7 @@ PUBLIC.start = function (root, api) {
     const thigh = 24, shin = 24, uArm = 18, fArm = 16, armLen = uArm + fArm;
     const strideH = S.strideH, lift = S.lift, armStride = S.armStride, bounceAmp = S.bounceAmp, sway = 2, stanceW = S.stanceW;
     const guardReach = armLen * 0.6;            // bent-elbow "on guard" hold
+    const posture = actorPosture(player);
 
     const idleAmt = (1 - moveAmt) * (1 - air);
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));   // downward compression
@@ -2116,6 +2227,10 @@ PUBLIC.start = function (root, api) {
     if (moveType === 'slide') { postureLean -= f * 0.72; guardCrouch = 30 * Math.sin(moveT * Math.PI); }
     else if (moveType === 'shoulder' || moveType === 'shieldStep' || moveType === 'brace') postureLean += f * 0.16 * Math.sin(moveT * Math.PI);
     else if (moveType === 'airDash') postureLean += f * 0.22;
+    if (posture.down > 0 || posture.sweep > 0) {
+      postureLean += posture.lean;
+      guardCrouch = Math.max(guardCrouch, posture.drop);
+    }
     if (flipActive) {
       postureLean += player.flip.dir * (Math.PI * 1.55 * ease(flipT) + 0.36 * flipLead);
       guardCrouch -= 19 * flipCurl;
@@ -2191,20 +2306,25 @@ PUBLIC.start = function (root, api) {
         foot.x = lerp(foot.x, -f * (18 + flyDrive * 14 + legSign * 3) + legSign * (4 + flyDrive * 5), fly);
         foot.y = lerp(foot.y, -7 - liftDrive * 5 + legSign * 5 + Math.sin(now * 0.006 + legSign) * 2, fly);
       }
-      if (moveType === 'slide') {
+      if (a.atkActive && a.atkType === 'legSweep') {
+        const frontLeg = legSign === -1;
+        const sweep = Math.sin(Math.min(1, a.atkT) * Math.PI);
+        foot.x = frontLeg ? f * (24 + 42 * sweep) : -f * (12 + 8 * sweep);
+        foot.y = frontLeg ? -1 : -14;
+      } else if (moveType === 'slide') {
         const frontLeg = legSign === -1;
         const slide = Math.sin(moveT * Math.PI);
         foot.x = frontLeg ? f * (50 + 16 * slide) : -f * (30 + 10 * slide);
         foot.y = frontLeg ? 1 : -20;
-      } else if (a.atkActive && a.atkType === 'legSweep') {
-        const frontLeg = legSign === -1;
-        const sweep = Math.sin(Math.min(1, a.atkT) * Math.PI);
-        foot.x = frontLeg ? f * (18 + 30 * sweep) : -f * 10;
-        foot.y = frontLeg ? -2 : -8;
       } else if (flipActive) {
-        const kick = Math.sin((flipT + (legSign > 0 ? 0.10 : -0.06)) * Math.PI * 2);
-        foot.x = lerp(foot.x, -player.flip.dir * (8 + flipCurl * 10) + legSign * (6 - flipCurl * 6) + kick * 3, flipCurl);
-        foot.y = lerp(foot.y, -32 + legSign * 3 + flipCurl * 7, flipCurl);
+        const kick = Math.sin((flipT + (legSign > 0 ? 0.12 : -0.08)) * Math.PI * 2);
+        const cross = Math.sin((flipT + (legSign > 0 ? 0.20 : -0.16)) * Math.PI * 2);
+        foot.x = lerp(foot.x, -player.flip.dir * (2 + flipLead * 5) + legSign * 4 + cross * 2.5, flipTuck);
+        foot.y = lerp(foot.y, hipY + 8 + legSign * 3 + Math.abs(kick) * 2, flipTuck);
+      } else if (posture.down > 0) {
+        const frontLeg = legSign === -1;
+        foot.x = lerp(foot.x, frontLeg ? f * 13 : -f * 11, posture.down);
+        foot.y = lerp(foot.y, frontLeg ? -1 : -6, posture.down);
       } else if (a._clip) {
         // clip weight-shift: plant the front foot & push off the back heel
         const c = a._clip, frontLeg = legSign === -1, wt = c.weight;
@@ -2231,6 +2351,12 @@ PUBLIC.start = function (root, api) {
         const slide = Math.sin(moveT * Math.PI);
         hand.x = lerp(hand.x, shX + f * (front ? 32 : -18), slide);
         hand.y = lerp(hand.y, shY + (front ? 18 : 24), slide);
+      }
+      if (posture.down > 0 || posture.sweep > 0) {
+        const duck = Math.max(posture.down, posture.sweep);
+        const front = theta === p;
+        hand.x = lerp(hand.x, shX + f * (front ? 18 : -12), duck);
+        hand.y = lerp(hand.y, shY + (front ? 22 : 26), duck);
       }
       if (flipActive) {
         const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
@@ -2295,7 +2421,10 @@ PUBLIC.start = function (root, api) {
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
     let lt = legFoot(p + Math.PI, +1);
-    let k = ik(hipBX, hipY, hipBX + lt.x, lt.y, thigh, shin, -f, 0.6);
+    const flipLegScale = flipActive ? lerp(1, 0.78, flipTuck) : 1;
+    const farBend = flipActive ? player.flip.dir : -f;
+    const nearBend = flipActive ? -player.flip.dir : -f;
+    let k = ik(hipBX, hipY, hipBX + lt.x, lt.y, thigh * flipLegScale, shin * flipLegScale, farBend, flipActive ? 1 : 0.6);
     seg(hipBX, hipY, k.jx, k.jy, k.ex, k.ey, 7);
 
     // ----- torso + head -----
@@ -2306,7 +2435,7 @@ PUBLIC.start = function (root, api) {
 
     // ----- near leg -----
     lt = legFoot(p, -1);
-    k = ik(hipFX, hipY, hipFX + lt.x, lt.y, thigh, shin, -f, 0.6);
+    k = ik(hipFX, hipY, hipFX + lt.x, lt.y, thigh * flipLegScale, shin * flipLegScale, nearBend, flipActive ? 1 : 0.6);
     seg(hipFX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
     // ----- weapon arm: ARTICULATED chain driven by joint angles -----
@@ -2357,6 +2486,8 @@ PUBLIC.start = function (root, api) {
           ? { x: shX - player.flip.dir * (5 + flipCurl * 7), y: shY + 18 + flipCurl * 4 }
           : moveType === 'slide'
             ? { x: shX + f * 34, y: shY + 20 }
+            : posture.down > 0 || posture.sweep > 0
+              ? { x: shX + f * 18, y: shY + 27 }
             : { x: shX + f * 16, y: shY + 22 };
       } else if (cls.weapon === 'sword') {
         drawAim = f > 0 ? -0.20 : Math.PI + 0.20;
@@ -2723,6 +2854,7 @@ PUBLIC.start = function (root, api) {
         return meleeSegment(type || cls.main, player.anim.atkAim || (player.facing > 0 ? 0 : Math.PI), t == null ? strikePoint(type || cls.main) : t);
       },
       bodyCapsules() { return player ? bodyCapsules() : []; },
+      playerBox() { return player ? actorBox(player) : null; },
       debugSegments() { return debug.segments.slice(); },
       get player() { return player; },
       get dummies() { return dummies; },
