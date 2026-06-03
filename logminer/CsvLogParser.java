@@ -49,7 +49,7 @@ public final class CsvLogParser {
         String rawAction = parts[2];
         LogRecord.Action action;
         try {
-            action = LogRecord.Action.valueOf(rawAction.toUpperCase());
+            action = LogRecord.Action.valueOf(rawAction.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new LogParseException("unknown action: " + rawAction);
         }

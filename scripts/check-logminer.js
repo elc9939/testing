@@ -75,7 +75,15 @@ function smokeTest() {
   ].join('\n');
 
   fs.writeFileSync(path.join(inputDir, 'events.csv'), `\uFEFF${csv}`, 'utf8');
-  run('java', ['logminer.Main', '--input', inputDir, '--output', outputDir, '--threads', '2', '--topUsers', '2']);
+  run('java', [
+    '-Duser.language=tr',
+    '-Duser.country=TR',
+    'logminer.Main',
+    '--input', inputDir,
+    '--output', outputDir,
+    '--threads', '2',
+    '--topUsers', '2',
+  ]);
 
   const summary = JSON.parse(fs.readFileSync(path.join(outputDir, 'summary.json'), 'utf8'));
   assertEqual(summary.totals.validEvents, 4, 'validEvents');
