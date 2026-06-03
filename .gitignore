@@ -4,6 +4,7 @@
 
 # Build output
 _site/
+*.class
 
 # OS / editor cruft
 .DS_Store

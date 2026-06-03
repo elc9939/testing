@@ -5,9 +5,6 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * The core application logic for LogMiner.
  * Orchestrates concurrent file processing and output generation.
@@ -18,8 +15,6 @@ import org.slf4j.LoggerFactory;
  *   - Proper resource cleanup with try-with-resources.
  */
 public final class LogMinerApp {
-    private static final Logger log = LoggerFactory.getLogger(LogMinerApp.class);
-
     public int run(String[] args) {
         // --- SECTION 1: CLI PARSING ---
         CliConfig config;
@@ -93,7 +88,8 @@ public final class LogMinerApp {
                     pool.shutdownNow();
                     return 3;
                 } catch (ExecutionException e) {
-                    log.error("Task failed", e.getCause());
+                    Throwable cause = e.getCause();
+                    System.err.println("Task failed: " + (cause == null ? e.getMessage() : cause.getMessage()));
                     pool.shutdownNow();
                     return 3;
                 }

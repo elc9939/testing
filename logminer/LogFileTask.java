@@ -56,7 +56,7 @@ public final class LogFileTask implements Callable<FileTaskResult> {
         try (BufferedReader reader = Files.newBufferedReader(file, UTF_8)) {
             String header = reader.readLine();
             linesRead++;
-            if (header == null || !header.trim().equals(CsvLogParser.REQUIRED_HEADER)) {
+            if (header == null || !normalizeHeader(header).equals(CsvLogParser.REQUIRED_HEADER)) {
                 throw new IOException("Bad header in " + file.getFileName());
             }
             String line;
@@ -73,5 +73,13 @@ public final class LogFileTask implements Callable<FileTaskResult> {
             }
         }
         return new FileTaskResult(file.getFileName().toString(), linesRead, invalid);
+    }
+
+    private static String normalizeHeader(String header) {
+        String trimmed = header.trim();
+        if (!trimmed.isEmpty() && trimmed.charAt(0) == '\uFEFF') {
+            return trimmed.substring(1);
+        }
+        return trimmed;
     }
 }
