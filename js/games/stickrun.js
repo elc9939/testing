@@ -20,6 +20,8 @@ const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
 const ROGUE_MAX_KNIVES = 5, ROGUE_REGEN = 1550;
+const RANGER_MAX_ARROWS = 7, RANGER_REGEN = 1350, RANGER_DRAW_MAX = 900;
+const KNIGHT_SHIELD_TIME = 1250;
 const MAGE_HOVER_HEIGHT = 42;
 const MAGE_HOVER_STEP = 92;
 
@@ -29,8 +31,8 @@ const MAGE_HOVER_STEP = 92;
 // the swing/cast trail; dur: per-move animation lengths (ms); ranged: casts bolts.
 const CLASSES = [
   { id: 'knight', name: 'Knight', emoji: '🗡️', color: '#5ea0ff', blurb: 'Heavy, grounded blade.',
-    weapon: 'sword', offhand: 'shield', main: 'slash', alt: 'shieldBash', move: 'shieldStep',
-    reach: 1.0, speedMul: 0.98, trail: [120, 170, 255], dur: { slash: 380, shieldBash: 260 }, moveDur: { shieldStep: 320 },
+    weapon: 'sword', offhand: 'shield', main: 'slash', alt: 'shieldGuard', move: 'shieldStep',
+    reach: 1.0, speedMul: 0.98, trail: [120, 170, 255], dur: { slash: 380, shieldBash: 260, shieldGuard: 420 }, moveDur: { shieldStep: 320 },
     // armored duelist: grounded sword stance with a shield-side weight shift
     style: { hipH: 44, stanceW: 10, strideH: 12, lift: 9, bounceAmp: 4.4, cadence: 0.72, armStride: 8, baseLean: 0.01, squash: 1.25,
       breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
@@ -42,7 +44,7 @@ const CLASSES = [
       breatheAmp: 1.1, breatheSpd: 0.0034, hover: 0, idle: 'sneak', spring: { lean: [150, 9], head: [120, 9], aim: [170, 12] } } },
   { id: 'lancer', name: 'Lancer', emoji: '🔱', color: '#ffd45e', blurb: 'Disciplined spear reach.',
     weapon: 'lance', main: 'braceThrust', alt: 'lanceCharge', move: 'brace',
-    reach: 1.18, speedMul: 0.82, trail: [255, 212, 94], dur: { braceThrust: 520, lanceCharge: 640 }, moveDur: { brace: 620 }, tank: true,
+    reach: 1.18, speedMul: 0.82, trail: [255, 212, 94], dur: { braceThrust: 520, lanceCharge: 1080 }, moveDur: { brace: 620 }, tank: true,
     // tall & tanky: rooted feet, small bounce, hands braced around the lance
     style: { hipH: 47, stanceW: 13, strideH: 13, lift: 6, bounceAmp: 0.8, cadence: 0.74, armStride: 4, baseLean: 0.02, squash: 0.75,
       breatheAmp: 0.75, breatheSpd: 0.0013, hover: 0, idle: 'lance', spring: { lean: [85, 24], head: [75, 24], aim: [110, 25] } } },
@@ -78,15 +80,17 @@ const ATTACK_TIMELINES = {
     sweep: [-0.07, 0.00, 0.07] },
   legSweep: { kind: 'melee', strike: 0.38, hitstop: 17, impulse: 4.2, tags: ['low', 'control'] },
   shieldBash: { kind: 'melee', strike: 0.38, hitstop: 24, impulse: 6.5, tags: ['guard', 'bash'] },
+  shieldGuard: { kind: 'guard', strike: 0.08, hitstop: 0, impulse: 0, tags: ['guard', 'block'],
+    phases: { anticipation: [0.00, 0.18], active: [0.18, 0.88], recovery: [0.88, 1.00] } },
   lanceSwing: { kind: 'melee', strike: 0.50, hitstop: 34, impulse: 6.8, tags: ['reach', 'heavy', 'swing'],
     phases: { anticipation: [0.00, 0.34], active: [0.40, 0.68], recovery: [0.68, 1.00] },
     sweep: [-0.18, -0.08, 0.00, 0.08, 0.16] },
   braceThrust: { kind: 'melee', strike: 0.54, hitstop: 34, impulse: 10.5, tags: ['reach', 'heavy', 'stab'],
     phases: { anticipation: [0.00, 0.40], active: [0.48, 0.70], recovery: [0.70, 1.00] },
     sweep: [-0.06, -0.02, 0.00, 0.05] },
-  lanceCharge: { kind: 'melee', strike: 0.54, hitstop: 34, impulse: 9.0, tags: ['reach', 'heavy', 'stab', 'charge'],
-    phases: { anticipation: [0.00, 0.26], active: [0.28, 0.76], recovery: [0.76, 1.00] },
-    sweep: [-0.04, 0.00, 0.04, 0.10] },
+  lanceCharge: { kind: 'melee', strike: 0.42, hitstop: 38, impulse: 9.0, tags: ['reach', 'heavy', 'stab', 'charge'],
+    phases: { anticipation: [0.00, 0.20], active: [0.22, 0.88], recovery: [0.88, 1.00] },
+    sweep: [-0.08, -0.02, 0.00, 0.06, 0.14, 0.24, 0.34] },
   crush: { kind: 'melee', strike: 0.50, hitstop: 42, impulse: 5.0, tags: ['heavy', 'impact'] },
   staffSweep: { kind: 'melee', strike: 0.50, hitstop: 26, impulse: 5.5, tags: ['staff', 'arc'] },
   vaultKick: { kind: 'melee', strike: 0.50, hitstop: 24, impulse: 7.0, tags: ['air', 'kick'] },
@@ -96,7 +100,7 @@ const ATTACK_TIMELINES = {
     phases: { anticipation: [0.00, 0.16], active: [0.21, 0.30], recovery: [0.30, 1.00] } },
   volley: { kind: 'projectile', strike: 0.32, hitstop: 0, impulse: 0, tags: ['projectile', 'burst'] },
   cast: { kind: 'projectile', strike: 0.38, hitstop: 0, impulse: 0, tags: ['magic'] },
-  arcaneBloom: { kind: 'projectile', strike: 0.48, hitstop: 0, impulse: 0, tags: ['magic', 'area'] },
+  arcaneBloom: { kind: 'projectile', strike: 0.42, hitstop: 0, impulse: 0, tags: ['magic', 'gravity', 'area'] },
   quake: { kind: 'area', strike: 0.48, hitstop: 46, impulse: 0, tags: ['area', 'heavy'] },
 };
 const DEFAULT_MOTION = {
@@ -251,7 +255,7 @@ PUBLIC.start = function (root, api) {
   hud.style.textShadow = '0 1px 2px rgba(255,255,255,.6)';
   hud.innerHTML = `<span>LVL <b id="sr-lvl">1</b>/<b id="sr-lvls">3</b></span>
     <span>🪙 <b id="sr-coins" style="color:#b8860b">0</b></span>
-    <span id="sr-ammo" style="display:none">🔪 <b id="sr-knives">0</b></span>
+    <span id="sr-ammo" style="display:none"><span id="sr-ammo-icon">🔪</span> <b id="sr-knives">0</b></span>
     <span>⏱ <b id="sr-time">0.0</b></span>`;
   root.appendChild(hud);
 
@@ -312,9 +316,35 @@ PUBLIC.start = function (root, api) {
     const ty = pointer.active ? pointer.y + cam.y : shY;
     return Math.atan2(ty - shY, tx - shX);
   }
+  function isRangerShot(type) {
+    return type === 'arrow' || type === 'volley';
+  }
+  function rangerAmmoCost(type) {
+    return type === 'volley' ? 3 : 1;
+  }
+  function rangerDrawPower(act) {
+    return clamp(((act && act.draw && act.draw.t) || 0) / RANGER_DRAW_MAX, 0, 1);
+  }
+  function startRangerDraw(type) {
+    if (!player || state !== 'playing' || cls.id !== 'ranger' || !isRangerShot(type)) return false;
+    if (player.anim.atkActive || player.draw.active) return false;
+    if (player.arrowAmmo < rangerAmmoCost(type)) return false;
+    player.draw = { active: true, type, t: 0, aim: aimedAngle() };
+    player.anim.aimShown = player.draw.aim; player.anim.aimShownV = 0;
+    player.facing = Math.cos(player.draw.aim) >= 0 ? 1 : -1;
+    return true;
+  }
+  function releaseRangerDraw() {
+    if (!player || cls.id !== 'ranger' || !player.draw.active) return false;
+    const d = player.draw;
+    const power = 0.48 + rangerDrawPower(player) * 0.92;
+    player.draw = { active: false, type: null, t: 0, aim: d.aim };
+    return triggerAttack(d.type || 'arrow', { aim: d.aim, drawPower: power, fromDraw: true });
+  }
   function triggerAttack(type, opts) {
     if (!player || state !== 'playing' || !type) return false;
     const a = player.anim;
+    if (player.draw && player.draw.active && !(opts && opts.fromDraw)) return false;
     if (a.atkActive) return false;           // one swing at a time
     if (cls.id === 'rogue' && type === 'legSweep') {
       if (player.move && player.move.active && player.move.type === 'slide') {
@@ -327,6 +357,13 @@ PUBLIC.start = function (root, api) {
       if (player.knifeAmmo <= 0) return false;
       player.knifeAmmo--;
       player.knifeRegen = 0;
+      syncHud();
+    }
+    if (cls.id === 'ranger' && isRangerShot(type)) {
+      const cost = rangerAmmoCost(type);
+      if (player.arrowAmmo < cost) return false;
+      player.arrowAmmo -= cost;
+      player.arrowRegen = 0;
       syncHud();
     }
     if (opts && opts.aim != null) {
@@ -355,6 +392,7 @@ PUBLIC.start = function (root, api) {
     a.action = startAttackAction(type);
     a.atkActive = true; a.atkType = type; a.atkT = 0; a.atkDur = a.action.dur; a.atkPhase = 'anticipation'; a.struck = false;
     a.struck2 = false;
+    a.drawPower = opts && opts.drawPower != null ? opts.drawPower : (cls.id === 'ranger' && isRangerShot(type) ? 0.82 : 1);
     a.atkVar = (Math.random() * 64) | 0;     // vary the swing so motions aren't identical
     if (isLancerAttack(type)) player.vx *= 0.18;
     // rogue dual-wield: one tap = one hand, alternating each strike
@@ -400,16 +438,31 @@ PUBLIC.start = function (root, api) {
     return i === 2 || i === 4 ? 'rogueStab' : 'dualSlash';
   }
   function mainAttack() {
+    if (cls.id === 'ranger') return startRangerDraw('arrow');
     const type = cls.id === 'rogue' ? rogueMainAttackType() : cls.main;
     const ok = triggerAttack(type);
     if (ok && cls.id === 'rogue' && type !== 'legSweep') player.anim.rogueComboNext = ((player.anim.rogueComboNext || 0) + 1) % 5;
     return ok;
   }
-  const altAttack = () => triggerAttack(cls.alt);
+  function altAttack() {
+    if (cls.id === 'ranger') return startRangerDraw(cls.alt || 'volley');
+    return triggerAttack(cls.alt);
+  }
+  function releaseMainAttack() {
+    if (cls.id === 'ranger') return releaseRangerDraw();
+    return false;
+  }
+  function releaseAltAttack() {
+    if (cls.id === 'ranger') return releaseRangerDraw();
+    return false;
+  }
   api.on(view.canvas, 'mousemove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
   api.on(view.canvas, 'mousedown', e => {
     pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; e.preventDefault();
     if (e.button === 2) altAttack(); else mainAttack();
+  });
+  api.on(window, 'mouseup', e => {
+    if (e.button === 2) releaseAltAttack(); else releaseMainAttack();
   });
   api.on(view.canvas, 'contextmenu', e => e.preventDefault());
 
@@ -431,6 +484,8 @@ PUBLIC.start = function (root, api) {
     else if (k === 'arrowright' || k === 'd') input.right = false;
     else if (k === 'arrowdown' || k === 's') input.down = false;
     else if (k === 'arrowup' || k === 'w' || k === ' ') press(false);
+    else if (k === 'j') releaseMainAttack();
+    else if (k === 'l') releaseAltAttack();
   });
   function hold(btn, set) {
     const on = e => { e.preventDefault(); set(true); };
@@ -442,11 +497,17 @@ PUBLIC.start = function (root, api) {
   hold(btnRight, v => input.right = v);
   hold(btnJump, v => press(v));
   api.on(btnMain, 'pointerdown', e => { e.preventDefault(); mainAttack(); });
+  api.on(btnMain, 'pointerup', e => { e.preventDefault(); releaseMainAttack(); });
+  api.on(btnMain, 'pointerleave', e => { e.preventDefault(); releaseMainAttack(); });
+  api.on(btnMain, 'pointercancel', e => { e.preventDefault(); releaseMainAttack(); });
   api.on(btnAlt, 'pointerdown', e => { e.preventDefault(); altAttack(); });
+  api.on(btnAlt, 'pointerup', e => { e.preventDefault(); releaseAltAttack(); });
+  api.on(btnAlt, 'pointerleave', e => { e.preventDefault(); releaseAltAttack(); });
+  api.on(btnAlt, 'pointercancel', e => { e.preventDefault(); releaseAltAttack(); });
   api.on(btnMove, 'pointerdown', e => { e.preventDefault(); triggerMove(); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, droppedKnives, boxes, dummies, fighters;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, droppedKnives, boxes, dummies, fighters;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
@@ -458,12 +519,15 @@ PUBLIC.start = function (root, api) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       team: 'hero', intent: input, cls: null,
-      grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, forceCrouch: false,
+      grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0,
+      knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, arrowAmmo: RANGER_MAX_ARROWS, arrowRegen: 0,
+      shieldGuard: 0, shieldFlash: 0, forceCrouch: false,
+      draw: { active: false, type: null, t: 0, aim: 0 },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
       flip: { active: false, t: 0, dur: 0, dir: 1 },
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
               struck: false, struck2: false, headLag: 0, headLagV: 0, aimShown: 0, aimShownV: 0, aimTarget: 0, atkAim: 0, lastFacing: 0, fly: 0, _dt: 0.016,
-              atkVar: 0, rogueHand: 0, rogueHandNext: 0, rogueComboNext: 0, atkDur: 320, atkPhase: 'idle', action: null,
+              atkVar: 0, rogueHand: 0, rogueHandNext: 0, rogueComboNext: 0, drawPower: 1, atkDur: 320, atkPhase: 'idle', action: null,
               bhx: null, bhy: null, bhxV: 0, bhyV: 0, whx: null, why: null, whxV: 0, whyV: 0,
               shAng: 0, shAngV: 0, elAng: 0, elAngV: 0, blAng: 0, blAngV: 0 },
     };
@@ -479,6 +543,7 @@ PUBLIC.start = function (root, api) {
     particles = [];
     slashTrail = [];
     projectiles = [];
+    gravityFields = [];
     droppedKnives = [];
     boxes = (L.boxes || []).map(b => ({ x: b[0], y: b[1] - 14, w: 44, h: 44, vx: 0, vy: 0, angle: 0, va: 0, m: 1.6 }));
     dummies = (L.dummies || [[L.spawn.x + 210, L.spawn.y]]).map(p => makeDummy(p[0], p[1]));
@@ -553,8 +618,13 @@ PUBLIC.start = function (root, api) {
     document.getElementById('sr-time').textContent = (runTime / 1000).toFixed(1);
     const ammo = document.getElementById('sr-ammo');
     if (ammo) {
-      ammo.style.display = cls.id === 'rogue' && state === 'playing' ? 'inline' : 'none';
-      document.getElementById('sr-knives').textContent = player ? player.knifeAmmo : ROGUE_MAX_KNIVES;
+      const hasAmmo = (cls.id === 'rogue' || cls.id === 'ranger') && state === 'playing';
+      ammo.style.display = hasAmmo ? 'inline' : 'none';
+      const icon = document.getElementById('sr-ammo-icon');
+      if (icon) icon.textContent = cls.id === 'ranger' ? '🏹' : '🔪';
+      document.getElementById('sr-knives').textContent = player
+        ? (cls.id === 'ranger' ? player.arrowAmmo : player.knifeAmmo)
+        : (cls.id === 'ranger' ? RANGER_MAX_ARROWS : ROGUE_MAX_KNIVES);
     }
   }
 
@@ -757,7 +827,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' || p.kind === 'arrow' ? 4.5 : p.r || 8;
+    return p.kind === 'dagger' || p.kind === 'arrow' ? 4.5 : p.kind === 'gravitySeed' ? 8 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -1176,6 +1246,11 @@ PUBLIC.start = function (root, api) {
   const ENEMY_BRAINS = {
     knight(e, n) {                               // press in, trade blows, shield up close
       const b = e.brain;
+      if (hero.anim && hero.anim.atkActive && n.adx < 95 && b.moveCd <= 0 && Math.random() < 0.42) {
+        triggerAttack('shieldGuard', { aim: n.aim });
+        b.moveCd = rand(1250, 1900); b.atkCd = Math.max(b.atkCd, 420);
+        return;
+      }
       if (n.adx > 60) {
         pressToward(e, n.face);
         if ((n.adx < 165 || n.nav.blocked || n.nav.stepUp) && b.moveCd <= 0 && Math.random() < 0.55) { triggerMove(); b.moveCd = rand(1150, 1900); }
@@ -1225,7 +1300,7 @@ PUBLIC.start = function (root, api) {
       else if (n.adx > 300) pressToward(e, n.face);
       if (b.atkCd <= 0) {
         const t = (n.adx < 250 && Math.random() < 0.3) ? 'volley' : 'arrow';
-        triggerAttack(t, { aim: n.aim });
+        triggerAttack(t, { aim: n.aim, drawPower: rand(0.75, 1.15) });
         b.atkCd = t === 'volley' ? 950 : rand(440, 700);
       }
     },
@@ -1297,7 +1372,7 @@ PUBLIC.start = function (root, api) {
     if (cls.fly && mageHovering()) { const surface = mageHoverSurface(); if (surface !== null) { const ty = surface - MAGE_HOVER_HEIGHT; if (p.y > ty) { p.y = lerp(p.y, ty, 0.55); p.vy = Math.min(p.vy, 0); } p.grounded = false; p.coyote = COYOTE; } }
     if (p.grounded) { p.coyote = COYOTE; p.airTime = 0; if (p.flip && p.flip.active) p.flip = { active: false, t: 0, dur: 0, dir: p.facing }; }
     else { if (p.coyote > 0) p.coyote--; p.airTime++; }
-    updateRogueAmmo();
+    updateActorResources(dtStep);
   }
   function updateFighters(dtStep) {
     if (!fighters || !fighters.length || state !== 'playing') return;
@@ -1326,15 +1401,20 @@ PUBLIC.start = function (root, api) {
     ctx.fillStyle = e.cls.color; ctx.fillRect(x, y, w * clamp(e.hp / e.maxHp, 0, 1), 4);
     ctx.restore();
   }
+  function shieldBlocks(act, nx) {
+    return act && act.cls && act.cls.id === 'knight' && (act.shieldGuard || 0) > 0 && (nx || 0) * act.facing < 0;
+  }
   // hero hits a fighter: knockback + stagger + damage; death hands off to ragdoll
   function hurtFighter(e, nx, ny, force, hx, hy) {
     if (e.dead) return;
-    const k = clamp(force, 4, 44);
+    const blocked = shieldBlocks(e, nx);
+    const k = clamp(force * (blocked ? 0.32 : 1), 4, 44);
+    if (blocked) { e.shieldFlash = 180; burst(hx, hy, e.cls.color, 10, 2.2); addShake(1.4, 70); }
     e.vx += (nx || 0) * k * 0.55;
     e.vy = Math.min(e.vy + (ny || 0) * k * 0.25, -1.0 - k * 0.05);
     e.grounded = false; e.anim.squash = -0.3; e.flash = 180;
     e.brain.stagger = Math.max(e.brain.stagger, 200); e.brain.alert = 2200; e.brain.retreat = 0;
-    e.hp -= Math.max(0.6, k / 14);
+    e.hp -= blocked ? Math.max(0.15, k / 34) : Math.max(0.6, k / 14);
     burst(hx, hy, '#ffd089', Math.min(16, 6 + (k | 0)), 4); burst(hx, hy, '#d9534f', 7, 3);
     freeze = Math.max(freeze, Math.min(14, 5 + k * 0.22));
     if (e.hp <= 0) killFighter(e, nx || 0, ny || 0, k, hx, hy);
@@ -1356,8 +1436,10 @@ PUBLIC.start = function (root, api) {
   // an enemy attack lands on the hero: knock them back with brief i-frames
   function hurtHero(nx, ny, force, hx, hy) {
     if (!hero || (hero.invuln && hero.invuln > 0)) return;
-    const k = clamp(force, 4, 40), dir = (nx || 0) >= 0 ? 1 : -1;
-    hero.invuln = 640;
+    const blocked = shieldBlocks(hero, nx);
+    const k = clamp(force * (blocked ? 0.30 : 1), 4, 40), dir = (nx || 0) >= 0 ? 1 : -1;
+    hero.invuln = blocked ? 240 : 640;
+    if (blocked) { hero.shieldFlash = 180; burst(hx == null ? hero.x : hx, hy == null ? hero.y - 34 : hy, hero.cls.color, 12, 2.4); addShake(1.6, 80); }
     hero.vx += dir * (3.2 + k * 0.12);
     hero.vy = Math.min(hero.vy, -3.2 - k * 0.05);
     hero.grounded = false; hero.anim.squash = -0.3;
@@ -1419,15 +1501,38 @@ PUBLIC.start = function (root, api) {
       } else if (k.life <= 0) droppedKnives.splice(i, 1);
     }
   }
-  function updateRogueAmmo() {
+  function updateRogueAmmo(dtStep) {
     if (cls.id !== 'rogue') return;
     if (player.knifeAmmo >= ROGUE_MAX_KNIVES) { player.knifeRegen = 0; return; }
-    player.knifeRegen += STEP;
+    player.knifeRegen += dtStep || STEP;
     while (player.knifeRegen >= ROGUE_REGEN && player.knifeAmmo < ROGUE_MAX_KNIVES) {
       player.knifeRegen -= ROGUE_REGEN;
       player.knifeAmmo++;
       burst(player.x, player.y - 32, '#cfd6df', 5, 1.8);
     }
+  }
+  function updateRangerAmmo(dtStep) {
+    if (cls.id !== 'ranger') return;
+    if (player.arrowAmmo >= RANGER_MAX_ARROWS) { player.arrowRegen = 0; return; }
+    player.arrowRegen += dtStep || STEP;
+    while (player.arrowRegen >= RANGER_REGEN && player.arrowAmmo < RANGER_MAX_ARROWS) {
+      player.arrowRegen -= RANGER_REGEN;
+      player.arrowAmmo++;
+      burst(player.x - player.facing * 10, player.y - 44, cls.color, 4, 1.4);
+    }
+  }
+  function updateActorResources(dtStep) {
+    player.shieldGuard = Math.max(0, (player.shieldGuard || 0) - dtStep);
+    player.shieldFlash = Math.max(0, (player.shieldFlash || 0) - dtStep);
+    if (player.draw && player.draw.active) {
+      player.draw.t = Math.min(RANGER_DRAW_MAX, player.draw.t + dtStep);
+      if (player.team === 'hero') player.draw.aim = aimedAngle();
+      player.anim.aimTarget = player.draw.aim;
+      player.facing = Math.cos(player.draw.aim) >= 0 ? 1 : -1;
+    }
+    updateRogueAmmo(dtStep);
+    updateRangerAmmo(dtStep);
+    syncHud();
   }
   function activeMove(type) {
     return player && player.move && player.move.active && (!type || player.move.type === type);
@@ -1449,7 +1554,7 @@ PUBLIC.start = function (root, api) {
     if (activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
     if (player && actorPosture(player).down > 0) m *= 0.45;
-    if (lancerAttackLocked()) m = player.anim.atkType === 'lanceCharge' ? Math.max(m, 8.2) : Math.min(m, 1.15);
+    if (lancerAttackLocked()) m = player.anim.atkType === 'lanceCharge' ? Math.max(m, 10.8) : Math.min(m, 1.15);
     return m;
   }
   function updateClassMove() {
@@ -1516,12 +1621,12 @@ PUBLIC.start = function (root, api) {
     const t = clamp(a.atkT, 0, 1);
     const dir = Math.cos(a.atkAim) >= 0 ? 1 : -1;
     player.facing = dir;
-    if (t < 0.24) player.vx *= 0.28;
-    else if (t < 0.76) {
-      const drive = ease(clamp((t - 0.24) / 0.16, 0, 1)) * (1 - ease(clamp((t - 0.58) / 0.18, 0, 1)) * 0.32);
-      player.vx = dir * (4.8 + drive * 3.2);
-    } else player.vx *= 0.58;
-    if (t < 0.78) {
+    if (t < 0.18) player.vx *= 0.18;
+    else if (t < 0.90) {
+      const drive = ease(clamp((t - 0.18) / 0.14, 0, 1)) * (1 - ease(clamp((t - 0.78) / 0.12, 0, 1)) * 0.18);
+      player.vx = dir * (6.4 + drive * 4.1);
+    } else player.vx *= 0.54;
+    if (t < 0.90) {
       if (Math.random() < 0.28) particles.push({ x: player.x - player.facing * rand(12, 28), y: player.y - rand(8, 34),
         vx: -player.facing * rand(0.3, 1.0), vy: rand(-0.25, 0.45), life: rand(120, 240), max: 240, color: cls.color, r: rand(1, 2.3) });
     }
@@ -1565,10 +1670,11 @@ PUBLIC.start = function (root, api) {
       if (!input.jumpHeld && player.vy < 0 && !player.jumpCut) { player.vy *= CUT; player.jumpCut = true; }  // variable height
       player.vy = Math.min(player.vy + GRA * g, TERMINAL * g);
     }
-    updateRogueAmmo();
+    updateActorResources(STEP);
 
     updateBoxes();   // crates move under their own physics each step
     updateDummies(STEP);
+    updateGravityFields(STEP);
 
     // integrate + collide (x then y) — against terrain, then crates
     player.x += player.vx;
@@ -1684,11 +1790,12 @@ PUBLIC.start = function (root, api) {
     const ang = player.anim.atkAim;
     const spec = attackSpec(type);
     const byHero = player.team !== 'enemy';   // enemy swings don't hijack hitstop/camera
+    if (type === 'shieldGuard') { activateShieldGuard(); return; }
     if (type === 'cast') { spawnBolt(ang, 1.4); return; }
-    if (type === 'arcaneBloom') { spawnMageSigil(ang); return; }
+    if (type === 'arcaneBloom') { spawnGravitySeed(ang); return; }
     if (type === 'throw') { spawnDagger(ang); return; }
-    if (type === 'arrow') { spawnArrow(ang, 1); return; }
-    if (type === 'volley') { for (const d of [-0.12, 0, 0.12]) spawnArrow(ang + d, 0.92); return; }
+    if (type === 'arrow') { spawnArrow(ang, player.anim.drawPower || 1); return; }
+    if (type === 'volley') { const p = player.anim.drawPower || 1; for (const d of [-0.13, 0, 0.13]) spawnArrow(ang + d, 0.84 * p); return; }
     if (type === 'quake') {
       const qx = player.x + player.facing * 26, qy = player.y - 10;
       if (byHero) { freeze = spec.hitstop; addShake(7.5, 180); }
@@ -1730,6 +1837,7 @@ PUBLIC.start = function (root, api) {
       const l = Math.max(0, lungeReach(t));
       return { x: f * l * 20, y: 0, lean: f * l * 0.19 };
     }
+    if (type === 'shieldGuard') return { x: -f * bell * 2, y: bell * 2, lean: -f * (0.06 + bell * 0.10) };
     if (type === 'cast' || type === 'arcaneBloom') return { x: f * bell * 3, y: 0, lean: f * bell * 0.05 };
     if (type === 'arrow' || type === 'volley') return { x: -f * bell * 2, y: 0, lean: -f * bell * 0.05 };
     if (type === 'throw') return { x: f * bell * 3, y: 0, lean: -f * 0.08 + f * bell * 0.14 };
@@ -1770,8 +1878,8 @@ PUBLIC.start = function (root, api) {
       const lineAng = ang;
       const sx = ch.hx + Math.cos(lineAng) * 22, sy = ch.hy + Math.sin(lineAng) * 22;
       const tx = ch.hx + Math.cos(lineAng) * WLEN.lance, ty = ch.hy + Math.sin(lineAng) * WLEN.lance;
-      const force = type === 'lanceCharge' ? 30 : 28;
-      return { ax: sx, ay: sy, bx: tx, by: ty, dx: Math.cos(lineAng), dy: Math.sin(lineAng), force, r: 8 };
+      const force = type === 'lanceCharge' ? 44 : 28;
+      return { ax: sx, ay: sy, bx: tx, by: ty, dx: Math.cos(lineAng), dy: Math.sin(lineAng), force, r: type === 'lanceCharge' ? 10 : 8 };
     }
     const bx = ch.hx + Math.cos(bladeAng) * wl, by = ch.hy + Math.sin(bladeAng) * wl;
     let ax = ch.hx, ay = ch.hy;
@@ -1780,7 +1888,7 @@ PUBLIC.start = function (root, api) {
       ax = ch.hx + Math.cos(bladeAng) * start;
       ay = ch.hy + Math.sin(bladeAng) * start;
     }
-    const FORCE = { lanceSwing: 26, lanceCharge: 30, braceThrust: 28, rogueStab: 15, crush: 30, staffSweep: 17, stab: 18, lunge: 18 };
+    const FORCE = { lanceSwing: 26, lanceCharge: 44, braceThrust: 28, rogueStab: 15, crush: 30, staffSweep: 17, stab: 18, lunge: 18 };
     const force = FORCE[type] != null ? FORCE[type] : 16;
     const r = type === 'crush' ? 18 : type === 'lanceSwing' ? 13 : (type === 'lanceCharge' || type === 'braceThrust') ? 10 : type === 'rogueStab' ? 8 : 11;
     return { ax, ay, bx, by, dx: Math.cos(bladeAng), dy: Math.sin(bladeAng), force, r };
@@ -1838,10 +1946,113 @@ PUBLIC.start = function (root, api) {
     projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: 11 });
   }
   function spawnArrow(ang, power) {
-    const shX = player.x, shY = player.y - 72, spd = 22 * power;
+    const shX = player.x, shY = player.y - 72, spd = (18 + 8 * clamp(power, 0.45, 1.45));
     const mx = shX + Math.cos(ang) * 34, my = shY + Math.sin(ang) * 34;
-    projectiles.push({ kind: 'arrow', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1300, color: cls.color, angle: ang, hit: 10 * power });
+    projectiles.push({ kind: 'arrow', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1300, color: cls.color, angle: ang, hit: 8 + 8 * clamp(power, 0.45, 1.45) });
     burst(mx, my, cls.color, 8, 2.4);
+  }
+  function activateShieldGuard() {
+    player.shieldGuard = Math.max(player.shieldGuard || 0, KNIGHT_SHIELD_TIME);
+    player.shieldFlash = Math.max(player.shieldFlash || 0, 180);
+    burst(player.x + player.facing * 18, player.y - 42, cls.color, 12, 2.6);
+  }
+  function spawnGravitySeed(ang) {
+    const shX = player.x, shY = player.y - 76, spd = 11.5;
+    const mx = shX + Math.cos(ang) * 40, my = shY + Math.sin(ang) * 40;
+    projectiles.push({ kind: 'gravitySeed', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      life: 700, color: cls.color, r: 8, hit: 0, angle: ang });
+    burst(mx, my, '#ffffff', 12, 2.8);
+    burst(mx, my, cls.color, 18, 3.2);
+  }
+  function spawnGravityField(x, y, team, color) {
+    gravityFields.push({ x, y, team: team || 'hero', color: color || '#ff77d2', life: 2300, max: 2300, r: 118 });
+    burst(x, y, '#ffffff', 18, 3.4);
+    burst(x, y, color || '#ff77d2', 30, 4.2);
+    addShake(3.2, 120);
+  }
+  function fieldAffectsActor(g, act) {
+    return act && !act.dead && ((g.team || 'hero') === 'enemy' ? act.team !== 'enemy' : act.team === 'enemy');
+  }
+  function applyGravityFieldToActor(g, act) {
+    if (!fieldAffectsActor(g, act)) return;
+    const cx = act.x, cy = act.y - 38;
+    const dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
+    if (d > g.r) return;
+    const u = 1 - d / g.r;
+    act.vx += (dx / d) * (0.035 + u * 0.11);
+    act.vy = act.vy * (0.90 - u * 0.12) + (dy / d) * (0.05 + u * 0.12) - GRA * (0.55 + u * 0.55);
+    if (u > 0.25) { act.grounded = false; act.coyote = Math.max(act.coyote || 0, 2); }
+  }
+  function applyGravityFieldToDummy(g, d) {
+    if ((g.team || 'hero') === 'enemy') return;
+    let touched = false;
+    for (const k in d.pts) {
+      const p = d.pts[k];
+      if (p.pin) continue;
+      const dx = g.x - p.x, dy = g.y - p.y, dist = Math.hypot(dx, dy) || 1;
+      if (dist > g.r) continue;
+      const u = 1 - dist / g.r;
+      p.x += (dx / dist) * (0.45 + u * 1.2);
+      p.y += (dy / dist) * (0.35 + u * 1.0) - (0.9 + u * 1.2);
+      touched = true;
+    }
+    if (touched) d.flash = Math.max(d.flash, 60);
+  }
+  function applyGravityFieldToBox(g, b) {
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    const dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
+    if (d > g.r) return;
+    const u = 1 - d / g.r;
+    b.vx += (dx / d) * (0.12 + u * 0.24);
+    b.vy = b.vy * (0.86 - u * 0.08) + (dy / d) * (0.08 + u * 0.20) - 0.58 * (0.8 + u);
+    b.va += (dx / d) * 0.012;
+  }
+  function implodeGravityField(g) {
+    burst(g.x, g.y, '#ffffff', 26, 5.2);
+    burst(g.x, g.y, g.color, 42, 5.8);
+    addShake(5.6, 170);
+    for (const b of boxes) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
+      if (d < g.r + 70) { b.vx += (dx / d) * 8.5; b.vy += (dy / d) * 6.5 - 2; b.va += (dx / d) * 0.18; }
+    }
+    if ((g.team || 'hero') === 'enemy') {
+      if (hero) {
+        const dx = g.x - hero.x, dy = g.y - (hero.y - 38), d = Math.hypot(dx, dy) || 1;
+        if (d < g.r + 70) hurtHero(dx / d, dy / d, 18 * (1 - Math.min(d, g.r + 70) / (g.r + 70)), g.x, g.y);
+      }
+    } else {
+      if (fighters) for (const e of fighters.slice()) {
+        const dx = g.x - e.x, dy = g.y - (e.y - 42), d = Math.hypot(dx, dy) || 1;
+        if (d < g.r + 70) hurtFighter(e, dx / d, dy / d, 20 * (1 - Math.min(d, g.r + 70) / (g.r + 70)), g.x, g.y);
+      }
+      if (dummies) for (const d of dummies) {
+        for (const k in d.pts) {
+          const p = d.pts[k];
+          if (p.pin) continue;
+          const dx = g.x - p.x, dy = g.y - p.y, dist = Math.hypot(dx, dy) || 1;
+          if (dist < g.r + 60) { p.x += (dx / dist) * 12; p.y += (dy / dist) * 10; }
+        }
+        d.flash = Math.max(d.flash, 180);
+      }
+    }
+  }
+  function updateGravityFields(dtStep) {
+    if (!gravityFields) return;
+    for (let i = gravityFields.length - 1; i >= 0; i--) {
+      const g = gravityFields[i];
+      g.life -= dtStep;
+      for (const b of boxes) applyGravityFieldToBox(g, b);
+      if ((g.team || 'hero') === 'enemy') applyGravityFieldToActor(g, hero);
+      else if (fighters) for (const e of fighters) applyGravityFieldToActor(g, e);
+      if (dummies) for (const d of dummies) applyGravityFieldToDummy(g, d);
+      if (Math.random() < 0.75) {
+        const a = rand(0, Math.PI * 2), rr = rand(18, g.r);
+        particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
+          vx: -Math.cos(a) * rand(0.2, 0.9), vy: -Math.sin(a) * rand(0.2, 0.9) - 0.2,
+          life: rand(220, 420), max: 420, color: Math.random() < 0.35 ? '#ffffff' : g.color, r: rand(1, 2.8) });
+      }
+      if (g.life <= 0) { implodeGravityField(g); gravityFields.splice(i, 1); }
+    }
   }
   function spawnMageSigil(ang) {
     const shX = player.x, shY = player.y - 76;
@@ -1945,7 +2156,7 @@ PUBLIC.start = function (root, api) {
     if (type === 'cast' || type === 'arcaneBloom') return 'cast';
     if (type === 'throw') return 'throw';
     if (type === 'arrow' || type === 'volley') return 'shoot';
-    if (type === 'shieldBash') return 'bash';
+    if (type === 'shieldBash' || type === 'shieldGuard') return 'bash';
     if (type === 'legSweep' || type === 'vaultKick') return 'kick';
     return 'arc';                               // slash / staffSweep / generic swing
   }
@@ -2063,6 +2274,15 @@ PUBLIC.start = function (root, api) {
 
   // visible weapon-tip length per class, used by trails and melee capsules
   const WLEN = { sword: 40, dagger: 16, spear: 50, lance: 88, staff: 64, bow: 30, bo: 48, hammer: 46 };
+  function currentBowPull() {
+    if (!player || cls.id !== 'ranger') return 0;
+    if (player.draw && player.draw.active) return rangerDrawPower(player);
+    const a = player.anim;
+    if (a && a.atkActive && isRangerShot(a.atkType)) {
+      return clamp(a.drawPower || 1, 0.45, 1.4) * (1 - ease(clamp(a.atkT / 0.42, 0, 1)));
+    }
+    return 0;
+  }
   // draw the held weapon from the hand along `ang`; `scale` stretches it lengthwise (smear)
   function drawWeapon(hx, hy, ang, scale) {
     ctx.save();
@@ -2115,20 +2335,29 @@ PUBLIC.start = function (root, api) {
       ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
       ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
     } else if (cls.weapon === 'bow') {
-      ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.2;
+      const pull = currentBowPull();
+      ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.8;
+      const span = 30, bulge = 19;
       ctx.beginPath();
-      ctx.moveTo(hx + nx * 20, hy + ny * 20);
-      ctx.quadraticCurveTo(hx - dx * 12, hy - dy * 12, hx - nx * 20, hy - ny * 20);
+      ctx.moveTo(hx + nx * span, hy + ny * span);
+      ctx.quadraticCurveTo(hx + dx * bulge, hy + dy * bulge, hx - nx * span, hy - ny * span);
       ctx.stroke();
       ctx.strokeStyle = '#1f1f1f'; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(hx + nx * 19, hy + ny * 19); ctx.lineTo(hx - nx * 19, hy - ny * 19); ctx.stroke();
-      ctx.strokeStyle = '#8b6a3b'; ctx.lineWidth = 2.3;
-      ctx.beginPath(); ctx.moveTo(hx - dx * 8, hy - dy * 8); ctx.lineTo(hx + dx * 26 * L, hy + dy * 26 * L); ctx.stroke();
-      ctx.fillStyle = '#aeb4bd'; ctx.beginPath();
-      ctx.moveTo(hx + dx * 30 * L, hy + dy * 30 * L);
-      ctx.lineTo(hx + dx * 22 * L + nx * 3, hy + dy * 22 * L + ny * 3);
-      ctx.lineTo(hx + dx * 22 * L - nx * 3, hy + dy * 22 * L - ny * 3);
-      ctx.closePath(); ctx.fill(); ctx.strokeStyle = INK; ctx.stroke();
+      const sx = hx - dx * (4 + pull * 24), sy = hy - dy * (4 + pull * 24);
+      ctx.beginPath();
+      ctx.moveTo(hx + nx * (span - 1), hy + ny * (span - 1));
+      ctx.lineTo(sx, sy);
+      ctx.lineTo(hx - nx * (span - 1), hy - ny * (span - 1));
+      ctx.stroke();
+      if (pull > 0.05 || (player.anim.atkActive && isRangerShot(player.anim.atkType))) {
+        ctx.strokeStyle = '#8b6a3b'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(sx - dx * 10, sy - dy * 10); ctx.lineTo(hx + dx * 34 * L, hy + dy * 34 * L); ctx.stroke();
+        ctx.fillStyle = '#aeb4bd'; ctx.beginPath();
+        ctx.moveTo(hx + dx * 40 * L, hy + dy * 40 * L);
+        ctx.lineTo(hx + dx * 30 * L + nx * 3.6, hy + dy * 30 * L + ny * 3.6);
+        ctx.lineTo(hx + dx * 30 * L - nx * 3.6, hy + dy * 30 * L - ny * 3.6);
+        ctx.closePath(); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+      }
     } else if (cls.weapon === 'bo') {
       ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.moveTo(hx - dx * 30, hy - dy * 30); ctx.lineTo(hx + dx * 48 * L, hy + dy * 48 * L); ctx.stroke();
@@ -2158,6 +2387,26 @@ PUBLIC.start = function (root, api) {
     ctx.fill(); ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.4;
     ctx.beginPath(); ctx.moveTo(face * -5, -7); ctx.lineTo(face * 5, 8); ctx.stroke();
+    ctx.restore();
+  }
+  function drawQuiver(x, y, face, count) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-face * 0.34);
+    ctx.fillStyle = '#6b5330';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-8, -16); ctx.lineTo(8, -13); ctx.lineTo(7, 18); ctx.lineTo(-7, 18);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const n = Math.min(count == null ? RANGER_MAX_ARROWS : count, RANGER_MAX_ARROWS);
+    for (let i = 0; i < n; i++) {
+      const ox = -5 + i * 1.7;
+      ctx.strokeStyle = '#8b6a3b'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(ox, -19); ctx.lineTo(ox + 2, -34); ctx.stroke();
+      ctx.strokeStyle = '#53d4ff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ox + 2, -34); ctx.lineTo(ox - 2, -30); ctx.moveTo(ox + 2, -34); ctx.lineTo(ox + 5, -30); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -2278,6 +2527,9 @@ PUBLIC.start = function (root, api) {
     const strideH = S.strideH, lift = S.lift, armStride = S.armStride, bounceAmp = S.bounceAmp, sway = 2, stanceW = S.stanceW;
     const guardReach = armLen * 0.6;            // bent-elbow "on guard" hold
     const posture = actorPosture(player);
+    const bowActive = cls.id === 'ranger' && ((player.draw && player.draw.active) || (a.atkActive && isRangerShot(a.atkType)));
+    const bowAim = player.draw && player.draw.active ? player.draw.aim : (a.atkActive && isRangerShot(a.atkType) ? a.atkAim : (f > 0 ? 0 : Math.PI));
+    const bowPull = currentBowPull();
 
     const idleAmt = (1 - moveAmt) * (1 - air);
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));   // downward compression
@@ -2356,6 +2608,7 @@ PUBLIC.start = function (root, api) {
     const hipFX = hipX, hipBX = hipX;
 
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
+    if (cls.id === 'ranger') drawQuiver(shX - f * 13, shY + 23, f, player.arrowAmmo);
 
     // foot target: blend the ground running gait with an air pose by `air`
     function legFoot(theta, legSign) {
@@ -2450,7 +2703,8 @@ PUBLIC.start = function (root, api) {
     } else if (cls.id === 'rogue') {
       h = { x: shX - f * 9, y: shY + 20 };                        // off dagger held at low guard
     } else if (cls.offhand === 'shield') {
-      const push = (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? Math.sin(Math.min(1, a.atkT || moveT) * Math.PI) : 0;
+      const guarding = (player.shieldGuard || 0) > 0 || (a.atkActive && a.atkType === 'shieldGuard');
+      const push = guarding ? 0.72 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? Math.sin(Math.min(1, a.atkT || moveT) * Math.PI) : 0;
       h = { x: shBX + f * (14 + push * 24), y: shBY + 14 - push * 8 };
     } else if (cls.weapon === 'lance') {
       h = { x: shX - f * 4, y: shY + 18 };
@@ -2461,7 +2715,10 @@ PUBLIC.start = function (root, api) {
     } else if (cls.weapon === 'bo') {
       if (a.atkActive && (a.atkType === 'staffSweep' || a.atkType === 'vaultKick')) h = { x: shX - f * 10, y: shY + 20 };
     } else if (cls.weapon === 'bow') {
-      if (a.atkActive && (a.atkType === 'arrow' || a.atkType === 'volley')) h = { x: shX - f * 10, y: shY + 10 };
+      if (bowActive) {
+        const hx = shX + Math.cos(bowAim) * 24, hy = shY + Math.sin(bowAim) * 16;
+        h = { x: hx - Math.cos(bowAim) * (12 + bowPull * 26), y: hy - Math.sin(bowAim) * (12 + bowPull * 26) };
+      } else h = { x: shX - f * 10, y: shY + 16 };
     }
     if (a._clip && offhandAim == null) {                  // off arm counter-balances the swing
       h = { x: h.x + a._clip.offArm * a._clip.weight * 18, y: h.y - Math.abs(a._clip.offArm) * a._clip.weight * 7 };
@@ -2484,7 +2741,8 @@ PUBLIC.start = function (root, api) {
         if (slashTrail.length > 38) slashTrail.shift();
       }
     } else if (cls.offhand === 'shield') {
-      drawShield(ka.ex, ka.ey, f, (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? 1.15 : 1);
+      const guarding = (player.shieldGuard || 0) > 0 || (a.atkActive && a.atkType === 'shieldGuard');
+      drawShield(ka.ex, ka.ey, f, guarding ? 1.28 + clamp((player.shieldFlash || 0) / 180, 0, 1) * 0.14 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? 1.15 : 1);
     }
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
@@ -2540,8 +2798,10 @@ PUBLIC.start = function (root, api) {
         drawAim = -Math.PI / 2 + f * (fly > 0.25 ? 0.24 : 0.16);
         handT = fly > 0.25 ? { x: shX + f * 15, y: shY + 8 } : { x: shX + f * 12, y: shY + 19 };
       } else if (cls.weapon === 'bow') {
-        drawAim = f > 0 ? 0 : Math.PI;
-        handT = { x: shX + f * 17, y: shY + 7 };
+        drawAim = bowActive ? bowAim : f > 0 ? 0 : Math.PI;
+        handT = bowActive
+          ? { x: shX + Math.cos(drawAim) * 24, y: shY + Math.sin(drawAim) * 16 }
+          : { x: shX + f * 20, y: shY + 8 };
       } else if (cls.weapon === 'bo') {
         drawAim = f > 0 ? -0.36 : Math.PI + 0.36;
         handT = { x: shX + f * 12, y: shY + 18 };
@@ -2771,6 +3031,20 @@ PUBLIC.start = function (root, api) {
     }
     // figure (translate by camera)
     ctx.translate(-cam.x, -cam.y);
+    for (const g of gravityFields) {
+      const pulse = Math.sin(performance.now() * 0.009) * 0.08 + 1;
+      const fade = clamp(g.life / g.max, 0, 1);
+      const rr = g.r * pulse;
+      const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
+      grad.addColorStop(0, `rgba(255,255,255,${0.22 * fade})`);
+      grad.addColorStop(0.45, `rgba(255,119,210,${0.13 * fade})`);
+      grad.addColorStop(1, 'rgba(255,119,210,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = g.color; ctx.globalAlpha = 0.35 * fade; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(g.x, g.y, rr * 0.72, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
     // projectiles: glowing bolts, sigils, and thrown daggers
     for (const b of projectiles) {
       if (b.kind === 'dagger') {
@@ -2801,6 +3075,15 @@ PUBLIC.start = function (root, api) {
           const a = i * Math.PI / 2;
           ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * (r + 8), Math.sin(a) * (r + 8)); ctx.stroke();
         }
+        ctx.restore();
+      } else if (b.kind === 'gravitySeed') {
+        const r = b.r || 8;
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate((b.angle || 0) + performance.now() * 0.01);
+        ctx.strokeStyle = b.color; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(-r - 5, 0); ctx.lineTo(r + 5, 0); ctx.moveTo(0, -r - 5); ctx.lineTo(0, r + 5); ctx.stroke();
+        ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       } else {
         const r = b.r || 10;
@@ -2861,6 +3144,12 @@ PUBLIC.start = function (root, api) {
           b.x += b.vx; b.y += b.vy; b.life -= dt;
           if (b.kind === 'dagger') { b.vy += 0.18; }          // thrown knives arc slightly, without spinning
           else if (b.kind === 'arrow') { b.vy += 0.045; b.angle = Math.atan2(b.vy, b.vx); }
+          else if (b.kind === 'gravitySeed') {
+            b.angle += 0.08;
+            b.vx *= 0.992; b.vy *= 0.992;
+            if (Math.random() < 0.85) particles.push({ x: b.x - b.vx * rand(0.1, 0.35) + rand(-2, 2), y: b.y - b.vy * rand(0.1, 0.35) + rand(-2, 2),
+              vx: rand(-0.35, 0.35), vy: rand(-0.45, 0.25), life: rand(170, 310), max: 310, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.4) });
+          }
           else if (b.kind === 'bolt') {
             for (let s = 0; s < (b.sparkle || 1); s++) if (Math.random() < 0.65) {
               const trail = rand(0.12, 0.45);
@@ -2883,17 +3172,18 @@ PUBLIC.start = function (root, api) {
           if ((b.team || 'hero') === 'enemy') {
             // enemy fire seeks the hero
             if (hero && !(hero.invuln > 0) && segHitActor(px, py, b.x, b.y, projectileRadius(b), hero)) {
-              hurtHero(b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y); struckActor = true;
+              if (b.kind !== 'gravitySeed') hurtHero(b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
+              struckActor = true;
             }
           } else {
             // hero fire hits training dummies + enemy fighters
             if (dummies) for (const d of dummies) {
               const h = projectileHitsDummy(b, px, py, d);
-              if (h) { hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y); addShake(b.kind === 'bolt' || b.kind === 'sigil' ? 2.5 : 1.1, 75); struckActor = true; break; }
+              if (h) { if (b.kind !== 'gravitySeed') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y); addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' ? 2.5 : 1.1, 75); struckActor = true; break; }
             }
             if (!struckActor && fighters) for (const e of fighters.slice()) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), e);
-              if (h) { hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y); addShake(b.kind === 'bolt' || b.kind === 'sigil' ? 2.5 : 1.1, 75); struckActor = true; break; }
+              if (h) { if (b.kind !== 'gravitySeed') hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y); addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' ? 2.5 : 1.1, 75); struckActor = true; break; }
             }
           }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
@@ -2901,6 +3191,7 @@ PUBLIC.start = function (root, api) {
           const dead = b.life <= 0 || crate || struckActor || hitPlatform;
           if (dead) {
             if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
+            else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
             else if (b.kind === 'sigil') explodeSigil(b);
             else {
               burst(b.x, b.y, b.color, b.kind === 'bolt' ? 20 : 10, b.kind === 'bolt' ? 4 : 3);
@@ -2926,13 +3217,14 @@ PUBLIC.start = function (root, api) {
     return {
       cls: act.cls && act.cls.id, x: act.x, y: act.y, vx: act.vx, vy: act.vy,
       facing: act.facing, grounded: act.grounded, coyote: act.coyote, airTime: act.airTime,
-      rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, hp: act.hp, maxHp: act.maxHp,
+      rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, arrowAmmo: act.arrowAmmo,
+      shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
     };
   }
   function getTestApi() {
     if (!testApi) testApi = {
-      play, onStrike, triggerAttack,
+      play, onStrike, triggerAttack, startRangerDraw, releaseRangerDraw,
       sampleMelee(type, t) {
         if (!player) return null;
         return meleeSegment(type || cls.main, player.anim.atkAim || (player.facing > 0 ? 0 : Math.PI), t == null ? strikePoint(type || cls.main) : t);
@@ -2950,6 +3242,7 @@ PUBLIC.start = function (root, api) {
           boxes: boxes ? boxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, vx: b.vx, vy: b.vy })) : [],
           coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
           projectiles: projectiles ? projectiles.length : 0,
+          gravityFields: gravityFields ? gravityFields.length : 0,
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
       },
