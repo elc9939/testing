@@ -25,6 +25,7 @@ const RANGER_NOCK_TIME = 190, RANGER_RELOAD_TIME = 430, ARROW_GRAVITY = 0.13;
 const KNIGHT_SHIELD_TIME = 1250;
 const MAGE_HOVER_HEIGHT = 42;
 const MAGE_HOVER_STEP = 92;
+const MAGE_HOVER_DELAY = 165;
 
 // ---------- RPG classes ----------
 // weapon: how the held weapon is drawn; moves: primary attacks cycled per click;
@@ -200,26 +201,31 @@ const LEVELS = [
 const TEST_ARENA = lvl({
   spawn: { x: 90, y: G },
   platforms: [
-    { x: 0, y: G, w: 420, h: 160 },
-    { x: 500, y: G, w: 220, h: 160 },
-    { x: 760, y: G - 36, w: 180, h: 196 },
-    { x: 1000, y: G - 72, w: 180, h: 232 },
-    { x: 1240, y: G, w: 420, h: 160 },
-    { x: 1740, y: G - 110, w: 180, h: 270 },
-    { x: 1980, y: G, w: 420, h: 160 },
+    { x: 0, y: G + 70, w: 2600, h: 110 },
+    { x: 0, y: G, w: 390, h: 180 },
+    { x: 390, y: G + 28, w: 250, h: 152 },
+    { x: 640, y: G - 18, w: 250, h: 198 },
+    { x: 890, y: G - 52, w: 260, h: 232 },
+    { x: 1150, y: G - 20, w: 330, h: 200 },
+    { x: 1480, y: G + 18, w: 260, h: 162 },
+    { x: 1740, y: G - 86, w: 250, h: 266 },
+    { x: 1990, y: G - 18, w: 250, h: 198 },
+    { x: 2240, y: G + 32, w: 360, h: 148 },
+    { x: 0, y: G - 150, w: 42, h: 330 },
+    { x: 2558, y: G - 150, w: 42, h: 330 },
   ],
-  coins: [[260, G - 58], [560, G - 58], [850, G - 94], [1080, G - 130],
-          [1380, G - 58], [1810, G - 168], [2140, G - 58]],
-  boxes: [[330, G - 30], [820, G - 66], [1320, G - 30], [2060, G - 30]],
-  dummies: [[310, G], [1120, G - 72], [2120, G]],
+  coins: [[260, G - 58], [560, G - 20], [780, G - 76], [1030, G - 112],
+          [1330, G - 78], [1605, G - 38], [1850, G - 144], [2120, G - 76], [2380, G - 20]],
+  boxes: [[330, G - 30], [780, G - 48], [1320, G - 50], [1640, G - 12], [2090, G - 48]],
+  dummies: [[310, G], [1120, G - 52], [2120, G - 18]],
   enemies: [
-    { cls: 'knight', x: 560, y: G, min: 500, max: 700 },
-    { cls: 'rogue', x: 850, y: G - 36, min: 770, max: 930 },
-    { cls: 'lancer', x: 1400, y: G, min: 1280, max: 1620 },
-    { cls: 'ranger', x: 1820, y: G - 110, min: 1750, max: 1910 },
-    { cls: 'mage', x: 2150, y: G, min: 2010, max: 2380 },
+    { cls: 'knight', x: 560, y: G + 28, min: 430, max: 630 },
+    { cls: 'rogue', x: 835, y: G - 18, min: 660, max: 880 },
+    { cls: 'lancer', x: 1390, y: G - 20, min: 1190, max: 1470 },
+    { cls: 'ranger', x: 1830, y: G - 86, min: 1760, max: 1970 },
+    { cls: 'mage', x: 2140, y: G - 18, min: 2020, max: 2380 },
   ],
-  flag: { x: 2300, y: G },
+  flag: { x: 2470, y: G + 32 },
 });
 
 PUBLIC.start = function (root, api) {
@@ -295,7 +301,7 @@ PUBLIC.start = function (root, api) {
   padL.style.display = padR.style.display = 'none';
 
   // ---------- input ----------
-  const input = { left: false, right: false, down: false, jumpHeld: false };
+  const input = { left: false, right: false, down: false, jumpHeld: false, jumpHold: 0 };
   const pointer = { x: 0, y: 0, active: false };   // cursor, sets the attack direction
   let jumpBuf = 0;
   const press = (held) => {
@@ -306,10 +312,11 @@ PUBLIC.start = function (root, api) {
       player.flip = { active: true, t: 0, dur: 520, dir: player.facing };
       player.anim.squash = -0.35;
       burst(player.x, player.y - 34, cls.color, 12, 2.8);
-      jumpBuf = 0; input.jumpHeld = true;
+      jumpBuf = 0; input.jumpHeld = true; input.jumpHold = 0;
       return;
     }
-    if (held) { jumpBuf = BUFFER; input.jumpHeld = true; } else input.jumpHeld = false;
+    if (held) { jumpBuf = BUFFER; input.jumpHeld = true; input.jumpHold = 0; }
+    else { input.jumpHeld = false; input.jumpHold = 0; }
   };
   function aimedAngle() {
     const shX = player.x, shY = player.y - 77;
@@ -1187,7 +1194,7 @@ PUBLIC.start = function (root, api) {
     const cdef = CLASSES.find(c => c.id === clsId) || CLASSES[0];
     const e = makePlayer({ x, y });
     e.cls = cdef; e.team = 'enemy';
-    e.intent = { left: false, right: false, down: false, jumpHeld: false, jump: false };
+    e.intent = { left: false, right: false, down: false, jumpHeld: false, jumpHold: 0, jump: false };
     e.facing = opts.facing || (Math.random() < 0.5 ? -1 : 1);
     e.flash = 0; e.dead = false; e._moveAmt = 0;
     e.maxHp = opts.hp || enemyDefaultHp(clsId); e.hp = e.maxHp;
@@ -1344,6 +1351,7 @@ PUBLIC.start = function (root, api) {
   function stepActor(dtStep) {
     const p = player, L = levels[li], it = p.intent;
     const acc = p.grounded ? RUN_ACC : AIR_ACC;
+    tickJumpHold(p, dtStep);
     if (lancerAttackLocked()) p.vx *= 0.34;
     else if (it.left && !it.right) { p.vx -= acc; p.facing = -1; }
     else if (it.right && !it.left) { p.vx += acc; p.facing = 1; }
@@ -1435,10 +1443,20 @@ PUBLIC.start = function (root, api) {
     freeze = Math.max(freeze, Math.min(14, 5 + k * 0.22));
     if (e.hp <= 0) killFighter(e, nx || 0, ny || 0, k, hx, hy);
   }
+  function fighterDeathGroundY(e) {
+    const surface = surfaceYFor(e, e.x, 760, 180);
+    if (surface !== null) return surface;
+    const L = levels[li];
+    let y = Infinity;
+    for (const p of L.platforms) if (e.x > p.x - 18 && e.x < p.x + p.w + 18 && p.y >= e.y - 80) y = Math.min(y, p.y);
+    return y === Infinity ? Math.min(L.h - 8, e.y + 180) : y;
+  }
   function killFighter(e, nx, ny, force, hx, hy) {
     if (e.dead) return;
     e.dead = true;
+    const groundY = fighterDeathGroundY(e);
     const d = makeDummy(e.x, e.y, { kind: 'enemy', hp: 0 });
+    d.baseY = groundY; d.homeY = groundY;
     d.defeated = true; d.flash = 650; d.attackCd = 9999;
     for (const f of ['footL', 'footR']) d.pts[f].pin = false;
     for (const key in d.pts) { const p = d.pts[key]; p.px = p.x - e.vx; p.py = p.y - e.vy; }   // inherit momentum
@@ -1540,6 +1558,18 @@ PUBLIC.start = function (root, api) {
   function updateActorResources(dtStep) {
     player.shieldGuard = Math.max(0, (player.shieldGuard || 0) - dtStep);
     player.shieldFlash = Math.max(0, (player.shieldFlash || 0) - dtStep);
+    if ((player.shieldGuard || 0) > 0 && Math.random() < 0.12) {
+      particles.push({
+        x: player.x + player.facing * rand(17, 34),
+        y: player.y - rand(24, 66),
+        vx: player.facing * rand(0.12, 0.48),
+        vy: rand(-0.55, 0.10),
+        life: rand(180, 340),
+        max: 340,
+        color: Math.random() < 0.5 ? '#dcecff' : cls.color,
+        r: rand(1.2, 2.6),
+      });
+    }
     if (player.draw) player.draw.reload = Math.max(0, (player.draw.reload || 0) - dtStep);
     if (player.draw && player.draw.active) {
       player.draw.t = Math.min(RANGER_DRAW_MAX, player.draw.t + dtStep);
@@ -1561,7 +1591,14 @@ PUBLIC.start = function (root, api) {
     return player && player.anim && player.anim.atkActive && isLancerAttack(player.anim.atkType);
   }
   function mageHovering() {
-    return cls.id === 'mage' && player.intent.jumpHeld;
+    const it = player && player.intent;
+    if (cls.id !== 'mage' || !it || !it.jumpHeld) return false;
+    return player.team === 'enemy' || (it.jumpHold || 0) >= MAGE_HOVER_DELAY;
+  }
+  function tickJumpHold(act, dtStep) {
+    const it = act && act.intent;
+    if (!it) return;
+    it.jumpHold = it.jumpHeld ? (it.jumpHold || 0) + (dtStep || STEP) : 0;
   }
   function maxV() {
     let m = MAXV * cls.speedMul;
@@ -1653,6 +1690,7 @@ PUBLIC.start = function (root, api) {
     const L = levels[li];
     const acc = player.grounded ? RUN_ACC : AIR_ACC;
     const locked = lancerAttackLocked();
+    tickJumpHold(player, STEP);
     if (locked) player.vx *= 0.34;
     else if (input.left && !input.right) { player.vx -= acc; player.facing = -1; }
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
@@ -1784,6 +1822,18 @@ PUBLIC.start = function (root, api) {
     springTo(a, 'lean', leanTarget, S.spring.lean[0], S.spring.lean[1], dts);
     springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), S.spring.head[0], S.spring.head[1], dts);
     springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
+    if (cls.id === 'mage' && moveAmt < 0.12 && !a.atkActive && Math.random() < dt * 0.000075) {
+      particles.push({
+        x: player.x + rand(-18, 18),
+        y: player.y - rand(mageHovering() ? 44 : 34, mageHovering() ? 86 : 72),
+        vx: rand(-0.18, 0.18),
+        vy: rand(-0.55, -0.08),
+        life: rand(420, 760),
+        max: 760,
+        color: Math.random() < 0.5 ? '#ff77d2' : '#7ee7ff',
+        r: rand(1.1, 2.4),
+      });
+    }
     if (a.atkActive) {
       if (!a.action || a.action.type !== a.atkType) a.action = startAttackAction(a.atkType);
       a.atkDur = a.action.dur;
@@ -1977,7 +2027,8 @@ PUBLIC.start = function (root, api) {
   function activateShieldGuard() {
     player.shieldGuard = Math.max(player.shieldGuard || 0, KNIGHT_SHIELD_TIME);
     player.shieldFlash = Math.max(player.shieldFlash || 0, 180);
-    burst(player.x + player.facing * 18, player.y - 42, cls.color, 12, 2.6);
+    burst(player.x + player.facing * 24, player.y - 42, cls.color, 18, 3.2);
+    burst(player.x + player.facing * 28, player.y - 46, '#dcecff', 10, 2.2);
   }
   function spawnGravitySeed(ang) {
     const shX = player.x, shY = player.y - 76, spd = 11.5;
@@ -2420,16 +2471,31 @@ PUBLIC.start = function (root, api) {
   }
   function drawShield(hx, hy, face, scale) {
     ctx.save();
-    ctx.translate(hx, hy); ctx.scale(scale || 1, scale || 1);
+    const s = scale || 1, active = s > 1.18;
+    ctx.translate(hx, hy); ctx.scale(s, s);
+    if (active) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.strokeStyle = '#dcecff';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(face * -17, -22);
+      ctx.quadraticCurveTo(face * 24, -20, face * 26, 2);
+      ctx.quadraticCurveTo(face * 18, 28, face * -18, 16);
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.fillStyle = '#5ea0ff'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(face * -9, -12);
-    ctx.quadraticCurveTo(face * 12, -9, face * 10, 6);
-    ctx.quadraticCurveTo(0, 17, face * -10, 6);
-    ctx.quadraticCurveTo(face * -12, -8, face * -9, -12);
+    ctx.moveTo(face * -12, -19);
+    ctx.quadraticCurveTo(face * 18, -17, face * 19, 4);
+    ctx.quadraticCurveTo(face * 8, 25, face * -15, 12);
+    ctx.quadraticCurveTo(face * -19, -11, face * -12, -19);
     ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.moveTo(face * -5, -7); ctx.lineTo(face * 5, 8); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.68)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(face * -7, -12); ctx.lineTo(face * 7, 12); ctx.stroke();
+    ctx.strokeStyle = 'rgba(22,22,22,.22)'; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(face * -9, -2); ctx.quadraticCurveTo(face * 3, 4, face * 12, 0); ctx.stroke();
     ctx.restore();
   }
   function drawQuiver(x, y, face, count) {
@@ -2598,21 +2664,25 @@ PUBLIC.start = function (root, api) {
     const guardReach = armLen * 0.6;            // bent-elbow "on guard" hold
     const posture = actorPosture(player);
     const bowActive = cls.id === 'ranger' && ((player.draw && player.draw.active) || (a.atkActive && isRangerShot(a.atkType)));
-    const bowAim = player.draw && player.draw.active ? player.draw.aim : (a.atkActive && isRangerShot(a.atkType) ? a.atkAim : (f > 0 ? 0 : Math.PI));
+    const bowRestAim = f > 0 ? -0.34 : Math.PI + 0.34;
+    const bowAim = player.draw && player.draw.active ? player.draw.aim : (a.atkActive && isRangerShot(a.atkType) ? a.atkAim : bowRestAim);
     const bowPull = currentBowPull();
     const bowNock = player.draw && player.draw.active ? rangerNockAmount(player) : bowActive ? 1 : 0;
     const bowReload = cls.id === 'ranger' ? rangerReloadAmount(player) : 1;
+    const bowGripReach = 33;
 
     const idleAmt = (1 - moveAmt) * (1 - air);
+    const idleFidget = idleAmt * Math.sin(now * 0.0022 + cls.id.length);
+    const idleLift = idleAmt * (0.5 + 0.5 * Math.sin(now * 0.00135 + cls.id.length * 0.7));
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));   // downward compression
     const breathe = idleAmt * Math.sin(now * S.breatheSpd) * S.breatheAmp;
     // signature idle flourish + hover (the "personality" beat)
     let idleX = 0, idleY = 0, hoverY = 0;
-    if (S.idle === 'shift') idleX = Math.sin(now * 0.0016) * 2.6 * idleAmt;              // Knight: heavy weight shift
-    else if (S.idle === 'sneak') idleX = Math.sin(now * 0.003) * 1.3 * idleAmt;          // Rogue: low restless sway
-    else if (S.idle === 'lance') idleY = Math.sin(now * 0.0012) * 0.35 * idleAmt;        // Lancer: locked-down stance
-    else if (S.idle === 'mystic') idleY = Math.sin(now * 0.0017) * 0.9 * idleAmt;        // Mage: grounded staff breathing
-    else if (S.idle === 'archer') idleX = Math.sin(now * 0.0018) * 1.0 * idleAmt;
+    if (S.idle === 'shift') { idleX = Math.sin(now * 0.0016) * 2.6 * idleAmt; idleY = idleLift * 0.45; } // Knight: heavy weight shift
+    else if (S.idle === 'sneak') idleX = Math.sin(now * 0.003) * 1.3 * idleAmt + idleFidget * 0.5;       // Rogue: low restless sway
+    else if (S.idle === 'lance') idleY = Math.sin(now * 0.0012) * 0.35 * idleAmt + idleLift * 0.28;      // Lancer: locked-down stance
+    else if (S.idle === 'mystic') idleY = Math.sin(now * 0.0017) * 0.9 * idleAmt + idleLift * 0.35;      // Mage: grounded staff breathing
+    else if (S.idle === 'archer') idleX = Math.sin(now * 0.0018) * 1.0 * idleAmt + idleFidget * 0.35;
     hoverY = fly * (S.hover + Math.sin(now * 0.004) * 1.8);
 
     let postureLean = 0, guardCrouch = 0;            // (no cursor aiming for now)
@@ -2777,26 +2847,26 @@ PUBLIC.start = function (root, api) {
     } else if (cls.offhand === 'shield') {
       const guarding = (player.shieldGuard || 0) > 0 || (a.atkActive && a.atkType === 'shieldGuard');
       const push = guarding ? 0.72 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? Math.sin(Math.min(1, a.atkT || moveT) * Math.PI) : 0;
-      h = { x: shBX + f * (14 + push * 24), y: shBY + 14 - push * 8 };
+      h = { x: shBX + f * (15 + push * 27 + idleLift * 1.2), y: shBY + 15 - push * 9 + idleFidget * 1.1 };
     } else if (cls.weapon === 'lance') {
-      h = { x: shX - f * 4, y: shY + 18 };
+      h = { x: shX - f * (4 + idleLift * 1.6), y: shY + 18 + idleFidget * 1.0 };
     } else if (cls.weapon === 'staff') {
       h = fly > 0.25
-        ? { x: shX + f * 10, y: shY + 24 }
-        : { x: shX + f * 8, y: shY + 32 };
+        ? { x: shX + f * (10 + idleLift * 2), y: shY + 24 + idleFidget * 1.6 }
+        : { x: shX + f * (8 + idleLift * 1.4), y: shY + 32 + idleFidget * 1.3 };
     } else if (cls.weapon === 'bo') {
       if (a.atkActive && (a.atkType === 'staffSweep' || a.atkType === 'vaultKick')) h = { x: shX - f * 10, y: shY + 20 };
     } else if (cls.weapon === 'bow') {
       if (bowActive) {
-        const bx = shX + Math.cos(bowAim) * 24, by = shY + Math.sin(bowAim) * 16;
-        const passive = { x: shX - f * 12, y: shY + 18 };
+        const bx = shX + Math.cos(bowAim) * bowGripReach, by = shY + Math.sin(bowAim) * bowGripReach;
+        const passive = { x: shX - f * 15, y: shY + 27 };
         const string = { x: bx - Math.cos(bowAim) * (11 + bowPull * 28), y: by - Math.sin(bowAim) * (11 + bowPull * 28) };
-        string.y = Math.max(string.y, shY - 2 + bowPull * 4);
+        string.y = Math.max(string.y, shY + 3 + bowPull * 5);
         h = { x: lerp(passive.x, string.x, bowNock), y: lerp(passive.y, string.y, bowNock) };
         offhandBend = -f;
       } else {
         const quiver = { x: shX - f * 19, y: shY + 37 };
-        const passive = { x: shX - f * 12, y: shY + 18 };
+        const passive = { x: shX - f * (15 + idleLift * 2), y: shY + 27 + idleFidget * 1.2 };
         h = { x: lerp(quiver.x, passive.x, bowReload), y: lerp(quiver.y, passive.y, bowReload) };
         offhandBend = -f;
       }
@@ -2827,7 +2897,7 @@ PUBLIC.start = function (root, api) {
       if (player.arrowAmmo > 0 && looseAlpha > 0.04) drawHeldArrow(ka.ex, ka.ey, bowAim == null ? (f > 0 ? 0 : Math.PI) : bowAim, shotCount, looseAlpha);
     } else if (cls.offhand === 'shield') {
       const guarding = (player.shieldGuard || 0) > 0 || (a.atkActive && a.atkType === 'shieldGuard');
-      drawShield(ka.ex, ka.ey, f, guarding ? 1.28 + clamp((player.shieldFlash || 0) / 180, 0, 1) * 0.14 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? 1.15 : 1);
+      drawShield(ka.ex, ka.ey, f, guarding ? 1.42 + clamp((player.shieldFlash || 0) / 180, 0, 1) * 0.20 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? 1.24 : 1.08);
     }
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
@@ -2883,10 +2953,11 @@ PUBLIC.start = function (root, api) {
         drawAim = -Math.PI / 2 + f * (fly > 0.25 ? 0.24 : 0.16);
         handT = fly > 0.25 ? { x: shX + f * 15, y: shY + 8 } : { x: shX + f * 12, y: shY + 19 };
       } else if (cls.weapon === 'bow') {
-        drawAim = bowActive ? bowAim : f > 0 ? 0 : Math.PI;
+        drawAim = bowActive ? bowAim : bowRestAim;
         handT = bowActive
-          ? { x: shX + Math.cos(drawAim) * 24, y: shY + Math.sin(drawAim) * 16 }
-          : { x: shX + f * 20, y: shY + 8 };
+          ? { x: shX + Math.cos(drawAim) * bowGripReach, y: shY + Math.sin(drawAim) * bowGripReach }
+          : { x: shX + f * (17 + idleLift * 1.4), y: shY + 22 + idleFidget * 1.1 };
+        stretch = bowActive ? 1.10 : 1;
       } else if (cls.weapon === 'bo') {
         drawAim = f > 0 ? -0.36 : Math.PI + 0.36;
         handT = { x: shX + f * 12, y: shY + 18 };
@@ -3331,6 +3402,7 @@ PUBLIC.start = function (root, api) {
     return {
       cls: act.cls && act.cls.id, x: act.x, y: act.y, vx: act.vx, vy: act.vy,
       facing: act.facing, grounded: act.grounded, coyote: act.coyote, airTime: act.airTime,
+      jumpHeld: !!(act.intent && act.intent.jumpHeld), jumpHold: act.intent && act.intent.jumpHold || 0,
       rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, arrowAmmo: act.arrowAmmo,
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
@@ -3339,6 +3411,7 @@ PUBLIC.start = function (root, api) {
   function getTestApi() {
     if (!testApi) testApi = {
       play, onStrike, triggerAttack, startRangerDraw, releaseRangerDraw,
+      pressJump: press,
       sampleMelee(type, t) {
         if (!player) return null;
         return meleeSegment(type || cls.main, player.anim.atkAim || (player.facing > 0 ? 0 : Math.PI), t == null ? strikePoint(type || cls.main) : t);
