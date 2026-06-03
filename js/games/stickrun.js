@@ -206,23 +206,40 @@ const ARENA_LEVEL = lvl({
     { x: 0, y: G, w: 390, h: 180 },
     { x: 390, y: G + 28, w: 250, h: 152 },
     { x: 640, y: G - 18, w: 250, h: 198 },
+    { x: 730, y: G - 126, w: 38, h: 108 },
     { x: 890, y: G - 52, w: 260, h: 232 },
     { x: 1150, y: G - 20, w: 330, h: 200 },
     { x: 1480, y: G + 18, w: 260, h: 162 },
+    { x: 1688, y: G - 190, w: 40, h: 104 },
     { x: 1740, y: G - 86, w: 250, h: 266 },
     { x: 1990, y: G - 18, w: 250, h: 198 },
     { x: 2240, y: G + 32, w: 360, h: 148 },
+    { x: 2380, y: G - 74, w: 44, h: 106 },
+    { x: 505, y: G - 118, w: 215, h: 12, oneWay: true },
+    { x: 1038, y: G - 164, w: 240, h: 12, oneWay: true },
+    { x: 1238, y: G - 242, w: 190, h: 12, oneWay: true },
+    { x: 1510, y: G - 132, w: 200, h: 12, oneWay: true },
+    { x: 2028, y: G - 126, w: 230, h: 12, oneWay: true },
     { x: 0, y: G - 150, w: 42, h: 330 },
     { x: 2558, y: G - 150, w: 42, h: 330 },
   ],
   coins: [],
-  boxes: [[330, G - 30], [780, G - 48], [1320, G - 50], [1640, G - 12], [2090, G - 48]],
+  boxes: [
+    { x: 318, y: G - 64, w: 66, h: 64, m: 2.3 },
+    { x: 786, y: G - 92, w: 78, h: 72, m: 2.9 },
+    { x: 1308, y: G - 92, w: 86, h: 72, m: 3.2 },
+    { x: 1590, y: G - 38, w: 70, h: 56, m: 2.6 },
+    { x: 2100, y: G - 92, w: 82, h: 74, m: 3.1 },
+  ],
   dummies: [],
   enemySpawns: [
     { x: 560, y: G + 28, min: 430, max: 680 },
     { x: 835, y: G - 18, min: 660, max: 930 },
+    { x: 1160, y: G - 164, min: 1040, max: 1280 },
     { x: 1390, y: G - 20, min: 1160, max: 1510 },
+    { x: 1600, y: G - 132, min: 1515, max: 1710 },
     { x: 1830, y: G - 86, min: 1745, max: 1985 },
+    { x: 2110, y: G - 126, min: 2030, max: 2255 },
     { x: 2140, y: G - 18, min: 2010, max: 2390 },
   ],
 });
@@ -563,6 +580,15 @@ PUBLIC.start = function (root, api) {
               shAng: 0, shAngV: 0, elAng: 0, elAngV: 0, blAng: 0, blAngV: 0 },
     };
   }
+  function makeBoxSpec(spec) {
+    if (Array.isArray(spec)) {
+      const w = spec[2] || 44, h = spec[3] || w, m = spec[4] || 1.6;
+      return { x: spec[0], y: spec[1] + 30 - h, w, h, vx: 0, vy: 0, angle: 0, va: 0, m };
+    }
+    const w = spec.w || 44, h = spec.h || w;
+    const y = spec.y == null ? (spec.bottom == null ? G : spec.bottom) - h : spec.y;
+    return { x: spec.x || 0, y, w, h, vx: spec.vx || 0, vy: spec.vy || 0, angle: spec.angle || 0, va: spec.va || 0, m: spec.m || 1.6 };
+  }
   function loadLevel(i, keepRun) {
     li = i;
     const L = levels[i];
@@ -576,7 +602,7 @@ PUBLIC.start = function (root, api) {
     projectiles = [];
     gravityFields = [];
     droppedKnives = [];
-    boxes = (L.boxes || []).map(b => ({ x: b[0], y: b[1] - 14, w: 44, h: 44, vx: 0, vy: 0, angle: 0, va: 0, m: 1.6 }));
+    boxes = (L.boxes || []).map(makeBoxSpec);
     dummies = (L.dummies || [[L.spawn.x + 210, L.spawn.y]]).map(p => makeDummy(p[0], p[1]));
     fighters = [];
     flagWave = 0; freeze = 0;
@@ -809,9 +835,19 @@ PUBLIC.start = function (root, api) {
     else if (act.vx < 0) act.x += solid.x + solid.w - b.x;
   }
   function hit(b, p) { return b.x < p.x + p.w && b.x + b.w > p.x && b.y < p.y + p.h && b.y + b.h > p.y; }
+  function isOneWay(p) { return !!(p && p.oneWay); }
+  function canActorLandOnOneWay(act, p, prevFeetY) {
+    const b = actorBox(act);
+    return isOneWay(p) && act.vy >= 0 && prevFeetY <= p.y + 6 &&
+      b.x + b.w > p.x + 4 && b.x < p.x + p.w - 4 && act.y >= p.y - 1 && act.y <= p.y + p.h + 18;
+  }
+  function canBoxLandOnOneWay(b, p, prevBottom) {
+    return isOneWay(p) && b.vy >= 0 && prevBottom <= p.y + 6 &&
+      b.x + b.w > p.x + 4 && b.x < p.x + p.w - 4 && b.y + b.h >= p.y - 1 && b.y + b.h <= p.y + p.h + 18;
+  }
   function solidHitsBox(r) {
     const L = levels[li];
-    for (const p of L.platforms) if (hit(r, p)) return true;
+    for (const p of L.platforms) if (!isOneWay(p) && hit(r, p)) return true;
     for (const b of boxes) if (hit(r, b)) return true;
     return false;
   }
@@ -853,12 +889,20 @@ PUBLIC.start = function (root, api) {
       b.vy = Math.min(b.vy + 0.55, 16);
       // horizontal
       b.x += b.vx;
-      for (const p of L.platforms) if (hit(b, p)) { b.x = b.vx > 0 ? p.x - b.w : p.x + p.w; b.vx *= -0.25; b.va += b.vx * 0.01; }
+      for (const p of L.platforms) if (!isOneWay(p) && hit(b, p)) { b.x = b.vx > 0 ? p.x - b.w : p.x + p.w; b.vx *= -0.25; b.va += b.vx * 0.01; }
       for (const o of boxes) if (o !== b && hit(b, o)) { b.x = b.x < o.x ? o.x - b.w : o.x + o.w; const t = b.vx; b.vx = o.vx * 0.4; o.vx = t * 0.4; }
       // vertical
       let onG = false;
+      const prevBottom = b.y + b.h;
       b.y += b.vy;
-      for (const p of L.platforms) if (hit(b, p)) { if (b.vy > 0) { b.y = p.y - b.h; onG = true; b.vy = b.vy > 4 ? -b.vy * 0.22 : 0; } else if (b.vy < 0) { b.y = p.y + p.h; b.vy = 0; } }
+      for (const p of L.platforms) if (hit(b, p)) {
+        if (isOneWay(p)) {
+          if (canBoxLandOnOneWay(b, p, prevBottom)) { b.y = p.y - b.h; onG = true; b.vy = b.vy > 4 ? -b.vy * 0.22 : 0; }
+          continue;
+        }
+        if (b.vy > 0) { b.y = p.y - b.h; onG = true; b.vy = b.vy > 4 ? -b.vy * 0.22 : 0; }
+        else if (b.vy < 0) { b.y = p.y + p.h; b.vy = 0; }
+      }
       for (const o of boxes) if (o !== b && hit(b, o)) { if (b.vy > 0) { b.y = o.y - b.h; onG = true; b.vy = 0; } else if (b.vy < 0) { b.y = o.y + o.h; b.vy = 0; } }
       b.vx *= onG ? 0.86 : 0.995;
       if (Math.abs(b.vx) < 0.05) b.vx = 0;
@@ -1066,6 +1110,32 @@ PUBLIC.start = function (root, api) {
     elbowL: 0.06, handL: 0.05, elbowR: 0.06, handR: 0.05,
   };
   const DG = 0.48, DDAMP = 0.985, DSOLVE = 6;
+  function dummyPointRadius(k) {
+    if (k === 'head') return DUMMY.headR;
+    if (k === 'chest') return 7;
+    if (k === 'hip') return 6;
+    if (k === 'kneeL' || k === 'kneeR') return 4;
+    if (k === 'elbowL' || k === 'elbowR') return 3;
+    return 2.5;
+  }
+  function ragdollFloorYAt(x, y, k, prevY) {
+    const L = levels[li];
+    let floor = Infinity;
+    const r = dummyPointRadius(k);
+    const oldY = prevY == null ? y : prevY;
+    const top = Math.min(oldY, y) - r - 8, bottom = y + 760;
+    for (const p of L.platforms) {
+      const floorY = p.y - r;
+      const fromAbove = oldY <= floorY + 10 || y <= floorY + 10;
+      if (fromAbove && x >= p.x - 10 && x <= p.x + p.w + 10 && p.y >= top && p.y <= bottom) floor = Math.min(floor, p.y);
+    }
+    for (const b of boxes) {
+      const floorY = b.y - r;
+      const fromAbove = oldY <= floorY + 10 || y <= floorY + 10;
+      if (fromAbove && x >= b.x - 8 && x <= b.x + b.w + 8 && b.y >= top && b.y <= bottom) floor = Math.min(floor, b.y);
+    }
+    return (floor === Infinity ? L.h - 8 : floor) - r;
+  }
   function makeDummy(x, y, opts) {
     opts = opts || {};
     const pts = {};
@@ -1149,13 +1219,14 @@ PUBLIC.start = function (root, api) {
       }
       for (const k in d.pts) {
         const p = d.pts[k];
+        const floorY = d.defeated ? ragdollFloorYAt(p.x, p.y, k, p.py) : groundY;
         if (p.pin) { p.x = d.baseX + DUMMY_REST[k][0]; p.y = groundY; }
-        else if (p.y > groundY) {
+        else if (p.y > floorY) {
           if (d.defeated) {
             const vy = p.y - p.py;
-            p.y = groundY;
-            p.py = p.y + Math.max(0, vy) * 0.18;
-            p.px = p.x + (p.x - p.px) * 0.18;
+            p.y = floorY;
+            p.py = p.y + Math.max(0, vy) * 0.22;
+            p.px = p.x + (p.x - p.px) * 0.10;
           } else { p.y = groundY; p.px = p.x + (p.x - p.px) * 0.4; }
         }   // floor + a little slide/bounce friction
       }
@@ -1475,15 +1546,28 @@ PUBLIC.start = function (root, api) {
       p.vy = Math.min(p.vy + GRA * g, TERMINAL * g);
     }
     p.x += p.vx;
-    for (const pl of L.platforms) if (hit(box(), pl)) { if (mageHoverStepOver(pl)) continue; resolveActorSide(p, pl); p.vx = 0; }
+    for (const pl of L.platforms) if (!isOneWay(pl) && hit(box(), pl)) { if (mageHoverStepOver(pl)) continue; resolveActorSide(p, pl); p.vx = 0; }
     for (const bx of boxes) if (hit(box(), bx)) {
       if (mageHoverStepOver(bx)) continue;
       const b = box();
       if (p.vx > 0) { bx.x = b.x + b.w; bx.vx = Math.max(bx.vx, (p.vx * 0.85 + 0.6) / bx.m); p.vx *= 0.5; }
       else if (p.vx < 0) { bx.x = b.x - bx.w; bx.vx = Math.min(bx.vx, (p.vx * 0.85 - 0.6) / bx.m); p.vx *= 0.5; }
     }
+    const prevFeetY = p.y;
     p.y += p.vy; p.grounded = false;
-    for (const pl of L.platforms) if (hit(box(), pl)) { if (p.vy > 0) { p.y = pl.y; p.grounded = true; } else if (p.vy < 0) p.y = pl.y + pl.h + actorHeight(p); if (p.vy > 6) p.anim.squash = clamp(p.vy / TERMINAL, 0, 1) * 0.9; p.vy = 0; }
+    for (const pl of L.platforms) if (hit(box(), pl)) {
+      if (isOneWay(pl)) {
+        if (canActorLandOnOneWay(p, pl, prevFeetY)) {
+          if (p.vy > 6) p.anim.squash = clamp(p.vy / TERMINAL, 0, 1) * 0.9;
+          p.y = pl.y; p.grounded = true; p.vy = 0;
+        }
+        continue;
+      }
+      if (p.vy > 0) { p.y = pl.y; p.grounded = true; }
+      else if (p.vy < 0) p.y = pl.y + pl.h + actorHeight(p);
+      if (p.vy > 6) p.anim.squash = clamp(p.vy / TERMINAL, 0, 1) * 0.9;
+      p.vy = 0;
+    }
     for (const bx of boxes) if (hit(box(), bx)) { if (p.vy > 0 && (p.y - p.vy) <= bx.y + 8) { p.y = bx.y; p.grounded = true; p.vy = 0; } else if (p.vy < 0 && (p.y - actorHeight(p) - p.vy) >= bx.y + bx.h - 8) { p.y = bx.y + bx.h + actorHeight(p); p.vy = 0; bx.vy += 1; } }
     if (cls.fly && mageHovering()) settleMageHover();
     if (p.grounded) { p.coyote = COYOTE; p.airTime = 0; if (p.flip && p.flip.active) p.flip = { active: false, t: 0, dur: 0, dir: p.facing }; }
@@ -1555,7 +1639,14 @@ PUBLIC.start = function (root, api) {
     d.baseY = groundY; d.homeY = groundY;
     d.defeated = true; d.flash = 650; d.attackCd = 9999;
     for (const f of ['footL', 'footR']) d.pts[f].pin = false;
-    for (const key in d.pts) { const p = d.pts[key]; p.px = p.x - e.vx; p.py = p.y - e.vy; }   // inherit momentum
+    for (const key in d.pts) {
+      const p = d.pts[key];
+      const spill = key === 'head' || key === 'handL' || key === 'handR' || key === 'footL' || key === 'footR' ? 1 : 0.45;
+      p.x += rand(-2.4, 2.4) * spill;
+      p.y += rand(-1.6, 1.6) * spill;
+      p.px = p.x - e.vx - nx * rand(0.2, 0.9) * spill;
+      p.py = p.y - e.vy - ny * rand(0.2, 0.9) * spill;
+    }   // inherit momentum and break symmetry so corpses settle into heaps
     const near = dummyNearest(d, hx, hy), k = clamp(force, 4, 44);
     if (near.p) { near.p.x += nx * k * 0.7; near.p.y += ny * k * 0.7 - k * 0.2; }
     d.pts.chest.x += nx * k * 0.45; d.pts.head.x += nx * k * 0.55; d.pts.head.y -= k * 0.25;
@@ -1589,16 +1680,8 @@ PUBLIC.start = function (root, api) {
     for (const b of boxes) if (x > b.x - 14 && x < b.x + b.w + 14 && b.y >= top && b.y <= bottom) y = Math.min(y, b.y);
     return y === Infinity ? null : y;
   }
-  // Hover target that also peeks ahead in the travel direction and takes the
-  // TOPMOST surface, so the mage rises early to scale up over a higher ledge/crate.
   function mageHoverSurface() {
-    const dir = player.vx > 0.3 ? 1 : player.vx < -0.3 ? -1 : player.facing;
-    const samples = [
-      hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 150, MAGE_HOVER_STEP),
-      hoverSurfaceY(player.x + dir * 34, MAGE_HOVER_HEIGHT + 150, MAGE_HOVER_STEP),
-      hoverSurfaceY(player.x + dir * 70, MAGE_HOVER_HEIGHT + 150, MAGE_HOVER_STEP),
-    ].filter(y => y !== null);
-    return samples.length ? Math.min(...samples) : null;
+    return hoverSurfaceY(player.x, MAGE_HOVER_HEIGHT + 150, MAGE_HOVER_STEP);
   }
   function smoothHoverTarget(surface, dtStep) {
     if (surface === null) { player.hoverTargetY = null; return null; }
@@ -1845,7 +1928,7 @@ PUBLIC.start = function (root, api) {
 
     // integrate + collide (x then y) — against terrain, then crates
     player.x += player.vx;
-    for (const p of L.platforms) if (hit(box(), p)) {
+    for (const p of L.platforms) if (!isOneWay(p) && hit(box(), p)) {
       if (mageHoverStepOver(p)) continue;
       resolveActorSide(player, p);
       player.vx = 0;
@@ -1858,9 +1941,17 @@ PUBLIC.start = function (root, api) {
       if (player.vx > 0) { b.x = pb.x + pb.w; b.vx = Math.max(b.vx, (player.vx * shove + 0.6) / b.m); player.vx *= loss; b.va += sturdy ? 0.025 : 0.012; }
       else if (player.vx < 0) { b.x = pb.x - b.w; b.vx = Math.min(b.vx, (player.vx * shove - 0.6) / b.m); player.vx *= loss; b.va -= sturdy ? 0.025 : 0.012; }
     }
+    const prevPlayerFeetY = player.y;
     player.y += player.vy;
     player.grounded = false;
     for (const p of L.platforms) if (hit(box(), p)) {
+      if (isOneWay(p)) {
+        if (canActorLandOnOneWay(player, p, prevPlayerFeetY)) {
+          if (player.vy > 6) player.anim.squash = clamp(player.vy / TERMINAL, 0, 1) * 0.9;
+          player.y = p.y; player.grounded = true; player.vy = 0;
+        }
+        continue;
+      }
       if (player.vy > 0) { player.y = p.y; player.grounded = true; }
       else if (player.vy < 0) player.y = p.y + p.h + actorHeight(player);
       if (player.vy > 6) player.anim.squash = clamp(player.vy / TERMINAL, 0, 1) * 0.9; // squash on impact
@@ -3127,20 +3218,27 @@ PUBLIC.start = function (root, api) {
   }
   function drawPlatform(p) {
     const x = p.x - cam.x, y = p.y - cam.y;
+    if (isOneWay(p)) {
+      ctx.fillStyle = '#8f897b'; ctx.fillRect(x, y + 3, p.w, Math.max(4, p.h - 4));
+      ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      for (let sx = x + 18; sx < x + p.w - 8; sx += 36) ctx.fillRect(sx, y + 5, 12, 2);
+      return;
+    }
     ctx.fillStyle = '#cbc7b8'; ctx.fillRect(x, y, p.w, p.h);          // light body
     ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 5);                 // bold black ledge
   }
   function drawBox(b) {
-    const cx = b.x + b.w / 2 - cam.x, cy = b.y + b.h / 2 - cam.y, hw = b.w / 2;
+    const cx = b.x + b.w / 2 - cam.x, cy = b.y + b.h / 2 - cam.y, hw = b.w / 2, hh = b.h / 2;
     ctx.save();
     ctx.translate(cx, cy); ctx.rotate(b.angle || 0);
-    ctx.fillStyle = '#bb8a4e'; ctx.fillRect(-hw, -hw, b.w, b.h);          // wood
+    ctx.fillStyle = '#bb8a4e'; ctx.fillRect(-hw, -hh, b.w, b.h);          // wood
     ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.lineJoin = 'miter';
-    ctx.strokeRect(-hw + 1.5, -hw + 1.5, b.w - 3, b.h - 3);
+    ctx.strokeRect(-hw + 1.5, -hh + 1.5, b.w - 3, b.h - 3);
     ctx.lineWidth = 1.5;                                                  // plank cross
     ctx.beginPath();
-    ctx.moveTo(-hw + 3, -hw + 3); ctx.lineTo(hw - 3, hw - 3);
-    ctx.moveTo(hw - 3, -hw + 3); ctx.lineTo(-hw + 3, hw - 3);
+    ctx.moveTo(-hw + 3, -hh + 3); ctx.lineTo(hw - 3, hh - 3);
+    ctx.moveTo(hw - 3, -hh + 3); ctx.lineTo(-hw + 3, hh - 3);
     ctx.stroke();
     ctx.restore();
   }
@@ -3501,7 +3599,7 @@ PUBLIC.start = function (root, api) {
             }
           }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
-          const hitPlatform = L.platforms.some(pl => projectileHitsBox(b, px, py, pl));
+          const hitPlatform = L.platforms.some(pl => !isOneWay(pl) && projectileHitsBox(b, px, py, pl));
           const rangedBurst = b.kind === 'gravitySeed' && b.range && b.traveled >= b.range;
           const dead = b.life <= 0 || crate || struckActor || hitPlatform || rangedBurst;
           if (dead) {
