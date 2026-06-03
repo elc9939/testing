@@ -50,11 +50,19 @@ html, body {
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 18px;
   padding: 22px 20px;
+  -webkit-appearance: none;
+  appearance: none;
   cursor: pointer;
+  color: var(--text);
+  font: inherit;
   overflow: hidden;
+  text-align: left;
   transition: transform .15s ease, box-shadow .25s ease, border-color .25s ease;
+  width: 100%;
 }
-.card:hover { transform: translateY(-4px); border-color: var(--cardc, var(--accent)); box-shadow: 0 10px 34px rgba(0,0,0,.45), 0 0 24px color-mix(in srgb, var(--cardc, var(--accent)) 40%, transparent); }
+.card:hover,
+.card:focus-visible { transform: translateY(-4px); border-color: var(--cardc, var(--accent)); box-shadow: 0 10px 34px rgba(0,0,0,.45), 0 0 24px color-mix(in srgb, var(--cardc, var(--accent)) 40%, transparent); }
+.card:focus-visible { outline: 3px solid color-mix(in srgb, var(--cardc, var(--accent)) 75%, white); outline-offset: 3px; }
 .card:active { transform: translateY(-1px) scale(.99); }
 .card .emoji { font-size: 44px; display: block; margin-bottom: 10px; }
 .card h3 { font-size: 21px; margin-bottom: 6px; color: var(--cardc, var(--accent)); }

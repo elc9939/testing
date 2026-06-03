@@ -79,10 +79,12 @@
   function buildMenu() {
     grid.innerHTML = '';
     games.forEach(g => {
-      const card = document.createElement('div');
+      const card = document.createElement('button');
       card.className = 'card';
+      card.type = 'button';
       card.style.setProperty('--cardc', g.color || 'var(--accent)');
       const best = api.getBest(g.id);
+      card.setAttribute('aria-label', `Play ${g.name}. ${g.desc}${best ? ` Best: ${best}.` : ''}`);
       card.innerHTML = `
         <span class="emoji">${g.emoji}</span>
         <h3>${g.name}</h3>
