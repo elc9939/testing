@@ -4,10 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const root = path.resolve(__dirname, '..');
 const ROOTS = ['sw.js', 'js', 'scripts'];
 
 function collectJsFiles(entry) {
-  const fullPath = path.join(process.cwd(), entry);
+  const fullPath = path.join(root, entry);
   if (!fs.existsSync(fullPath)) return [];
 
   const stat = fs.statSync(fullPath);
@@ -29,7 +30,7 @@ const files = [...new Set(ROOTS.flatMap(collectJsFiles))]
 
 let failed = false;
 for (const file of files) {
-  const result = spawnSync(process.execPath, ['--check', file], { stdio: 'inherit' });
+  const result = spawnSync(process.execPath, ['--check', file], { cwd: root, stdio: 'inherit' });
   if (result.status !== 0) failed = true;
 }
 

@@ -3,9 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const indexHtml = fs.readFileSync('index.html', 'utf8');
-const manifest = JSON.parse(fs.readFileSync('manifest.webmanifest', 'utf8'));
-const serviceWorker = fs.readFileSync('sw.js', 'utf8');
+const root = path.resolve(__dirname, '..');
+const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
+const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 
 function normalizeAsset(asset) {
   if (!asset || asset.startsWith('http:') || asset.startsWith('https:') || asset.startsWith('//')) {
@@ -69,7 +70,7 @@ const requiredAssets = [...new Set([
 const cachedAssets = collectCachedAssets();
 const cached = new Set(cachedAssets);
 const missing = requiredAssets.filter(asset => !cached.has(asset));
-const nonexistent = cachedAssets.filter(asset => !fs.existsSync(path.join(process.cwd(), assetPath(asset))));
+const nonexistent = cachedAssets.filter(asset => !fs.existsSync(path.join(root, assetPath(asset))));
 
 if (missing.length) {
   console.error('sw.js is missing required PWA assets:');
