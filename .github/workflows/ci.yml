@@ -24,10 +24,10 @@ jobs:
           node-version: '22'
 
       - name: Check JavaScript syntax
-        run: node scripts/check-js-syntax.js
+        run: npm run check:js
 
       - name: Check PWA cache manifest
-        run: node scripts/check-pwa-cache.js
+        run: npm run check:pwa
 
   logminer:
     name: LogMiner compile and smoke test
@@ -48,4 +48,4 @@ jobs:
           node-version: '22'
 
       - name: Compile and smoke test
-        run: node scripts/check-logminer.js
+        run: npm run check:logminer
