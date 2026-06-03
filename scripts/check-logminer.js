@@ -68,6 +68,7 @@ function smokeTest() {
     'timestamp,userId,action,bytes,status',
     '2026-06-03T01:00:00Z,alice,login,120,200',
     '2026-06-03T01:01:00Z,bob,download,400,200',
+    '2026-06-03T01:01:30Z,"tab\\name",upload,50,201',
     'bad,line',
     '2026-06-03T01:02:00Z,alice,logout,80,204',
     '',
@@ -77,12 +78,13 @@ function smokeTest() {
   run('java', ['logminer.Main', '--input', inputDir, '--output', outputDir, '--threads', '2', '--topUsers', '2']);
 
   const summary = JSON.parse(fs.readFileSync(path.join(outputDir, 'summary.json'), 'utf8'));
-  assertEqual(summary.totals.validEvents, 3, 'validEvents');
+  assertEqual(summary.totals.validEvents, 4, 'validEvents');
   assertEqual(summary.totals.invalidLines, 1, 'invalidLines');
-  assertEqual(summary.totals.totalBytes, 600, 'totalBytes');
+  assertEqual(summary.totals.totalBytes, 650, 'totalBytes');
+  assertEqual(summary.counts.byAction.UPLOAD, 1, 'UPLOAD count');
 
   const errors = fs.readFileSync(path.join(outputDir, 'errors.csv'), 'utf8');
-  const expectedError = '"events.csv","4","expected 5 fields, got 2","bad,line"';
+  const expectedError = '"events.csv","5","expected 5 fields, got 2","bad,line"';
   if (!errors.includes(expectedError)) {
     throw new Error(`errors.csv missing expected row: ${expectedError}`);
   }
@@ -90,6 +92,7 @@ function smokeTest() {
   const usersCsv = fs.readFileSync(path.join(outputDir, 'users.csv'), 'utf8').trim().split(/\r?\n/);
   assertDeepEqual(usersCsv, [
     'userId,events,totalBytes',
+    '"tab\\name",1,50',
     'alice,2,200',
     'bob,1,400',
   ], 'users.csv');
@@ -97,10 +100,11 @@ function smokeTest() {
   assertDeepEqual(readSummaryBin(path.join(outputDir, 'summary.bin')), {
     magic: 'L3SB',
     version: 1,
-    validEvents: 3,
+    validEvents: 4,
     invalidLines: 1,
-    totalBytes: 600,
+    totalBytes: 650,
     users: [
+      { userId: '"tab\\name"', events: 1, bytes: 50 },
       { userId: 'alice', events: 2, bytes: 200 },
       { userId: 'bob', events: 1, bytes: 400 },
     ],

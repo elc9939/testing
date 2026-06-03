@@ -83,8 +83,29 @@ public final class SummaryJsonWriter {
      * Escapes a string for safe JSON embedding.
      */
     private static String jsonString(String s) {
-        String esc = s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
-        return "\"" + esc + "\"";
+        StringBuilder sb = new StringBuilder(s.length() + 2);
+        sb.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            switch (ch) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (ch < 0x20) {
+                        sb.append(String.format("\\u%04x", (int) ch));
+                    } else {
+                        sb.append(ch);
+                    }
+                }
+            }
+        }
+        sb.append('"');
+        return sb.toString();
     }
 
     /**
