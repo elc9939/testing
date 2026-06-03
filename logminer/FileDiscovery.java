@@ -32,7 +32,8 @@ public final class FileDiscovery {
 
         try (Stream<Path> stream = Files.list(inputDir)) {
             return stream
-                    .filter(p -> p.toString().endsWith(".csv"))
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().endsWith(".csv"))
                     .sorted()
                     .collect(Collectors.toList());
         }

@@ -74,6 +74,8 @@ function smokeTest() {
     '',
   ].join('\n');
 
+  fs.mkdirSync(path.join(inputDir, 'archive.csv'));
+  fs.writeFileSync(path.join(inputDir, 'notes.txt'), 'not a CSV log\n', 'utf8');
   fs.writeFileSync(path.join(inputDir, 'events.csv'), `\uFEFF${csv}`, 'utf8');
   run('java', [
     '-Duser.language=tr',
