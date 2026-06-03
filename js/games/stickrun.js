@@ -1240,17 +1240,51 @@ PUBLIC.start = function (root, api) {
     burst(seg.bx, seg.by, cls.color, type === 'dualSlash' ? 12 : heavy ? 22 : 15, type === 'dualSlash' ? 3.4 : 5.2);
     if (type !== 'dualSlash') burst(seg.bx, seg.by, '#ffffff', heavy ? 12 : 8, 3.4);
   }
+  function attackBodyOffset(type, t, f) {
+    const bell = Math.max(0, Math.sin(clamp(t, 0, 1) * Math.PI));
+    const clip = actionClip(type, t, f);
+    if (clip) {
+      const w = clip.weight || 0;
+      return { x: (clip.hipX || 0) * w, y: (clip.hipY || 0) * w, lean: (clip.spine || 0) * w };
+    }
+    if (type === 'lanceSwing') return { x: f * bell * 10, y: 0, lean: f * bell * 0.22 };
+    if (type === 'stab' || type === 'rogueStab' || type === 'braceThrust') {
+      const l = Math.max(0, stabReach(t));
+      return {
+        x: f * l * (type === 'braceThrust' ? 19 : type === 'rogueStab' ? 7 : 13),
+        y: 0,
+        lean: f * l * (type === 'braceThrust' ? 0.18 : type === 'rogueStab' ? 0.08 : 0.12),
+      };
+    }
+    if (type === 'lunge' || type === 'lanceCharge') {
+      const l = Math.max(0, lungeReach(t));
+      return { x: f * l * 20, y: 0, lean: f * l * 0.19 };
+    }
+    if (type === 'cast' || type === 'arcaneBloom') return { x: f * bell * 3, y: 0, lean: f * bell * 0.05 };
+    if (type === 'arrow' || type === 'volley') return { x: -f * bell * 2, y: 0, lean: -f * bell * 0.05 };
+    if (type === 'throw') return { x: f * bell * 3, y: 0, lean: -f * 0.08 + f * bell * 0.14 };
+    return { x: f * bell * (type === 'dualSlash' ? 4 : 6), y: 0, lean: f * bell * (type === 'dualSlash' ? 0.11 : 0.16) };
+  }
+  function meleeRoot(type, t) {
+    const f = player.facing, S = cls.style, body = attackBodyOffset(type, t, f);
+    const lean = (player.anim.lean || 0) + body.lean;
+    const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
+    const baseY = player.y - visualHoverOffset();
+    const hipX = player.x + body.x;
+    const hipY = baseY - S.hipH + body.y;
+    return { shX: hipX + upX * 30, shY: hipY + upY * 30, baseY };
+  }
   function meleeSegment(type, ang, t) {
     if (t == null) t = strikePoint(type);
-    const f = player.facing, shX = player.x, shY = player.y - 72;
-    if (type === 'legSweep') return { ax: player.x + f * 2, ay: player.y - 10, bx: player.x + f * 64, by: player.y - 7, dx: f, dy: -0.35, force: 18, r: 10 };
-    if (type === 'shieldBash') return { ax: player.x + f * 38, ay: player.y - 56, bx: player.x + f * 42, by: player.y - 26, dx: f, dy: -0.1, force: 21, r: 15 };
-    if (type === 'crush') return { ax: shX + f * 18, ay: shY - 8, bx: shX + f * 58, by: player.y - 12, dx: f * 0.55, dy: 0.9, force: 30, r: 18 };
+    const f = player.facing, root = meleeRoot(type, t), shX = root.shX, shY = root.shY, baseY = root.baseY;
+    if (type === 'legSweep') return { ax: player.x + f * 2, ay: baseY - 10, bx: player.x + f * 64, by: baseY - 7, dx: f, dy: -0.35, force: 18, r: 10 };
+    if (type === 'shieldBash') return { ax: shX + f * 28, ay: shY + 2, bx: shX + f * 34, by: shY + 34, dx: f, dy: -0.1, force: 21, r: 15 };
+    if (type === 'crush') return { ax: shX + f * 18, ay: shY - 8, bx: shX + f * 58, by: baseY - 12, dx: f * 0.55, dy: 0.9, force: 30, r: 18 };
     if (type === 'staffSweep') {
       const side = Math.cos(ang) >= 0 ? 1 : -1, a = ang + side * 0.55;
       return { ax: shX - Math.cos(a) * 22, ay: shY - Math.sin(a) * 22, bx: shX + Math.cos(a) * 62, by: shY + Math.sin(a) * 62, dx: Math.cos(a), dy: Math.sin(a), force: 17, r: 9 };
     }
-    if (type === 'vaultKick') return { ax: player.x + f * 8, ay: player.y - 38, bx: player.x + f * 66, by: player.y - 48, dx: f, dy: -0.7, force: 17, r: 11 };
+    if (type === 'vaultKick') return { ax: player.x + f * 8, ay: baseY - 38, bx: player.x + f * 66, by: baseY - 48, dx: f, dy: -0.7, force: 17, r: 11 };
     // every other weapon swing (incl. the rogue's single dual-wield strike): the
     // hit blade IS the drawn blade, sampled from the same pose at impact. If a
     // full-body clip drives the arm, the hitbox follows its arc too.
@@ -1929,8 +1963,12 @@ PUBLIC.start = function (root, api) {
       h = { x: h.x + a._clip.offArm * a._clip.weight * 18, y: h.y - Math.abs(a._clip.offArm) * a._clip.weight * 7 };
     }
     if (a.bhx === null) { a.bhx = h.x; a.bhy = h.y; }
-    springTo(a, 'bhx', h.x, offhandAim ? 180 : 120, offhandAim ? 17 : 12, a._dt);
-    springTo(a, 'bhy', h.y, offhandAim ? 180 : 120, offhandAim ? 17 : 12, a._dt);
+    if (offhandAim != null) {
+      a.bhx = h.x; a.bhy = h.y; a.bhxV = 0; a.bhyV = 0;
+    } else {
+      springTo(a, 'bhx', h.x, 120, 12, a._dt);
+      springTo(a, 'bhy', h.y, 120, 12, a._dt);
+    }
     let ka = ik(shBX, shBY, a.bhx, a.bhy, uArm * offhandStretch, fArm * offhandStretch, f);
     seg(shBX, shBY, ka.jx, ka.jy, ka.ex, ka.ey, 6 / Math.sqrt(offhandStretch));
     if (cls.dual) {
@@ -1962,19 +2000,17 @@ PUBLIC.start = function (root, api) {
     seg(hipFX, hipY, k.jx, k.jy, k.ex, k.ey, 8);
 
     // ----- weapon arm: ARTICULATED chain driven by joint angles -----
-    // Attacks run through one shared swing engine (weaponPose): the shoulder
-    // leads, while the elbow and wrist lag enough for a readable whip.
-    // The joint angles are spring-smoothed for secondary motion (no bone-stretch).
+    // Active attacks draw directly from the shared attack pose. Resting hands
+    // still use springs, but strike frames stay aligned with melee capsules.
     const attacking = a.atkActive;
     // rogue dual-wield: one tap = one hand. When the OFF (back) hand is striking
     // (rogueOff, computed above), the front arm just holds guard.
     if (attacking && !rogueOff) {
       // a full-body clip can author its own arm arc; else use the generic engine
       const pose = (a._clip && a._clip.arm) ? a._clip.arm(a.atkT, a.atkAim, f) : weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
-      const lanceLine = a.atkType === 'braceThrust' || a.atkType === 'lanceCharge';
-      springAngle(a, 'shAng', pose.shAng, lanceLine ? 290 : 205, lanceLine ? 26 : 20, a._dt);                            // shoulder leads
-      springAngle(a, 'elAng', pose.elBend, lanceLine ? 270 : 195, lanceLine ? 24 : 18, a._dt);                           // elbow lags
-      springAngle(a, 'blAng', pose.shAng + pose.elBend + pose.wrBend, lanceLine ? 260 : 180, lanceLine ? 22 : 15, a._dt); // blade wrist
+      a.shAng = pose.shAng; a.shAngV = 0;
+      a.elAng = pose.elBend; a.elAngV = 0;
+      a.blAng = pose.shAng + pose.elBend + pose.wrBend; a.blAngV = 0;
       const wc = armChain(shFX, shFY, a.shAng, a.elAng);
       seg(shFX, shFY, wc.ex, wc.ey, wc.hx, wc.hy, 7);
       drawWeapon(wc.hx, wc.hy, a.blAng, 1);
@@ -2057,44 +2093,6 @@ PUBLIC.start = function (root, api) {
       ctx.lineTo(x, y);
     }
     ctx.lineTo(view.w, view.h); ctx.closePath(); ctx.fill();
-  }
-  function groundBelowAt(x, footY, maxDrop) {
-    const L = levels[li], bottom = footY + (maxDrop || 260), top = footY - 8;
-    let y = Infinity;
-    for (const p of L.platforms) {
-      if (x > p.x - 20 && x < p.x + p.w + 20 && p.y >= top && p.y <= bottom) y = Math.min(y, p.y);
-    }
-    for (const b of boxes) {
-      if (x > b.x - 16 && x < b.x + b.w + 16 && b.y >= top && b.y <= bottom) y = Math.min(y, b.y);
-    }
-    return y === Infinity ? null : y;
-  }
-  function drawGroundShadow(x, footY, radiusX, alpha, maxDrop) {
-    const gy = groundBelowAt(x, footY, maxDrop);
-    if (gy === null) return;
-    const limit = maxDrop || 260;
-    const gap = clamp(gy - footY, 0, limit);
-    const scale = clamp(1 - gap / limit, 0.14, 1);
-    ctx.save();
-    ctx.globalAlpha = alpha * scale;
-    ctx.fillStyle = '#161616';
-    ctx.beginPath();
-    ctx.ellipse(x - cam.x, gy - cam.y + 4, radiusX * (0.68 + scale * 0.38), 4.5 + scale * 3.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-  function drawPlayerShadow() {
-    if (!player) return;
-    const fly = player.anim ? player.anim.fly || 0 : 0;
-    const weaponPad = cls.weapon === 'lance' ? 14 : cls.weapon === 'staff' || cls.weapon === 'bow' ? 6 : 0;
-    const width = 23 + Math.abs(player.vx) * 1.9 + weaponPad;
-    const alpha = 0.22 + (player.grounded ? 0.05 : 0) - fly * 0.07;
-    drawGroundShadow(player.x, player.y, width, alpha, 280);
-  }
-  function drawDummyShadow(d) {
-    if (!d || !d.pts) return;
-    const fL = d.pts.footL, fR = d.pts.footR;
-    drawGroundShadow((fL.x + fR.x) / 2, Math.max(fL.y, fR.y), 26, 0.17, 120);
   }
   function drawPlatform(p) {
     const x = p.x - cam.x, y = p.y - cam.y;
@@ -2240,8 +2238,6 @@ PUBLIC.start = function (root, api) {
     for (const p of L.platforms) drawPlatform(p);
     for (const c of coinsLeft) drawCoin(c);
     for (const b of boxes) drawBox(b);
-    for (const d of dummies) drawDummyShadow(d);
-    drawPlayerShadow();
     for (const d of dummies) drawDummy(d);
     drawFlag(L);
     // particles
