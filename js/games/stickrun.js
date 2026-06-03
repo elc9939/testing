@@ -458,7 +458,7 @@ PUBLIC.start = function (root, api) {
     return {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       team: 'hero', intent: input, cls: null,
-      grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0,
+      grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0, knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, forceCrouch: false,
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
       flip: { active: false, t: 0, dur: 0, dir: 1 },
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
@@ -628,7 +628,8 @@ PUBLIC.start = function (root, api) {
     const slide = m && m.type === 'slide' ? Math.sin(mt * Math.PI) : 0;
     const shoulder = m && (m.type === 'shoulder' || m.type === 'shieldStep' || m.type === 'brace') ? Math.sin(mt * Math.PI) : 0;
     const sweep = act.anim && act.anim.atkActive && act.anim.atkType === 'legSweep' ? Math.sin(clamp(act.anim.atkT, 0, 1) * Math.PI) : 0;
-    const down = act.intent && act.intent.down && act.grounded && !slide ? 1 : 0;
+    const forcedDown = act.forceCrouch && act.grounded && !slide ? 1 : 0;
+    const down = ((act.intent && act.intent.down && act.grounded && !slide) || forcedDown) ? 1 : 0;
     const crouch = clamp(Math.max(down * 0.72, slide, sweep * 0.88), 0, 1);
     return {
       crouch, down, slide, sweep, shoulder,
@@ -643,6 +644,9 @@ PUBLIC.start = function (root, api) {
     const p = actorPosture(act);
     return { x: act.x + p.ox - p.w / 2, y: act.y - p.h, w: p.w, h: p.h, posture: p };
   }
+  function actorStandingBox(act) {
+    return { x: act.x - PW / 2, y: act.y - PH, w: PW, h: PH };
+  }
   function box() { return actorBox(player); }
   function actorHeight(act) { return actorBox(act).h; }
   function resolveActorSide(act, solid) {
@@ -651,6 +655,19 @@ PUBLIC.start = function (root, api) {
     else if (act.vx < 0) act.x += solid.x + solid.w - b.x;
   }
   function hit(b, p) { return b.x < p.x + p.w && b.x + b.w > p.x && b.y < p.y + p.h && b.y + b.h > p.y; }
+  function solidHitsBox(r) {
+    const L = levels[li];
+    for (const p of L.platforms) if (hit(r, p)) return true;
+    for (const b of boxes) if (hit(r, b)) return true;
+    return false;
+  }
+  function updateCrouchConstraint(act) {
+    if (!act || !act.grounded) { if (act) act.forceCrouch = false; return; }
+    const sliding = act.move && act.move.active && act.move.type === 'slide';
+    const sweeping = act.anim && act.anim.atkActive && act.anim.atkType === 'legSweep';
+    if (sliding || sweeping || act.intent && act.intent.down) { act.forceCrouch = false; return; }
+    act.forceCrouch = solidHitsBox(actorStandingBox(act));
+  }
   function pointSegDist(px, py, ax, ay, bx, by) {
     const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1;
     const t = clamp(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1);
@@ -772,8 +789,28 @@ PUBLIC.start = function (root, api) {
     ];
   }
   function bodyCapsules() { return actorCapsules(player); }
-  // closest distance between two segments (cheap endpoint approximation)
+  function orient(ax, ay, bx, by, cx, cy) {
+    return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+  }
+  function onSeg(ax, ay, bx, by, px, py) {
+    const eps = 0.0001;
+    return Math.abs(orient(ax, ay, bx, by, px, py)) <= eps &&
+      px >= Math.min(ax, bx) - eps && px <= Math.max(ax, bx) + eps &&
+      py >= Math.min(ay, by) - eps && py <= Math.max(ay, by) + eps;
+  }
+  function segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+    const o1 = orient(ax, ay, bx, by, cx, cy);
+    const o2 = orient(ax, ay, bx, by, dx, dy);
+    const o3 = orient(cx, cy, dx, dy, ax, ay);
+    const o4 = orient(cx, cy, dx, dy, bx, by);
+    if ((o1 > 0 && o2 < 0 || o1 < 0 && o2 > 0) && (o3 > 0 && o4 < 0 || o3 < 0 && o4 > 0)) return true;
+    return onSeg(ax, ay, bx, by, cx, cy) || onSeg(ax, ay, bx, by, dx, dy) ||
+      onSeg(cx, cy, dx, dy, ax, ay) || onSeg(cx, cy, dx, dy, bx, by);
+  }
+  // closest distance between two 2D segments. Crossing segments are distance 0;
+  // otherwise the minimum is one endpoint projected onto the opposite segment.
   function segSegDist(ax, ay, bx, by, cx, cy, dx, dy) {
+    if (segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy)) return 0;
     return Math.min(
       pointSegDist(ax, ay, cx, cy, dx, dy), pointSegDist(bx, by, cx, cy, dx, dy),
       pointSegDist(cx, cy, ax, ay, bx, by), pointSegDist(dx, dy, ax, ay, bx, by));
@@ -1062,10 +1099,7 @@ PUBLIC.start = function (root, api) {
     return y === Infinity ? null : y;
   }
   function solidProbe(r) {
-    const L = levels[li];
-    for (const p of L.platforms) if (hit(r, p)) return true;
-    for (const b of boxes) if (hit(r, b)) return true;
-    return false;
+    return solidHitsBox(r);
   }
   function fighterNavProbe(e, dir) {
     const b = actorBox(e), cur = surfaceYFor(e, e.x, 64, 12);
@@ -1196,6 +1230,7 @@ PUBLIC.start = function (root, api) {
     else if (it.left && !it.right) { p.vx -= acc; p.facing = -1; }
     else if (it.right && !it.left) { p.vx += acc; p.facing = 1; }
     else if (p.grounded) p.vx *= FRICTION;
+    updateCrouchConstraint(p);
     updateClassMove();
     updateRogueFlip();
     updateAttackMotion();
@@ -1467,6 +1502,7 @@ PUBLIC.start = function (root, api) {
     else if (input.left && !input.right) { player.vx -= acc; player.facing = -1; }
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
     else if (player.grounded) player.vx *= FRICTION;
+    updateCrouchConstraint(player);
     updateClassMove();
     updateRogueFlip();
     updateAttackMotion();
@@ -2606,7 +2642,12 @@ PUBLIC.start = function (root, api) {
       for (const c of coinsLeft) if (!c.got) { ctx.beginPath(); ctx.arc(c.x, c.y, 11, 0, Math.PI * 2); ctx.stroke(); }
       ctx.restore();
     }
-    if (debug.body) for (const s of bodyCapsules()) drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, '#00a7ff', 0.22);
+    if (debug.body) {
+      for (const s of bodyCapsules()) drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, '#00a7ff', 0.22);
+      if (fighters) for (const e of fighters) {
+        for (const s of actorCapsules(e)) drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, e.cls.color || '#ff5a5a', 0.20);
+      }
+    }
     if (debug.dummies) {
       ctx.save();
       ctx.globalAlpha = 0.45;
@@ -2855,6 +2896,7 @@ PUBLIC.start = function (root, api) {
       },
       bodyCapsules() { return player ? bodyCapsules() : []; },
       playerBox() { return player ? actorBox(player) : null; },
+      segDistance(a, b) { return segSegDist(a.ax, a.ay, a.bx, a.by, b.ax, b.ay, b.bx, b.by); },
       debugSegments() { return debug.segments.slice(); },
       get player() { return player; },
       get dummies() { return dummies; },
