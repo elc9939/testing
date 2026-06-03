@@ -21,6 +21,7 @@ const COYOTE = 7, BUFFER = 7, CUT = 0.42;
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
 const ROGUE_MAX_KNIVES = 5, ROGUE_REGEN = 1550;
 const RANGER_MAX_ARROWS = 7, RANGER_REGEN = 1350, RANGER_DRAW_MAX = 900;
+const RANGER_NOCK_TIME = 190, RANGER_RELOAD_TIME = 430, ARROW_GRAVITY = 0.13;
 const KNIGHT_SHIELD_TIME = 1250;
 const MAGE_HOVER_HEIGHT = 42;
 const MAGE_HOVER_STEP = 92;
@@ -322,14 +323,27 @@ PUBLIC.start = function (root, api) {
   function rangerAmmoCost(type) {
     return type === 'volley' ? 3 : 1;
   }
+  function rangerNockAmount(act) {
+    return clamp(((act && act.draw && act.draw.t) || 0) / RANGER_NOCK_TIME, 0, 1);
+  }
+  function rangerDrawPull(act) {
+    const d = act && act.draw;
+    if (!d || !d.active) return 0;
+    return ease(clamp((d.t - RANGER_NOCK_TIME) / Math.max(1, RANGER_DRAW_MAX - RANGER_NOCK_TIME), 0, 1));
+  }
   function rangerDrawPower(act) {
-    return clamp(((act && act.draw && act.draw.t) || 0) / RANGER_DRAW_MAX, 0, 1);
+    return rangerDrawPull(act);
+  }
+  function rangerReloadAmount(act) {
+    const d = act && act.draw;
+    return d && d.reload > 0 ? clamp(1 - d.reload / RANGER_RELOAD_TIME, 0, 1) : 1;
   }
   function startRangerDraw(type) {
     if (!player || state !== 'playing' || cls.id !== 'ranger' || !isRangerShot(type)) return false;
     if (player.anim.atkActive || player.draw.active) return false;
+    if (player.draw.reload > 0) return false;
     if (player.arrowAmmo < rangerAmmoCost(type)) return false;
-    player.draw = { active: true, type, t: 0, aim: aimedAngle() };
+    player.draw.active = true; player.draw.type = type; player.draw.t = 0; player.draw.aim = aimedAngle(); player.draw.lastType = type;
     player.anim.aimShown = player.draw.aim; player.anim.aimShownV = 0;
     player.facing = Math.cos(player.draw.aim) >= 0 ? 1 : -1;
     return true;
@@ -337,9 +351,11 @@ PUBLIC.start = function (root, api) {
   function releaseRangerDraw() {
     if (!player || cls.id !== 'ranger' || !player.draw.active) return false;
     const d = player.draw;
+    const shotType = d.type || 'arrow';
+    const aim = d.aim;
     const power = 0.48 + rangerDrawPower(player) * 0.92;
-    player.draw = { active: false, type: null, t: 0, aim: d.aim };
-    return triggerAttack(d.type || 'arrow', { aim: d.aim, drawPower: power, fromDraw: true });
+    player.draw.active = false; player.draw.type = null; player.draw.t = 0; player.draw.aim = aim; player.draw.reload = RANGER_RELOAD_TIME; player.draw.lastType = shotType;
+    return triggerAttack(shotType, { aim, drawPower: power, fromDraw: true });
   }
   function triggerAttack(type, opts) {
     if (!player || state !== 'playing' || !type) return false;
@@ -522,7 +538,7 @@ PUBLIC.start = function (root, api) {
       grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0,
       knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, arrowAmmo: RANGER_MAX_ARROWS, arrowRegen: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false,
-      draw: { active: false, type: null, t: 0, aim: 0 },
+      draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
       flip: { active: false, t: 0, dur: 0, dir: 1 },
       anim: { phase: 0, lean: 0, leanV: 0, squash: 0, air: 0, atkActive: false, atkType: null, atkT: 0,
@@ -1524,6 +1540,7 @@ PUBLIC.start = function (root, api) {
   function updateActorResources(dtStep) {
     player.shieldGuard = Math.max(0, (player.shieldGuard || 0) - dtStep);
     player.shieldFlash = Math.max(0, (player.shieldFlash || 0) - dtStep);
+    if (player.draw) player.draw.reload = Math.max(0, (player.draw.reload || 0) - dtStep);
     if (player.draw && player.draw.active) {
       player.draw.t = Math.min(RANGER_DRAW_MAX, player.draw.t + dtStep);
       if (player.team === 'hero') player.draw.aim = aimedAngle();
@@ -1945,9 +1962,15 @@ PUBLIC.start = function (root, api) {
     const mx = shX + Math.cos(ang) * 22, my = shY + Math.sin(ang) * 10;
     projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: 11 });
   }
+  function arrowSpeed(power) {
+    return 18 + 8 * clamp(power, 0.45, 1.45);
+  }
+  function arrowOrigin(ang) {
+    const shX = player.x, shY = player.y - 72;
+    return { x: shX + Math.cos(ang) * 34, y: shY + Math.sin(ang) * 34 };
+  }
   function spawnArrow(ang, power) {
-    const shX = player.x, shY = player.y - 72, spd = (18 + 8 * clamp(power, 0.45, 1.45));
-    const mx = shX + Math.cos(ang) * 34, my = shY + Math.sin(ang) * 34;
+    const spd = arrowSpeed(power), o = arrowOrigin(ang), mx = o.x, my = o.y;
     projectiles.push({ kind: 'arrow', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1300, color: cls.color, angle: ang, hit: 8 + 8 * clamp(power, 0.45, 1.45) });
     burst(mx, my, cls.color, 8, 2.4);
   }
@@ -2283,6 +2306,19 @@ PUBLIC.start = function (root, api) {
     }
     return 0;
   }
+  function currentRangerShotType() {
+    if (!player || cls.id !== 'ranger') return null;
+    if (player.draw && player.draw.active) return player.draw.type;
+    const a = player.anim;
+    if (a && a.atkActive && isRangerShot(a.atkType)) return a.atkType;
+    return null;
+  }
+  function currentRangerNock() {
+    if (!player || cls.id !== 'ranger') return 0;
+    if (player.draw && player.draw.active) return rangerNockAmount(player);
+    const a = player.anim;
+    return a && a.atkActive && isRangerShot(a.atkType) ? 1 - ease(clamp(a.atkT / 0.34, 0, 1)) * 0.45 : 0;
+  }
   // draw the held weapon from the hand along `ang`; `scale` stretches it lengthwise (smear)
   function drawWeapon(hx, hy, ang, scale) {
     ctx.save();
@@ -2336,6 +2372,8 @@ PUBLIC.start = function (root, api) {
       ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
     } else if (cls.weapon === 'bow') {
       const pull = currentBowPull();
+      const nock = currentRangerNock();
+      const shotType = currentRangerShotType();
       ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 3.8;
       const span = 30, bulge = 19;
       ctx.beginPath();
@@ -2349,14 +2387,19 @@ PUBLIC.start = function (root, api) {
       ctx.lineTo(sx, sy);
       ctx.lineTo(hx - nx * (span - 1), hy - ny * (span - 1));
       ctx.stroke();
-      if (pull > 0.05 || (player.anim.atkActive && isRangerShot(player.anim.atkType))) {
+      if ((pull > 0.05 || nock > 0.42 || (player.anim.atkActive && isRangerShot(player.anim.atkType))) && shotType) {
         ctx.strokeStyle = '#8b6a3b'; ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(sx - dx * 10, sy - dy * 10); ctx.lineTo(hx + dx * 34 * L, hy + dy * 34 * L); ctx.stroke();
-        ctx.fillStyle = '#aeb4bd'; ctx.beginPath();
-        ctx.moveTo(hx + dx * 40 * L, hy + dy * 40 * L);
-        ctx.lineTo(hx + dx * 30 * L + nx * 3.6, hy + dy * 30 * L + ny * 3.6);
-        ctx.lineTo(hx + dx * 30 * L - nx * 3.6, hy + dy * 30 * L - ny * 3.6);
-        ctx.closePath(); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+        const offsets = shotType === 'volley' ? [-6, 0, 6] : [0];
+        for (const off of offsets) {
+          const ox = nx * off, oy = ny * off;
+          ctx.beginPath(); ctx.moveTo(sx - dx * 10 + ox, sy - dy * 10 + oy); ctx.lineTo(hx + dx * 34 * L + ox, hy + dy * 34 * L + oy); ctx.stroke();
+          ctx.fillStyle = '#aeb4bd'; ctx.beginPath();
+          ctx.moveTo(hx + dx * 40 * L + ox, hy + dy * 40 * L + oy);
+          ctx.lineTo(hx + dx * 30 * L + nx * 3.6 + ox, hy + dy * 30 * L + ny * 3.6 + oy);
+          ctx.lineTo(hx + dx * 30 * L - nx * 3.6 + ox, hy + dy * 30 * L - ny * 3.6 + oy);
+          ctx.closePath(); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+          ctx.strokeStyle = '#8b6a3b'; ctx.lineWidth = 2.5;
+        }
       }
     } else if (cls.weapon === 'bo') {
       ctx.strokeStyle = '#6b5330'; ctx.lineCap = 'round'; ctx.lineWidth = 4;
@@ -2406,6 +2449,33 @@ PUBLIC.start = function (root, api) {
       ctx.beginPath(); ctx.moveTo(ox, -19); ctx.lineTo(ox + 2, -34); ctx.stroke();
       ctx.strokeStyle = '#53d4ff'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(ox + 2, -34); ctx.lineTo(ox - 2, -30); ctx.moveTo(ox + 2, -34); ctx.lineTo(ox + 5, -30); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawHeldArrow(hx, hy, ang, count, alpha) {
+    count = Math.max(1, count || 1);
+    ctx.save();
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+    const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
+    const spread = count > 1 ? 4.2 : 0;
+    for (let i = 0; i < count; i++) {
+      const off = (i - (count - 1) / 2) * spread;
+      const x = hx + nx * off, y = hy + ny * off;
+      ctx.strokeStyle = '#8b6a3b'; ctx.lineCap = 'round'; ctx.lineWidth = 2.1;
+      ctx.beginPath(); ctx.moveTo(x - dx * 16, y - dy * 16); ctx.lineTo(x + dx * 20, y + dy * 20); ctx.stroke();
+      ctx.fillStyle = '#aeb4bd'; ctx.strokeStyle = INK; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + dx * 25, y + dy * 25);
+      ctx.lineTo(x + dx * 17 + nx * 3, y + dy * 17 + ny * 3);
+      ctx.lineTo(x + dx * 17 - nx * 3, y + dy * 17 - ny * 3);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#53d4ff'; ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(x - dx * 16, y - dy * 16);
+      ctx.lineTo(x - dx * 23 + nx * 3, y - dy * 23 + ny * 3);
+      ctx.moveTo(x - dx * 16, y - dy * 16);
+      ctx.lineTo(x - dx * 23 - nx * 3, y - dy * 23 - ny * 3);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -2530,6 +2600,8 @@ PUBLIC.start = function (root, api) {
     const bowActive = cls.id === 'ranger' && ((player.draw && player.draw.active) || (a.atkActive && isRangerShot(a.atkType)));
     const bowAim = player.draw && player.draw.active ? player.draw.aim : (a.atkActive && isRangerShot(a.atkType) ? a.atkAim : (f > 0 ? 0 : Math.PI));
     const bowPull = currentBowPull();
+    const bowNock = player.draw && player.draw.active ? rangerNockAmount(player) : bowActive ? 1 : 0;
+    const bowReload = cls.id === 'ranger' ? rangerReloadAmount(player) : 1;
 
     const idleAmt = (1 - moveAmt) * (1 - air);
     const bob = bounceAmp * moveAmt * (0.5 - 0.5 * Math.cos(2 * p));   // downward compression
@@ -2692,7 +2764,7 @@ PUBLIC.start = function (root, api) {
     // ----- back arm (ragdoll: hand position springs loosely so the elbow swings) -----
     const knifeTrick = cls.id === 'rogue' && !a.atkActive && idleAmt > 0.72 && ((now % 4300) / 4300) > 0.70
       ? ease((((now % 4300) / 4300) - 0.70) / 0.30) : 0;
-    let h = armHand(p), offhandAim = null, offhandStretch = 1;
+    let h = armHand(p), offhandAim = null, offhandStretch = 1, offhandBend = f;
     if (rogueOff && slashT !== null) {
       // full-range off-hand swing (uses the same raise-to-top engine as the front hand)
       const pose = weaponPose('dualSlash', slashT, a.atkAim, f, a.atkVar);
@@ -2716,9 +2788,18 @@ PUBLIC.start = function (root, api) {
       if (a.atkActive && (a.atkType === 'staffSweep' || a.atkType === 'vaultKick')) h = { x: shX - f * 10, y: shY + 20 };
     } else if (cls.weapon === 'bow') {
       if (bowActive) {
-        const hx = shX + Math.cos(bowAim) * 24, hy = shY + Math.sin(bowAim) * 16;
-        h = { x: hx - Math.cos(bowAim) * (12 + bowPull * 26), y: hy - Math.sin(bowAim) * (12 + bowPull * 26) };
-      } else h = { x: shX - f * 10, y: shY + 16 };
+        const bx = shX + Math.cos(bowAim) * 24, by = shY + Math.sin(bowAim) * 16;
+        const passive = { x: shX - f * 12, y: shY + 18 };
+        const string = { x: bx - Math.cos(bowAim) * (11 + bowPull * 28), y: by - Math.sin(bowAim) * (11 + bowPull * 28) };
+        string.y = Math.max(string.y, shY - 2 + bowPull * 4);
+        h = { x: lerp(passive.x, string.x, bowNock), y: lerp(passive.y, string.y, bowNock) };
+        offhandBend = -f;
+      } else {
+        const quiver = { x: shX - f * 19, y: shY + 37 };
+        const passive = { x: shX - f * 12, y: shY + 18 };
+        h = { x: lerp(quiver.x, passive.x, bowReload), y: lerp(quiver.y, passive.y, bowReload) };
+        offhandBend = -f;
+      }
     }
     if (a._clip && offhandAim == null) {                  // off arm counter-balances the swing
       h = { x: h.x + a._clip.offArm * a._clip.weight * 18, y: h.y - Math.abs(a._clip.offArm) * a._clip.weight * 7 };
@@ -2730,7 +2811,7 @@ PUBLIC.start = function (root, api) {
       springTo(a, 'bhx', h.x, 120, 12, a._dt);
       springTo(a, 'bhy', h.y, 120, 12, a._dt);
     }
-    let ka = ik(shBX, shBY, a.bhx, a.bhy, uArm * offhandStretch, fArm * offhandStretch, f);
+    let ka = ik(shBX, shBY, a.bhx, a.bhy, uArm * offhandStretch, fArm * offhandStretch, offhandBend);
     seg(shBX, shBY, ka.jx, ka.jy, ka.ex, ka.ey, 6 / Math.sqrt(offhandStretch));
     if (cls.dual) {
       let offAng = offhandAim != null ? offhandAim : Math.atan2(ka.ey - ka.jy, ka.ex - ka.jx);
@@ -2740,6 +2821,10 @@ PUBLIC.start = function (root, api) {
         slashTrail.push({ x: player.x + ka.ex + Math.cos(offAng) * WLEN.dagger * offhandStretch, y: (player.y - hoverY) + ka.ey + Math.sin(offAng) * WLEN.dagger * offhandStretch, life: 170, c: cls.trail });
         if (slashTrail.length > 38) slashTrail.shift();
       }
+    } else if (cls.weapon === 'bow') {
+      const shotCount = bowActive && ((player.draw && player.draw.type === 'volley') || (a.atkActive && a.atkType === 'volley')) ? 3 : 1;
+      const looseAlpha = bowActive ? clamp(1 - bowNock, 0, 1) : clamp(bowReload, 0, 1);
+      if (player.arrowAmmo > 0 && looseAlpha > 0.04) drawHeldArrow(ka.ex, ka.ey, bowAim == null ? (f > 0 ? 0 : Math.PI) : bowAim, shotCount, looseAlpha);
     } else if (cls.offhand === 'shield') {
       const guarding = (player.shieldGuard || 0) > 0 || (a.atkActive && a.atkType === 'shieldGuard');
       drawShield(ka.ex, ka.ey, f, guarding ? 1.28 + clamp((player.shieldFlash || 0) / 180, 0, 1) * 0.14 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? 1.15 : 1);
@@ -2971,6 +3056,34 @@ PUBLIC.start = function (root, api) {
       }
     }
   }
+  function drawRangerTrajectory() {
+    if (!player || cls.id !== 'ranger' || !player.draw || !player.draw.active) return;
+    const aim = player.draw.aim;
+    const power = 0.48 + rangerDrawPower(player) * 0.92;
+    const lanes = player.draw.type === 'volley' ? [-0.13, 0, 0.13] : [0];
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const off of lanes) {
+      const a = aim + off, o = arrowOrigin(a);
+      let x = o.x, y = o.y, vx = Math.cos(a) * arrowSpeed(power), vy = Math.sin(a) * arrowSpeed(power);
+      ctx.strokeStyle = off === 0 ? 'rgba(83,212,255,0.62)' : 'rgba(83,212,255,0.34)';
+      ctx.lineWidth = off === 0 ? 2.2 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let i = 0; i < 34; i++) {
+        x += vx * 0.55;
+        y += vy * 0.55;
+        vy += ARROW_GRAVITY * 0.55;
+        if (i % 2 === 0) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        const r = { x: x - 2, y: y - 2, w: 4, h: 4 };
+        const L = levels[li];
+        if (L.platforms.some(p => hit(r, p)) || boxes.some(b => hit(r, b))) break;
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function drawDebugPanel(moveAmt) {
     if (!debug.enabled || !player) return;
     const action = currentActionLayer();
@@ -3031,6 +3144,7 @@ PUBLIC.start = function (root, api) {
     }
     // figure (translate by camera)
     ctx.translate(-cam.x, -cam.y);
+    drawRangerTrajectory();
     for (const g of gravityFields) {
       const pulse = Math.sin(performance.now() * 0.009) * 0.08 + 1;
       const fade = clamp(g.life / g.max, 0, 1);
@@ -3143,7 +3257,7 @@ PUBLIC.start = function (root, api) {
           const px = b.x, py = b.y;
           b.x += b.vx; b.y += b.vy; b.life -= dt;
           if (b.kind === 'dagger') { b.vy += 0.18; }          // thrown knives arc slightly, without spinning
-          else if (b.kind === 'arrow') { b.vy += 0.045; b.angle = Math.atan2(b.vy, b.vx); }
+          else if (b.kind === 'arrow') { b.vy += ARROW_GRAVITY; b.angle = Math.atan2(b.vy, b.vx); }
           else if (b.kind === 'gravitySeed') {
             b.angle += 0.08;
             b.vx *= 0.992; b.vy *= 0.992;
