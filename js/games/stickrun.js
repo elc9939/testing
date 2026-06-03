@@ -81,12 +81,12 @@ const ATTACK_TIMELINES = {
   lanceSwing: { kind: 'melee', strike: 0.50, hitstop: 34, impulse: 6.8, tags: ['reach', 'heavy', 'swing'],
     phases: { anticipation: [0.00, 0.34], active: [0.40, 0.68], recovery: [0.68, 1.00] },
     sweep: [-0.18, -0.08, 0.00, 0.08, 0.16] },
-  braceThrust: { kind: 'melee', strike: 0.56, hitstop: 34, impulse: 10.5, tags: ['reach', 'heavy', 'stab'],
+  braceThrust: { kind: 'melee', strike: 0.54, hitstop: 34, impulse: 10.5, tags: ['reach', 'heavy', 'stab'],
     phases: { anticipation: [0.00, 0.40], active: [0.48, 0.70], recovery: [0.70, 1.00] },
-    sweep: [-0.10, -0.04, 0.00, 0.08] },
-  lanceCharge: { kind: 'melee', strike: 0.58, hitstop: 34, impulse: 9.0, tags: ['reach', 'heavy', 'charge'],
+    sweep: [-0.06, -0.02, 0.00, 0.05] },
+  lanceCharge: { kind: 'melee', strike: 0.54, hitstop: 34, impulse: 9.0, tags: ['reach', 'heavy', 'stab', 'charge'],
     phases: { anticipation: [0.00, 0.26], active: [0.28, 0.76], recovery: [0.76, 1.00] },
-    sweep: [-0.08, -0.02, 0.00, 0.08] },
+    sweep: [-0.04, 0.00, 0.04, 0.10] },
   crush: { kind: 'melee', strike: 0.50, hitstop: 42, impulse: 5.0, tags: ['heavy', 'impact'] },
   staffSweep: { kind: 'melee', strike: 0.50, hitstop: 26, impulse: 5.5, tags: ['staff', 'arc'] },
   vaultKick: { kind: 'melee', strike: 0.50, hitstop: 24, impulse: 7.0, tags: ['air', 'kick'] },
@@ -600,6 +600,10 @@ PUBLIC.start = function (root, api) {
     const dy = Math.max(r.y - py, 0, py - (r.y + r.h));
     return Math.hypot(dx, dy);
   }
+  function visualHoverOffset() {
+    const a = player && player.anim, S = cls && cls.style;
+    return a && S ? (a.fly || 0) * (S.hover || 0) : 0;
+  }
 
   // dynamic crates: gravity, terrain + box-box collision, friction, bounce, and SPIN
   function updateBoxes() {
@@ -673,13 +677,13 @@ PUBLIC.start = function (root, api) {
     return bd <= r ? { p: best, d: bd } : null;
   }
   function bodyCapsules() {
-    const S = cls.style, hip = { x: player.x, y: player.y - S.hipH };
+    const S = cls.style, baseY = player.y - visualHoverOffset(), hip = { x: player.x, y: baseY - S.hipH };
     const sh = { x: player.x + player.anim.lean * player.facing * 14, y: hip.y - 30 };
     return [
       { ax: sh.x, ay: sh.y, bx: hip.x, by: hip.y, r: 8 },
       { ax: sh.x, ay: sh.y - 16, bx: sh.x, by: sh.y - 16, r: 13 },
-      { ax: hip.x - player.facing * 4, ay: hip.y, bx: player.x - 9, by: player.y, r: 5 },
-      { ax: hip.x + player.facing * 4, ay: hip.y, bx: player.x + 9, by: player.y, r: 5 },
+      { ax: hip.x - player.facing * 4, ay: hip.y, bx: player.x - 9, by: baseY, r: 5 },
+      { ax: hip.x + player.facing * 4, ay: hip.y, bx: player.x + 9, by: baseY, r: 5 },
     ];
   }
   function coinTouchesPlayer(c) {
@@ -1190,6 +1194,13 @@ PUBLIC.start = function (root, api) {
     const ch = armChain(shX, shY, pose.shAng, pose.elBend);
     const bladeAng = ch.foreAng + pose.wrBend;
     const wl = WLEN[cls.weapon] || 24;
+    if (type === 'braceThrust' || type === 'lanceCharge') {
+      const lineAng = f > 0 ? 0 : Math.PI;
+      const sx = ch.hx + Math.cos(lineAng) * 22, sy = ch.hy;
+      const tx = ch.hx + Math.cos(lineAng) * WLEN.lance, ty = ch.hy;
+      const force = type === 'lanceCharge' ? 30 : 28;
+      return { ax: sx, ay: sy, bx: tx, by: ty, dx: f, dy: 0, force, r: 8 };
+    }
     const bx = ch.hx + Math.cos(bladeAng) * wl, by = ch.hy + Math.sin(bladeAng) * wl;
     let ax = ch.hx, ay = ch.hy;
     if (cls.weapon === 'lance') {
@@ -1367,7 +1378,6 @@ PUBLIC.start = function (root, api) {
     { back: -0.50, over: 0.78, raiseT: 0.18, cutT: 0.50, coil: 1.12, whip: 0.98, rising: true }, // rising uppercut
   ];
   const CHOP_VARIANTS = [{ lean: 0.45 }, { lean: 0.05 }, { lean: 0.80 }];
-  const THRUST_VARIANTS = [{ coil: 2.00, hold: 0.10, lo: -0.05 }, { coil: 1.70, hold: 0.04, lo: 0.10 }];
   const THROW_VARIANTS = [{ raiseT: 0.20, over: 0.00 }, { raiseT: 0.16, over: 0.14 }];
   function weaponPose(type, t, aim, f, v) {
     v = v | 0;
@@ -1405,26 +1415,28 @@ PUBLIC.start = function (root, api) {
       elBend = s * kfa(t, [[0, -0.40], [0.36, -1.30], [0.52, -0.05], [0.66, 0.05], [1, -0.50]]);
       wrBend = s * kfa(t, [[0, 0.20], [0.36, 0.85], [0.52, -0.45], [0.66, 0.00], [1, 0.20]]);
     } else if (arc === 'thrust') {
-      const P = THRUST_VARIANTS[v % THRUST_VARIANTS.length];
       const big = type === 'braceThrust' || type === 'lanceCharge' || type === 'stab';
       const lance = type === 'braceThrust' || type === 'lanceCharge';
-      // straight stab: visibly draw the weapon back, square the shoulder, then
-      // punch the point forward so the hitbox extends with the lance tip.
-      shAng = aim + s * kfa(t, big
-        ? lance
-          ? [[0, 0.00], [0.34, -0.08], [0.50, -0.09], [0.58, 0.025], [0.74, 0.01], [1, 0.00]]
-          : [[0, 0.00], [0.34, -0.22], [0.48, -0.26], [0.58, 0.08], [0.74, 0.04], [1, 0.00]]
-        : [[0, 0.00], [0.32, -0.08], [0.54, 0.05], [1, 0.00]]);
-      elBend = s * kfa(t, big
-        ? lance
-          ? [[0, -0.45], [0.24, -1.35], [0.34, -1.50], [0.44, P.lo + 0.05], [0.74, P.lo], [1, -0.62]]
-          : [[0, -0.50], [0.34, -2.35], [0.48, -2.35], [0.58, P.lo + 0.12], [0.74, P.lo], [1, -0.70]]
-        : [[0, -0.40], [0.32, -P.coil], [0.42 + P.hold, -P.coil], [0.54, P.lo], [0.70, P.lo], [1, -0.60]]);
-      wrBend = s * kfa(t, big
-        ? lance
-          ? [[0, 0.12], [0.34, 0.26], [0.44, -0.03], [0.74, 0.00], [1, 0.12]]
-          : [[0, 0.22], [0.46, 0.58], [0.58, -0.04], [0.74, 0.02], [1, 0.16]]
-        : [[0, 0.20], [0.44, 0.45], [0.54, 0.00], [1, 0.15]]);
+      if (lance) {
+        const line = f > 0 ? 0 : Math.PI;
+        const coil = type === 'lanceCharge'
+          ? kfa(t, [[0, 1.10], [0.20, 1.48], [0.34, 0.62], [0.48, 0.12], [0.74, 0.10], [1, 0.58]])
+          : kfa(t, [[0, 1.20], [0.30, 1.72], [0.42, 1.66], [0.52, 0.22], [0.74, 0.10], [1, 0.64]]);
+        shAng = line - s * coil;
+        elBend = s * coil;
+        wrBend = 0;
+        return { shAng, elBend, wrBend };
+      }
+      // straight stab: draw the hand back, then extend with the blade itself
+      // locked to the aim line so the capsule matches the visible point.
+      const coil = type === 'rogueStab'
+        ? kfa(t, [[0, 0.68], [0.24, 1.32], [0.38, 1.26], [0.50, 0.12], [0.66, 0.04], [1, 0.52]])
+        : big
+          ? kfa(t, [[0, 0.78], [0.34, 1.60], [0.48, 1.58], [0.58, 0.14], [0.74, 0.06], [1, 0.58]])
+          : kfa(t, [[0, 0.55], [0.30, 1.20], [0.44, 1.15], [0.56, 0.10], [0.72, 0.04], [1, 0.50]]);
+      shAng = aim - s * coil;
+      elBend = s * coil;
+      wrBend = 0;
     } else if (arc === 'cast') {
       const bell = Math.sin(clamp(t, 0, 1) * Math.PI);
       shAng = aim - s * 0.10 * (1 - bell);
@@ -1463,8 +1475,8 @@ PUBLIC.start = function (root, api) {
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(jx, jy); ctx.lineTo(bx, by); ctx.stroke();
   }
 
-  // blade/weapon length per class (used for the swing trail + bolt origin)
-  const WLEN = { sword: 40, dagger: 23, spear: 50, lance: 88, staff: 46, bow: 34, bo: 52, hammer: 46 };
+  // visible weapon-tip length per class, used by trails and melee capsules
+  const WLEN = { sword: 40, dagger: 16, spear: 50, lance: 88, staff: 49, bow: 30, bo: 48, hammer: 46 };
   // draw the held weapon from the hand along `ang`; `scale` stretches it lengthwise (smear)
   function drawWeapon(hx, hy, ang, scale) {
     ctx.save();
@@ -1891,9 +1903,10 @@ PUBLIC.start = function (root, api) {
     if (attacking && !rogueOff) {
       // a full-body clip can author its own arm arc; else use the generic engine
       const pose = (a._clip && a._clip.arm) ? a._clip.arm(a.atkT, a.atkAim, f) : weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
-      springAngle(a, 'shAng', pose.shAng, 205, 20, a._dt);                            // shoulder leads
-      springAngle(a, 'elAng', pose.elBend, 195, 18, a._dt);                           // elbow lags
-      springAngle(a, 'blAng', pose.shAng + pose.elBend + pose.wrBend, 180, 15, a._dt); // blade wrist
+      const lanceLine = a.atkType === 'braceThrust' || a.atkType === 'lanceCharge';
+      springAngle(a, 'shAng', pose.shAng, lanceLine ? 290 : 205, lanceLine ? 26 : 20, a._dt);                            // shoulder leads
+      springAngle(a, 'elAng', pose.elBend, lanceLine ? 270 : 195, lanceLine ? 24 : 18, a._dt);                           // elbow lags
+      springAngle(a, 'blAng', pose.shAng + pose.elBend + pose.wrBend, lanceLine ? 260 : 180, lanceLine ? 22 : 15, a._dt); // blade wrist
       const wc = armChain(shFX, shFY, a.shAng, a.elAng);
       seg(shFX, shFY, wc.ex, wc.ey, wc.hx, wc.hy, 7);
       drawWeapon(wc.hx, wc.hy, a.blAng, 1);
@@ -2313,8 +2326,22 @@ PUBLIC.start = function (root, api) {
 
   showMenu();
   // test seam (no-op in production): lets the headless harness drive internals
-  if (typeof window !== 'undefined' && window.__stickTest)
-    window.__stickTest({ play, onStrike, triggerAttack, get player() { return player; }, get dummies() { return dummies; }, get cls() { return cls; } });
+  if (typeof window !== 'undefined') {
+    const testApi = {
+      play, onStrike, triggerAttack,
+      sampleMelee(type, t) {
+        if (!player) return null;
+        return meleeSegment(type || cls.main, player.anim.atkAim || (player.facing > 0 ? 0 : Math.PI), t == null ? strikePoint(type || cls.main) : t);
+      },
+      bodyCapsules() { return player ? bodyCapsules() : []; },
+      debugSegments() { return debug.segments.slice(); },
+      get player() { return player; },
+      get dummies() { return dummies; },
+      get cls() { return cls; },
+    };
+    if (window.__stickTest) window.__stickTest(testApi);
+    if (debug.enabled) window.__stickDebug = testApi;
+  }
 };
 
 Arcade.register(PUBLIC);
