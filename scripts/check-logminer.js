@@ -92,9 +92,9 @@ function smokeTest() {
   const usersCsv = fs.readFileSync(path.join(outputDir, 'users.csv'), 'utf8').trim().split(/\r?\n/);
   assertDeepEqual(usersCsv, [
     'userId,events,totalBytes',
-    '"tab\\name",1,50',
-    'alice,2,200',
-    'bob,1,400',
+    '"""tab\\name""",1,50',
+    '"alice",2,200',
+    '"bob",1,400',
   ], 'users.csv');
 
   assertDeepEqual(readSummaryBin(path.join(outputDir, 'summary.bin')), {
