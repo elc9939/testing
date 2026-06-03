@@ -7,6 +7,7 @@ const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const logminerDir = path.join(root, 'logminer');
+const smokeTempDirs = [];
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -48,6 +49,12 @@ function cleanClassFiles() {
   }
 }
 
+function cleanSmokeTempDirs() {
+  for (const dir of smokeTempDirs.splice(0)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function compile() {
   const javaFiles = fs.readdirSync(logminerDir)
     .filter(name => name.endsWith('.java'))
@@ -59,6 +66,7 @@ function compile() {
 
 function smokeTest() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'logminer-smoke-'));
+  smokeTempDirs.push(tempDir);
   const inputDir = path.join(tempDir, 'input');
   const outputDir = path.join(tempDir, 'output');
   fs.mkdirSync(inputDir);
@@ -171,5 +179,6 @@ try {
   console.error(error.message);
   process.exitCode = 1;
 } finally {
+  cleanSmokeTempDirs();
   cleanClassFiles();
 }
