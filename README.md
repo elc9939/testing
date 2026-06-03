@@ -60,6 +60,26 @@ logminer/               standalone Java CSV log processing utility
 .github/workflows/      GitHub Pages deploy + CI checks
 ```
 
+## LogMiner utility
+
+`logminer/` is a standalone Java CLI for summarizing simple CSV event logs. It
+expects non-recursive `.csv` inputs with this exact header:
+
+```csv
+timestamp,userId,action,bytes,status
+```
+
+Run it from the repo root:
+
+```bash
+javac logminer/*.java
+java logminer.Main --input path/to/logs --output path/to/out --threads 4 --topUsers 5
+```
+
+It writes `summary.json`, `summary.bin`, `users.csv`, and `errors.csv`.
+Malformed data rows are counted and recorded in `errors.csv`; malformed headers
+stop that file from being processed.
+
 ## Checks
 
 GitHub Actions runs lightweight checks on every push and pull request. You can
