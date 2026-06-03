@@ -23,7 +23,7 @@ const ROGUE_MAX_KNIVES = 5, ROGUE_REGEN = 1550;
 const MAGE_HOVER_HEIGHT = 42;
 const MAGE_HOVER_STEP = 92;
 
-// ---------- RPG classes (data-driven so more can be added easily) ----------
+// ---------- RPG classes ----------
 // weapon: how the held weapon is drawn; moves: primary attacks cycled per click;
 // reach: weapon reach multiplier; speedMul: run-speed multiplier; trail: RGB of
 // the swing/cast trail; dur: per-move animation lengths (ms); ranged: casts bolts.
@@ -57,44 +57,34 @@ const CLASSES = [
     reach: 0.92, speedMul: 1.08, trail: [83, 212, 255], dur: { arrow: 230, volley: 330 }, moveDur: { backstep: 260 }, ranged: true,
     style: { hipH: 46, stanceW: 8, strideH: 14, lift: 7, bounceAmp: 1.3, cadence: 0.98, armStride: 8, baseLean: 0.04, squash: 0.8,
       breatheAmp: 1.0, breatheSpd: 0.0021, hover: 0, idle: 'archer', spring: { lean: [115, 14], head: [96, 15], aim: [145, 16] } } },
-  { id: 'monk', name: 'Monk', emoji: '🥋', color: '#ff8f5e', blurb: 'Vaulting staff sweeps.',
-    weapon: 'bo', main: 'staffSweep', alt: 'vaultKick', move: 'vault',
-    reach: 1.04, speedMul: 1.12, trail: [255, 143, 94], dur: { staffSweep: 320, vaultKick: 360 }, moveDur: { vault: 420 },
-    style: { hipH: 45, stanceW: 9, strideH: 12, lift: 9, bounceAmp: 1.6, cadence: 1.02, armStride: 9, baseLean: 0.02, squash: 0.75,
-      breatheAmp: 1.2, breatheSpd: 0.0024, hover: 0, idle: 'monk', spring: { lean: [130, 13], head: [108, 13], aim: [155, 15] } } },
-  { id: 'warden', name: 'Warden', emoji: '🔨', color: '#c79bff', blurb: 'Slow hammer shockwaves.',
-    weapon: 'hammer', main: 'crush', alt: 'quake', move: 'shoulder',
-    reach: 1.08, speedMul: 0.84, trail: [199, 155, 255], dur: { crush: 430, quake: 520 }, moveDur: { shoulder: 360 }, tank: true,
-    style: { hipH: 43, stanceW: 12, strideH: 10, lift: 6, bounceAmp: 3.2, cadence: 0.66, armStride: 7, baseLean: 0.03, squash: 1.35,
-      breatheAmp: 1.6, breatheSpd: 0.0014, hover: 0, idle: 'heavy', spring: { lean: [72, 25], head: [66, 24], aim: [105, 24] } } },
-].filter(c => c.id !== 'monk' && c.id !== 'warden');
+];
 
 // ---------- action timeline library ----------
 // Every satisfying move needs the same bones: a readable wind-up, an active
 // window, and a recovery/cancel tail. Keeping that data together lets the combat
 // feel be tuned without chasing scattered timing constants through the file.
 const DEFAULT_ATTACK = {
-  kind: 'melee', strike: 0.50, hitstop: 24, impulse: 5.5, durScale: 1.2,
+  kind: 'melee', strike: 0.50, hitstop: 20, impulse: 5.5, durScale: 1.2,
   phases: { anticipation: [0.00, 0.30], active: [0.38, 0.62], recovery: [0.62, 1.00] },
   sweep: [-0.16, -0.08, 0.00, 0.06],
 };
 const ATTACK_TIMELINES = {
-  slash: { kind: 'melee', strike: 0.50, hitstop: 24, impulse: 5.8, tags: ['blade', 'combo'] },
-  dualSlash: { kind: 'melee', strike: 0.44, hitstop: 22, impulse: 3.6, tags: ['blade', 'fast'],
+  slash: { kind: 'melee', strike: 0.50, hitstop: 20, impulse: 5.8, tags: ['blade', 'combo'] },
+  dualSlash: { kind: 'melee', strike: 0.44, hitstop: 16, impulse: 3.6, tags: ['blade', 'fast'],
     phases: { anticipation: [0.00, 0.20], active: [0.26, 0.60], recovery: [0.60, 1.00] },
     sweep: [-0.12, -0.06, 0.00, 0.06] },
-  rogueStab: { kind: 'melee', strike: 0.42, hitstop: 18, impulse: 4.0, tags: ['blade', 'fast', 'stab'],
+  rogueStab: { kind: 'melee', strike: 0.42, hitstop: 14, impulse: 4.0, tags: ['blade', 'fast', 'stab'],
     phases: { anticipation: [0.00, 0.22], active: [0.32, 0.54], recovery: [0.54, 1.00] },
     sweep: [-0.07, 0.00, 0.07] },
-  legSweep: { kind: 'melee', strike: 0.38, hitstop: 22, impulse: 4.2, tags: ['low', 'control'] },
-  shieldBash: { kind: 'melee', strike: 0.38, hitstop: 30, impulse: 6.5, tags: ['guard', 'bash'] },
+  legSweep: { kind: 'melee', strike: 0.38, hitstop: 17, impulse: 4.2, tags: ['low', 'control'] },
+  shieldBash: { kind: 'melee', strike: 0.38, hitstop: 24, impulse: 6.5, tags: ['guard', 'bash'] },
   lanceSwing: { kind: 'melee', strike: 0.50, hitstop: 34, impulse: 6.8, tags: ['reach', 'heavy', 'swing'],
     phases: { anticipation: [0.00, 0.34], active: [0.40, 0.68], recovery: [0.68, 1.00] },
     sweep: [-0.18, -0.08, 0.00, 0.08, 0.16] },
-  braceThrust: { kind: 'melee', strike: 0.56, hitstop: 40, impulse: 10.5, tags: ['reach', 'heavy', 'stab'],
+  braceThrust: { kind: 'melee', strike: 0.56, hitstop: 34, impulse: 10.5, tags: ['reach', 'heavy', 'stab'],
     phases: { anticipation: [0.00, 0.40], active: [0.48, 0.70], recovery: [0.70, 1.00] },
     sweep: [-0.10, -0.04, 0.00, 0.08] },
-  lanceCharge: { kind: 'melee', strike: 0.58, hitstop: 42, impulse: 9.0, tags: ['reach', 'heavy', 'charge'],
+  lanceCharge: { kind: 'melee', strike: 0.58, hitstop: 34, impulse: 9.0, tags: ['reach', 'heavy', 'charge'],
     phases: { anticipation: [0.00, 0.26], active: [0.28, 0.76], recovery: [0.76, 1.00] },
     sweep: [-0.08, -0.02, 0.00, 0.08] },
   crush: { kind: 'melee', strike: 0.50, hitstop: 42, impulse: 5.0, tags: ['heavy', 'impact'] },
@@ -190,12 +180,31 @@ const LEVELS = [
     flag: { x: 2470, y: G },
   }),
 ];
+const TEST_ARENA = lvl({
+  spawn: { x: 90, y: G },
+  platforms: [
+    { x: 0, y: G, w: 420, h: 160 },
+    { x: 500, y: G, w: 220, h: 160 },
+    { x: 760, y: G - 36, w: 180, h: 196 },
+    { x: 1000, y: G - 72, w: 180, h: 232 },
+    { x: 1240, y: G, w: 420, h: 160 },
+    { x: 1740, y: G - 110, w: 180, h: 270 },
+    { x: 1980, y: G, w: 420, h: 160 },
+  ],
+  coins: [[260, G - 58], [560, G - 58], [850, G - 94], [1080, G - 130],
+          [1380, G - 58], [1810, G - 168], [2140, G - 58]],
+  boxes: [[330, G - 30], [820, G - 66], [1320, G - 30], [2060, G - 30]],
+  dummies: [[310, G], [610, G], [1120, G - 72], [1520, G], [2120, G]],
+  flag: { x: 2300, y: G },
+});
 
 PUBLIC.start = function (root, api) {
   const view = api.makeCanvas(root);
   const ctx = view.ctx;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
+  const query = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const levels = query.has('arena') ? [TEST_ARENA] : LEVELS;
   // spring-damper smoothing for secondary motion (lag + overshoot = "life").
   // o[key] is the value, o[key+'V'] its velocity. k=stiffness, d=damping
   // (underdamped d < 2*sqrt(k) overshoots). dt in seconds.
@@ -221,7 +230,7 @@ PUBLIC.start = function (root, api) {
   hud.style.display = 'none';
   hud.style.color = '#1a1a1a';              // dark text for the light game background
   hud.style.textShadow = '0 1px 2px rgba(255,255,255,.6)';
-  hud.innerHTML = `<span>LVL <b id="sr-lvl">1</b>/3</span>
+  hud.innerHTML = `<span>LVL <b id="sr-lvl">1</b>/<b id="sr-lvls">3</b></span>
     <span>🪙 <b id="sr-coins" style="color:#b8860b">0</b></span>
     <span id="sr-ammo" style="display:none">🔪 <b id="sr-knives">0</b></span>
     <span>⏱ <b id="sr-time">0.0</b></span>`;
@@ -408,9 +417,9 @@ PUBLIC.start = function (root, api) {
   // ---------- game state ----------
   let state, li, player, cam, coinsLeft, totalCoins, runCoins, runTime, deaths, particles, flagWave, slashTrail, projectiles, droppedKnives, boxes, dummies;
   let cls = CLASSES[0];   // selected class
-  let freeze = 0, lastMoveAmt = 0;   // hit-stop, last anim amount
+  let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
-    enabled: typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'),
+    enabled: query.has('debug'),
     segments: [], body: true, weapons: true, projectiles: true, dummies: true, coins: true,
   };
 
@@ -429,7 +438,7 @@ PUBLIC.start = function (root, api) {
   }
   function loadLevel(i, keepRun) {
     li = i;
-    const L = LEVELS[i];
+    const L = levels[i];
     player = makePlayer(L.spawn);
     coinsLeft = L.coins.map(c => ({ x: c[0], y: c[1], got: false }));
     totalCoins = coinsLeft.length;
@@ -446,6 +455,10 @@ PUBLIC.start = function (root, api) {
     syncHud();
   }
   function rand(a, b) { return a + Math.random() * (b - a); }
+  function addShake(power, dur) {
+    shakeP = Math.max(shakeP, power);
+    shakeT = Math.max(shakeT, dur);
+  }
 
   function timelinePhase(spec, t) {
     const p = spec.phases || DEFAULT_ATTACK.phases;
@@ -494,6 +507,7 @@ PUBLIC.start = function (root, api) {
 
   function syncHud() {
     document.getElementById('sr-lvl').textContent = li + 1;
+    document.getElementById('sr-lvls').textContent = levels.length;
     const got = totalCoins - coinsLeft.filter(c => !c.got).length;
     document.getElementById('sr-coins').textContent = got;
     document.getElementById('sr-time').textContent = (runTime / 1000).toFixed(1);
@@ -531,7 +545,7 @@ PUBLIC.start = function (root, api) {
     loadLevel(0, false);
   }
   function nextLevel() {
-    if (li + 1 < LEVELS.length) {
+    if (li + 1 < levels.length) {
       burst(player.x, player.y - PH / 2, '#ffd45e', 30, 6);
       loadLevel(li + 1, true);
     } else win();
@@ -589,7 +603,7 @@ PUBLIC.start = function (root, api) {
 
   // dynamic crates: gravity, terrain + box-box collision, friction, bounce, and SPIN
   function updateBoxes() {
-    const L = LEVELS[li];
+    const L = levels[li];
     for (const b of boxes) {
       b.vy = Math.min(b.vy + 0.55, 16);
       // horizontal
@@ -610,7 +624,7 @@ PUBLIC.start = function (root, api) {
         const near = Math.round(b.angle / (Math.PI / 2)) * (Math.PI / 2);
         if (Math.abs(b.vx) < 1.5) { b.angle += (near - b.angle) * 0.18; b.va *= 0.6; }   // settle upright
       } else b.va *= 0.99;
-      if (b.y > L.h + 300) { b.y = -40; b.x = LEVELS[li].spawn.x + 200; b.vy = b.vx = b.va = 0; b.angle = 0; }
+      if (b.y > L.h + 300) { b.y = -40; b.x = L.spawn.x + 200; b.vy = b.vx = b.va = 0; b.angle = 0; }
     }
   }
   // apply an impulse to one crate (force scaled by its mass), with a tumble
@@ -791,7 +805,7 @@ PUBLIC.start = function (root, api) {
     d.flash = 200;
     burst(hx, hy, '#ffd089', Math.min(18, 6 + (k | 0)), 4.2);
     burst(hx, hy, '#d9534f', 8, 3.2);
-    freeze = Math.max(freeze, Math.min(24, 8 + k * 0.35));
+    freeze = Math.max(freeze, Math.min(18, 6 + k * 0.28));
   }
   function hitDummiesSegment(ax, ay, bx, by, nx, ny, force, radius) {
     if (!dummies) return;
@@ -830,7 +844,7 @@ PUBLIC.start = function (root, api) {
     ctx.restore();
   }
   function hoverSurfaceY(x, maxDrop, maxRise) {
-    const L = LEVELS[li], bottom = player.y + maxDrop, top = player.y - (maxRise == null ? 4 : maxRise);
+    const L = levels[li], bottom = player.y + maxDrop, top = player.y - (maxRise == null ? 4 : maxRise);
     let y = Infinity;
     for (const p of L.platforms) if (x > p.x - 14 && x < p.x + p.w + 14 && p.y >= top && p.y <= bottom) y = Math.min(y, p.y);
     for (const b of boxes) if (x > b.x - 14 && x < b.x + b.w + 14 && b.y >= top && b.y <= bottom) y = Math.min(y, b.y);
@@ -862,7 +876,7 @@ PUBLIC.start = function (root, api) {
     droppedKnives.push({ x, y, vx: (vx || 0) * 0.12, vy: (vy || 0) * 0.12, angle, grounded: false, life: 9000 });
   }
   function updateDroppedKnives(dt) {
-    const L = LEVELS[li];
+    const L = levels[li];
     for (let i = droppedKnives.length - 1; i >= 0; i--) {
       const k = droppedKnives[i];
       k.life -= dt;
@@ -984,7 +998,7 @@ PUBLIC.start = function (root, api) {
   }
 
   function physics() {
-    const L = LEVELS[li];
+    const L = levels[li];
     const acc = player.grounded ? RUN_ACC : AIR_ACC;
     if (input.left && !input.right) { player.vx -= acc; player.facing = -1; }
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
@@ -1053,7 +1067,8 @@ PUBLIC.start = function (root, api) {
       if (surface !== null) {
         const targetY = surface - MAGE_HOVER_HEIGHT;
         if (player.y > targetY) { player.y = lerp(player.y, targetY, 0.55); player.vy = Math.min(player.vy, 0); }
-        player.grounded = Math.abs(player.y - targetY) < 8;
+        player.grounded = false;
+        player.coyote = COYOTE;
       }
     }
     if (player.grounded) {
@@ -1074,8 +1089,8 @@ PUBLIC.start = function (root, api) {
     syncHud();
   }
   function respawn() {
-    const s = LEVELS[li].spawn;
-    burst(player.x, Math.min(player.y, LEVELS[li].h), '#ff6b6b', 16, 4);
+    const L = levels[li], s = L.spawn;
+    burst(player.x, Math.min(player.y, L.h), '#ff6b6b', 16, 4);
     player.x = s.x; player.y = s.y; player.vx = player.vy = 0; player.grounded = false;
     player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
     player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
@@ -1083,9 +1098,13 @@ PUBLIC.start = function (root, api) {
   }
 
   function centerCam(snap) {
-    const L = LEVELS[li];
-    const tx = L.w <= view.w ? (L.w - view.w) / 2 : clamp(player.x - view.w / 2, 0, L.w - view.w);
-    const ty = L.h <= view.h ? (L.h - view.h) / 2 : clamp((player.y - PH / 2) - view.h * 0.55, 0, L.h - view.h);
+    const L = levels[li];
+    const attackLead = player.anim && player.anim.atkActive && player.anim.atkType === 'lanceCharge' ? player.facing * 80 : 0;
+    const moveLead = activeMove('airDash') || activeMove('slide') ? player.facing * 56 : 0;
+    const lookX = clamp(player.vx * 18 + attackLead + moveLead, -130, 130);
+    const lookY = clamp(player.vy * 10, -56, 76);
+    const tx = L.w <= view.w ? (L.w - view.w) / 2 : clamp(player.x + lookX - view.w / 2, 0, L.w - view.w);
+    const ty = L.h <= view.h ? (L.h - view.h) / 2 : clamp((player.y - PH / 2 + lookY) - view.h * 0.55, 0, L.h - view.h);
     if (snap) { cam.x = tx; cam.y = ty; } else { cam.x = lerp(cam.x, tx, 0.12); cam.y = lerp(cam.y, ty, 0.12); }
   }
 
@@ -1137,6 +1156,7 @@ PUBLIC.start = function (root, api) {
     if (type === 'quake') {
       const qx = player.x + player.facing * 26, qy = player.y - 10;
       freeze = spec.hitstop; player.vx *= 0.35;
+      addShake(7.5, 180);
       burst(qx, qy, cls.color, 30, 5.6); burst(qx, qy, '#ffffff', 10, 3.2);
       pushBoxesRadial(qx, qy, 28, 128);
       return;
@@ -1144,6 +1164,7 @@ PUBLIC.start = function (root, api) {
     // melee: light hit-stop, body follow-through, crate impulse, impact burst
     const heavy = spec.tags && spec.tags.includes('heavy');
     freeze = spec.hitstop;
+    addShake(type === 'dualSlash' || type === 'rogueStab' ? 1.6 : heavy ? 4.8 : 2.7, heavy ? 150 : 95);
     player.vx += player.facing * spec.impulse;
     if (type === 'vaultKick') { player.vy = Math.min(player.vy, -4.6); player.grounded = false; }
     const seg = meleeSweepHit(type, ang);     // sweeps the arc; hits crates + dummy at the contact point
@@ -1305,7 +1326,7 @@ PUBLIC.start = function (root, api) {
   // The visible arm is still two segments (shoulder -> elbow -> hand), but it is
   // now driven by JOINT ANGLES instead of an IK hand-target, so the elbow can
   // lag the shoulder and *whip*. The blade gets its own wrist joint (its angle
-  // is forearm + wristBend) so it trails then snaps through the arc rather than
+  // is forearm + wristBend) so it trails through the arc rather than
   // rigidly pointing where the hand points. No bone-stretching ("smear") — the
   // punch comes from the whip, the body lean and the hit-stop. One shared
   // evaluator (weaponPose) defines every swing as data, and the melee hitbox is
@@ -1667,17 +1688,15 @@ PUBLIC.start = function (root, api) {
     else if (S.idle === 'lance') idleY = Math.sin(now * 0.0012) * 0.35 * idleAmt;        // Lancer: locked-down stance
     else if (S.idle === 'mystic') idleY = Math.sin(now * 0.0017) * 0.9 * idleAmt;        // Mage: grounded staff breathing
     else if (S.idle === 'archer') idleX = Math.sin(now * 0.0018) * 1.0 * idleAmt;
-    else if (S.idle === 'monk') idleY = Math.sin(now * 0.0025) * 0.8 * idleAmt;
-    else if (S.idle === 'heavy') idleY = Math.sin(now * 0.0011) * 0.6 * idleAmt;
     hoverY = fly * (S.hover + Math.sin(now * 0.004) * 1.8);
 
     let postureLean = 0, guardCrouch = 0;            // (no cursor aiming for now)
-    if (moveType === 'slide') { postureLean -= f * 0.62; guardCrouch = 24 * Math.sin(moveT * Math.PI); }
+    if (moveType === 'slide') { postureLean -= f * 0.72; guardCrouch = 30 * Math.sin(moveT * Math.PI); }
     else if (moveType === 'shoulder' || moveType === 'shieldStep' || moveType === 'brace') postureLean += f * 0.16 * Math.sin(moveT * Math.PI);
     else if (moveType === 'airDash') postureLean += f * 0.22;
     if (flipActive) {
-      postureLean += player.flip.dir * (Math.PI * 2 * ease(flipT) + 0.22 * flipLead);
-      guardCrouch -= 14 * flipCurl;
+      postureLean += player.flip.dir * (Math.PI * 1.55 * ease(flipT) + 0.36 * flipLead);
+      guardCrouch -= 19 * flipCurl;
     }
 
     // ----- attack scalars (whole-body reaction) -----
@@ -1747,14 +1766,16 @@ PUBLIC.start = function (root, api) {
       const ax = legSign * 4 + f * 5 * Math.max(0, tuck), ay = -tuck * 10;
       let foot = { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
       if (fly > 0) {
-        foot.x = lerp(foot.x, -f * (18 + legSign * 3) + legSign * 4, fly);
-        foot.y = lerp(foot.y, -7 + legSign * 5 + Math.sin(now * 0.006 + legSign) * 2, fly);
+        const flyDrive = clamp(Math.abs(player.vx) / 8.5, 0, 1);
+        const liftDrive = clamp(-player.vy / 4.5, 0, 1);
+        foot.x = lerp(foot.x, -f * (18 + flyDrive * 14 + legSign * 3) + legSign * (4 + flyDrive * 5), fly);
+        foot.y = lerp(foot.y, -7 - liftDrive * 5 + legSign * 5 + Math.sin(now * 0.006 + legSign) * 2, fly);
       }
       if (moveType === 'slide') {
         const frontLeg = legSign === -1;
         const slide = Math.sin(moveT * Math.PI);
-        foot.x = frontLeg ? f * (42 + 12 * slide) : -f * (24 + 8 * slide);
-        foot.y = frontLeg ? -1 : -15;
+        foot.x = frontLeg ? f * (50 + 16 * slide) : -f * (30 + 10 * slide);
+        foot.y = frontLeg ? 1 : -20;
       } else if (a.atkActive && a.atkType === 'legSweep') {
         const frontLeg = legSign === -1;
         const sweep = Math.sin(Math.min(1, a.atkT) * Math.PI);
@@ -1762,8 +1783,8 @@ PUBLIC.start = function (root, api) {
         foot.y = frontLeg ? -2 : -8;
       } else if (flipActive) {
         const kick = Math.sin((flipT + (legSign > 0 ? 0.10 : -0.06)) * Math.PI * 2);
-        foot.x = lerp(foot.x, -player.flip.dir * (6 + flipCurl * 7) + legSign * (5 - flipCurl * 4) + kick * 2, flipCurl);
-        foot.y = lerp(foot.y, -26 + legSign * 2 + flipCurl * 4, flipCurl);
+        foot.x = lerp(foot.x, -player.flip.dir * (8 + flipCurl * 10) + legSign * (6 - flipCurl * 6) + kick * 3, flipCurl);
+        foot.y = lerp(foot.y, -32 + legSign * 3 + flipCurl * 7, flipCurl);
       } else if (a._clip) {
         // clip weight-shift: plant the front foot & push off the back heel
         const c = a._clip, frontLeg = legSign === -1, wt = c.weight;
@@ -1781,8 +1802,9 @@ PUBLIC.start = function (root, api) {
       const ax = shX + f * (6 + (1 - raise) * 10), ay = shY - raise * 18 + (1 - raise) * 8;
       let hand = { x: lerp(gx, ax, air), y: lerp(gy, ay, air) };
       if (fly > 0) {
-        hand.x = lerp(hand.x, shX - f * (18 + Math.sin(theta) * 5), fly);
-        hand.y = lerp(hand.y, shY + 14 + Math.cos(theta) * 5, fly);
+        const flyDrive = clamp(Math.abs(player.vx) / 8.5, 0, 1);
+        hand.x = lerp(hand.x, shX - f * (18 + flyDrive * 10 + Math.sin(theta) * 5), fly);
+        hand.y = lerp(hand.y, shY + 14 - flyDrive * 3 + Math.cos(theta) * 5, fly);
       }
       if (moveType === 'slide') {
         const front = theta === p;
@@ -1792,8 +1814,8 @@ PUBLIC.start = function (root, api) {
       }
       if (flipActive) {
         const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
-        hand.x = lerp(hand.x, shX - player.flip.dir * (5 + flipCurl * 7) + sweep * 3, flipCurl);
-        hand.y = lerp(hand.y, shY + 18 + flipCurl * 4, flipCurl);
+        hand.x = lerp(hand.x, shX - player.flip.dir * (6 + flipCurl * 10) + sweep * 4, flipCurl);
+        hand.y = lerp(hand.y, shY + 18 + flipCurl * 7, flipCurl);
       }
       return hand;
     }
@@ -1867,7 +1889,7 @@ PUBLIC.start = function (root, api) {
 
     // ----- weapon arm: ARTICULATED chain driven by joint angles -----
     // Attacks run through one shared swing engine (weaponPose): the shoulder
-    // leads, the elbow & wrist lag then SNAP, so the blade whips through the arc.
+    // leads, while the elbow and wrist lag enough for a readable whip.
     // The joint angles are spring-smoothed for secondary motion (no bone-stretch).
     const attacking = a.atkActive;
     // rogue dual-wield: one tap = one hand. When the OFF (back) hand is striking
@@ -1875,9 +1897,9 @@ PUBLIC.start = function (root, api) {
     if (attacking && !rogueOff) {
       // a full-body clip can author its own arm arc; else use the generic engine
       const pose = (a._clip && a._clip.arm) ? a._clip.arm(a.atkT, a.atkAim, f) : weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
-      springAngle(a, 'shAng', pose.shAng, 240, 22, a._dt);                            // shoulder leads
-      springAngle(a, 'elAng', pose.elBend, 240, 20, a._dt);                           // elbow lags -> whip
-      springAngle(a, 'blAng', pose.shAng + pose.elBend + pose.wrBend, 220, 16, a._dt); // blade wrist
+      springAngle(a, 'shAng', pose.shAng, 205, 20, a._dt);                            // shoulder leads
+      springAngle(a, 'elAng', pose.elBend, 195, 18, a._dt);                           // elbow lags
+      springAngle(a, 'blAng', pose.shAng + pose.elBend + pose.wrBend, 180, 15, a._dt); // blade wrist
       const wc = armChain(shFX, shFY, a.shAng, a.elAng);
       seg(shFX, shFY, wc.ex, wc.ey, wc.hx, wc.hy, 7);
       drawWeapon(wc.hx, wc.hy, a.blAng, 1);
@@ -1959,6 +1981,44 @@ PUBLIC.start = function (root, api) {
       ctx.lineTo(x, y);
     }
     ctx.lineTo(view.w, view.h); ctx.closePath(); ctx.fill();
+  }
+  function groundBelowAt(x, footY, maxDrop) {
+    const L = levels[li], bottom = footY + (maxDrop || 260), top = footY - 8;
+    let y = Infinity;
+    for (const p of L.platforms) {
+      if (x > p.x - 20 && x < p.x + p.w + 20 && p.y >= top && p.y <= bottom) y = Math.min(y, p.y);
+    }
+    for (const b of boxes) {
+      if (x > b.x - 16 && x < b.x + b.w + 16 && b.y >= top && b.y <= bottom) y = Math.min(y, b.y);
+    }
+    return y === Infinity ? null : y;
+  }
+  function drawGroundShadow(x, footY, radiusX, alpha, maxDrop) {
+    const gy = groundBelowAt(x, footY, maxDrop);
+    if (gy === null) return;
+    const limit = maxDrop || 260;
+    const gap = clamp(gy - footY, 0, limit);
+    const scale = clamp(1 - gap / limit, 0.14, 1);
+    ctx.save();
+    ctx.globalAlpha = alpha * scale;
+    ctx.fillStyle = '#161616';
+    ctx.beginPath();
+    ctx.ellipse(x - cam.x, gy - cam.y + 4, radiusX * (0.68 + scale * 0.38), 4.5 + scale * 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  function drawPlayerShadow() {
+    if (!player) return;
+    const fly = player.anim ? player.anim.fly || 0 : 0;
+    const weaponPad = cls.weapon === 'lance' ? 14 : cls.weapon === 'staff' || cls.weapon === 'bow' ? 6 : 0;
+    const width = 23 + Math.abs(player.vx) * 1.9 + weaponPad;
+    const alpha = 0.22 + (player.grounded ? 0.05 : 0) - fly * 0.07;
+    drawGroundShadow(player.x, player.y, width, alpha, 280);
+  }
+  function drawDummyShadow(d) {
+    if (!d || !d.pts) return;
+    const fL = d.pts.footL, fR = d.pts.footR;
+    drawGroundShadow((fL.x + fR.x) / 2, Math.max(fL.y, fR.y), 26, 0.17, 120);
   }
   function drawPlatform(p) {
     const x = p.x - cam.x, y = p.y - cam.y;
@@ -2092,12 +2152,20 @@ PUBLIC.start = function (root, api) {
   }
 
   function render(moveAmt) {
-    const L = LEVELS[li];
+    const L = levels[li];
+    const camBase = { x: cam.x, y: cam.y };
+    if (shakeT > 0) {
+      const p = shakeP * clamp(shakeT / 180, 0, 1);
+      cam.x += rand(-p, p);
+      cam.y += rand(-p * 0.65, p * 0.65);
+    }
     drawBackground(L);
     ctx.save();
     for (const p of L.platforms) drawPlatform(p);
     for (const c of coinsLeft) drawCoin(c);
     for (const b of boxes) drawBox(b);
+    for (const d of dummies) drawDummyShadow(d);
+    drawPlayerShadow();
     for (const d of dummies) drawDummy(d);
     drawFlag(L);
     // particles
@@ -2172,6 +2240,7 @@ PUBLIC.start = function (root, api) {
     drawStick(moveAmt);
     drawWorldDebug();
     ctx.restore();
+    cam.x = camBase.x; cam.y = camBase.y;
     drawDebugPanel(moveAmt);
   }
 
@@ -2179,6 +2248,10 @@ PUBLIC.start = function (root, api) {
   let acc = 0;
   api.loop(dt => {
     if (state === 'playing') {
+      if (shakeT > 0) {
+        shakeT = Math.max(0, shakeT - dt);
+        if (shakeT === 0) shakeP = 0;
+      }
       if (freeze > 0) { freeze -= dt; }     // hit-stop: pause sim, hold the frame
       else {
         runTime += dt;
@@ -2194,7 +2267,7 @@ PUBLIC.start = function (root, api) {
         updateDroppedKnives(dt);
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
         for (let i = debug.segments.length - 1; i >= 0; i--) { if ((debug.segments[i].life -= dt) <= 0) debug.segments.splice(i, 1); }
-        const L = LEVELS[li];
+        const L = levels[li];
         for (let i = projectiles.length - 1; i >= 0; i--) {
           const b = projectiles[i];
           const px = b.x, py = b.y;
@@ -2217,13 +2290,13 @@ PUBLIC.start = function (root, api) {
             if (b.age > 430) b.life = 0;
           }
           const crate = boxes.find(bx => projectileHitsBox(b, px, py, bx));
-          if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); }
+          if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); addShake(b.kind === 'bolt' || b.kind === 'sigil' ? 2.8 : 1.2, 80); }
           let struckDummy = null, dummyHit = null;
           if (dummies) for (const d of dummies) {
             const h = projectileHitsDummy(b, px, py, d);
             if (h) { struckDummy = d; dummyHit = h; break; }
           }
-          if (struckDummy && dummyHit) { const sp = Math.hypot(b.vx, b.vy) || 1; hurtDummy(struckDummy, b.vx / sp, b.vy / sp, b.hit || 10, dummyHit.p.x, dummyHit.p.y); }
+          if (struckDummy && dummyHit) { const sp = Math.hypot(b.vx, b.vy) || 1; hurtDummy(struckDummy, b.vx / sp, b.vy / sp, b.hit || 10, dummyHit.p.x, dummyHit.p.y); addShake(b.kind === 'bolt' || b.kind === 'sigil' ? 2.5 : 1.1, 75); }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
           const hitPlatform = L.platforms.some(pl => projectileHitsBox(b, px, py, pl));
           const dead = b.life <= 0 || crate || struckDummy || hitPlatform;
