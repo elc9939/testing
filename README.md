@@ -62,7 +62,13 @@ logminer/               standalone Java CSV log processing utility
 
 ## Checks
 
-GitHub Actions runs lightweight checks on every push and pull request:
+GitHub Actions runs lightweight checks on every push and pull request. You can
+run the same JavaScript/PWA checks locally with:
+
+```bash
+node scripts/check-js-syntax.js
+node scripts/check-pwa-cache.js
+```
 
 - JavaScript syntax checks for the arcade and helper scripts.
 - PWA cache coverage for assets referenced by `index.html` and the web manifest.

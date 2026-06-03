@@ -24,12 +24,7 @@ jobs:
           node-version: '22'
 
       - name: Check JavaScript syntax
-        run: |
-          node --check sw.js
-          node --check js/arcade.js
-          for file in js/games/*.js scripts/*.js; do
-            node --check "$file"
-          done
+        run: node scripts/check-js-syntax.js
 
       - name: Check PWA cache manifest
         run: node scripts/check-pwa-cache.js
