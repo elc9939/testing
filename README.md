@@ -69,6 +69,10 @@ expects non-recursive `.csv` inputs with this exact header:
 timestamp,userId,action,bytes,status
 ```
 
+Fields may be quoted with double quotes, and embedded quotes are escaped by
+doubling them. Valid actions are `LOGIN`, `LOGOUT`, `UPLOAD`, and `DOWNLOAD`
+(case-insensitive).
+
 Run it from the repo root:
 
 ```bash
