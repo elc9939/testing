@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-js:
+    name: Static JavaScript syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check sw.js
+          node --check js/arcade.js
+          for file in js/games/*.js scripts/*.js; do
+            node --check "$file"
+          done
+
+  logminer:
+    name: LogMiner compile and smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile
+        run: javac logminer/*.java
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tmp="$(mktemp -d)"
+          mkdir -p "$tmp/input" "$tmp/output"
+
+          cat > "$tmp/input/events.csv" <<'CSV'
+          timestamp,userId,action,bytes,status
+          2026-06-03T01:00:00Z,alice,login,120,200
+          2026-06-03T01:01:00Z,bob,download,400,200
+          bad,line
+          2026-06-03T01:02:00Z,alice,logout,80,204
+          CSV
+
+          java logminer.Main --input "$tmp/input" --output "$tmp/output" --threads 2 --topUsers 2
+
+          grep -F '"validEvents": 3' "$tmp/output/summary.json"
+          grep -F '"invalidLines": 1' "$tmp/output/summary.json"
+          grep -F '"totalBytes": 600' "$tmp/output/summary.json"
+          grep -F '"events.csv","4","expected 5 fields, got 2","bad,line"' "$tmp/output/errors.csv"
