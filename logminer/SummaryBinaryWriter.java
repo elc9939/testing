@@ -26,22 +26,32 @@ public final class SummaryBinaryWriter {
     private SummaryBinaryWriter() {}
 
     public static void write(Path out, Summary s) throws IOException {
-        // TODO: Open a DataOutputStream wrapping a BufferedOutputStream wrapping Files.newOutputStream(out).
-        //       Use try-with-resources.
+        try (DataOutputStream data = new DataOutputStream(
+                new BufferedOutputStream(Files.newOutputStream(out)))) {
+            data.writeBytes("L3SB");
+            data.writeByte(1);
+            data.writeInt(checkedInt(s.validEvents(), "validEvents"));
+            data.writeInt(checkedInt(s.invalidLines(), "invalidLines"));
+            data.writeLong(s.totalBytes());
+            data.writeInt(s.perUser().size());
 
-        // TODO: Write the 4-byte ASCII magic "L3SB" using writeBytes().
-        // TODO: Write version byte (1) using writeByte().
+            for (Summary.UserSummary user : s.perUser()) {
+                byte[] userId = user.userId().getBytes(UTF_8);
+                if (userId.length > 0xFFFF) {
+                    throw new IOException("userId too long for binary summary: " + user.userId());
+                }
+                data.writeShort(userId.length);
+                data.write(userId);
+                data.writeInt(checkedInt(user.events(), "events for " + user.userId()));
+                data.writeLong(user.bytes());
+            }
+        }
+    }
 
-        // TODO: Write validEvents as int using writeInt().
-        // TODO: Write invalidLines as int using writeInt().
-        // TODO: Write totalBytes as long using writeLong().
-
-        // TODO: Write the number of user records using writeInt().
-        // TODO: For each UserSummary in summary.perUser():
-        //   1. Convert userId to UTF-8 bytes.
-        //   2. Write the byte length as an unsigned short using writeShort().
-        //   3. Write the userId bytes using write(byte[]).
-        //   4. Write events as int using writeInt().
-        //   5. Write bytes as long using writeLong().
+    private static int checkedInt(long value, String field) throws IOException {
+        if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            throw new IOException(field + " is outside binary int range: " + value);
+        }
+        return (int) value;
     }
 }

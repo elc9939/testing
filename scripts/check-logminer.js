@@ -32,6 +32,14 @@ function assertEqual(actual, expected, label) {
   }
 }
 
+function assertDeepEqual(actual, expected, label) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {
+    throw new Error(`${label}: expected ${expectedJson}, got ${actualJson}`);
+  }
+}
+
 function cleanClassFiles() {
   for (const name of fs.readdirSync(logminerDir)) {
     if (name.endsWith('.class')) {
@@ -78,6 +86,62 @@ function smokeTest() {
   if (!errors.includes(expectedError)) {
     throw new Error(`errors.csv missing expected row: ${expectedError}`);
   }
+
+  const usersCsv = fs.readFileSync(path.join(outputDir, 'users.csv'), 'utf8').trim().split(/\r?\n/);
+  assertDeepEqual(usersCsv, [
+    'userId,events,totalBytes',
+    'alice,2,200',
+    'bob,1,400',
+  ], 'users.csv');
+
+  assertDeepEqual(readSummaryBin(path.join(outputDir, 'summary.bin')), {
+    magic: 'L3SB',
+    version: 1,
+    validEvents: 3,
+    invalidLines: 1,
+    totalBytes: 600,
+    users: [
+      { userId: 'alice', events: 2, bytes: 200 },
+      { userId: 'bob', events: 1, bytes: 400 },
+    ],
+  }, 'summary.bin');
+}
+
+function readSummaryBin(file) {
+  const data = fs.readFileSync(file);
+  let offset = 0;
+
+  function read(length) {
+    const end = offset + length;
+    if (end > data.length) throw new Error('summary.bin ended unexpectedly');
+    const slice = data.subarray(offset, end);
+    offset = end;
+    return slice;
+  }
+
+  const result = {
+    magic: read(4).toString('ascii'),
+    version: read(1).readUInt8(0),
+    validEvents: read(4).readInt32BE(0),
+    invalidLines: read(4).readInt32BE(0),
+    totalBytes: Number(read(8).readBigInt64BE(0)),
+    users: [],
+  };
+
+  const userCount = read(4).readInt32BE(0);
+  for (let i = 0; i < userCount; i++) {
+    const userIdLength = read(2).readUInt16BE(0);
+    result.users.push({
+      userId: read(userIdLength).toString('utf8'),
+      events: read(4).readInt32BE(0),
+      bytes: Number(read(8).readBigInt64BE(0)),
+    });
+  }
+
+  if (offset !== data.length) {
+    throw new Error(`summary.bin has ${data.length - offset} trailing bytes`);
+  }
+  return result;
 }
 
 try {
