@@ -68,7 +68,7 @@ function smokeTest() {
     'timestamp,userId,action,bytes,status',
     '2026-06-03T01:00:00Z,alice,login,120,200',
     '2026-06-03T01:01:00Z,bob,download,400,200',
-    '2026-06-03T01:01:30Z,"tab\\name",upload,50,201',
+    '2026-06-03T01:01:30Z,"tab\\name, ""quoted""",upload,50,201',
     'bad,line',
     '2026-06-03T01:02:00Z,alice,logout,80,204',
     '',
@@ -102,9 +102,9 @@ function smokeTest() {
   const usersCsv = fs.readFileSync(path.join(outputDir, 'users.csv'), 'utf8').trim().split(/\r?\n/);
   assertDeepEqual(usersCsv, [
     'userId,events,totalBytes',
-    '"""tab\\name""",1,50',
     '"alice",2,200',
     '"bob",1,400',
+    '"tab\\name, ""quoted""",1,50',
   ], 'users.csv');
 
   assertDeepEqual(readSummaryBin(path.join(outputDir, 'summary.bin')), {
@@ -114,9 +114,9 @@ function smokeTest() {
     invalidLines: 1,
     totalBytes: 650,
     users: [
-      { userId: '"tab\\name"', events: 1, bytes: 50 },
       { userId: 'alice', events: 2, bytes: 200 },
       { userId: 'bob', events: 1, bytes: 400 },
+      { userId: 'tab\\name, "quoted"', events: 1, bytes: 50 },
     ],
   }, 'summary.bin');
 }

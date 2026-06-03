@@ -1,11 +1,16 @@
 package logminer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
  * Parses a single CSV line into a LogRecord.
- * The expected CSV format (no quoted fields):
+ * The expected CSV format:
  *   timestamp,userId,action,bytes,status
+ *
+ * Fields may be quoted with double quotes. Inside quoted fields, a literal quote
+ * is written as two double quotes.
  */
 public final class CsvLogParser {
     private CsvLogParser() {}
@@ -20,32 +25,22 @@ public final class CsvLogParser {
      * @throws LogParseException if the line is invalid
      */
     public static LogRecord parseLine(String line) throws LogParseException {
-        // TODO: If line is null, throw LogParseException with message "null line".
-        // TODO: Trim whitespace. If the trimmed line is empty, throw LogParseException with "empty line".
-        if (line == null) {throw new LogParseException("null line");}
+        if (line == null) {
+            throw new LogParseException("null line");
+        }
         line = line.trim();
         if (line.isEmpty()) throw new LogParseException("empty line");
-        // TODO: Split the line by comma using split(",", -1).
-        // TODO: If the number of fields is not 5, throw LogParseException:
-        //       "expected 5 fields, got " + actual count.
-        String[] parts = line.split(",", -1);
-        if(parts.length != 5){
+        String[] parts = splitCsv(line);
+        if (parts.length != 5) {
             throw new LogParseException("expected 5 fields, got " + parts.length);
         }
 
-        // TODO: Trim each field. Validate:
-        //   - timestamp must not be empty ("timestamp empty")
-        //   - userId must not be empty ("userId empty")
-        for (int i=0; i<parts.length; i++){
+        for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].trim();
         }
         if (parts[0].isEmpty()) throw new LogParseException("timestamp empty");
         if (parts[1].isEmpty()) throw new LogParseException("userId empty");
 
-
-        // TODO: Parse the action field (uppercase it first).
-        //       Use LogRecord.Action.valueOf(). If it fails (IllegalArgumentException),
-        //       throw LogParseException: "unknown action: " + raw value.
         String rawAction = parts[2];
         LogRecord.Action action;
         try {
@@ -54,9 +49,6 @@ public final class CsvLogParser {
             throw new LogParseException("unknown action: " + rawAction);
         }
 
-        // TODO: Parse bytes as an integer.
-        //       Catch NumberFormatException and rethrow as LogParseException: "bytes not an int: " + raw.
-        //       If bytes < 0, throw LogParseException: "bytes must be non-negative: " + value.
         String rawBytes = parts[3];
         int bytes;
         try {
@@ -65,10 +57,7 @@ public final class CsvLogParser {
             throw new LogParseException("bytes not an int: " + rawBytes);
         }
         if (bytes < 0) {throw new LogParseException("bytes must be non-negative: " + bytes);}
-        // TODO: Parse status as an integer.
-        //       Catch NumberFormatException and rethrow as LogParseException: "status not an int: " + raw.
 
-        // TODO: Return a new LogRecord with the parsed values.
         String rawStatus = parts[4];
         int status;
         try {
@@ -77,9 +66,59 @@ public final class CsvLogParser {
             throw new LogParseException("status not an int: " + rawStatus);
         }
 
+        return new LogRecord(parts[0], parts[1], action, bytes, status);
+    }
 
-        return  new LogRecord(parts[0], parts[1], action, bytes, status);
+    private static String[] splitCsv(String line) throws LogParseException {
+        List<String> fields = new ArrayList<>();
+        StringBuilder field = new StringBuilder();
+        boolean inQuotes = false;
+        boolean afterQuote = false;
 
-        // return null; // Placeholder
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+
+            if (inQuotes) {
+                if (ch == '"') {
+                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                        field.append('"');
+                        i++;
+                    } else {
+                        inQuotes = false;
+                        afterQuote = true;
+                    }
+                } else {
+                    field.append(ch);
+                }
+                continue;
+            }
+
+            if (afterQuote) {
+                if (ch == ',') {
+                    fields.add(field.toString());
+                    field.setLength(0);
+                    afterQuote = false;
+                } else if (!Character.isWhitespace(ch)) {
+                    throw new LogParseException("unexpected character after closing quote");
+                }
+                continue;
+            }
+
+            if (ch == ',') {
+                fields.add(field.toString());
+                field.setLength(0);
+            } else if (ch == '"' && field.toString().trim().isEmpty()) {
+                field.setLength(0);
+                inQuotes = true;
+            } else {
+                field.append(ch);
+            }
+        }
+
+        if (inQuotes) {
+            throw new LogParseException("unterminated quoted field");
+        }
+        fields.add(field.toString());
+        return fields.toArray(String[]::new);
     }
 }
