@@ -5,6 +5,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const appManifest = fs.readFileSync(path.join(root, 'js', 'app-manifest.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
 const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 
@@ -52,6 +53,38 @@ function collectManifestAssets() {
   return [...assets].sort();
 }
 
+function collectAppManifestAssets() {
+  const srcPattern = /\bsrc\s*:\s*(?:"([^"]*)"|'([^']*)')/g;
+  const assets = new Set();
+  let match;
+
+  while ((match = srcPattern.exec(appManifest)) !== null) {
+    const asset = normalizeAsset(match[1] || match[2]);
+    if (asset) assets.add(asset);
+  }
+
+  return [...assets].sort();
+}
+
+function collectFetchAssets(files) {
+  const assets = new Set();
+  const fetchPattern = /\bfetch\(\s*(?:"([^"]*)"|'([^']*)')/g;
+
+  for (const file of files) {
+    const fullPath = path.join(root, assetPath(file));
+    if (!fs.existsSync(fullPath)) continue;
+
+    const source = fs.readFileSync(fullPath, 'utf8');
+    let match;
+    while ((match = fetchPattern.exec(source)) !== null) {
+      const asset = normalizeAsset(match[1] || match[2]);
+      if (asset) assets.add(asset);
+    }
+  }
+
+  return [...assets].sort();
+}
+
 function collectCachedAssets() {
   const assetBlock = serviceWorker.match(/const ASSETS = \[([\s\S]*?)\];/);
   if (!assetBlock) {
@@ -65,9 +98,12 @@ function collectCachedAssets() {
   return [...new Set(assets)].sort();
 }
 
+const appManifestAssets = collectAppManifestAssets();
 const requiredAssets = [...new Set([
   ...collectIndexAssets(),
   ...collectManifestAssets(),
+  ...appManifestAssets,
+  ...collectFetchAssets(appManifestAssets),
 ])].sort();
 const cachedAssets = collectCachedAssets();
 const cached = new Set(cachedAssets);

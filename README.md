@@ -107,7 +107,7 @@ node scripts/check-logminer.js
 ```
 
 - JavaScript syntax checks for the arcade and helper scripts.
-- PWA cache coverage for assets referenced by `index.html` and the web manifest.
+- PWA cache coverage for assets referenced by `index.html`, the web manifest, the arcade app catalog, and local assets fetched by app scripts.
 - `javac logminer/*.java` plus a LogMiner smoke test.
 
 ### Adding an app
