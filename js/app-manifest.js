@@ -1,6 +1,15 @@
 /* Lightweight catalog for the launcher. Scripts are lazy-loaded on open. */
 Arcade.define([
   {
+    id: 'deckbound',
+    name: 'Deckbound Tactics',
+    emoji: 'DB',
+    desc: 'Draft cards, move on a tiny chess board, and survive waves of readable enemy pieces.',
+    color: '#a78bfa',
+    kind: 'prototype',
+    src: 'js/games/deckbound.js?v=60',
+  },
+  {
     id: 'stardrifter',
     name: 'Star Drifter',
     emoji: '🚀',
