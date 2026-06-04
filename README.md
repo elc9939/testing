@@ -48,6 +48,7 @@ Press **Esc** or the **‹ Menu** button to return to the arcade at any time.
 | 🪐 **Orbit** | A gravity sandbox. Drag to fling planets around a star and watch them swing into glowing n-body orbits, pull on each other, and merge on contact. Chill and hypnotic. |
 | 🔢 **2048** | The classic sliding-number puzzle with buttery tile animations. Swipe (or arrow keys / WASD) to merge equal tiles and chase 2048. |
 | 🔴 **Four in a Row** | Connect Four against an AlphaZero-style AI: a small policy+value network, trained from self-play (`scripts/train-connect4.js`), guides an MCTS search you can watch "think." Drop discs, connect four, and chase a win streak. |
+| 🃏 **Gambit** | A roguelike deckbuilder card battler. Pick a class (Knight / Rogue / Mage), spend energy on attack/block/ability cards, and beat foes that telegraph their next move. Draft a new card after each win and survive to the boss. |
 
 ## Project layout
 
