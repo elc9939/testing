@@ -90,4 +90,13 @@ Arcade.define([
     kind: 'game',
     src: 'js/games/twenty48.js?v=57',
   },
+  {
+    id: 'connect4',
+    name: 'Four in a Row',
+    emoji: '🔴',
+    desc: 'Connect Four against an AlphaZero-style AI that learned from self-play. Watch it think, then try to beat it.',
+    color: '#5ef2ff',
+    kind: 'game',
+    src: 'js/games/connect4.js?v=57',
+  },
 ]);
