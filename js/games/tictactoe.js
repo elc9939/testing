@@ -7,7 +7,7 @@ Arcade.register({
   color: '#5ef2ff',
 
   start(root, api) {
-    let board, gameDone, turnHuman, difficulty;
+    let board, gameDone, turnHuman, difficulty = 'perfect';
     const HUMAN = 'X', AI = 'O';
 
     const style = document.createElement('style');
@@ -26,17 +26,24 @@ Arcade.register({
       .ttt-cell.win{background:rgba(255,212,94,.22);animation:pulse 1s infinite}
       .ttt-score{display:flex;gap:24px;font-weight:800;font-size:15px}
       .ttt-score .w{color:var(--green)} .ttt-score .l{color:var(--accent2)} .ttt-score .d{color:var(--gold)}
+      .ttt-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+      .ttt-mode{cursor:pointer;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);
+        border-radius:8px;padding:8px 12px;font-weight:800}
+      .ttt-mode.active{border-color:var(--accent);box-shadow:0 0 16px rgba(94,242,255,.25)}
+      .ttt-cell.hint:not(.taken){box-shadow:0 0 0 3px rgba(255,212,94,.55) inset}
     `;
     root.appendChild(style);
 
     const wrap = document.createElement('div'); wrap.className = 'ttt-wrap'; root.appendChild(wrap);
     const status = document.createElement('div'); status.className = 'ttt-status';
+    const controls = document.createElement('div'); controls.className = 'ttt-controls';
+    controls.innerHTML = `<button class="ttt-mode" data-mode="easy">Easy</button><button class="ttt-mode" data-mode="smart">Smart</button><button class="ttt-mode active" data-mode="perfect">Perfect</button>`;
     const grid = document.createElement('div'); grid.className = 'ttt-board';
     const scoreEl = document.createElement('div'); scoreEl.className = 'ttt-score';
     const btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = 'New Game ↻';
-    wrap.append(status, grid, scoreEl, btn);
+    wrap.append(status, controls, grid, scoreEl, btn);
 
-    const ov = document.createElement('div'); ov.className = 'center-overlay'; root.appendChild(ov);
+    const ov = document.createElement('div'); ov.className = 'center-overlay hidden'; root.appendChild(ov);
 
     const cells = [];
     for (let i = 0; i < 9; i++) {
@@ -66,13 +73,14 @@ Arcade.register({
         c.classList.toggle('x', v === HUMAN);
         c.classList.toggle('o', v === AI);
         c.classList.toggle('win', !!(winLine && winLine.includes(i)));
+        c.classList.toggle('hint', !winLine && !gameDone && turnHuman && i === hintMove(board));
       });
     }
     function setStatus(html) { status.innerHTML = html; }
 
     function newGame() {
       board = Array(9).fill(''); gameDone = false; turnHuman = true;
-      render(null); setStatus('Your move — you are <span class="x">X</span>');
+      render(null); setStatus(`Your move — you are <span class="x">X</span> · AI: ${difficulty}`);
     }
     function humanMove(i) {
       if (gameDone || !turnHuman || board[i]) return;
@@ -83,10 +91,10 @@ Arcade.register({
     }
     function aiMove() {
       if (gameDone) return;
-      const move = best(board);
+      const move = chooseAiMove(board);
       board[move] = AI; turnHuman = true; render(null);
       if (checkEnd()) return;
-      setStatus('Your move — you are <span class="x">X</span>');
+      setStatus(`Your move — you are <span class="x">X</span> · AI: ${difficulty}`);
     }
     function checkEnd() {
       const res = winner(board);
@@ -108,8 +116,61 @@ Arcade.register({
     }
     ov.addEventListener('click', e => { if (e.target.dataset.act === 'play') { ov.classList.add('hidden'); newGame(); } });
     btn.addEventListener('click', () => { ov.classList.add('hidden'); newGame(); });
+    controls.addEventListener('click', e => {
+      const mode = e.target.dataset.mode;
+      if (!mode) return;
+      difficulty = mode;
+      controls.querySelectorAll('.ttt-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+      ov.classList.add('hidden');
+      newGame();
+    });
 
     // minimax
+    function openMoves(b) {
+      const out = [];
+      for (let i = 0; i < 9; i++) if (!b[i]) out.push(i);
+      return out;
+    }
+    function randomMove(b) {
+      const open = openMoves(b);
+      return open[(Math.random() * open.length) | 0];
+    }
+    function immediateMove(b, who) {
+      for (const i of openMoves(b)) {
+        b[i] = who;
+        const res = winner(b);
+        b[i] = '';
+        if (res && res.who === who) return i;
+      }
+      return -1;
+    }
+    function tacticalMove(b) {
+      const win = immediateMove(b, AI);
+      if (win >= 0) return win;
+      const block = immediateMove(b, HUMAN);
+      if (block >= 0) return block;
+      return randomMove(b);
+    }
+    function chooseAiMove(b) {
+      if (difficulty === 'easy') return Math.random() < .58 ? randomMove(b) : tacticalMove(b);
+      if (difficulty === 'smart') return Math.random() < .24 ? tacticalMove(b) : best(b);
+      return best(b);
+    }
+    function hintMove(b) {
+      const win = immediateMove(b, HUMAN);
+      if (win >= 0) return win;
+      const block = immediateMove(b, AI);
+      if (block >= 0) return block;
+      return bestHuman(b);
+    }
+    function bestHuman(b) {
+      let bestScore = Infinity, move = -1;
+      for (let i = 0; i < 9; i++) if (!b[i]) {
+        b[i] = HUMAN; const s = minimax(b, 0, true); b[i] = '';
+        if (s < bestScore) { bestScore = s; move = i; }
+      }
+      return move;
+    }
     function best(b) {
       let bestScore = -Infinity, move = -1;
       for (let i = 0; i < 9; i++) if (!b[i]) {

@@ -11,7 +11,7 @@ Arcade.register({
     const ctx = view.ctx;
     const rand = (a, b) => a + Math.random() * (b - a);
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-    const POWER = { SHIELD: 'shield', SLOW: 'slow', DOUBLE: 'double' };
+    const POWER = { SHIELD: 'shield', SLOW: 'slow', DOUBLE: 'double', MAGNET: 'magnet' };
 
     // overlay UI
     const ov = document.createElement('div');
@@ -21,6 +21,7 @@ Arcade.register({
       <p class="msg">Move with mouse, touch, or arrows/WASD. Fly into 🔵 orbs for points and grab
       🛡️ shield · 🐢 slow-mo · ✨ score×2 power-ups. You have 3 lives.</p>
       <button class="btn" data-act="play">PLAY ▸</button>`;
+    ov.querySelector('.msg').textContent = 'Move with mouse, touch, or arrows/WASD. Fly into orbs for points, skim asteroids for combo, and grab shield, slow-mo, score x2, or magnet power-ups. You have 3 lives.';
     root.appendChild(ov);
     const hud = document.createElement('div');
     hud.className = 'hud';
@@ -28,9 +29,12 @@ Arcade.register({
     hud.innerHTML = `<span class="a">SCORE <b id="sd-score">0</b></span>
       <span id="sd-lives">♥♥♥</span><span class="b">BEST <b id="sd-best">0</b></span>`;
     root.appendChild(hud);
+    const comboHud = document.createElement('span');
+    comboHud.innerHTML = 'COMBO <b id="sd-combo">x1</b>';
+    hud.insertBefore(comboHud, hud.lastElementChild);
 
     let state = 'menu', score, lives, startTime, elapsed, lastSpawn, spawnGap;
-    let shieldTime, doubleTime, invuln, slowUntil, shake;
+    let shieldTime, doubleTime, magnetTime, invuln, slowUntil, shake, combo, comboTime, nearMisses;
     let ship, asteroids, orbs, powerups, particles;
     const stars = [];
     const pointer = { x: view.w / 2, y: view.h / 2 };
@@ -48,7 +52,8 @@ Arcade.register({
       ship = { x: view.w / 2, y: view.h * .75, r: 14, vx: 0, vy: 0, angle: -Math.PI / 2 };
       asteroids = []; orbs = []; powerups = []; particles = [];
       score = 0; lives = 3; elapsed = 0; spawnGap = 900; lastSpawn = 0;
-      shieldTime = doubleTime = invuln = slowUntil = shake = 0;
+      shieldTime = doubleTime = magnetTime = invuln = slowUntil = shake = 0;
+      combo = 0; comboTime = 0; nearMisses = 0;
       startTime = performance.now();
       pointer.x = ship.x; pointer.y = ship.y;
     }
@@ -56,6 +61,8 @@ Arcade.register({
     function hudUpdate() {
       document.getElementById('sd-score').textContent = Math.floor(score);
       document.getElementById('sd-best').textContent = api.getBest('stardrifter');
+      const c = document.getElementById('sd-combo');
+      if (c) c.textContent = 'x' + (1 + Math.floor(combo / 4));
       document.getElementById('sd-lives').textContent =
         '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, 3 - lives));
     }
@@ -73,6 +80,7 @@ Arcade.register({
         <div class="stat-row">
           <div class="stat"><span class="v">${Math.floor(score)}</span><span class="l">Score</span></div>
           <div class="stat"><span class="v">${api.getBest('stardrifter')}</span><span class="l">Best</span></div>
+          <div class="stat"><span class="v">${nearMisses}</span><span class="l">Near Misses</span></div>
           <div class="stat"><span class="v">${Math.floor(elapsed / 1000)}s</span><span class="l">Survived</span></div>
         </div>
         ${isBest ? '<div class="new-best">★ NEW BEST! ★</div>' : '<div style="height:20px"></div>'}
@@ -92,14 +100,33 @@ Arcade.register({
     api.on(window, 'keyup', e => { keys[e.key.toLowerCase()] = false; });
 
     const slowActive = () => performance.now() < slowUntil;
-    const pColor = t => t === POWER.SHIELD ? '#5ef2ff' : t === POWER.SLOW ? '#9cff5e' : '#ffd45e';
-    const pIcon = t => t === POWER.SHIELD ? '🛡️' : t === POWER.SLOW ? '🐢' : '✨';
+    const pColor = t => t === POWER.SHIELD ? '#5ef2ff' : t === POWER.SLOW ? '#9cff5e' : t === POWER.MAGNET ? '#a78bfa' : '#ffd45e';
+    const pIcon = t => t === POWER.SHIELD ? '🛡️' : t === POWER.SLOW ? '🐢' : t === POWER.MAGNET ? '+' : '✨';
 
     function burst(x, y, color, n, spd) {
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2, s = rand(.4, 1) * spd;
         particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(300, 700), max: 700, color, r: rand(1.5, 4) });
       }
+      if (particles.length > 260) particles.splice(0, particles.length - 260);
+    }
+    function scoreMult() {
+      return (doubleTime > 0 ? 2 : 1) * (1 + Math.floor(combo / 4));
+    }
+    function addCombo(points, x, y, color) {
+      combo++;
+      comboTime = 2400;
+      score += points * scoreMult();
+      burst(x, y, color, 10 + Math.min(combo, 14), 3.4);
+      hudUpdate();
+    }
+    function pullPickup(o, strength) {
+      if (magnetTime <= 0) return;
+      const dx = ship.x - o.x, dy = ship.y - o.y, d = Math.hypot(dx, dy) || 1;
+      if (d > 190) return;
+      const p = (1 - d / 190) * strength;
+      o.x += dx / d * p;
+      o.y += dy / d * p;
     }
     function spawnAsteroid() {
       const edge = Math.floor(rand(0, 4)), size = rand(16, 42);
@@ -117,7 +144,7 @@ Arcade.register({
     function loseLife() {
       if (shieldTime > 0) { shieldTime = 0; invuln = 800; burst(ship.x, ship.y, '#5ef2ff', 24, 5); return; }
       if (invuln > 0) return;
-      lives--; invuln = 1400; shake = 18;
+      lives--; invuln = 1400; shake = 18; combo = 0; comboTime = 0;
       burst(ship.x, ship.y, '#ff5ec4', 40, 7);
       hudUpdate();
       if (lives <= 0) gameOver();
@@ -128,7 +155,10 @@ Arcade.register({
       spawnGap = Math.max(280, 900 - elapsed / 60);
       if (shieldTime > 0) shieldTime -= dt;
       if (doubleTime > 0) doubleTime -= dt;
+      if (magnetTime > 0) magnetTime -= dt;
       if (invuln > 0) invuln -= dt;
+      if (comboTime > 0) comboTime -= dt;
+      else combo = 0;
       const ts = slowActive() ? .5 : 1;
 
       let tx = pointer.x, ty = pointer.y;
@@ -148,8 +178,8 @@ Arcade.register({
 
       if (elapsed - lastSpawn > spawnGap) { lastSpawn = elapsed; spawnAsteroid(); if (elapsed > 4000 && Math.random() < .3) spawnAsteroid(); }
       if (orbs.length < 3 && Math.random() < .02) orbs.push({ x: rand(40, view.w - 40), y: rand(40, view.h - 40), r: 9, pulse: Math.random() * 6, life: 9000 });
-      if (Math.random() < .0016 && powerups.length < 2) {
-        const t = [POWER.SHIELD, POWER.SLOW, POWER.DOUBLE][Math.floor(Math.random() * 3)];
+      if (Math.random() < .0018 && powerups.length < 2) {
+        const t = [POWER.SHIELD, POWER.SLOW, POWER.DOUBLE, POWER.MAGNET][Math.floor(Math.random() * 4)];
         powerups.push({ x: rand(50, view.w - 50), y: rand(50, view.h - 50), r: 14, type: t, life: 8000, pulse: 0 });
       }
       score += dt * .006 * (doubleTime > 0 ? 2 : 1);
@@ -158,21 +188,28 @@ Arcade.register({
         const o = asteroids[i]; o.x += o.vx * ts; o.y += o.vy * ts; o.rot += o.spin * ts;
         const pad = o.r + 60;
         if (o.x < -pad || o.x > view.w + pad || o.y < -pad || o.y > view.h + pad) { asteroids.splice(i, 1); continue; }
-        if (Math.hypot(o.x - ship.x, o.y - ship.y) < o.r + ship.r - 4) { loseLife(); burst(o.x, o.y, '#9aa8ff', 12, 4); asteroids.splice(i, 1); }
+        const d = Math.hypot(o.x - ship.x, o.y - ship.y);
+        if (!o.near && d < o.r + ship.r + 18 && d >= o.r + ship.r - 4) {
+          o.near = true; nearMisses++; addCombo(8, ship.x, ship.y, '#eaf6ff');
+        }
+        if (d < o.r + ship.r - 4) { loseLife(); burst(o.x, o.y, '#9aa8ff', 12, 4); asteroids.splice(i, 1); }
       }
       for (let i = orbs.length - 1; i >= 0; i--) {
         const o = orbs[i]; o.pulse += dt * .005; o.life -= dt;
+        pullPickup(o, 5.2);
         if (o.life <= 0) { orbs.splice(i, 1); continue; }
-        if (Math.hypot(o.x - ship.x, o.y - ship.y) < o.r + ship.r) { score += doubleTime > 0 ? 50 : 25; burst(o.x, o.y, '#5ef2ff', 18, 4); orbs.splice(i, 1); hudUpdate(); }
+        if (Math.hypot(o.x - ship.x, o.y - ship.y) < o.r + ship.r) { addCombo(25, o.x, o.y, '#5ef2ff'); orbs.splice(i, 1); }
       }
       for (let i = powerups.length - 1; i >= 0; i--) {
         const p = powerups[i]; p.pulse += dt * .006; p.life -= dt;
+        pullPickup(p, 3.5);
         if (p.life <= 0) { powerups.splice(i, 1); continue; }
         if (Math.hypot(p.x - ship.x, p.y - ship.y) < p.r + ship.r) {
           if (p.type === POWER.SHIELD) shieldTime = 6000;
           else if (p.type === POWER.SLOW) slowUntil = performance.now() + 4500;
+          else if (p.type === POWER.MAGNET) magnetTime = 7000;
           else doubleTime = 8000;
-          burst(p.x, p.y, pColor(p.type), 26, 5); powerups.splice(i, 1);
+          addCombo(12, p.x, p.y, pColor(p.type)); powerups.splice(i, 1);
         }
       }
       for (let i = particles.length - 1; i >= 0; i--) {
@@ -230,6 +267,15 @@ Arcade.register({
           ctx.closePath(); ctx.fillStyle = `hsl(${o.hue},30%,24%)`; ctx.fill();
           ctx.lineWidth = 2; ctx.strokeStyle = `hsl(${o.hue},70%,60%)`; ctx.stroke(); ctx.restore();
         }
+        if (ship && state === 'playing') {
+          let danger = 0;
+          for (const o of asteroids) danger = Math.max(danger, 1 - clamp((Math.hypot(o.x - ship.x, o.y - ship.y) - o.r - ship.r) / 120, 0, 1));
+          if (danger > 0) {
+            ctx.strokeStyle = `rgba(255,94,196,${0.18 + danger * 0.42})`;
+            ctx.lineWidth = 2 + danger * 4;
+            ctx.beginPath(); ctx.arc(ship.x, ship.y, ship.r + 18 + danger * 10, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
         if (state === 'over' || !(invuln > 0 && Math.floor(performance.now() / 90) % 2 === 0)) drawShip();
       }
       for (const p of particles) { ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
@@ -244,6 +290,7 @@ Arcade.register({
           ctx.fillStyle = color; ctx.fillRect(bx, by - 7, 90 * clamp(t / max, 0, 1), 8);
           ctx.fillStyle = '#fff'; ctx.fillText(label, bx + 100, by); by -= 26;
         };
+        bar('+ Magnet', magnetTime, 7000, '#a78bfa');
         bar('🛡️ Shield', shieldTime, 6000, '#5ef2ff');
         bar('✨ Double', doubleTime, 8000, '#ffd45e');
         if (slowActive()) bar('🐢 Slow', slowUntil - performance.now(), 4500, '#9cff5e');
