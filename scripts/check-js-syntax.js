@@ -5,7 +5,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
-const ROOTS = ['sw.js', 'js', 'scripts'];
+const ROOTS = ['sw.js', 'js', 'scripts', 'ai'];
 
 function collectJsFiles(entry) {
   const fullPath = path.join(root, entry);

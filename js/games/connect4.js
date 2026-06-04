@@ -1,6 +1,6 @@
 /* Four in a Row — Connect Four against an AlphaZero-style AI.
    The AI runs MCTS (PUCT) guided by a small policy+value network trained from
-   self-play (scripts/train-connect4.js -> connect4-weights.json). Leaf positions
+   self-play (ai/connect4 -> connect4-weights.json). Leaf positions
    are scored by blending the network's value with a quick random rollout, so the
    AI is strong even before the net loads. The search runs incrementally across
    frames, and you can watch its column preferences ("thinking") build live. */
@@ -40,11 +40,25 @@ Arcade.register({
     const encode = (b, pl) => { const x = new Float32Array(IN), opp = pl === 1 ? 2 : 1; for (let i = 0; i < NC; i++) { if (b[i] === pl) x[i] = 1; else if (b[i] === opp) x[NC + i] = 1; } return x; };
 
     // ---------- network ----------
-    let net = null;
+    let net = null, modelMeta = null, modelStatus = 'Loading local model...';
     fetch('./js/games/connect4-weights.json').then(r => r.json()).then(w => {
-      net = { W1: f(w.W1), b1: f(w.b1), W2: f(w.W2), b2: f(w.b2), Wp: f(w.Wp), bp: f(w.bp), Wv: f(w.Wv), bv: f(w.bv), H1: w.meta.h1, H2: w.meta.h2 };
-    }).catch(() => { net = null; });
+      modelMeta = w.meta || {};
+      net = { W1: f(w.W1), b1: f(w.b1), W2: f(w.W2), b2: f(w.b2), Wp: f(w.Wp), bp: f(w.bp), Wv: f(w.Wv), bv: f(w.bv), H1: modelMeta.h1, H2: modelMeta.h2 };
+      if (state === 'menu') showMenu();
+    }).catch(() => {
+      net = null;
+      modelStatus = 'Weights unavailable; using rollout search fallback.';
+      if (state === 'menu') showMenu();
+    });
     function f(a) { return Float32Array.from(a); }
+    function modelText() {
+      if (!modelMeta) return modelStatus;
+      const parts = [];
+      if (modelMeta.iters) parts.push(`${modelMeta.iters} train iters`);
+      if (modelMeta.games) parts.push(`${modelMeta.games} games/iter`);
+      if (modelMeta.sims) parts.push(`${modelMeta.sims} sims/search`);
+      return `Local model loaded: ${parts.join(', ') || 'weights ready'}.`;
+    }
     function forward(b, pl) {
       const x = encode(b, pl), H1 = net.H1, H2 = net.H2;
       const h1 = new Float32Array(H1); for (let i = 0; i < H1; i++) { let s = net.b1[i]; const base = i * IN; for (let j = 0; j < IN; j++) s += net.W1[base + j] * x[j]; h1[i] = s > 0 ? s : 0; }
@@ -98,6 +112,7 @@ Arcade.register({
         <p class="msg">Drop discs and connect four. You're <b style="color:#5ef2ff">cyan</b>; the AI is
         <b style="color:#ffb65e">gold</b> and runs Monte-Carlo Tree Search guided by a net it trained against itself —
         the bars above the board show what it's considering. Pick a strength:</p>
+        <p class="msg"><b>AI lab:</b> ${modelText()}</p>
         <button class="btn" data-act="140">RELAXED</button>
         <button class="btn" data-act="500">SHARP</button>
         <button class="btn alt" data-act="1400">RUTHLESS</button>`;

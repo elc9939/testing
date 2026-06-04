@@ -47,7 +47,7 @@ Press **Esc** or the **‹ Menu** button to return to the arcade at any time.
 | 🎯 **Neon Pinball** | A single-table pinball with real ball + flipper physics. Charge the plunger, flick the flippers (A/D, ←/→, or tap the table sides), light the bumpers, and ride the combo multiplier off the drain. |
 | 🪐 **Orbit** | A gravity sandbox. Drag to fling planets around a star and watch them swing into glowing n-body orbits, pull on each other, and merge on contact. Chill and hypnotic. |
 | 🔢 **2048** | The classic sliding-number puzzle with buttery tile animations. Swipe (or arrow keys / WASD) to merge equal tiles and chase 2048. |
-| 🔴 **Four in a Row** | Connect Four against an AlphaZero-style AI: a small policy+value network, trained from self-play (`scripts/train-connect4.js`), guides an MCTS search you can watch "think." Drop discs, connect four, and chase a win streak. |
+| 🔴 **Four in a Row** | Connect Four against an AlphaZero-style AI: a small policy+value network, trained through the local AI lab (`ai/connect4`), guides an MCTS search you can watch "think." Drop discs, connect four, and chase a win streak. |
 | 🃏 **Gambit** | A roguelike deckbuilder card battler. Pick a class (Knight / Rogue / Mage), spend energy on attack/block/ability cards, and beat foes that telegraph their next move. Draft a new card after each win and survive to the boss. |
 
 ## Project layout
@@ -61,10 +61,32 @@ manifest.webmanifest    PWA manifest (installable app metadata)
 sw.js                   service worker — caches everything for offline play
 icons/                  app icons (192/512 for PWA, 180 for iOS)
 scripts/gen-icons.js    regenerates the PNG icons (node scripts/gen-icons.js)
-scripts/train-connect4.js  self-play trainer for the Four-in-a-Row AI (-> connect4-weights.json)
+scripts/train-connect4.js  CLI wrapper for the Four-in-a-Row trainer
+scripts/eval-connect4.js   quick local model evaluation
+ai/connect4/            reusable rules, neural net, MCTS, training, evaluation
 logminer/               standalone Java CSV log processing utility
 .github/workflows/      GitHub Pages deploy + CI checks
 ```
+
+## AI lab
+
+The browser arcade only loads compact exported models. Training and evaluation
+run locally in `ai/` so heavier experiments do not slow down the web app.
+
+```bash
+npm run ai:connect4:eval
+npm run ai:connect4:train
+```
+
+For fast smoke tests, pass tiny positional arguments:
+
+```bash
+node scripts/eval-connect4.js 2 8
+node scripts/train-connect4.js 1 2 8
+```
+
+The Connect Four trainer writes `js/games/connect4-weights.json`, which the
+Four in a Row game loads at startup.
 
 ## LogMiner utility
 

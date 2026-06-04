@@ -2,22 +2,21 @@
 'use strict';
 
 const path = require('path');
-const { trainConnect4 } = require('../ai/connect4/trainer');
+const { evaluateConnect4 } = require('../ai/connect4/evaluate');
 
 function intArg(index, fallback) {
   const value = parseInt(process.argv[index], 10);
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-const iters = intArg(2, 4);
-const games = intArg(3, 40);
-const sims = intArg(4, 80);
-const dest = path.resolve(__dirname, '../js/games/connect4-weights.json');
+const games = intArg(2, 12);
+const sims = intArg(3, 80);
+const opponent = process.argv[4] || 'random';
 
-trainConnect4({
-  iters,
+evaluateConnect4({
   games,
   sims,
-  dest,
+  opponent,
+  weightsPath: path.resolve(__dirname, '../js/games/connect4-weights.json'),
   seed: process.env.CONNECT4_SEED,
 });
