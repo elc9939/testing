@@ -29,13 +29,25 @@ const MAGE_HOVER_DELAY = 165;
 const ARENA_WAVE_DELAY = 850;
 const ATTACK_COOLDOWN = {
   slash: 110, dualSlash: 80, rogueStab: 95, legSweep: 420,
-  braceThrust: 260, cast: 150, arrow: 100,
+  shieldBash: 560, braceThrust: 260, cast: 150, arrow: 100,
 };
 const ABILITY_COOLDOWN = {
   shieldGuard: 1750, throw: 420, lanceCharge: 2300, arcaneBloom: 1650, volley: 1200,
 };
 const MOVE_COOLDOWN = {
   slide: 520, airDash: 900, brace: 800, shieldStep: 760, backstep: 620,
+};
+const ACTION_COOLDOWN = Object.assign({}, ATTACK_COOLDOWN, ABILITY_COOLDOWN, MOVE_COOLDOWN);
+const SLOT_UNLOCK_WAVE = { e: 1, shift: 2, q: 3 };
+const SLOT_COOLDOWN = {
+  e: 3200,
+  shift: 1800,
+  q: 9500,
+  knight: { e: 2600, shift: 1700, q: 9000 },
+  rogue: { e: 3000, shift: 1400, q: 8200 },
+  lancer: { e: 2800, shift: 2100, q: 9800 },
+  mage: { e: 3400, shift: 1800, q: 9600 },
+  ranger: { e: 2800, shift: 1600, q: 8800 },
 };
 
 // ---------- RPG classes ----------
@@ -289,9 +301,10 @@ PUBLIC.start = function (root, api) {
   hud.style.textShadow = '0 1px 2px rgba(255,255,255,.6)';
   hud.innerHTML = `<span>WAVE <b id="sr-lvl">1</b></span>
     <span>BOT <b id="sr-lvls">0</b></span>
+    <span>ALLY <b id="sr-party">0</b></span>
     <span>KO <b id="sr-coins" style="color:#b8860b">0</b></span>
     <span id="sr-ammo" style="display:none"><span id="sr-ammo-icon">🔪</span> <b id="sr-knives">0</b></span>
-    <span id="sr-cool" style="display:none">CD <b id="sr-cool-val">READY</b></span>
+    <span id="sr-cool" style="display:none">SKILL <b id="sr-cool-val">READY</b></span>
     <span>⏱ <b id="sr-time">0.0</b></span>`;
   root.appendChild(hud);
 
@@ -308,10 +321,11 @@ PUBLIC.start = function (root, api) {
     .sr-btn:active{background:rgba(22,22,22,.82);color:#fff;transform:scale(.96)}
     @media (hover:hover) and (pointer:fine){ .sr-touch{opacity:.34} }
     @media (max-width:700px){
-      .sr-right{width:calc(var(--sr-btn) * 2 + var(--sr-gap));flex-wrap:wrap}
+      .sr-right{width:calc(var(--sr-btn) * 3 + var(--sr-gap) * 2);flex-wrap:wrap}
       .sr-left{bottom:max(24px,env(safe-area-inset-bottom))}
-      .hud{top:max(8px,env(safe-area-inset-top));gap:12px;font-size:clamp(13px,3.8vw,17px);flex-wrap:wrap;padding:0 72px}
+      .hud{top:max(8px,env(safe-area-inset-top));gap:10px;font-size:clamp(12px,3.4vw,16px);flex-wrap:wrap;padding:0 66px}
     }
+    @media (max-width:380px){.sr-right{width:calc(var(--sr-btn) * 2 + var(--sr-gap))}.hud{padding:0 58px;gap:8px}}
     .sr-kicker{font-size:12px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#ff9f6e}
     .sr-title{font-size:clamp(34px,7vw,58px);line-height:.95;letter-spacing:.5px}
     .sr-menu-copy{max-width:620px;color:#d9e4f5;opacity:.86;font-size:clamp(13px,2.4vw,16px);line-height:1.45}
@@ -336,6 +350,7 @@ PUBLIC.start = function (root, api) {
   const padR = document.createElement('div'); padR.className = 'sr-touch sr-right';
   const btnLeft = mkBtn(padL, '◀'), btnRight = mkBtn(padL, '▶');
   const btnMain = mkBtn(padR, '⚔'), btnAlt = mkBtn(padR, '✦'), btnMove = mkBtn(padR, '↯'), btnJump = mkBtn(padR, '⤒');
+  const btnSkillE = mkBtn(padR, 'E'), btnSkillQ = mkBtn(padR, 'Q');
   root.appendChild(padL); root.appendChild(padR);
   padL.style.display = padR.style.display = 'none';
 
@@ -389,21 +404,55 @@ PUBLIC.start = function (root, api) {
     const d = act && act.draw;
     return d && d.reload > 0 ? clamp(1 - d.reload / RANGER_RELOAD_TIME, 0, 1) : 1;
   }
-  function isAbilityAttack(type) {
-    return type === 'shieldGuard' || type === 'throw' || type === 'lanceCharge' || type === 'arcaneBloom' || type === 'volley';
+  function cooldownBag(act) {
+    if (!act.cooldowns) act.cooldowns = {};
+    return act.cooldowns;
   }
-  function attackCooldown(type) {
-    return ATTACK_COOLDOWN[type] || 120;
+  function actionCooldown(type) {
+    return ACTION_COOLDOWN[type] || 900;
   }
-  function abilityCooldown(type) {
-    return ABILITY_COOLDOWN[type] || 900;
+  function cooldownLeft(type) {
+    return player ? (cooldownBag(player)[type] || 0) : 0;
+  }
+  function cooldownReady(type) {
+    return cooldownLeft(type) <= 0;
+  }
+  function spendCooldown(type, ms) {
+    if (!player || !type) return;
+    const bag = cooldownBag(player);
+    bag[type] = Math.max(bag[type] || 0, ms == null ? actionCooldown(type) : ms);
+    syncLegacyCooldowns(player);
+    if (player.team === 'hero') syncHud();
   }
   function canUseAttackCooldown(type) {
-    return isAbilityAttack(type) ? (player.abilityCd || 0) <= 0 : (player.attackCd || 0) <= 0;
+    return cooldownReady(type);
   }
   function spendAttackCooldown(type) {
-    if (isAbilityAttack(type)) player.abilityCd = Math.max(player.abilityCd || 0, abilityCooldown(type));
-    else player.attackCd = Math.max(player.attackCd || 0, attackCooldown(type));
+    spendCooldown(type, actionCooldown(type));
+  }
+  function slotKey(slot) {
+    return `slot:${slot}`;
+  }
+  function slotCooldown(slot) {
+    const byClass = cls && SLOT_COOLDOWN[cls.id];
+    return byClass && byClass[slot] || SLOT_COOLDOWN[slot] || 3000;
+  }
+  function slotUnlocked(slot) {
+    if (!player || player.team !== 'hero') return true;
+    return !arenaMode || (arenaWave || 1) >= (SLOT_UNLOCK_WAVE[slot] || 1);
+  }
+  function slotStateText(slot) {
+    const label = slot === 'shift' ? 'S' : slot.toUpperCase();
+    if (!slotUnlocked(slot)) return `${label}@${SLOT_UNLOCK_WAVE[slot] || 1}`;
+    const t = cooldownLeft(slotKey(slot));
+    return `${label}:${t > 0 ? (t / 1000).toFixed(1) : 'RDY'}`;
+  }
+  function syncLegacyCooldowns(act) {
+    if (!act) return;
+    const c = cooldownBag(act), cdef = act.cls || cls || {};
+    act.attackCd = Math.max(c[cdef.main] || 0, c.dualSlash || 0, c.rogueStab || 0, c.legSweep || 0, c.arrow || 0, c.cast || 0, c.braceThrust || 0, c.slash || 0);
+    act.abilityCd = Math.max(c[cdef.alt] || 0, c[slotKey('e')] || 0, c[slotKey('q')] || 0);
+    act.moveCd = Math.max(c[cdef.move] || 0, c[slotKey('shift')] || 0);
   }
   function isRogueKnifeAttack(type) {
     return type === 'dualSlash' || type === 'rogueStab' || type === 'legSweep';
@@ -506,7 +555,7 @@ PUBLIC.start = function (root, api) {
     a.atkActive = true; a.atkType = type; a.atkT = 0; a.atkDur = a.action.dur; a.atkPhase = 'anticipation'; a.struck = false;
     a.struck2 = false;
     a.drawPower = opts && opts.drawPower != null ? opts.drawPower : (cls.id === 'ranger' && isRangerShot(type) ? 0.82 : 1);
-    a.atkRange = opts && opts.range != null ? opts.range : type === 'arcaneBloom' ? clamp(aimedDistance(360), 95, 380) : 0;
+    a.atkRange = opts && opts.range != null ? opts.range : type === 'arcaneBloom' ? clamp(aimedDistance(500), 130, 560) : 0;
     a.atkVar = (Math.random() * 64) | 0;     // vary the swing so motions aren't identical
     if (isLancerAttack(type)) player.vx *= 0.18;
     spendAttackCooldown(type);
@@ -521,14 +570,11 @@ PUBLIC.start = function (root, api) {
     }
     return true;
   }
-  function triggerMove() {
-    if (!player || state !== 'playing' || !cls.move || player.move.active) return false;
-    if ((player.moveCd || 0) > 0) return false;
-    let type = cls.move;
+  function startClassMove(type) {
+    if (!player || state !== 'playing' || !type || player.move.active) return false;
     if (cls.id === 'rogue') type = 'slide';
     const dur = (cls.moveDur && cls.moveDur[type]) || 320;
     player.move = startMotion(type, dur);
-    player.moveCd = Math.max(player.moveCd || 0, MOVE_COOLDOWN[type] || 700);
     if (type === 'airDash') {
       const it = player.intent;
       const dir = it.left && !it.right ? -1 : it.right && !it.left ? 1 : player.facing;
@@ -549,6 +595,118 @@ PUBLIC.start = function (root, api) {
       burst(player.x, player.y - 28, cls.color, 8, 1.8);
     }
     return true;
+  }
+  function triggerMove() {
+    if (!player || state !== 'playing' || !cls.move || player.move.active) return false;
+    let type = cls.move;
+    if (cls.id === 'rogue') type = 'slide';
+    if (!cooldownReady(type)) return false;
+    const ok = startClassMove(type);
+    if (ok) spendCooldown(type, actionCooldown(type));
+    return ok;
+  }
+  function aimedPoint(maxRange) {
+    const shX = player.x, shY = player.y - 76;
+    const ang = aimedAngle();
+    const dist = clamp(aimedDistance(maxRange), 70, maxRange || 320);
+    return { x: shX + Math.cos(ang) * dist, y: shY + Math.sin(ang) * dist, ang, dist };
+  }
+  function abilityAimCue(ang) {
+    player.anim.aimTarget = ang;
+    player.anim.aimShown = ang;
+    player.facing = Math.cos(ang) >= 0 ? 1 : -1;
+  }
+  function useRogueFanKnives(ang) {
+    const count = Math.min(player.knifeAmmo || 0, 3);
+    if (count <= 0) return false;
+    player.knifeAmmo -= count;
+    player.knifeRegen = 0;
+    const spread = count === 1 ? [0] : count === 2 ? [-0.11, 0.11] : [-0.18, 0, 0.18];
+    for (const off of spread) spawnDagger(ang + off);
+    burst(player.x + Math.cos(ang) * 24, player.y - 72 + Math.sin(ang) * 24, cls.color, 16, 3.4);
+    return true;
+  }
+  function useBladeStorm() {
+    const cx = player.x, cy = player.y - 46;
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      hitBoxesSegment(cx, cy, cx + Math.cos(a) * 98, cy + Math.sin(a) * 62, Math.cos(a), Math.sin(a) * 0.35, 18, 12);
+    }
+    burst(cx, cy, cls.color, 38, 5.4);
+    burst(cx, cy, '#ffffff', 16, 3.4);
+    addShake(3.4, 130);
+    return true;
+  }
+  function useKnightRally() {
+    activateShieldGuard();
+    if (allies) for (const a of allies) if (!a.dead && Math.hypot(a.x - player.x, a.y - player.y) < 430) {
+      a.shieldGuard = Math.max(a.shieldGuard || 0, KNIGHT_SHIELD_TIME * 0.85);
+      a.shieldFlash = Math.max(a.shieldFlash || 0, 220);
+      burst(a.x + a.facing * 18, a.y - 42, a.cls.color, 12, 2.6);
+      burst(a.x + a.facing * 22, a.y - 46, '#dcecff', 8, 2.0);
+    }
+    burst(player.x, player.y - 46, '#dcecff', 24, 3.4);
+    return true;
+  }
+  function useLancerAnchor() {
+    const f = player.facing || 1;
+    player.vx *= 0.08;
+    hitBoxesSegment(player.x + f * 12, player.y - 62, player.x + f * 154, player.y - 62, f, -0.05, 32, 15);
+    hitBoxesSegment(player.x + f * 18, player.y - 34, player.x + f * 118, player.y - 18, f, -0.12, 20, 12);
+    burst(player.x + f * 82, player.y - 58, cls.color, 22, 4.2);
+    addShake(3.2, 120);
+    return true;
+  }
+  function useMageSingularity() {
+    const p = aimedPoint(620);
+    spawnGravityField(p.x, p.y, player.team, cls.color, { r: 205, life: 3200, ultimate: true });
+    return true;
+  }
+  function useRangerPowerShot(ang) {
+    if (player.arrowAmmo <= 0) return false;
+    player.arrowAmmo--;
+    player.arrowRegen = 0;
+    spawnArrow(ang, 1.85, { pierce: 1, powerShot: true });
+    burst(player.x + Math.cos(ang) * 36, player.y - 72 + Math.sin(ang) * 36, cls.color, 14, 3.2);
+    return true;
+  }
+  function useRangerArrowStorm(ang) {
+    const cost = Math.min(player.arrowAmmo || 0, 3);
+    if (cost <= 0) return false;
+    player.arrowAmmo -= cost;
+    player.arrowRegen = 0;
+    for (const off of [-0.30, -0.15, 0, 0.15, 0.30]) spawnArrow(ang + off, 1.18, { storm: true });
+    burst(player.x + Math.cos(ang) * 40, player.y - 70 + Math.sin(ang) * 40, cls.color, 24, 4.2);
+    return true;
+  }
+  function triggerSlotAbility(slot) {
+    if (!player || state !== 'playing' || !slot) return false;
+    if (!slotUnlocked(slot)) {
+      burst(player.x, player.y - 54, '#ffffff', 5, 1.5);
+      syncHud();
+      return false;
+    }
+    const key = slotKey(slot);
+    if (!cooldownReady(key)) return false;
+    const ang = aimedAngle();
+    abilityAimCue(ang);
+    let ok = false;
+    if (slot === 'shift') {
+      ok = startClassMove(cls.id === 'rogue' ? 'slide' : cls.move);
+    } else if (cls.id === 'knight') {
+      ok = slot === 'e' ? triggerAttack('shieldBash', { aim: ang }) : slot === 'q' ? useKnightRally() : false;
+    } else if (cls.id === 'rogue') {
+      ok = slot === 'e' ? useRogueFanKnives(ang) : slot === 'q' ? useBladeStorm() : false;
+    } else if (cls.id === 'lancer') {
+      ok = slot === 'e' ? useLancerAnchor() : slot === 'q' ? triggerAttack('lanceCharge', { aim: lanceChargeAim({ aim: ang }) }) : false;
+    } else if (cls.id === 'mage') {
+      ok = slot === 'e' ? (spawnMageSigil(ang), true) : slot === 'q' ? useMageSingularity() : false;
+    } else if (cls.id === 'ranger') {
+      ok = slot === 'e' ? useRangerPowerShot(ang) : slot === 'q' ? useRangerArrowStorm(ang) : false;
+    }
+    if (ok) spendCooldown(key, slotCooldown(slot));
+    syncHud();
+    return ok;
   }
   function rogueMainAttackType() {
     if (!player || player.knifeAmmo <= 0) return null;
@@ -596,7 +754,10 @@ PUBLIC.start = function (root, api) {
     else if (k === 'arrowup' || k === 'w' || k === ' ') { if (!e.repeat) press(true); e.preventDefault(); }
     else if (k === 'j') { if (!e.repeat) mainAttack(); }
     else if (k === 'l') { if (!e.repeat) altAttack(); }
-    else if (k === 'k' || k === 'shift') { if (!e.repeat) triggerMove(); }
+    else if (k === 'k') { if (!e.repeat) triggerMove(); }
+    else if (k === 'shift') { if (!e.repeat) triggerSlotAbility('shift'); }
+    else if (k === 'e') { if (!e.repeat) triggerSlotAbility('e'); }
+    else if (k === 'q') { if (!e.repeat) triggerSlotAbility('q'); }
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
   });
   api.on(window, 'keyup', e => {
@@ -625,10 +786,12 @@ PUBLIC.start = function (root, api) {
   api.on(btnAlt, 'pointerup', e => { e.preventDefault(); releaseAltAttack(); });
   api.on(btnAlt, 'pointerleave', e => { e.preventDefault(); releaseAltAttack(); });
   api.on(btnAlt, 'pointercancel', e => { e.preventDefault(); releaseAltAttack(); });
-  api.on(btnMove, 'pointerdown', e => { e.preventDefault(); triggerMove(); });
+  api.on(btnMove, 'pointerdown', e => { e.preventDefault(); if (!triggerSlotAbility('shift')) triggerMove(); });
+  api.on(btnSkillE, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('e'); });
+  api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, droppedKnives, boxes, dummies, fighters;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, droppedKnives, boxes, dummies, fighters, allies;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
@@ -643,7 +806,7 @@ PUBLIC.start = function (root, api) {
       grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0,
       knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, arrowAmmo: RANGER_MAX_ARROWS, arrowRegen: 0,
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0,
-      attackCd: 0, abilityCd: 0, moveCd: 0,
+      cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false,
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
@@ -681,9 +844,10 @@ PUBLIC.start = function (root, api) {
     boxes = (L.boxes || []).map(makeBoxSpec);
     dummies = (L.dummies || [[L.spawn.x + 210, L.spawn.y]]).map(p => makeDummy(p[0], p[1]));
     fighters = [];
+    allies = [];
     flagWave = 0; freeze = 0;
     if (!keepRun) { arenaKills = 0; arenaWave = 1; arenaNextWave = 0; arenaBanner = 1150; runTime = 0; deaths = 0; }
-    if (arenaMode) spawnArenaWave(arenaWave || 1);
+    if (arenaMode) { spawnArenaWave(arenaWave || 1); spawnParty(); }
     else {
       // Legacy/debug path: full class fighters from the old side-scroller layouts.
       fighters = (L.enemies || []).map(e => {
@@ -737,6 +901,36 @@ PUBLIC.start = function (root, api) {
     arenaNextWave = 0;
     arenaBanner = 1250;
     burst(L.spawn.x + 180, L.spawn.y - 38, '#ff9f6e', 18, 3.2);
+    syncHud();
+  }
+  function partyLineup() {
+    const table = {
+      knight: ['ranger', 'mage'],
+      rogue: ['knight', 'ranger'],
+      lancer: ['mage', 'rogue'],
+      mage: ['knight', 'rogue'],
+      ranger: ['knight', 'lancer'],
+    };
+    return table[cls.id] || ['knight', 'ranger'];
+  }
+  function spawnParty() {
+    if (!arenaMode) return;
+    const L = levels[li], ids = partyLineup();
+    allies = [];
+    for (let i = 0; i < ids.length; i++) {
+      const x = L.spawn.x + 58 + i * 46;
+      const y = terrainYAt(x);
+      const a = makeFighter(ids[i], x, y, {
+        team: 'ally',
+        hp: Math.max(2, enemyDefaultHp(ids[i]) - 1),
+        min: L.spawn.x - 120,
+        max: L.spawn.x + 420,
+        facing: 1,
+      });
+      a.brain.alert = 9999;
+      a.brain.party = true;
+      allies.push(a);
+    }
     syncHud();
   }
   function updateArena(dtStep) {
@@ -794,9 +988,11 @@ PUBLIC.start = function (root, api) {
   }
 
   function syncHud() {
-    if (player && player.team === 'enemy') return;   // enemy actions never touch the human HUD
+    if (player && player.team !== 'hero') return;   // AI actions never touch the human HUD
     document.getElementById('sr-lvl').textContent = arenaMode ? (arenaWave || 1) : li + 1;
     document.getElementById('sr-lvls').textContent = arenaMode ? (fighters ? fighters.length : 0) : levels.length;
+    const party = document.getElementById('sr-party');
+    if (party) party.textContent = arenaMode && allies ? livingAllies().length : 0;
     const got = totalCoins - coinsLeft.filter(c => !c.got).length;
     document.getElementById('sr-coins').textContent = arenaMode ? (arenaKills || 0) : got;
     document.getElementById('sr-time').textContent = (runTime / 1000).toFixed(1);
@@ -816,11 +1012,10 @@ PUBLIC.start = function (root, api) {
       cool.style.display = show ? 'inline' : 'none';
       if (show && cls.id === 'rogue') {
         cool.firstChild.nodeValue = 'BURST ';
-        coolVal.textContent = `${player.rogueBurst || 0}/${ROGUE_BURST_MAX}`;
+        coolVal.textContent = `${player.rogueBurst || 0}/${ROGUE_BURST_MAX} ${slotStateText('e')} ${slotStateText('shift')} ${slotStateText('q')}`;
       } else if (show) {
-        cool.firstChild.nodeValue = 'CD ';
-        const t = Math.max(player.attackCd || 0, player.abilityCd || 0, player.moveCd || 0);
-        coolVal.textContent = t > 0 ? (t / 1000).toFixed(1) : 'READY';
+        cool.firstChild.nodeValue = 'SKILL ';
+        coolVal.textContent = `${slotStateText('e')} ${slotStateText('shift')} ${slotStateText('q')}`;
       }
     }
   }
@@ -1012,11 +1207,28 @@ PUBLIC.start = function (root, api) {
     b.va = clamp(b.va, -0.6, 0.6);
     burst(b.x + b.w / 2, b.y + b.h / 2, '#caa15a', 8, 3);
   }
+  function livingAllies() {
+    return allies ? allies.filter(a => a && !a.dead) : [];
+  }
+  function enemyAttackTargets() {
+    const out = [];
+    if (hero) out.push(hero);
+    if (allies) for (const a of allies) if (!a.dead) out.push(a);
+    return out;
+  }
+  function hurtEnemyTarget(act, nx, ny, force, hx, hy) {
+    if (!act) return;
+    if (act === hero) hurtHero(nx, ny, force, hx, hy);
+    else hurtFighter(act, nx, ny, force, hx, hy);
+  }
+  function actorCanBeHitByEnemy(act) {
+    return act && !act.dead && (act !== hero || !(hero.invuln > 0));
+  }
   // attacks shove nearby crates
   function hitBoxes(ix, iy, dx, dy, force) {
     for (const b of boxes) if (Math.hypot(b.x + b.w / 2 - ix, b.y + b.h / 2 - iy) < 52) pushBox(b, dx, dy, force);
     if (player.team === 'enemy') {
-      if (hero && !(hero.invuln > 0) && segHitActor(ix, iy, ix, iy, 32, hero)) hurtHero(dx, dy, force, ix, iy);
+      for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t) && segHitActor(ix, iy, ix, iy, 32, t)) hurtEnemyTarget(t, dx, dy, force, ix, iy);
     } else {
       if (dummies) for (const d of dummies) { const n = dummyNearest(d, ix, iy); if (n.p && n.d < 42) hurtDummy(d, dx, dy, force, ix, iy); }
       if (fighters) for (const e of fighters.slice()) { const h = segHitActor(ix, iy, ix, iy, 32, e); if (h) hurtFighter(e, dx, dy, force, h.x, h.y); }
@@ -1031,7 +1243,10 @@ PUBLIC.start = function (root, api) {
       if (segAabbDist(ax, ay, bx, by, b) <= rr) pushBox(b, nx, ny, force);
     }
     if (player.team === 'enemy') {
-      if (hero && !(hero.invuln > 0)) { const h = segHitActor(ax, ay, bx, by, rr, hero); if (h) hurtHero(nx, ny, force, h.x, h.y); }
+      for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
+        const h = segHitActor(ax, ay, bx, by, rr, t);
+        if (h) hurtEnemyTarget(t, nx, ny, force, h.x, h.y);
+      }
     } else {
       hitDummiesSegment(ax, ay, bx, by, nx, ny, force, rr);
       if (fighters) for (const e of fighters.slice()) { const h = segHitActor(ax, ay, bx, by, rr, e); if (h) hurtFighter(e, nx, ny, force, h.x, h.y); }
@@ -1041,7 +1256,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' || p.kind === 'arrow' ? 4.5 : p.kind === 'gravitySeed' ? 8 : p.r || 8;
+    return p.kind === 'dagger' ? 4.5 : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -1147,9 +1362,9 @@ PUBLIC.start = function (root, api) {
       if (d < radius) pushBox(b, (cx - x) / (d || 1), (cy - y) / (d || 1), force * (1 - d / radius));
     }
     if (team === 'enemy') {
-      if (hero && !(hero.invuln > 0)) {
-        const d = Math.hypot(hero.x - x, (hero.y - 40) - y);
-        if (d < radius + 20) hurtHero((hero.x - x) / (d || 1), ((hero.y - 40) - y) / (d || 1), force * (1 - d / (radius + 20)), hero.x, hero.y - 30);
+      for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
+        const d = Math.hypot(t.x - x, (t.y - 40) - y);
+        if (d < radius + 20) hurtEnemyTarget(t, (t.x - x) / (d || 1), ((t.y - 40) - y) / (d || 1), force * (1 - d / (radius + 20)), t.x, t.y - 30);
       }
     } else {
       if (dummies) for (const d of dummies) {
@@ -1418,7 +1633,7 @@ PUBLIC.start = function (root, api) {
     opts = opts || {};
     const cdef = CLASSES.find(c => c.id === clsId) || CLASSES[0];
     const e = makePlayer({ x, y });
-    e.cls = cdef; e.team = 'enemy';
+    e.cls = cdef; e.team = opts.team || 'enemy';
     e.intent = { left: false, right: false, down: false, jumpHeld: false, jumpHold: 0, jump: false };
     e.facing = opts.facing || (Math.random() < 0.5 ? -1 : 1);
     e.flash = 0; e.dead = false; e._moveAmt = 0;
@@ -1430,6 +1645,25 @@ PUBLIC.start = function (root, api) {
       jumpCd: rand(0, 300), airJumpCd: rand(120, 420), combo: 0, aggroRange: enemyAggro(clsId), tgt: null, pauseT: rand(0, 800),
     };
     return e;
+  }
+  function chooseCombatTarget(e) {
+    let best = null, bd = Infinity;
+    const pool = e.team === 'ally' ? (fighters || []) : enemyAttackTargets();
+    for (const t of pool) {
+      if (!t || t.dead || t === e) continue;
+      const d = Math.hypot(t.x - e.x, (t.y - 44) - (e.y - 44));
+      if (d < bd) { bd = d; best = t; }
+    }
+    return best;
+  }
+  function followHeroAlly(e) {
+    if (!hero) return;
+    const idx = Math.max(0, livingAllies().indexOf(e));
+    const goalX = hero.x - hero.facing * (58 + idx * 36);
+    const dx = goalX - e.x;
+    if (Math.abs(dx) > 48) pressToward(e, dx > 0 ? 1 : -1);
+    if (e.grounded && hero.y < e.y - 32) e.intent.jump = true;
+    if (e.cls.fly) e.intent.jumpHeld = hero.y < e.y + 12;
   }
   function surfaceYFor(act, x, maxDrop, maxRise) {
     const L = levels[li], bottom = act.y + (maxDrop == null ? 120 : maxDrop), top = act.y - (maxRise == null ? 8 : maxRise);
@@ -1494,7 +1728,8 @@ PUBLIC.start = function (root, api) {
   function planFighterMobility(e, n) {
     const b = e.brain, it = e.intent, nav = n.nav;
     if (e.cls.fly) {
-      it.jumpHeld = b.alert > 0 && (n.dy < 90 || n.adx < 330 || e.y > hero.y + 24);
+      const target = n.target || hero;
+      it.jumpHeld = b.alert > 0 && (n.dy < 90 || n.adx < 330 || e.y > target.y + 24);
       return;
     }
     if (e.grounded && b.jumpCd <= 0) {
@@ -1518,7 +1753,8 @@ PUBLIC.start = function (root, api) {
   const ENEMY_BRAINS = {
     knight(e, n) {                               // press in, trade blows, shield up close
       const b = e.brain;
-      if (hero.anim && hero.anim.atkActive && n.adx < 112 && b.moveCd <= 0) {
+      const target = b.target || hero;
+      if (target && target.anim && target.anim.atkActive && n.adx < 112 && b.moveCd <= 0) {
         triggerAttack('shieldGuard', { aim: n.aim });
         b.moveCd = rand(1150, 1700); b.atkCd = Math.max(b.atkCd, 360);
         return;
@@ -1560,12 +1796,13 @@ PUBLIC.start = function (root, api) {
     },
     mage(e, n) {                                 // floats and kites, raining bolts; blooms up close
       const b = e.brain;
-      e.intent.jumpHeld = n.adx < 390 || n.dy < 100 || e.y > hero.y + 18;
+      const target = b.target || hero;
+      e.intent.jumpHeld = n.adx < 390 || n.dy < 100 || e.y > target.y + 18;
       if (n.adx < 185) { pressToward(e, -n.face); if (n.adx < 135 && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(1050, 1700); } }
       else if (n.adx > 310) pressToward(e, n.route);
       if (b.atkCd <= 0) {
         const close = n.adx < 165 || Math.abs(n.dy) < 44 && n.adx < 210 && b.combo++ % 3 === 2;
-        triggerAttack(close ? 'arcaneBloom' : 'cast', { aim: n.aim, range: clamp(Math.hypot(n.dx, n.dy), 105, 360) });
+        triggerAttack(close ? 'arcaneBloom' : 'cast', { aim: n.aim, range: clamp(Math.hypot(n.dx, n.dy), 130, 540) });
         b.atkCd = close ? 1050 : rand(560, 850);
       }
     },
@@ -1586,13 +1823,20 @@ PUBLIC.start = function (root, api) {
     b.jumpCd = Math.max(0, b.jumpCd - dt);
     b.stagger = Math.max(0, b.stagger - dt); b.alert = Math.max(0, b.alert - dt); b.retreat = Math.max(0, b.retreat - dt);
     it.left = it.right = it.down = it.jumpHeld = it.jump = false;
+    const target = chooseCombatTarget(e);
+    b.target = target;
+    if (!target) {
+      if (e.team === 'ally') followHeroAlly(e);
+      else patrolFighter(e);
+      return;
+    }
     if (b.stagger > 0) return;                   // reeling from a hit — drop guard, no input
     const atkLocked = e.anim.atkActive || (e.move && e.move.active);
-    const dx = hero.x - e.x, adx = Math.abs(dx), face = dx >= 0 ? 1 : -1;
-    const dy = hero.y - e.y;
-    if (arenaMode || adx < b.aggroRange && Math.abs(hero.y - e.y) < 180) b.alert = 1800;
+    const dx = target.x - e.x, adx = Math.abs(dx), face = dx >= 0 ? 1 : -1;
+    const dy = target.y - e.y;
+    if (e.team === 'ally' || arenaMode || adx < b.aggroRange && Math.abs(target.y - e.y) < 180) b.alert = 1800;
     if (!atkLocked) e.facing = face;
-    e.anim.aimTarget = Math.atan2((hero.y - 44) - (e.y - 77), hero.x - e.x);
+    e.anim.aimTarget = Math.atan2((target.y - 44) - (e.y - 77), target.x - e.x);
     if (b.alert <= 0) { patrolFighter(e); return; }
     if (atkLocked) {
       if (e.cls.fly) it.jumpHeld = true;          // casters keep hovering while committed to a spell
@@ -1600,7 +1844,7 @@ PUBLIC.start = function (root, api) {
     }
     const nav = fighterNavProbe(e, face);
     const route = chooseFighterRoute(e, { dx, adx, dy, face, aim: e.anim.aimTarget, nav });
-    const ctxNav = { dx, adx, dy, face, route, aim: e.anim.aimTarget, nav };
+    const ctxNav = { dx, adx, dy, face, route, aim: e.anim.aimTarget, nav, target };
     planFighterMobility(e, ctxNav);
     (ENEMY_BRAINS[e.cls.id] || ENEMY_BRAINS.knight)(e, ctxNav);
   }
@@ -1680,13 +1924,36 @@ PUBLIC.start = function (root, api) {
       }
     }
   }
+  function updateAllies(dtStep) {
+    if (!allies || !allies.length || state !== 'playing') return;
+    const L = levels[li];
+    for (let i = allies.length - 1; i >= 0; i--) {
+      const a = allies[i];
+      if (a.dead) { allies.splice(i, 1); syncHud(); continue; }
+      a.flash = Math.max(0, a.flash - dtStep);
+      withActor(a, () => { thinkFighter(a, dtStep); stepActor(dtStep); });
+      if (a.y - PH > L.h + 180) {
+        burst(a.x, Math.min(a.y, L.h), a.cls.color, 10, 2.8);
+        allies.splice(i, 1);
+        syncHud();
+      }
+    }
+  }
   function animateFighters(dt) {
     if (!fighters) return;
     for (const e of fighters) e._moveAmt = withActor(e, () => animate(dt));
   }
+  function animateAllies(dt) {
+    if (!allies) return;
+    for (const a of allies) a._moveAmt = withActor(a, () => animate(dt));
+  }
   function drawFighters() {
     if (!fighters) return;
     for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawFighterHealth(e); }
+  }
+  function drawAllies() {
+    if (!allies) return;
+    for (const a of allies) { withActor(a, () => drawStick(a._moveAmt || 0)); drawFighterHealth(a); }
   }
   function drawFighterHealth(e) {
     if (e.hp >= e.maxHp) return;
@@ -1726,7 +1993,7 @@ PUBLIC.start = function (root, api) {
     if (e.dead) return;
     e.dead = true;
     const groundY = fighterDeathGroundY(e);
-    const d = makeDummy(e.x, e.y, { kind: 'enemy', hp: 0 });
+    const d = makeDummy(e.x, e.y, { kind: e.team === 'enemy' ? 'enemy' : 'ally', hp: 0 });
     d.baseY = groundY; d.homeY = groundY;
     d.defeated = true; d.flash = 650; d.attackCd = 9999;
     for (const f of ['footL', 'footR']) d.pts[f].pin = false;
@@ -1742,8 +2009,9 @@ PUBLIC.start = function (root, api) {
     if (near.p) { near.p.x += nx * k * 0.7; near.p.y += ny * k * 0.7 - k * 0.2; }
     d.pts.chest.x += nx * k * 0.45; d.pts.head.x += nx * k * 0.55; d.pts.head.y -= k * 0.25;
     dummies.push(d);
-    const i = fighters.indexOf(e); if (i >= 0) fighters.splice(i, 1);
-    if (arenaMode) {
+    const list = e.team === 'ally' ? allies : fighters;
+    const i = list ? list.indexOf(e) : -1; if (i >= 0) list.splice(i, 1);
+    if (arenaMode && e.team === 'enemy') {
       arenaKills++;
       arenaBanner = Math.max(arenaBanner || 0, 420);
       syncHud();
@@ -1860,9 +2128,12 @@ PUBLIC.start = function (root, api) {
     }
   }
   function updateActorResources(dtStep) {
-    player.attackCd = Math.max(0, (player.attackCd || 0) - dtStep);
-    player.abilityCd = Math.max(0, (player.abilityCd || 0) - dtStep);
-    player.moveCd = Math.max(0, (player.moveCd || 0) - dtStep);
+    const cds = cooldownBag(player);
+    for (const k in cds) {
+      cds[k] = Math.max(0, (cds[k] || 0) - dtStep);
+      if (cds[k] <= 0) delete cds[k];
+    }
+    syncLegacyCooldowns(player);
     player.shieldGuard = Math.max(0, (player.shieldGuard || 0) - dtStep);
     player.shieldFlash = Math.max(0, (player.shieldFlash || 0) - dtStep);
     if ((player.shieldGuard || 0) > 0 && Math.random() < 0.12) {
@@ -2270,7 +2541,8 @@ PUBLIC.start = function (root, api) {
     const spec = attackSpec(type), sp = strikePoint(type), ts = (spec.sweep || DEFAULT_ATTACK.sweep).map(o => sp + o);
     const byHero = player.team !== 'enemy';
     const crateSeen = new Set(), dBest = new Map(), fBest = new Map();
-    let impact = null, heroHit = null;
+    let impact = null;
+    const targetBest = new Map();
     for (const tt of ts) {
       const s = meleeSegment(type, ang, clamp(tt, 0, 1));
       if (!impact || Math.abs(tt - sp) < 0.001) impact = s;
@@ -2289,42 +2561,49 @@ PUBLIC.start = function (root, api) {
           const h = segHitActor(s.ax, s.ay, s.bx, s.by, s.r, e);
           if (h) { const dd = Math.hypot(h.x - e.x, h.y - (e.y - 44)), cur = fBest.get(e); if (!cur || dd < cur.dd) fBest.set(e, { dd, h, nx: s.dx, ny: s.dy, force: s.force }); }
         }
-      } else if (hero && !(hero.invuln > 0) && !heroHit) {
-        const h = segHitActor(s.ax, s.ay, s.bx, s.by, s.r, hero);
-        if (h) heroHit = { h, nx: s.dx, ny: s.dy, force: s.force };
+      } else {
+        for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
+          const h = segHitActor(s.ax, s.ay, s.bx, s.by, s.r, t);
+          if (h) {
+            const dd = Math.hypot(h.x - t.x, h.y - (t.y - 44));
+            const cur = targetBest.get(t);
+            if (!cur || dd < cur.dd) targetBest.set(t, { dd, h, nx: s.dx, ny: s.dy, force: s.force });
+          }
+        }
       }
     }
     if (byHero) {
       for (const [d, h] of dBest) hurtDummy(d, h.nx, h.ny, h.force, h.p.x, h.p.y);
       for (const [e, h] of fBest) hurtFighter(e, h.nx, h.ny, h.force, h.h.x, h.h.y);
-    } else if (heroHit) {
-      hurtHero(heroHit.nx, heroHit.ny, heroHit.force, heroHit.h.x, heroHit.h.y);
+    } else {
+      for (const [t, h] of targetBest) hurtEnemyTarget(t, h.nx, h.ny, h.force, h.h.x, h.h.y);
     }
     return impact;
   }
   // a fast, punchy magic bolt (size = power)
   function spawnBolt(ang, power) {
-    const shX = player.x, shY = player.y - 77, spd = 19;
+    const shX = player.x, shY = player.y - 77, spd = 24;
     const mx = shX + Math.cos(ang) * 46, my = shY + Math.sin(ang) * 46;
-    projectiles.push({ kind: 'bolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1100, color: cls.color, r: 9 * power, hit: 13 * power, sparkle: 2 });
-    burst(mx, my, '#ffffff', 16, 5); burst(mx, my, cls.color, 22, 4.2);
+    projectiles.push({ kind: 'bolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1020, color: cls.color, r: 9.5 * power, hit: 14 * power, sparkle: 3 });
+    burst(mx, my, '#ffffff', 18, 5.2); burst(mx, my, cls.color, 26, 4.6);
   }
   // a straight thrown dagger that can be recovered after landing
   function spawnDagger(ang) {
-    const shX = player.x + player.facing * 11, shY = player.y - 96, spd = 22;
+    const shX = player.x + player.facing * 11, shY = player.y - 96, spd = 28;
     const mx = shX + Math.cos(ang) * 22, my = shY + Math.sin(ang) * 10;
     projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: 11 });
   }
   function arrowSpeed(power) {
-    return 18 + 8 * clamp(power, 0.45, 1.45);
+    return 23 + 10 * clamp(power, 0.45, 1.55);
   }
   function arrowOrigin(ang) {
     const shX = player.x, shY = player.y - 72;
     return { x: shX + Math.cos(ang) * 34, y: shY + Math.sin(ang) * 34 };
   }
-  function spawnArrow(ang, power) {
+  function spawnArrow(ang, power, opts) {
     const spd = arrowSpeed(power), o = arrowOrigin(ang), mx = o.x, my = o.y;
-    projectiles.push({ kind: 'arrow', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1300, color: cls.color, angle: ang, hit: 8 + 8 * clamp(power, 0.45, 1.45) });
+    opts = opts || {};
+    projectiles.push({ kind: 'arrow', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1280, color: cls.color, angle: ang, hit: 8 + 9 * clamp(power, 0.45, 1.55), pierce: opts.pierce || 0, powerShot: !!opts.powerShot, storm: !!opts.storm });
     burst(mx, my, cls.color, 8, 2.4);
   }
   function activateShieldGuard() {
@@ -2334,19 +2613,22 @@ PUBLIC.start = function (root, api) {
     burst(player.x + player.facing * 28, player.y - 46, '#dcecff', 10, 2.2);
   }
   function spawnGravitySeed(ang) {
-    const shX = player.x, shY = player.y - 76, spd = 11.5;
+    const shX = player.x, shY = player.y - 76, spd = 16.5;
     const mx = shX + Math.cos(ang) * 40, my = shY + Math.sin(ang) * 40;
-    const range = clamp(player.anim.atkRange || 360, 95, 420);
+    const range = clamp(player.anim.atkRange || 500, 130, 580);
     projectiles.push({ kind: 'gravitySeed', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
-      life: 700, color: cls.color, r: 8, hit: 0, angle: ang, range, traveled: 0 });
-    burst(mx, my, '#ffffff', 12, 2.8);
-    burst(mx, my, cls.color, 18, 3.2);
+      life: 900, color: cls.color, r: 10, hit: 0, angle: ang, range, traveled: 0 });
+    burst(mx, my, '#ffffff', 18, 3.2);
+    burst(mx, my, cls.color, 28, 4.2);
   }
-  function spawnGravityField(x, y, team, color) {
-    gravityFields.push({ x, y, team: team || 'hero', color: color || '#ff77d2', life: 2300, max: 2300, r: 118 });
-    burst(x, y, '#ffffff', 18, 3.4);
-    burst(x, y, color || '#ff77d2', 30, 4.2);
-    addShake(3.2, 120);
+  function spawnGravityField(x, y, team, color, opts) {
+    opts = opts || {};
+    const life = opts.life || 2600;
+    const r = opts.r || 152;
+    gravityFields.push({ x, y, team: team || 'hero', color: color || '#ff77d2', life, max: life, r, ultimate: !!opts.ultimate });
+    burst(x, y, '#ffffff', opts.ultimate ? 28 : 22, opts.ultimate ? 4.8 : 3.8);
+    burst(x, y, color || '#ff77d2', opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
+    addShake(opts.ultimate ? 5.4 : 3.6, opts.ultimate ? 170 : 120);
   }
   function fieldAffectsActor(g, act) {
     return act && !act.dead && ((g.team || 'hero') === 'enemy' ? act.team !== 'enemy' : act.team === 'enemy');
@@ -2394,9 +2676,9 @@ PUBLIC.start = function (root, api) {
       if (d < g.r + 70) { b.vx += (dx / d) * 8.5; b.vy += (dy / d) * 6.5 - 2; b.va += (dx / d) * 0.18; }
     }
     if ((g.team || 'hero') === 'enemy') {
-      if (hero) {
-        const dx = g.x - hero.x, dy = g.y - (hero.y - 38), d = Math.hypot(dx, dy) || 1;
-        if (d < g.r + 70) hurtHero(dx / d, dy / d, 18 * (1 - Math.min(d, g.r + 70) / (g.r + 70)), g.x, g.y);
+      for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
+        const dx = g.x - t.x, dy = g.y - (t.y - 38), d = Math.hypot(dx, dy) || 1;
+        if (d < g.r + 70) hurtEnemyTarget(t, dx / d, dy / d, 18 * (1 - Math.min(d, g.r + 70) / (g.r + 70)), g.x, g.y);
       }
     } else {
       if (fighters) for (const e of fighters.slice()) {
@@ -2420,7 +2702,7 @@ PUBLIC.start = function (root, api) {
       const g = gravityFields[i];
       g.life -= dtStep;
       for (const b of boxes) applyGravityFieldToBox(g, b);
-      if ((g.team || 'hero') === 'enemy') applyGravityFieldToActor(g, hero);
+      if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(g, t);
       else if (fighters) for (const e of fighters) applyGravityFieldToActor(g, e);
       if (dummies) for (const d of dummies) applyGravityFieldToDummy(g, d);
       if (Math.random() < 0.75) {
@@ -2435,10 +2717,10 @@ PUBLIC.start = function (root, api) {
   function spawnMageSigil(ang) {
     const shX = player.x, shY = player.y - 76;
     const mx = shX + Math.cos(ang) * 42, my = shY + Math.sin(ang) * 42;
-    projectiles.push({ kind: 'sigil', team: player.team, x: mx, y: my, vx: Math.cos(ang) * 5.8, vy: Math.sin(ang) * 5.8,
-      life: 620, age: 0, color: cls.color, r: 16, hit: 18, angle: ang });
-    burst(mx, my, '#ffffff', 18, 3.2);
-    burst(mx, my, cls.color, 32, 3.8);
+    projectiles.push({ kind: 'sigil', team: player.team, x: mx, y: my, vx: Math.cos(ang) * 8.6, vy: Math.sin(ang) * 8.6,
+      life: 700, age: 0, color: cls.color, r: 18, hit: 19, angle: ang });
+    burst(mx, my, '#ffffff', 22, 3.6);
+    burst(mx, my, cls.color, 40, 4.4);
   }
   function explodeSigil(b) {
     burst(b.x, b.y, b.color, 34, 5.2);
@@ -2446,7 +2728,7 @@ PUBLIC.start = function (root, api) {
     pushBoxesRadial(b.x, b.y, 18, 92, b.team);
     for (let i = 0; i < 8; i++) {
       const a = b.angle + i * Math.PI / 4 + Math.sin(b.age * 0.02) * 0.25;
-      const spd = 9.5;
+      const spd = 12.5;
       projectiles.push({ kind: 'bolt', team: b.team, x: b.x, y: b.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
         life: 520, color: b.color, r: 5.5, hit: 8, sparkle: 1 });
     }
@@ -3407,6 +3689,9 @@ PUBLIC.start = function (root, api) {
       if (fighters) for (const e of fighters) {
         for (const s of actorCapsules(e)) drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, e.cls.color || '#ff5a5a', 0.20);
       }
+      if (allies) for (const a of allies) {
+        for (const s of actorCapsules(a)) drawDebugCapsule(s.ax, s.ay, s.bx, s.by, s.r, a.cls.color || '#53d4ff', 0.18);
+      }
     }
     if (debug.dummies) {
       ctx.save();
@@ -3558,8 +3843,23 @@ PUBLIC.start = function (root, api) {
       grad.addColorStop(1, 'rgba(255,119,210,0)');
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = g.color; ctx.globalAlpha = 0.35 * fade; ctx.lineWidth = 2;
+      ctx.strokeStyle = g.color; ctx.globalAlpha = (g.ultimate ? 0.52 : 0.35) * fade; ctx.lineWidth = g.ultimate ? 3 : 2;
       ctx.beginPath(); ctx.arc(g.x, g.y, rr * 0.72, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.42 * fade;
+      ctx.lineWidth = g.ultimate ? 2.2 : 1.6;
+      for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI * 2 / 10 + performance.now() * 0.0018;
+        const outer = rr * (0.86 + 0.05 * Math.sin(performance.now() * 0.006 + i));
+        const inner = rr * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(g.x + Math.cos(a) * outer, g.y + Math.sin(a) * outer);
+        ctx.lineTo(g.x + Math.cos(a) * inner, g.y + Math.sin(a) * inner);
+        ctx.stroke();
+      }
+      if (g.ultimate) {
+        ctx.globalAlpha = 0.36 * fade;
+        ctx.beginPath(); ctx.arc(g.x, g.y, rr * 0.96, 0, Math.PI * 2); ctx.stroke();
+      }
       ctx.globalAlpha = 1;
     }
     // projectiles: glowing bolts, sigils, and thrown daggers
@@ -3573,8 +3873,14 @@ PUBLIC.start = function (root, api) {
         ctx.fillStyle = '#cfd6df'; ctx.fill(); ctx.lineWidth = 1.2; ctx.stroke();
         ctx.restore();
       } else if (b.kind === 'arrow') {
+        ctx.save();
+        ctx.strokeStyle = b.powerShot ? 'rgba(255,255,255,0.75)' : b.storm ? 'rgba(83,212,255,0.45)' : 'rgba(83,212,255,0.32)';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = b.powerShot ? 4 : 2.4;
+        ctx.beginPath(); ctx.moveTo(b.x - b.vx * 0.82, b.y - b.vy * 0.82); ctx.lineTo(b.x - b.vx * 0.16, b.y - b.vy * 0.16); ctx.stroke();
+        ctx.restore();
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx));
-        ctx.strokeStyle = '#5f432b'; ctx.lineCap = 'round'; ctx.lineWidth = 2.2;
+        ctx.strokeStyle = b.powerShot ? '#2a5770' : '#5f432b'; ctx.lineCap = 'round'; ctx.lineWidth = b.powerShot ? 3.1 : 2.2;
         ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(10, 0); ctx.stroke();
         ctx.fillStyle = '#aeb4bd'; ctx.strokeStyle = INK; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(8, -3); ctx.lineTo(8, 3); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -3596,8 +3902,8 @@ PUBLIC.start = function (root, api) {
       } else if (b.kind === 'gravitySeed') {
         const r = b.r || 8;
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate((b.angle || 0) + performance.now() * 0.01);
-        ctx.strokeStyle = b.color; ctx.lineWidth = 2.2;
-        ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = b.color; ctx.lineWidth = 2.6;
+        ctx.beginPath(); ctx.arc(0, 0, r + 5 + Math.sin(performance.now() * 0.02) * 2, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.moveTo(-r - 5, 0); ctx.lineTo(r + 5, 0); ctx.moveTo(0, -r - 5); ctx.lineTo(0, r + 5); ctx.stroke();
         ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, Math.PI * 2); ctx.fill();
@@ -3623,6 +3929,7 @@ PUBLIC.start = function (root, api) {
         ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.stroke();
       }
     }
+    drawAllies();
     drawFighters();
     drawStick(moveAmt);
     drawWorldDebug();
@@ -3645,7 +3952,7 @@ PUBLIC.start = function (root, api) {
         runTime += dt;
         acc += dt;
         let guard = 0;
-        while (acc >= STEP && guard++ < 5) { physics(); updateFighters(STEP); updateArena(STEP); acc -= STEP; if (state !== 'playing') break; }
+        while (acc >= STEP && guard++ < 5) { physics(); updateFighters(STEP); updateAllies(STEP); updateArena(STEP); acc -= STEP; if (state !== 'playing') break; }
         flagWave += dt * 0.006;
         // age effects: particles fly & fade; the sword trail fades out
         for (let i = particles.length - 1; i >= 0; i--) {
@@ -3689,10 +3996,14 @@ PUBLIC.start = function (root, api) {
           const sp = Math.hypot(b.vx, b.vy) || 1;
           let struckActor = false;
           if ((b.team || 'hero') === 'enemy') {
-            // enemy fire seeks the hero
-            if (hero && !(hero.invuln > 0) && segHitActor(px, py, b.x, b.y, projectileRadius(b), hero)) {
-              if (b.kind !== 'gravitySeed') hurtHero(b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
-              struckActor = true;
+            // enemy fire seeks the hero and party allies
+            for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
+              const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), t);
+              if (h) {
+                if (b.kind !== 'gravitySeed') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
+                struckActor = true;
+                break;
+              }
             }
           } else {
             // hero fire hits training dummies + enemy fighters
@@ -3706,6 +4017,7 @@ PUBLIC.start = function (root, api) {
             }
           }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
+          if (struckActor && b.pierce > 0) { b.pierce--; struckActor = false; }
           const hitPlatform = L.platforms.some(pl => !isOneWay(pl) && projectileHitsBox(b, px, py, pl));
           const rangedBurst = b.kind === 'gravitySeed' && b.range && b.traveled >= b.range;
           const dead = b.life <= 0 || crate || struckActor || hitPlatform || rangedBurst;
@@ -3724,7 +4036,7 @@ PUBLIC.start = function (root, api) {
       centerCam(false);
     }
     const moveAmt = player ? (freeze > 0 ? lastMoveAmt : (lastMoveAmt = animate(dt))) : 0;
-    if (player && freeze <= 0) animateFighters(dt);
+    if (player && freeze <= 0) { animateFighters(dt); animateAllies(dt); }
     if (player) render(moveAmt);
   });
 
@@ -3735,18 +4047,19 @@ PUBLIC.start = function (root, api) {
     const atk = act.anim && act.anim.atkActive ? { type: act.anim.atkType, t: act.anim.atkT, phase: act.anim.atkPhase, aim: act.anim.atkAim } : null;
     const move = act.move && act.move.active ? { type: act.move.type, t: act.move.t, phase: act.move.phase } : null;
     return {
-      cls: act.cls && act.cls.id, x: act.x, y: act.y, vx: act.vx, vy: act.vy,
+      cls: act.cls && act.cls.id, team: act.team, x: act.x, y: act.y, vx: act.vx, vy: act.vy,
       facing: act.facing, grounded: act.grounded, coyote: act.coyote, airTime: act.airTime,
       jumpHeld: !!(act.intent && act.intent.jumpHeld), jumpHold: act.intent && act.intent.jumpHold || 0,
       rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, arrowAmmo: act.arrowAmmo,
       rogueBurst: act.rogueBurst, attackCd: act.attackCd, abilityCd: act.abilityCd, moveCd: act.moveCd,
+      cooldowns: Object.assign({}, act.cooldowns || {}),
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
     };
   }
   function getTestApi() {
     if (!testApi) testApi = {
-      play, onStrike, triggerAttack, startRangerDraw, releaseRangerDraw,
+      play, onStrike, triggerAttack, triggerSlotAbility, startRangerDraw, releaseRangerDraw,
       pressJump: press,
       sampleMelee(type, t) {
         if (!player) return null;
@@ -3762,6 +4075,7 @@ PUBLIC.start = function (root, api) {
           mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
           arenaMode, arenaWave, arenaKills, arenaNextWave,
           player: actorSnapshot(player),
+          allies: allies ? allies.map(actorSnapshot) : [],
           fighters: fighters ? fighters.map(actorSnapshot) : [],
           boxes: boxes ? boxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, vx: b.vx, vy: b.vy })) : [],
           coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
@@ -3774,6 +4088,7 @@ PUBLIC.start = function (root, api) {
       get player() { return player; },
       get dummies() { return dummies; },
       get fighters() { return fighters; },
+      get allies() { return allies; },
       get cls() { return cls; },
     };
     return testApi;
