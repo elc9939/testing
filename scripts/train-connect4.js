@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const COLS = 7, ROWS = 6, NC = COLS * ROWS, IN = NC * 2, H1 = 64, H2 = 64;
+const COLS = 7, ROWS = 6, NC = COLS * ROWS, IN = NC * 2, H1 = 96, H2 = 96;
 
 // ---------- game ----------
 // board: Int8Array(42), 0 empty / 1 / 2. idx = row*COLS+col, row 0 = bottom.

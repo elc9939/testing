@@ -97,6 +97,6 @@ Arcade.define([
     desc: 'Connect Four against an AlphaZero-style AI that learned from self-play. Watch it think, then try to beat it.',
     color: '#5ef2ff',
     kind: 'game',
-    src: 'js/games/connect4.js?v=57',
+    src: 'js/games/connect4.js?v=58',
   },
 ]);

@@ -98,9 +98,9 @@ Arcade.register({
         <p class="msg">Drop discs and connect four. You're <b style="color:#5ef2ff">cyan</b>; the AI is
         <b style="color:#ffb65e">gold</b> and runs Monte-Carlo Tree Search guided by a net it trained against itself —
         the bars above the board show what it's considering. Pick a strength:</p>
-        <button class="btn" data-act="80">RELAXED</button>
-        <button class="btn" data-act="320">SHARP</button>
-        <button class="btn alt" data-act="800">RUTHLESS</button>`;
+        <button class="btn" data-act="140">RELAXED</button>
+        <button class="btn" data-act="500">SHARP</button>
+        <button class="btn alt" data-act="1400">RUTHLESS</button>`;
     }
     function play(sims) {
       board = newBoard(); you = 1; ai = 2; turn = 1; win = null; anim = null; aiRoot = null; aiSims = 0; aiTarget = sims; result = null;
