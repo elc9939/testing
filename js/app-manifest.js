@@ -7,7 +7,7 @@ Arcade.define([
     desc: 'Draft cards, move on a tiny chess board, and survive waves of readable enemy pieces.',
     color: '#a78bfa',
     kind: 'prototype',
-    src: 'js/games/deckbound.js?v=60',
+    src: 'js/games/deckbound.js?v=62',
   },
   {
     id: 'stardrifter',

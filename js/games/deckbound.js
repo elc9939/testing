@@ -12,6 +12,7 @@ Arcade.register({
     const HAND_SIZE = 5;
     const START_DECK = ['step', 'step', 'slash', 'slash', 'guard', 'spark', 'dash', 'knight'];
     const DRAFT_POOL = ['lunge', 'bishop', 'fork', 'shieldwall', 'execute', 'plan', 'queen', 'rookdash'];
+    const RELIC_POOL = ['banner', 'boots', 'lens', 'thorns', 'tempo', 'mender'];
     const DIR4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     const DIR8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
     const DIAG = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -39,6 +40,15 @@ Arcade.register({
       bishop: { name: 'Bishop', hp: 6, dmg: 3, color: '#a78bfa', label: 'B' },
       knight: { name: 'Knight', hp: 6, dmg: 3, color: '#5ef2ff', label: 'N' },
     };
+    const RELICS = {
+      banner: { name: 'Battle Standard', text: 'Start each turn with 1 block.' },
+      boots: { name: 'Winged Boots', text: 'Your first move card each turn costs 0.' },
+      lens: { name: 'Prism Lens', text: 'Spark and Fork Bolt deal +1 damage.' },
+      thorns: { name: 'Barbed Guard', text: 'When block absorbs a melee hit, deal 1 back.' },
+      tempo: { name: 'Tempo Engine', text: 'Gain +1 energy on the first turn of each wave.' },
+      mender: { name: 'Mender Rune', text: 'Heal 1 extra after each wave.' },
+    };
+    const MOVE_CARDS = new Set(['step', 'dash', 'bishop', 'knight', 'rookdash']);
 
     const style = document.createElement('style');
     style.textContent = `
@@ -50,6 +60,15 @@ Arcade.register({
       .db-pill{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);border-radius:8px;padding:9px 10px;font-size:13px}
       .db-pill b{color:#ffd45e}
       .db-log{min-height:48px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.18);border-radius:8px;padding:10px;font-size:13px;line-height:1.35;color:rgba(234,242,255,.86)}
+      .db-info{border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.14);border-radius:8px;padding:10px;font-size:12px;line-height:1.35;color:rgba(234,242,255,.78)}
+      .db-info h4{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#ffd45e;margin:0 0 6px}
+      .db-info .legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+      .db-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 7px;background:rgba(255,255,255,.06)}
+      .db-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+      .db-enemies{display:grid;gap:5px}
+      .db-enemy-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      .db-relics{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+      .db-relic{border:1px solid rgba(167,139,250,.4);background:rgba(167,139,250,.12);border-radius:7px;padding:4px 6px;color:#e9ddff}
       .db-hand{min-height:0;overflow:auto;display:grid;grid-template-columns:1fr;gap:8px;padding-right:2px}
       .db-card{width:100%;text-align:left;color:var(--text);background:linear-gradient(160deg,rgba(22,28,60,.95),rgba(8,10,24,.95));border:1px solid rgba(255,255,255,.13);border-radius:8px;padding:10px;cursor:pointer;font:inherit;transition:transform .1s,border-color .15s,background .15s}
       .db-card:hover:not(:disabled),.db-card.active{transform:translateY(-1px);border-color:#a78bfa;background:linear-gradient(160deg,rgba(57,43,102,.95),rgba(12,15,34,.95))}
@@ -63,6 +82,7 @@ Arcade.register({
       .db-btn:disabled{opacity:.4;cursor:default}
       .db-draft{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-width:760px}
       .db-draft .db-card{min-height:136px}
+      .db-reward-skip{margin-top:10px}
       @media (max-width:780px){
         .db-wrap{grid-template-columns:1fr;grid-template-rows:minmax(300px,48vh) minmax(230px,1fr);padding:58px 10px 10px;gap:10px}
         .db-board{min-height:300px}
@@ -71,6 +91,7 @@ Arcade.register({
         .db-hand{grid-template-columns:repeat(2,minmax(0,1fr))}
         .db-card{padding:9px;min-height:92px}
         .db-draft{grid-template-columns:1fr;max-height:58vh;overflow:auto}
+        .db-info{display:none}
       }
     `;
     root.appendChild(style);
@@ -82,6 +103,7 @@ Arcade.register({
       <div class="db-panel">
         <div class="db-stats" id="db-stats"></div>
         <div class="db-log" id="db-log"></div>
+        <div class="db-info" id="db-info"></div>
         <div class="db-actions">
           <button class="db-btn" id="db-end">End Turn</button>
           <button class="db-btn alt" id="db-redraw">New Run</button>
@@ -92,6 +114,7 @@ Arcade.register({
     const boardEl = wrap.querySelector('#db-board');
     const statsEl = wrap.querySelector('#db-stats');
     const logEl = wrap.querySelector('#db-log');
+    const infoEl = wrap.querySelector('#db-info');
     const handEl = wrap.querySelector('#db-hand');
     const endBtn = wrap.querySelector('#db-end');
     const newBtn = wrap.querySelector('#db-redraw');
@@ -108,12 +131,16 @@ Arcade.register({
       block: 0,
       energy: 3,
       deck: [],
+      relics: [],
       draw: [],
       discard: [],
       hand: [],
       player: { r: BOARD - 1, c: 2 },
       enemies: [],
       selected: -1,
+      turn: 0,
+      moveDiscountUsed: false,
+      fx: [],
       log: 'Draft cards, read enemy threats, and clear waves.',
     };
 
@@ -136,6 +163,18 @@ Arcade.register({
     const occupied = (r, c) => (state.player.r === r && state.player.c === c) || !!enemyAt(r, c);
     const empty = (r, c) => inside(r, c) && !occupied(r, c);
     const cardNeedsTarget = id => CARDS[id].target !== 'self';
+    const hasRelic = id => state.relics.includes(id);
+    const isMoveCard = id => MOVE_CARDS.has(id);
+
+    function energyCost(id) {
+      const base = CARDS[id].cost;
+      return hasRelic('boots') && isMoveCard(id) && !state.moveDiscountUsed ? 0 : base;
+    }
+
+    function addFx(text, r, c, color = '#eaf2ff') {
+      state.fx.push({ text, r, c, color, life: 760, max: 760, drift: 0 });
+      if (state.fx.length > 18) state.fx.splice(0, state.fx.length - 18);
+    }
 
     function lineClear(r, c) {
       const pr = state.player.r, pc = state.player.c;
@@ -186,9 +225,11 @@ Arcade.register({
       state.block = 0;
       state.energy = 3;
       state.deck = START_DECK.slice();
+      state.relics = [];
       state.player = { r: BOARD - 1, c: 2 };
       state.enemies = [];
       state.selected = -1;
+      state.fx = [];
       overlay.classList.add('hidden');
       addLog('Your opening deck is simple: move, block, and find clean trades.');
       nextWave();
@@ -201,6 +242,7 @@ Arcade.register({
     function nextWave() {
       state.wave++;
       state.block = 0;
+      state.turn = 0;
       state.player = { r: BOARD - 1, c: 2 + (state.wave % 2) };
       state.enemies = [];
       const plans = [
@@ -227,8 +269,10 @@ Arcade.register({
     function startPlayerTurn(message) {
       if (state.hp <= 0) return gameOver();
       state.phase = 'player';
-      state.energy = 3;
-      state.block = 0;
+      state.turn++;
+      state.energy = 3 + (hasRelic('tempo') && state.turn === 1 ? 1 : 0);
+      state.block = hasRelic('banner') ? 1 : 0;
+      state.moveDiscountUsed = false;
       state.selected = -1;
       drawCards(Math.max(0, HAND_SIZE - state.hand.length));
       if (message) addLog(message);
@@ -245,17 +289,25 @@ Arcade.register({
       enemyTurn();
     }
 
-    function damagePlayer(amount, source) {
+    function damagePlayer(amount, enemy) {
+      const source = PIECES[enemy.type].name;
       const blocked = Math.min(state.block, amount);
       state.block -= blocked;
       const taken = amount - blocked;
       state.hp -= taken;
+      addFx(blocked ? 'BLOCK' : `-${taken}`, state.player.r, state.player.c, blocked ? '#ffd45e' : '#ff5ec4');
       addLog(`${source} attacks for ${amount}. ${blocked ? `${blocked} blocked. ` : ''}${taken ? `${taken} damage taken.` : 'No damage taken.'}`);
+      if (blocked && hasRelic('thorns') && Math.max(Math.abs(enemy.r - state.player.r), Math.abs(enemy.c - state.player.c)) <= 1) {
+        deal(enemy, 1, 'Barbed Guard');
+      }
       if (state.hp <= 0) gameOver();
     }
 
     function deal(enemy, amount, source) {
+      if (!enemy) return;
       enemy.hp -= amount;
+      enemy.hit = 1;
+      addFx(`-${amount}`, enemy.r, enemy.c, '#ffd45e');
       addLog(`${source} deals ${amount} to ${PIECES[enemy.type].name}.`);
       if (enemy.hp <= 0) {
         state.enemies = state.enemies.filter(e => e.id !== enemy.id);
@@ -270,22 +322,54 @@ Arcade.register({
       state.selected = -1;
       state.discard.push(...state.hand);
       state.hand = [];
-      const offers = shuffle(DRAFT_POOL.slice()).slice(0, 3);
+      const heal = 2 + (hasRelic('mender') ? 1 : 0);
+      const relicDraft = state.wave % 2 === 0;
       overlay.classList.remove('hidden');
+      if (relicDraft) showRelicReward(heal);
+      else showCardReward(heal);
+      updateUI();
+    }
+
+    function showCardReward(heal) {
+      const offers = shuffle(DRAFT_POOL.slice()).slice(0, 3);
       overlay.innerHTML = `<h2>Wave Cleared</h2>
-        <p class="msg">Choose one card for your deck. You also recover 2 HP before the next board.</p>
-        <div class="db-draft">${offers.map(id => cardMarkup(id, true)).join('')}</div>`;
+        <p class="msg">Choose one card for your deck, or skip for a bigger heal. You recover ${heal} HP with a card pick.</p>
+        <div class="db-draft">${offers.map(id => cardMarkup(id, true)).join('')}</div>
+        <button class="btn alt db-reward-skip" data-skip="heal">SKIP: HEAL ${heal + 3}</button>`;
       overlay.querySelectorAll('[data-card]').forEach(btn => {
         btn.addEventListener('click', () => {
           const id = btn.dataset.card;
           state.deck.push(id);
-          state.hp = Math.min(MAX_HP, state.hp + 2);
+          state.hp = Math.min(MAX_HP, state.hp + heal);
           overlay.classList.add('hidden');
           addLog(`${CARDS[id].name} added to your deck.`);
           nextWave();
         });
       });
-      updateUI();
+      overlay.querySelector('[data-skip]').addEventListener('click', () => {
+        state.hp = Math.min(MAX_HP, state.hp + heal + 3);
+        overlay.classList.add('hidden');
+        addLog('You skip the card and patch up for extra health.');
+        nextWave();
+      });
+    }
+
+    function showRelicReward(heal) {
+      const offers = shuffle(RELIC_POOL.filter(id => !hasRelic(id))).slice(0, 3);
+      if (!offers.length) return showCardReward(heal);
+      overlay.innerHTML = `<h2>Choose a Relic</h2>
+        <p class="msg">Relics are passive upgrades that shape the rest of the run. You still recover ${heal} HP.</p>
+        <div class="db-draft">${offers.map(relicMarkup).join('')}</div>`;
+      overlay.querySelectorAll('[data-relic]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.relic;
+          state.relics.push(id);
+          state.hp = Math.min(MAX_HP, state.hp + heal);
+          overlay.classList.add('hidden');
+          addLog(`${RELICS[id].name} acquired.`);
+          nextWave();
+        });
+      });
     }
 
     function gameOver() {
@@ -354,16 +438,20 @@ Arcade.register({
       if (state.phase !== 'player') return;
       const cardId = state.hand[index];
       const card = CARDS[cardId];
-      if (!card || state.energy < card.cost) return;
+      const cost = card ? energyCost(cardId) : 0;
+      const discountedMove = card && hasRelic('boots') && isMoveCard(cardId) && !state.moveDiscountUsed;
+      if (!card || state.energy < cost) return;
       if (cardNeedsTarget(cardId) && !validTargets(cardId).some(t => t.r === target.r && t.c === target.c)) return;
 
       state.hand.splice(index, 1);
       state.discard.push(cardId);
-      state.energy -= card.cost;
+      state.energy -= cost;
+      if (discountedMove) state.moveDiscountUsed = true;
       state.selected = -1;
 
       if (cardId === 'step' || cardId === 'dash' || cardId === 'bishop' || cardId === 'rookdash') {
         state.player = { r: target.r, c: target.c };
+        addFx('MOVE', target.r, target.c, '#5ef2ff');
         if (cardId === 'bishop') state.block += 2;
         if (cardId === 'rookdash') for (const e of state.enemies.slice()) {
           if (Math.max(Math.abs(e.r - target.r), Math.abs(e.c - target.c)) === 1) deal(e, 2, card.name);
@@ -372,7 +460,7 @@ Arcade.register({
       } else if (cardId === 'slash') {
         deal(enemyAt(target.r, target.c), 3, card.name);
       } else if (cardId === 'spark') {
-        deal(enemyAt(target.r, target.c), 2, card.name);
+        deal(enemyAt(target.r, target.c), hasRelic('lens') ? 3 : 2, card.name);
       } else if (cardId === 'knight') {
         const e = enemyAt(target.r, target.c);
         if (e) {
@@ -383,18 +471,19 @@ Arcade.register({
         deal(enemyAt(target.r, target.c), 4, card.name);
       } else if (cardId === 'fork') {
         const main = enemyAt(target.r, target.c);
-        if (main) deal(main, 2, card.name);
+        const forkDamage = hasRelic('lens') ? 3 : 2;
+        if (main) deal(main, forkDamage, card.name);
         for (const e of state.enemies.slice()) {
           if (e.r === target.r && e.c === target.c) continue;
-          if (Math.max(Math.abs(e.r - target.r), Math.abs(e.c - target.c)) === 1) deal(e, 2, card.name);
+          if (Math.max(Math.abs(e.r - target.r), Math.abs(e.c - target.c)) === 1) deal(e, forkDamage, card.name);
         }
       } else if (cardId === 'execute') {
         const e = enemyAt(target.r, target.c);
         deal(e, e.hp <= 4 ? 9 : 6, card.name);
       } else if (cardId === 'guard') {
-        state.block += 5; addLog('You brace for 5 block.');
+        state.block += 5; addFx('+5', state.player.r, state.player.c, '#ffd45e'); addLog('You brace for 5 block.');
       } else if (cardId === 'shieldwall') {
-        state.block += 8; addLog('Shield Wall gives 8 block.');
+        state.block += 8; addFx('+8', state.player.r, state.player.c, '#ffd45e'); addLog('Shield Wall gives 8 block.');
       } else if (cardId === 'plan') {
         drawCards(2); addLog('You study the board and draw 2 cards.');
       } else if (cardId === 'queen') {
@@ -442,7 +531,7 @@ Arcade.register({
     function enemyTurn() {
       for (const enemy of state.enemies.slice()) {
         if (!state.enemies.includes(enemy) || state.hp <= 0) continue;
-        if (attacksPlayer(enemy)) damagePlayer(PIECES[enemy.type].dmg, PIECES[enemy.type].name);
+        if (attacksPlayer(enemy)) damagePlayer(PIECES[enemy.type].dmg, enemy);
         else moveEnemy(enemy);
       }
       if (state.hp > 0 && state.phase !== 'over') startPlayerTurn('Your turn. Red tiles show current enemy threats.');
@@ -485,6 +574,26 @@ Arcade.register({
       </button>`;
     }
 
+    function relicMarkup(id) {
+      const r = RELICS[id];
+      return `<button class="db-card" data-relic="${id}" type="button">
+        <div class="top"><span>${r.name}</span><span class="cost">R</span></div>
+        <div class="txt">${r.text}</div>
+      </button>`;
+    }
+
+    function piecePattern(type) {
+      if (type === 'pawn') return 'diagonal bite';
+      if (type === 'rook') return 'row/file beam';
+      if (type === 'bishop') return 'diagonal beam';
+      return 'L jump';
+    }
+
+    function intentText(enemy) {
+      if (attacksPlayer(enemy)) return `attacks for ${PIECES[enemy.type].dmg}`;
+      return `advances, threatens ${piecePattern(enemy.type)}`;
+    }
+
     function updateUI() {
       statsEl.innerHTML = `
         <div class="db-pill">HP <b>${Math.max(0, state.hp)}/${MAX_HP}</b></div>
@@ -496,15 +605,29 @@ Arcade.register({
         <div class="db-pill">Deck <b>${state.deck.length}</b></div>
         <div class="db-pill">Best <b>${api.getBest('deckbound')}</b></div>`;
       logEl.textContent = state.log;
+      const relicHtml = state.relics.length
+        ? state.relics.map(id => `<span class="db-relic" title="${RELICS[id].text}">${RELICS[id].name}</span>`).join('')
+        : '<span class="db-relic">No relics yet</span>';
+      const enemyHtml = state.enemies.length
+        ? state.enemies.map(e => `<div class="db-enemy-row"><span><b style="color:${PIECES[e.type].color}">${PIECES[e.type].label}</b> ${PIECES[e.type].name} ${e.hp}/${e.maxHp}</span><span>${intentText(e)}</span></div>`).join('')
+        : '<div class="db-enemy-row"><span>Board clear</span><span>draft reward</span></div>';
+      infoEl.innerHTML = `<h4>Read</h4>
+        <div class="legend">
+          <span class="db-chip"><span class="db-dot" style="background:#ff5ec4"></span>Enemy threat</span>
+          <span class="db-chip"><span class="db-dot" style="background:#9cff5e"></span>Card target</span>
+        </div>
+        <h4>Enemy Intent</h4><div class="db-enemies">${enemyHtml}</div>
+        <div class="db-relics">${relicHtml}</div>`;
       endBtn.disabled = state.phase !== 'player';
       handEl.innerHTML = '';
       state.hand.forEach((id, i) => {
         const def = CARDS[id];
+        const cost = energyCost(id);
         const btn = document.createElement('button');
         btn.className = 'db-card' + (state.selected === i ? ' active' : '');
         btn.type = 'button';
-        btn.disabled = state.phase !== 'player' || state.energy < def.cost || (cardNeedsTarget(id) && !validTargets(id).length);
-        btn.innerHTML = `<div class="top"><span>${def.name}</span><span class="cost">${def.cost}</span></div><div class="txt">${def.text}</div>`;
+        btn.disabled = state.phase !== 'player' || state.energy < cost || (cardNeedsTarget(id) && !validTargets(id).length);
+        btn.innerHTML = `<div class="top"><span>${def.name}</span><span class="cost">${cost}</span></div><div class="txt">${def.text}</div>`;
         btn.addEventListener('click', () => {
           if (btn.disabled) return;
           if (!cardNeedsTarget(id)) playCard(i, null);
@@ -534,7 +657,7 @@ Arcade.register({
       if (validTargets(id).some(v => v.r === t.r && v.c === t.c)) playCard(state.selected, t);
     }
 
-    function draw() {
+    function draw(dt = 16) {
       ctx.clearRect(0, 0, view.w, view.h);
       ctx.fillStyle = '#080b18';
       ctx.fillRect(0, 0, view.w, view.h);
@@ -559,8 +682,12 @@ Arcade.register({
         ctx.strokeRect(x + .5, y + .5, cell, cell);
       }
 
-      for (const e of state.enemies) drawEnemy(e);
+      for (const e of state.enemies) {
+        e.hit = Math.max(0, (e.hit || 0) - dt / 220);
+        drawEnemy(e);
+      }
       drawPlayer();
+      drawFx(dt);
     }
 
     function drawDisc(r, c, radius, fill, stroke) {
@@ -578,7 +705,7 @@ Arcade.register({
 
     function drawEnemy(e) {
       const def = PIECES[e.type];
-      const p = drawDisc(e.r, e.c, cell * .31, def.color, 'rgba(255,255,255,.7)');
+      const p = drawDisc(e.r, e.c, cell * (.31 + (e.hit || 0) * .08), def.color, e.hit ? '#ffd45e' : 'rgba(255,255,255,.7)');
       ctx.fillStyle = '#05060f';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -604,6 +731,24 @@ Arcade.register({
         ctx.beginPath();
         ctx.arc(p.x, p.y, cell * .42, 0, Math.PI * 2);
         ctx.stroke();
+      }
+    }
+
+    function drawFx(dt) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `900 ${Math.max(13, cell * .18)}px system-ui,sans-serif`;
+      for (let i = state.fx.length - 1; i >= 0; i--) {
+        const f = state.fx[i];
+        f.life -= dt;
+        f.drift += dt * .035;
+        if (f.life <= 0) { state.fx.splice(i, 1); continue; }
+        const x = offX + f.c * cell + cell / 2;
+        const y = offY + f.r * cell + cell / 2 - f.drift;
+        ctx.globalAlpha = Math.max(0, f.life / f.max);
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, x, y);
+        ctx.globalAlpha = 1;
       }
     }
 
