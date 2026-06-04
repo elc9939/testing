@@ -108,4 +108,13 @@ Arcade.define([
     kind: 'game',
     src: 'js/games/connect4.js?v=58',
   },
+  {
+    id: 'gambit',
+    name: 'Gambit',
+    emoji: '🃏',
+    desc: 'A roguelike deckbuilder: pick a class, battle foes that telegraph their moves, and draft a deck up to a boss.',
+    color: '#ff7a9c',
+    kind: 'game',
+    src: 'js/games/gambit.js?v=1',
+  },
 ]);
