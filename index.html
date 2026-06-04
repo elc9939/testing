@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>Mini Arcade — A pocketful of games</title>
-<link rel="stylesheet" href="css/style.css?v=55">
+<link rel="stylesheet" href="css/style.css?v=57">
 
 <!-- PWA: installable, full-screen, offline -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -22,7 +22,7 @@
   <!-- MENU -->
   <div id="menu">
     <div class="title">MINI ARCADE</div>
-    <div class="subtitle">Pick a game. Beat your best. No downloads, no dependencies.</div>
+    <div class="subtitle">Pick a game or experiment. The launcher stays light; each app loads when opened.</div>
     <div class="grid" id="game-grid"><!-- cards injected by arcade.js --></div>
     <div class="footer">Use ⎋ Esc or the Menu button to return here · Built with vanilla JS</div>
   </div>
@@ -38,18 +38,9 @@
 
 </div>
 
-<!-- Framework first, then each game self-registers -->
-<script src="js/arcade.js"></script>
-<script src="js/games/stardrifter.js?v=55"></script>
-<script src="js/games/snake.js?v=55"></script>
-<script src="js/games/breakout.js?v=55"></script>
-<script src="js/games/memory.js?v=55"></script>
-<script src="js/games/reaction.js?v=55"></script>
-<script src="js/games/tictactoe.js?v=55"></script>
-<script src="js/games/stickrun.js?v=41"></script>
-<script src="js/games/pinball.js?v=1"></script>
-<script src="js/games/orbit.js?v=1"></script>
-<script src="js/games/twenty48.js?v=1"></script>
+<!-- Framework first, then the lightweight app catalog. Apps lazy-load on open. -->
+<script src="js/arcade.js?v=57"></script>
+<script src="js/app-manifest.js?v=57"></script>
 
 <!-- Register the service worker for offline / installable play -->
 <script>

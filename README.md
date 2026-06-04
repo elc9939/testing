@@ -108,15 +108,28 @@ node scripts/check-logminer.js
 - PWA cache coverage for assets referenced by `index.html` and the web manifest.
 - `javac logminer/*.java` plus a LogMiner smoke test.
 
-### Adding a game
+### Adding an app
 
-Each game self-registers with the shell:
+Each app gets a lightweight card entry in `js/app-manifest.js`:
+
+```js
+{
+  id: 'mygame',
+  name: 'My Game',
+  emoji: 'game',
+  desc: 'One-line pitch shown on the menu card.',
+  color: '#5ef2ff',
+  kind: 'game',
+  src: 'js/games/mygame.js?v=1',
+}
+```
+
+The app script is loaded only when its card is opened. Inside that script, the app
+self-registers its runtime with the shell:
 
 ```js
 Arcade.register({
-  id: 'mygame', name: 'My Game', emoji: '🎮',
-  desc: 'One-line pitch shown on the menu card.',
-  color: '#5ef2ff',
+  id: 'mygame',
   start(root, api) { /* mount your game into `root` */ },
   stop() { /* optional: clean up timers etc. */ },
 });
@@ -124,6 +137,6 @@ Arcade.register({
 
 The `api` passed to `start` provides managed helpers that auto-clean on exit:
 `makeCanvas(root)`, `loop(cb)`, `on(target, type, fn)`, and `getBest/setBest(key)`
-for persistent high scores. Add a `<script>` tag for the new file in `index.html` and it appears on the menu.
+for persistent high scores. Add the script path to `sw.js` if it should work offline.
 
 Enjoy! ✦
