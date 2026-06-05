@@ -124,15 +124,16 @@ Arcade.register({
     api.on(window, 'keyup', e => { keys[e.key.toLowerCase()] = false; });
 
     function update(dt) {
+      const frame = Math.min(2.2, dt / 16.7);
       if (wideTime > 0) wideTime -= dt;
       if (slowTime > 0) slowTime -= dt;
-      if (shake > .2) shake *= .88;
-      if (keys['arrowleft'] || keys['a']) movePaddle(paddle.x - 11);
-      if (keys['arrowright'] || keys['d']) movePaddle(paddle.x + 11);
+      if (shake > .2) shake *= Math.pow(.88, frame);
+      if (keys['arrowleft'] || keys['a']) movePaddle(paddle.x - 11 * frame);
+      if (keys['arrowright'] || keys['d']) movePaddle(paddle.x + 11 * frame);
       if (ball.stuck) { ball.x = paddle.x; ball.y = paddle.y - 18; return; }
 
       const timeScale = slowTime > 0 ? .72 : 1;
-      ball.x += ball.vx * timeScale; ball.y += ball.vy * timeScale;
+      ball.x += ball.vx * timeScale * frame; ball.y += ball.vy * timeScale * frame;
       if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -1; }
       if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -1; }
       if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -1; }
@@ -168,14 +169,14 @@ Arcade.register({
         }
       }
       for (let i = powerups.length - 1; i >= 0; i--) {
-        const p = powerups[i]; p.y += p.vy; p.spin += .08; p.vy += .02;
+        const p = powerups[i]; p.y += p.vy * frame; p.spin += .08 * frame; p.vy += .02 * frame;
         if (p.y > H + 40) { powerups.splice(i, 1); continue; }
         if (Math.abs(p.x - paddle.x) < pw / 2 + p.r && Math.abs(p.y - paddle.y) < 20) {
           applyPower(p.type); powerups.splice(i, 1);
         }
       }
       for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vx *= .96; p.vy = p.vy * .96 + .05; p.life -= dt;
+        const p = particles[i]; p.x += p.vx * frame; p.y += p.vy * frame; p.vx *= Math.pow(.96, frame); p.vy = p.vy * Math.pow(.96, frame) + .05 * frame; p.life -= dt;
         if (p.life <= 0) particles.splice(i, 1);
       }
       // fell off

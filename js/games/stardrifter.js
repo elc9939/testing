@@ -120,13 +120,13 @@ Arcade.register({
       burst(x, y, color, 10 + Math.min(combo, 14), 3.4);
       hudUpdate();
     }
-    function pullPickup(o, strength) {
+    function pullPickup(o, strength, frame) {
       if (magnetTime <= 0) return;
       const dx = ship.x - o.x, dy = ship.y - o.y, d = Math.hypot(dx, dy) || 1;
       if (d > 190) return;
       const p = (1 - d / 190) * strength;
-      o.x += dx / d * p;
-      o.y += dy / d * p;
+      o.x += dx / d * p * frame;
+      o.y += dy / d * p * frame;
     }
     function spawnAsteroid() {
       const edge = Math.floor(rand(0, 4)), size = rand(16, 42);
@@ -151,6 +151,7 @@ Arcade.register({
     }
 
     function update(dt) {
+      const frame = Math.min(2.4, dt / 16.7);
       elapsed = performance.now() - startTime;
       spawnGap = Math.max(280, 900 - elapsed / 60);
       if (shieldTime > 0) shieldTime -= dt;
@@ -166,10 +167,10 @@ Arcade.register({
       if (keys['arrowright'] || keys['d']) tx = ship.x + 120;
       if (keys['arrowup'] || keys['w']) ty = ship.y - 120;
       if (keys['arrowdown'] || keys['s']) ty = ship.y + 120;
-      ship.vx = (ship.vx + (tx - ship.x) * .014) * .86;
-      ship.vy = (ship.vy + (ty - ship.y) * .014) * .86;
-      ship.x = clamp(ship.x + ship.vx, ship.r, view.w - ship.r);
-      ship.y = clamp(ship.y + ship.vy, ship.r, view.h - ship.r);
+      ship.vx = (ship.vx + (tx - ship.x) * .014 * frame) * Math.pow(.86, frame);
+      ship.vy = (ship.vy + (ty - ship.y) * .014 * frame) * Math.pow(.86, frame);
+      ship.x = clamp(ship.x + ship.vx * frame, ship.r, view.w - ship.r);
+      ship.y = clamp(ship.y + ship.vy * frame, ship.r, view.h - ship.r);
       if (Math.abs(ship.vx) + Math.abs(ship.vy) > .5) ship.angle = Math.atan2(ship.vy, ship.vx);
 
       if (Math.abs(ship.vx) + Math.abs(ship.vy) > 1.2 && Math.random() < .6)
@@ -177,15 +178,15 @@ Arcade.register({
           vx: -Math.cos(ship.angle) * rand(.5, 1.5), vy: -Math.sin(ship.angle) * rand(.5, 1.5), life: 320, max: 320, color: '#ffb15e', r: rand(1.5, 3.5) });
 
       if (elapsed - lastSpawn > spawnGap) { lastSpawn = elapsed; spawnAsteroid(); if (elapsed > 4000 && Math.random() < .3) spawnAsteroid(); }
-      if (orbs.length < 3 && Math.random() < .02) orbs.push({ x: rand(40, view.w - 40), y: rand(40, view.h - 40), r: 9, pulse: Math.random() * 6, life: 9000 });
-      if (Math.random() < .0018 && powerups.length < 2) {
+      if (orbs.length < 3 && Math.random() < .02 * frame) orbs.push({ x: rand(40, view.w - 40), y: rand(40, view.h - 40), r: 9, pulse: Math.random() * 6, life: 9000 });
+      if (Math.random() < .0018 * frame && powerups.length < 2) {
         const t = [POWER.SHIELD, POWER.SLOW, POWER.DOUBLE, POWER.MAGNET][Math.floor(Math.random() * 4)];
         powerups.push({ x: rand(50, view.w - 50), y: rand(50, view.h - 50), r: 14, type: t, life: 8000, pulse: 0 });
       }
       score += dt * .006 * (doubleTime > 0 ? 2 : 1);
 
       for (let i = asteroids.length - 1; i >= 0; i--) {
-        const o = asteroids[i]; o.x += o.vx * ts; o.y += o.vy * ts; o.rot += o.spin * ts;
+        const o = asteroids[i]; o.x += o.vx * ts * frame; o.y += o.vy * ts * frame; o.rot += o.spin * ts * frame;
         const pad = o.r + 60;
         if (o.x < -pad || o.x > view.w + pad || o.y < -pad || o.y > view.h + pad) { asteroids.splice(i, 1); continue; }
         const d = Math.hypot(o.x - ship.x, o.y - ship.y);
@@ -196,13 +197,13 @@ Arcade.register({
       }
       for (let i = orbs.length - 1; i >= 0; i--) {
         const o = orbs[i]; o.pulse += dt * .005; o.life -= dt;
-        pullPickup(o, 5.2);
+        pullPickup(o, 5.2, frame);
         if (o.life <= 0) { orbs.splice(i, 1); continue; }
         if (Math.hypot(o.x - ship.x, o.y - ship.y) < o.r + ship.r) { addCombo(25, o.x, o.y, '#5ef2ff'); orbs.splice(i, 1); }
       }
       for (let i = powerups.length - 1; i >= 0; i--) {
         const p = powerups[i]; p.pulse += dt * .006; p.life -= dt;
-        pullPickup(p, 3.5);
+        pullPickup(p, 3.5, frame);
         if (p.life <= 0) { powerups.splice(i, 1); continue; }
         if (Math.hypot(p.x - ship.x, p.y - ship.y) < p.r + ship.r) {
           if (p.type === POWER.SHIELD) shieldTime = 6000;
@@ -213,11 +214,11 @@ Arcade.register({
         }
       }
       for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i]; p.x += p.vx * ts; p.y += p.vy * ts; p.vx *= .97; p.vy *= .97; p.life -= dt;
+        const p = particles[i]; p.x += p.vx * ts * frame; p.y += p.vy * ts * frame; p.vx *= Math.pow(.97, frame); p.vy *= Math.pow(.97, frame); p.life -= dt;
         if (p.life <= 0) particles.splice(i, 1);
       }
-      for (const s of stars) { s.y += s.z * .4 * ts; if (s.y > view.h) { s.y = 0; s.x = Math.random() * view.w; } }
-      if (shake > .4) shake *= .86;
+      for (const s of stars) { s.y += s.z * .4 * ts * frame; if (s.y > view.h) { s.y = 0; s.x = Math.random() * view.w; } }
+      if (shake > .4) shake *= Math.pow(.86, frame);
       hudUpdate();
     }
 
@@ -299,7 +300,10 @@ Arcade.register({
 
     api.loop(dt => {
       if (state === 'playing') update(dt);
-      else for (const s of stars) { s.y += s.z * .3; if (s.y > view.h) { s.y = 0; s.x = Math.random() * view.w; } }
+      else {
+        const frame = Math.min(2.4, dt / 16.7);
+        for (const s of stars) { s.y += s.z * .3 * frame; if (s.y > view.h) { s.y = 0; s.x = Math.random() * view.w; } }
+      }
       draw();
     });
   },

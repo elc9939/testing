@@ -13,7 +13,7 @@ Arcade.register({
     const ctx = view.ctx;
     const rand = (a, b) => a + Math.random() * (b - a);
 
-    let state, score, combo, bestCombo, timeLeft, target, targetAge, spawnDelay, sinceSpawn, reactSum, reactN, particles = [], floaters = [];
+    let state, score, combo, bestCombo, timeLeft, roundStart, target, targetAge, spawnDelay, sinceSpawn, reactSum, reactN, particles = [], floaters = [];
 
     const ov = document.createElement('div'); ov.className = 'center-overlay'; root.appendChild(ov);
     const hud = document.createElement('div'); hud.className = 'hud'; hud.style.display = 'none';
@@ -22,7 +22,7 @@ Arcade.register({
     root.appendChild(hud);
 
     function reset() {
-      score = 0; combo = 0; bestCombo = 0; timeLeft = 30; target = null; particles = []; floaters = [];
+      score = 0; combo = 0; bestCombo = 0; timeLeft = 30; roundStart = 0; target = null; particles = []; floaters = [];
       spawnDelay = 850; sinceSpawn = 0; reactSum = 0; reactN = 0;
     }
     function sync() {
@@ -31,7 +31,7 @@ Arcade.register({
       document.getElementById('rx-time').textContent = Math.max(0, timeLeft).toFixed(1);
     }
     function showMenu() {
-      state = 'menu'; hud.style.display = 'none'; if (activeTimer) clearInterval(activeTimer);
+      state = 'menu'; hud.style.display = 'none'; if (activeTimer) { clearInterval(activeTimer); activeTimer = null; }
       ov.classList.remove('hidden');
       ov.innerHTML = `<h2>Reaction Rush</h2>
         <p class="msg">Tap or click each target the instant it appears. Consecutive hits build a multiplier;
@@ -42,17 +42,12 @@ Arcade.register({
     function play() {
       reset(); state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; sync();
       spawnTarget();
-      const t0 = performance.now();
-      if (activeTimer) clearInterval(activeTimer);
-      activeTimer = setInterval(() => {
-        if (state !== 'playing') return;
-        timeLeft = 30 - (performance.now() - t0) / 1000;
-        if (timeLeft <= 0) { timeLeft = 0; end(); }
-        sync();
-      }, 80);
+      roundStart = performance.now();
+      if (activeTimer) { clearInterval(activeTimer); activeTimer = null; }
     }
     function end() {
-      state = 'over'; hud.style.display = 'none'; if (activeTimer) clearInterval(activeTimer);
+      if (state === 'over') return;
+      state = 'over'; hud.style.display = 'none'; if (activeTimer) { clearInterval(activeTimer); activeTimer = null; }
       const isBest = api.setBest('reaction', score);
       const avg = reactN ? Math.round(reactSum / reactN) : 0;
       ov.classList.remove('hidden');
@@ -109,15 +104,22 @@ Arcade.register({
     api.on(view.canvas, 'mousedown', e => hit(e.clientX, e.clientY));
     api.on(view.canvas, 'touchstart', e => { e.preventDefault(); const t = e.touches[0]; hit(t.clientX, t.clientY); }, { passive: false });
 
-    api.loop(dt => {
+    api.loop((dt, now) => {
+      const frame = Math.min(2.4, dt / 16.7);
       ctx.clearRect(0, 0, view.w, view.h);
       if (state === 'playing') {
+        timeLeft = 30 - (now - roundStart) / 1000;
+        if (timeLeft <= 0) {
+          timeLeft = 0;
+          sync();
+          end();
+        }
         sinceSpawn += dt;
         if (!target && sinceSpawn >= spawnDelay) spawnTarget();
         if (target) {
           targetAge += dt;
           if (target.type === 'moving') {
-            target.x += target.vx; target.y += target.vy;
+            target.x += target.vx * frame; target.y += target.vy * frame;
             if (target.x < target.r + 8 || target.x > view.w - target.r - 8) target.vx *= -1;
             if (target.y < target.r + 60 || target.y > view.h - target.r - 8) target.vy *= -1;
           }
@@ -127,6 +129,7 @@ Arcade.register({
             combo = 0; target = null; sinceSpawn = 0; sync();
           }
         }
+        sync();
       }
       if (target) {
         const t = target, age = performance.now() - t.born;
@@ -148,14 +151,14 @@ Arcade.register({
         }
       }
       for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vx *= .94; p.vy *= .94; p.life -= dt;
+        const p = particles[i]; p.x += p.vx * frame; p.y += p.vy * frame; p.vx *= Math.pow(.94, frame); p.vy *= Math.pow(.94, frame); p.life -= dt;
         ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
         if (p.life <= 0) particles.splice(i, 1);
       }
       ctx.globalAlpha = 1;
       ctx.font = '900 18px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (let i = floaters.length - 1; i >= 0; i--) {
-        const f = floaters[i]; f.y += f.vy; f.life -= dt;
+        const f = floaters[i]; f.y += f.vy * frame; f.life -= dt;
         ctx.globalAlpha = Math.max(0, f.life / f.max); ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
         if (f.life <= 0) floaters.splice(i, 1);
       }

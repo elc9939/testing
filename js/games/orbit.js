@@ -12,11 +12,11 @@ Arcade.register({
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const rand = (a, b) => a + Math.random() * (b - a);
     const G = 1.0, STAR_M = 1400, SOFT = 80;
+    let W = 0, H = 0, stars = [], planets = [], field = [], orbits = 0;
+    let drag = null;                          // {x0,y0,x,y} while aiming a fling
 
     const view = api.makeCanvas(root, { onResize: layout });
     const ctx = view.ctx;
-    let W = 0, H = 0, stars = [], planets = [], field = [], orbits = 0;
-    let drag = null;                          // {x0,y0,x,y} while aiming a fling
 
     function layout(v) {
       W = v.w; H = v.h;
@@ -33,7 +33,7 @@ Arcade.register({
     const reset = { x: 0, y: 0, w: 92, h: 34 };
     function placeReset() { reset.x = W - reset.w - 14; reset.y = 14; }
 
-    let state;
+    let state, simAcc = 0;
     function sync() { document.getElementById('ob-n').textContent = planets.length; document.getElementById('ob-orb').textContent = orbits; }
     function showMenu() {
       state = 'menu'; hud.style.display = 'none'; ov.classList.remove('hidden');
@@ -42,7 +42,7 @@ Arcade.register({
         Aim sideways past the star for a clean orbit. Planets pull on each other and merge on contact.</p>
         <button class="btn" data-act="play">PLAY ▸</button>`;
     }
-    function play() { planets = []; orbits = 0; stars = [{ x: W / 2, y: H / 2, m: STAR_M, r: 26 }]; placeReset(); sync(); state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; seed(); }
+    function play() { planets = []; orbits = 0; simAcc = 0; stars = [{ x: W / 2, y: H / 2, m: STAR_M, r: 26 }]; placeReset(); sync(); state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; seed(); }
     ov.addEventListener('click', e => { if (e.target.dataset.act === 'play') play(); });
     function seed() {                          // start with a couple of planets so it's alive
       const a = stars[0]; for (const [R, dir] of [[150, 1], [240, -1]]) { const v = Math.sqrt(G * a.m / R) * dir; addPlanet(a.x + R, a.y, 0, v); }
@@ -70,7 +70,7 @@ Arcade.register({
     });
     api.on(window, 'keydown', e => { if (state === 'playing' && (e.key === 'c' || e.key === 'C')) { planets = []; orbits = 0; sync(); } });
 
-    function update() {
+    function updateStep() {
       // gravity from stars + other planets (softened), symplectic Euler
       for (const p of planets) {
         let ax = 0, ay = 0;
@@ -156,7 +156,19 @@ Arcade.register({
     }
     function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
-    api.loop(() => { if (state === 'playing') update(); draw(); });
+    api.loop(dt => {
+      if (state === 'playing') {
+        simAcc += Math.min(dt, 50);
+        let steps = 0;
+        while (simAcc >= 16.7 && steps < 3) {
+          updateStep();
+          simAcc -= 16.7;
+          steps++;
+        }
+        if (steps >= 3) simAcc = 0;
+      }
+      draw();
+    });
     placeReset(); showMenu();
   },
 });

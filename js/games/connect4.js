@@ -355,16 +355,24 @@ Arcade.register({
     }
 
     // ---------- update ----------
-    function update() {
+    function update(dt) {
+      const frame = Math.min(2.5, dt / 16.7);
       if (anim) {
-        anim.vy += cell * 0.045; anim.y += anim.vy;
+        anim.vy += cell * 0.045 * frame;
+        anim.y += anim.vy * frame;
         if (anim.y >= anim.targetY) { board[anim.r * COLS + anim.c] = anim.p; const d = anim.done; anim = null; d(); }
         return;
       }
       if (state === 'playing' && turn === ai) {
         if (!aiRoot) { aiRoot = { board: Int8Array.from(board), player: ai, children: null, N: 0 }; aiSims = 0; }
-        const batch = 45;
-        for (let i = 0; i < batch && aiSims < aiTarget; i++) { search(aiRoot); aiSims++; }
+        const start = performance.now();
+        const budget = aiTarget >= 1000 ? 5.5 : aiTarget >= 500 ? 4.5 : 3.2;
+        let batch = 0;
+        while (aiSims < aiTarget && batch < 90 && (batch < 4 || performance.now() - start < budget)) {
+          search(aiRoot);
+          aiSims++;
+          batch++;
+        }
         if (aiSims >= aiTarget) {
           const v = visits(aiRoot); let move = -1, bn = -1; for (let c = 0; c < COLS; c++) if (v[c] > bn) { bn = v[c]; move = c; }
           if (move < 0) { const m = legal(board); move = m[(Math.random() * m.length) | 0]; }
@@ -440,7 +448,7 @@ Arcade.register({
     }
     function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
-    api.loop(() => { if (state === 'playing') update(); draw(); });
+    api.loop(dt => { if (state === 'playing') update(dt); draw(); });
     showMenu();
 
     // inert test seam (no-op in production): lets a headless harness drive a game

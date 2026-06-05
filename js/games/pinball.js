@@ -51,7 +51,7 @@ Arcade.register({
     const LF = { px: 120, py: 556, len: 66, rest: 0.42, up: -0.46, ang: 0.42, w: 0, active: false };
     const RF = { px: 260, py: 556, len: 66, rest: Math.PI - 0.42, up: Math.PI + 0.46, ang: Math.PI - 0.42, w: 0, active: false };
 
-    let ball, balls, score, mult, comboT, state, charge, charging, shake, particles, trail;
+    let ball, balls, score, mult, comboT, state, charge, charging, shake, particles, trail, simAcc = 0;
 
     function reset() {
       score = 0; balls = 3; mult = 1; comboT = 0; shake = 0; particles = []; trail = [];
@@ -70,7 +70,7 @@ Arcade.register({
         or tap the left/right side of the table. Hit bumpers to build the combo — don't let it drain.</p>
         <button class="btn" data-act="play">PLAY ▸</button>`;
     }
-    function play() { reset(); sync(); state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; }
+    function play() { reset(); sync(); simAcc = 0; state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; }
     function gameOver() {
       state = 'over'; hud.style.display = 'none';
       const best = api.setBest('pinball', score);
@@ -167,7 +167,7 @@ Arcade.register({
     const GRAV = 0.23, SUB = 4, MAXV = 15;
     function flipperStep(f) { const target = f.active ? f.up : f.rest, prev = f.ang; f.ang += (target - f.ang) * 0.5; f.w = f.ang - prev; }
 
-    function update() {
+    function updateStep() {
       if (charging) charge = clamp(charge + 0.022, 0, 1);
       flipperStep(LF); flipperStep(RF);
       comboT = Math.max(0, comboT - 16.7); if (comboT === 0) { comboHits = 0; mult = 1; }
@@ -238,7 +238,19 @@ Arcade.register({
       ctx.restore();
     }
 
-    api.loop(() => { if (state === 'playing') update(); draw(); });
+    api.loop(dt => {
+      if (state === 'playing') {
+        simAcc += Math.min(dt, 50);
+        let steps = 0;
+        while (simAcc >= 16.7 && steps < 4 && state === 'playing') {
+          updateStep();
+          simAcc -= 16.7;
+          steps++;
+        }
+        if (steps >= 4) simAcc = 0;
+      }
+      draw();
+    });
     showMenu();
   },
 });

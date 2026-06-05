@@ -21,7 +21,7 @@ Arcade.register({
     hud.innerHTML = `<span class="a">SCORE <b id="tt-score">0</b></span><span class="b">BEST <b id="tt-best">0</b></span>`;
     root.appendChild(hud);
 
-    let tiles, score, state, animT, won;
+    let tiles, score, state, animT, won, queuedDir;
     let nextId = 1;
     const cx = c => bx + GAP + c * (cell + GAP);
     const cy = r => by + GAP + r * (cell + GAP);
@@ -31,7 +31,7 @@ Arcade.register({
     function addTile(r, c, value) { tiles.push({ id: nextId++, r, c, sr: r, sc: c, value, scale: 0 }); }
     function spawn() { const e = emptyCells(); if (!e.length) return; const [r, c] = e[(Math.random() * e.length) | 0]; addTile(r, c, Math.random() < 0.9 ? 2 : 4); }
 
-    function reset() { tiles = []; score = 0; won = false; animT = null; spawn(); spawn(); sync(); }
+    function reset() { tiles = []; score = 0; won = false; animT = null; queuedDir = null; spawn(); spawn(); sync(); }
     function showMenu() {
       state = 'menu'; hud.style.display = 'none'; ov.classList.remove('hidden');
       ov.innerHTML = `<h2>2048</h2>
@@ -54,8 +54,16 @@ Arcade.register({
     ov.addEventListener('click', e => { const a = e.target.dataset.act; if (a === 'play') play(); else if (a === 'cont') { state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; } });
 
     // ---- movement ----
+    function requestMove(dir) {
+      if (state !== 'playing') return;
+      if (animT !== null) {
+        queuedDir = dir;
+        return;
+      }
+      move(dir);
+    }
     function move(dir) {
-      if (state !== 'playing' || animT !== null) return;
+      if (state !== 'playing' || animT !== null) return false;
       const grid = Array.from({ length: N }, () => new Array(N).fill(null));
       for (const t of tiles) { t.absorbed = false; t.merged = false; t.sr = t.r; t.sc = t.c; grid[t.r][t.c] = t; }
       const rows = dir === 'l' || dir === 'r', forward = dir === 'l' || dir === 'u';
@@ -79,9 +87,10 @@ Arcade.register({
         }
       }
       if (tiles.some(t => t.absorbed)) moved = true;
-      if (!moved) return;
+      if (!moved) return false;
       score += gained; sync();
       animT = 0;
+      return true;
     }
     function commit() {
       tiles = tiles.filter(t => !t.absorbed);
@@ -91,6 +100,11 @@ Arcade.register({
       animT = null;
       if (won && state === 'playing') { state = 'won'; banner('You hit 2048!', 'NEW GAME'); won = false; return; }
       if (!emptyCells().length && !canMove()) { state = 'over'; banner('Game Over', 'PLAY AGAIN ↻'); }
+      if (state === 'playing' && queuedDir) {
+        const next = queuedDir;
+        queuedDir = null;
+        move(next);
+      }
     }
     function canMove() {
       const g = Array.from({ length: N }, () => new Array(N).fill(0));
@@ -104,14 +118,14 @@ Arcade.register({
       const k = e.key.toLowerCase(); let d = null;
       if (k === 'arrowleft' || k === 'a') d = 'l'; else if (k === 'arrowright' || k === 'd') d = 'r';
       else if (k === 'arrowup' || k === 'w') d = 'u'; else if (k === 'arrowdown' || k === 's') d = 'd';
-      if (d) { move(d); e.preventDefault(); }
+      if (d) { requestMove(d); e.preventDefault(); }
     });
     let sw = null;
     api.on(view.canvas, 'pointerdown', e => { sw = { x: e.clientX, y: e.clientY }; });
     api.on(window, 'pointerup', e => {
       if (!sw) return; const dx = e.clientX - sw.x, dy = e.clientY - sw.y; sw = null;
       if (Math.max(Math.abs(dx), Math.abs(dy)) < 26) return;
-      move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u'));
+      requestMove(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u'));
     });
 
     // ---- look ----
@@ -123,7 +137,11 @@ Arcade.register({
     }
     function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
-    function update() { if (animT !== null) { animT += 16.7; if (animT >= DUR) commit(); } for (const t of tiles) t.scale += (1 - t.scale) * 0.22; }
+    function update(dt) {
+      const frame = Math.min(2.5, dt / 16.7);
+      if (animT !== null) { animT += dt; if (animT >= DUR) commit(); }
+      for (const t of tiles) t.scale += (1 - t.scale) * (1 - Math.pow(0.78, frame));
+    }
     function draw() {
       ctx.clearRect(0, 0, W, H);
       // board backing
@@ -146,7 +164,7 @@ Arcade.register({
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
 
-    api.loop(() => { if (state === 'playing' || state === 'won' || state === 'over') update(); draw(); });
+    api.loop(dt => { if (state === 'playing' || state === 'won' || state === 'over') update(dt); draw(); });
     showMenu();
   },
 });

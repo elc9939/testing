@@ -8,6 +8,7 @@ Arcade.register({
 
   start(root, api) {
     const COLS = 24, ROWS = 24;
+    const MAX_TURN_QUEUE = 4, MAX_STEPS_PER_FRAME = 3;
     let cell = 20, offX = 0, offY = 0;
     const view = api.makeCanvas(root, {
       onResize: v => {
@@ -90,14 +91,14 @@ Arcade.register({
         const lastQueued = turnQueue[turnQueue.length - 1];
         if (x === -lastQueued.x && y === -lastQueued.y) return;
         if (lastQueued.x === x && lastQueued.y === y) return;
-        if (turnQueue.length < 2) turnQueue.push({ x, y });
+        if (turnQueue.length < MAX_TURN_QUEUE) turnQueue.push({ x, y });
         return;
       }
       if (x === -dir.x && y === -dir.y) return; // no 180°
       const last = turnQueue.length ? turnQueue[turnQueue.length - 1] : nextDir;
       if (x === -last.x && y === -last.y) return;
       if (last.x === x && last.y === y) return;
-      if (turnQueue.length < 2) turnQueue.push({ x, y });
+      if (turnQueue.length < MAX_TURN_QUEUE) turnQueue.push({ x, y });
     }
     api.on(window, 'keydown', e => {
       const k = e.key.toLowerCase();
@@ -196,7 +197,13 @@ Arcade.register({
       if (state === 'playing') {
         if (bonus && !paused) { bonus.life -= dt; bonus.pulse += dt * .006; if (bonus.life <= 0) bonus = null; }
         acc += paused ? 0 : dt;
-        while (acc >= stepMs) { acc -= stepMs; step(); }
+        let steps = 0;
+        while (acc >= stepMs && steps < MAX_STEPS_PER_FRAME && state === 'playing') {
+          acc -= stepMs;
+          step();
+          steps++;
+        }
+        if (steps >= MAX_STEPS_PER_FRAME) acc = Math.min(acc, stepMs * 0.35);
       }
       draw();
     });

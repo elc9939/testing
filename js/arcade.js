@@ -80,9 +80,14 @@
     loop(cb) {
       let last = performance.now();
       const tick = (now) => {
-        let dt = now - last; last = now;
-        if (dt > 60) dt = 60;
-        cb(dt, now);
+        const rawDt = now - last;
+        last = now;
+        if (document.hidden) {
+          raf = requestAnimationFrame(tick);
+          return;
+        }
+        const dt = Math.min(rawDt, 60);
+        cb(dt, now, rawDt);
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);

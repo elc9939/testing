@@ -16,7 +16,7 @@ Arcade.define([
     desc: 'Dodge an endless asteroid storm. Grab orbs and power-ups to survive as long as you can.',
     color: '#5ef2ff',
     kind: 'game',
-    src: 'js/games/stardrifter.js?v=57',
+    src: 'js/games/stardrifter.js?v=58',
   },
   {
     id: 'snake',
@@ -25,7 +25,7 @@ Arcade.define([
     desc: 'Eat glowing fruit, chain tight turns, and survive bonus fruit plus obstacle blocks.',
     color: '#9cff5e',
     kind: 'game',
-    src: 'js/games/snake.js?v=57',
+    src: 'js/games/snake.js?v=58',
   },
   {
     id: 'breakout',
@@ -34,7 +34,7 @@ Arcade.define([
     desc: 'Bounce, combo, catch power-ups, and clear wave after wave without dropping the ball.',
     color: '#ffd45e',
     kind: 'game',
-    src: 'js/games/breakout.js?v=57',
+    src: 'js/games/breakout.js?v=58',
   },
   {
     id: 'memory',
@@ -52,7 +52,7 @@ Arcade.define([
     desc: 'Tap targets fast, track moving ones, and keep a clean combo for a bigger score.',
     color: '#9cff5e',
     kind: 'game',
-    src: 'js/games/reaction.js?v=57',
+    src: 'js/games/reaction.js?v=58',
   },
   {
     id: 'tictactoe',
@@ -79,7 +79,7 @@ Arcade.define([
     desc: 'Real flipper-and-ball physics. Light bumpers, ride the combo multiplier, and avoid the drain.',
     color: '#ff5ec4',
     kind: 'game',
-    src: 'js/games/pinball.js?v=57',
+    src: 'js/games/pinball.js?v=58',
   },
   {
     id: 'orbit',
@@ -88,7 +88,7 @@ Arcade.define([
     desc: 'Drag to fling planets, watch them swing into orbit, merge, and trail light across space.',
     color: '#9b8cff',
     kind: 'sandbox',
-    src: 'js/games/orbit.js?v=57',
+    src: 'js/games/orbit.js?v=59',
   },
   {
     id: 'twenty48',
@@ -97,7 +97,7 @@ Arcade.define([
     desc: 'Swipe to slide the grid; equal tiles merge and double in a one-thumb puzzle loop.',
     color: '#ffb65e',
     kind: 'game',
-    src: 'js/games/twenty48.js?v=57',
+    src: 'js/games/twenty48.js?v=58',
   },
   {
     id: 'connect4',
@@ -106,7 +106,7 @@ Arcade.define([
     desc: 'Connect Four against an AlphaZero-style AI that learned from self-play. Watch it think, then try to beat it.',
     color: '#5ef2ff',
     kind: 'game',
-    src: 'js/games/connect4.js?v=60',
+    src: 'js/games/connect4.js?v=61',
   },
   {
     id: 'gambit',
