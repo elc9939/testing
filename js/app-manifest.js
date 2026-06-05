@@ -10,6 +10,15 @@ Arcade.define([
     src: 'js/games/deckbound.js?v=62',
   },
   {
+    id: 'arenatactics',
+    name: 'Arena Tactics',
+    emoji: '🥋',
+    desc: 'PROTOTYPE: a slower, tactical stick brawl — stagger foes, then use the pit, edges, and spikes to finish them.',
+    color: '#7fd4ff',
+    kind: 'prototype',
+    src: 'js/games/arenatactics.js?v=1',
+  },
+  {
     id: 'stardrifter',
     name: 'Star Drifter',
     emoji: '🚀',

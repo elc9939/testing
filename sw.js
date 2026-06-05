@@ -1,6 +1,6 @@
 /* Service worker: precache the whole arcade so it runs fully offline once
    installed. Bump CACHE when assets change to roll out a fresh copy. */
-const CACHE = 'mini-arcade-v74';
+const CACHE = 'mini-arcade-v75';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './js/arcade.js?v=60',
   './js/app-manifest.js?v=73',
   './js/games/deckbound.js?v=62',
+  './js/games/arenatactics.js?v=1',
   './js/games/stardrifter.js?v=59',
   './js/games/snake.js?v=58',
   './js/games/breakout.js?v=59',
