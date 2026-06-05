@@ -146,6 +146,18 @@ ring-out + push/pull tools into `stickrun.js` and layer the loadout draft on top
 - **Help screen** (`?` / button) listing your current loadout — every slot's
   equipped ability name + description + keybind.
 
+**Stick Arena integration pass (current):**
+- `stickrun.js` now has the same first-pass loadout vocabulary as the prototype:
+  Attack / Secondary / Shift / E / Q / Keystone, with descriptions and class
+  scoped draft branches for all five classes.
+- The live Stick Arena HUD is decluttered into a compact top status pill, while
+  the bottom action bar shows per-slot names, ammo hints, locks, and cooldown
+  fills.
+- The `?` / `H` help screen lists the current class loadout and descriptions in
+  the real arena game.
+- Clearing a wave in arena mode now pauses into a 1-of-3 draft that swaps one
+  slot or picks a keystone, then starts the next wave.
+
 ## Open questions / next
 - Exact stagger numbers & decay; knockback scaling vs. enemy mass.
 - Camera: fixed single-screen (prototype) vs. the scrolling arena.

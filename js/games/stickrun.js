@@ -86,6 +86,70 @@ const CLASSES = [
       breatheAmp: 1.0, breatheSpd: 0.0021, hover: 0, idle: 'archer', spring: { lean: [115, 14], head: [96, 15], aim: [145, 16] } } },
 ];
 
+// ---------- loadouts, ability descriptions, and first-pass class trees ----------
+const LOADOUT_SLOTS = ['attack', 'secondary', 'shift', 'e', 'q'];
+const HELP_SLOTS = ['attack', 'secondary', 'shift', 'e', 'q', 'passive'];
+const SLOT_LABEL = { attack: 'ATK', secondary: 'ALT', shift: 'SHIFT', e: 'E', q: 'Q', passive: 'KEY' };
+const SLOT_KEY = { attack: 'Click / J', secondary: 'Right / L', shift: 'Shift', e: 'E', q: 'Q', passive: 'Passive' };
+const ABILITIES = {
+  kn_slash: { cls: 'knight', slot: 'attack', name: 'Slash', desc: 'Balanced sword combo with a readable wind-up and clean knockback.', type: 'attack', action: 'slash' },
+  kn_crush: { cls: 'knight', slot: 'attack', name: 'Crush', desc: 'Heavier overhead chop. Slower, but it throws bodies and crates harder.', type: 'attack', action: 'crush', draft: true },
+  kn_guard: { cls: 'knight', slot: 'secondary', name: 'Shield Guard', desc: 'Raise a large shield that blocks hits from the front for a short window.', type: 'attack', action: 'shieldGuard' },
+  kn_step: { cls: 'knight', slot: 'shift', name: 'Shield Step', desc: 'Short armored step for staying in range without feeling slippery.', type: 'move', action: 'shieldStep', cd: 1700 },
+  kn_shoulder: { cls: 'knight', slot: 'shift', name: 'Shoulder Check', desc: 'A committed armored shove that can interrupt a nearby bot.', type: 'move', action: 'shoulder', cd: 2100, draft: true },
+  kn_bash: { cls: 'knight', slot: 'e', name: 'Shield Bash', desc: 'Drive the shield forward to stagger and shove a target.', type: 'attack', action: 'shieldBash', cd: 2600 },
+  kn_quake: { cls: 'knight', slot: 'e', name: 'Quake', desc: 'Slam the ground and launch crates or enemies around your feet.', type: 'attack', action: 'quake', cd: 3600, draft: true },
+  kn_rally: { cls: 'knight', slot: 'q', name: 'Rally Guard', desc: 'Give yourself and nearby allies a shield burst.', type: 'custom', use: 'knightRally', cd: 9000 },
+  kn_vengeance: { cls: 'knight', slot: 'passive', name: 'Vengeance', desc: 'Keystone: blocked damage charges your next hit into a shockwave.', draft: true, key: true },
+  kn_bulwark: { cls: 'knight', slot: 'passive', name: 'Bulwark', desc: 'Keystone: guard blocks harder and reduces knockback while shielding.', draft: true, key: true },
+
+  rg_dual: { cls: 'rogue', slot: 'attack', name: 'Twin Slash', desc: 'Burst combo that alternates daggers and mixes in quick stabs.', type: 'attack', action: 'rogueCombo' },
+  rg_stab: { cls: 'rogue', slot: 'attack', name: 'Needle Stabs', desc: 'A stab-heavy chain for tighter hitboxes and faster point pressure.', type: 'attack', action: 'rogueStab', draft: true },
+  rg_sweep: { cls: 'rogue', slot: 'attack', name: 'Low Sweep', desc: 'A low control strike that pairs with crouch and slide play.', type: 'attack', action: 'legSweep', draft: true },
+  rg_throw: { cls: 'rogue', slot: 'secondary', name: 'Knife Toss', desc: 'Overhand thrown knife. Consumes one knife, then can be recovered or regenerated.', type: 'attack', action: 'throw' },
+  rg_slide: { cls: 'rogue', slot: 'shift', name: 'Slide', desc: 'Low evasive slide that changes your body hitbox.', type: 'move', action: 'slide', cd: 1400 },
+  rg_fan: { cls: 'rogue', slot: 'e', name: 'Fan Knives', desc: 'Spend up to three knives in a quick spread.', type: 'custom', use: 'rogueFan', cd: 3000 },
+  rg_storm: { cls: 'rogue', slot: 'q', name: 'Blade Storm', desc: 'Eight fast cuts around you for clearing a cluster.', type: 'custom', use: 'bladeStorm', cd: 8200 },
+  rg_bloodrush: { cls: 'rogue', slot: 'passive', name: 'Bloodrush', desc: 'Keystone: each KO refunds Shift and gives a brief invulnerable window.', draft: true, key: true },
+  rg_assassinate: { cls: 'rogue', slot: 'passive', name: 'Assassinate', desc: 'Keystone: finish wounded enemies with extra force.', draft: true, key: true },
+
+  ln_thrust: { cls: 'lancer', slot: 'attack', name: 'Brace Thrust', desc: 'Pure forward lance stab with long reach.', type: 'attack', action: 'braceThrust' },
+  ln_skewer: { cls: 'lancer', slot: 'attack', name: 'Skewer', desc: 'Even longer committed stab that locks your body into the line.', type: 'attack', action: 'lanceCharge', draft: true },
+  ln_charge: { cls: 'lancer', slot: 'secondary', name: 'Lance Charge', desc: 'Long forced run charge. Pick a direction, then commit.', type: 'attack', action: 'lanceCharge' },
+  ln_brace: { cls: 'lancer', slot: 'shift', name: 'Brace Step', desc: 'Heavy reposition that keeps the lance in front.', type: 'move', action: 'brace', cd: 2100 },
+  ln_anchor: { cls: 'lancer', slot: 'e', name: 'Anchor Thrust', desc: 'Plant and stab through a long lane, excellent near ledges.', type: 'custom', use: 'lancerAnchor', cd: 2800 },
+  ln_vault: { cls: 'lancer', slot: 'e', name: 'Vault Pin', desc: 'A pole-vault style hit that pops enemies upward.', type: 'move', action: 'vault', cd: 3000, draft: true },
+  ln_breaker: { cls: 'lancer', slot: 'q', name: 'Breaker Charge', desc: 'A huge forward stab-charge meant to ring enemies out.', type: 'attack', action: 'lanceCharge', cd: 9800 },
+  ln_ironstance: { cls: 'lancer', slot: 'passive', name: 'Iron Stance', desc: 'Keystone: standing still primes your next lance hit for extra force.', draft: true, key: true },
+
+  mg_bolt: { cls: 'mage', slot: 'attack', name: 'Arc Bolt', desc: 'Fast staff projectile with bright impact particles.', type: 'attack', action: 'cast' },
+  mg_staff: { cls: 'mage', slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc for when bots get too close.', type: 'attack', action: 'staffSweep', draft: true },
+  mg_bloom: { cls: 'mage', slot: 'secondary', name: 'Gravity Bloom', desc: 'Shoot a seed that blooms into a zero-gravity pull field.', type: 'attack', action: 'arcaneBloom' },
+  mg_dash: { cls: 'mage', slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800 },
+  mg_sigil: { cls: 'mage', slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400 },
+  mg_singularity: { cls: 'mage', slot: 'q', name: 'Singularity', desc: 'Large gravity well that suspends enemies, then implodes inward.', type: 'custom', use: 'mageSingularity', cd: 9600 },
+  mg_resonance: { cls: 'mage', slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure.', draft: true, key: true },
+
+  rn_arrow: { cls: 'ranger', slot: 'attack', name: 'Draw Shot', desc: 'Hold and release a gravity-affected arrow.', type: 'attack', action: 'arrow' },
+  rn_power: { cls: 'ranger', slot: 'attack', name: 'Power Shot', desc: 'Heavier arrow for knocking bots toward hazards.', type: 'custom', use: 'rangerPower', draft: true },
+  rn_volley: { cls: 'ranger', slot: 'secondary', name: 'Volley Draw', desc: 'Hold and release a three-arrow shot from the quiver.', type: 'attack', action: 'volley' },
+  rn_backstep: { cls: 'ranger', slot: 'shift', name: 'Backstep', desc: 'Quick retreat that resets bow spacing.', type: 'move', action: 'backstep', cd: 1600 },
+  rn_kickshot: { cls: 'ranger', slot: 'e', name: 'Power Shot', desc: 'Instant heavy arrow that pierces and pushes.', type: 'custom', use: 'rangerPower', cd: 2800 },
+  rn_arrowstorm: { cls: 'ranger', slot: 'q', name: 'Arrow Storm', desc: 'Fan of arrows for covering a lane or finishing a clump.', type: 'custom', use: 'rangerStorm', cd: 8800 },
+  rn_packbond: { cls: 'ranger', slot: 'passive', name: 'Pack Bond', desc: 'Keystone: your party becomes the build focus; KOs refresh ally pressure.', draft: true, key: true },
+  rn_hunter: { cls: 'ranger', slot: 'passive', name: "Hunter's Mark", desc: 'Keystone: after a KO, your next shots and movement become snappier.', draft: true, key: true },
+
+  momentum: { cls: 'neutral', slot: 'passive', name: 'Momentum', desc: 'Keystone: your hits launch enemies harder toward hazards.', draft: true, key: true },
+  executioner: { cls: 'neutral', slot: 'passive', name: 'Executioner', desc: 'Keystone: damaged enemies are easier to finish with burst abilities.', draft: true, key: true },
+};
+const CLASS_LOADOUT = {
+  knight: { attack: 'kn_slash', secondary: 'kn_guard', shift: 'kn_step', e: 'kn_bash', q: 'kn_rally', passive: null },
+  rogue: { attack: 'rg_dual', secondary: 'rg_throw', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
+  lancer: { attack: 'ln_thrust', secondary: 'ln_charge', shift: 'ln_brace', e: 'ln_anchor', q: 'ln_breaker', passive: null },
+  mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_sigil', q: 'mg_singularity', passive: null },
+  ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
+};
+
 // ---------- action timeline library ----------
 // Every satisfying move needs the same bones: a readable wind-up, an active
 // window, and a recovery/cancel tail. Keeping that data together lets the combat
@@ -295,10 +359,8 @@ PUBLIC.start = function (root, api) {
   root.appendChild(ov);
 
   const hud = document.createElement('div');
-  hud.className = 'hud';
+  hud.className = 'hud sr-hud';
   hud.style.display = 'none';
-  hud.style.color = '#1a1a1a';              // dark text for the light game background
-  hud.style.textShadow = '0 1px 2px rgba(255,255,255,.6)';
   hud.innerHTML = `<span>WAVE <b id="sr-lvl">1</b></span>
     <span>BOT <b id="sr-lvls">0</b></span>
     <span>ALLY <b id="sr-party">0</b></span>
@@ -307,6 +369,19 @@ PUBLIC.start = function (root, api) {
     <span id="sr-cool" style="display:none">SKILL <b id="sr-cool-val">READY</b></span>
     <span>⏱ <b id="sr-time">0.0</b></span>`;
   root.appendChild(hud);
+  hud.innerHTML = `<span class="sr-classchip" id="sr-classchip">Knight</span>
+    <span>W<b id="sr-lvl">1</b></span>
+    <span><b id="sr-lvls">0</b> foes</span>
+    <span><b id="sr-party">0</b> allies</span>
+    <span>KO <b id="sr-coins">0</b></span>`;
+
+  const helpBtn = document.createElement('button');
+  helpBtn.className = 'sr-helpbtn';
+  helpBtn.type = 'button';
+  helpBtn.textContent = '?';
+  helpBtn.setAttribute('aria-label', 'Current abilities');
+  helpBtn.style.display = 'none';
+  root.appendChild(helpBtn);
 
   const style = document.createElement('style');
   style.textContent = `
@@ -337,7 +412,45 @@ PUBLIC.start = function (root, api) {
     .sr-class:active{transform:translateY(-1px) scale(.98)}
     .sr-class b{font-size:17px;letter-spacing:.5px}
     .sr-class small{opacity:.72;font-size:11.5px;line-height:1.3}
-    @media (max-width:520px){.sr-classes{gap:8px}.sr-class{width:calc(50vw - 34px);min-height:112px;padding:11px 8px}.sr-menu-copy{display:none}}`;
+    @media (max-width:520px){.sr-classes{gap:8px}.sr-class{width:calc(50vw - 34px);min-height:112px;padding:11px 8px}.sr-menu-copy{display:none}}
+    .sr-hud{top:calc(54px + env(safe-area-inset-top));left:50%;right:auto;transform:translateX(-50%);
+      display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.72);
+      color:#141414;text-shadow:none;box-shadow:0 8px 24px rgba(0,0,0,.12);font-size:clamp(12px,2.4vw,15px);white-space:nowrap}
+    .sr-hud b{font-weight:900}.sr-classchip{color:#111;font-weight:900}
+    .sr-helpbtn{position:absolute;top:calc(56px + env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:42;
+      width:30px;height:30px;border-radius:50%;border:1px solid rgba(20,20,20,.38);background:rgba(255,255,255,.76);
+      color:#161616;font:900 15px/1 system-ui;box-shadow:0 6px 18px rgba(0,0,0,.12)}
+    .sr-abilitybar{left:50%;right:auto;transform:translateX(-50%);bottom:max(12px,env(safe-area-inset-bottom));
+      display:flex;gap:7px;opacity:.96;padding:6px;border-radius:16px;background:rgba(10,12,20,.52);
+      border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(7px)}
+    .sr-abilitybar .sr-btn{position:relative;width:72px;height:56px;border-radius:11px;border:1px solid rgba(255,255,255,.26);
+      background:rgba(255,255,255,.78);overflow:hidden;color:#171717;font-size:12px;box-shadow:0 5px 18px rgba(0,0,0,.12);
+      flex-direction:column;gap:1px;padding:4px 3px}
+    .sr-abilitybar .sr-btn.ready{border-color:rgba(255,159,110,.85);box-shadow:0 0 18px rgba(255,159,110,.25)}
+    .sr-abilitybar .sr-btn.locked{opacity:.48;filter:saturate(.55)}
+    .sr-cdfill{position:absolute;left:0;right:0;bottom:0;height:100%;transform:scaleY(0);transform-origin:bottom;
+      background:rgba(0,0,0,.34);pointer-events:none}
+    .sr-key,.sr-name,.sr-extra{position:relative;z-index:1;display:block;text-align:center;line-height:1.05}
+    .sr-key{font-size:9px;font-weight:900;opacity:.62}.sr-name{max-width:100%;font-size:11px;font-weight:900;white-space:normal}
+    .sr-extra{font-style:normal;font-size:9px;opacity:.67;min-height:10px}
+    .sr-abilitybar .sr-btn:active{background:rgba(255,159,110,.78);color:#111}
+    .sr-draft{display:flex;flex-direction:column;gap:9px;width:min(520px,90vw)}
+    .sr-pick,.sr-help-row{text-align:left;border:1px solid rgba(255,159,110,.38);border-radius:10px;background:rgba(14,18,32,.78);
+      color:#eaf2ff;padding:10px 12px}
+    .sr-pick{cursor:pointer}.sr-pick:hover,.sr-pick:focus{background:rgba(255,159,110,.16);border-color:#ff9f6e;outline:none}
+    .sr-pick .slot,.sr-help-row .slot{float:right;color:#ffcf8a;font-size:10px;font-weight:900;letter-spacing:.08em}
+    .sr-pick b,.sr-help-row b{display:block;margin-bottom:3px}.sr-pick small,.sr-help-row small{display:block;opacity:.72;line-height:1.32}
+    .sr-help-list{display:flex;flex-direction:column;gap:8px;width:min(560px,90vw);max-height:min(62vh,520px);overflow:auto}
+    .sr-help-row.passive{border-color:rgba(255,212,94,.5)}
+    @media (max-width:760px){
+      .sr-hud{top:calc(52px + env(safe-area-inset-top));max-width:calc(100vw - 92px);overflow:hidden;gap:7px;font-size:12px}
+      .sr-helpbtn{top:calc(52px + env(safe-area-inset-top));width:28px;height:28px}
+      .sr-abilitybar{left:auto;right:max(8px,env(safe-area-inset-right));transform:none;max-width:calc(100vw - 112px);
+        justify-content:flex-end;flex-wrap:wrap;gap:5px;padding:5px}
+      .sr-abilitybar .sr-btn{width:54px;height:48px;border-radius:10px}
+      .sr-name{font-size:9px}.sr-key{font-size:8px}.sr-extra{font-size:8px}
+      .sr-left{bottom:max(18px,env(safe-area-inset-bottom));opacity:.72}
+    }`;
   root.appendChild(style);
 
   function mkBtn(cls, label) {
@@ -347,10 +460,22 @@ PUBLIC.start = function (root, api) {
     return b;
   }
   const padL = document.createElement('div'); padL.className = 'sr-touch sr-left';
-  const padR = document.createElement('div'); padR.className = 'sr-touch sr-right';
+  const padR = document.createElement('div'); padR.className = 'sr-touch sr-right sr-abilitybar';
   const btnLeft = mkBtn(padL, '◀'), btnRight = mkBtn(padL, '▶');
   const btnMain = mkBtn(padR, '⚔'), btnAlt = mkBtn(padR, '✦'), btnMove = mkBtn(padR, '↯'), btnJump = mkBtn(padR, '⤒');
   const btnSkillE = mkBtn(padR, 'E'), btnSkillQ = mkBtn(padR, 'Q');
+  const abilityButtons = { attack: btnMain, secondary: btnAlt, shift: btnMove, jump: btnJump, e: btnSkillE, q: btnSkillQ };
+  function setupAbilityButton(btn, slot, key) {
+    btn.classList.add('sr-ability');
+    btn.dataset.slot = slot;
+    btn.innerHTML = `<i class="sr-cdfill"></i><span class="sr-key">${key}</span><b class="sr-name">${key}</b><em class="sr-extra"></em>`;
+  }
+  setupAbilityButton(btnMain, 'attack', 'ATK');
+  setupAbilityButton(btnAlt, 'secondary', 'ALT');
+  setupAbilityButton(btnMove, 'shift', 'SHIFT');
+  setupAbilityButton(btnJump, 'jump', 'JUMP');
+  setupAbilityButton(btnSkillE, 'e', 'E');
+  setupAbilityButton(btnSkillQ, 'q', 'Q');
   root.appendChild(padL); root.appendChild(padR);
   padL.style.display = padR.style.display = 'none';
 
@@ -446,6 +571,32 @@ PUBLIC.start = function (root, api) {
     if (!slotUnlocked(slot)) return `${label}@${SLOT_UNLOCK_WAVE[slot] || 1}`;
     const t = cooldownLeft(slotKey(slot));
     return `${label}:${t > 0 ? (t / 1000).toFixed(1) : 'RDY'}`;
+  }
+  function baseLoadout(id) {
+    return Object.assign({}, CLASS_LOADOUT[id] || CLASS_LOADOUT.knight);
+  }
+  function ability(id) {
+    return id && ABILITIES[id] ? Object.assign({ id }, ABILITIES[id]) : null;
+  }
+  function equipped(slot) {
+    return ability(loadout && loadout[slot]);
+  }
+  function hasPassive(id) {
+    return !!(loadout && loadout.passive === id && player && player.team === 'hero');
+  }
+  function abilityCooldown(slot) {
+    const spec = equipped(slot);
+    return (spec && spec.cd) || slotCooldown(slot);
+  }
+  function actionName(type) {
+    const fallback = {
+      slash: 'Slash', crush: 'Crush', dualSlash: 'Twin Slash', rogueStab: 'Stab', legSweep: 'Sweep',
+      throw: 'Knife Toss', shieldGuard: 'Guard', shieldBash: 'Bash', braceThrust: 'Thrust',
+      lanceCharge: 'Charge', cast: 'Bolt', arcaneBloom: 'Bloom', arrow: 'Shot', volley: 'Volley',
+      shieldStep: 'Step', shoulder: 'Shoulder', slide: 'Slide', airDash: 'Air Dash', brace: 'Brace',
+      backstep: 'Backstep', vault: 'Vault', quake: 'Quake', staffSweep: 'Staff',
+    };
+    return fallback[type] || type || 'Ready';
   }
   function syncLegacyCooldowns(act) {
     if (!act) return;
@@ -598,7 +749,8 @@ PUBLIC.start = function (root, api) {
   }
   function triggerMove() {
     if (!player || state !== 'playing' || !cls.move || player.move.active) return false;
-    let type = cls.move;
+    const spec = player.team === 'hero' ? equipped('shift') : null;
+    let type = spec && spec.action || cls.move;
     if (cls.id === 'rogue') type = 'slide';
     if (!cooldownReady(type)) return false;
     const ok = startClassMove(type);
@@ -679,6 +831,21 @@ PUBLIC.start = function (root, api) {
     burst(player.x + Math.cos(ang) * 40, player.y - 70 + Math.sin(ang) * 40, cls.color, 24, 4.2);
     return true;
   }
+  function runLoadoutAbility(spec, slot, ang) {
+    if (!spec) return false;
+    if (player && player.team === 'hero' && ang != null) abilityAimCue(ang);
+    if (spec.type === 'move') return startClassMove(spec.action);
+    if (spec.type === 'attack') return triggerAttack(spec.action, { aim: spec.action === 'lanceCharge' ? lanceChargeAim({ aim: ang }) : ang });
+    if (spec.use === 'knightRally') return useKnightRally();
+    if (spec.use === 'rogueFan') return useRogueFanKnives(ang);
+    if (spec.use === 'bladeStorm') return useBladeStorm();
+    if (spec.use === 'lancerAnchor') return useLancerAnchor();
+    if (spec.use === 'mageSigil') { spawnMageSigil(ang); return true; }
+    if (spec.use === 'mageSingularity') return useMageSingularity();
+    if (spec.use === 'rangerPower') return useRangerPowerShot(ang);
+    if (spec.use === 'rangerStorm') return useRangerArrowStorm(ang);
+    return false;
+  }
   function triggerSlotAbility(slot) {
     if (!player || state !== 'playing' || !slot) return false;
     if (!slotUnlocked(slot)) {
@@ -690,21 +857,9 @@ PUBLIC.start = function (root, api) {
     if (!cooldownReady(key)) return false;
     const ang = aimedAngle();
     abilityAimCue(ang);
-    let ok = false;
-    if (slot === 'shift') {
-      ok = startClassMove(cls.id === 'rogue' ? 'slide' : cls.move);
-    } else if (cls.id === 'knight') {
-      ok = slot === 'e' ? triggerAttack('shieldBash', { aim: ang }) : slot === 'q' ? useKnightRally() : false;
-    } else if (cls.id === 'rogue') {
-      ok = slot === 'e' ? useRogueFanKnives(ang) : slot === 'q' ? useBladeStorm() : false;
-    } else if (cls.id === 'lancer') {
-      ok = slot === 'e' ? useLancerAnchor() : slot === 'q' ? triggerAttack('lanceCharge', { aim: lanceChargeAim({ aim: ang }) }) : false;
-    } else if (cls.id === 'mage') {
-      ok = slot === 'e' ? (spawnMageSigil(ang), true) : slot === 'q' ? useMageSingularity() : false;
-    } else if (cls.id === 'ranger') {
-      ok = slot === 'e' ? useRangerPowerShot(ang) : slot === 'q' ? useRangerArrowStorm(ang) : false;
-    }
-    if (ok) spendCooldown(key, slotCooldown(slot));
+    const spec = equipped(slot);
+    let ok = runLoadoutAbility(spec, slot, ang);
+    if (ok) spendCooldown(key, abilityCooldown(slot));
     syncHud();
     return ok;
   }
@@ -716,16 +871,30 @@ PUBLIC.start = function (root, api) {
     return i === 2 || i === 4 ? 'rogueStab' : 'dualSlash';
   }
   function mainAttack() {
-    if (cls.id === 'ranger') return startRangerDraw('arrow');
-    const type = cls.id === 'rogue' ? rogueMainAttackType() : cls.main;
+    const spec = equipped('attack');
+    if (cls.id === 'ranger' && (!spec || spec.type === 'attack')) return startRangerDraw(spec && spec.action || 'arrow');
+    if (spec && spec.type === 'custom') {
+      if (!cooldownReady(spec.id)) return false;
+      const ok = runLoadoutAbility(spec, 'attack', aimedAngle());
+      if (ok) spendCooldown(spec.id, spec.cd || 650);
+      return ok;
+    }
+    const type = spec && spec.action === 'rogueCombo' ? rogueMainAttackType() : cls.id === 'rogue' ? (spec && spec.action || rogueMainAttackType()) : (spec && spec.action || cls.main);
     if (!type) return false;
     const ok = triggerAttack(type);
     if (ok && cls.id === 'rogue' && type !== 'legSweep') player.anim.rogueComboNext = ((player.anim.rogueComboNext || 0) + 1) % 5;
     return ok;
   }
   function altAttack() {
-    if (cls.id === 'ranger') return startRangerDraw(cls.alt || 'volley');
-    return triggerAttack(cls.alt);
+    const spec = equipped('secondary');
+    if (cls.id === 'ranger' && (!spec || spec.type === 'attack')) return startRangerDraw(spec && spec.action || cls.alt || 'volley');
+    if (spec && spec.type === 'custom') {
+      if (!cooldownReady(spec.id)) return false;
+      const ok = runLoadoutAbility(spec, 'secondary', aimedAngle());
+      if (ok) spendCooldown(spec.id, spec.cd || 900);
+      return ok;
+    }
+    return triggerAttack(spec && spec.action || cls.alt);
   }
   function releaseMainAttack() {
     if (cls.id === 'ranger') return releaseRangerDraw();
@@ -748,13 +917,14 @@ PUBLIC.start = function (root, api) {
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'f2' || k === ';') { debug.enabled = !debug.enabled; exposeDebugApi(); e.preventDefault(); return; }
+    if (k === 'h' || k === '?' || k === '/') { if (state === 'help') closeHelp(); else openHelp(); e.preventDefault(); return; }
     if (k === 'arrowleft' || k === 'a') input.left = true;
     else if (k === 'arrowright' || k === 'd') input.right = true;
     else if (k === 'arrowdown' || k === 's') input.down = true;
     else if (k === 'arrowup' || k === 'w' || k === ' ') { if (!e.repeat) press(true); e.preventDefault(); }
     else if (k === 'j') { if (!e.repeat) mainAttack(); }
     else if (k === 'l') { if (!e.repeat) altAttack(); }
-    else if (k === 'k') { if (!e.repeat) triggerMove(); }
+    else if (k === 'k') { if (!e.repeat) triggerSlotAbility('shift'); }
     else if (k === 'shift') { if (!e.repeat) triggerSlotAbility('shift'); }
     else if (k === 'e') { if (!e.repeat) triggerSlotAbility('e'); }
     else if (k === 'q') { if (!e.repeat) triggerSlotAbility('q'); }
@@ -786,12 +956,13 @@ PUBLIC.start = function (root, api) {
   api.on(btnAlt, 'pointerup', e => { e.preventDefault(); releaseAltAttack(); });
   api.on(btnAlt, 'pointerleave', e => { e.preventDefault(); releaseAltAttack(); });
   api.on(btnAlt, 'pointercancel', e => { e.preventDefault(); releaseAltAttack(); });
-  api.on(btnMove, 'pointerdown', e => { e.preventDefault(); if (!triggerSlotAbility('shift')) triggerMove(); });
+  api.on(btnMove, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('shift'); });
   api.on(btnSkillE, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('e'); });
   api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
   let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, droppedKnives, boxes, dummies, fighters, allies;
+  let loadout = null, prevState = null, arenaDraftChoices = null;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
@@ -807,7 +978,7 @@ PUBLIC.start = function (root, api) {
       knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, arrowAmmo: RANGER_MAX_ARROWS, arrowRegen: 0,
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
-      shieldGuard: 0, shieldFlash: 0, forceCrouch: false,
+      shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
@@ -939,7 +1110,7 @@ PUBLIC.start = function (root, api) {
     if (fighters && fighters.length > 0) { arenaNextWave = 0; return; }
     arenaNextWave = arenaNextWave || ARENA_WAVE_DELAY;
     arenaNextWave -= dtStep;
-    if (arenaNextWave <= 0) spawnArenaWave((arenaWave || 1) + 1);
+    if (arenaNextWave <= 0) openArenaDraft();
   }
 
   function timelinePhase(spec, t) {
@@ -987,7 +1158,7 @@ PUBLIC.start = function (root, api) {
     if (debug.segments.length > 80) debug.segments.shift();
   }
 
-  function syncHud() {
+  function syncHudLegacy() {
     if (player && player.team !== 'hero') return;   // AI actions never touch the human HUD
     document.getElementById('sr-lvl').textContent = arenaMode ? (arenaWave || 1) : li + 1;
     document.getElementById('sr-lvls').textContent = arenaMode ? (fighters ? fighters.length : 0) : levels.length;
@@ -1020,10 +1191,157 @@ PUBLIC.start = function (root, api) {
     }
   }
 
+  function cooldownForUi(slot) {
+    if (!player || slot === 'jump') return { left: 0, max: 1, locked: false };
+    if (slot === 'attack') {
+      const spec = equipped('attack');
+      if (spec && spec.type === 'custom') return { left: cooldownLeft(spec.id), max: spec.cd || 650, locked: false };
+      const type = spec && spec.action === 'rogueCombo' ? rogueMainAttackType() : spec && spec.action || cls.main;
+      const left = player.anim && player.anim.atkActive ? Math.max(0, 1 - player.anim.atkT) * (player.anim.atkDur || 320) : cooldownLeft(type);
+      return { left, max: Math.max(actionCooldown(type), player.anim && player.anim.atkDur || 1), locked: false };
+    }
+    if (slot === 'secondary') {
+      const spec = equipped('secondary'), type = spec && spec.action || cls.alt;
+      if (spec && spec.type === 'custom') return { left: cooldownLeft(spec.id), max: spec.cd || 900, locked: false };
+      return { left: cooldownLeft(type), max: actionCooldown(type), locked: false };
+    }
+    if (!slotUnlocked(slot)) return { left: 1, max: 1, locked: true };
+    const key = slotKey(slot);
+    return { left: cooldownLeft(key), max: abilityCooldown(slot), locked: false };
+  }
+  function abilityExtra(slot, spec) {
+    if (!player || state !== 'playing') return '';
+    if (slot === 'attack' && cls.id === 'rogue') return `${player.rogueBurst || 0}/${ROGUE_BURST_MAX} burst`;
+    if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
+    if ((slot === 'secondary' || slot === 'e') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
+    if (slot === 'passive') return spec ? 'keystone' : '';
+    return '';
+  }
+  function syncAbilityBar() {
+    for (const slot of ['attack', 'secondary', 'shift', 'e', 'q']) {
+      const btn = abilityButtons[slot], spec = equipped(slot), cd = cooldownForUi(slot);
+      if (!btn) continue;
+      const name = cd.locked ? `Wave ${SLOT_UNLOCK_WAVE[slot]}` : (spec ? spec.name : actionName(cls[slot] || slot));
+      const fill = cd.locked ? 1 : clamp(cd.left / Math.max(1, cd.max), 0, 1);
+      const key = btn.querySelector('.sr-key'), nm = btn.querySelector('.sr-name'), ex = btn.querySelector('.sr-extra'), fi = btn.querySelector('.sr-cdfill');
+      if (key) key.textContent = SLOT_LABEL[slot];
+      if (nm) nm.textContent = name;
+      if (ex) ex.textContent = cd.locked ? 'locked' : abilityExtra(slot, spec);
+      if (fi) fi.style.transform = `scaleY(${fill})`;
+      btn.classList.toggle('ready', !cd.locked && fill <= 0.001);
+      btn.classList.toggle('locked', !!cd.locked);
+      btn.style.borderColor = cls && cls.color ? cls.color + '99' : '';
+    }
+    const jump = abilityButtons.jump;
+    if (jump) {
+      jump.classList.toggle('ready', !!(player && (player.grounded || player.coyote > 0 || cls.id === 'rogue' && !player.rogueAirJump)));
+      jump.classList.remove('locked');
+      const nm = jump.querySelector('.sr-name'), ex = jump.querySelector('.sr-extra'), fi = jump.querySelector('.sr-cdfill');
+      if (nm) nm.textContent = 'Jump';
+      if (ex) ex.textContent = cls.id === 'mage' ? 'hold float' : cls.id === 'rogue' ? 'air flip' : '';
+      if (fi) fi.style.transform = 'scaleY(0)';
+      jump.style.borderColor = cls && cls.color ? cls.color + '99' : '';
+    }
+  }
+  function syncHud() {
+    if (player && player.team !== 'hero') return;
+    const chip = document.getElementById('sr-classchip');
+    if (chip) {
+      const pass = equipped('passive');
+      chip.textContent = `${cls.name}${pass ? ' + ' + pass.name : ''}`;
+      chip.style.color = cls.color;
+    }
+    const lvl = document.getElementById('sr-lvl'), bots = document.getElementById('sr-lvls');
+    if (lvl) lvl.textContent = arenaMode ? (arenaWave || 1) : li + 1;
+    if (bots) bots.textContent = arenaMode ? (fighters ? fighters.length : 0) : levels.length;
+    const party = document.getElementById('sr-party');
+    if (party) party.textContent = arenaMode && allies ? livingAllies().length : 0;
+    const got = totalCoins - coinsLeft.filter(c => !c.got).length;
+    const ko = document.getElementById('sr-coins');
+    if (ko) ko.textContent = arenaMode ? (arenaKills || 0) : got;
+    syncAbilityBar();
+  }
+
+  function setPlayUi(on) {
+    hud.style.display = on ? 'flex' : 'none';
+    padL.style.display = padR.style.display = on ? 'flex' : 'none';
+    helpBtn.style.display = on ? 'block' : 'none';
+  }
+
+  function html(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+  function openHelp() {
+    if (!player || state !== 'playing') return;
+    prevState = state;
+    state = 'help';
+    ov.classList.remove('hidden');
+    const rows = HELP_SLOTS.map(slot => {
+      const spec = equipped(slot), locked = slot !== 'attack' && slot !== 'secondary' && slot !== 'passive' && !slotUnlocked(slot);
+      const name = locked ? `Unlocks at wave ${SLOT_UNLOCK_WAVE[slot] || 1}` : spec ? spec.name : 'No keystone yet';
+      const desc = locked ? 'Clear more waves to open this slot.' : spec ? spec.desc : 'Draft a keystone between waves to change your rules.';
+      return `<div class="sr-help-row${slot === 'passive' ? ' passive' : ''}">
+        <span class="slot">${SLOT_LABEL[slot]} · ${SLOT_KEY[slot]}</span>
+        <b>${html(name)}</b><small>${html(desc)}</small>
+      </div>`;
+    }).join('');
+    ov.innerHTML = `<h2>${html(cls.name)} loadout</h2>
+      <div class="sr-help-list">${rows}</div>
+      <button class="btn alt" data-act="resume">RESUME</button>`;
+  }
+  function closeHelp() {
+    if (state !== 'help') return;
+    state = prevState || 'playing';
+    ov.classList.add('hidden');
+    prevState = null;
+  }
+  function draftPool() {
+    if (!loadout || !cls) return [];
+    const ids = Object.keys(ABILITIES).filter(id => {
+      const a = ABILITIES[id];
+      if (!a.draft) return false;
+      if (a.cls !== cls.id && a.cls !== 'neutral') return false;
+      if (a.slot === 'passive') return loadout.passive !== id;
+      return loadout[a.slot] !== id;
+    }).sort(() => Math.random() - 0.5);
+    const bySlot = {};
+    for (const id of ids) if (!bySlot[ABILITIES[id].slot]) bySlot[ABILITIES[id].slot] = id;
+    return Object.values(bySlot).sort(() => Math.random() - 0.5).slice(0, 3);
+  }
+  function openArenaDraft() {
+    if (!arenaMode || state !== 'playing') return false;
+    arenaDraftChoices = draftPool();
+    if (!arenaDraftChoices.length) { spawnArenaWave((arenaWave || 1) + 1); return true; }
+    state = 'draft';
+    setPlayUi(false);
+    ov.classList.remove('hidden');
+    const cards = arenaDraftChoices.map(id => {
+      const a = ability(id);
+      return `<button class="sr-pick" data-pick="${id}">
+        <span class="slot">${SLOT_LABEL[a.slot]}</span>
+        <b>${html(a.name)}</b><small>${html(a.desc)}</small>
+      </button>`;
+    }).join('');
+    ov.innerHTML = `<h2>Wave ${arenaWave || 1} cleared</h2>
+      <p class="msg">Draft one branch. Each slot keeps one choice, so your build changes without piling on stat clutter.</p>
+      <div class="sr-draft">${cards}</div>`;
+    return true;
+  }
+  function pickDraft(id) {
+    const spec = ability(id);
+    if (!spec || state !== 'draft') return;
+    loadout[spec.slot] = id;
+    arenaDraftChoices = null;
+    ov.classList.add('hidden');
+    setPlayUi(true);
+    state = 'playing';
+    spawnArenaWave((arenaWave || 1) + 1);
+    syncHud();
+  }
+
   function showMenu() {
     state = 'menu';
-    hud.style.display = 'none';
-    padL.style.display = padR.style.display = 'none';
+    setPlayUi(false);
     ov.classList.remove('hidden');
     const cards = CLASSES.map(c => `
       <button class="sr-class" data-cls="${c.id}" style="--cc:${c.color}">
@@ -1040,10 +1358,11 @@ PUBLIC.start = function (root, api) {
   }
   function play(clsId) {
     if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
+    loadout = baseLoadout(cls.id);
+    arenaDraftChoices = null;
     state = 'playing';
     ov.classList.add('hidden');
-    hud.style.display = 'flex';
-    padL.style.display = padR.style.display = 'flex';
+    setPlayUi(true);
     loadLevel(0, false);
     exposeDebugApi();
   }
@@ -1055,8 +1374,7 @@ PUBLIC.start = function (root, api) {
   }
   function win() {
     state = 'win';
-    hud.style.display = 'none';
-    padL.style.display = padR.style.display = 'none';
+    setPlayUi(false);
     const timeBonus = Math.max(0, 6000 - Math.floor(runTime / 1000) * 25);
     const score = (arenaKills || 0) * 100 + timeBonus;
     const isBest = api.setBest('stickrun', score);
@@ -1071,10 +1389,15 @@ PUBLIC.start = function (root, api) {
       <button class="btn" data-act="play" style="background:#ff9f6e;box-shadow:0 0 22px rgba(255,159,110,.5)">PLAY AGAIN ↻</button>`;
   }
   ov.addEventListener('click', e => {
+    const act = e.target.dataset.act;
+    if (act === 'resume') { closeHelp(); return; }
     const card = e.target.closest && e.target.closest('[data-cls]');
     if (card) { play(card.dataset.cls); return; }
-    if (e.target.dataset.act === 'play') play();   // win-screen: replay same class
+    const pick = e.target.closest && e.target.closest('[data-pick]');
+    if (pick) { pickDraft(pick.dataset.pick); return; }
+    if (act === 'play') play();   // win-screen: replay same class
   });
+  api.on(helpBtn, 'click', () => { if (state === 'help') closeHelp(); else openHelp(); });
 
   // ---------- particles ----------
   function burst(x, y, color, n, spd) {
@@ -1970,7 +2293,14 @@ PUBLIC.start = function (root, api) {
   function hurtFighter(e, nx, ny, force, hx, hy) {
     if (e.dead) return;
     const blocked = shieldBlocks(e, nx);
-    const k = clamp(force * (blocked ? 0.32 : 1), 4, 44);
+    let tunedForce = force;
+    if (player && player.team === 'hero') {
+      if (hasPassive('momentum')) tunedForce *= 1.22;
+      if (hasPassive('executioner') && e.hp < e.maxHp * 0.45) tunedForce *= 1.28;
+      if (hasPassive('rg_assassinate') && e.hp < e.maxHp * 0.55) tunedForce *= 1.34;
+      if (hasPassive('ln_ironstance') && player.grounded && Math.abs(player.vx) < 0.35) tunedForce *= 1.32;
+    }
+    const k = clamp(tunedForce * (blocked ? 0.32 : 1), 4, 44);
     if (blocked) { e.shieldFlash = 180; burst(hx, hy, e.cls.color, 10, 2.2); addShake(1.4, 70); }
     e.vx += (nx || 0) * k * 0.55;
     e.vy = Math.min(e.vy + (ny || 0) * k * 0.25, -1.0 - k * 0.05);
@@ -2014,6 +2344,19 @@ PUBLIC.start = function (root, api) {
     if (arenaMode && e.team === 'enemy') {
       arenaKills++;
       arenaBanner = Math.max(arenaBanner || 0, 420);
+      if (loadout && loadout.passive === 'rg_bloodrush' && hero) {
+        cooldownBag(hero)[slotKey('shift')] = 0;
+        hero.invuln = Math.max(hero.invuln || 0, 260);
+      }
+      if (loadout && loadout.passive === 'rn_hunter' && hero) {
+        hero.hunterHaste = 2200;
+        cooldownBag(hero).arrow = 0;
+        cooldownBag(hero).volley = 0;
+      }
+      if (loadout && loadout.passive === 'rn_packbond' && hero && allies && allies.length < 4) {
+        const a = makeFighter('rogue', e.x, fighterDeathGroundY(e), { team: 'ally', hp: 2, min: hero.x - 180, max: hero.x + 520, facing: hero.facing });
+        a.brain.alert = 9999; a.brain.party = true; allies.push(a);
+      }
       syncHud();
     }
     burst(hx, hy, '#ff5a5a', 26, 5.2); addShake(4.5, 150);
@@ -2022,9 +2365,11 @@ PUBLIC.start = function (root, api) {
   function hurtHero(nx, ny, force, hx, hy) {
     if (!hero || (hero.invuln && hero.invuln > 0)) return;
     const blocked = shieldBlocks(hero, nx);
-    const k = clamp(force * (blocked ? 0.30 : 1), 4, 40), dir = (nx || 0) >= 0 ? 1 : -1;
+    const guardMul = blocked && loadout && loadout.passive === 'kn_bulwark' ? 0.18 : 0.30;
+    const k = clamp(force * (blocked ? guardMul : 1), 4, 40), dir = (nx || 0) >= 0 ? 1 : -1;
     hero.invuln = blocked ? 240 : 640;
     if (blocked) { hero.shieldFlash = 180; burst(hx == null ? hero.x : hx, hy == null ? hero.y - 34 : hy, hero.cls.color, 12, 2.4); addShake(1.6, 80); }
+    if (blocked && loadout && loadout.passive === 'kn_vengeance') hero.venge = Math.min(80, (hero.venge || 0) + k);
     hero.vx += dir * (3.2 + k * 0.12);
     hero.vy = Math.min(hero.vy, -3.2 - k * 0.05);
     hero.grounded = false; hero.anim.squash = -0.3;
@@ -2136,6 +2481,7 @@ PUBLIC.start = function (root, api) {
     syncLegacyCooldowns(player);
     player.shieldGuard = Math.max(0, (player.shieldGuard || 0) - dtStep);
     player.shieldFlash = Math.max(0, (player.shieldFlash || 0) - dtStep);
+    player.hunterHaste = Math.max(0, (player.hunterHaste || 0) - dtStep);
     if ((player.shieldGuard || 0) > 0 && Math.random() < 0.12) {
       particles.push({
         x: player.x + player.facing * rand(17, 34),
@@ -2181,6 +2527,7 @@ PUBLIC.start = function (root, api) {
   }
   function maxV() {
     let m = MAXV * cls.speedMul;
+    if (player && player.hunterHaste > 0) m *= 1.22;
     if (mageHovering()) m *= 0.68;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
     if (activeMove('slide')) m = Math.max(m, 8.0);
@@ -2429,6 +2776,14 @@ PUBLIC.start = function (root, api) {
     const ang = player.anim.atkAim;
     const spec = attackSpec(type);
     const byHero = player.team !== 'enemy';   // enemy swings don't hijack hitstop/camera
+    if (byHero && loadout && loadout.passive === 'kn_vengeance' && player.venge > 0 && type !== 'shieldGuard') {
+      const pow = clamp(player.venge, 8, 80);
+      pushBoxesRadial(player.x + player.facing * 24, player.y - 42, 12 + pow * 0.28, 96 + pow, player.team);
+      burst(player.x + player.facing * 32, player.y - 46, cls.color, 26, 4.8);
+      burst(player.x + player.facing * 32, player.y - 46, '#ffffff', 12, 3.2);
+      addShake(3.8 + pow * 0.025, 140);
+      player.venge = 0;
+    }
     if (type === 'shieldGuard') { activateShieldGuard(); return; }
     if (type === 'cast') { spawnBolt(ang, 1.4); return; }
     if (type === 'arcaneBloom') { spawnGravitySeed(ang); return; }
@@ -4060,6 +4415,7 @@ PUBLIC.start = function (root, api) {
   function getTestApi() {
     if (!testApi) testApi = {
       play, onStrike, triggerAttack, triggerSlotAbility, startRangerDraw, releaseRangerDraw,
+      openHelp, closeHelp, draftPool, pickDraft,
       pressJump: press,
       sampleMelee(type, t) {
         if (!player) return null;
@@ -4074,6 +4430,7 @@ PUBLIC.start = function (root, api) {
         return {
           mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
           arenaMode, arenaWave, arenaKills, arenaNextWave,
+          loadout: Object.assign({}, loadout || {}), draftChoices: arenaDraftChoices ? arenaDraftChoices.slice() : null,
           player: actorSnapshot(player),
           allies: allies ? allies.map(actorSnapshot) : [],
           fighters: fighters ? fighters.map(actorSnapshot) : [],
