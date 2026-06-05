@@ -123,6 +123,29 @@ ring-out + push/pull tools into `stickrun.js` and layer the loadout draft on top
 - Pace tuned ~25% slower with stickier stagger decay and heavier ring-out
   knockback.
 
+**Class + ability-tree pass (current):**
+- **Class select** with all 5 classes — Knight / Rogue / Lancer / Mage / Ranger —
+  each with its own HP, move speed, starting kit, and class-scoped draft tree.
+- **Data-driven ability engine:** abilities are specs (`kind` + params) dispatched
+  by a small set of effect primitives (melee, ranged bolt, dash, push/launch,
+  pull/vortex, shockwave, volley), so new kit is mostly data.
+- **Signature keystones from the doc**, implemented: Knight **Vengeance** (stored
+  damage → next-hit shockwave) & **Bulwark**; Rogue **Bloodrush** & **Assassinate**;
+  Lancer **Iron Stance** (root → ignore knockback, heavy next hit); Mage
+  **Resonance** (every 4th bolt echoes); Ranger **Pack Bond** (KO'd foes rise as
+  wolf allies) & **Hunter's Mark**; plus neutral **Momentum / Executioner /
+  Overload** draftable by any class.
+- **Ranged combat:** projectile bolts (Mage bolts/frost, Ranger arrows/power/multi/
+  volley); **slow** status (Frostbolt / Snare); **wolf-ally pets** (Pack Bond).
+- **HP death now works** (slow, as designed) alongside terrain ring-outs.
+
+**UI pass (current):**
+- Decluttered top bar — class chip + HP bar + wave/foes only.
+- **Bottom ability bar** that doubles as the touch controls and shows live
+  per-slot **cooldown fills**.
+- **Help screen** (`?` / button) listing your current loadout — every slot's
+  equipped ability name + description + keybind.
+
 ## Open questions / next
 - Exact stagger numbers & decay; knockback scaling vs. enemy mass.
 - Camera: fixed single-screen (prototype) vs. the scrolling arena.
