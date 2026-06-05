@@ -16,7 +16,7 @@ Arcade.define([
     desc: 'PROTOTYPE: a slower, tactical stick brawl — stagger foes, then use the pit, edges, and spikes to finish them.',
     color: '#7fd4ff',
     kind: 'prototype',
-    src: 'js/games/arenatactics.js?v=2',
+    src: 'js/games/arenatactics.js?v=3',
   },
   {
     id: 'stardrifter',
