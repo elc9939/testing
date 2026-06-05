@@ -16,7 +16,7 @@ Arcade.define([
     desc: 'Dodge an endless asteroid storm. Grab orbs and power-ups to survive as long as you can.',
     color: '#5ef2ff',
     kind: 'game',
-    src: 'js/games/stardrifter.js?v=58',
+    src: 'js/games/stardrifter.js?v=59',
   },
   {
     id: 'snake',
@@ -34,7 +34,7 @@ Arcade.define([
     desc: 'Bounce, combo, catch power-ups, and clear wave after wave without dropping the ball.',
     color: '#ffd45e',
     kind: 'game',
-    src: 'js/games/breakout.js?v=58',
+    src: 'js/games/breakout.js?v=59',
   },
   {
     id: 'memory',
@@ -52,7 +52,7 @@ Arcade.define([
     desc: 'Tap targets fast, track moving ones, and keep a clean combo for a bigger score.',
     color: '#9cff5e',
     kind: 'game',
-    src: 'js/games/reaction.js?v=58',
+    src: 'js/games/reaction.js?v=59',
   },
   {
     id: 'tictactoe',
@@ -79,7 +79,7 @@ Arcade.define([
     desc: 'Real flipper-and-ball physics. Light bumpers, ride the combo multiplier, and avoid the drain.',
     color: '#ff5ec4',
     kind: 'game',
-    src: 'js/games/pinball.js?v=58',
+    src: 'js/games/pinball.js?v=59',
   },
   {
     id: 'orbit',
@@ -88,7 +88,7 @@ Arcade.define([
     desc: 'Drag to fling planets, watch them swing into orbit, merge, and trail light across space.',
     color: '#9b8cff',
     kind: 'sandbox',
-    src: 'js/games/orbit.js?v=59',
+    src: 'js/games/orbit.js?v=60',
   },
   {
     id: 'twenty48',
@@ -106,7 +106,7 @@ Arcade.define([
     desc: 'Connect Four against an AlphaZero-style AI that learned from self-play. Watch it think, then try to beat it.',
     color: '#5ef2ff',
     kind: 'game',
-    src: 'js/games/connect4.js?v=61',
+    src: 'js/games/connect4.js?v=63',
   },
   {
     id: 'gambit',

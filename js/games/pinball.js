@@ -11,6 +11,7 @@ Arcade.register({
   start(root, api) {
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const rand = (a, b) => a + Math.random() * (b - a);
+    const perf = api.perf;
     const TW = 380, TH = 640;                 // virtual table size
     let s = 1, offX = 0, offY = 0, W = 0, H = 0;
 
@@ -123,7 +124,15 @@ Arcade.register({
       let t = ((px - x1) * dx + (py - y1) * dy) / l2; t = clamp(t, 0, 1);
       return { x: x1 + t * dx, y: y1 + t * dy };
     }
-    function pop(x, y, color, n) { for (let i = 0; i < n; i++) { const a = rand(0, Math.PI * 2), sp = rand(0.6, 3.2); particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(160, 340), max: 340, color, r: rand(1, 2.6) }); } }
+    function pop(x, y, color, n) {
+      const count = perf.particleCount(n);
+      for (let i = 0; i < count; i++) {
+        const a = rand(0, Math.PI * 2), sp = rand(0.6, 3.2);
+        particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(160, 340), max: 340, color, r: rand(1, 2.6) });
+      }
+      const limit = perf.particleLimit(160);
+      if (particles.length > limit) particles.splice(0, particles.length - limit);
+    }
     function addScore(n) { score += n * mult; comboT = 2200; mult = clamp(1 + Math.floor(comboHits / 4), 1, 9); sync(); }
     let comboHits = 0;
 
@@ -186,7 +195,7 @@ Arcade.register({
           for (const p of POSTS) collideCircle(ball, p, 0.85, 0, () => { p.flash = 1; });
           collideFlipper(ball, LF); collideFlipper(ball, RF);
         }
-        trail.push({ x: ball.x, y: ball.y }); if (trail.length > 12) trail.shift();
+        trail.push({ x: ball.x, y: ball.y }); while (trail.length > perf.trailLimit(12, 6)) trail.shift();
         if (ball.y > 624) { // drained
           balls--; sync(); pop(ball.x, 620, '#ff5ec4', 16); shake = 6;
           if (balls <= 0) { gameOver(); return; }

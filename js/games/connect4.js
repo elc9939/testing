@@ -18,6 +18,7 @@ Arcade.register({
 
     const view = api.makeCanvas(root, { onResize: layout });
     const ctx = view.ctx;
+    const perf = api.perf;
     function layout(v) {
       W = v.w; H = v.h;
       const teachSpace = learning ? Math.min(190, H * 0.32) : 0;
@@ -248,11 +249,70 @@ Arcade.register({
     const visits = root => { const a = new Array(COLS).fill(0); if (root.children) for (const m in root.children) a[m] = root.children[m].N; return a; };
 
     // ---------- state ----------
-    let board, turn, you, ai, state, win, anim, aiRoot, aiSims, aiTarget, hoverCol, youScore, aiScore, streak, result;
+    let board, turn, you, ai, state, win, anim, aiRoot, aiSims, aiTarget, aiVisits, aiThinking, aiWorker, aiJobId = 0, hoverCol, youScore, aiScore, streak, result;
     let coachCache = null, coachKey = '';
     function setTurnLabel() { const el = document.getElementById('c4-turn'); if (el) el.textContent = state === 'over' ? '·' : (turn === you ? 'YOUR TURN' : 'AI THINKING…'); }
     function sync() { document.getElementById('c4-you').textContent = youScore; document.getElementById('c4-ai').textContent = aiScore; setTurnLabel(); syncCoach(); }
     function dirtyCoach() { coachCache = null; coachKey = ''; }
+    function stopAiWorker() {
+      if (!aiWorker) return;
+      try { aiWorker.terminate(); } catch (e) {}
+      aiWorker = null;
+      aiThinking = false;
+      aiVisits = null;
+    }
+    function ensureAiWorker() {
+      if (aiWorker) return true;
+      if (!window.Worker) return false;
+      try {
+        aiWorker = new Worker('js/games/connect4-worker.js?v=1');
+        aiWorker.onmessage = e => {
+          const msg = e.data || {};
+          if (msg.id !== aiJobId) return;
+          if (msg.type === 'progress') {
+            aiVisits = msg.visits;
+          } else if (msg.type === 'done') {
+            aiThinking = false;
+            aiVisits = msg.visits || aiVisits;
+            if (state !== 'playing' || turn !== ai || anim) return;
+            const moves = legal(board);
+            const move = moves.includes(msg.move) ? msg.move : moves[(Math.random() * moves.length) | 0];
+            startDrop(move, ai, () => afterMove(move, ai));
+          }
+        };
+        aiWorker.onerror = () => {
+          stopAiWorker();
+          aiRoot = null;
+          aiSims = 0;
+        };
+        if (api.onCleanup) api.onCleanup(stopAiWorker);
+        return true;
+      } catch (e) {
+        aiWorker = null;
+        return false;
+      }
+    }
+    function cancelAiSearch() {
+      aiJobId++;
+      aiThinking = false;
+      aiVisits = null;
+      if (aiWorker) {
+        try { aiWorker.postMessage({ type: 'cancel', id: aiJobId }); } catch (e) {}
+      }
+    }
+    function startWorkerSearch() {
+      aiThinking = true;
+      aiVisits = new Array(COLS).fill(0);
+      const id = ++aiJobId;
+      aiWorker.postMessage({
+        type: 'search',
+        id,
+        board: Array.from(board),
+        ai,
+        target: aiTarget,
+        aiScale: perf.quality().ai,
+      });
+    }
     function currentCoachInfo() {
       if (!board) return null;
       const key = `${turn}|${Array.from(board).join('')}`;
@@ -297,11 +357,13 @@ Arcade.register({
     function play(sims, teach) {
       learning = !!teach; layout(view); coach.classList.toggle('hidden', !learning);
       dirtyCoach();
+      cancelAiSearch();
       board = newBoard(); you = 1; ai = 2; turn = 1; win = null; anim = null; aiRoot = null; aiSims = 0; aiTarget = sims; result = null;
       if (youScore == null) { youScore = 0; aiScore = 0; streak = 0; }
       state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; sync();
     }
     function gameOver(winner) {
+      cancelAiSearch();
       state = 'over'; result = winner; setTurnLabel();
       coach.classList.add('hidden');
       if (winner === you) { youScore++; streak++; if (api.setBest('connect4', streak)) {} } else if (winner === ai) { aiScore++; streak = 0; }
@@ -351,7 +413,7 @@ Arcade.register({
       const line = winLine(board, c, r, p);
       if (line) { win = line; gameOver(p); return; }
       if (!legal(board).length) { gameOver(0); return; }
-      turn = turn === 1 ? 2 : 1; aiRoot = null; aiSims = 0; dirtyCoach(); setTurnLabel(); syncCoach();
+      turn = turn === 1 ? 2 : 1; aiRoot = null; aiSims = 0; aiVisits = null; aiThinking = false; dirtyCoach(); setTurnLabel(); syncCoach();
     }
 
     // ---------- update ----------
@@ -364,11 +426,17 @@ Arcade.register({
         return;
       }
       if (state === 'playing' && turn === ai) {
+        if (ensureAiWorker()) {
+          if (!aiThinking) startWorkerSearch();
+          return;
+        }
         if (!aiRoot) { aiRoot = { board: Int8Array.from(board), player: ai, children: null, N: 0 }; aiSims = 0; }
         const start = performance.now();
-        const budget = aiTarget >= 1000 ? 5.5 : aiTarget >= 500 ? 4.5 : 3.2;
+        const aiScale = perf.quality().ai;
+        const budget = (aiTarget >= 1000 ? 5.5 : aiTarget >= 500 ? 4.5 : 3.2) * aiScale;
+        const maxBatch = Math.max(24, Math.round(90 * aiScale));
         let batch = 0;
-        while (aiSims < aiTarget && batch < 90 && (batch < 4 || performance.now() - start < budget)) {
+        while (aiSims < aiTarget && batch < maxBatch && (batch < 3 || performance.now() - start < budget)) {
           search(aiRoot);
           aiSims++;
           batch++;
@@ -426,8 +494,8 @@ Arcade.register({
     function draw() {
       ctx.clearRect(0, 0, W, H);
       // thinking bars (AI column preference)
-      if (state === 'playing' && turn === ai && aiRoot) {
-        const v = visits(aiRoot); const tot = v.reduce((a, b) => a + b, 0) || 1;
+      if (state === 'playing' && turn === ai && (aiVisits || aiRoot)) {
+        const v = aiVisits || visits(aiRoot); const tot = v.reduce((a, b) => a + b, 0) || 1;
         for (let c = 0; c < COLS; c++) { const h = (v[c] / tot) * cell * 0.9; ctx.fillStyle = 'rgba(255,182,94,0.55)'; ctx.fillRect(bx + c * cell + cell * 0.2, by - cell * 0.5 - h, cell * 0.6, h); }
       } else if (state === 'playing' && turn === you && hoverCol >= 0 && legal(board).includes(hoverCol)) {
         ctx.fillStyle = 'rgba(94,242,255,0.16)'; ctx.fillRect(bx + hoverCol * cell, by, cell, bh);

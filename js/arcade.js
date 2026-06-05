@@ -8,6 +8,95 @@
   let raf = 0;
   let activeLoadId = 0;
   const listeners = [];
+  const cleanupFns = [];
+  const canvasFits = new Set();
+  const params = new URLSearchParams(window.location.search);
+  const isMobileLike = matchMedia('(pointer: coarse)').matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  const qualityTiers = [
+    { name: 'low', level: 0, dprCap: 1, particles: 0.45, particleLimit: 0.45, stars: 0.55, trail: 0.5, ai: 0.45, effects: false },
+    { name: 'medium', level: 1, dprCap: 1.35, particles: 0.7, particleLimit: 0.7, stars: 0.75, trail: 0.72, ai: 0.7, effects: true },
+    { name: 'high', level: 2, dprCap: 2, particles: 1, particleLimit: 1, stars: 1, trail: 1, ai: 1, effects: true },
+  ];
+  const perfState = {
+    tier: isMobileLike ? 1 : 2,
+    frameMs: 16.7,
+    fps: 60,
+    dropped: 0,
+    goodMs: 0,
+    lastAdjust: performance.now(),
+    lastOverlay: 0,
+    reason: 'startup',
+    debug: params.has('perf') || params.get('debug') === '1',
+    overlay: null,
+  };
+
+  function quality() {
+    return qualityTiers[perfState.tier];
+  }
+
+  function snapshotPerf() {
+    return {
+      fps: perfState.fps,
+      frameMs: perfState.frameMs,
+      quality: quality().name,
+      tier: perfState.tier,
+      reason: perfState.reason,
+    };
+  }
+
+  function setQualityTier(tier, reason) {
+    const next = Math.max(0, Math.min(qualityTiers.length - 1, tier));
+    if (next === perfState.tier) return;
+    perfState.tier = next;
+    perfState.reason = reason || 'auto';
+    document.documentElement.dataset.quality = quality().name;
+    canvasFits.forEach(fit => fit());
+  }
+
+  function ensurePerfOverlay() {
+    if (!perfState.debug) {
+      if (perfState.overlay) perfState.overlay.hidden = true;
+      return null;
+    }
+    if (!perfState.overlay) {
+      perfState.overlay = document.createElement('div');
+      perfState.overlay.id = 'perf-overlay';
+      perfState.overlay.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(perfState.overlay);
+    }
+    perfState.overlay.hidden = false;
+    return perfState.overlay;
+  }
+
+  function updatePerf(rawDt, now) {
+    const sample = Math.max(1, Math.min(rawDt, 120));
+    perfState.frameMs = perfState.frameMs * 0.94 + sample * 0.06;
+    perfState.fps = 1000 / Math.max(1, perfState.frameMs);
+    if (rawDt > 34) perfState.dropped++;
+    if (perfState.frameMs < 18.5 && perfState.dropped < 2) perfState.goodMs += sample;
+    else perfState.goodMs = Math.max(0, perfState.goodMs - sample * 1.5);
+
+    if (now - perfState.lastAdjust > 1600) {
+      if ((perfState.frameMs > 25 || perfState.dropped > 8) && perfState.tier > 0) {
+        setQualityTier(perfState.tier - 1, 'frame pressure');
+        perfState.goodMs = 0;
+      } else if (perfState.goodMs > 6500 && perfState.tier < qualityTiers.length - 1) {
+        setQualityTier(perfState.tier + 1, 'stable frames');
+        perfState.goodMs = 0;
+      }
+      perfState.dropped = 0;
+      perfState.lastAdjust = now;
+    }
+
+    const ov = ensurePerfOverlay();
+    if (ov && now - perfState.lastOverlay > 180) {
+      const q = quality();
+      ov.textContent = `${Math.round(perfState.fps)} fps | ${perfState.frameMs.toFixed(1)} ms | ${q.name}`;
+      perfState.lastOverlay = now;
+    }
+  }
+
+  document.documentElement.dataset.quality = quality().name;
 
   function upsertApp(app) {
     if (!app || !app.id) throw new Error('Arcade app entries need an id.');
@@ -77,6 +166,9 @@
       target.addEventListener(type, fn, opts);
       listeners.push({ target, type, fn, opts });
     },
+    onCleanup(fn) {
+      if (typeof fn === 'function') cleanupFns.push(fn);
+    },
     loop(cb) {
       let last = performance.now();
       const tick = (now) => {
@@ -86,11 +178,25 @@
           raf = requestAnimationFrame(tick);
           return;
         }
+        updatePerf(rawDt, now);
         const dt = Math.min(rawDt, 60);
-        cb(dt, now, rawDt);
+        cb(dt, now, rawDt, snapshotPerf());
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
+    },
+    perf: {
+      quality,
+      snapshot: snapshotPerf,
+      particleCount(n, min = 0) {
+        return Math.max(min, Math.round(n * quality().particles));
+      },
+      particleLimit(n, min = 24) {
+        return Math.max(min, Math.round(n * quality().particleLimit));
+      },
+      trailLimit(n, min = 12) {
+        return Math.max(min, Math.round(n * quality().trail));
+      },
     },
     makeCanvas(root, opts = {}) {
       const canvas = document.createElement('canvas');
@@ -101,7 +207,7 @@
         const rect = root.getBoundingClientRect();
         view.w = opts.width || rect.width;
         view.h = opts.height || rect.height;
-        view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        view.dpr = Math.min(window.devicePixelRatio || 1, quality().dprCap);
         canvas.width = view.w * view.dpr;
         canvas.height = view.h * view.dpr;
         canvas.style.width = view.w + 'px';
@@ -110,6 +216,7 @@
         if (opts.onResize) opts.onResize(view);
       }
       fit();
+      canvasFits.add(fit);
       api.on(window, 'resize', fit);
       return view;
     },
@@ -191,12 +298,16 @@
 
   function cleanupCurrent() {
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    while (cleanupFns.length) {
+      try { cleanupFns.pop()(); } catch (e) {}
+    }
     while (listeners.length) {
       const l = listeners.pop();
       l.target.removeEventListener(l.type, l.fn, l.opts);
     }
     if (current && current.stop) { try { current.stop(); } catch (e) {} }
     current = null;
+    canvasFits.clear();
     gameRoot.innerHTML = '';
   }
 
@@ -235,6 +346,12 @@
 
   document.getElementById('back-btn').addEventListener('click', showMenu);
   window.addEventListener('keydown', e => {
+    if (e.key === 'F2') {
+      perfState.debug = !perfState.debug;
+      ensurePerfOverlay();
+      e.preventDefault();
+      return;
+    }
     if (e.key === 'Escape' && (current || stage.classList.contains('active'))) showMenu();
   });
 

@@ -8,6 +8,7 @@ Arcade.register({
 
   start(root, api) {
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const perf = api.perf;
 
     let paddle, ball, bricks = [], powerups = [], particles = [], score, lives, level, state, W = 800, H = 600, paddleW;
     let wideTime, slowTime, combo, shake;
@@ -68,11 +69,13 @@ Arcade.register({
       document.getElementById('bk-lives').textContent = '●'.repeat(Math.max(0, lives)) + '○'.repeat(Math.max(0, 3 - lives));
     }
     function burst(x, y, color, n) {
-      for (let i = 0; i < n; i++) {
+      const count = perf.particleCount(n);
+      for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 4;
         particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 420 + Math.random() * 260, max: 680, color, r: 2 + Math.random() * 3 });
       }
-      if (particles.length > 220) particles.splice(0, particles.length - 220);
+      const limit = perf.particleLimit(220);
+      if (particles.length > limit) particles.splice(0, particles.length - limit);
     }
     function dropPowerup(b) {
       if (Math.random() > .24) return;
@@ -226,9 +229,11 @@ Arcade.register({
           }
         }
         if (ball) {
-          const g = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, ball.r * 2);
-          g.addColorStop(0, '#fff'); g.addColorStop(1, slowTime > 0 ? 'rgba(156,255,94,0)' : 'rgba(94,242,255,0)');
-          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r * 2, 0, Math.PI * 2); ctx.fill();
+          if (perf.quality().effects) {
+            const g = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, ball.r * 2);
+            g.addColorStop(0, '#fff'); g.addColorStop(1, slowTime > 0 ? 'rgba(156,255,94,0)' : 'rgba(94,242,255,0)');
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r * 2, 0, Math.PI * 2); ctx.fill();
+          }
           ctx.fillStyle = '#eaf6ff'; ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2); ctx.fill();
         }
         for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }

@@ -11,9 +11,11 @@ Arcade.register({
   start(root, api) {
     const view = api.makeCanvas(root);
     const ctx = view.ctx;
+    const perf = api.perf;
     const rand = (a, b) => a + Math.random() * (b - a);
 
     let state, score, combo, bestCombo, timeLeft, roundStart, target, targetAge, spawnDelay, sinceSpawn, reactSum, reactN, particles = [], floaters = [];
+    let syncStamp = 0;
 
     const ov = document.createElement('div'); ov.className = 'center-overlay'; root.appendChild(ov);
     const hud = document.createElement('div'); hud.className = 'hud'; hud.style.display = 'none';
@@ -25,7 +27,10 @@ Arcade.register({
       score = 0; combo = 0; bestCombo = 0; timeLeft = 30; roundStart = 0; target = null; particles = []; floaters = [];
       spawnDelay = 850; sinceSpawn = 0; reactSum = 0; reactN = 0;
     }
-    function sync() {
+    function sync(force = false) {
+      const now = performance.now();
+      if (!force && now - syncStamp < 80) return;
+      syncStamp = now;
       document.getElementById('rx-score').textContent = score;
       document.getElementById('rx-combo').textContent = '×' + (1 + Math.floor(combo / 3));
       document.getElementById('rx-time').textContent = Math.max(0, timeLeft).toFixed(1);
@@ -40,7 +45,7 @@ Arcade.register({
       ov.querySelector('.msg').textContent = 'Tap each target the instant it appears. Consecutive hits build a multiplier; gold targets pay extra, moving targets test tracking, and misses break the combo.';
     }
     function play() {
-      reset(); state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; sync();
+      reset(); state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; sync(true);
       spawnTarget();
       roundStart = performance.now();
       if (activeTimer) { clearInterval(activeTimer); activeTimer = null; }
@@ -75,11 +80,13 @@ Arcade.register({
       floaters.push({ x, y, text, color, life: 650, max: 650, vy: -0.7 });
     }
     function burst(x, y, color, n) {
-      for (let i = 0; i < n; i++) {
+      const count = perf.particleCount(n);
+      for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2, s = rand(1, 5);
         particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(260, 560), max: 560, color, r: rand(2, 5) });
       }
-      if (particles.length > 180) particles.splice(0, particles.length - 180);
+      const limit = perf.particleLimit(180);
+      if (particles.length > limit) particles.splice(0, particles.length - limit);
     }
 
     function hit(x, y) {
@@ -96,9 +103,9 @@ Arcade.register({
         popText(target.x, target.y - target.r, '+' + gained, target.type === 'bonus' ? '#ffd45e' : '#ffffff');
         burst(target.x, target.y, target.type === 'bonus' ? '#ffd45e' : '#9cff5e', target.type === 'bonus' ? 24 : 16);
         spawnDelay = Math.max(420, spawnDelay - 12);
-        target = null; sinceSpawn = 0; sync();
+        target = null; sinceSpawn = 0; sync(true);
       } else {
-        combo = 0; score = Math.max(0, score - 5); popText(x, y, '-5', '#ff5ec4'); sync();
+        combo = 0; score = Math.max(0, score - 5); popText(x, y, '-5', '#ff5ec4'); sync(true);
       }
     }
     api.on(view.canvas, 'mousedown', e => hit(e.clientX, e.clientY));
@@ -111,7 +118,7 @@ Arcade.register({
         timeLeft = 30 - (now - roundStart) / 1000;
         if (timeLeft <= 0) {
           timeLeft = 0;
-          sync();
+          sync(true);
           end();
         }
         sinceSpawn += dt;
@@ -126,7 +133,7 @@ Arcade.register({
           // targets time out after ~1.4s -> miss
           if (targetAge > (target.type === 'bonus' ? 1050 : 1400)) {
             popText(target.x, target.y, 'MISS', '#ff5ec4');
-            combo = 0; target = null; sinceSpawn = 0; sync();
+            combo = 0; target = null; sinceSpawn = 0; sync(true);
           }
         }
         sync();

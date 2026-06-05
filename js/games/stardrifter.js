@@ -9,6 +9,7 @@ Arcade.register({
   start(root, api) {
     const view = api.makeCanvas(root);
     const ctx = view.ctx;
+    const perf = api.perf;
     const rand = (a, b) => a + Math.random() * (b - a);
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const POWER = { SHIELD: 'shield', SLOW: 'slow', DOUBLE: 'double', MAGNET: 'magnet' };
@@ -35,6 +36,7 @@ Arcade.register({
 
     let state = 'menu', score, lives, startTime, elapsed, lastSpawn, spawnGap;
     let shieldTime, doubleTime, magnetTime, invuln, slowUntil, shake, combo, comboTime, nearMisses;
+    let hudStamp = 0;
     let ship, asteroids, orbs, powerups, particles;
     const stars = [];
     const pointer = { x: view.w / 2, y: view.h / 2 };
@@ -42,7 +44,8 @@ Arcade.register({
 
     function initStars() {
       stars.length = 0;
-      for (let i = 0; i < 130; i++)
+      const count = Math.round(130 * perf.quality().stars);
+      for (let i = 0; i < count; i++)
         stars.push({ x: Math.random() * view.w, y: Math.random() * view.h, z: rand(.2, 1), s: rand(.5, 2) });
     }
     initStars();
@@ -58,7 +61,10 @@ Arcade.register({
       pointer.x = ship.x; pointer.y = ship.y;
     }
     const sEl = () => document.getElementById('sd-score');
-    function hudUpdate() {
+    function hudUpdate(force = false) {
+      const now = performance.now();
+      if (!force && now - hudStamp < 110) return;
+      hudStamp = now;
       document.getElementById('sd-score').textContent = Math.floor(score);
       document.getElementById('sd-best').textContent = api.getBest('stardrifter');
       const c = document.getElementById('sd-combo');
@@ -69,7 +75,7 @@ Arcade.register({
 
     function play() {
       reset(); state = 'playing';
-      ov.classList.add('hidden'); hud.style.display = 'flex'; hudUpdate();
+      ov.classList.add('hidden'); hud.style.display = 'flex'; hudUpdate(true);
     }
     function gameOver() {
       state = 'over'; hud.style.display = 'none';
@@ -104,11 +110,13 @@ Arcade.register({
     const pIcon = t => t === POWER.SHIELD ? '🛡️' : t === POWER.SLOW ? '🐢' : t === POWER.MAGNET ? '+' : '✨';
 
     function burst(x, y, color, n, spd) {
-      for (let i = 0; i < n; i++) {
+      const count = perf.particleCount(n);
+      for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2, s = rand(.4, 1) * spd;
         particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(300, 700), max: 700, color, r: rand(1.5, 4) });
       }
-      if (particles.length > 260) particles.splice(0, particles.length - 260);
+      const limit = perf.particleLimit(260);
+      if (particles.length > limit) particles.splice(0, particles.length - limit);
     }
     function scoreMult() {
       return (doubleTime > 0 ? 2 : 1) * (1 + Math.floor(combo / 4));
@@ -118,7 +126,7 @@ Arcade.register({
       comboTime = 2400;
       score += points * scoreMult();
       burst(x, y, color, 10 + Math.min(combo, 14), 3.4);
-      hudUpdate();
+      hudUpdate(true);
     }
     function pullPickup(o, strength, frame) {
       if (magnetTime <= 0) return;
@@ -146,7 +154,7 @@ Arcade.register({
       if (invuln > 0) return;
       lives--; invuln = 1400; shake = 18; combo = 0; comboTime = 0;
       burst(ship.x, ship.y, '#ff5ec4', 40, 7);
-      hudUpdate();
+      hudUpdate(true);
       if (lives <= 0) gameOver();
     }
 
@@ -173,9 +181,10 @@ Arcade.register({
       ship.y = clamp(ship.y + ship.vy * frame, ship.r, view.h - ship.r);
       if (Math.abs(ship.vx) + Math.abs(ship.vy) > .5) ship.angle = Math.atan2(ship.vy, ship.vx);
 
-      if (Math.abs(ship.vx) + Math.abs(ship.vy) > 1.2 && Math.random() < .6)
+      if (Math.abs(ship.vx) + Math.abs(ship.vy) > 1.2 && Math.random() < .6 * perf.quality().particles)
         particles.push({ x: ship.x - Math.cos(ship.angle) * 12, y: ship.y - Math.sin(ship.angle) * 12,
           vx: -Math.cos(ship.angle) * rand(.5, 1.5), vy: -Math.sin(ship.angle) * rand(.5, 1.5), life: 320, max: 320, color: '#ffb15e', r: rand(1.5, 3.5) });
+      if (particles.length > perf.particleLimit(260)) particles.splice(0, particles.length - perf.particleLimit(260));
 
       if (elapsed - lastSpawn > spawnGap) { lastSpawn = elapsed; spawnAsteroid(); if (elapsed > 4000 && Math.random() < .3) spawnAsteroid(); }
       if (orbs.length < 3 && Math.random() < .02 * frame) orbs.push({ x: rand(40, view.w - 40), y: rand(40, view.h - 40), r: 9, pulse: Math.random() * 6, life: 9000 });
@@ -239,7 +248,12 @@ Arcade.register({
       ctx.clearRect(0, 0, view.w, view.h);
       ctx.save();
       if (shake > .4) ctx.translate(rand(-shake, shake), rand(-shake, shake));
-      for (const s of stars) { ctx.globalAlpha = .3 + s.z * .6; ctx.fillStyle = '#cdd9ff'; ctx.fillRect(s.x, s.y, s.s, s.s); }
+      const q = perf.quality();
+      const starStride = q.stars < .7 ? 2 : 1;
+      for (let i = 0; i < stars.length; i += starStride) {
+        const s = stars[i];
+        ctx.globalAlpha = .3 + s.z * .6; ctx.fillStyle = '#cdd9ff'; ctx.fillRect(s.x, s.y, s.s, s.s);
+      }
       ctx.globalAlpha = 1;
       if (state !== 'menu') {
         for (const o of orbs) {

@@ -11,6 +11,7 @@ Arcade.register({
   start(root, api) {
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const rand = (a, b) => a + Math.random() * (b - a);
+    const perf = api.perf;
     const G = 1.0, STAR_M = 1400, SOFT = 80;
     let W = 0, H = 0, stars = [], planets = [], field = [], orbits = 0;
     let drag = null;                          // {x0,y0,x,y} while aiming a fling
@@ -81,7 +82,7 @@ Arcade.register({
       for (let i = planets.length - 1; i >= 0; i--) {
         const p = planets[i];
         p.x += p.vx; p.y += p.vy;
-        p.trail.push({ x: p.x, y: p.y }); if (p.trail.length > 60) p.trail.shift();
+        p.trail.push({ x: p.x, y: p.y }); while (p.trail.length > perf.trailLimit(60, 24)) p.trail.shift();
         // orbit counting around the primary star (accumulated angle)
         const s0 = stars[0], nx = p.x - s0.x, ny = p.y - s0.y;
         const ang = Math.atan2(ny, nx), ref = Math.atan2(p.refY, p.refX);
@@ -109,7 +110,15 @@ Arcade.register({
       for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.x += p.vx; p.y += p.vy; p.life -= 16.7; if (p.life <= 0) parts.splice(i, 1); }
     }
     const parts = [];
-    function burst(x, y, color, n) { for (let i = 0; i < n; i++) { const a = rand(0, Math.PI * 2), sp = rand(0.5, 2.6); parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(220, 480), max: 480, color, r: rand(1, 2.4) }); } }
+    function burst(x, y, color, n) {
+      const count = perf.particleCount(n);
+      for (let i = 0; i < count; i++) {
+        const a = rand(0, Math.PI * 2), sp = rand(0.5, 2.6);
+        parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(220, 480), max: 480, color, r: rand(1, 2.4) });
+      }
+      const limit = perf.particleLimit(140);
+      if (parts.length > limit) parts.splice(0, parts.length - limit);
+    }
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
