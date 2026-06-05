@@ -171,6 +171,11 @@ html, body {
 }
 .hud .a { color: var(--accent); }
 .hud .b { color: var(--gold); }
+.hud.c4-hud {
+  top: calc(58px + env(safe-area-inset-top));
+  gap: clamp(14px, 5vw, 30px);
+  padding: 0 12px;
+}
 canvas { display: block; touch-action: none; }
 .c4-coach {
   position: absolute;
@@ -259,6 +264,10 @@ canvas { display: block; touch-action: none; }
     flex-wrap: wrap;
     padding: 0 70px;
     font-size: clamp(12px, 3.6vw, 17px);
+  }
+  .hud.c4-hud {
+    top: calc(58px + env(safe-area-inset-top));
+    padding: 0 10px;
   }
   .c4-coach {
     padding: 10px 11px;

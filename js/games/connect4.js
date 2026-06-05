@@ -22,14 +22,18 @@ Arcade.register({
     function layout(v) {
       W = v.w; H = v.h;
       const teachSpace = learning ? Math.min(190, H * 0.32) : 0;
-      const maxW = Math.min(W * 0.94, 560), maxH = Math.max(240, H * 0.82 - teachSpace);
+      const topSpace = Math.min(132, Math.max(82, H * 0.1));
+      const bottomSpace = teachSpace + Math.max(18, H * 0.025);
+      const arenaH = Math.max(240, H - topSpace - bottomSpace);
+      const maxW = Math.min(W * 0.94, 560), maxH = Math.max(240, arenaH);
       cell = Math.min(maxW / COLS, maxH / (ROWS + 1));
-      bw = cell * COLS; bh = cell * ROWS; bx = (W - bw) / 2; by = (H - teachSpace - bh) / 2 + cell * 0.4;
+      bw = cell * COLS; bh = cell * ROWS; bx = (W - bw) / 2;
+      by = topSpace + Math.max(0, (arenaH - bh) * 0.35) + cell * 0.12;
     }
     layout(view);
 
     const ov = document.createElement('div'); ov.className = 'center-overlay'; root.appendChild(ov);
-    const hud = document.createElement('div'); hud.className = 'hud'; hud.style.display = 'none';
+    const hud = document.createElement('div'); hud.className = 'hud c4-hud'; hud.style.display = 'none';
     hud.innerHTML = `<span class="a">YOU <b id="c4-you">0</b></span><span id="c4-turn">—</span><span class="b">AI <b id="c4-ai">0</b></span>`;
     root.appendChild(hud);
     const coach = document.createElement('div'); coach.className = 'c4-coach hidden'; root.appendChild(coach);
