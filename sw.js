@@ -1,6 +1,6 @@
 /* Service worker: precache the whole arcade so it runs fully offline once
    installed. Bump CACHE when assets change to roll out a fresh copy. */
-const CACHE = 'mini-arcade-v64';
+const CACHE = 'mini-arcade-v65';
 const ASSETS = [
   './',
   './index.html',
@@ -39,9 +39,19 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Cache-first for our own assets, network fallback otherwise.
+// Network-first for the app shell so deploys show up quickly, cache-first for assets.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put('./index.html', copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
       const copy = res.clone();
