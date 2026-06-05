@@ -110,6 +110,19 @@ A self-contained feel slice — **not** the full game — to validate the pace:
 Goal: prove the **deliberate, positional** feel. If it lands, port the stagger +
 ring-out + push/pull tools into `stickrun.js` and layer the loadout draft on top.
 
+**Implemented in the prototype so far** (both pillars, end-to-end slice):
+- 3 escalating waves; clear a wave → **draft 1-of-3** that forks one slot or swaps
+  the keystone (de-duped across slots, re-draftable so a build evolves).
+- Loadout slots wired to real behavior: **Attack** (Slash → Cleave / Thrust),
+  **E** (Push → Launch), **Q** (Pull → Vortex), **Shift** (Dash → Blink), and a
+  **keystone Passive** (Momentum / Executioner / Bloodrush).
+- One **fusion** live: Cleave + Vortex makes the wide swing rip a pulled cluster
+  harder (+60% stagger).
+- Pillar-2 archetypes seeded: **Armored** (damage-immune, terrain-only kills) and
+  **Charger** (commits a long rush you bait into a hazard).
+- Pace tuned ~25% slower with stickier stagger decay and heavier ring-out
+  knockback.
+
 ## Open questions / next
 - Exact stagger numbers & decay; knockback scaling vs. enemy mass.
 - Camera: fixed single-screen (prototype) vs. the scrolling arena.
