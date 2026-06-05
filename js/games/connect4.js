@@ -37,6 +37,42 @@ Arcade.register({
     hud.innerHTML = `<span class="a">YOU <b id="c4-you">0</b></span><span id="c4-turn">—</span><span class="b">AI <b id="c4-ai">0</b></span>`;
     root.appendChild(hud);
     const coach = document.createElement('div'); coach.className = 'c4-coach hidden'; root.appendChild(coach);
+    const boardLayer = document.createElement('div');
+    boardLayer.className = 'c4-board-layer';
+    boardLayer.hidden = true;
+    for (let i = 0; i < NC; i++) {
+      const slot = document.createElement('span');
+      slot.className = 'c4-slot';
+      boardLayer.appendChild(slot);
+    }
+    root.appendChild(boardLayer);
+    let boardLayerKey = '';
+    function syncBoardLayer() {
+      boardLayer.hidden = !board || state === 'menu';
+      if (boardLayer.hidden) return;
+      boardLayer.style.left = `${bx - 6}px`;
+      boardLayer.style.top = `${by - 6}px`;
+      boardLayer.style.width = `${bw + 12}px`;
+      boardLayer.style.height = `${bh + 12}px`;
+      boardLayer.style.padding = `${Math.max(5, cell * 0.09)}px`;
+      boardLayer.style.gap = `${Math.max(5, cell * 0.1)}px`;
+      const key = `${hoverCol}|${Array.from(board).join('')}`;
+      if (key === boardLayerKey) return;
+      boardLayerKey = key;
+      let i = 0;
+      const playableHover = state === 'playing' && turn === you && !anim && hoverCol >= 0 && legal(board).includes(hoverCol);
+      for (let r = ROWS - 1; r >= 0; r--) {
+        for (let c = 0; c < COLS; c++) {
+          const p = board[r * COLS + c];
+          const classes = ['c4-slot'];
+          if (p === you) classes.push('you');
+          else if (p === ai) classes.push('ai');
+          else if (playableHover && c === hoverCol) classes.push('hover');
+          boardLayer.children[i].className = classes.join(' ');
+          i++;
+        }
+      }
+    }
 
     // ---------- game logic ----------
     const newBoard = () => new Int8Array(NC);
@@ -347,6 +383,7 @@ Arcade.register({
     function showMenu() {
       learning = false; coach.classList.add('hidden'); layout(view);
       state = 'menu'; hud.style.display = 'none'; ov.classList.remove('hidden');
+      boardLayer.hidden = true; boardLayerKey = '';
       ov.innerHTML = `<h2>Four in a Row</h2>
         <p class="msg">Drop discs and connect four. You're <b style="color:#5ef2ff">cyan</b>; the AI is
         <b style="color:#ffb65e">gold</b> and runs Monte-Carlo Tree Search guided by a net it trained against itself —
@@ -364,7 +401,7 @@ Arcade.register({
       cancelAiSearch();
       board = newBoard(); you = 1; ai = 2; turn = 1; win = null; anim = null; aiRoot = null; aiSims = 0; aiTarget = sims; result = null;
       if (youScore == null) { youScore = 0; aiScore = 0; streak = 0; }
-      state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; sync();
+      state = 'playing'; ov.classList.add('hidden'); hud.style.display = 'flex'; boardLayerKey = ''; sync(); syncBoardLayer();
     }
     function gameOver(winner) {
       cancelAiSearch();
@@ -456,6 +493,28 @@ Arcade.register({
 
     // ---------- render ----------
     function discColor(p, x, y, r) { const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); if (p === 1) { g.addColorStop(0, '#bff6ff'); g.addColorStop(1, '#28b6d8'); } else { g.addColorStop(0, '#ffe6b0'); g.addColorStop(1, '#e8922e'); } return g; }
+    function drawSocket(x, y, r, p) {
+      ctx.fillStyle = '#091238';
+      ctx.beginPath(); ctx.arc(x, y, r * 1.04, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(132,163,255,0.55)';
+      ctx.lineWidth = Math.max(2, r * 0.08);
+      ctx.beginPath(); ctx.arc(x, y, r * 1.02, 0, Math.PI * 2); ctx.stroke();
+
+      if (p) {
+        ctx.fillStyle = discColor(p, x, y, r * 0.86);
+        ctx.beginPath(); ctx.arc(x, y, r * 0.86, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.34)';
+        ctx.lineWidth = Math.max(1.5, r * 0.055);
+        ctx.beginPath(); ctx.arc(x - r * 0.08, y - r * 0.08, r * 0.66, Math.PI * 1.1, Math.PI * 1.95); ctx.stroke();
+        return;
+      }
+
+      ctx.fillStyle = '#030716';
+      ctx.beginPath(); ctx.arc(x, y, r * 0.82, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = Math.max(1, r * 0.04);
+      ctx.beginPath(); ctx.arc(x, y, r * 0.82, 0, Math.PI * 2); ctx.stroke();
+    }
     function drawLearningHints() {
       if (!learning || state !== 'playing') return;
       ctx.save();
@@ -496,7 +555,12 @@ Arcade.register({
       ctx.restore();
     }
     function draw() {
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.setLineDash([]);
       ctx.clearRect(0, 0, W, H);
+      syncBoardLayer();
+      if (!board) return;
       // thinking bars (AI column preference)
       if (state === 'playing' && turn === ai && (aiVisits || aiRoot)) {
         const v = aiVisits || visits(aiRoot); const tot = v.reduce((a, b) => a + b, 0) || 1;
@@ -506,11 +570,12 @@ Arcade.register({
         const x = bx + hoverCol * cell + cell / 2; ctx.fillStyle = discColor(you, x, by - cell * 0.45, cell * 0.38); ctx.beginPath(); ctx.arc(x, by - cell * 0.45, cell * 0.38, 0, Math.PI * 2); ctx.fill();
       }
       // board panel
-      roundRect(bx - 6, by - 6, bw + 12, bh + 12, 14); ctx.fillStyle = '#16204a'; ctx.fill();
+      roundRect(bx - 6, by - 6, bw + 12, bh + 12, 14); ctx.fillStyle = '#1c2a68'; ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      roundRect(bx - 6, by - 6, bw + 12, Math.max(8, cell * 0.18), 14); ctx.fill();
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
         const x = bx + c * cell + cell / 2, y = by + (ROWS - 1 - r) * cell + cell / 2, p = board[r * COLS + c];
-        if (p) { ctx.fillStyle = discColor(p, x, y, cell * 0.4); ctx.beginPath(); ctx.arc(x, y, cell * 0.4, 0, Math.PI * 2); ctx.fill(); }
-        else { ctx.fillStyle = '#0c1430'; ctx.beginPath(); ctx.arc(x, y, cell * 0.4, 0, Math.PI * 2); ctx.fill(); }
+        drawSocket(x, y, cell * 0.4, p);
       }
       // falling disc
       if (anim) { const x = bx + anim.c * cell + cell / 2; ctx.fillStyle = discColor(anim.p, x, anim.y, cell * 0.4); ctx.beginPath(); ctx.arc(x, anim.y, cell * 0.4, 0, Math.PI * 2); ctx.fill(); }
