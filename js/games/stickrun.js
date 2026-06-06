@@ -1373,7 +1373,7 @@ PUBLIC.start = function (root, api) {
     player.knifeRegen = 0;
     spawnKnifeSpread(ang, count, { hit: 13, speed: 31.5, bounce: hasPassive('rg_trapmaster') ? 1 : 0 });
     burst(player.x + Math.cos(ang) * 24, player.y - 72 + Math.sin(ang) * 24, cls.color, 16, 3.4);
-    if (count >= 5) spawnShockwaveRing(player.x + Math.cos(ang) * 54, player.y - 72 + Math.sin(ang) * 32, 92, cls.color, { life: 260, width: 3.4, yScale: 0.32, fill: 0.05 });
+    if (count >= 5) spawnShockwaveRing(player.x + Math.cos(ang) * 54, player.y - 72 + Math.sin(ang) * 32, 92, cls.color, { life: 260, width: 3.4, fill: 0.05, rough: 0.070 });
     return true;
   }
   function useBladeBarrage(ang) {
@@ -1416,7 +1416,7 @@ PUBLIC.start = function (root, api) {
     }
     burst(cx, cy, cls.color, 28, 4.6);
     burst(cx, cy, '#ffffff', 10, 2.8);
-    spawnShockwaveRing(cx, cy, 138, cls.color, { life: 420, width: 4.4, yScale: 0.52, fill: 0.08 });
+    spawnShockwaveRing(cx, cy, 138, cls.color, { life: 420, width: 4.4, fill: 0.08, rough: 0.060 });
     addShake(2.4, 130);
     return true;
   }
@@ -1455,7 +1455,7 @@ PUBLIC.start = function (root, api) {
       });
     }
     while (slashTrail.length > 70) slashTrail.shift();
-    spawnShockwaveRing(cx, cy, 136, cls.color, { life: 500, width: 5.8, yScale: 0.72, fill: 0.08 });
+    spawnShockwaveRing(cx, cy, 136, cls.color, { life: 500, width: 5.8, fill: 0.08, rough: 0.060 });
   }
   function useKnightRally() {
     activateShieldGuard();
@@ -2781,8 +2781,8 @@ PUBLIC.start = function (root, api) {
         spawnShockwaveRing(src.x, src.y, Math.max(76, r - n * 24), src.color || cls.color, {
           life: gravityCore ? 560 + n * 44 : 390,
           width: gravityCore ? 7.2 - n * 0.45 : 5,
-          yScale: gravityCore ? 0.62 : 0.52,
           fill: gravityCore ? 0.14 : 0.08,
+          rough: 0.070,
         });
       }
       radialActorPulse(src.x, src.y, r, force, player.team, src.color || cls.color);
@@ -3313,8 +3313,10 @@ PUBLIC.start = function (root, api) {
       life: opts.life || 420,
       max: opts.life || 420,
       width: opts.width || 5,
-      yScale: opts.yScale || 0.55,
+      yScale: opts.yScale == null ? 1 : opts.yScale,
       fill: opts.fill == null ? 0.10 : opts.fill,
+      phase: opts.phase || rand(0, Math.PI * 2),
+      rough: opts.rough == null ? 0.045 : opts.rough,
     });
     if (shockwaves.length > 12) shockwaves.shift();
   }
@@ -5199,15 +5201,13 @@ PUBLIC.start = function (root, api) {
       const phase = now * 0.005 + i * Math.PI + e.x * 0.01;
       ctx.globalAlpha = (0.18 + fade * 0.34) * (1 - i * 0.22);
       ctx.beginPath();
-      ctx.ellipse(
-        x + Math.sin(phase) * 4,
-        y - 10 + i * 9,
-        14 + i * 5 + Math.sin(phase * 0.7) * 2,
-        4.6 + i * 1.4,
-        Math.sin(phase) * 0.18,
-        phase * 0.12,
-        phase * 0.12 + Math.PI * 1.38
-      );
+      const sx = x - 16 + i * 4;
+      const sy = y - 12 + i * 9;
+      ctx.moveTo(sx, sy);
+      for (let k = 1; k <= 5; k++) {
+        const u = k / 5;
+        ctx.lineTo(sx + u * (32 + i * 9), sy + Math.sin(phase + u * Math.PI * 2.1) * (3.0 + i * 0.8));
+      }
       ctx.stroke();
     }
     ctx.globalAlpha = 0.24 + fade * 0.48;
@@ -5234,16 +5234,14 @@ PUBLIC.start = function (root, api) {
     ctx.lineCap = 'round';
     ctx.globalAlpha = 0.18 + fade * 0.22;
     ctx.fillStyle = '#ff6b32';
-    ctx.beginPath();
-    ctx.ellipse(x, y + 20 * scale, (18 + pulse * 5) * scale, (6 + pulse * 2) * scale, 0, 0, Math.PI * 2);
+    traceWobblyCirclePath(x, y + 14 * scale, (12 + pulse * 3) * scale, { phase: now * 0.002 + x, rough: 0.18, steps: 16 });
     ctx.fill();
     ctx.globalAlpha = 0.30 + fade * 0.34;
     ctx.strokeStyle = '#ffd45e';
     ctx.lineWidth = (1.4 + fade * 1.2) * scale;
     ctx.setLineDash([7, 8]);
     ctx.lineDashOffset = -now * 0.038;
-    ctx.beginPath();
-    ctx.ellipse(x, y + 6 * scale, (23 + pulse * 5) * scale, (34 + pulse * 9) * scale, 0, 0, Math.PI * 2);
+    traceWobblyCirclePath(x, y + 4 * scale, (23 + pulse * 6) * scale, { phase: now * 0.003 + y, rough: 0.12, steps: 34 });
     ctx.stroke();
     ctx.setLineDash([]);
     for (let i = 0; i < 5; i++) {
@@ -5290,16 +5288,9 @@ PUBLIC.start = function (root, api) {
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 3; i++) {
       const a = now * 0.005 + i * Math.PI * 2 / 3;
-      ctx.beginPath();
-      ctx.ellipse(
-        (hipX + shX) * 0.5 + Math.cos(a) * (12 + i * 2),
-        (hipY + shY) * 0.5 + Math.sin(a) * (12 + i * 2),
-        20 + i * 6,
-        42 + i * 5,
-        Math.sin(a) * 0.10,
-        a * 0.16,
-        a * 0.16 + Math.PI * 1.38
-      );
+      const cx = (hipX + shX) * 0.5 + Math.cos(a) * (10 + i * 2);
+      const cy = (hipY + shY) * 0.5 + Math.sin(a) * (10 + i * 2);
+      traceWobblyCirclePath(cx, cy, 18 + i * 5, { phase: a + now * 0.001, rough: 0.16, steps: 18 });
       ctx.stroke();
     }
     ctx.restore();
@@ -6346,7 +6337,7 @@ PUBLIC.start = function (root, api) {
     const force = heavy ? 17 : 11;
     burst(x, y, '#d9d4ff', heavy ? 18 : 10, heavy ? 4.2 : 3.1);
     burst(x, y, color || '#8f7dff', heavy ? 26 : 16, heavy ? 4.8 : 3.8);
-    spawnShockwaveRing(x, y, radius, color || '#8f7dff', { life: heavy ? 330 : 240, width: heavy ? 4.2 : 3.1, yScale: 0.74, fill: heavy ? 0.09 : 0.05 });
+    spawnShockwaveRing(x, y, radius, color || '#8f7dff', { life: heavy ? 330 : 240, width: heavy ? 4.2 : 3.1, fill: heavy ? 0.09 : 0.05, rough: heavy ? 0.070 : 0.055 });
     radialActorPulse(x, y, radius, force, team, color || '#8f7dff');
     pushBoxesRadial(x, y, heavy ? 20 : 13, radius, team);
     for (let i = 0; i < (heavy ? 24 : 14); i++) {
@@ -6486,7 +6477,7 @@ PUBLIC.start = function (root, api) {
     }
     burst(p.x, p.y, '#d9d4ff', 18, 4.0);
     burst(p.x, p.y, cls.color, 32, 5.2);
-    spawnShockwaveRing(p.x, p.y, radius, cls.color, { life: 360, width: 5, yScale: 0.48, fill: 0.10 });
+    spawnShockwaveRing(p.x, p.y, radius, cls.color, { life: 360, width: 5, fill: 0.10, rough: 0.070 });
     addShake(4.8, 145);
     chargeGravityCore(0.85, p.x, p.y);
   }
@@ -6710,8 +6701,8 @@ PUBLIC.start = function (root, api) {
     if (opts.ultimate && !opts.ground) spawnShockwaveRing(x, y, r + 28, opts.color || '#ff6b32', {
       life: 420,
       width: 5.8,
-      yScale: 0.46,
       fill: 0.12,
+      rough: 0.085,
     });
     if (!opts.quiet) addShake(opts.ultimate ? 6.2 : 2.0, opts.ultimate ? 180 : 70);
   }
@@ -6794,10 +6785,22 @@ PUBLIC.start = function (root, api) {
     scale = scale || 1;
     const sx = player.x + Math.cos(ang) * 20;
     const sy = player.y - 72 + Math.sin(ang) * 20;
-    burst(sx, sy, '#ffd45e', Math.round(8 * scale), 2.6 + scale);
-    burst(sx, sy, '#ff6b32', Math.round(12 * scale), 3.0 + scale);
-    emitFlameJet(sx, sy, ang, Math.round(8 + scale * 7), { spread: 0.34, speed: 4.4 + scale * 1.4, length: 18 + scale * 10, life: 300 + scale * 80, r: 3.8 + scale, color: '#ff6b32' });
-    if (scale > 1.1) emitSmokePuff(sx, sy, ang + Math.PI, Math.round(3 + scale * 2), { speed: 1.0 + scale * 0.25, life: 680 + scale * 90, alpha: 0.20 });
+    burst(sx, sy, '#ffd45e', Math.round(10 * scale), 2.9 + scale);
+    burst(sx, sy, '#ff6b32', Math.round(15 * scale), 3.3 + scale);
+    emitFlameJet(sx, sy, ang, Math.round(12 + scale * 10), { spread: 0.38, speed: 4.9 + scale * 1.7, length: 22 + scale * 12, life: 340 + scale * 100, r: 4.2 + scale * 1.15, color: '#ff6b32' });
+    emitSmokePuff(sx, sy, ang + Math.PI, Math.round(2 + scale * 3), { speed: 1.0 + scale * 0.30, life: 720 + scale * 110, alpha: 0.20 });
+    for (let i = 0; i < Math.round(3 + scale * 5); i++) {
+      const a = ang + rand(-0.55, 0.55);
+      flameParticle(sx + rand(-3, 3), sy + rand(-3, 3),
+        Math.cos(a) * rand(1.2, 3.8 + scale) + rand(-0.25, 0.25),
+        Math.sin(a) * rand(0.7, 2.4 + scale * 0.6) - rand(0.35, 1.1), {
+          life: rand(220, 480 + scale * 110),
+          r: rand(2.2, 6.5 + scale * 1.2),
+          color: Math.random() < 0.48 ? '#ffd45e' : '#ff6b32',
+          buoy: rand(0.030, 0.082),
+        });
+    }
+    for (let i = 0; i < Math.round(2 + scale * 2); i++) emberParticle(sx + rand(-2, 2), sy + rand(-2, 2), Math.cos(ang + rand(-0.7, 0.7)) * rand(1.5, 4.5), Math.sin(ang + rand(-0.7, 0.7)) * rand(0.7, 2.6) - rand(0.4, 1.4), { life: rand(260, 700) });
   }
   function pyroLink(ax, ay, bx, by, color, life) {
     spawnBladeRecallTrail(ax, ay, bx, by, {
@@ -6886,8 +6889,8 @@ PUBLIC.start = function (root, api) {
     spawnShockwaveRing(z.x, z.y, r, color, {
       life: z.ultimate ? 520 : 280,
       width: z.ultimate ? 6.8 : 3.8,
-      yScale: 0.48,
       fill: z.ultimate ? 0.16 : 0.07,
+      rough: z.ultimate ? 0.095 : 0.070,
     });
     radialActorPulse(z.x, z.y, r, z.ultimate ? 30 : 12, z.team, color);
     detonateBurningTargets(z.x, z.y, r, z.ultimate ? 42 : 18, z.team, color, { link: !!z.ultimate, chain: !!z.ultimate });
@@ -7135,7 +7138,7 @@ PUBLIC.start = function (root, api) {
           r: rand(1.1, 3.2),
         });
     }
-    spawnShockwaveRing(x, y, r * 0.88, color || '#8f7dff', { life: 480, width: 5.6, yScale: 0.90, fill: 0.08 });
+    spawnShockwaveRing(x, y, r * 0.88, color || '#8f7dff', { life: 480, width: 5.6, fill: 0.08, rough: 0.075 });
     addShake(6.6, 190);
   }
   function spawnBlackHole(x, y, team, color, opts) {
@@ -7163,7 +7166,7 @@ PUBLIC.start = function (root, api) {
     }
     burst(x, y, '#ffffff', opts.ultimate ? 28 : 22, opts.ultimate ? 4.8 : 3.8);
     burst(x, y, fieldColor, opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
-    spawnShockwaveRing(x, y, r, fieldColor, { life: opts.ultimate ? 520 : 360, width: opts.ultimate ? 6 : 4, yScale: 0.64, fill: opts.ultimate ? 0.10 : 0.06 });
+    spawnShockwaveRing(x, y, r, fieldColor, { life: opts.ultimate ? 520 : 360, width: opts.ultimate ? 6 : 4, fill: opts.ultimate ? 0.10 : 0.06, rough: opts.ultimate ? 0.080 : 0.060 });
     addShake(opts.ultimate ? 5.4 : 3.6, opts.ultimate ? 170 : 120);
     if ((team || 'hero') === 'hero' && gravityCore) chargeGravityCore(opts.ultimate ? 1.45 : 0.85, x, y);
   }
@@ -7290,8 +7293,8 @@ PUBLIC.start = function (root, api) {
     spawnShockwaveRing(g.x, g.y, g.r + (blackHole ? 108 : 70), g.color, {
       life: blackHole ? 650 : g.ultimate ? 560 : 430,
       width: blackHole ? 8 : g.ultimate ? 6.5 : 5,
-      yScale: blackHole ? 0.92 : 0.62,
       fill: blackHole ? 0.18 : g.ultimate ? 0.14 : 0.09,
+      rough: blackHole ? 0.095 : 0.070,
     });
     addShake(blackHole ? 8.4 : 5.6, blackHole ? 230 : 170);
     if (blackHole) {
@@ -7448,7 +7451,7 @@ PUBLIC.start = function (root, api) {
       if (opts.link) pyroLink(x, y, t.x, t.y - 42, color, 380);
       burst(t.x, t.y - 44, '#ffd45e', 18, 4.8);
       burst(t.x, t.y - 44, color, 24, 5.4);
-      spawnShockwaveRing(t.x, t.y - 42, 64, color, { life: 260, width: 3.2, yScale: 0.58, fill: 0.10 });
+      spawnShockwaveRing(t.x, t.y - 42, 64, color, { life: 260, width: 3.2, fill: 0.10, rough: 0.080 });
       if ((team || 'hero') === 'enemy') hurtEnemyTarget(t, nx, ny - 0.18, force * 0.78 * chainMul, t.x, t.y - 42);
       else hurtFighter(t, nx, ny - 0.18, force * 0.78 * chainMul, t.x, t.y - 42);
       pops++;
@@ -7465,7 +7468,7 @@ PUBLIC.start = function (root, api) {
       if (opts.link) pyroLink(x, y, p.x, p.y, color, 360);
       burst(p.x, p.y, '#ffd45e', 16, 4.6);
       burst(p.x, p.y, color, 22, 5.2);
-      spawnShockwaveRing(p.x, p.y, 58, color, { life: 240, width: 3.0, yScale: 0.58, fill: 0.09 });
+      spawnShockwaveRing(p.x, p.y, 58, color, { life: 240, width: 3.0, fill: 0.09, rough: 0.080 });
       hurtDummy(d, nx, ny - 0.16, force * 0.90 * chainMul, p.x, p.y);
       pops++;
     }
@@ -7483,7 +7486,7 @@ PUBLIC.start = function (root, api) {
     }
     if (pops > 0) {
       addShake(Math.min(7.5, 3.8 + pops * 0.55), 160);
-      spawnShockwaveRing(x, y, radius + 22, color, { life: 320, width: 4.2, yScale: 0.50, fill: 0.08 });
+      spawnShockwaveRing(x, y, radius + 22, color, { life: 320, width: 4.2, fill: 0.08, rough: 0.090 });
     }
     return pops;
   }
@@ -8025,6 +8028,18 @@ PUBLIC.start = function (root, api) {
           tipX - nx * (flameW * 0.36), tipY - ny * (flameW * 0.36));
         ctx.closePath();
         ctx.fill();
+        for (let i = 0; i < 5; i++) {
+          const moteA = now * (0.006 + i * 0.0011) + i * 1.91;
+          const moteD = 8 + i * 2.6 + cast * 5;
+          const mx = tipX + dx * (5 + i * 1.8) + Math.cos(moteA) * moteD;
+          const my = tipY + dy * (5 + i * 1.8) + Math.sin(moteA) * moteD - cast * 4;
+          const moteFade = 0.42 + 0.36 * Math.sin(now * 0.010 + i);
+          ctx.globalAlpha = (0.24 + cast * 0.24) * moteFade;
+          ctx.fillStyle = i % 2 ? '#ffd45e' : '#ff6b32';
+          ctx.beginPath();
+          ctx.arc(mx, my, 1.6 + (i % 3) * 0.45 + cast * 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       } else {
         ctx.strokeStyle = grav ? '#8f7dff' : '#9aa0aa'; ctx.lineWidth = grav ? 2.7 : 2.4;
@@ -8176,7 +8191,7 @@ PUBLIC.start = function (root, api) {
       const a = t + i * Math.PI * 2 / count;
       const pulse = 0.5 + 0.5 * Math.sin(t * 2.1 + i);
       const x = cx + Math.cos(a) * (25 + pulse * 3.5);
-      const y = cy + Math.sin(a) * (10 + pulse * 2.0);
+      const y = cy + Math.sin(a) * (22 + pulse * 3.0);
       const tail = 10 + pulse * 5;
       ctx.globalAlpha = 0.18 + pulse * 0.18;
       ctx.strokeStyle = '#b48cff';
@@ -8207,7 +8222,7 @@ PUBLIC.start = function (root, api) {
       const a = t + i * Math.PI * 2 / Math.max(1, max || count);
       const pulse = 0.5 + 0.5 * Math.sin(t * 2.4 + i * 1.7);
       const orbitX = 30 + pulse * 4 + (active ? 8 : 0);
-      const orbitY = 17 + pulse * 2;
+      const orbitY = 25 + pulse * 3 + (active ? 4 : 0);
       const x = cx + Math.cos(a) * orbitX;
       const y = cy + Math.sin(a) * orbitY - 9;
       ctx.globalAlpha = 0.16 + pulse * 0.12;
@@ -8246,30 +8261,30 @@ PUBLIC.start = function (root, api) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.58;
+    ctx.strokeStyle = '#2a1a11';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(headCX - f * 8, headCY - 8);
+    ctx.quadraticCurveTo(headCX - f * 4, headCY - 13, headCX + f * 5, headCY - 11);
+    ctx.stroke();
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 3; i++) {
-      const off = (i - 1) * 5.2;
-      const sway = Math.sin(now * (0.010 + i * 0.002) + i * 2.1) * (2.2 + heat);
-      const baseX = headCX + off;
+    for (let i = 0; i < 2; i++) {
+      const off = (i - 0.5) * 4.4;
+      const sway = Math.sin(now * (0.011 + i * 0.002) + i * 2.1) * (1.3 + heat * 0.55);
+      const baseX = headCX - f * 2 + off;
       const baseY = headCY - 12;
-      const tipX = baseX + sway + f * heat * 1.5;
-      const tipY = baseY - (9 + i * 2.5 + heat * 5.5);
-      ctx.globalAlpha = 0.42 + heat * 0.18;
-      ctx.strokeStyle = i === 1 ? '#ffd45e' : '#ff6b32';
-      ctx.lineWidth = i === 1 ? 2.0 : 1.5;
+      const tipX = baseX - f * (5.5 + i * 2.0) + sway;
+      const tipY = baseY - (5.5 + i * 1.8 + heat * 2.6);
+      ctx.globalAlpha = 0.22 + heat * 0.16;
+      ctx.strokeStyle = i === 0 ? '#ff6b32' : '#ffd45e';
+      ctx.lineWidth = i === 0 ? 1.45 : 1.15;
       ctx.beginPath();
       ctx.moveTo(baseX, baseY);
-      ctx.quadraticCurveTo((baseX + tipX) * 0.5 - sway * 0.7, (baseY + tipY) * 0.5, tipX, tipY);
+      ctx.quadraticCurveTo((baseX + tipX) * 0.5 - sway * 0.30, (baseY + tipY) * 0.5, tipX, tipY);
       ctx.stroke();
     }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.34 + heat * 0.10;
-    ctx.strokeStyle = '#ff6b32';
-    ctx.lineWidth = 1.7;
-    ctx.beginPath();
-    ctx.moveTo(shX - f * 5, shY + 6);
-    ctx.quadraticCurveTo(shX + f * (7 + heat * 2), shY + 14, shX - f * 2, shY + 25);
-    ctx.stroke();
     ctx.restore();
   }
   function drawSpiritRemnants() {
@@ -9186,6 +9201,26 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function traceWobblyCirclePath(x, y, r, opts) {
+    opts = opts || {};
+    const steps = opts.steps || 72;
+    const phase = opts.phase || 0;
+    const rough = opts.rough == null ? 0.045 : opts.rough;
+    const yScale = opts.yScale == null ? 1 : opts.yScale;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const a = u * Math.PI * 2;
+      const wob = 1
+        + Math.sin(a * 3 + phase) * rough
+        + Math.sin(a * 7 - phase * 0.7) * rough * 0.52;
+      const px = x + Math.cos(a) * r * wob;
+      const py = y + Math.sin(a) * r * yScale * wob;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
   function drawShockwaves() {
     if (!shockwaves || !shockwaves.length) return;
     ctx.save();
@@ -9194,23 +9229,21 @@ PUBLIC.start = function (root, api) {
       const eased = 1 - Math.pow(1 - p, 3);
       const fade = clamp(w.life / (w.max || 1), 0, 1);
       const r = w.r * (0.16 + eased * 0.84);
-      const yScale = w.yScale || 0.55;
+      const yScale = w.yScale == null ? 1 : w.yScale;
+      const phase = (w.phase || 0) + p * 2.2;
       ctx.globalAlpha = fade * (w.fill || 0.08);
       ctx.fillStyle = w.color || '#ff77d2';
-      ctx.beginPath();
-      ctx.ellipse(w.x, w.y, r, r * yScale, 0, 0, Math.PI * 2);
+      traceWobblyCirclePath(w.x, w.y, r, { yScale, phase, rough: w.rough });
       ctx.fill();
       ctx.globalAlpha = fade * 0.76;
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = Math.max(1.2, (w.width || 5) * (1 - p * 0.45));
-      ctx.beginPath();
-      ctx.ellipse(w.x, w.y, r, r * yScale, 0, 0, Math.PI * 2);
+      traceWobblyCirclePath(w.x, w.y, r, { yScale, phase: phase + 0.8, rough: (w.rough || 0.045) * 1.18 });
       ctx.stroke();
       ctx.globalAlpha = fade * 0.58;
       ctx.strokeStyle = w.color || '#ff77d2';
       ctx.lineWidth = Math.max(1, (w.width || 5) * 0.46);
-      ctx.beginPath();
-      ctx.ellipse(w.x, w.y, r * 0.84, r * yScale * 0.84, 0, 0, Math.PI * 2);
+      traceWobblyCirclePath(w.x, w.y, r * 0.84, { yScale, phase: phase - 0.45, rough: (w.rough || 0.045) * 0.82 });
       ctx.stroke();
     }
     ctx.restore();
@@ -9241,7 +9274,7 @@ PUBLIC.start = function (root, api) {
         const a = i / 56 * Math.PI * 2 + t * (0.0014 + ring * 0.00055);
         const wob = Math.sin(a * 3 + t * 0.003 + ring) * 3;
         const x = g.x + Math.cos(a) * (r + wob);
-        const y = g.y + Math.sin(a) * (r * 0.72 + wob * 0.5);
+        const y = g.y + Math.sin(a) * (r + wob);
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       ctx.closePath(); ctx.stroke();
@@ -9251,7 +9284,7 @@ PUBLIC.start = function (root, api) {
       const a = t * (0.003 + i * 0.00038) + i * Math.PI * 2 / Math.max(1, moteCount);
       const orbit = rr * (0.28 + (i % 3) * 0.13);
       const x = g.x + Math.cos(a) * orbit;
-      const y = g.y + Math.sin(a) * orbit * 0.68;
+      const y = g.y + Math.sin(a) * orbit;
       const motePulse = 0.55 + 0.45 * Math.sin(t * 0.013 + i);
       ctx.globalAlpha = 0.44 + chargeFlash * 0.25;
       ctx.fillStyle = i % 2 ? g.color : '#ffffff';
@@ -9350,10 +9383,12 @@ PUBLIC.start = function (root, api) {
         ctx.globalAlpha = 0.82 * fade;
         ctx.strokeStyle = p.color || cls.color;
         ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.72, r, Math.sin(t * 0.002), 0, Math.PI * 2); ctx.stroke();
+        traceWobblyCirclePath(p.x, p.y, r, { phase: t * 0.002 + p.x * 0.03, rough: 0.080, steps: 54 });
+        ctx.stroke();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.4;
-        ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.42, r * 0.58, -Math.sin(t * 0.002), 0, Math.PI * 2); ctx.stroke();
+        traceWobblyCirclePath(p.x, p.y, r * 0.56, { phase: -t * 0.002 + p.y * 0.03, rough: 0.060, steps: 42 });
+        ctx.stroke();
       }
     }
     ctx.restore();
@@ -9607,16 +9642,14 @@ PUBLIC.start = function (root, api) {
         ctx.globalCompositeOperation = 'lighter';
         ctx.fillStyle = grad;
         ctx.globalAlpha = pt.alpha || 0.9;
-        ctx.beginPath();
-        ctx.ellipse(sx, sy, rr * 1.05, rr * 1.55, Math.atan2(pt.vy, pt.vx) + Math.PI / 2, 0, Math.PI * 2);
+        traceWobblyCirclePath(sx, sy, rr * 1.22, { phase: (pt.seed || 0) + age * 4.6, rough: 0.18, steps: 14 });
         ctx.fill();
       } else if (pt.kind === 'smoke') {
         const rr = pt.r * (1 + age * 1.35);
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = (pt.alpha || 0.34) * Math.sin(fade * Math.PI);
         ctx.fillStyle = pt.color || '#46404a';
-        ctx.beginPath();
-        ctx.ellipse(sx, sy, rr * 1.35, rr * 0.82, (pt.seed || 0) + age * 0.7, 0, Math.PI * 2);
+        traceWobblyCirclePath(sx, sy, rr * 1.08, { phase: (pt.seed || 0) + age * 1.9, rough: 0.14, steps: 12 });
         ctx.fill();
       } else if (pt.kind === 'ember') {
         ctx.globalCompositeOperation = 'lighter';
@@ -9766,7 +9799,8 @@ PUBLIC.start = function (root, api) {
           ctx.globalCompositeOperation = 'lighter';
           ctx.globalAlpha = 0.28;
           ctx.fillStyle = b.color || '#9cff5e';
-          ctx.beginPath(); ctx.ellipse(0, 0, 18, 5, 0, 0, Math.PI * 2); ctx.fill();
+          traceWobblyCirclePath(0, 0, 11, { phase: (b.phase || 0) + performance.now() * 0.003, rough: 0.18, steps: 12 });
+          ctx.fill();
           ctx.globalAlpha = 1;
           ctx.globalCompositeOperation = 'source-over';
         }
