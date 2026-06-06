@@ -7,7 +7,7 @@ animations, and more meaningful visual upgrades.
 This doc drafts the major branches for each current class:
 
 - Knight: Guardian, Avenger, Earthbreaker
-- Rogue: Duelist, Saboteur, Acrobat
+- Rogue: Bladeslinger, Acrobat, Nightshade
 - Lancer: Phalanx, Dragoon, Harpooner
 - Mage: Graviturge, Stormcaller, Riftweaver
 - Ranger: Sharpshooter, Trapper, Beastwarden
@@ -84,9 +84,37 @@ The Rogue has three physical knives and a Tempo meter.
 
 Branch hooks:
 
-- Duelist spends Tempo on faster chained stabs, finishers, and marked targets.
-- Saboteur turns knives into traps, ricochets, explosives, and object triggers.
-- Acrobat converts slides, wall kicks, and aerial hits into Tempo.
+- Bladeslinger improves knife throwing as the main ranged archetype. Its later
+  subpaths can become Trickshot, Bladecaller, or Volley.
+- Acrobat converts slides, wall kicks, vaults, and aerial hits into movement
+  offense. It should use body routes, not tiny melee timing checks.
+- Nightshade uses smoke, partial invisibility, poison, and ambush windows. It
+  creates safe openings instead of asking for parries or frame-perfect melee.
+
+Current Rogue redraft:
+
+- The older Duelist/Saboteur framing should be treated as superseded. In this
+  game, melee range is too fast and noisy for a whole branch built around
+  micro-parries, perfect counters, or tiny backstab timing windows.
+- Rogue should be macro-trickery first: knife placement, routes through the
+  arena, stealth windows, traps, and escapes.
+- Bladeslinger is the general throwing branch. Bladecaller is a deeper magical
+  knife-control subpath inside it, not the whole branch.
+- Nightshade should remain readable: the player sees a faint silhouette in
+  smoke/invisibility, while enemies lose target lock unless close or recently
+  hit.
+
+Proposed Rogue branch structure:
+
+```text
+Rogue
+|- Bladeslinger: ranged throwing knives, stuck knives, recovery, burst
+|  |- Trickshot: ricochets, wall pins, terrain-angle shots
+|  |- Bladecaller: recalls, knife anchors, blade lines, zip/reel options
+|  |- Volley: fast throws, fan knives, temporary spectral ammo
+|- Acrobat: slides, vaults, wall kicks, aerial flips, route attacks
+|- Nightshade: smoke, poison, partial invisibility, ambush and escape windows
+```
 
 ### Lancer: Commitment And Brace
 
