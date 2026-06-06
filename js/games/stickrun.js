@@ -2057,6 +2057,7 @@ PUBLIC.start = function (root, api) {
       const r = gravityCore ? src.r + 72 : 142;
       burst(src.x, src.y, '#ffffff', 28, 5.2);
       burst(src.x, src.y, src.color || cls.color, 46, 6.2);
+      spawnShockwaveRing(src.x, src.y, r, src.color || cls.color, { life: gravityCore ? 520 : 390, width: gravityCore ? 7 : 5, yScale: gravityCore ? 0.62 : 0.52, fill: gravityCore ? 0.13 : 0.08 });
       radialActorPulse(src.x, src.y, r, gravityCore ? 32 : 22, player.team, src.color || cls.color);
       pushBoxesRadial(src.x, src.y, gravityCore ? 28 : 19, r, player.team);
       for (let i = 0; i < 16; i++) {
@@ -2342,7 +2343,7 @@ PUBLIC.start = function (root, api) {
   api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, droppedKnives, boxes, dummies, fighters, allies;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, shockwaves, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
   let labMode = false, labBuildId = 'base';
   let cls = CLASSES[0];   // selected class
@@ -2401,6 +2402,7 @@ PUBLIC.start = function (root, api) {
     projectiles = [];
     gravityFields = [];
     fireZones = [];
+    shockwaves = [];
     gravityCore = null;
     anchors = [];
     portals = [];
@@ -2549,6 +2551,21 @@ PUBLIC.start = function (root, api) {
     if (!debug.enabled) return;
     debug.segments.push({ kind, ax, ay, bx, by, r: r || 2, color: color || '#ff405f', life: life || 220, max: life || 220 });
     if (debug.segments.length > 80) debug.segments.shift();
+  }
+  function spawnShockwaveRing(x, y, r, color, opts) {
+    opts = opts || {};
+    if (!shockwaves) shockwaves = [];
+    shockwaves.push({
+      x, y,
+      r: Math.max(24, r || 120),
+      color: color || '#ff77d2',
+      life: opts.life || 420,
+      max: opts.life || 420,
+      width: opts.width || 5,
+      yScale: opts.yScale || 0.55,
+      fill: opts.fill == null ? 0.10 : opts.fill,
+    });
+    if (shockwaves.length > 12) shockwaves.shift();
   }
 
   function syncHudLegacy() {
@@ -6363,6 +6380,97 @@ PUBLIC.start = function (root, api) {
     ctx.fillText(text, view.w / 2, 92);
     ctx.restore();
   }
+  function addGravityTetherTarget(out, g, x, y, kind) {
+    const dx = x - g.x, dy = y - g.y, d = Math.hypot(dx, dy) || 1;
+    if (d > g.r * 1.04) return;
+    out.push({ x, y, kind, d, pull: 1 - Math.min(d, g.r) / g.r });
+  }
+  function gravityCoreTetherTargets(g) {
+    const out = [];
+    for (const b of boxes || []) {
+      if (b.dead) continue;
+      addGravityTetherTarget(out, g, b.x + b.w / 2, b.y + b.h / 2, b.kind || 'box');
+    }
+    const actors = (g.team || 'hero') === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : (fighters || []);
+    for (const act of actors || []) {
+      if (!fieldAffectsActor(g, act)) continue;
+      addGravityTetherTarget(out, g, act.x, act.y - 42, 'actor');
+    }
+    if ((g.team || 'hero') !== 'enemy') for (const d of dummies || []) {
+      const pts = d && d.pts;
+      if (!pts) continue;
+      const p = pts.chest || pts.head || pts.hip || Object.values(pts)[0];
+      if (p) addGravityTetherTarget(out, g, p.x, p.y, 'dummy');
+    }
+    out.sort((a, b) => b.pull - a.pull);
+    return out.slice(0, 7);
+  }
+  function drawGravityCoreTethers(g, t) {
+    const targets = gravityCoreTetherTargets(g);
+    if (!targets.length) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([8, 9]);
+    ctx.lineDashOffset = -t * 0.04;
+    for (const target of targets) {
+      const dx = g.x - target.x, dy = g.y - target.y;
+      const mx = target.x + dx * 0.52 + Math.sin(t * 0.004 + target.x * 0.02) * 9;
+      const my = target.y + dy * 0.52 - 8 + Math.cos(t * 0.003 + target.y * 0.02) * 5;
+      const alpha = 0.16 + target.pull * 0.36 + Math.sin(t * 0.012 + target.d) * 0.035;
+      ctx.globalAlpha = clamp(alpha, 0.12, 0.56);
+      ctx.strokeStyle = g.color || '#ff77d2';
+      ctx.lineWidth = 2.4 + target.pull * 2.6;
+      ctx.beginPath();
+      ctx.moveTo(target.x, target.y);
+      ctx.quadraticCurveTo(mx, my, g.x, g.y);
+      ctx.stroke();
+      ctx.globalAlpha = clamp(alpha * 0.74, 0.08, 0.35);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.1 + target.pull * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(target.x, target.y);
+      ctx.quadraticCurveTo(mx, my, g.x, g.y);
+      ctx.stroke();
+      ctx.globalAlpha = clamp(0.20 + target.pull * 0.32, 0.16, 0.52);
+      ctx.setLineDash([]);
+      ctx.fillStyle = target.kind === 'barrel' ? '#ffd45e' : '#ffffff';
+      ctx.beginPath();
+      ctx.arc(target.x, target.y, 2.8 + target.pull * 3.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.setLineDash([8, 9]);
+    }
+    ctx.restore();
+  }
+  function drawShockwaves() {
+    if (!shockwaves || !shockwaves.length) return;
+    ctx.save();
+    for (const w of shockwaves) {
+      const p = 1 - clamp(w.life / (w.max || 1), 0, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const fade = clamp(w.life / (w.max || 1), 0, 1);
+      const r = w.r * (0.16 + eased * 0.84);
+      const yScale = w.yScale || 0.55;
+      ctx.globalAlpha = fade * (w.fill || 0.08);
+      ctx.fillStyle = w.color || '#ff77d2';
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, r, r * yScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = fade * 0.76;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1.2, (w.width || 5) * (1 - p * 0.45));
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, r, r * yScale, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = fade * 0.58;
+      ctx.strokeStyle = w.color || '#ff77d2';
+      ctx.lineWidth = Math.max(1, (w.width || 5) * 0.46);
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, r * 0.84, r * yScale * 0.84, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function drawGravityCore() {
     const g = gravityCore;
     if (!g) return;
@@ -6392,6 +6500,7 @@ PUBLIC.start = function (root, api) {
       }
       ctx.closePath(); ctx.stroke();
     }
+    drawGravityCoreTethers(g, t);
     ctx.fillStyle = g.color;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.4;
@@ -6516,6 +6625,7 @@ PUBLIC.start = function (root, api) {
     ctx.translate(-cam.x, -cam.y);
     drawRangerTrajectory();
     drawGravityCore();
+    drawShockwaves();
     drawAbilityMarkers();
     drawFireZones();
     for (const g of gravityFields) {
@@ -6646,6 +6756,7 @@ PUBLIC.start = function (root, api) {
         }
         updateDroppedKnives(dt);
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
+        if (shockwaves) for (let i = shockwaves.length - 1; i >= 0; i--) { if ((shockwaves[i].life -= dt) <= 0) shockwaves.splice(i, 1); }
         for (let i = debug.segments.length - 1; i >= 0; i--) { if ((debug.segments[i].life -= dt) <= 0) debug.segments.splice(i, 1); }
         const L = levels[li];
         for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -6818,6 +6929,7 @@ PUBLIC.start = function (root, api) {
           coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
           projectiles: projectiles ? projectiles.length : 0,
           gravityFields: gravityFields ? gravityFields.length : 0,
+          shockwaves: shockwaves ? shockwaves.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
