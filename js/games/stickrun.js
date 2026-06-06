@@ -216,7 +216,7 @@ const ABILITIES = (() => {
   add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast staff-led fire shot. It scorches a small pocket, burns targets, and starts the heat chain.', effect: { kind: 'firebolt', power: 1.18, scorch: 1 }, cd: 240, tags: ['Fire', 'Projectile', 'Burn'] });
   add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Flow', desc: 'Pour fire from the staff so it crawls across nearby ground, crates, and barrels instead of appearing from nowhere.', effect: { kind: 'groundFireFlow', range: 320, life: 1550, lanes: 5 }, cd: 2200, tags: ['Fire', 'Field', 'Barrels'] });
   add('mg_flamebreath', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'secondary', name: 'Flame Breath', desc: 'Channel a physical cone of fire and smoke from the staff, pushing bodies and heating barrels in its path.', effect: { kind: 'flameBreath', range: 286, life: 760, cone: 0.56, force: 15, heat: 20 }, cd: 1750, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
-  add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Snap to nearby burning targets or hot barrels, draw flame lines, then pop them outward.', effect: { kind: 'fireBurst', r: 164, range: 500, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
+  add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, lights the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
   add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Dragon Breath', desc: 'Unleash a huge staff-driven fire torrent. Walls cut it off, objects catch heat, and the floor burns where the flame lands.', effect: { kind: 'dragonBreath', range: 760, life: 1350, cone: 0.42, force: 34, heat: 48 }, cd: 9600, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire zones burn longer, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
   add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Haunting projectile that builds spirit charge on hit or KO.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
@@ -2430,17 +2430,7 @@ PUBLIC.start = function (root, api) {
       return true;
     }
     if (e.kind === 'fireBurst') {
-      const aim = aimedPoint(e.range || 420);
-      const anchor = nearestPyroAnchor(aim.x, aim.y, e.snap || 0, player.team);
-      const p = anchor || aim;
-      const r = e.r || 132, force = e.force || 24;
-      pyroStaffFlare(ang, 1.35);
-      spawnFireZone(p.x, p.y, player.team, { r: r * 0.82, life: 820, ultimate: true, openingFlare: 1 });
-      flareNearbyFireZones(p.x, p.y, r + 90, player.team, '#ff6b32');
-      radialActorPulse(p.x, p.y, r, force, player.team, '#ff6b32');
-      detonateBurningTargets(p.x, p.y, r, force + 12, player.team, '#ff6b32', { link: true, chain: e.chain });
-      pushBoxesRadial(p.x, p.y, force, r, player.team);
-      spawnShockwaveRing(p.x, p.y, r + 18, '#ff6b32', { life: 320, width: 4.8, yScale: 0.48, fill: 0.10 });
+      spawnIgnitionOrb(ang, e);
       return true;
     }
     if (e.kind === 'inferno') {
@@ -4009,7 +3999,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' ? 4.5 : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'firebolt' ? 10 : p.kind === 'spiritBolt' ? 9 : p.r || 8;
+    return p.kind === 'dagger' ? 4.5 : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 14 : p.kind === 'spiritBolt' ? 9 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -5796,6 +5786,67 @@ PUBLIC.start = function (root, api) {
     burst(mx, my, '#ff6b32', 24, 4.8);
     emitFlameJet(mx, my, ang, 18, { spread: 0.26, speed: 7.4, length: 28, life: 360, r: 4.8, color: '#ff6b32' });
     emitSmokePuff(mx - Math.cos(ang) * 6, my - Math.sin(ang) * 4, ang + Math.PI, 5, { speed: 1.2, life: 760, alpha: 0.24 });
+  }
+  function spawnIgnitionOrb(ang, opts) {
+    opts = opts || {};
+    const shX = player.x, shY = player.y - 74;
+    const origin = { x: shX + Math.cos(ang) * 42, y: shY + Math.sin(ang) * 26 };
+    const aim = aimedPoint(opts.range || 520);
+    const anchor = nearestPyroAnchor(aim.x, aim.y, opts.snap || 0, player.team);
+    const target = anchor || aim;
+    const dx = target.x - origin.x, dy = target.y - origin.y;
+    const dist = clamp(Math.hypot(dx, dy) || 1, 90, opts.range || 520);
+    const throwAng = Math.atan2(dy, dx);
+    const spd = 19.6;
+    projectiles.push({
+      kind: 'ignitionOrb',
+      team: player.team,
+      x: origin.x,
+      y: origin.y,
+      vx: Math.cos(throwAng) * spd,
+      vy: Math.sin(throwAng) * spd,
+      life: 980,
+      color: '#ff6b32',
+      r: 14,
+      hit: 0,
+      angle: throwAng,
+      range: dist,
+      traveled: 0,
+      ignition: Object.assign({}, opts),
+    });
+    pyroStaffFlare(throwAng, 1.45);
+    emitFlameJet(origin.x, origin.y, throwAng, 24, { spread: 0.36, speed: 7.4, length: 34, life: 420, r: 5.4, color: '#ff6b32' });
+    emitSmokePuff(origin.x - Math.cos(throwAng) * 6, origin.y + 2, throwAng + Math.PI, 8, { speed: 1.4, life: 860, alpha: 0.28 });
+    addShake(1.8, 85);
+  }
+  function detonateIgnitionOrb(x, y, team, opts) {
+    opts = opts || {};
+    team = team || 'hero';
+    const anchor = nearestPyroAnchor(x, y, opts.snap || 0, team);
+    if (anchor) { x = anchor.x; y = anchor.y; }
+    const r = opts.r || 132, force = opts.force || 24;
+    const groundY = terrainYAt(x);
+    const groundish = Math.abs(groundY - y) < 135;
+    emitFlameJet(x, y, -Math.PI / 2, 34, { spread: 1.25, speed: 5.8, length: 44, life: 520, r: 7.0, color: '#ff6b32' });
+    emitSmokePuff(x, y, -Math.PI / 2, 18, { spread: 1.4, speed: 2.0, life: 1180, alpha: 0.33 });
+    burst(x, y, '#ffd45e', 16, 4.8);
+    burst(x, y, '#ff6b32', 22, 5.4);
+    if (groundish) spawnFireZone(x, groundY - 4, team, {
+      r: r * 0.38,
+      w: r * 1.45,
+      life: 1150,
+      color: '#ff6b32',
+      ground: true,
+      spread: true,
+      quiet: true,
+    });
+    else spawnFireZone(x, y, team, { r: r * 0.42, life: 720, color: '#ff6b32', quiet: true });
+    flareNearbyFireZones(x, y, r + 100, team, '#ff6b32');
+    radialActorPulse(x, y, r, force, team, '#ff6b32');
+    detonateBurningTargets(x, y, r, force + 12, team, '#ff6b32', { link: true, chain: opts.chain });
+    pushBoxesRadial(x, y, force, r, team);
+    spawnShockwaveRing(x, y, r + 18, '#ff6b32', { life: 300, width: 3.4, yScale: 0.46, fill: 0.06 });
+    addShake(4.8, 150);
   }
   function spawnSpiritBolt(ang) {
     const shX = player.x, shY = player.y - 76, spd = 19.5;
@@ -8442,6 +8493,21 @@ PUBLIC.start = function (root, api) {
         ctx.beginPath(); ctx.moveTo(-r - 5, 0); ctx.lineTo(r + 5, 0); ctx.moveTo(0, -r - 5); ctx.lineTo(0, r + 5); ctx.stroke();
         ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
+      } else if (b.kind === 'ignitionOrb') {
+        const r = b.r || 14;
+        const wob = Math.sin(performance.now() * 0.022 + b.x * 0.01) * 2.2;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const grad = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, r * 2.2 + wob);
+        grad.addColorStop(0, 'rgba(255,248,190,0.95)');
+        grad.addColorStop(0.34, 'rgba(255,212,94,0.80)');
+        grad.addColorStop(0.72, 'rgba(255,92,32,0.42)');
+        grad.addColorStop(1, 'rgba(255,92,32,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(b.x, b.y, r * 2.1 + wob, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffd45e'; ctx.lineWidth = 2.1;
+        ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.86 + wob * 0.25, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
       } else {
         const r = b.r || 10;
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx));
@@ -8521,7 +8587,7 @@ PUBLIC.start = function (root, api) {
           const b = projectiles[i];
           const px = b.x, py = b.y;
           b.x += b.vx; b.y += b.vy; b.life -= dt;
-          if (b.kind === 'gravitySeed') b.traveled = (b.traveled || 0) + Math.hypot(b.x - px, b.y - py);
+          if (b.kind === 'gravitySeed' || b.kind === 'ignitionOrb') b.traveled = (b.traveled || 0) + Math.hypot(b.x - px, b.y - py);
           if (b.kind === 'dagger') { b.vy += 0.18; }          // thrown knives arc slightly, without spinning
           else if (b.kind === 'arrow') { b.vy += ARROW_GRAVITY; b.angle = Math.atan2(b.vy, b.vx); }
           else if (b.kind === 'gravitySeed') {
@@ -8529,6 +8595,22 @@ PUBLIC.start = function (root, api) {
             b.vx *= 0.992; b.vy *= 0.992;
             if (Math.random() < 0.85) particles.push({ x: b.x - b.vx * rand(0.1, 0.35) + rand(-2, 2), y: b.y - b.vy * rand(0.1, 0.35) + rand(-2, 2),
               vx: rand(-0.35, 0.35), vy: rand(-0.45, 0.25), life: rand(170, 310), max: 310, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.4) });
+          }
+          else if (b.kind === 'ignitionOrb') {
+            b.angle += 0.11;
+            b.vx *= 0.994; b.vy *= 0.994;
+            flameParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), -b.vx * rand(0.018, 0.040) + rand(-0.45, 0.45), -b.vy * rand(0.004, 0.016) + rand(-1.25, -0.05), {
+              life: rand(190, 430),
+              r: rand(2.6, 7.2),
+              color: Math.random() < 0.50 ? '#ffd45e' : '#ff6b32',
+            });
+            if (Math.random() < 0.58) smokeParticle(b.x - b.vx * rand(0.08, 0.30), b.y - b.vy * rand(0.08, 0.30),
+              -b.vx * 0.014 + rand(-0.20, 0.20), rand(-0.82, -0.03), {
+                life: rand(600, 1050),
+                r: rand(5.2, 12.4),
+                alpha: 0.24,
+              });
+            if (Math.random() < 0.18) emberParticle(b.x, b.y, -b.vx * rand(0.02, 0.05), rand(-1.3, 0.2));
           }
           else if (b.kind === 'bolt' || b.kind === 'firebolt' || b.kind === 'spiritBolt') {
             for (let s = 0; s < (b.sparkle || 1); s++) if (Math.random() < 0.65) {
@@ -8568,8 +8650,11 @@ PUBLIC.start = function (root, api) {
                 crate.vx += b.vx / sp * 1.2;
                 crate.va += (b.vx >= 0 ? 1 : -1) * 0.08;
               } else pushBox(crate, b.vx / sp, b.vy / sp, (b.hit || 12) * 0.75);
+            } else if (b.kind === 'ignitionOrb') {
+              heatBoxFromFire(crate, { x: b.x, y: b.y, color: b.color, ultimate: true }, crate.kind === 'barrel' ? 90 : 46);
+              pushBox(crate, b.vx / sp, b.vy / sp - 0.12, 9);
             } else pushBox(crate, b.vx / sp, b.vy / sp, b.hit);
-            addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'firebolt' ? 2.8 : 1.2, 80);
+            addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' ? 2.8 : 1.2, 80);
           }
           let struckActor = false;
           if ((b.team || 'hero') === 'enemy') {
@@ -8577,7 +8662,7 @@ PUBLIC.start = function (root, api) {
             for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), t);
               if (h) {
-                if (b.kind !== 'gravitySeed') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
+                if (b.kind !== 'gravitySeed' && b.kind !== 'ignitionOrb') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
                 if (b.poison) t.poisoned = Math.max(t.poisoned || 0, 1600);
                 if (b.fire) markBurnActor(t, b.scorch ? 1850 : 1350, b.color);
                 struckActor = true;
@@ -8589,30 +8674,30 @@ PUBLIC.start = function (root, api) {
             if (dummies) for (const d of dummies) {
               const h = projectileHitsDummy(b, px, py, d);
               if (h) {
-                if (b.kind !== 'gravitySeed') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
+                if (b.kind !== 'gravitySeed' && b.kind !== 'ignitionOrb') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
                 if (b.fire) markBurnDummy(d, b.scorch ? 1850 : 1350, b.color);
                 if (b.spirit) grantSpiritCharge(h.p.x, h.p.y, 0.35);
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
             if (!struckActor && fighters) for (const e of fighters.slice()) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), e);
               if (h) {
                 if (b.kind !== 'gravitySeed') {
-                  hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
+                  if (b.kind !== 'ignitionOrb') hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
                   if (b.pin) { e.vx *= 0.25; e.vy *= 0.25; e.brain.stagger = Math.max(e.brain.stagger || 0, 420); }
                   if (b.poison) e.poisoned = Math.max(e.poisoned || 0, 1800);
                   if (b.fire) markBurnActor(e, b.scorch ? 1850 : 1350, b.color);
                   if (b.spirit) grantSpiritCharge(h.x, h.y, 0.5);
                 }
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
           }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
           if (struckActor && b.pierce > 0) { b.pierce--; struckActor = false; }
           const hitPlatform = L.platforms.some(pl => !isOneWay(pl) && projectileHitsBox(b, px, py, pl));
-          const rangedBurst = b.kind === 'gravitySeed' && b.range && b.traveled >= b.range;
+          const rangedBurst = (b.kind === 'gravitySeed' || b.kind === 'ignitionOrb') && b.range && b.traveled >= b.range;
           if ((crate || hitPlatform) && b.bounce > 0 && !struckActor) {
             b.bounce--;
             if (crate) { b.vx *= -0.72; b.vy *= 0.82; }
@@ -8631,6 +8716,9 @@ PUBLIC.start = function (root, api) {
               spawnFireZone(b.x, b.y, b.team, { r: b.scorch ? 102 : 86, life: b.scorch ? 1250 : 900, color: b.color, openingFlare: !!b.scorch });
               radialActorPulse(b.x, b.y, b.scorch ? 112 : 92, b.scorch ? 15 : 12, b.team, b.color);
               detonateBurningTargets(b.x, b.y, b.scorch ? 86 : 64, b.scorch ? 18 : 12, b.team, b.color, { link: false, chain: false });
+            }
+            else if (b.kind === 'ignitionOrb') {
+              detonateIgnitionOrb(b.x, b.y, b.team, b.ignition || {});
             }
             else if (b.kind === 'spiritBolt') {
               burst(b.x, b.y, '#b48cff', 20, 3.8);
