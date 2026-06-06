@@ -6906,6 +6906,7 @@ PUBLIC.start = function (root, api) {
     if (!fireZones || !fireZones.length) return;
     const t = performance.now();
     ctx.save();
+    ctx.lineCap = 'round';
     for (const z of fireZones) {
       const fade = clamp(z.life / z.max, 0, 1);
       const pulse = 1 + Math.sin(t * 0.011 + z.x) * 0.055;
@@ -6929,6 +6930,36 @@ PUBLIC.start = function (root, api) {
         ctx.moveTo(z.x + Math.cos(a) * rr * 0.20, z.y + Math.sin(a) * rr * 0.12);
         ctx.lineTo(z.x + Math.cos(a) * rr * 0.82, z.y + Math.sin(a) * rr * 0.35);
         ctx.stroke();
+      }
+      for (const b of boxes || []) {
+        if (!b || b.dead) continue;
+        const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+        const d = Math.hypot(cx - z.x, cy - z.y) || 1;
+        if (d > z.r * 1.05) continue;
+        const heat = clamp((b.heat || 0) / 100, 0, 1);
+        const link = clamp(1 - d / Math.max(1, z.r), 0, 1);
+        if (heat <= 0.04 && link <= 0.14) continue;
+        const wob = Math.sin(t * 0.006 + cx * 0.02 + cy * 0.01) * 12;
+        const mx = (z.x + cx) * 0.5 + wob;
+        const my = (z.y + cy) * 0.5 - 14 - heat * 12;
+        ctx.setLineDash([6, 8]);
+        ctx.lineDashOffset = -t * 0.036;
+        ctx.globalAlpha = fade * (0.10 + heat * 0.34 + link * 0.16);
+        ctx.strokeStyle = b.kind === 'barrel' && heat > 0.62 ? '#ffd45e' : '#ff6b32';
+        ctx.lineWidth = 1.5 + heat * 2.3 + (b.kind === 'barrel' ? 0.6 : 0);
+        ctx.beginPath();
+        ctx.moveTo(z.x, z.y);
+        ctx.quadraticCurveTo(mx, my, cx, cy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (b.kind === 'barrel' && heat > 0.72) {
+          ctx.globalAlpha = fade * (0.25 + heat * 0.42);
+          ctx.strokeStyle = '#ffd45e';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.max(b.w, b.h) * (0.62 + heat * 0.18), 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
       ctx.globalAlpha = 1;
     }
