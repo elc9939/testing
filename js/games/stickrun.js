@@ -764,6 +764,11 @@ PUBLIC.start = function (root, api) {
     .sr-key,.sr-name,.sr-extra{position:relative;z-index:1;display:block;text-align:center;line-height:1.05}
     .sr-key{font-size:9px;font-weight:900;opacity:.62}.sr-name{max-width:100%;font-size:11px;font-weight:900;white-space:normal}
     .sr-extra{font-style:normal;font-size:9px;opacity:.67;min-height:10px}
+    .sr-passivechip{width:92px;height:56px;border-radius:11px;border:1px solid rgba(255,212,94,.36);
+      background:rgba(12,14,24,.76);color:#f7f0d2;display:flex;flex-direction:column;justify-content:center;gap:1px;
+      padding:4px 6px;box-sizing:border-box;box-shadow:0 5px 18px rgba(0,0,0,.12)}
+    .sr-passivechip span,.sr-passivechip em{font-size:8px;font-weight:900;line-height:1.05;text-transform:uppercase;opacity:.66;font-style:normal}
+    .sr-passivechip b{font-size:10px;line-height:1.08;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .sr-abilitybar .sr-btn:active{background:rgba(255,159,110,.78);color:#111}
     .sr-draft{display:flex;flex-direction:column;gap:9px;width:min(520px,90vw)}
     .sr-pick,.sr-help-row{text-align:left;border:1px solid rgba(255,159,110,.38);border-radius:10px;background:rgba(14,18,32,.78);
@@ -772,6 +777,9 @@ PUBLIC.start = function (root, api) {
     .sr-pick .slot,.sr-help-row .slot{float:right;color:#ffcf8a;font-size:10px;font-weight:900;letter-spacing:.08em}
     .sr-pick b,.sr-help-row b{display:block;margin-bottom:3px}.sr-pick small,.sr-help-row small{display:block;opacity:.72;line-height:1.32}
     .sr-tags{display:block;margin-top:5px;color:#8fe6ff;font-style:normal;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .sr-help-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+    .sr-help-meta span{font-size:10px;font-weight:900;color:#f7f0d2;border:1px solid rgba(255,255,255,.14);
+      border-radius:999px;padding:3px 7px;background:rgba(255,255,255,.06)}
     .sr-help-list{display:flex;flex-direction:column;gap:8px;width:min(560px,90vw);max-height:min(62vh,520px);overflow:auto}
     .sr-help-row.passive{border-color:rgba(255,212,94,.5)}
     .sr-mode-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px}
@@ -803,6 +811,7 @@ PUBLIC.start = function (root, api) {
       .sr-abilitybar{left:auto;right:max(8px,env(safe-area-inset-right));transform:none;max-width:calc(100vw - 112px);
         justify-content:flex-end;flex-wrap:wrap;gap:5px;padding:5px}
       .sr-abilitybar .sr-btn{width:54px;height:48px;border-radius:10px}
+      .sr-passivechip{width:82px;height:48px;border-radius:10px}
       .sr-name{font-size:9px}.sr-key{font-size:8px}.sr-extra{font-size:8px}
       .sr-left{bottom:max(18px,env(safe-area-inset-bottom));opacity:.72}
     }`;
@@ -819,6 +828,10 @@ PUBLIC.start = function (root, api) {
   const btnLeft = mkBtn(padL, '◀'), btnRight = mkBtn(padL, '▶');
   const btnMain = mkBtn(padR, '⚔'), btnAlt = mkBtn(padR, '✦'), btnMove = mkBtn(padR, '↯'), btnJump = mkBtn(padR, '⤒');
   const btnSkillE = mkBtn(padR, 'E'), btnSkillQ = mkBtn(padR, 'Q');
+  const passiveChip = document.createElement('div');
+  passiveChip.className = 'sr-passivechip';
+  passiveChip.innerHTML = '<span>BRANCH</span><b>Base</b><em>no keystone</em>';
+  padR.appendChild(passiveChip);
   const abilityButtons = { attack: btnMain, secondary: btnAlt, shift: btnMove, jump: btnJump, e: btnSkillE, q: btnSkillQ };
   function setupAbilityButton(btn, slot, key) {
     btn.classList.add('sr-ability');
@@ -2857,8 +2870,36 @@ PUBLIC.start = function (root, api) {
     const key = slotKey(slot);
     return { left: cooldownLeft(key), max: abilityCooldown(slot), locked: false };
   }
-  function abilityExtra(slot, spec) {
+  function cooldownRuntimeText(cd) {
+    if (!cd || cd.locked || cd.left <= 80) return '';
+    const secs = cd.left / 1000;
+    return secs >= 10 ? `${Math.ceil(secs)}s` : `${secs.toFixed(1)}s`;
+  }
+  function helpCooldownText(slot, spec) {
+    if (slot === 'passive') return 'Passive';
+    if (slot === 'jump') return cls && cls.id === 'mage' ? 'Tap jump / hold float' : 'Movement';
+    if (!spec) return '';
+    let ms = spec.cd;
+    if (slot === 'attack' && !(spec.type === 'custom' || spec.effect)) {
+      const type = spec.action === 'rogueCombo' ? rogueMainAttackType() : spec.action || cls.main;
+      ms = actionCooldown(type);
+    } else if (slot === 'secondary' && !(spec.type === 'custom' || spec.effect)) {
+      ms = actionCooldown(spec.action || cls.alt);
+    } else if (!ms) {
+      ms = abilityCooldown(slot);
+    }
+    if (!ms || ms < 420) return 'Fast';
+    const secs = ms / 1000;
+    return `${secs >= 10 ? Math.round(secs) : secs.toFixed(1)}s CD`;
+  }
+  function branchShort(spec) {
+    const name = branchName(spec);
+    return name ? name.toLowerCase() : '';
+  }
+  function abilityExtra(slot, spec, cd) {
     if (!player || state !== 'playing') return '';
+    const cdText = cooldownRuntimeText(cd);
+    if (cdText) return cdText;
     if (isQueuedRogueSlot(slot)) return 'queued';
     if (slot === 'attack' && rogueSlideComboReady()) return 'slide sweep';
     if (slot === 'attack' && cls.id === 'rogue') return `${player.rogueBurst || 0}/${ROGUE_BURST_MAX} burst`;
@@ -2866,7 +2907,7 @@ PUBLIC.start = function (root, api) {
     if ((slot === 'secondary' || slot === 'e') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
     if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.spiritCharges || 0}/6 spirit`;
     if (slot === 'passive') return spec ? 'keystone' : '';
-    return '';
+    return branchShort(spec);
   }
   function isQueuedRogueSlot(slot) {
     if (cls.id !== 'rogue' || !player) return false;
@@ -2883,7 +2924,7 @@ PUBLIC.start = function (root, api) {
       const key = btn.querySelector('.sr-key'), nm = btn.querySelector('.sr-name'), ex = btn.querySelector('.sr-extra'), fi = btn.querySelector('.sr-cdfill');
       if (key) key.textContent = SLOT_LABEL[slot];
       if (nm) nm.textContent = name;
-      if (ex) ex.textContent = cd.locked ? 'locked' : abilityExtra(slot, spec);
+      if (ex) ex.textContent = cd.locked ? 'locked' : abilityExtra(slot, spec, cd);
       if (fi) fi.style.transform = `scaleY(${fill})`;
       btn.classList.toggle('ready', !cd.locked && fill <= 0.001);
       btn.classList.toggle('queued', queued);
@@ -2900,14 +2941,20 @@ PUBLIC.start = function (root, api) {
       if (fi) fi.style.transform = 'scaleY(0)';
       jump.style.borderColor = cls && cls.color ? cls.color + '99' : '';
     }
+    if (passiveChip) {
+      const pass = equipped('passive');
+      const branch = runBuild && runBuild.softBranch ? branchInfo(cls.id, runBuild.softBranch) : pass ? branchInfo(pass.cls, pass.branch) : null;
+      const title = branch ? branch.name : cls ? cls.name : 'Base';
+      const detail = pass ? pass.name : 'draft path';
+      passiveChip.innerHTML = `<span>BRANCH</span><b>${html(title)}</b><em>${html(detail)}</em>`;
+      passiveChip.style.borderColor = cls && cls.color ? cls.color + '88' : '';
+    }
   }
   function syncHud() {
     if (player && player.team !== 'hero') return;
     const chip = document.getElementById('sr-classchip');
     if (chip) {
-      const pass = equipped('passive');
-      const branch = runBuild && runBuild.softBranch ? branchInfo(cls.id, runBuild.softBranch) : null;
-      chip.textContent = `${cls.name}${branch ? ' / ' + branch.name : ''}${pass ? ' + ' + pass.name : ''}`;
+      chip.textContent = cls.name;
       chip.style.color = cls.color;
     }
     const modeLabel = document.getElementById('sr-mode-label');
@@ -2956,15 +3003,8 @@ PUBLIC.start = function (root, api) {
     const cool = document.getElementById('sr-cool');
     const coolVal = document.getElementById('sr-cool-val');
     if (cool && coolVal) {
-      const show = !!player && state === 'playing';
-      cool.style.display = show ? 'inline-flex' : 'none';
-      if (show && cls.id === 'rogue') {
-        cool.firstChild.nodeValue = 'BURST ';
-        coolVal.textContent = `${player.rogueBurst || 0}/${ROGUE_BURST_MAX}`;
-      } else if (show) {
-        cool.firstChild.nodeValue = 'SKILL ';
-        coolVal.textContent = `${slotStateText('e')} ${slotStateText('shift')} ${slotStateText('q')}`;
-      }
+      cool.style.display = 'none';
+      coolVal.textContent = '';
     }
     syncAbilityBar();
   }
@@ -2988,10 +3028,14 @@ PUBLIC.start = function (root, api) {
       const spec = equipped(slot), locked = slot !== 'attack' && slot !== 'secondary' && slot !== 'passive' && !slotUnlocked(slot);
       const name = locked ? `Unlocks at wave ${SLOT_UNLOCK_WAVE[slot] || 1}` : spec ? spec.name : 'No keystone yet';
       const desc = locked ? 'Clear more waves to open this slot.' : spec ? spec.desc : 'Draft a keystone between waves to change your rules.';
-      const meta = spec ? `${branchName(spec)}${tagsText(spec) ? ' - ' + tagsText(spec) : ''}` : '';
+      const metaBits = [];
+      if (spec) metaBits.push(branchName(spec));
+      if (!locked) metaBits.push(helpCooldownText(slot, spec));
+      if (spec && tagsText(spec)) metaBits.push(tagsText(spec));
+      const meta = metaBits.filter(Boolean).map(bit => `<span>${html(bit)}</span>`).join('');
       return `<div class="sr-help-row${slot === 'passive' ? ' passive' : ''}">
         <span class="slot">${SLOT_LABEL[slot]} · ${SLOT_KEY[slot]}</span>
-        <b>${html(name)}</b><small>${html(desc)}</small>${meta ? `<em class="sr-tags">${html(meta)}</em>` : ''}
+        <b>${html(name)}</b><small>${html(desc)}</small>${meta ? `<em class="sr-help-meta">${meta}</em>` : ''}
       </div>`;
     }).join('');
     const branch = runBuild && runBuild.softBranch ? branchInfo(cls.id, runBuild.softBranch) : null;
