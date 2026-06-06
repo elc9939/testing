@@ -415,6 +415,36 @@ const ABILITIES = (() => {
 
   return A;
 })();
+const PLAYTEST_BRANCH_PATCHES = {
+  rg_tempo: { branch: 'bladeslinger', name: 'Knife Tempo', desc: 'Class mechanic: clean throws, recalls, and pickups build Tempo for faster knife volleys.', tags: ['Projectile', 'Burst'] },
+  rg_crosscut: { branch: 'acrobat', name: 'Cross-Step Cut', desc: 'A quick crossing slash used after slides, jumps, or vaults to keep movement offense flowing.', tags: ['Movement', 'Burst', 'Crates'] },
+  rg_dueliststep: { branch: 'nightshade', name: 'Shadow Step', desc: 'A tiny evasive step that preserves smoke/invisibility windows without forcing close parry timing.', tags: ['Movement', 'Stealth'] },
+  rg_parryflick: { branch: 'bladeslinger', name: 'Knife Ward', desc: 'Fan your knives outward to deflect nearby projectiles and set up a safer throwing lane.', tags: ['Projectile', 'Control'] },
+  rg_perfectrhythm: { branch: 'acrobat', name: 'Flow Rhythm', desc: 'Keystone: alternating slide, jump, and knife hits lowers Shift/E recovery and keeps Flow longer.', tags: ['Movement', 'Burst'] },
+  rg_redline: { branch: 'acrobat', name: 'Redline Acrobat', desc: 'Advanced variation: full Flow opens a risky burst window after slides, vaults, and aerial attacks.', tags: ['Movement', 'Burst'] },
+  rg_redentry: { branch: 'acrobat', name: 'Redline Entry', desc: 'Entering full Flow primes the first movement attack to slow enemy recovery.', tags: ['Movement', 'Burst'] },
+  rg_heartbeat: { branch: 'acrobat', name: 'Heartbeat Stabs', desc: 'Three extremely quick alternating stabs after a movement entry, then forced recovery.', tags: ['Movement', 'Burst'] },
+  rg_slipcounter: { branch: 'acrobat', name: 'Slip Cut', desc: 'Slip through danger and cut once during the movement without relying on parry timing.', tags: ['Movement', 'Control'] },
+  rg_finishingbeat: { branch: 'acrobat', name: 'Finishing Beat', desc: 'Keystone: the final Redline hit executes weak enemies or launches heavier ones.', tags: ['Movement', 'Ledges'] },
+  rg_trickknives: { branch: 'bladeslinger', name: 'Trick Knives', desc: 'Class mechanic: thrown knives stick briefly and become recall, trap, or pickup anchors.', tags: ['Projectile', 'Traps'] },
+  rg_trapcut: { branch: 'bladeslinger', name: 'Anchor Cut', desc: 'Slash toward a stuck knife to prime it as a route trap and keep the ranged knife loop alive.', tags: ['Projectile', 'Traps', 'Weapon'] },
+  rg_wirevault: { branch: 'acrobat', name: 'Wire Vault', desc: 'Vault over a stuck knife or crate, recovering ammo while crossing clutter.', tags: ['Movement', 'Crates', 'Projectile'] },
+  rg_barrelneedle: { branch: 'bladeslinger', name: 'Barrel Needle', desc: 'Throw a low-damage knife that arms barrels and cracked crates for chain reactions.', tags: ['Barrels', 'Projectile'] },
+  rg_ghost: { branch: 'nightshade', name: 'Ghost Knives', desc: 'Advanced variation: knife recovery leaves temporary ghost knives and smoke-trap echoes.', tags: ['Stealth', 'Traps'] },
+  rg_ghostpickup: { branch: 'nightshade', name: 'Ghost Pickup', desc: 'Picking up a thrown knife leaves a short-lived ghost knife at the pickup spot.', tags: ['Stealth', 'Traps'] },
+  rg_phantomwire: { branch: 'nightshade', name: 'Phantom Wire', desc: 'Connect real and ghost knives into a temporary tripwire network inside smoke routes.', tags: ['Stealth', 'Traps', 'Walls'] },
+  rg_vanishslide: { branch: 'nightshade', name: 'Vanish Slide', desc: 'Slide through a ghost knife to detonate smoke and refund movement recovery.', tags: ['Movement', 'Stealth', 'Traps'] },
+  rg_murderboard: { branch: 'nightshade', name: 'Murder Board', desc: 'Keystone: real and ghost knives form a visible network that marks the first target hit from stealth.', tags: ['Stealth', 'Traps', 'Mark'] },
+};
+for (const [id, patch] of Object.entries(PLAYTEST_BRANCH_PATCHES)) {
+  if (ABILITIES[id]) Object.assign(ABILITIES[id], patch);
+}
+for (const spec of Object.values(ABILITIES)) {
+  if (spec.cls === 'mage' && (spec.branch === 'stormcaller' || spec.branch === 'riftweaver')) {
+    spec.draft = false;
+    spec.deferred = true;
+  }
+}
 const CLASS_LOADOUT = {
   knight: { attack: 'kn_slash', secondary: 'kn_guard', shift: 'kn_step', e: 'kn_bash', q: 'kn_rally', passive: null },
   rogue: { attack: 'rg_dual', secondary: 'rg_throw', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
