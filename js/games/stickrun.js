@@ -89,7 +89,7 @@ const CLASSES = [
 // ---------- loadouts, ability descriptions, and first-pass class trees ----------
 const LOADOUT_SLOTS = ['attack', 'secondary', 'shift', 'e', 'q'];
 const HELP_SLOTS = ['attack', 'secondary', 'shift', 'e', 'q', 'passive'];
-const SLOT_LABEL = { attack: 'ATK', secondary: 'ALT', shift: 'SHIFT', e: 'E', q: 'Q', passive: 'KEY' };
+const SLOT_LABEL = { attack: 'ATK', secondary: 'ALT', shift: 'SHIFT', jump: 'JUMP', e: 'E', q: 'Q', passive: 'KEY' };
 const SLOT_KEY = { attack: 'Click / J', secondary: 'Right / L', shift: 'Shift', e: 'E', q: 'Q', passive: 'Passive' };
 const CLASS_TREES = {
   knight: {
@@ -771,7 +771,7 @@ PUBLIC.start = function (root, api) {
     .sr-labpanel button{cursor:pointer}.sr-labpanel button:hover{border-color:#8fe6ff;background:rgba(143,230,255,.16)}
     .sr-labpanel option{background:#101525;color:#eaf2ff}
     .sr-labnote{font-size:11px;line-height:1.28;color:#d9e4f5;opacity:.82;margin:5px 0 8px}
-    .sr-labtests{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:0 0 8px}
+    .sr-labtests{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:0 0 8px}
     .sr-labslot{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 3px}
     .sr-labslot span{font-size:10px;font-weight:950;color:#8fe6ff}.sr-labslot small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;opacity:.78}
     .sr-labtools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -2653,13 +2653,39 @@ PUBLIC.start = function (root, api) {
   }
   function labSlotButton(slot) {
     const spec = equipped(slot);
-    const name = spec ? spec.name : actionName(cls[slot] || slot);
+    const name = slot === 'jump' ? (cls.id === 'rogue' ? 'Air Flip' : 'Jump') : spec ? spec.name : actionName(cls[slot] || slot);
     return `<button class="sr-labslot" data-lab-slot="${slot}" title="${html(name)}">
       <span>${SLOT_LABEL[slot]}</span><small>${compactAbilityName(name)}</small>
     </button>`;
   }
+  function testLabJump() {
+    if (!labMode || state !== 'playing' || !player) return false;
+    refillLabResources();
+    jumpBuf = 0;
+    input.jumpHeld = false;
+    input.jumpHold = 0;
+    player.grounded = false;
+    player.coyote = 0;
+    player.jumpCut = false;
+    player.y -= cls.id === 'rogue' ? 14 : 4;
+    if (cls.id === 'rogue') {
+      player.rogueAirJump = true;
+      player.vy = JUMP * 0.78;
+      player.vx += player.facing * 1.9;
+      player.flip = { active: true, t: 0, dur: 560, dir: player.facing };
+      player.anim.squash = -0.36;
+      burst(player.x - player.facing * 8, player.y - 30, cls.color, 16, 3.1);
+    } else {
+      player.vy = JUMP;
+      player.anim.squash = -0.5;
+      burst(player.x, player.y - 12, cls.color, 8, 2.4);
+    }
+    syncHud();
+    return true;
+  }
   function testLabSlot(slot) {
     if (!labMode || state !== 'playing' || !player) return false;
+    if (slot === 'jump') return testLabJump();
     refillLabResources();
     const wasPointerActive = pointer.active;
     pointer.active = false;
@@ -2681,7 +2707,7 @@ PUBLIC.start = function (root, api) {
     const preset = currentLabPreset();
     const classOpts = CLASSES.map(c => `<option value="${c.id}"${c.id === cls.id ? ' selected' : ''}>${html(c.name)}</option>`).join('');
     const buildOpts = builds.map(b => `<option value="${b.id}"${b.id === labBuildId ? ' selected' : ''}>${html(b.name)}</option>`).join('');
-    const testButtons = ['attack', 'secondary', 'shift', 'e', 'q'].map(labSlotButton).join('');
+    const testButtons = ['attack', 'secondary', 'shift', 'jump', 'e', 'q'].map(labSlotButton).join('');
     labPanel.innerHTML = `<b>Ability Lab</b>
       <div class="sr-labrow">
         <select data-lab-select="class" aria-label="Class">${classOpts}</select>
