@@ -6025,6 +6025,9 @@ PUBLIC.start = function (root, api) {
   function drawSpiritRemnants() {
     if (!spiritRemnants || !spiritRemnants.length) return;
     const now = performance.now();
+    const bindTarget = player && player.team === 'hero' && cls && cls.id === 'mage' && mageSpiritLoadoutActive() ? nearestSpiritRemnant(260) : null;
+    const mageX = player ? player.x - cam.x : 0;
+    const mageY = player ? player.y - cam.y - 58 : 0;
     ctx.save();
     ctx.lineCap = 'round';
     for (const r of spiritRemnants) {
@@ -6033,6 +6036,33 @@ PUBLIC.start = function (root, api) {
       const x = r.x - cam.x;
       const y = r.y - cam.y + Math.sin(now * 0.003 + r.y * 0.02) * 3;
       const gy = (r.groundY || r.y + 42) - cam.y;
+      if (r === bindTarget) {
+        const midX = (mageX + x) * 0.5 + Math.sin(now * 0.005 + r.x) * 10;
+        const midY = (mageY + y) * 0.5 - 18 + Math.cos(now * 0.004 + r.y) * 5;
+        ctx.setLineDash([6, 9]);
+        ctx.lineDashOffset = -now * 0.04;
+        ctx.globalAlpha = 0.16 + pulse * 0.18;
+        ctx.strokeStyle = r.color || '#b48cff';
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.moveTo(mageX, mageY);
+        ctx.quadraticCurveTo(midX, midY, x, y);
+        ctx.stroke();
+        ctx.globalAlpha = 0.22 + pulse * 0.28;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(mageX, mageY);
+        ctx.quadraticCurveTo(midX, midY, x, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.30 + pulse * 0.34;
+        ctx.strokeStyle = r.color || '#b48cff';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(x, y, 30 + pulse * 8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.globalAlpha = 0.18 * fade;
       ctx.strokeStyle = r.color || '#b48cff';
       ctx.lineWidth = 3.2;
