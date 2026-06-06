@@ -662,6 +662,9 @@ const LEVELS = [
   }),
 ];
 const ARENA_LEVEL = lvl({
+  id: 'training',
+  name: 'Training Yard',
+  theme: { id: 'training', solid: '#cbc7b8', top: '#151515', oneWay: '#8f897b' },
   spawn: { x: 190, y: G },
   platforms: [
     { x: 0, y: G + 70, w: 2600, h: 110 },
@@ -708,6 +711,99 @@ const ARENA_LEVEL = lvl({
     { x: 2140, y: G - 18, min: 2010, max: 2390 },
   ],
 });
+const FOREST_ARENA_LEVEL = lvl({
+  id: 'forest',
+  name: 'Canopy Ruins',
+  theme: { id: 'forest', solid: '#4f6b3f', top: '#24351f', oneWay: '#6a4a25' },
+  spawn: { x: 210, y: G + 34 },
+  platforms: [
+    { x: 0, y: G + 34, w: 390, h: 150 },
+    { x: 390, y: G + 6, w: 300, h: 178 },
+    { x: 690, y: G - 42, w: 280, h: 226 },
+    { x: 970, y: G + 18, w: 255, h: 166 },
+    { x: 1225, y: G - 88, w: 330, h: 272 },
+    { x: 1555, y: G - 24, w: 285, h: 208 },
+    { x: 1840, y: G + 26, w: 330, h: 158 },
+    { x: 2170, y: G - 38, w: 430, h: 222 },
+    { x: 590, y: G - 190, w: 42, h: 148 },
+    { x: 1460, y: G - 248, w: 44, h: 160 },
+    { x: 2052, y: G - 202, w: 42, h: 164 },
+    { x: 480, y: G - 142, w: 255, h: 12, oneWay: true },
+    { x: 790, y: G - 216, w: 220, h: 12, oneWay: true },
+    { x: 1110, y: G - 184, w: 250, h: 12, oneWay: true },
+    { x: 1390, y: G - 300, w: 260, h: 12, oneWay: true },
+    { x: 1720, y: G - 154, w: 235, h: 12, oneWay: true },
+    { x: 2010, y: G - 250, w: 260, h: 12, oneWay: true },
+    { x: 0, y: G - 180, w: 42, h: 364 },
+    { x: 2558, y: G - 180, w: 42, h: 364 },
+  ],
+  coins: [],
+  boxes: [
+    { x: 332, y: G - 20, w: 62, h: 54, m: 2.1 },
+    { x: 715, y: G - 96, w: 34, h: 34, m: 1.2, kind: 'barrel' },
+    { x: 1012, y: G - 36, w: 72, h: 56, m: 2.8 },
+    { x: 1300, y: G - 150, w: 86, h: 62, m: 3.1 },
+    { x: 1605, y: G - 64, w: 58, h: 18, m: 2.0, kind: 'spring' },
+    { x: 1895, y: G - 8, w: 34, h: 34, m: 1.2, kind: 'barrel' },
+    { x: 2220, y: G - 104, w: 82, h: 66, m: 3.0 },
+  ],
+  dummies: [],
+  enemySpawns: [
+    { x: 575, y: G - 142, min: 485, max: 725 },
+    { x: 825, y: G - 42, min: 700, max: 940 },
+    { x: 1180, y: G - 184, min: 1115, max: 1345 },
+    { x: 1375, y: G - 88, min: 1235, max: 1545 },
+    { x: 1510, y: G - 300, min: 1405, max: 1645 },
+    { x: 1845, y: G - 154, min: 1725, max: 1950 },
+    { x: 2110, y: G - 250, min: 2015, max: 2270 },
+    { x: 2305, y: G - 38, min: 2180, max: 2520 },
+  ],
+});
+const SPACE_ARENA_LEVEL = lvl({
+  id: 'space',
+  name: 'Orbital Wreck',
+  theme: { id: 'space', solid: '#3f4d72', top: '#d7f6ff', oneWay: '#78d8ff' },
+  spawn: { x: 190, y: G + 46 },
+  platforms: [
+    { x: 0, y: G + 92, w: 2600, h: 92 },
+    { x: 0, y: G + 46, w: 330, h: 138 },
+    { x: 425, y: G - 6, w: 330, h: 190 },
+    { x: 835, y: G + 36, w: 255, h: 148 },
+    { x: 1110, y: G - 104, w: 320, h: 288 },
+    { x: 1510, y: G - 28, w: 260, h: 212 },
+    { x: 1840, y: G - 150, w: 330, h: 334 },
+    { x: 2260, y: G - 42, w: 340, h: 226 },
+    { x: 620, y: G - 176, w: 210, h: 12, oneWay: true },
+    { x: 920, y: G - 246, w: 220, h: 12, oneWay: true },
+    { x: 1280, y: G - 210, w: 250, h: 12, oneWay: true },
+    { x: 1620, y: G - 292, w: 260, h: 12, oneWay: true },
+    { x: 1990, y: G - 252, w: 250, h: 12, oneWay: true },
+    { x: 0, y: G - 188, w: 42, h: 372 },
+    { x: 2558, y: G - 188, w: 42, h: 372 },
+  ],
+  coins: [],
+  boxes: [
+    { x: 455, y: G - 70, w: 70, h: 56, m: 2.6 },
+    { x: 700, y: G - 40, w: 34, h: 34, m: 1.2, kind: 'barrel' },
+    { x: 1010, y: G + 2, w: 62, h: 34, m: 1.8 },
+    { x: 1190, y: G - 164, w: 84, h: 62, m: 3.2 },
+    { x: 1460, y: G - 122, w: 66, h: 18, m: 2.0, kind: 'spring' },
+    { x: 1905, y: G - 184, w: 34, h: 34, m: 1.2, kind: 'barrel' },
+    { x: 2350, y: G - 102, w: 82, h: 60, m: 3.0 },
+  ],
+  dummies: [],
+  enemySpawns: [
+    { x: 650, y: G - 176, min: 620, max: 830 },
+    { x: 910, y: G + 36, min: 840, max: 1080 },
+    { x: 1100, y: G - 246, min: 925, max: 1140 },
+    { x: 1310, y: G - 104, min: 1120, max: 1430 },
+    { x: 1710, y: G - 292, min: 1625, max: 1880 },
+    { x: 1985, y: G - 150, min: 1850, max: 2170 },
+    { x: 2125, y: G - 252, min: 1995, max: 2240 },
+    { x: 2390, y: G - 42, min: 2270, max: 2570 },
+  ],
+});
+const ARENA_LEVELS = [ARENA_LEVEL, FOREST_ARENA_LEVEL, SPACE_ARENA_LEVEL];
 
 PUBLIC.start = function (root, api) {
   const view = api.makeCanvas(root);
@@ -716,7 +812,31 @@ PUBLIC.start = function (root, api) {
   const lerp = (a, b, t) => a + (b - a) * t;
   const query = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const arenaMode = !query.has('classic');
-  const levels = arenaMode ? [ARENA_LEVEL] : LEVELS;
+  let selectedArenaMap = chooseArenaMap();
+  const levels = arenaMode ? [selectedArenaMap] : LEVELS;
+  function arenaMapById(id) {
+    return ARENA_LEVELS.find(m => m.id === id) || null;
+  }
+  function chooseArenaMap() {
+    if (query.has('lab') || query.has('stickLab') || query.has('labClass')) return ARENA_LEVEL;
+    const requested = (query.get('map') || query.get('arenaMap') || '').toLowerCase();
+    const fromQuery = arenaMapById(requested);
+    if (fromQuery) return fromQuery;
+    try {
+      const saved = arenaMapById((localStorage.getItem('stickArenaMap') || '').toLowerCase());
+      if (saved) return saved;
+    } catch (e) {}
+    return ARENA_LEVEL;
+  }
+  function setArenaMap(id, persist) {
+    const map = arenaMapById(id) || ARENA_LEVEL;
+    selectedArenaMap = map;
+    if (arenaMode) levels[0] = map;
+    if (persist !== false) {
+      try { localStorage.setItem('stickArenaMap', map.id); } catch (e) {}
+    }
+    return map;
+  }
   // spring-damper smoothing for secondary motion (lag + overshoot = "life").
   // o[key] is the value, o[key+'V'] its velocity. k=stiffness, d=damping
   // (underdamped d < 2*sqrt(k) overshoots). dt in seconds.
@@ -843,6 +963,10 @@ PUBLIC.start = function (root, api) {
     .sr-help-row.passive{border-color:rgba(255,212,94,.5)}
     .sr-mode-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px}
     .sr-lab-open{border:1px solid rgba(143,230,255,.45);background:rgba(143,230,255,.12);color:#dff8ff}
+    .sr-map-grid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:2px 0 6px}
+    .sr-map{cursor:pointer;min-width:106px;border:1px solid rgba(255,255,255,.18);border-radius:999px;
+      background:rgba(10,13,26,.58);color:#eaf2ff;padding:7px 10px;font-weight:900}
+    .sr-map.active{border-color:#ff9f6e;background:rgba(255,159,110,.18);box-shadow:0 0 18px rgba(255,159,110,.16)}
     .sr-lab-grid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:680px;margin-top:2px}
     .sr-lab-class{cursor:pointer;border:1px solid var(--cc);border-radius:8px;background:rgba(9,12,23,.78);color:#eaf2ff;
       padding:8px 10px;font-weight:900;min-width:94px}
@@ -910,7 +1034,7 @@ PUBLIC.start = function (root, api) {
   padL.style.display = padR.style.display = 'none';
 
   // ---------- input ----------
-  const input = { left: false, right: false, down: false, jumpHeld: false, jumpHold: 0 };
+  const input = { left: false, right: false, down: false, dropThrough: false, jumpHeld: false, jumpHold: 0 };
   const pointer = { x: 0, y: 0, active: false };   // cursor, sets the attack direction
   let jumpBuf = 0;
   const press = (held) => {
@@ -3345,9 +3469,9 @@ PUBLIC.start = function (root, api) {
     const k = e.key.toLowerCase();
     if (k === 'f2' || k === ';') { debug.enabled = !debug.enabled; exposeDebugApi(); e.preventDefault(); return; }
     if (k === 'h' || k === '?' || k === '/') { if (state === 'help') closeHelp(); else openHelp(); e.preventDefault(); return; }
-    if (k === 'arrowleft' || k === 'a') input.left = true;
-    else if (k === 'arrowright' || k === 'd') input.right = true;
-    else if (k === 'arrowdown' || k === 's') input.down = true;
+    if (k === 'arrowleft' || k === 'a') { input.left = true; e.preventDefault(); }
+    else if (k === 'arrowright' || k === 'd') { input.right = true; e.preventDefault(); }
+    else if (k === 'arrowdown' || k === 's') { input.down = true; if (!e.repeat) input.dropThrough = true; e.preventDefault(); }
     else if (k === 'arrowup' || k === 'w' || k === ' ') { if (!e.repeat) press(true); e.preventDefault(); }
     else if (k === 'j') { if (!e.repeat) mainAttack(); }
     else if (k === 'l') { if (!e.repeat) altAttack(); }
@@ -3355,22 +3479,53 @@ PUBLIC.start = function (root, api) {
     else if (k === 'shift') { if (!e.repeat) triggerSlotAbility('shift'); }
     else if (k === 'e') { if (!e.repeat) triggerSlotAbility('e'); }
     else if (k === 'q') { if (!e.repeat) triggerSlotAbility('q'); }
-    if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
+    if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'a', 'd', 'w', 's', ' '].includes(k)) e.preventDefault();
   });
   api.on(window, 'keyup', e => {
     const k = e.key.toLowerCase();
-    if (k === 'arrowleft' || k === 'a') input.left = false;
-    else if (k === 'arrowright' || k === 'd') input.right = false;
-    else if (k === 'arrowdown' || k === 's') input.down = false;
-    else if (k === 'arrowup' || k === 'w' || k === ' ') press(false);
+    if (k === 'arrowleft' || k === 'a') { input.left = false; e.preventDefault(); }
+    else if (k === 'arrowright' || k === 'd') { input.right = false; e.preventDefault(); }
+    else if (k === 'arrowdown' || k === 's') { input.down = false; input.dropThrough = false; e.preventDefault(); }
+    else if (k === 'arrowup' || k === 'w' || k === ' ') { press(false); e.preventDefault(); }
     else if (k === 'j') releaseMainAttack();
     else if (k === 'l') releaseAltAttack();
   });
+  function clearMovementInput() {
+    input.left = false;
+    input.right = false;
+    input.down = false;
+    input.dropThrough = false;
+    input.jumpHeld = false;
+    input.jumpHold = 0;
+    jumpBuf = 0;
+    releaseMainAttack();
+    releaseAltAttack();
+  }
+  api.on(window, 'blur', clearMovementInput);
+  api.on(document, 'visibilitychange', () => { if (document.hidden) clearMovementInput(); });
   function hold(btn, set) {
-    const on = e => { e.preventDefault(); set(true); };
-    const off = e => { e.preventDefault(); set(false); };
-    api.on(btn, 'pointerdown', on); api.on(btn, 'pointerup', off);
-    api.on(btn, 'pointerleave', off); api.on(btn, 'pointercancel', off);
+    let pointerId = null;
+    const on = e => {
+      e.preventDefault();
+      pointerId = e.pointerId;
+      if (btn.setPointerCapture) {
+        try { btn.setPointerCapture(pointerId); } catch (err) {}
+      }
+      set(true);
+    };
+    const off = e => {
+      e.preventDefault();
+      if (pointerId != null && e.pointerId != null && e.pointerId !== pointerId) return;
+      if (btn.releasePointerCapture && pointerId != null) {
+        try { btn.releasePointerCapture(pointerId); } catch (err) {}
+      }
+      pointerId = null;
+      set(false);
+    };
+    api.on(btn, 'pointerdown', on);
+    api.on(btn, 'pointerup', off);
+    api.on(btn, 'pointercancel', off);
+    api.on(btn, 'lostpointercapture', off);
   }
   hold(btnLeft, v => input.left = v);
   hold(btnRight, v => input.right = v);
@@ -3404,6 +3559,7 @@ PUBLIC.start = function (root, api) {
       x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1,
       team: 'hero', intent: input, cls: null,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0,
+      onOneWay: false, groundedPlatform: null, dropThrough: 0,
       knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, arrowAmmo: RANGER_MAX_ARROWS, arrowRegen: 0,
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null, queuedFlash: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
@@ -4278,6 +4434,7 @@ PUBLIC.start = function (root, api) {
   function startLab(clsId, buildId) {
     labMode = true;
     labCollapsed = false;
+    setArenaMap('training', false);
     if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
     labBuildId = buildId || 'base';
     applyLabBuild(labBuildId);
@@ -4303,10 +4460,12 @@ PUBLIC.start = function (root, api) {
         <b style="color:${c.color}">${c.name}</b>
         <small>${c.blurb}</small>
       </button>`).join('');
+    const mapCards = arenaMode ? ARENA_LEVELS.map(m => `<button class="sr-map${selectedArenaMap.id === m.id ? ' active' : ''}" data-map="${m.id}">${html(m.name || m.id)}</button>`).join('') : '';
     const labCards = CLASSES.map(c => `<button class="sr-lab-class" data-lab-cls="${c.id}" style="--cc:${c.color}">${html(c.name)} Lab</button>`).join('');
     ov.innerHTML = `<div class="sr-kicker">Wave Fighter</div>
       <h2 class="sr-title">Stick Arena</h2>
       <p class="msg sr-menu-copy">Choose a fighter and control the arena with movement, timing, and class resources.</p>
+      ${mapCards ? `<div class="sr-map-grid">${mapCards}</div>` : ''}
       <div class="sr-classes">${cards}</div>
       <div class="sr-mode-actions"><button class="btn alt sr-lab-open" data-lab-cls="${cls.id}">OPEN ABILITY LAB</button></div>
       <div class="sr-lab-grid">${labCards}</div>`;
@@ -4372,6 +4531,8 @@ PUBLIC.start = function (root, api) {
     if (act === 'resume') { closeHelp(); return; }
     const labCard = e.target.closest && e.target.closest('[data-lab-cls]');
     if (labCard) { startLab(labCard.dataset.labCls); return; }
+    const mapCard = e.target.closest && e.target.closest('[data-map]');
+    if (mapCard) { setArenaMap(mapCard.dataset.map); showMenu(); return; }
     const card = e.target.closest && e.target.closest('[data-cls]');
     if (card) { play(card.dataset.cls); return; }
     const pick = e.target.closest && e.target.closest('[data-pick]');
@@ -4539,9 +4700,27 @@ PUBLIC.start = function (root, api) {
   }
   function hit(b, p) { return b.x < p.x + p.w && b.x + b.w > p.x && b.y < p.y + p.h && b.y + b.h > p.y; }
   function isOneWay(p) { return !!(p && p.oneWay); }
+  function actorSkipsOneWay(act) {
+    const it = act && act.intent || {};
+    return !!(act && (act.dropThrough > 0 || it.dropThrough || act === hero && it.down));
+  }
+  function updateDropThrough(act, dtStep) {
+    if (!act) return;
+    act.dropThrough = Math.max(0, (act.dropThrough || 0) - (dtStep || STEP));
+    const it = act.intent || {};
+    if (!(act.grounded && act.onOneWay && (it.dropThrough || act === hero && it.down))) return;
+    act.dropThrough = 230;
+    act.grounded = false;
+    act.onOneWay = false;
+    act.groundedPlatform = null;
+    act.coyote = 0;
+    act.y += 7;
+    act.vy = Math.max(act.vy, 2.2);
+    it.dropThrough = false;
+  }
   function canActorLandOnOneWay(act, p, prevFeetY) {
     const b = actorBox(act);
-    return isOneWay(p) && act.vy >= 0 && prevFeetY <= p.y + 6 &&
+    return isOneWay(p) && !actorSkipsOneWay(act) && act.vy >= 0 && prevFeetY <= p.y + 6 &&
       b.x + b.w > p.x + 4 && b.x < p.x + p.w - 4 && act.y >= p.y - 1 && act.y <= p.y + p.h + 18;
   }
   function canBoxLandOnOneWay(b, p, prevBottom) {
@@ -5151,7 +5330,7 @@ PUBLIC.start = function (root, api) {
     const cdef = CLASSES.find(c => c.id === clsId) || CLASSES[0];
     const e = makePlayer({ x, y });
     e.cls = cdef; e.team = opts.team || 'enemy';
-    e.intent = { left: false, right: false, down: false, jumpHeld: false, jumpHold: 0, jump: false };
+    e.intent = { left: false, right: false, down: false, dropThrough: false, jumpHeld: false, jumpHold: 0, jump: false };
     e.facing = opts.facing || (Math.random() < 0.5 ? -1 : 1);
     e.flash = 0; e.dead = false; e._moveAmt = 0;
     e.maxHp = opts.hp || enemyDefaultHp(clsId); e.hp = e.maxHp;
@@ -5277,7 +5456,8 @@ PUBLIC.start = function (root, api) {
       const chaseUp = n.dy < -78 && n.adx < 240 && (tallStep || nav.blocked || nav.gap);
       const chaseDrop = n.dy > 54 && (nav.drop || nav.safeDrop);
       const obstacle = nav.blocked || nav.gap || tallStep;
-      if (chaseUp || chaseDrop || obstacle) queueAiJump(e, nav.gap ? 920 : 720, nav.gap ? 1320 : 1100);
+      if (chaseDrop && e.onOneWay) it.dropThrough = true;
+      else if (chaseUp || obstacle) queueAiJump(e, nav.gap ? 920 : 720, nav.gap ? 1320 : 1100);
     } else if (e.cls.id === 'rogue' && !e.rogueAirJump && e.airTime > 8 && b.airJumpCd <= 0) {
       const followUp = n.dy < -70 && n.adx < 190;
       const saveGap = n.nav && (n.nav.gap || n.nav.ledge) && Math.abs(e.vx) > 1.25 && n.dy < 28 && n.adx < 230;
@@ -5360,7 +5540,7 @@ PUBLIC.start = function (root, api) {
     b.atkCd = Math.max(0, b.atkCd - dt); b.moveCd = Math.max(0, b.moveCd - dt); b.airJumpCd = Math.max(0, b.airJumpCd - dt);
     b.jumpCd = Math.max(0, b.jumpCd - dt);
     b.stagger = Math.max(0, b.stagger - dt); b.alert = Math.max(0, b.alert - dt); b.retreat = Math.max(0, b.retreat - dt);
-    it.left = it.right = it.down = it.jumpHeld = it.jump = false;
+    it.left = it.right = it.down = it.dropThrough = it.jumpHeld = it.jump = false;
     const target = chooseCombatTarget(e);
     b.target = target;
     if (!target) {
@@ -5399,6 +5579,7 @@ PUBLIC.start = function (root, api) {
     else if (it.right && !it.left) { p.vx += acc; p.facing = 1; }
     else if (p.grounded) p.vx *= FRICTION;
     updateCrouchConstraint(p);
+    updateDropThrough(p, dtStep);
     updateClassMove();
     updateRogueFlip();
     updateAttackMotion();
@@ -5425,21 +5606,21 @@ PUBLIC.start = function (root, api) {
       else if (p.vx < 0) { bx.x = b.x - bx.w; bx.vx = Math.min(bx.vx, (p.vx * 0.85 - 0.6) / bx.m); p.vx *= 0.5; }
     }
     const prevFeetY = p.y;
-    p.y += p.vy; p.grounded = false;
+    p.y += p.vy; p.grounded = false; p.onOneWay = false; p.groundedPlatform = null;
     for (const pl of L.platforms) if (hit(box(), pl)) {
       if (isOneWay(pl)) {
         if (canActorLandOnOneWay(p, pl, prevFeetY)) {
           if (p.vy > 6) p.anim.squash = clamp(p.vy / TERMINAL, 0, 1) * 0.9;
-          p.y = pl.y; p.grounded = true; p.vy = 0;
+          p.y = pl.y; p.grounded = true; p.onOneWay = true; p.groundedPlatform = pl; p.vy = 0;
         }
         continue;
       }
-      if (p.vy > 0) { p.y = pl.y; p.grounded = true; }
+      if (p.vy > 0) { p.y = pl.y; p.grounded = true; p.groundedPlatform = pl; }
       else if (p.vy < 0) p.y = pl.y + pl.h + actorHeight(p);
       if (p.vy > 6) p.anim.squash = clamp(p.vy / TERMINAL, 0, 1) * 0.9;
       p.vy = 0;
     }
-    for (const bx of boxes) if (hit(box(), bx)) { if (p.vy > 0 && (p.y - p.vy) <= bx.y + 8) { p.y = bx.y; p.grounded = true; p.vy = 0; } else if (p.vy < 0 && (p.y - actorHeight(p) - p.vy) >= bx.y + bx.h - 8) { p.y = bx.y + bx.h + actorHeight(p); p.vy = 0; bx.vy += 1; } }
+    for (const bx of boxes) if (hit(box(), bx)) { if (p.vy > 0 && (p.y - p.vy) <= bx.y + 8) { p.y = bx.y; p.grounded = true; p.onOneWay = false; p.groundedPlatform = bx; p.vy = 0; } else if (p.vy < 0 && (p.y - actorHeight(p) - p.vy) >= bx.y + bx.h - 8) { p.y = bx.y + bx.h + actorHeight(p); p.vy = 0; bx.vy += 1; } }
     if (cls.fly && mageHovering()) settleMageHover();
     if (p.grounded) { p.coyote = COYOTE; p.airTime = 0; if (p.flip && p.flip.active) p.flip = { active: false, t: 0, dur: 0, dir: p.facing }; }
     else { if (p.coyote > 0) p.coyote--; p.airTime++; }
@@ -6358,6 +6539,7 @@ PUBLIC.start = function (root, api) {
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
     else if (player.grounded) player.vx *= FRICTION;
     updateCrouchConstraint(player);
+    updateDropThrough(player, STEP);
     updateClassMove();
     updateRogueFlip();
     updateAttackMotion();
@@ -6406,22 +6588,22 @@ PUBLIC.start = function (root, api) {
     }
     const prevPlayerFeetY = player.y;
     player.y += player.vy;
-    player.grounded = false;
+    player.grounded = false; player.onOneWay = false; player.groundedPlatform = null;
     for (const p of L.platforms) if (hit(box(), p)) {
       if (isOneWay(p)) {
         if (canActorLandOnOneWay(player, p, prevPlayerFeetY)) {
           if (player.vy > 6) player.anim.squash = clamp(player.vy / TERMINAL, 0, 1) * 0.9;
-          player.y = p.y; player.grounded = true; player.vy = 0;
+          player.y = p.y; player.grounded = true; player.onOneWay = true; player.groundedPlatform = p; player.vy = 0;
         }
         continue;
       }
-      if (player.vy > 0) { player.y = p.y; player.grounded = true; }
+      if (player.vy > 0) { player.y = p.y; player.grounded = true; player.groundedPlatform = p; }
       else if (player.vy < 0) player.y = p.y + p.h + actorHeight(player);
       if (player.vy > 6) player.anim.squash = clamp(player.vy / TERMINAL, 0, 1) * 0.9; // squash on impact
       player.vy = 0;
     }
     for (const b of boxes) if (hit(box(), b)) {           // stand on / bonk crates
-      if (player.vy > 0 && (player.y - player.vy) <= b.y + 8) { player.y = b.y; player.grounded = true; player.vy = 0; }
+      if (player.vy > 0 && (player.y - player.vy) <= b.y + 8) { player.y = b.y; player.grounded = true; player.onOneWay = false; player.groundedPlatform = b; player.vy = 0; }
       else if (player.vy < 0 && (player.y - actorHeight(player) - player.vy) >= b.y + b.h - 8) { player.y = b.y + b.h + actorHeight(player); player.vy = 0; b.vy += 1; }
     }
     if (cls.fly && mageHovering()) settleMageHover();
@@ -9558,14 +9740,75 @@ PUBLIC.start = function (root, api) {
     ctx.restore();
   }
 
-  // ---------- world rendering (light "stickman games" theme) ----------
+  // ---------- world rendering ----------
   function drawBackground(L) {
-    // clean whiteish paper background
+    const theme = L.theme && L.theme.id || 'training';
+    if (theme === 'forest') return drawForestBackground(L);
+    if (theme === 'space') return drawSpaceBackground(L);
     const g = ctx.createLinearGradient(0, 0, 0, view.h);
     g.addColorStop(0, '#fbfaf6'); g.addColorStop(1, '#e9e7dd');
     ctx.fillStyle = g; ctx.fillRect(0, 0, view.w, view.h);
-    // one faint distant hill layer for a touch of depth
     drawHills(L, 0.3, '#dcd9cd', view.h * 0.74, 70);
+  }
+  function drawForestBackground(L) {
+    const sky = ctx.createLinearGradient(0, 0, 0, view.h);
+    sky.addColorStop(0, '#cbe8d5');
+    sky.addColorStop(0.48, '#d7ecd0');
+    sky.addColorStop(1, '#f1ead1');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, view.w, view.h);
+    drawHills(L, 0.18, '#a5c997', view.h * 0.70, 80);
+    drawHills(L, 0.30, '#7aa66f', view.h * 0.82, 62);
+    ctx.save();
+    ctx.globalAlpha = 0.72;
+    const off = cam.x * 0.38;
+    for (let i = -2; i < view.w / 150 + 4; i++) {
+      const x = i * 150 - (off % 150);
+      const trunkW = 18 + (i % 3 + 3) % 3 * 7;
+      ctx.fillStyle = '#4b3423';
+      ctx.fillRect(x + 54, view.h * 0.34, trunkW, view.h * 0.58);
+      ctx.fillStyle = i % 2 ? '#456f39' : '#365f34';
+      ctx.beginPath();
+      ctx.ellipse(x + 62, view.h * 0.30, 78, 54, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(239,242,205,.22)';
+      ctx.beginPath();
+      ctx.ellipse(x + 30, view.h * 0.23, 36, 22, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawSpaceBackground(L) {
+    const sky = ctx.createLinearGradient(0, 0, 0, view.h);
+    sky.addColorStop(0, '#060712');
+    sky.addColorStop(0.58, '#111936');
+    sky.addColorStop(1, '#252c46');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, view.w, view.h);
+    ctx.save();
+    const off = cam.x * 0.12;
+    for (let i = 0; i < 96; i++) {
+      const x = (i * 97.3 - off) % (view.w + 120) - 60;
+      const y = 34 + ((i * 53.7) % Math.max(120, view.h * 0.68));
+      const tw = 0.55 + ((i * 17) % 5) * 0.22;
+      ctx.globalAlpha = 0.22 + ((i * 11) % 7) * 0.085;
+      ctx.fillStyle = i % 4 === 0 ? '#8fe6ff' : '#ffffff';
+      ctx.fillRect(x, y, tw, tw);
+    }
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#8fe6ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(view.w * 0.78 - cam.x * 0.05, view.h * 0.25, 96, 28, -0.22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.30;
+    const planet = ctx.createRadialGradient(view.w * 0.16, view.h * 0.22, 8, view.w * 0.16, view.h * 0.22, 72);
+    planet.addColorStop(0, '#d7f6ff');
+    planet.addColorStop(0.42, '#6476ff');
+    planet.addColorStop(1, 'rgba(100,118,255,0)');
+    ctx.fillStyle = planet;
+    ctx.beginPath();
+    ctx.arc(view.w * 0.16, view.h * 0.22, 72, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
   function drawHills(L, par, color, baseY, amp) {
     ctx.fillStyle = color;
@@ -9580,15 +9823,44 @@ PUBLIC.start = function (root, api) {
   }
   function drawPlatform(p) {
     const x = p.x - cam.x, y = p.y - cam.y;
+    const L = levels[li];
+    const theme = L.theme && L.theme.id || 'training';
     if (isOneWay(p)) {
-      ctx.fillStyle = '#8f897b'; ctx.fillRect(x, y + 3, p.w, Math.max(4, p.h - 4));
-      ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 4);
-      ctx.fillStyle = 'rgba(255,255,255,0.28)';
-      for (let sx = x + 18; sx < x + p.w - 8; sx += 36) ctx.fillRect(sx, y + 5, 12, 2);
+      if (theme === 'forest') {
+        ctx.fillStyle = '#6a4a25'; ctx.fillRect(x, y + 4, p.w, Math.max(5, p.h - 4));
+        ctx.fillStyle = '#21361d'; ctx.fillRect(x, y, p.w, 4);
+        ctx.fillStyle = 'rgba(121,179,85,.44)';
+        for (let sx = x + 10; sx < x + p.w - 6; sx += 25) ctx.fillRect(sx, y - 3, 18, 4);
+      } else if (theme === 'space') {
+        ctx.fillStyle = 'rgba(120,216,255,.18)'; ctx.fillRect(x, y + 2, p.w, Math.max(5, p.h));
+        ctx.fillStyle = '#d7f6ff'; ctx.fillRect(x, y, p.w, 3);
+        ctx.fillStyle = '#78d8ff';
+        for (let sx = x + 12; sx < x + p.w - 8; sx += 34) ctx.fillRect(sx, y + 5, 16, 2);
+      } else {
+        ctx.fillStyle = '#8f897b'; ctx.fillRect(x, y + 3, p.w, Math.max(4, p.h - 4));
+        ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        for (let sx = x + 18; sx < x + p.w - 8; sx += 36) ctx.fillRect(sx, y + 5, 12, 2);
+      }
       return;
     }
-    ctx.fillStyle = '#cbc7b8'; ctx.fillRect(x, y, p.w, p.h);          // light body
-    ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 5);                 // bold black ledge
+    if (theme === 'forest') {
+      ctx.fillStyle = '#596f3e'; ctx.fillRect(x, y, p.w, p.h);
+      ctx.fillStyle = '#26371f'; ctx.fillRect(x, y, p.w, 6);
+      ctx.fillStyle = 'rgba(76,47,24,.30)';
+      for (let sx = x + 18; sx < x + p.w; sx += 42) ctx.fillRect(sx, y + 6, 8, Math.max(14, p.h - 10));
+    } else if (theme === 'space') {
+      const body = ctx.createLinearGradient(0, y, 0, y + p.h);
+      body.addColorStop(0, '#59658b');
+      body.addColorStop(1, '#222a46');
+      ctx.fillStyle = body; ctx.fillRect(x, y, p.w, p.h);
+      ctx.fillStyle = '#d7f6ff'; ctx.fillRect(x, y, p.w, 4);
+      ctx.fillStyle = 'rgba(120,216,255,.24)';
+      for (let sx = x + 24; sx < x + p.w - 8; sx += 52) ctx.fillRect(sx, y + 12, 22, 4);
+    } else {
+      ctx.fillStyle = '#cbc7b8'; ctx.fillRect(x, y, p.w, p.h);
+      ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 5);
+    }
   }
   function drawBoxHeatOverlay(b, hw, hh) {
     const heat = clamp((b.heat || 0) / 100, 0, 1);
