@@ -2097,8 +2097,23 @@ PUBLIC.start = function (root, api) {
       let recalled = 0;
       for (let i = droppedKnives.length - 1; i >= 0; i--) {
         const k = droppedKnives[i];
-        rememberDebugSegment('ability', k.x, k.y, player.x, player.y - 34, 7, '#cfd6df', 320);
-        hitBoxesSegment(k.x, k.y, player.x, player.y - 34, Math.sign(player.x - k.x) || player.facing, -0.12, 15, 8);
+        const tx = player.x, ty = player.y - 34;
+        rememberDebugSegment('ability', k.x, k.y, tx, ty, 7, '#cfd6df', 320);
+        spawnBladeRecallTrail(k.x, k.y, tx, ty, { phase: recalled * 0.8, accent: cls.color });
+        for (let s = 1; s <= 4; s++) {
+          const u = s / 5;
+          particles.push({
+            x: lerp(k.x, tx, u) + rand(-5, 5),
+            y: lerp(k.y, ty, u) + rand(-4, 4),
+            vx: (tx - k.x) * 0.002 + rand(-0.18, 0.18),
+            vy: (ty - k.y) * 0.002 + rand(-0.18, 0.18),
+            life: rand(190, 330),
+            max: 330,
+            color: Math.random() < 0.38 ? cls.color : '#cfd6df',
+            r: rand(1, 2.6),
+          });
+        }
+        hitBoxesSegment(k.x, k.y, tx, ty, Math.sign(tx - k.x) || player.facing, -0.12, 15, 8);
         if (player.knifeAmmo < ROGUE_MAX_KNIVES) player.knifeAmmo++;
         burst(k.x, k.y, '#cfd6df', 10, 2.6);
         droppedKnives.splice(i, 1);
@@ -2487,7 +2502,7 @@ PUBLIC.start = function (root, api) {
   api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, smokeZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, bladeRecallTrails, projectiles, gravityFields, fireZones, smokeZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
   let labMode = false, labBuildId = 'base';
   let cls = CLASSES[0];   // selected class
@@ -2543,6 +2558,7 @@ PUBLIC.start = function (root, api) {
     cam = { x: 0, y: 0 };
     particles = [];
     slashTrail = [];
+    bladeRecallTrails = [];
     projectiles = [];
     gravityFields = [];
     fireZones = [];
@@ -2712,6 +2728,19 @@ PUBLIC.start = function (root, api) {
       fill: opts.fill == null ? 0.10 : opts.fill,
     });
     if (shockwaves.length > 12) shockwaves.shift();
+  }
+  function spawnBladeRecallTrail(ax, ay, bx, by, opts) {
+    opts = opts || {};
+    if (!bladeRecallTrails) bladeRecallTrails = [];
+    bladeRecallTrails.push({
+      ax, ay, bx, by,
+      color: opts.color || '#cfd6df',
+      accent: opts.accent || cls.color || '#9cff5e',
+      life: opts.life || 430,
+      max: opts.life || 430,
+      phase: opts.phase || 0,
+    });
+    if (bladeRecallTrails.length > 16) bladeRecallTrails.shift();
   }
 
   function syncHudLegacy() {
@@ -6819,6 +6848,48 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawBladeRecallTrails() {
+    if (!bladeRecallTrails || !bladeRecallTrails.length) return;
+    const t = performance.now();
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const trail of bladeRecallTrails) {
+      const fade = clamp(trail.life / (trail.max || 1), 0, 1);
+      const p = 1 - fade;
+      const ax = trail.ax - cam.x, ay = trail.ay - cam.y;
+      const bx = trail.bx - cam.x, by = trail.by - cam.y;
+      const dx = bx - ax, dy = by - ay;
+      const mx = ax + dx * 0.5 + Math.sin(t * 0.006 + trail.phase) * 9;
+      const my = ay + dy * 0.5 - 8 + Math.cos(t * 0.004 + trail.phase) * 5;
+      ctx.globalAlpha = 0.28 * fade;
+      ctx.strokeStyle = trail.accent || '#9cff5e';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(mx, my, bx, by);
+      ctx.stroke();
+      ctx.globalAlpha = 0.78 * fade;
+      ctx.strokeStyle = trail.color || '#cfd6df';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([14, 8]);
+      ctx.lineDashOffset = -t * 0.04 - trail.phase * 12;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(mx, my, bx, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const u = clamp(0.15 + p * 1.16, 0, 1);
+      const ix = lerp(lerp(ax, mx, u), lerp(mx, bx, u), u);
+      const iy = lerp(lerp(ay, my, u), lerp(my, by, u), u);
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(ix, iy, 3.2 + fade * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 
   function render(moveAmt) {
     const L = levels[li];
@@ -6835,6 +6906,7 @@ PUBLIC.start = function (root, api) {
     for (const b of boxes) drawBox(b);
     for (const d of dummies) drawDummy(d);
     drawSpiritRemnants();
+    drawBladeRecallTrails();
     if (!arenaMode) drawFlag(L);
     // particles
     for (const pt of particles) {
@@ -7000,6 +7072,7 @@ PUBLIC.start = function (root, api) {
         updateSpiritRemnants(dt);
         updateSmokeZones(dt);
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
+        if (bladeRecallTrails) for (let i = bladeRecallTrails.length - 1; i >= 0; i--) { if ((bladeRecallTrails[i].life -= dt) <= 0) bladeRecallTrails.splice(i, 1); }
         if (shockwaves) for (let i = shockwaves.length - 1; i >= 0; i--) { if ((shockwaves[i].life -= dt) <= 0) shockwaves.splice(i, 1); }
         for (let i = debug.segments.length - 1; i >= 0; i--) { if ((debug.segments[i].life -= dt) <= 0) debug.segments.splice(i, 1); }
         const L = levels[li];
@@ -7176,6 +7249,7 @@ PUBLIC.start = function (root, api) {
           smokeZones: smokeZones ? smokeZones.length : 0,
           shockwaves: shockwaves ? shockwaves.length : 0,
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
+          bladeRecallTrails: bladeRecallTrails ? bladeRecallTrails.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
