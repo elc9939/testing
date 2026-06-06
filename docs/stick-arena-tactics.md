@@ -10,9 +10,10 @@ real **Stick Arena** game and we build directly on it.
 > **Direction (decided 2026-06):** all this work targets **Stick Arena
 > (`js/games/stickrun.js`)** — the existing game — *not* a clean-room prototype.
 > The standalone `js/games/arenatactics.js` prototype went too far from the
-> intended Stick Arena feel, so it has been **retired and disabled** (removed from
-> the launcher catalog; the file is left in the repo only for reference and can be
-> deleted). Do not invest further in `arenatactics.js`; evolve `stickrun.js`.
+> intended Stick Arena feel, so it was **retired and disabled** (removed from the
+> launcher catalog) and the file has now been **deleted from the repo**. Its design
+> notes are preserved below for reference. Do not revive `arenatactics.js`; evolve
+> `stickrun.js`.
 
 ---
 
@@ -102,8 +103,9 @@ to control spacing. Build-crafting and positioning become the same decision.
 
 ## Prototype scope (`arenatactics.js`) — RETIRED
 
-> Kept for historical reference only. The prototype is disabled (not in the
-> launcher); the live system is in `stickrun.js`. See the integration passes below.
+> Kept for historical reference only. The prototype was disabled and its file
+> (`arenatactics.js`) has been deleted; the live system is in `stickrun.js`. See the
+> integration passes below.
 
 A self-contained feel slice — **not** the full game — to validate the pace:
 - Side-view arena: two ledges split by a **central bottomless pit**, a **spike
