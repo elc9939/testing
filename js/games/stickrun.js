@@ -203,7 +203,10 @@ const ABILITIES = (() => {
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
   add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Updraft', desc: 'Lift enemies and crates upward so they drift into ledges, platforms, or wells.', effect: { kind: 'radial', force: 20, radius: 132, y: -1.8 }, cd: 3300, tags: ['Gravity', 'Launch', 'Crates'] });
   add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Gravity Well', desc: 'A shorter-range bloom that opens faster and pulls crates harder.', effect: { kind: 'field', r: 178, life: 2400, range: 360 }, cd: 1900, tags: ['Gravity', 'Crates'] });
+  add('mg_gravitycore', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'e', name: 'Gravity Core', desc: 'Event Horizon prototype: place one persistent core that slowly pulls enemies, dummies, crates, and barrels.', effect: { kind: 'gravityCore', r: 205, range: 460 }, cd: 2600, tags: ['Gravity', 'Crates', 'Field'] });
+  add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'True Horizon', desc: 'Event Horizon prototype: collapse the active Gravity Core into a larger implosion. If no core exists, create a short singularity.', effect: { kind: 'trueHorizon' }, cd: 10500, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_resonance', { cls: 'mage', branch: 'graviturge', tier: 4, slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure near affected enemies.', key: true, tags: ['Gravity', 'Projectile'] });
+  add('mg_eventhorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'passive', name: 'Event Horizon', desc: 'Advanced variation: Gravity Core lasts longer, pulls objects harder, and makes core detonation the build payoff.', key: true, tags: ['Gravity', 'Field'] });
   add('mg_windbolt', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'attack', name: 'Wind Bolt', desc: 'A quick bolt that shoves targets and barrels instead of only damaging them.', effect: { kind: 'bolt', power: 1.15, wind: 1 }, cd: 180, tags: ['Push', 'Projectile'] });
   add('mg_gust', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'shift', name: 'Gust Hover', desc: 'Air dash leaves a wind burst that knocks enemies and crates away.', effect: { kind: 'gustDash' }, cd: 1900, tags: ['Movement', 'Crates'] });
   add('mg_chain', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'e', name: 'Chain Spark', desc: 'Lightning jumps through enemies, metal objects, and crates in a short chain.', effect: { kind: 'chain', jumps: 4 }, cd: 3100, tags: ['Crates', 'Projectile'] });
@@ -237,6 +240,156 @@ const ABILITIES = (() => {
   add('rn_hunt', { cls: 'ranger', branch: 'beastwarden', tier: 3, slot: 'q', name: 'Hunt', desc: 'Mark the room: allies and arrows push all marked enemies toward ledges.', effect: { kind: 'hunt' }, cd: 9200, tags: ['Allies', 'Ledges'] });
   add('rn_packbond', { cls: 'ranger', branch: 'beastwarden', tier: 4, slot: 'passive', name: 'Pack Bond', desc: 'Keystone: your party becomes the build focus; KOs can spawn a temporary rogue ally.', key: true, tags: ['Allies'] });
 
+  // V2 branch supplements and advanced variations. These are intentionally
+  // data-driven: the first pass makes every planned build selectable/playable,
+  // then each family can get deeper bespoke animation polish in the lab.
+  add('kn_guardian_oath', { cls: 'knight', branch: 'bulwark', tier: 1, slot: 'passive', name: 'Guardian Oath', desc: 'Class mechanic: blocks and shield hits build Guard Plates that improve shield shoves.', key: true, tags: ['Block', 'Push'] });
+  add('kn_shieldcut', { cls: 'knight', branch: 'bulwark', tier: 2, slot: 'attack', name: 'Shield-Cut', desc: 'Cut safely from behind the shield. Shorter reach, better protection and shove.', type: 'attack', action: 'slash', tags: ['Block', 'Weapon'] });
+  add('kn_guardbreaker', { cls: 'knight', branch: 'bulwark', tier: 2, slot: 'attack', name: 'Guard Breaker', desc: 'Shield edge into sword thrust. Slower, but breaks guards and punts objects.', type: 'attack', action: 'shieldBash', tags: ['Block', 'Crates'] });
+  add('kn_coverhop', { cls: 'knight', branch: 'bulwark', tier: 2, slot: 'shift', name: 'Cover Hop', desc: 'Hop backward while keeping the shield pointed forward, leaving a fading cover panel.', effect: { kind: 'coverHop' }, cd: 1500, tags: ['Block', 'Movement'] });
+  add('kn_aegis', { cls: 'knight', branch: 'bulwark', tier: 5, slot: 'passive', name: 'Aegis Captain', desc: 'Advanced variation: shield walls, allies, and cover points link into team protection.', key: true, prereqAll: ['kn_wall', 'kn_guardstep'], tags: ['Allies', 'Block'] });
+  add('kn_linkedcover', { cls: 'knight', branch: 'bulwark', tier: 5, slot: 'e', name: 'Linked Cover', desc: 'Place a linked shield panel. Nearby crates, walls, and allies reduce incoming force.', effect: { kind: 'aegisLink' }, cd: 3200, prereq: 'kn_aegis', tags: ['Allies', 'Walls', 'Crates'] });
+  add('kn_intercept', { cls: 'knight', branch: 'bulwark', tier: 5, slot: 'shift', name: 'Intercept Step', desc: 'Step into the lane between an ally/cover point and the closest threat.', effect: { kind: 'intercept' }, cd: 1900, prereq: 'kn_aegis', tags: ['Allies', 'Movement'] });
+  add('kn_captainsrally', { cls: 'knight', branch: 'bulwark', tier: 5, slot: 'q', name: "Captain's Rally", desc: 'A smaller Rally Dome that follows the party and shoves enemies away from allies.', effect: { kind: 'rallyDome', follow: 1 }, cd: 9800, prereq: 'kn_aegis', tags: ['Allies', 'Block', 'Push'] });
+  add('kn_lastline', { cls: 'knight', branch: 'bulwark', tier: 5, slot: 'passive', name: 'Last Line', desc: 'Keystone: broken cover releases a shove pulse and grants Resolve.', key: true, prereq: ['kn_linkedcover', 'kn_intercept', 'kn_captainsrally'], tags: ['Allies', 'Push'] });
+
+  add('kn_reprisaledge', { cls: 'knight', branch: 'avenger', tier: 2, slot: 'attack', name: 'Reprisal Edge', desc: 'A slow heavy counter slash that hits harder shortly after taking/blocking pressure.', type: 'attack', action: 'crush', tags: ['Counter', 'Weapon'] });
+  add('kn_ironpivot', { cls: 'knight', branch: 'avenger', tier: 2, slot: 'shift', name: 'Iron Pivot', desc: 'Quick defensive turn with guard active, useful when enemies cross over.', effect: { kind: 'ironPivot' }, cd: 1250, tags: ['Counter', 'Block'] });
+  add('kn_storedshock', { cls: 'knight', branch: 'avenger', tier: 3, slot: 'e', name: 'Stored Shockwave', desc: 'Release stored blocked force as a floor wave that detonates objects.', effect: { kind: 'debtPulse', force: 24, range: 180 }, cd: 3300, tags: ['Counter', 'Shockwave', 'Barrels'] });
+  add('kn_mirrorguard', { cls: 'knight', branch: 'avenger', tier: 3, slot: 'e', name: 'Mirror Guard', desc: 'Brief reflective guard. Projectiles and melee pressure rebound sideways.', effect: { kind: 'mirrorGuard' }, cd: 2900, tags: ['Counter', 'Block', 'Projectile'] });
+  add('kn_unbroken', { cls: 'knight', branch: 'avenger', tier: 5, slot: 'passive', name: 'Unbroken Vow', desc: 'Keystone: high Vengeance can prevent a lethal hit and pulse enemies away.', key: true, prereq: ['kn_vengeance', 'kn_punish'], tags: ['Counter', 'Block'] });
+  add('kn_vowbreaker', { cls: 'knight', branch: 'avenger', tier: 5, slot: 'passive', name: 'Vowbreaker', desc: 'Advanced variation: mark Pain Debt, then cash it out through terrain shock.', key: true, prereqAll: ['kn_counterguard', 'kn_punish', 'kn_crush'], tags: ['Counter', 'Walls'] });
+  add('kn_debtmark', { cls: 'knight', branch: 'avenger', tier: 5, slot: 'passive', name: 'Debt Mark', desc: 'Perfect blocks and heavy hits mark enemies for delayed terrain punishment.', key: true, prereq: 'kn_vowbreaker', tags: ['Counter', 'Mark'] });
+  add('kn_sentence', { cls: 'knight', branch: 'avenger', tier: 5, slot: 'attack', name: 'Sentence Slam', desc: 'Ground slam that cashes Pain Debt on enemies near terrain or objects.', type: 'attack', action: 'crush', prereq: 'kn_vowbreaker', tags: ['Counter', 'Walls'] });
+  add('kn_trialpulse', { cls: 'knight', branch: 'avenger', tier: 5, slot: 'e', name: 'Trial Pulse', desc: 'Short pulse that detonates debt-marked targets and barrels in front.', effect: { kind: 'debtPulse', force: 34, range: 230 }, cd: 3300, prereq: 'kn_vowbreaker', tags: ['Counter', 'Barrels'] });
+  add('kn_noescape', { cls: 'knight', branch: 'avenger', tier: 5, slot: 'passive', name: 'No Escape', desc: 'Keystone: launched or dragged debt-marked enemies keep their mark longer.', key: true, prereq: ['kn_debtmark', 'kn_sentence', 'kn_trialpulse'], tags: ['Counter', 'Ledges'] });
+
+  add('kn_impact', { cls: 'knight', branch: 'earthbreaker', tier: 1, slot: 'passive', name: 'Impact Rhythm', desc: 'Class mechanic: heavy hits build Impact and shove objects harder.', key: true, tags: ['Crates', 'Barrels'] });
+  add('kn_groundsplitter', { cls: 'knight', branch: 'earthbreaker', tier: 2, slot: 'attack', name: 'Ground Splitter', desc: 'Low sword slam that sends a short crack through enemies and small objects.', effect: { kind: 'groundSplitter' }, cd: 900, tags: ['Shockwave', 'Crates'] });
+  add('kn_shoulderdrive', { cls: 'knight', branch: 'earthbreaker', tier: 2, slot: 'shift', name: 'Shoulder Drive', desc: 'Heavy shoulder step that pushes through clutter and barrels.', type: 'move', action: 'shoulder', cd: 1500, tags: ['Movement', 'Crates'] });
+  add('kn_faultplate', { cls: 'knight', branch: 'earthbreaker', tier: 3, slot: 'e', name: 'Fault Plate', desc: 'Kick up a short floor lip that trips chargers and becomes temporary terrain.', effect: { kind: 'faultPlate' }, cd: 3300, tags: ['Walls', 'Crates'] });
+  add('kn_siege', { cls: 'knight', branch: 'earthbreaker', tier: 5, slot: 'passive', name: 'Siege Knight', desc: 'Advanced variation: turn crates, barriers, and shield walls into moving siege objects.', key: true, prereqAll: ['kn_wall', 'kn_cratebreaker'], tags: ['Crates', 'Block'] });
+  add('kn_siegepush', { cls: 'knight', branch: 'earthbreaker', tier: 5, slot: 'attack', name: 'Siege Push', desc: 'Attack behind the nearest object to shove it forward as moving cover.', effect: { kind: 'siegePush' }, cd: 900, prereq: 'kn_siege', tags: ['Crates', 'Push'] });
+  add('kn_lockbarricade', { cls: 'knight', branch: 'earthbreaker', tier: 5, slot: 'e', name: 'Lock Barricade', desc: 'Harden a crate or shield wall into temporary terrain.', effect: { kind: 'lockBarricade' }, cd: 3400, prereq: 'kn_siege', tags: ['Crates', 'Walls'] });
+  add('kn_rampbreak', { cls: 'knight', branch: 'earthbreaker', tier: 5, slot: 'shift', name: 'Ramp Break', desc: 'Heavy step that climbs/pushes through small obstacles while moving objects.', effect: { kind: 'rampBreak' }, cd: 1700, prereq: 'kn_siege', tags: ['Movement', 'Crates'] });
+  add('kn_castlecrusher', { cls: 'knight', branch: 'earthbreaker', tier: 5, slot: 'passive', name: 'Castle Crusher', desc: 'Keystone: destroying a siege object creates a wide debris blast.', key: true, prereq: ['kn_siegepush', 'kn_lockbarricade', 'kn_rampbreak'], tags: ['Crates', 'Shockwave'] });
+
+  add('rg_tempo', { cls: 'rogue', branch: 'duelist', tier: 1, slot: 'passive', name: 'Duelist Tempo', desc: 'Class mechanic: alternating knife hits build Tempo for faster burst windows.', key: true, tags: ['Burst'] });
+  add('rg_crosscut', { cls: 'rogue', branch: 'duelist', tier: 2, slot: 'attack', name: 'Cross-Cut', desc: 'Wider X-shaped dual slash that pushes small objects sideways.', type: 'attack', action: 'dualSlash', tags: ['Burst', 'Crates'] });
+  add('rg_dueliststep', { cls: 'rogue', branch: 'duelist', tier: 2, slot: 'shift', name: 'Duelist Step', desc: 'Tiny low-cooldown feint step that keeps you close without overshooting.', type: 'move', action: 'backstep', cd: 760, tags: ['Movement', 'Burst'] });
+  add('rg_parryflick', { cls: 'rogue', branch: 'duelist', tier: 3, slot: 'e', name: 'Parry Flick', desc: 'Brief knife parry that redirects nearby projectiles and grants burst timing.', effect: { kind: 'parryFlick' }, cd: 2600, tags: ['Counter', 'Projectile'] });
+  add('rg_perfectrhythm', { cls: 'rogue', branch: 'duelist', tier: 4, slot: 'passive', name: 'Perfect Rhythm', desc: 'Keystone: alternating hands lowers Shift/E recovery and keeps Tempo longer.', key: true, tags: ['Burst', 'Movement'] });
+  add('rg_redline', { cls: 'rogue', branch: 'duelist', tier: 5, slot: 'passive', name: 'Redline Duelist', desc: 'Advanced variation: full Tempo opens a risky close-range burst window.', key: true, prereqAll: ['rg_stab', 'rg_dodgecut'], tags: ['Burst'] });
+  add('rg_redentry', { cls: 'rogue', branch: 'duelist', tier: 5, slot: 'passive', name: 'Redline Entry', desc: 'Entering full Tempo primes the first hit to slow enemy recovery.', key: true, prereq: 'rg_redline', tags: ['Burst'] });
+  add('rg_heartbeat', { cls: 'rogue', branch: 'duelist', tier: 5, slot: 'attack', name: 'Heartbeat Stabs', desc: 'Three extremely quick alternating stabs, then forced recovery.', type: 'attack', action: 'rogueStab', prereq: 'rg_redline', tags: ['Burst'] });
+  add('rg_slipcounter', { cls: 'rogue', branch: 'duelist', tier: 5, slot: 'shift', name: 'Slip Counter', desc: 'Slip through danger and cut once during the movement.', effect: { kind: 'moveStrike', move: 'slide', range: 88, force: 22 }, cd: 1350, prereq: 'rg_redline', tags: ['Counter', 'Movement'] });
+  add('rg_finishingbeat', { cls: 'rogue', branch: 'duelist', tier: 5, slot: 'passive', name: 'Finishing Beat', desc: 'Keystone: the final Redline hit executes weak enemies or launches heavier ones.', key: true, prereq: ['rg_heartbeat', 'rg_slipcounter'], tags: ['Burst', 'Ledges'] });
+
+  add('rg_trickknives', { cls: 'rogue', branch: 'saboteur', tier: 1, slot: 'passive', name: 'Trick Knives', desc: 'Class mechanic: thrown knives stick briefly and become trap anchors before pickup.', key: true, tags: ['Projectile', 'Traps'] });
+  add('rg_trapcut', { cls: 'rogue', branch: 'saboteur', tier: 2, slot: 'attack', name: 'Trap Cut', desc: 'Slash toward a stuck knife to prime it as a small route trap.', type: 'attack', action: 'dualSlash', tags: ['Traps', 'Weapon'] });
+  add('rg_wirevault', { cls: 'rogue', branch: 'saboteur', tier: 2, slot: 'shift', name: 'Wire Vault', desc: 'Vault over a stuck knife or crate, recovering ammo while crossing clutter.', effect: { kind: 'wireVault' }, cd: 1500, tags: ['Movement', 'Crates'] });
+  add('rg_barrelneedle', { cls: 'rogue', branch: 'saboteur', tier: 3, slot: 'e', name: 'Barrel Needle', desc: 'Throw a low-damage knife that arms barrels and cracked crates for chain reactions.', effect: { kind: 'barrelNeedle' }, cd: 3000, tags: ['Barrels', 'Projectile'] });
+  add('rg_ghost', { cls: 'rogue', branch: 'saboteur', tier: 5, slot: 'passive', name: 'Ghost Saboteur', desc: 'Advanced variation: knife recovery leaves temporary ghost knives and trap echoes.', key: true, prereqAll: ['rg_tripwire', 'rg_smoke', 'rg_ricochet'], tags: ['Traps', 'Movement'] });
+  add('rg_ghostpickup', { cls: 'rogue', branch: 'saboteur', tier: 5, slot: 'passive', name: 'Ghost Pickup', desc: 'Picking up a thrown knife leaves a short-lived ghost knife at the pickup spot.', key: true, prereq: 'rg_ghost', tags: ['Traps'] });
+  add('rg_phantomwire', { cls: 'rogue', branch: 'saboteur', tier: 5, slot: 'e', name: 'Phantom Wire', desc: 'Connect real and ghost knives into a temporary tripwire network.', effect: { kind: 'ghostNetwork' }, cd: 3200, prereq: 'rg_ghost', tags: ['Traps', 'Walls'] });
+  add('rg_vanishslide', { cls: 'rogue', branch: 'saboteur', tier: 5, slot: 'shift', name: 'Vanish Slide', desc: 'Slide through a ghost knife to detonate smoke and refund movement recovery.', effect: { kind: 'smokeSlide', ghost: 1 }, cd: 1300, prereq: 'rg_ghost', tags: ['Movement', 'Traps'] });
+  add('rg_murderboard', { cls: 'rogue', branch: 'saboteur', tier: 5, slot: 'passive', name: 'Murder Board', desc: 'Keystone: real and ghost knives form a visible network that marks the first target hit.', key: true, prereq: ['rg_phantomwire', 'rg_vanishslide'], tags: ['Traps', 'Mark'] });
+
+  add('rg_flow', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'passive', name: 'Flow State', desc: 'Class mechanic: movement attacks and double-jump proximity build Flow/Tempo.', key: true, tags: ['Movement', 'Burst'] });
+  add('rg_slideslash', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'attack', name: 'Slide Slash', desc: 'Attack while low to trip enemies instead of launching them.', type: 'attack', action: 'legSweep', tags: ['Movement', 'Control'] });
+  add('rg_vaultstab', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'attack', name: 'Vault Stab', desc: 'A downward aerial knife stab that rewards platform drops.', type: 'attack', action: 'vaultKick', tags: ['Movement', 'Launch'] });
+  add('rg_lowroll', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'shift', name: 'Low Roll', desc: 'Short shoulder roll ending crouched, safer under high attacks.', type: 'move', action: 'slide', cd: 980, tags: ['Movement'] });
+  add('rg_legsweep', { cls: 'rogue', branch: 'acrobat', tier: 3, slot: 'e', name: 'Leg Sweep', desc: 'Close sweep that knocks enemies low and changes their collision posture briefly.', type: 'attack', action: 'legSweep', cd: 2600, tags: ['Control', 'Movement'] });
+  add('rg_skyblade', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Skyblade Acrobat', desc: 'Advanced variation: aerial Flow turns wall kicks, vaults, and flips into air combos.', key: true, prereqAll: ['rg_wallkick', 'rg_airspiral'], tags: ['Movement', 'Launch'] });
+  add('rg_tuckedflip', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Tucked Flip', desc: 'Double jump gains a more intentional tuck and builds aerial Flow near enemies.', key: true, prereq: 'rg_skyblade', tags: ['Movement'] });
+  add('rg_heelrebound', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'shift', name: 'Heel Rebound', desc: 'Kick off an enemy, wall, or large crate for a diagonal rebound.', effect: { kind: 'heelRebound' }, cd: 1350, prereq: 'rg_skyblade', tags: ['Movement', 'Crates'] });
+  add('rg_divingneedle', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'attack', name: 'Diving Needle', desc: 'Air attack becomes a downward stab that pins briefly on landing impact.', type: 'attack', action: 'rogueStab', prereq: 'rg_skyblade', tags: ['Movement', 'Ledges'] });
+  add('rg_spirallanding', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Spiral Landing', desc: 'Keystone: Air Spiral ends in a controlled landing slash near the ground.', key: true, prereq: ['rg_heelrebound', 'rg_divingneedle'], tags: ['Movement', 'Burst'] });
+
+  add('ln_sweepbutt', { cls: 'lancer', branch: 'phalanx', tier: 2, slot: 'attack', name: 'Sweeping Butt', desc: 'Short rear-end sweep that covers the Lancer close blind spot.', type: 'attack', action: 'lanceSwing', tags: ['Reach', 'Control'] });
+  add('ln_plantpivot', { cls: 'lancer', branch: 'phalanx', tier: 2, slot: 'shift', name: 'Plant Pivot', desc: 'Plant the lance and rotate quickly without giving up the lane.', type: 'move', action: 'brace', cd: 1200, tags: ['Reach', 'Movement'] });
+  add('ln_anchorstake', { cls: 'lancer', branch: 'phalanx', tier: 3, slot: 'e', name: 'Anchor Stake', desc: 'Stake a target or crate, then tug it toward the lance line.', effect: { kind: 'tetherLine', range: 185, pull: 24 }, cd: 2900, tags: ['Pull', 'Crates'] });
+  add('ln_pike', { cls: 'lancer', branch: 'phalanx', tier: 5, slot: 'passive', name: 'Pike Captain', desc: 'Advanced variation: bracing paints command lanes that deny enemy crossings.', key: true, prereqAll: ['ln_spearwall', 'ln_pin'], tags: ['Reach', 'Allies'] });
+  add('ln_holdline', { cls: 'lancer', branch: 'phalanx', tier: 5, slot: 'passive', name: 'Hold The Line', desc: 'Bracing creates a visible Command Lane in the lance direction.', key: true, prereq: 'ln_pike', tags: ['Reach', 'Walls'] });
+  add('ln_orderedthrust', { cls: 'lancer', branch: 'phalanx', tier: 5, slot: 'attack', name: 'Ordered Thrust', desc: 'Thrusting down a Command Lane extends reach and pin force.', type: 'attack', action: 'braceThrust', prereq: 'ln_pike', tags: ['Reach', 'Walls'] });
+  add('ln_formationstep', { cls: 'lancer', branch: 'phalanx', tier: 5, slot: 'shift', name: 'Formation Step', desc: 'Move along or rotate the lane while preserving Brace.', type: 'move', action: 'brace', cd: 1500, prereq: 'ln_pike', tags: ['Movement', 'Reach'] });
+  add('ln_nopassage', { cls: 'lancer', branch: 'phalanx', tier: 5, slot: 'passive', name: 'No Passage', desc: 'Keystone: enemies crossing the command lane trigger weak ghost-lance pokes.', key: true, prereq: ['ln_orderedthrust', 'ln_formationstep'], tags: ['Reach', 'Control'] });
+
+  add('ln_commit', { cls: 'lancer', branch: 'dragoon', tier: 1, slot: 'passive', name: 'Charge Commitment', desc: 'Class mechanic: charges lock direction and reward clean lane choice.', key: true, tags: ['Ledges', 'Reach'] });
+  add('ln_breakthrust', { cls: 'lancer', branch: 'dragoon', tier: 2, slot: 'attack', name: 'Break Thrust', desc: 'Shorter armor-piercing thrust that cracks objects directly ahead.', type: 'attack', action: 'braceThrust', tags: ['Crates', 'Reach'] });
+  add('ln_breakerrun', { cls: 'lancer', branch: 'dragoon', tier: 3, slot: 'e', name: 'Breaker Run', desc: 'Prime the next charge to smash crates/barriers and trigger barrels at the end.', effect: { kind: 'breakerRun' }, cd: 2600, tags: ['Crates', 'Barrels'] });
+  add('ln_meteor', { cls: 'lancer', branch: 'dragoon', tier: 5, slot: 'passive', name: 'Meteor Dragoon', desc: 'Advanced variation: charge power scales with straight runway before impact.', key: true, prereqAll: ['ln_charge', 'ln_carry'], tags: ['Ledges', 'Movement'] });
+  add('ln_runway', { cls: 'lancer', branch: 'dragoon', tier: 5, slot: 'passive', name: 'Runway Read', desc: 'Aim preview and charge force care about clear distance before impact.', key: true, prereq: 'ln_meteor', tags: ['Ledges'] });
+  add('ln_overrun', { cls: 'lancer', branch: 'dragoon', tier: 5, slot: 'shift', name: 'Overrun', desc: 'A longer charge that can punch through multiple bodies if the lane is clear.', type: 'attack', action: 'lanceCharge', cd: 2100, prereq: 'ln_meteor', tags: ['Ledges', 'Crates'] });
+  add('ln_wallbreaker', { cls: 'lancer', branch: 'dragoon', tier: 5, slot: 'e', name: 'Wallbreaker', desc: 'Next committed charge creates debris and extra object impact at endpoint.', effect: { kind: 'breakerRun', big: 1 }, cd: 3200, prereq: 'ln_meteor', tags: ['Crates', 'Walls'] });
+  add('ln_fallingstar', { cls: 'lancer', branch: 'dragoon', tier: 5, slot: 'passive', name: 'Falling Star', desc: 'Keystone: charging from high ground adds downward slam force.', key: true, prereq: ['ln_overrun', 'ln_wallbreaker'], tags: ['Ledges', 'Launch'] });
+
+  add('ln_hookpoint', { cls: 'lancer', branch: 'harpooner', tier: 1, slot: 'passive', name: 'Hook Point', desc: 'Class mechanic: some lance hits attach short-lived tethers.', key: true, tags: ['Pull', 'Reach'] });
+  add('ln_chainsweep', { cls: 'lancer', branch: 'harpooner', tier: 2, slot: 'attack', name: 'Chain Sweep', desc: 'Low chain/lance sweep that drags nearby enemies sideways.', type: 'attack', action: 'lanceSwing', tags: ['Pull', 'Control'] });
+  add('ln_anchorwalk', { cls: 'lancer', branch: 'harpooner', tier: 2, slot: 'shift', name: 'Anchor Walk', desc: 'Slow braced walk that preserves tether tension.', type: 'move', action: 'brace', cd: 1700, tags: ['Pull', 'Movement'] });
+  add('ln_anchorpull', { cls: 'lancer', branch: 'harpooner', tier: 3, slot: 'e', name: 'Anchor Pull', desc: 'Pull tethered or nearby targets toward an anchor point in front.', effect: { kind: 'pull', range: 320, all: 1, force: 9.4 }, cd: 3300, tags: ['Pull', 'Crates'] });
+  add('ln_warden', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'passive', name: 'Chain Warden', desc: 'Advanced variation: persistent anchors create reusable pull networks.', key: true, prereqAll: ['ln_chain', 'ln_reel'], tags: ['Pull', 'Walls'] });
+  add('ln_wardenanchor', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'e', name: 'Warden Anchor', desc: 'Place a persistent chain anchor on terrain or objects.', effect: { kind: 'wardenAnchor' }, cd: 2900, prereq: 'ln_warden', tags: ['Pull', 'Walls'] });
+  add('ln_crosstether', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'attack', name: 'Cross-Tether', desc: 'Hooked targets can be attached to the nearest anchor instead of only the Lancer.', effect: { kind: 'tetherLine', range: 210, pull: 30, anchor: 1 }, cd: 750, prereq: 'ln_warden', tags: ['Pull', 'Crates'] });
+  add('ln_winchstep', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'shift', name: 'Winch Step', desc: 'Pull yourself toward an anchor or pull lighter anchored objects toward you.', effect: { kind: 'wardenPull' }, cd: 1900, prereq: 'ln_warden', tags: ['Pull', 'Movement'] });
+  add('ln_dragnet', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'passive', name: 'Dragnet', desc: 'Keystone: two anchors form a slowing line that can yank crossing enemies.', key: true, prereq: ['ln_wardenanchor', 'ln_winchstep'], tags: ['Pull', 'Walls'] });
+
+  add('mg_motes', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'passive', name: 'Gravity Motes', desc: 'Class mechanic: gravity casts create motes that strengthen pull and lift.', key: true, tags: ['Gravity'] });
+  add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Bolt', desc: 'A heavier bolt that pushes crates and makes targets easier to pull.', effect: { kind: 'bolt', power: 1.35, wind: 1 }, cd: 220, tags: ['Gravity', 'Projectile'] });
+  add('mg_orbitbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Orbit Bolt', desc: 'A faster bolt that curves around the active Gravity Core when present.', effect: { kind: 'orbitalBolt' }, cd: 210, tags: ['Gravity', 'Projectile'] });
+  add('mg_floatstep', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Float Step', desc: 'Short controlled hover drift that can cross gaps while aiming.', type: 'move', action: 'airDash', cd: 1700, tags: ['Movement', 'Gravity'] });
+  add('mg_brake', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Gravity Brake', desc: 'Brake your own momentum while enemies and objects continue sliding past.', effect: { kind: 'gravityBrake' }, cd: 1500, tags: ['Gravity', 'Movement'] });
+  add('mg_orbitalcast', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'attack', name: 'Orbital Cast', desc: 'Bolts bend around the Gravity Core and nudge its position.', effect: { kind: 'orbitalBolt', shoveCore: 1 }, cd: 200, prereq: 'mg_eventhorizon', tags: ['Gravity', 'Projectile'] });
+  add('mg_corestep', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'shift', name: 'Core Step', desc: 'Hover near the Gravity Core in a controlled orbit instead of a straight dash.', effect: { kind: 'coreStep' }, cd: 1600, prereq: 'mg_eventhorizon', tags: ['Gravity', 'Movement'] });
+
+  add('mg_staticcharge', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'passive', name: 'Static Charge', desc: 'Class mechanic: airborne casts and grouped hits build lightning Charge.', key: true, tags: ['Projectile', 'Movement'] });
+  add('mg_arcspear', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'attack', name: 'Arc Spear', desc: 'Thin precise lightning spear. Less area, higher direct shove.', effect: { kind: 'bolt', power: 1.45, wind: 1 }, cd: 240, tags: ['Projectile'] });
+  add('mg_downburst', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'shift', name: 'Downburst', desc: 'Drop out of hover and pop enemies/objects outward on landing.', effect: { kind: 'downburst' }, cd: 1800, tags: ['Movement', 'Crates'] });
+  add('mg_staticfield', { cls: 'mage', branch: 'stormcaller', tier: 3, slot: 'e', name: 'Static Field', desc: 'Small crackling field that slows enemies and primes chain effects.', effect: { kind: 'staticField' }, cd: 3200, tags: ['Field', 'Projectile'] });
+  add('mg_stormdancer', { cls: 'mage', branch: 'stormcaller', tier: 5, slot: 'passive', name: 'Storm Dancer', desc: 'Advanced variation: cast while drifting, then discharge instability on landing.', key: true, prereqAll: ['mg_gust', 'mg_chain'], tags: ['Movement', 'Projectile'] });
+  add('mg_aircasting', { cls: 'mage', branch: 'stormcaller', tier: 5, slot: 'passive', name: 'Air Casting', desc: 'Cast during hover at reduced speed; each air cast builds instability.', key: true, prereq: 'mg_stormdancer', tags: ['Movement'] });
+  add('mg_windweave', { cls: 'mage', branch: 'stormcaller', tier: 5, slot: 'shift', name: 'Wind Weave', desc: 'After casting, Shift follows a curved gust path through platforms and objects.', effect: { kind: 'gustDash', weave: 1 }, cd: 1550, prereq: 'mg_stormdancer', tags: ['Movement', 'Crates'] });
+  add('mg_lightningstep', { cls: 'mage', branch: 'stormcaller', tier: 5, slot: 'e', name: 'Lightning Step', desc: 'Chain Spark pulls the Mage slightly along the first chain direction.', effect: { kind: 'chainStep', jumps: 4 }, cd: 3200, prereq: 'mg_stormdancer', tags: ['Movement', 'Projectile'] });
+  add('mg_stormrhythm', { cls: 'mage', branch: 'stormcaller', tier: 5, slot: 'passive', name: 'Storm Rhythm', desc: 'Keystone: alternating air cast and ground discharge grants Overcharge.', key: true, prereq: ['mg_windweave', 'mg_lightningstep'], tags: ['Movement', 'Projectile'] });
+
+  add('mg_riftmarks', { cls: 'mage', branch: 'riftweaver', tier: 1, slot: 'passive', name: 'Rift Marks', desc: 'Class mechanic: staff hits and phase moves leave short-lived marks.', key: true, tags: ['Movement', 'Walls'] });
+  add('mg_echodrift', { cls: 'mage', branch: 'riftweaver', tier: 2, slot: 'shift', name: 'Echo Drift', desc: 'Slow sideways drift that leaves a decoy echo for a moment.', effect: { kind: 'echoDrift' }, cd: 1600, tags: ['Movement', 'Allies'] });
+  add('mg_riftsnare', { cls: 'mage', branch: 'riftweaver', tier: 3, slot: 'e', name: 'Rift Snare', desc: 'Small portal loop that slows and redirects enemies/projectiles inward.', effect: { kind: 'riftSnare' }, cd: 3300, tags: ['Pull', 'Walls'] });
+  add('mg_architect', { cls: 'mage', branch: 'riftweaver', tier: 5, slot: 'passive', name: 'Portal Architect', desc: 'Advanced variation: maintain linked portal endpoints for shots and movement.', key: true, prereqAll: ['mg_portal', 'mg_swap'], tags: ['Walls', 'Movement'] });
+  add('mg_portalpair', { cls: 'mage', branch: 'riftweaver', tier: 5, slot: 'e', name: 'Portal Pair', desc: 'Place or update linked portal endpoints for projectile and body routing.', effect: { kind: 'portalPair' }, cd: 2800, prereq: 'mg_architect', tags: ['Walls', 'Projectile'] });
+  add('mg_lensshot', { cls: 'mage', branch: 'riftweaver', tier: 5, slot: 'attack', name: 'Lens Shot', desc: 'Projectile bends through the portal pair with speed and angle correction.', effect: { kind: 'portalShot', lens: 1 }, cd: 220, prereq: 'mg_architect', tags: ['Walls', 'Projectile'] });
+  add('mg_doorstep', { cls: 'mage', branch: 'riftweaver', tier: 5, slot: 'shift', name: 'Doorstep', desc: 'Step through your portal pair safely and refund a little Focus.', effect: { kind: 'doorstep' }, cd: 1650, prereq: 'mg_architect', tags: ['Walls', 'Movement'] });
+  add('mg_grandcollapse', { cls: 'mage', branch: 'riftweaver', tier: 5, slot: 'q', name: 'Grand Collapse', desc: 'Rift Collapse pulls through portal exits instead of only toward the cursor.', effect: { kind: 'riftCollapse', portal: 1 }, cd: 9800, prereq: 'mg_architect', tags: ['Pull', 'Walls'] });
+
+  add('rn_aim', { cls: 'ranger', branch: 'sharpshooter', tier: 1, slot: 'passive', name: 'Aim Discipline', desc: 'Class mechanic: holding draw steadily builds Focus for precision effects.', key: true, tags: ['Projectile'] });
+  add('rn_quickdraw', { cls: 'ranger', branch: 'sharpshooter', tier: 2, slot: 'attack', name: 'Quick Draw', desc: 'Faster low-damage shot that interrupts and refunds a bit of draw time.', type: 'attack', action: 'arrow', tags: ['Projectile'] });
+  add('rn_highroll', { cls: 'ranger', branch: 'sharpshooter', tier: 2, slot: 'shift', name: 'High-Ground Roll', desc: 'Roll into a crouched stance. Landing high primes the next shot.', type: 'move', action: 'backstep', cd: 1350, tags: ['Movement', 'Ledges'] });
+  add('rn_deadeye', { cls: 'ranger', branch: 'sharpshooter', tier: 5, slot: 'passive', name: 'Deadeye', desc: 'Advanced variation: full draw reveals weak points on enemies and objects.', key: true, prereqAll: ['rn_power', 'rn_wallpin'], tags: ['Projectile', 'Mark'] });
+  add('rn_weakread', { cls: 'ranger', branch: 'sharpshooter', tier: 5, slot: 'passive', name: 'Weak Point Read', desc: 'Steady full draw marks a weak point for precision follow-up.', key: true, prereq: 'rn_deadeye', tags: ['Mark'] });
+  add('rn_heartshot', { cls: 'ranger', branch: 'sharpshooter', tier: 5, slot: 'attack', name: 'Heart Shot', desc: 'Power shot that cracks weak points into heavy stagger and ring-out force.', effect: { kind: 'weakShot' }, cd: 900, prereq: 'rn_deadeye', tags: ['Projectile', 'Ledges'] });
+  add('rn_threadneedle', { cls: 'ranger', branch: 'sharpshooter', tier: 5, slot: 'e', name: 'Thread The Needle', desc: 'Piercing line that can hit multiple weak points if aligned.', effect: { kind: 'arrow', power: 1.55, pierce: 4 }, cd: 3000, prereq: 'rn_deadeye', tags: ['Projectile', 'Crates'] });
+  add('rn_stillness', { cls: 'ranger', branch: 'sharpshooter', tier: 5, slot: 'passive', name: 'Stillness Pays', desc: 'Keystone: steady shots preserve Focus and reveal weak points faster.', key: true, prereq: ['rn_heartshot', 'rn_threadneedle'], tags: ['Projectile'] });
+
+  add('rn_triggershot', { cls: 'ranger', branch: 'trapper', tier: 2, slot: 'attack', name: 'Trigger Shot', desc: 'Low-damage shot that remotely activates traps and armed barrels.', effect: { kind: 'triggerShot' }, cd: 520, tags: ['Traps', 'Barrels'] });
+  add('rn_traproll', { cls: 'ranger', branch: 'trapper', tier: 2, slot: 'shift', name: 'Trap Roll', desc: 'Short roll that drops caltrops behind you.', effect: { kind: 'trapRoll' }, cd: 1500, tags: ['Traps', 'Movement'] });
+  add('rn_grapplestep', { cls: 'ranger', branch: 'trapper', tier: 2, slot: 'shift', name: 'Grapple Step', desc: 'Fire a line to a wall or crate and pull yourself a short distance.', effect: { kind: 'grappleStep' }, cd: 1700, tags: ['Movement', 'Crates'] });
+  add('rn_routemaster', { cls: 'ranger', branch: 'trapper', tier: 4, slot: 'passive', name: 'Route Master', desc: 'Keystone: first enemy to trigger a trap becomes marked for stronger shot knockback.', key: true, tags: ['Traps', 'Mark'] });
+  add('rn_engineer', { cls: 'ranger', branch: 'trapper', tier: 5, slot: 'passive', name: 'Field Engineer', desc: 'Advanced variation: traps become a physical kit with reclaim and remote-trigger economy.', key: true, prereqAll: ['rn_springtrap', 'rn_caltrops'], tags: ['Traps', 'Crates'] });
+  add('rn_trapkit', { cls: 'ranger', branch: 'trapper', tier: 5, slot: 'passive', name: 'Trap Kit', desc: 'Active traps are limited, visible, and reclaimable.', key: true, prereq: 'rn_engineer', tags: ['Traps'] });
+  add('rn_remotetrigger', { cls: 'ranger', branch: 'trapper', tier: 5, slot: 'attack', name: 'Remote Trigger', desc: 'Trigger any owned trap or armed barrel in line of sight.', effect: { kind: 'triggerShot', remote: 1 }, cd: 650, prereq: 'rn_engineer', tags: ['Traps', 'Barrels'] });
+  add('rn_reinforcedspring', { cls: 'ranger', branch: 'trapper', tier: 5, slot: 'e', name: 'Reinforced Spring', desc: 'Place an aimed spring that launches heavier enemies and objects.', effect: { kind: 'springTrap', strong: 1 }, cd: 3000, prereq: 'rn_engineer', tags: ['Traps', 'Launch'] });
+  add('rn_worksite', { cls: 'ranger', branch: 'trapper', tier: 5, slot: 'passive', name: 'Worksite', desc: 'Keystone: standing near two owned traps grants Focus and faster trap arming.', key: true, prereq: ['rn_remotetrigger', 'rn_reinforcedspring'], tags: ['Traps'] });
+
+  add('rn_huntmark', { cls: 'ranger', branch: 'beastwarden', tier: 1, slot: 'passive', name: 'Hunt Mark', desc: 'Class mechanic: full-draw shots mark prey for allies and decoys.', key: true, tags: ['Allies', 'Mark'] });
+  add('rn_covershot', { cls: 'ranger', branch: 'beastwarden', tier: 2, slot: 'attack', name: 'Cover Shot', desc: 'Shot near an ally or decoy causes them to pressure in that direction.', effect: { kind: 'coverShot' }, cd: 650, tags: ['Allies', 'Projectile'] });
+  add('rn_packstep', { cls: 'ranger', branch: 'beastwarden', tier: 2, slot: 'shift', name: 'Pack Step', desc: 'Backstep and leave a temporary decoy pressure point at your old position.', effect: { kind: 'packStep' }, cd: 1600, tags: ['Allies', 'Movement'] });
+  add('rn_rallyroll', { cls: 'ranger', branch: 'beastwarden', tier: 2, slot: 'shift', name: 'Rally Roll', desc: 'Roll toward ally/decoy pressure and regain Focus nearby.', type: 'move', action: 'backstep', cd: 1350, tags: ['Allies', 'Movement'] });
+  add('rn_huntmaster', { cls: 'ranger', branch: 'beastwarden', tier: 5, slot: 'passive', name: 'Huntmaster', desc: 'Advanced variation: issue simple Pack Orders to allies and decoys.', key: true, prereqAll: ['rn_decoy', 'rn_packcmd'], tags: ['Allies', 'Mark'] });
+  add('rn_packorders', { cls: 'ranger', branch: 'beastwarden', tier: 5, slot: 'passive', name: 'Pack Orders', desc: 'Marked targets unlock pressure, hold, shove, and bait orders.', key: true, prereq: 'rn_huntmaster', tags: ['Allies'] });
+  add('rn_baitdecoy', { cls: 'ranger', branch: 'beastwarden', tier: 5, slot: 'e', name: 'Bait Decoy', desc: 'Decoy kites enemies toward a chosen point, then fades.', effect: { kind: 'baitDecoy' }, cd: 3900, prereq: 'rn_huntmaster', tags: ['Allies', 'Traps'] });
+  add('rn_coordpush', { cls: 'ranger', branch: 'beastwarden', tier: 5, slot: 'q', name: 'Coordinated Push', desc: 'All allies/decoys shove the marked target in the aimed direction.', effect: { kind: 'packCommand', force: 1.35 }, cd: 8600, prereq: 'rn_huntmaster', tags: ['Allies', 'Push'] });
+  add('rn_alphasignal', { cls: 'ranger', branch: 'beastwarden', tier: 5, slot: 'passive', name: 'Alpha Signal', desc: 'Keystone: Q marks a priority target and command KOs refresh one order.', key: true, prereq: ['rn_baitdecoy', 'rn_coordpush'], tags: ['Allies', 'Mark'] });
+
   // Neutral physics keystones
   add('momentum', { cls: 'neutral', branch: 'physics', tier: 2, slot: 'passive', name: 'Momentum', desc: 'Keystone: your hits launch enemies harder toward hazards.', key: true, tags: ['Ledges', 'Push'] });
   add('executioner', { cls: 'neutral', branch: 'physics', tier: 2, slot: 'passive', name: 'Executioner', desc: 'Keystone: damaged enemies are easier to finish with burst abilities.', key: true, tags: ['Burst'] });
@@ -252,6 +405,53 @@ const CLASS_LOADOUT = {
   lancer: { attack: 'ln_thrust', secondary: 'ln_charge', shift: 'ln_brace', e: 'ln_anchor', q: 'ln_breaker', passive: null },
   mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_sigil', q: 'mg_singularity', passive: null },
   ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
+};
+const LAB_BUILDS = {
+  knight: [
+    { id: 'base', name: 'Base Knight', note: 'Starting kit for checking sword, shield, and hitbox basics.', loadout: {} },
+    { id: 'guardian', name: 'Guardian', note: 'Safe space: shield wall, guard step, rally dome, Bulwark.', loadout: { shift: 'kn_guardstep', e: 'kn_wall', q: 'kn_dome', passive: 'kn_bulwark' } },
+    { id: 'aegis', name: 'Aegis Captain', note: 'Advanced Bulwark: linked cover, intercept step, and party protection.', loadout: { attack: 'kn_shieldcut', secondary: 'kn_guard', shift: 'kn_intercept', e: 'kn_linkedcover', q: 'kn_captainsrally', passive: 'kn_aegis' } },
+    { id: 'avenger', name: 'Avenger', note: 'Counter pressure: riposte, vengeance guard, quake, Vengeance.', loadout: { attack: 'kn_riposte', secondary: 'kn_counterguard', shift: 'kn_counterlunge', e: 'kn_punish', q: 'kn_dome', passive: 'kn_vengeance' } },
+    { id: 'vowbreaker', name: 'Vowbreaker', note: 'Advanced Avenger: pivot guard, mirror guard, and debt shock pulses.', loadout: { attack: 'kn_reprisaledge', secondary: 'kn_mirrorguard', shift: 'kn_ironpivot', e: 'kn_trialpulse', q: 'kn_dome', passive: 'kn_vowbreaker' } },
+    { id: 'earthbreaker', name: 'Earthbreaker', note: 'Object impact: crush, crate breaker, stomp, faultline.', loadout: { attack: 'kn_crush', secondary: 'kn_cratebreaker', shift: 'kn_step', e: 'kn_stomp', q: 'kn_faultline', passive: 'kn_aftershock' } },
+    { id: 'siege', name: 'Siege Knight', note: 'Advanced Earthbreaker: shove objects, lock barricades, and break through clutter.', loadout: { attack: 'kn_siegepush', secondary: 'kn_cratebreaker', shift: 'kn_rampbreak', e: 'kn_lockbarricade', q: 'kn_faultline', passive: 'kn_siege' } },
+  ],
+  rogue: [
+    { id: 'base', name: 'Base Rogue', note: 'Starting kit for knives, slide, ammo, and melee rhythm.', loadout: {} },
+    { id: 'duelist', name: 'Duelist', note: 'Close burst: needle stabs, dodge cut, backstab, Assassinate.', loadout: { attack: 'rg_stab', shift: 'rg_dodgecut', e: 'rg_backstab', q: 'rg_storm', passive: 'rg_assassinate' } },
+    { id: 'redline', name: 'Redline Duelist', note: 'Advanced Duelist: parry flicks, slip counters, and burst stab pressure.', loadout: { attack: 'rg_heartbeat', secondary: 'rg_throw', shift: 'rg_slipcounter', e: 'rg_parryflick', q: 'rg_storm', passive: 'rg_redline' } },
+    { id: 'saboteur', name: 'Saboteur', note: 'Knife/object tricks: ricochet, tripwire, smoke, explosive knives.', loadout: { secondary: 'rg_ricochet', shift: 'rg_smoke', e: 'rg_tripwire', q: 'rg_explosive', passive: 'rg_trapmaster' } },
+    { id: 'ghost', name: 'Ghost Saboteur', note: 'Advanced Saboteur: wire vaults, barrel needles, and phantom tripwire networks.', loadout: { attack: 'rg_trapcut', secondary: 'rg_ricochet', shift: 'rg_vanishslide', e: 'rg_phantomwire', q: 'rg_explosive', passive: 'rg_ghost' } },
+    { id: 'acrobat', name: 'Acrobat', note: 'Movement offense: sweep, wall kick, vault toss, air spiral.', loadout: { attack: 'rg_sweep', secondary: 'rg_throw', shift: 'rg_wallkick', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_bloodrush' } },
+    { id: 'skyblade', name: 'Skyblade Acrobat', note: 'Advanced Acrobat: heel rebound, diving stabs, and air spiral landings.', loadout: { attack: 'rg_divingneedle', secondary: 'rg_throw', shift: 'rg_heelrebound', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_skyblade' } },
+  ],
+  lancer: [
+    { id: 'base', name: 'Base Lancer', note: 'Starting kit for pure forward stab, charge lock, and long hitbox checks.', loadout: {} },
+    { id: 'phalanx', name: 'Phalanx', note: 'Dangerous space: spear wall, pinning thrust, fortress line.', loadout: { attack: 'ln_pin', secondary: 'ln_charge', shift: 'ln_brace', e: 'ln_spearwall', q: 'ln_fortress', passive: 'ln_ironstance' } },
+    { id: 'pike', name: 'Pike Captain', note: 'Advanced Phalanx: close blind-spot sweep, command-lane brace, and anchor stake.', loadout: { attack: 'ln_orderedthrust', secondary: 'ln_charge', shift: 'ln_formationstep', e: 'ln_anchorstake', q: 'ln_fortress', passive: 'ln_pike' } },
+    { id: 'dragoon', name: 'Dragoon', note: 'Committed charge: skewer, vault pin, impale carry, Momentum Lance.', loadout: { attack: 'ln_skewer', secondary: 'ln_carry', shift: 'ln_charge', e: 'ln_vault', q: 'ln_breaker', passive: 'ln_momentum' } },
+    { id: 'meteor', name: 'Meteor Dragoon', note: 'Advanced Dragoon: committed overrun, wallbreaker, and straight-lane charge payoff.', loadout: { attack: 'ln_breakthrust', secondary: 'ln_overrun', shift: 'ln_charge', e: 'ln_wallbreaker', q: 'ln_breaker', passive: 'ln_meteor' } },
+    { id: 'harpooner', name: 'Harpooner', note: 'Tether control: hook thrust, chain lance, reel step, Maw.', loadout: { attack: 'ln_hookthrust', secondary: 'ln_chain', shift: 'ln_reel', e: 'ln_chain', q: 'ln_maw', passive: 'ln_tethermaster' } },
+    { id: 'warden', name: 'Chain Warden', note: 'Advanced Harpooner: persistent anchors, cross-tethers, and winch movement.', loadout: { attack: 'ln_crosstether', secondary: 'ln_chain', shift: 'ln_winchstep', e: 'ln_wardenanchor', q: 'ln_maw', passive: 'ln_warden' } },
+  ],
+  mage: [
+    { id: 'base', name: 'Base Mage', note: 'Starting kit for staff, hover, Gravity Bloom, and Singularity.', loadout: {} },
+    { id: 'graviturge', name: 'Graviturge', note: 'Area physics: gravity well, updraft, singularity, Resonance.', loadout: { attack: 'mg_staff', secondary: 'mg_gravitywell', shift: 'mg_dash', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_resonance' } },
+    { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital casts, and True Horizon.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
+    { id: 'stormcaller', name: 'Stormcaller', note: 'Wind/lightning: wind bolt, gust hover, chain spark, Tempest.', loadout: { attack: 'mg_windbolt', secondary: 'mg_bloom', shift: 'mg_gust', e: 'mg_chain', q: 'mg_tempest', passive: 'mg_overcharge' } },
+    { id: 'stormdancer', name: 'Storm Dancer', note: 'Advanced Stormcaller: downburst, wind weave, static fields, and lightning step.', loadout: { attack: 'mg_arcspear', secondary: 'mg_bloom', shift: 'mg_windweave', e: 'mg_lightningstep', q: 'mg_tempest', passive: 'mg_stormdancer' } },
+    { id: 'riftweaver', name: 'Riftweaver', note: 'Positioning magic: phase step, swap, portal shot, rift collapse.', loadout: { attack: 'mg_staff', secondary: 'mg_portal', shift: 'mg_phase', e: 'mg_swap', q: 'mg_collapse', passive: 'mg_echo' } },
+    { id: 'architect', name: 'Portal Architect', note: 'Advanced Riftweaver: portal pairs, lens shots, and doorstep movement.', loadout: { attack: 'mg_lensshot', secondary: 'mg_portal', shift: 'mg_doorstep', e: 'mg_portalpair', q: 'mg_grandcollapse', passive: 'mg_architect' } },
+  ],
+  ranger: [
+    { id: 'base', name: 'Base Ranger', note: 'Starting kit for draw/release, quiver, trajectory, and reload checks.', loadout: {} },
+    { id: 'sharpshooter', name: 'Sharpshooter', note: 'Precision: power draw, wall pin, piercing arrow, Arrow Storm.', loadout: { attack: 'rn_power', secondary: 'rn_pierce', shift: 'rn_backstep', e: 'rn_wallpin', q: 'rn_arrowstorm', passive: 'rn_hunter' } },
+    { id: 'deadeye', name: 'Deadeye', note: 'Advanced Sharpshooter: weak-point heart shots and thread-the-needle pierce.', loadout: { attack: 'rn_heartshot', secondary: 'rn_pierce', shift: 'rn_highroll', e: 'rn_threadneedle', q: 'rn_arrowstorm', passive: 'rn_deadeye' } },
+    { id: 'trapper', name: 'Trapper', note: 'Prepared routes: caltrops, snare, spring trap, barrel shot, mine volley.', loadout: { attack: 'rn_arrow', secondary: 'rn_caltrops', shift: 'rn_springtrap', e: 'rn_barrelshot', q: 'rn_minevolley', passive: 'rn_prepared' } },
+    { id: 'engineer', name: 'Field Engineer', note: 'Advanced Trapper: trigger shots, trap rolls, remote barrel/trap activation.', loadout: { attack: 'rn_remotetrigger', secondary: 'rn_caltrops', shift: 'rn_traproll', e: 'rn_reinforcedspring', q: 'rn_minevolley', passive: 'rn_engineer' } },
+    { id: 'beastwarden', name: 'Beastwarden', note: 'Party pressure: mark shot, decoy, pack command, Hunt.', loadout: { attack: 'rn_markshot', secondary: 'rn_packcmd', shift: 'rn_backstep', e: 'rn_decoy', q: 'rn_hunt', passive: 'rn_packbond' } },
+    { id: 'huntmaster', name: 'Huntmaster', note: 'Advanced Beastwarden: cover shots, pack steps, bait decoys, and coordinated pushes.', loadout: { attack: 'rn_covershot', secondary: 'rn_packcmd', shift: 'rn_packstep', e: 'rn_baitdecoy', q: 'rn_coordpush', passive: 'rn_huntmaster' } },
+  ],
 };
 const TREE_NODES = ABILITIES;
 
@@ -478,10 +678,10 @@ PUBLIC.start = function (root, api) {
     <span>⏱ <b id="sr-time">0.0</b></span>`;
   root.appendChild(hud);
   hud.innerHTML = `<span class="sr-classchip" id="sr-classchip">Knight</span>
-    <span>W<b id="sr-lvl">1</b></span>
-    <span><b id="sr-lvls">0</b> foes</span>
-    <span><b id="sr-party">0</b> allies</span>
-    <span>KO <b id="sr-coins">0</b></span>`;
+    <span><span id="sr-mode-label">W</span><b id="sr-lvl">1</b></span>
+    <span><b id="sr-lvls">0</b> <span id="sr-foe-label">foes</span></span>
+    <span><b id="sr-party">0</b> <span id="sr-party-label">allies</span></span>
+    <span><span id="sr-score-label">KO</span> <b id="sr-coins">0</b></span>`;
 
   const helpBtn = document.createElement('button');
   helpBtn.className = 'sr-helpbtn';
@@ -490,6 +690,11 @@ PUBLIC.start = function (root, api) {
   helpBtn.setAttribute('aria-label', 'Current abilities');
   helpBtn.style.display = 'none';
   root.appendChild(helpBtn);
+
+  const labPanel = document.createElement('div');
+  labPanel.className = 'sr-labpanel';
+  labPanel.style.display = 'none';
+  root.appendChild(labPanel);
 
   const style = document.createElement('style');
   style.textContent = `
@@ -551,9 +756,28 @@ PUBLIC.start = function (root, api) {
     .sr-tags{display:block;margin-top:5px;color:#8fe6ff;font-style:normal;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
     .sr-help-list{display:flex;flex-direction:column;gap:8px;width:min(560px,90vw);max-height:min(62vh,520px);overflow:auto}
     .sr-help-row.passive{border-color:rgba(255,212,94,.5)}
+    .sr-mode-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+    .sr-lab-open{border:1px solid rgba(143,230,255,.45);background:rgba(143,230,255,.12);color:#dff8ff}
+    .sr-lab-grid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:680px;margin-top:2px}
+    .sr-lab-class{cursor:pointer;border:1px solid var(--cc);border-radius:8px;background:rgba(9,12,23,.78);color:#eaf2ff;
+      padding:8px 10px;font-weight:900;min-width:94px}
+    .sr-labpanel{position:absolute;left:max(12px,env(safe-area-inset-left));top:calc(96px + env(safe-area-inset-top));z-index:38;
+      width:min(330px,calc(100vw - 24px));padding:10px;border:1px solid rgba(255,255,255,.24);border-radius:12px;
+      background:rgba(8,11,22,.72);backdrop-filter:blur(9px);color:#eaf2ff;box-shadow:0 12px 32px rgba(0,0,0,.24)}
+    .sr-labpanel b{display:block;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8fe6ff;margin-bottom:6px}
+    .sr-labrow{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px}
+    .sr-labpanel select,.sr-labpanel button{min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.22);
+      background:rgba(255,255,255,.10);color:#eaf2ff;font:800 12px system-ui;padding:5px 8px}
+    .sr-labpanel button{cursor:pointer}.sr-labpanel button:hover{border-color:#8fe6ff;background:rgba(143,230,255,.16)}
+    .sr-labpanel option{background:#101525;color:#eaf2ff}
+    .sr-labnote{font-size:11px;line-height:1.28;color:#d9e4f5;opacity:.82;margin:5px 0 8px}
+    .sr-labtools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     @media (max-width:760px){
       .sr-hud{top:calc(52px + env(safe-area-inset-top));max-width:calc(100vw - 92px);overflow:hidden;gap:7px;font-size:12px}
       .sr-helpbtn{top:calc(52px + env(safe-area-inset-top));width:28px;height:28px}
+      .sr-labpanel{top:calc(86px + env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));width:min(280px,calc(100vw - 16px));
+        padding:8px;max-height:38vh;overflow:auto}
+      .sr-labrow{grid-template-columns:1fr}.sr-labtools{grid-template-columns:repeat(2,1fr)}
       .sr-abilitybar{left:auto;right:max(8px,env(safe-area-inset-right));transform:none;max-width:calc(100vw - 112px);
         justify-content:flex-end;flex-wrap:wrap;gap:5px;padding:5px}
       .sr-abilitybar .sr-btn{width:54px;height:48px;border-radius:10px}
@@ -673,6 +897,7 @@ PUBLIC.start = function (root, api) {
   }
   function slotUnlocked(slot) {
     if (!player || player.team !== 'hero') return true;
+    if (labMode) return true;
     return !arenaMode || (arenaWave || 1) >= (SLOT_UNLOCK_WAVE[slot] || 1);
   }
   function slotStateText(slot) {
@@ -717,7 +942,8 @@ PUBLIC.start = function (root, api) {
     if (w <= 2) return 1;
     if (w <= 4) return 2;
     if (w <= 6) return 3;
-    return 4;
+    if (w <= 8) return 4;
+    return 5;
   }
   function tierUnlocked(spec) {
     if (!spec) return false;
@@ -728,7 +954,12 @@ PUBLIC.start = function (root, api) {
     return !!(runBuild && runBuild.picked && runBuild.picked.includes(id));
   }
   function prereqMet(spec) {
-    if (!spec || !spec.prereq) return true;
+    if (!spec) return false;
+    if (spec.prereqAll) {
+      const all = Array.isArray(spec.prereqAll) ? spec.prereqAll : [spec.prereqAll];
+      if (!all.every(nodePicked)) return false;
+    }
+    if (!spec.prereq) return true;
     const list = Array.isArray(spec.prereq) ? spec.prereq : [spec.prereq];
     return list.some(nodePicked);
   }
@@ -1092,9 +1323,422 @@ PUBLIC.start = function (root, api) {
     if (hitAny) addShake(2.4, 120);
     return hitAny;
   }
+  function nearestBoxFrom(x, y, range, frontOnly) {
+    let best = null, bd = range || 180;
+    const f = player ? player.facing || 1 : 1;
+    for (const b of boxes || []) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      if (frontOnly && Math.sign(cx - player.x || f) !== f) continue;
+      const d = Math.hypot(cx - x, cy - y);
+      if (d < bd) { best = b; bd = d; }
+    }
+    return best;
+  }
+  function nearestBoxAhead(range) {
+    return nearestBoxFrom(player.x + (player.facing || 1) * 48, player.y - 34, range || 180, true);
+  }
+  function reflectNearbyProjectiles(x, y, radius, color) {
+    let any = false;
+    for (const p of projectiles || []) {
+      if (!p || p.team === player.team) continue;
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d > radius) continue;
+      const nx = (p.x - x) / (d || 1), ny = (p.y - y) / (d || 1);
+      const sp = Math.max(16, Math.hypot(p.vx, p.vy) * 1.08);
+      p.vx = nx * sp; p.vy = ny * sp; p.team = player.team; p.color = color || cls.color; p.bounce = Math.max(p.bounce || 0, 1);
+      burst(p.x, p.y, '#ffffff', 10, 2.8);
+      any = true;
+    }
+    return any;
+  }
+  function triggerObjectsOnLine(ax, ay, bx, by, radius, force, remote) {
+    let any = false;
+    for (const b of boxes || []) {
+      const close = remote ? Math.hypot(b.x + b.w / 2 - bx, b.y + b.h / 2 - by) < radius : segAabbDist(ax, ay, bx, by, b) <= radius;
+      if (!close) continue;
+      if (b.kind === 'barrel') explodeBox(b, force || 18);
+      else if (b.kind === 'spring') triggerSpringBox(b, null, force || 16);
+      else pushBox(b, Math.sign(b.x + b.w / 2 - ax) || player.facing, -0.35, force || 16);
+      any = true;
+    }
+    return any;
+  }
+  function spawnWardenAnchor(x, y, color) {
+    const bottom = surfaceYFor(player, x, 260, 210) || y + 42;
+    const a = { x, y: bottom - 42, bottom, life: 12000, max: 12000, team: player.team, color: color || cls.color };
+    anchors = anchors || [];
+    anchors.push(a);
+    if (anchors.length > 3) anchors.shift();
+    burst(a.x, a.y, '#ffffff', 12, 3.0);
+    burst(a.x, a.y, a.color, 22, 3.8);
+    return a;
+  }
+  function nearestAnchor(range) {
+    let best = null, bd = range || 620;
+    for (const a of anchors || []) {
+      if (!a || a.team !== player.team) continue;
+      const d = Math.hypot(a.x - player.x, a.y - (player.y - 42));
+      if (d < bd) { best = a; bd = d; }
+    }
+    return best;
+  }
+  function placePortalPair(target) {
+    const start = { x: player.x, y: player.y - 62, life: 13000, max: 13000, team: player.team, color: cls.color };
+    const end = { x: target.x, y: target.y, life: 13000, max: 13000, team: player.team, color: '#8fe6ff' };
+    portals = [start, end];
+    rememberDebugSegment('ability', start.x, start.y, end.x, end.y, 8, cls.color, 520);
+    burst(start.x, start.y, cls.color, 20, 3.8);
+    burst(end.x, end.y, '#8fe6ff', 24, 4.2);
+    return true;
+  }
+  function nearestPortalPairExit() {
+    if (!portals || portals.length < 2) return null;
+    const a = portals[0], b = portals[1];
+    const da = Math.hypot(player.x - a.x, (player.y - 48) - a.y);
+    const db = Math.hypot(player.x - b.x, (player.y - 48) - b.y);
+    return da < db ? b : a;
+  }
+  function spawnPressureDecoy(x, y, opts) {
+    opts = opts || {};
+    if (!allies) allies = [];
+    const a = makeFighter(opts.cls || 'rogue', x, y, { team: 'ally', hp: opts.hp || 2, min: x - 110, max: x + 110, facing: opts.facing || player.facing });
+    a.brain.alert = 9999; a.brain.party = true; a.decoy = true; a.marked = opts.marked || 0;
+    allies.push(a);
+    burst(x, y - 42, opts.color || cls.color, 16, 3.2);
+    return a;
+  }
+  function updateAbilityMarkers(dtStep) {
+    if (anchors && anchors.length) {
+      for (let i = anchors.length - 1; i >= 0; i--) {
+        anchors[i].life -= dtStep;
+        if (anchors[i].life <= 0) anchors.splice(i, 1);
+      }
+    }
+    if (portals && portals.length) {
+      for (let i = portals.length - 1; i >= 0; i--) {
+        portals[i].life -= dtStep;
+        if (portals[i].life <= 0) portals.splice(i, 1);
+      }
+      if (portals.length < 2) portals = [];
+    }
+  }
   function useEffectAbility(spec, slot, ang) {
     const e = spec.effect || {};
     const f = player.facing || 1;
+    if (e.kind === 'coverHop') {
+      startClassMove('backstep');
+      activateShieldGuard();
+      const p = pointAhead(42);
+      spawnAbilityBox('barrier', p.x, p.y, { w: 34, h: 70, life: 1700, m: 9, color: '#dcecff' });
+      hitBoxesSegment(player.x + f * 8, player.y - 42, player.x + f * 92, player.y - 44, f, -0.08, 14, 13);
+      return true;
+    }
+    if (e.kind === 'aegisLink') {
+      const p = pointAhead(76);
+      spawnAbilityBox('barrier', p.x, p.y, { w: 52, h: 92, life: 5600, m: 12, color: '#7fb6ff' });
+      activateShieldGuard();
+      for (const a of livingAllies()) {
+        if (Math.hypot(a.x - player.x, a.y - player.y) < 360) {
+          a.shieldGuard = Math.max(a.shieldGuard || 0, 1800);
+          a.shieldFlash = Math.max(a.shieldFlash || 0, 260);
+          burst(a.x, a.y - 42, '#dcecff', 10, 2.4);
+        }
+      }
+      pushBoxesRadial(player.x + f * 48, player.y - 44, 16, 130, player.team);
+      return true;
+    }
+    if (e.kind === 'intercept') {
+      const ally = livingAllies().sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))[0];
+      const threat = nearestTarget(460, false);
+      if (ally && threat) {
+        const dir = Math.sign(threat.x - ally.x) || f;
+        player.x = ally.x + dir * 42;
+        player.y = ally.y;
+        player.facing = dir;
+        player.vx = dir * 5.2;
+      } else startClassMove('shieldStep');
+      activateShieldGuard();
+      hitBoxesSegment(player.x + player.facing * 12, player.y - 48, player.x + player.facing * 112, player.y - 48, player.facing, -0.18, 20, 16);
+      return true;
+    }
+    if (e.kind === 'ironPivot') {
+      abilityAimCue(ang);
+      activateShieldGuard();
+      player.vx *= 0.25;
+      hitBoxesSegment(player.x - f * 70, player.y - 48, player.x + f * 86, player.y - 48, f, -0.18, 17, 15);
+      return true;
+    }
+    if (e.kind === 'debtPulse') {
+      const range = e.range || 190, force = e.force || 25;
+      for (let i = 0; i < 3; i++) {
+        const y = player.y - 22 - i * 15;
+        hitBoxesSegment(player.x + f * 10, y, player.x + f * range, y - i * 5, f, -0.45, force - i * 3, 15 + i * 2);
+      }
+      triggerObjectsOnLine(player.x, player.y - 44, player.x + f * range, player.y - 54, 22, force + 6);
+      burst(player.x + f * Math.min(range, 150), player.y - 44, '#dcecff', 28, 4.8);
+      addShake(4.6, 150);
+      return true;
+    }
+    if (e.kind === 'mirrorGuard') {
+      activateShieldGuard();
+      reflectNearbyProjectiles(player.x + f * 18, player.y - 48, 150, '#dcecff');
+      hitBoxesSegment(player.x - f * 36, player.y - 44, player.x + f * 92, player.y - 44, -f, -0.1, 13, 16);
+      burst(player.x + f * 18, player.y - 48, '#ffffff', 18, 3.6);
+      return true;
+    }
+    if (e.kind === 'groundSplitter') {
+      triggerAttack('crush', { aim: ang });
+      for (let i = 0; i < 4; i++) {
+        const sx = player.x + f * (24 + i * 36);
+        hitBoxesSegment(sx, player.y - 18, sx + f * 38, player.y - 20, f, -0.72, 21, 13);
+      }
+      addShake(3.8, 120);
+      return true;
+    }
+    if (e.kind === 'faultPlate') {
+      const p = pointAhead(76);
+      spawnAbilityBox('barrier', p.x, p.y, { w: 94, h: 24, life: 3600, m: 11, color: '#9eb0c4' });
+      hitBoxesSegment(player.x + f * 18, player.y - 24, player.x + f * 118, player.y - 28, f, -0.62, 17, 15);
+      return true;
+    }
+    if (e.kind === 'siegePush') {
+      const b = nearestBoxAhead(180);
+      if (b) {
+        pushBox(b, f, -0.18, 40);
+        rememberDebugSegment('ability', player.x, player.y - 44, b.x + b.w / 2, b.y + b.h / 2, 10, cls.color, 280);
+        hitBoxesSegment(b.x + b.w / 2, b.y + b.h / 2, b.x + b.w / 2 + f * 122, b.y + b.h / 2 - 8, f, -0.18, 20, 16);
+      } else hitBoxesSegment(player.x + f * 16, player.y - 42, player.x + f * 124, player.y - 44, f, -0.2, 21, 15);
+      return true;
+    }
+    if (e.kind === 'lockBarricade') {
+      const b = nearestBoxAhead(210);
+      if (b) {
+        b.kind = 'barrier'; b.life = Math.max(b.life || 0, 5200); b.m = Math.max(b.m || 1, 11);
+        b.w = Math.max(b.w, 54); b.h = Math.max(b.h, 58);
+        burst(b.x + b.w / 2, b.y + b.h / 2, '#7fb6ff', 24, 3.8);
+      } else {
+        const p = pointAhead(72);
+        spawnAbilityBox('barrier', p.x, p.y, { w: 58, h: 76, life: 4600, m: 11, color: '#7fb6ff' });
+      }
+      activateShieldGuard();
+      return true;
+    }
+    if (e.kind === 'rampBreak') {
+      startClassMove('shoulder');
+      player.vy = Math.min(player.vy, -2.4);
+      hitBoxesSegment(player.x + f * 10, player.y - 34, player.x + f * 128, player.y - 32, f, -0.36, 28, 18);
+      return true;
+    }
+    if (e.kind === 'parryFlick') {
+      player.rogueBurst = Math.min(ROGUE_BURST_MAX, (player.rogueBurst || 0) + 1);
+      reflectNearbyProjectiles(player.x + f * 12, player.y - 56, 132, cls.color);
+      hitBoxesSegment(player.x + f * 8, player.y - 54, player.x + f * 76, player.y - 58, f, -0.45, 15, 10);
+      burst(player.x + f * 24, player.y - 58, '#ffffff', 12, 2.8);
+      return true;
+    }
+    if (e.kind === 'wireVault') {
+      startClassMove('vault');
+      let best = -1, bd = 150;
+      for (let i = 0; i < droppedKnives.length; i++) {
+        const k = droppedKnives[i], d = Math.hypot(k.x - player.x, k.y - (player.y - 34));
+        if (d < bd) { best = i; bd = d; }
+      }
+      if (best >= 0) {
+        droppedKnives.splice(best, 1);
+        player.knifeAmmo = Math.min(ROGUE_MAX_KNIVES, (player.knifeAmmo || 0) + 1);
+      }
+      hitBoxesSegment(player.x, player.y - 44, player.x + f * 86, player.y - 70, f, -0.8, 17, 12);
+      return true;
+    }
+    if (e.kind === 'barrelNeedle') {
+      if (player.knifeAmmo <= 0) return false;
+      player.knifeAmmo--; player.knifeRegen = 0;
+      spawnDagger(ang, { explosive: 1, bounce: 1 });
+      const o = { x: player.x, y: player.y - 78 };
+      triggerObjectsOnLine(o.x, o.y, o.x + Math.cos(ang) * 360, o.y + Math.sin(ang) * 360, 18, 16);
+      return true;
+    }
+    if (e.kind === 'ghostNetwork') {
+      const pts = droppedKnives.slice(0, 3).map(k => ({ x: k.x, y: k.y }));
+      if (pts.length < 2) {
+        const p1 = pointAhead(70), p2 = pointAhead(150);
+        pts.push({ x: p1.x, y: p1.y - 10 }, { x: p2.x, y: p2.y - 10 });
+      }
+      for (let i = 0; i < pts.length - 1; i++) {
+        rememberDebugSegment('ability', pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, 9, cls.color, 1200);
+        spawnAbilityBox('spring', (pts[i].x + pts[i + 1].x) / 2, Math.max(pts[i].y, pts[i + 1].y) + 10, { w: Math.min(120, Math.abs(pts[i + 1].x - pts[i].x) + 32), h: 16, life: 3600, color: cls.color });
+      }
+      return true;
+    }
+    if (e.kind === 'heelRebound') {
+      startClassMove('vault');
+      player.vx = -f * 5.8; player.vy = Math.min(player.vy, -9.2); player.grounded = false;
+      hitBoxesSegment(player.x + f * 8, player.y - 34, player.x + f * 86, player.y - 58, -f, -0.85, 20, 14);
+      return true;
+    }
+    if (e.kind === 'breakerRun') {
+      triggerAttack('lanceCharge', { aim: horizontalAimFromFacing(f) });
+      player.vx = f * (e.big ? 13.2 : 10.8);
+      const force = e.big ? 46 : 34;
+      hitBoxesSegment(player.x + f * 18, player.y - 62, player.x + f * 210, player.y - 62, f, -0.08, force, 15);
+      triggerObjectsOnLine(player.x, player.y - 62, player.x + f * 260, player.y - 62, 24, force);
+      return true;
+    }
+    if (e.kind === 'wardenAnchor') {
+      const p = aimedPoint(360);
+      spawnWardenAnchor(p.x, p.y, cls.color);
+      return true;
+    }
+    if (e.kind === 'wardenPull') {
+      const a = nearestAnchor(680);
+      if (!a) return pullActorsAndBoxes(ang, { range: 300, all: 1, force: 8.5 });
+      const dx = a.x - player.x, dy = a.y - (player.y - 44), d = Math.hypot(dx, dy) || 1;
+      player.vx += (dx / d) * 8.8;
+      player.vy += (dy / d) * 4.4 - 2.4;
+      for (const t of targetActorsForPlayer()) {
+        const td = Math.hypot(t.x - a.x, (t.y - 42) - a.y);
+        if (td < 300) {
+          const nx = (a.x - t.x) / (td || 1), ny = (a.y - (t.y - 42)) / (td || 1);
+          if (player.team === 'enemy') hurtEnemyTarget(t, nx, ny, 12, t.x, t.y - 42);
+          else hurtFighter(t, nx, ny, 12, t.x, t.y - 42);
+        }
+      }
+      for (const b of boxes) {
+        const cx = b.x + b.w / 2, cy = b.y + b.h / 2, bd = Math.hypot(cx - a.x, cy - a.y);
+        if (bd < 320) pushBox(b, (a.x - cx) / (bd || 1), (a.y - cy) / (bd || 1), 18);
+      }
+      rememberDebugSegment('ability', player.x, player.y - 44, a.x, a.y, 8, cls.color, 420);
+      return true;
+    }
+    if (e.kind === 'orbitalBolt') {
+      if (!gravityCore) { spawnBolt(ang, 1.22, { wind: 1, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
+      const p = aimedPoint(520);
+      const a = Math.atan2(p.y - gravityCore.y, p.x - gravityCore.x);
+      const spd = 25;
+      projectiles.push({ kind: 'bolt', team: player.team, x: gravityCore.x + Math.cos(a) * 18, y: gravityCore.y + Math.sin(a) * 18, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 1050, color: cls.color, r: 11, hit: 16, sparkle: 3, bounce: hasPassive('ricochet_key') ? 1 : 0, wind: 1 });
+      if (e.shoveCore) { gravityCore.vx += Math.cos(ang) * 0.9; gravityCore.vy += Math.sin(ang) * 0.55; }
+      rememberDebugSegment('ability', player.x, player.y - 70, gravityCore.x, gravityCore.y, 8, cls.color, 260);
+      burst(gravityCore.x, gravityCore.y, cls.color, 18, 3.6);
+      return true;
+    }
+    if (e.kind === 'gravityBrake') {
+      player.vx *= 0.16; player.vy *= 0.34;
+      player.hoverTargetY = player.y - 58;
+      spawnGravityField(player.x, player.y - 52, player.team, cls.color, { r: 118, life: 950 });
+      return true;
+    }
+    if (e.kind === 'coreStep') {
+      if (!gravityCore) return startClassMove('airDash');
+      const rel = Math.atan2(player.y - 60 - gravityCore.y, player.x - gravityCore.x) + f * 0.95;
+      const tx = gravityCore.x + Math.cos(rel) * (gravityCore.r * 0.58);
+      const ty = gravityCore.y + Math.sin(rel) * (gravityCore.r * 0.35);
+      player.vx += (tx - player.x) * 0.12;
+      player.vy += (ty - (player.y - 48)) * 0.08 - 1.6;
+      player.grounded = false;
+      rememberDebugSegment('ability', player.x, player.y - 48, tx, ty, 7, cls.color, 360);
+      return true;
+    }
+    if (e.kind === 'downburst') {
+      player.hoverTargetY = null;
+      player.vy = Math.max(player.vy, 8.8);
+      pushBoxesRadial(player.x, player.y - 20, 23, 142, player.team);
+      hitBoxesSegment(player.x - 64, player.y - 16, player.x + 64, player.y - 16, 0, 1, 19, 16);
+      burst(player.x, player.y - 20, '#8fe6ff', 24, 4.4);
+      return true;
+    }
+    if (e.kind === 'staticField') {
+      const p = aimedPoint(380);
+      spawnGravityField(p.x, p.y, player.team, '#8fe6ff', { r: 126, life: 1850 });
+      chainLightning(ang, 3);
+      return true;
+    }
+    if (e.kind === 'chainStep') {
+      chainLightning(ang, e.jumps || 4);
+      player.vx += Math.cos(ang) * 4.2;
+      player.vy += Math.sin(ang) * 1.8 - 1.0;
+      return true;
+    }
+    if (e.kind === 'echoDrift') {
+      const ox = player.x, oy = player.y;
+      startClassMove('airDash');
+      spawnPressureDecoy(ox, oy, { cls: 'mage', hp: 1, color: '#b48cff', facing: f });
+      return true;
+    }
+    if (e.kind === 'riftSnare') {
+      const p = aimedPoint(390);
+      spawnGravityField(p.x, p.y, player.team, '#b48cff', { r: 132, life: 2100 });
+      pullActorsAndBoxes(ang, { range: 240, all: 1, force: 6.2 });
+      return true;
+    }
+    if (e.kind === 'portalPair') {
+      return placePortalPair(aimedPoint(460));
+    }
+    if (e.kind === 'doorstep') {
+      const exit = nearestPortalPairExit();
+      if (!exit) return startClassMove('airDash');
+      burst(player.x, player.y - 48, cls.color, 18, 3.4);
+      player.x = exit.x + f * 20;
+      player.y = (surfaceYFor(player, exit.x, 240, 180) || exit.y + 52);
+      player.vx = f * 5.8; player.vy = Math.min(player.vy, -2.2);
+      burst(player.x, player.y - 48, '#8fe6ff', 22, 3.8);
+      return true;
+    }
+    if (e.kind === 'weakShot') {
+      if (player.arrowAmmo <= 0) return false;
+      player.arrowAmmo--; player.arrowRegen = 0;
+      spawnArrow(ang, 1.92, { pierce: 1, powerShot: true, pin: 1, bounce: hasPassive('ricochet_key') ? 1 : 0 });
+      return true;
+    }
+    if (e.kind === 'triggerShot') {
+      if (player.arrowAmmo <= 0) return false;
+      player.arrowAmmo--; player.arrowRegen = 0;
+      spawnArrow(ang, e.remote ? 0.92 : 1.05, { powerShot: false, pierce: 0 });
+      const o = arrowOrigin(ang), ex = o.x + Math.cos(ang) * 560, ey = o.y + Math.sin(ang) * 560;
+      triggerObjectsOnLine(o.x, o.y, ex, ey, e.remote ? 260 : 22, e.remote ? 26 : 15, !!e.remote);
+      return true;
+    }
+    if (e.kind === 'trapRoll') {
+      startClassMove('backstep');
+      const p = pointAhead(-42);
+      spawnAbilityBox('spring', p.x, p.y, { w: 76, h: 16, life: hasPassive('rn_prepared') ? 10000 : 6200, color: '#8fe6ff' });
+      return true;
+    }
+    if (e.kind === 'grappleStep') {
+      const p = aimedPoint(340);
+      const dx = p.x - player.x, dy = p.y - (player.y - 44), d = Math.hypot(dx, dy) || 1;
+      player.vx += (dx / d) * 8.4;
+      player.vy += (dy / d) * 4.5 - 2.0;
+      player.grounded = false;
+      rememberDebugSegment('ability', player.x, player.y - 44, p.x, p.y, 6, '#8fe6ff', 360);
+      return true;
+    }
+    if (e.kind === 'coverShot') {
+      if (player.arrowAmmo <= 0) return false;
+      player.arrowAmmo--; player.arrowRegen = 0;
+      spawnArrow(ang, 1.14, { powerShot: true, bounce: hasPassive('ricochet_key') ? 1 : 0 });
+      const squad = livingAllies();
+      if (!squad.length) spawnPressureDecoy(player.x - f * 42, player.y, { cls: 'knight', hp: 1, color: '#53d4ff', facing: f });
+      for (const a of livingAllies()) {
+        a.facing = Math.cos(ang) >= 0 ? 1 : -1;
+        a.vx += a.facing * 4.8;
+        hitBoxesSegment(a.x, a.y - 42, a.x + a.facing * 84, a.y - 42, a.facing, -0.15, 13, 15);
+      }
+      return true;
+    }
+    if (e.kind === 'packStep') {
+      const ox = player.x, oy = player.y;
+      startClassMove('backstep');
+      spawnPressureDecoy(ox, oy, { cls: 'rogue', hp: 1, color: '#53d4ff', facing: f });
+      return true;
+    }
+    if (e.kind === 'baitDecoy') {
+      const p = aimedPoint(360);
+      const y = surfaceYFor(player, p.x, 260, 210) || p.y + 44;
+      const a = spawnPressureDecoy(p.x, y, { cls: 'ranger', hp: 2, color: '#53d4ff', facing: -f, marked: 3000 });
+      a.brain.patrolMin = p.x - 90; a.brain.patrolMax = p.x + 90;
+      spawnAbilityBox('spring', p.x - f * 48, y, { w: 58, h: 16, life: 4800, color: '#8fe6ff' });
+      return true;
+    }
     if (e.kind === 'line') {
       hitBoxesSegment(player.x + f * 8, player.y - 54, player.x + f * (e.range || 110), player.y - 54 + (e.drop || 0), f, e.y || -0.15, e.force || 20, e.radius || 12);
       return true;
@@ -1193,6 +1837,15 @@ PUBLIC.start = function (root, api) {
     if (e.kind === 'field') {
       const p = aimedPoint(e.range || 380);
       spawnGravityField(p.x, p.y, player.team, cls.color, { r: e.r || 160, life: e.life || 2400 });
+      return true;
+    }
+    if (e.kind === 'gravityCore') {
+      const p = aimedPoint(e.range || 460);
+      spawnGravityCore(p.x, p.y, player.team, cls.color, e);
+      return true;
+    }
+    if (e.kind === 'trueHorizon') {
+      collapseGravityCore(ang);
       return true;
     }
     if (e.kind === 'bolt') { spawnBolt(ang, e.power || 1.15, { wind: e.wind, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
@@ -1319,15 +1972,19 @@ PUBLIC.start = function (root, api) {
     const i = player && player.anim ? (player.anim.rogueComboNext || 0) : 0;
     return i === 2 || i === 4 ? 'rogueStab' : 'dualSlash';
   }
+  function runClickSlotAbility(spec, slot, fallbackCd) {
+    if (!spec || !(spec.type === 'custom' || spec.effect)) return null;
+    if (!cooldownReady(spec.id)) return false;
+    const ok = runLoadoutAbility(spec, slot, aimedAngle());
+    if (ok) spendCooldown(spec.id, spec.cd || fallbackCd);
+    syncHud();
+    return ok;
+  }
   function mainAttack() {
     const spec = equipped('attack');
+    const slotted = runClickSlotAbility(spec, 'attack', 650);
+    if (slotted !== null) return slotted;
     if (cls.id === 'ranger' && (!spec || spec.type === 'attack')) return startRangerDraw(spec && spec.action || 'arrow');
-    if (spec && spec.type === 'custom') {
-      if (!cooldownReady(spec.id)) return false;
-      const ok = runLoadoutAbility(spec, 'attack', aimedAngle());
-      if (ok) spendCooldown(spec.id, spec.cd || 650);
-      return ok;
-    }
     const type = spec && spec.action === 'rogueCombo' ? rogueMainAttackType() : cls.id === 'rogue' ? (spec && spec.action || rogueMainAttackType()) : (spec && spec.action || cls.main);
     if (!type) return false;
     const ok = triggerAttack(type);
@@ -1336,13 +1993,9 @@ PUBLIC.start = function (root, api) {
   }
   function altAttack() {
     const spec = equipped('secondary');
+    const slotted = runClickSlotAbility(spec, 'secondary', 900);
+    if (slotted !== null) return slotted;
     if (cls.id === 'ranger' && (!spec || spec.type === 'attack')) return startRangerDraw(spec && spec.action || cls.alt || 'volley');
-    if (spec && spec.type === 'custom') {
-      if (!cooldownReady(spec.id)) return false;
-      const ok = runLoadoutAbility(spec, 'secondary', aimedAngle());
-      if (ok) spendCooldown(spec.id, spec.cd || 900);
-      return ok;
-    }
     return triggerAttack(spec && spec.action || cls.alt);
   }
   function releaseMainAttack() {
@@ -1411,7 +2064,8 @@ PUBLIC.start = function (root, api) {
 
   // ---------- game state ----------
   let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, droppedKnives, boxes, dummies, fighters, allies;
-  let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null;
+  let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
+  let labMode = false, labBuildId = 'base';
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
@@ -1465,6 +2119,9 @@ PUBLIC.start = function (root, api) {
     slashTrail = [];
     projectiles = [];
     gravityFields = [];
+    gravityCore = null;
+    anchors = [];
+    portals = [];
     droppedKnives = [];
     boxes = (L.boxes || []).map(makeBoxSpec);
     dummies = (L.dummies || [[L.spawn.x + 210, L.spawn.y]]).map(p => makeDummy(p[0], p[1]));
@@ -1472,7 +2129,7 @@ PUBLIC.start = function (root, api) {
     allies = [];
     flagWave = 0; freeze = 0;
     if (!keepRun) { arenaKills = 0; arenaWave = 1; arenaNextWave = 0; arenaBanner = 1150; runTime = 0; deaths = 0; }
-    if (arenaMode) { spawnArenaWave(arenaWave || 1); spawnParty(); }
+    if (arenaMode && !labMode) { spawnArenaWave(arenaWave || 1); spawnParty(); }
     else {
       // Legacy/debug path: full class fighters from the old side-scroller layouts.
       fighters = (L.enemies || []).map(e => {
@@ -1559,7 +2216,7 @@ PUBLIC.start = function (root, api) {
     syncHud();
   }
   function updateArena(dtStep) {
-    if (!arenaMode || state !== 'playing') return;
+    if (!arenaMode || labMode || state !== 'playing') return;
     arenaBanner = Math.max(0, (arenaBanner || 0) - dtStep);
     if (fighters && fighters.length > 0) { arenaNextWave = 0; return; }
     arenaNextWave = arenaNextWave || ARENA_WAVE_DELAY;
@@ -1649,14 +2306,14 @@ PUBLIC.start = function (root, api) {
     if (!player || slot === 'jump') return { left: 0, max: 1, locked: false };
     if (slot === 'attack') {
       const spec = equipped('attack');
-      if (spec && spec.type === 'custom') return { left: cooldownLeft(spec.id), max: spec.cd || 650, locked: false };
+      if (spec && (spec.type === 'custom' || spec.effect)) return { left: cooldownLeft(spec.id), max: spec.cd || 650, locked: false };
       const type = spec && spec.action === 'rogueCombo' ? rogueMainAttackType() : spec && spec.action || cls.main;
       const left = player.anim && player.anim.atkActive ? Math.max(0, 1 - player.anim.atkT) * (player.anim.atkDur || 320) : cooldownLeft(type);
       return { left, max: Math.max(actionCooldown(type), player.anim && player.anim.atkDur || 1), locked: false };
     }
     if (slot === 'secondary') {
       const spec = equipped('secondary'), type = spec && spec.action || cls.alt;
-      if (spec && spec.type === 'custom') return { left: cooldownLeft(spec.id), max: spec.cd || 900, locked: false };
+      if (spec && (spec.type === 'custom' || spec.effect)) return { left: cooldownLeft(spec.id), max: spec.cd || 900, locked: false };
       return { left: cooldownLeft(type), max: actionCooldown(type), locked: false };
     }
     if (!slotUnlocked(slot)) return { left: 1, max: 1, locked: true };
@@ -1706,11 +2363,19 @@ PUBLIC.start = function (root, api) {
       chip.textContent = `${cls.name}${branch ? ' / ' + branch.name : ''}${pass ? ' + ' + pass.name : ''}`;
       chip.style.color = cls.color;
     }
+    const modeLabel = document.getElementById('sr-mode-label');
+    const foeLabel = document.getElementById('sr-foe-label');
+    const partyLabel = document.getElementById('sr-party-label');
+    const scoreLabel = document.getElementById('sr-score-label');
+    if (modeLabel) modeLabel.textContent = labMode ? '' : 'W';
+    if (foeLabel) foeLabel.textContent = labMode ? 'targets' : 'foes';
+    if (partyLabel) partyLabel.textContent = labMode ? 'objects' : 'allies';
+    if (scoreLabel) scoreLabel.textContent = labMode ? 'tests' : 'KO';
     const lvl = document.getElementById('sr-lvl'), bots = document.getElementById('sr-lvls');
-    if (lvl) lvl.textContent = arenaMode ? (arenaWave || 1) : li + 1;
-    if (bots) bots.textContent = arenaMode ? (fighters ? fighters.length : 0) : levels.length;
+    if (lvl) lvl.textContent = labMode ? 'LAB' : arenaMode ? (arenaWave || 1) : li + 1;
+    if (bots) bots.textContent = labMode ? ((fighters ? fighters.length : 0) + (dummies ? dummies.length : 0)) : arenaMode ? (fighters ? fighters.length : 0) : levels.length;
     const party = document.getElementById('sr-party');
-    if (party) party.textContent = arenaMode && allies ? livingAllies().length : 0;
+    if (party) party.textContent = labMode ? (boxes ? boxes.length : 0) : arenaMode && allies ? livingAllies().length : 0;
     const got = totalCoins - coinsLeft.filter(c => !c.got).length;
     const ko = document.getElementById('sr-coins');
     if (ko) ko.textContent = arenaMode ? (arenaKills || 0) : got;
@@ -1721,6 +2386,7 @@ PUBLIC.start = function (root, api) {
     hud.style.display = on ? 'flex' : 'none';
     padL.style.display = padR.style.display = on ? 'flex' : 'none';
     helpBtn.style.display = on ? 'block' : 'none';
+    labPanel.style.display = on && labMode ? 'block' : 'none';
   }
 
   function html(s) {
@@ -1846,7 +2512,173 @@ PUBLIC.start = function (root, api) {
     syncHud();
   }
 
+  function labBuildsFor(classId) {
+    return LAB_BUILDS[classId] || [{ id: 'base', name: 'Base', note: 'Starting kit.', loadout: {} }];
+  }
+  function currentLabPreset() {
+    const list = labBuildsFor(cls.id);
+    return list.find(b => b.id === labBuildId) || list[0];
+  }
+  function runBuildFromPreset(classId, preset) {
+    const b = baseRunBuild(classId);
+    const patch = preset && preset.loadout || {};
+    Object.assign(b.loadout, patch);
+    b.picked = Object.values(patch).filter(Boolean);
+    for (const id of b.picked) {
+      const spec = ability(id);
+      if (spec && spec.cls === classId && spec.branch) b.branchPoints[spec.branch] = (b.branchPoints[spec.branch] || 0) + 1;
+    }
+    let best = null, bestScore = 0;
+    for (const [branch, score] of Object.entries(b.branchPoints)) if (score > bestScore) { best = branch; bestScore = score; }
+    b.softBranch = best || null;
+    b.lastDraft = preset && preset.id || null;
+    return b;
+  }
+  function applyLabBuild(buildId) {
+    const list = labBuildsFor(cls.id);
+    const preset = list.find(b => b.id === buildId) || list[0];
+    labBuildId = preset.id;
+    runBuild = runBuildFromPreset(cls.id, preset);
+    loadout = runBuild.loadout;
+    if (player) refillLabResources();
+    renderLabPanel();
+    if (player && coinsLeft) syncHud();
+  }
+  function refillLabResources() {
+    if (!player) return;
+    player.knifeAmmo = ROGUE_MAX_KNIVES;
+    player.knifeRegen = 0;
+    player.arrowAmmo = RANGER_MAX_ARROWS;
+    player.arrowRegen = 0;
+    player.rogueBurst = ROGUE_BURST_MAX;
+    player.rogueBurstRegen = 0;
+    player.cooldowns = {};
+    player.attackCd = player.abilityCd = player.moveCd = 0;
+    player.shieldGuard = 0;
+    player.invuln = 0;
+    player.draw = { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' };
+    syncLegacyCooldowns(player);
+    syncHud();
+  }
+  function setupLabScene() {
+    if (!player) return;
+    const L = levels[li];
+    arenaWave = 0;
+    arenaNextWave = 0;
+    arenaBanner = 0;
+    arenaKills = 0;
+    runTime = 0;
+    coinsLeft = [];
+    totalCoins = 0;
+    fighters = [];
+    allies = [];
+    gravityFields = [];
+    gravityCore = null;
+    anchors = [];
+    portals = [];
+    projectiles = [];
+    slashTrail = [];
+    droppedKnives = [];
+    particles = [];
+    const sx = 360;
+    player.x = sx;
+    player.y = terrainYAt(sx);
+    player.vx = player.vy = 0;
+    player.facing = 1;
+    player.grounded = false;
+    boxes = [
+      makeBoxSpec({ x: sx + 210, y: terrainYAt(sx + 210) - 54, w: 58, h: 54, m: 2.1, kind: 'crate' }),
+      makeBoxSpec({ x: sx + 310, y: terrainYAt(sx + 310) - 34, w: 34, h: 34, m: 1.2, kind: 'barrel' }),
+      makeBoxSpec({ x: sx + 410, y: terrainYAt(sx + 410) - 16, w: 70, h: 16, m: 2.0, kind: 'spring' }),
+    ];
+    dummies = [
+      makeDummy(sx + 150, terrainYAt(sx + 150), { hp: 99 }),
+      makeDummy(sx + 520, terrainYAt(sx + 520), { kind: 'enemy', hp: 8, patrolMin: sx + 460, patrolMax: sx + 610 }),
+    ];
+    cam = { x: Math.max(0, player.x - view.w * 0.30), y: 0 };
+    refillLabResources();
+    burst(player.x, player.y - 44, '#8fe6ff', 22, 3.6);
+  }
+  function resetLabScene() {
+    loadLevel(0, false);
+    setupLabScene();
+    renderLabPanel();
+    exposeDebugApi();
+  }
+  function spawnLabDummy(kind) {
+    if (!player) return;
+    const x = player.x + player.facing * (kind === 'enemy' ? 280 : 190);
+    const y = terrainYAt(x);
+    dummies.push(makeDummy(x, y, { kind: kind === 'enemy' ? 'enemy' : 'dummy', hp: kind === 'enemy' ? 8 : 99, patrolMin: x - 90, patrolMax: x + 90 }));
+    burst(x, y - 42, kind === 'enemy' ? '#ff5a5a' : '#8fe6ff', 18, 3.0);
+    syncHud();
+  }
+  function spawnLabBot() {
+    if (!player) return;
+    const roster = CLASSES.filter(c => c.id !== cls.id);
+    const id = roster[Math.floor(Math.random() * roster.length)].id;
+    const x = player.x + player.facing * 360, y = terrainYAt(x);
+    const e = makeFighter(id, x, y, { hp: enemyDefaultHp(id) + 2, min: x - 130, max: x + 130, facing: -player.facing });
+    e.brain.alert = 9999;
+    fighters.push(e);
+    burst(x, y - 46, e.cls.color, 22, 3.4);
+    syncHud();
+  }
+  function spawnLabObject(kind) {
+    if (!player) return;
+    const x = player.x + player.facing * (kind === 'spring' ? 190 : 155);
+    const y = terrainYAt(x);
+    const spec = kind === 'barrel'
+      ? { x: x - 17, y: y - 34, w: 34, h: 34, m: 1.2, kind }
+      : kind === 'spring'
+        ? { x: x - 35, y: y - 16, w: 70, h: 16, m: 2.0, kind }
+        : { x: x - 28, y: y - 54, w: 56, h: 54, m: 2.0, kind: 'crate' };
+    boxes.push(makeBoxSpec(spec));
+    burst(x, y - (spec.h || 44) / 2, kind === 'barrel' ? '#ff9f6e' : kind === 'spring' ? '#8fe6ff' : '#caa15a', 18, 3.0);
+    syncHud();
+  }
+  function renderLabPanel() {
+    if (!labMode) { labPanel.style.display = 'none'; return; }
+    const builds = labBuildsFor(cls.id);
+    const preset = currentLabPreset();
+    const classOpts = CLASSES.map(c => `<option value="${c.id}"${c.id === cls.id ? ' selected' : ''}>${html(c.name)}</option>`).join('');
+    const buildOpts = builds.map(b => `<option value="${b.id}"${b.id === labBuildId ? ' selected' : ''}>${html(b.name)}</option>`).join('');
+    labPanel.innerHTML = `<b>Ability Lab</b>
+      <div class="sr-labrow">
+        <select data-lab-select="class" aria-label="Class">${classOpts}</select>
+        <select data-lab-select="build" aria-label="Build">${buildOpts}</select>
+      </div>
+      <div class="sr-labnote">${html(preset.note || 'Test this build against controlled targets and objects.')}</div>
+      <div class="sr-labtools">
+        <button data-lab-act="reset">Reset</button>
+        <button data-lab-act="cooldowns">Ready</button>
+        <button data-lab-act="dummy">Dummy</button>
+        <button data-lab-act="enemy">Enemy</button>
+        <button data-lab-act="bot">Bot</button>
+        <button data-lab-act="crate">Crate</button>
+        <button data-lab-act="barrel">Barrel</button>
+        <button data-lab-act="spring">Spring</button>
+        <button data-lab-act="menu">Menu</button>
+      </div>`;
+    labPanel.style.display = state === 'playing' || state === 'help' ? 'block' : 'none';
+  }
+  function startLab(clsId, buildId) {
+    labMode = true;
+    if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
+    labBuildId = buildId || 'base';
+    applyLabBuild(labBuildId);
+    state = 'playing';
+    ov.classList.add('hidden');
+    setPlayUi(true);
+    loadLevel(0, false);
+    applyLabBuild(labBuildId);
+    setupLabScene();
+    renderLabPanel();
+    exposeDebugApi();
+  }
+
   function showMenu() {
+    labMode = false;
     state = 'menu';
     setPlayUi(false);
     ov.classList.remove('hidden');
@@ -1856,14 +2688,18 @@ PUBLIC.start = function (root, api) {
         <b style="color:${c.color}">${c.name}</b>
         <small>${c.blurb}</small>
       </button>`).join('');
+    const labCards = CLASSES.map(c => `<button class="sr-lab-class" data-lab-cls="${c.id}" style="--cc:${c.color}">${html(c.name)} Lab</button>`).join('');
     ov.innerHTML = `<div class="sr-kicker">Wave Fighter</div>
       <h2 class="sr-title">Stick Arena</h2>
       <p class="msg sr-menu-copy">Choose a fighter and control the arena with movement, timing, and class resources.</p>
-      <div class="sr-classes">${cards}</div>`;
+      <div class="sr-classes">${cards}</div>
+      <div class="sr-mode-actions"><button class="btn alt sr-lab-open" data-lab-cls="${cls.id}">OPEN ABILITY LAB</button></div>
+      <div class="sr-lab-grid">${labCards}</div>`;
     loadLevel(0, false);
     exposeDebugApi();
   }
   function play(clsId) {
+    labMode = false;
     if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
     runBuild = baseRunBuild(cls.id);
     loadout = runBuild.loadout;
@@ -1899,11 +2735,32 @@ PUBLIC.start = function (root, api) {
   ov.addEventListener('click', e => {
     const act = e.target.dataset.act;
     if (act === 'resume') { closeHelp(); return; }
+    const labCard = e.target.closest && e.target.closest('[data-lab-cls]');
+    if (labCard) { startLab(labCard.dataset.labCls); return; }
     const card = e.target.closest && e.target.closest('[data-cls]');
     if (card) { play(card.dataset.cls); return; }
     const pick = e.target.closest && e.target.closest('[data-pick]');
     if (pick) { pickDraft(pick.dataset.pick); return; }
     if (act === 'play') play();   // win-screen: replay same class
+  });
+  labPanel.addEventListener('change', e => {
+    const kind = e.target.dataset && e.target.dataset.labSelect;
+    if (!kind) return;
+    if (kind === 'class') startLab(e.target.value, 'base');
+    if (kind === 'build') applyLabBuild(e.target.value);
+  });
+  labPanel.addEventListener('click', e => {
+    const act = e.target.dataset && e.target.dataset.labAct;
+    if (!act) return;
+    if (act === 'reset') resetLabScene();
+    else if (act === 'cooldowns') refillLabResources();
+    else if (act === 'dummy') spawnLabDummy('dummy');
+    else if (act === 'enemy') spawnLabDummy('enemy');
+    else if (act === 'bot') spawnLabBot();
+    else if (act === 'crate') spawnLabObject('crate');
+    else if (act === 'barrel') spawnLabObject('barrel');
+    else if (act === 'spring') spawnLabObject('spring');
+    else if (act === 'menu') showMenu();
   });
   api.on(helpBtn, 'click', () => { if (state === 'help') closeHelp(); else openHelp(); });
 
@@ -3214,6 +4071,8 @@ PUBLIC.start = function (root, api) {
     updateBoxes();   // crates move under their own physics each step
     updateDummies(STEP);
     updateGravityFields(STEP);
+    updateGravityCore(STEP);
+    updateAbilityMarkers(STEP);
 
     // integrate + collide (x then y) — against terrain, then crates
     player.x += player.vx;
@@ -3565,6 +4424,24 @@ PUBLIC.start = function (root, api) {
     burst(x, y, color || '#ff77d2', opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
     addShake(opts.ultimate ? 5.4 : 3.6, opts.ultimate ? 170 : 120);
   }
+  function spawnGravityCore(x, y, team, color, opts) {
+    opts = opts || {};
+    const r = (opts.r || 205) * (hasPassive('mg_eventhorizon') ? 1.12 : 1);
+    gravityCore = {
+      x, y,
+      vx: 0, vy: 0,
+      team: team || 'hero',
+      color: color || '#ff77d2',
+      r,
+      max: r,
+      age: 0,
+      pulse: 0,
+      power: hasPassive('mg_eventhorizon') ? 1.24 : 1,
+    };
+    burst(x, y, '#ffffff', 30, 4.2);
+    burst(x, y, color || '#ff77d2', 56, 5.4);
+    addShake(4.6, 145);
+  }
   function fieldAffectsActor(g, act) {
     return act && !act.dead && ((g.team || 'hero') === 'enemy' ? act.team !== 'enemy' : act.team === 'enemy');
   }
@@ -3602,6 +4479,39 @@ PUBLIC.start = function (root, api) {
     b.vy = b.vy * (0.86 - u * 0.08) + (dy / d) * (0.08 + u * 0.20) - 0.58 * (0.8 + u);
     b.va += (dx / d) * 0.012;
   }
+  function updateGravityCore(dtStep) {
+    const g = gravityCore;
+    if (!g) return;
+    g.age += dtStep;
+    g.pulse = Math.sin(g.age * 0.006) * 0.5 + 0.5;
+    const core = { x: g.x, y: g.y, team: g.team, color: g.color, r: g.r, ultimate: true };
+    for (const b of boxes) {
+      applyGravityFieldToBox(core, b);
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
+      if (d < g.r) {
+        const u = 1 - d / g.r;
+        b.vx += (dx / d) * 0.055 * g.power * u;
+        b.vy += (dy / d) * 0.035 * g.power * u;
+        b.va += (dx / d) * 0.009 * g.power;
+      }
+    }
+    if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(core, t);
+    else if (fighters) for (const e of fighters) applyGravityFieldToActor(core, e);
+    if (dummies) for (const d of dummies) applyGravityFieldToDummy(core, d);
+    if (Math.random() < 0.92) {
+      const a = rand(0, Math.PI * 2), rr = rand(24, g.r * 0.92);
+      particles.push({
+        x: g.x + Math.cos(a) * rr,
+        y: g.y + Math.sin(a) * rr,
+        vx: -Math.cos(a) * rand(0.18, 0.7),
+        vy: -Math.sin(a) * rand(0.18, 0.7) - 0.12,
+        life: rand(280, 520),
+        max: 520,
+        color: Math.random() < 0.32 ? '#ffffff' : g.color,
+        r: rand(1.1, 2.9),
+      });
+    }
+  }
   function implodeGravityField(g) {
     burst(g.x, g.y, '#ffffff', 26, 5.2);
     burst(g.x, g.y, g.color, 42, 5.8);
@@ -3630,6 +4540,22 @@ PUBLIC.start = function (root, api) {
         d.flash = Math.max(d.flash, 180);
       }
     }
+  }
+  function collapseGravityCore(ang) {
+    if (!gravityCore) {
+      const p = aimedPoint(500);
+      spawnGravityField(p.x, p.y, player.team, cls.color, { r: 210, life: 1500, ultimate: true });
+      return;
+    }
+    const g = Object.assign({}, gravityCore, {
+      r: gravityCore.r + (hasPassive('mg_eventhorizon') ? 104 : 72),
+      color: gravityCore.color,
+      ultimate: true,
+    });
+    burst(g.x, g.y, '#ffffff', 54, 6.4);
+    burst(g.x, g.y, g.color, 76, 7.2);
+    implodeGravityField(g);
+    gravityCore = null;
   }
   function updateGravityFields(dtStep) {
     if (!gravityFields) return;
@@ -4737,7 +5663,7 @@ PUBLIC.start = function (root, api) {
     ctx.restore();
   }
   function drawArenaOverlay() {
-    if (!arenaMode || state !== 'playing') return;
+    if (!arenaMode || labMode || state !== 'playing') return;
     let text = '';
     let alpha = 0;
     if (arenaBanner > 0) { text = `WAVE ${arenaWave || 1}`; alpha = clamp(arenaBanner / 650, 0, 1); }
@@ -4754,6 +5680,81 @@ PUBLIC.start = function (root, api) {
     ctx.strokeText(text, view.w / 2, 92);
     ctx.fillStyle = '#161616';
     ctx.fillText(text, view.w / 2, 92);
+    ctx.restore();
+  }
+  function drawGravityCore() {
+    const g = gravityCore;
+    if (!g) return;
+    const t = performance.now();
+    const pulse = 1 + Math.sin(t * 0.006) * 0.045;
+    const rr = g.r * pulse;
+    ctx.save();
+    const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
+    grad.addColorStop(0, 'rgba(255,255,255,.34)');
+    grad.addColorStop(0.22, 'rgba(255,119,210,.22)');
+    grad.addColorStop(0.68, 'rgba(255,119,210,.10)');
+    grad.addColorStop(1, 'rgba(255,119,210,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.lineCap = 'round';
+    for (let ring = 0; ring < 3; ring++) {
+      const r = rr * (0.34 + ring * 0.18 + Math.sin(t * 0.002 + ring) * 0.018);
+      ctx.strokeStyle = ring === 0 ? 'rgba(255,255,255,.62)' : 'rgba(255,119,210,.44)';
+      ctx.lineWidth = ring === 0 ? 2.4 : 1.7;
+      ctx.beginPath();
+      for (let i = 0; i <= 56; i++) {
+        const a = i / 56 * Math.PI * 2 + t * (0.0014 + ring * 0.00055);
+        const wob = Math.sin(a * 3 + t * 0.003 + ring) * 3;
+        const x = g.x + Math.cos(a) * (r + wob);
+        const y = g.y + Math.sin(a) * (r * 0.72 + wob * 0.5);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.fillStyle = g.color;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(g.x, g.y, 9 + Math.sin(t * 0.01) * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  function drawAbilityMarkers() {
+    const t = performance.now();
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const a of anchors || []) {
+      const fade = clamp((a.life || 0) / (a.max || 1), 0, 1);
+      const pulse = 1 + Math.sin(t * 0.012 + a.x) * 0.08;
+      ctx.globalAlpha = 0.78 * fade;
+      ctx.strokeStyle = a.color || '#ffd45e';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y - 26); ctx.lineTo(a.x, a.y + 28); ctx.stroke();
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(a.x, a.y - 14, 15 * pulse, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = a.color || '#ffd45e';
+      ctx.beginPath(); ctx.arc(a.x, a.y - 14, 27 * pulse, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(a.x - 18, a.y + 24); ctx.lineTo(a.x + 18, a.y + 24); ctx.stroke();
+    }
+    if (portals && portals.length >= 2) {
+      const [a, b] = portals;
+      const fade = Math.min(clamp(a.life / (a.max || 1), 0, 1), clamp(b.life / (b.max || 1), 0, 1));
+      ctx.globalAlpha = 0.30 * fade;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.setLineDash([]);
+      for (const p of portals) {
+        const r = 24 + Math.sin(t * 0.01 + p.x) * 2.2;
+        ctx.globalAlpha = 0.82 * fade;
+        ctx.strokeStyle = p.color || cls.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.72, r, Math.sin(t * 0.002), 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.42, r * 0.58, -Math.sin(t * 0.002), 0, Math.PI * 2); ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 
@@ -4790,6 +5791,8 @@ PUBLIC.start = function (root, api) {
     // figure (translate by camera)
     ctx.translate(-cam.x, -cam.y);
     drawRangerTrajectory();
+    drawGravityCore();
+    drawAbilityMarkers();
     for (const g of gravityFields) {
       const pulse = Math.sin(performance.now() * 0.009) * 0.08 + 1;
       const fade = clamp(g.life / g.max, 0, 1);
@@ -5052,7 +6055,7 @@ PUBLIC.start = function (root, api) {
       state() {
         return {
           mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
-          arenaMode, arenaWave, arenaKills, arenaNextWave,
+          arenaMode, labMode, labBuildId, arenaWave, arenaKills, arenaNextWave,
           loadout: Object.assign({}, loadout || {}), draftChoices: arenaDraftChoices ? arenaDraftChoices.slice() : null,
           runBuild: runBuild ? { picked: runBuild.picked.slice(), branchPoints: Object.assign({}, runBuild.branchPoints), softBranch: runBuild.softBranch } : null,
           player: actorSnapshot(player),
@@ -5062,9 +6065,11 @@ PUBLIC.start = function (root, api) {
           coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
           projectiles: projectiles ? projectiles.length : 0,
           gravityFields: gravityFields ? gravityFields.length : 0,
+          gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
       },
+      startLab, applyLabBuild, refillLabResources,
       debugSegments() { return debug.segments.slice(); },
       get player() { return player; },
       get dummies() { return dummies; },
