@@ -1645,6 +1645,69 @@ PUBLIC.start = function (root, api) {
       }
     }
   }
+  function spawnSmokeZone(x, y, team, opts) {
+    opts = opts || {};
+    if (!smokeZones) smokeZones = [];
+    const life = opts.life || 1150;
+    smokeZones.push({
+      x, y,
+      team: team || 'hero',
+      r: opts.r || 128,
+      life,
+      max: life,
+      tick: 80,
+      poison: !!opts.poison,
+      color: opts.poison ? '#9cff5e' : (opts.color || '#cfe0f6'),
+      hiddenBoost: opts.hiddenBoost || (opts.poison ? 220 : 160),
+    });
+    if (smokeZones.length > 8) smokeZones.shift();
+  }
+  function actorInSmokeZone(act, z) {
+    if (!act || act.dead) return false;
+    return Math.hypot(act.x - z.x, (act.y - 38) - z.y) < z.r;
+  }
+  function updateSmokeZones(dtStep) {
+    if (!smokeZones || !smokeZones.length) return;
+    for (let i = smokeZones.length - 1; i >= 0; i--) {
+      const z = smokeZones[i];
+      z.life -= dtStep;
+      z.tick -= dtStep;
+      if (z.life <= 0) { smokeZones.splice(i, 1); continue; }
+      const fade = clamp(z.life / z.max, 0, 1);
+      if (Math.random() < 0.62) {
+        const a = rand(0, Math.PI * 2), rr = rand(0, z.r);
+        particles.push({
+          x: z.x + Math.cos(a) * rr,
+          y: z.y + Math.sin(a) * rr * 0.44,
+          vx: Math.cos(a) * rand(0.03, 0.24),
+          vy: rand(-0.36, 0.10),
+          life: rand(260, 620),
+          max: 620,
+          color: z.poison && Math.random() < 0.48 ? '#9cff5e' : '#cfe0f6',
+          r: rand(2.0, 5.6),
+        });
+      }
+      if ((z.team || 'hero') === 'hero' && player && actorInSmokeZone(player, z)) {
+        player.hidden = Math.max(player.hidden || 0, z.hiddenBoost + fade * 180);
+      }
+      if (z.tick <= 0) {
+        z.tick = z.poison ? 190 : 260;
+        const targets = (z.team || 'hero') === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : (fighters || []);
+        for (const t of targets) {
+          if (!actorInSmokeZone(t, z)) continue;
+          if (t.brain) {
+            t.brain.stagger = Math.max(t.brain.stagger || 0, z.poison ? 220 : 140);
+            t.brain.alert = Math.max(t.brain.alert || 0, hasPassive('rg_nightshade') ? 520 : 300);
+          }
+          if (z.poison) t.poisoned = Math.max(t.poisoned || 0, 1300);
+        }
+        if ((z.team || 'hero') === 'hero' && dummies) for (const d of dummies) {
+          const p = d.pts && (d.pts.chest || d.pts.head);
+          if (p && Math.hypot(p.x - z.x, p.y - z.y) < z.r) d.flash = Math.max(d.flash || 0, z.poison ? 170 : 90);
+        }
+      }
+    }
+  }
   function updateAbilityMarkers(dtStep) {
     if (anchors && anchors.length) {
       for (let i = anchors.length - 1; i >= 0; i--) {
@@ -2055,6 +2118,11 @@ PUBLIC.start = function (root, api) {
       startClassMove('slide');
       pushBoxesRadial(player.x, player.y - 34, 14, 96, player.team);
       player.hidden = Math.max(player.hidden || 0, hasPassive('rg_nightshade') || e.hidden ? 1500 : 760);
+      spawnSmokeZone(player.x - f * 18, player.y - 34, player.team, {
+        r: hasPassive('rg_nightshade') ? 112 : 86,
+        life: hasPassive('rg_nightshade') ? 1120 : 760,
+        hiddenBoost: hasPassive('rg_nightshade') ? 260 : 150,
+      });
       for (const t of targetActorsForPlayer()) if (Math.hypot(t.x - player.x, (t.y - 42) - (player.y - 34)) < 120) {
         t.brain.stagger = Math.max(t.brain.stagger || 0, hasPassive('rg_nightshade') ? 420 : 260);
       }
@@ -2065,6 +2133,12 @@ PUBLIC.start = function (root, api) {
       const p = aimedPoint(e.range || 360);
       const r = e.r || 128;
       player.hidden = Math.max(player.hidden || 0, (e.life || 1100) + (hasPassive('rg_nightshade') ? 600 : 0));
+      spawnSmokeZone(p.x, p.y, player.team, {
+        r,
+        life: (e.life || 1100) + (hasPassive('rg_nightshade') ? 450 : 0),
+        poison: e.poison,
+        hiddenBoost: e.poison ? 280 : 190,
+      });
       for (let i = 0; i < (e.poison ? 48 : 34); i++) {
         const a = rand(0, Math.PI * 2), rr = rand(0, r);
         particles.push({ x: p.x + Math.cos(a) * rr, y: p.y + Math.sin(a) * rr * 0.46,
@@ -2413,7 +2487,7 @@ PUBLIC.start = function (root, api) {
   api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, smokeZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
   let labMode = false, labBuildId = 'base';
   let cls = CLASSES[0];   // selected class
@@ -2472,6 +2546,7 @@ PUBLIC.start = function (root, api) {
     projectiles = [];
     gravityFields = [];
     fireZones = [];
+    smokeZones = [];
     shockwaves = [];
     spiritRemnants = [];
     gravityCore = null;
@@ -6696,6 +6771,54 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawSmokeZones() {
+    if (!smokeZones || !smokeZones.length) return;
+    const t = performance.now();
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const z of smokeZones) {
+      const fade = clamp(z.life / (z.max || 1), 0, 1);
+      const pulse = 1 + Math.sin(t * 0.006 + z.x * 0.02) * 0.045;
+      const rr = z.r * pulse;
+      const c = z.poison ? '156,255,94' : '207,224,246';
+      const grad = ctx.createRadialGradient(z.x, z.y, 4, z.x, z.y, rr);
+      grad.addColorStop(0, `rgba(${c},${0.24 * fade})`);
+      grad.addColorStop(0.48, `rgba(${c},${0.16 * fade})`);
+      grad.addColorStop(1, `rgba(${c},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(z.x, z.y, rr, rr * 0.44, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.34 * fade;
+      ctx.strokeStyle = z.poison ? '#9cff5e' : '#cfe0f6';
+      ctx.lineWidth = z.poison ? 2.7 : 2.0;
+      ctx.setLineDash([12, 10]);
+      ctx.lineDashOffset = -t * 0.018;
+      ctx.beginPath();
+      ctx.ellipse(z.x, z.y, rr * 0.88, rr * 0.37, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.22 * fade;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI * 2 / 6 + t * 0.0018;
+        const sx = z.x + Math.cos(a) * rr * 0.24;
+        const sy = z.y + Math.sin(a) * rr * 0.11;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo(
+          z.x + Math.cos(a + 0.55) * rr * 0.52,
+          z.y + Math.sin(a + 0.55) * rr * 0.24 - 8,
+          z.x + Math.cos(a + 0.18) * rr * 0.78,
+          z.y + Math.sin(a + 0.18) * rr * 0.33
+        );
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
 
   function render(moveAmt) {
     const L = levels[li];
@@ -6745,6 +6868,7 @@ PUBLIC.start = function (root, api) {
     drawGravityCore();
     drawShockwaves();
     drawAbilityMarkers();
+    drawSmokeZones();
     drawFireZones();
     for (const g of gravityFields) {
       const pulse = Math.sin(performance.now() * 0.009) * 0.08 + 1;
@@ -6874,6 +6998,7 @@ PUBLIC.start = function (root, api) {
         }
         updateDroppedKnives(dt);
         updateSpiritRemnants(dt);
+        updateSmokeZones(dt);
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
         if (shockwaves) for (let i = shockwaves.length - 1; i >= 0; i--) { if ((shockwaves[i].life -= dt) <= 0) shockwaves.splice(i, 1); }
         for (let i = debug.segments.length - 1; i >= 0; i--) { if ((debug.segments[i].life -= dt) <= 0) debug.segments.splice(i, 1); }
@@ -7048,6 +7173,7 @@ PUBLIC.start = function (root, api) {
           coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
           projectiles: projectiles ? projectiles.length : 0,
           gravityFields: gravityFields ? gravityFields.length : 0,
+          smokeZones: smokeZones ? smokeZones.length : 0,
           shockwaves: shockwaves ? shockwaves.length : 0,
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
