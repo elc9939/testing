@@ -1079,11 +1079,11 @@ PUBLIC.start = function (root, api) {
     const tucked = advanced || heroRogue && hasRunNode('rg_bloodrush');
     const flowy = heroRogue && (hasRunNode('rg_flow') || hasRunNode('rg_skyblade') || hasRunNode('rg_tuckedflip'));
     return {
-      dur: advanced ? 620 : tucked ? 560 : 520,
-      vx: advanced ? 2.25 : tucked ? 1.95 : 1.7,
+      dur: advanced ? 650 : tucked ? 600 : 560,
+      vx: advanced ? 2.25 : tucked ? 2.05 : 1.85,
       burst: advanced ? 15 : tucked ? 13 : 12,
-      tuck: advanced ? 1.35 : tucked ? 1.15 : 1,
-      curl: advanced ? 1.28 : tucked ? 1.14 : 1,
+      tuck: advanced ? 1.45 : tucked ? 1.28 : 1.12,
+      curl: advanced ? 1.35 : tucked ? 1.20 : 1.06,
       flowRadius: advanced ? 128 : flowy ? 112 : 0,
       flowGain: advanced ? 2 : flowy ? 1 : 0,
       flowSpark: advanced ? 14 : 10,
@@ -1100,6 +1100,7 @@ PUBLIC.start = function (root, api) {
       active: true, t: 0, dur: cfg.dur, dir,
       tuck: cfg.tuck, curl: cfg.curl,
       flowRadius: cfg.flowRadius, flowGain: cfg.flowGain, flowSpark: cfg.flowSpark, flowHit: false,
+      lastTrail: -1,
     };
     act.anim.squash = -0.35;
     const burstScale = opts && opts.burstScale || 1;
@@ -5804,6 +5805,26 @@ PUBLIC.start = function (root, api) {
     if (!player.flip || !player.flip.active) return;
     player.flip.t += STEP / player.flip.dur;
     grantRogueFlipFlow(player);
+    if (player.flip.t - (player.flip.lastTrail || -1) > 0.085) {
+      player.flip.lastTrail = player.flip.t;
+      slashTrail.push({
+        x: player.x - player.flip.dir * (16 + Math.sin(player.flip.t * Math.PI) * 24),
+        y: player.y - 48 - Math.sin(player.flip.t * Math.PI) * 18,
+        life: 190,
+        c: cls.trail,
+      });
+      if (slashTrail.length > 46) slashTrail.shift();
+    }
+    if (Math.random() < 0.38) particles.push({
+      x: player.x - player.flip.dir * rand(8, 28),
+      y: player.y - rand(38, 72),
+      vx: -player.flip.dir * rand(0.35, 1.25),
+      vy: rand(-0.45, 0.25),
+      life: rand(130, 260),
+      max: 260,
+      color: cls.color,
+      r: rand(0.8, 1.8),
+    });
     if (player.flip.t >= 1) player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
   }
   function updateAttackMotion() {
@@ -8312,9 +8333,14 @@ PUBLIC.start = function (root, api) {
     const flipT = flipActive ? clamp(player.flip.t, 0, 1) : 0;
     const flipCurlStrength = flipActive ? (player.flip.curl || 1) : 1;
     const flipTuckStrength = flipActive ? (player.flip.tuck || 1) : 1;
-    const flipCurl = flipActive ? clamp(Math.sin(flipT * Math.PI) * flipCurlStrength, 0, 1.35) : 0;
-    const flipTuck = flipActive ? ease(Math.min(1, flipCurl * (1.35 * flipTuckStrength))) : 0;
+    const flipTuckIn = flipActive ? ease(clamp((flipT - 0.10) / 0.22, 0, 1)) : 0;
+    const flipTuckOut = flipActive ? ease(clamp((flipT - 0.64) / 0.25, 0, 1)) : 0;
+    const flipTuckBase = flipTuckIn * (1 - flipTuckOut);
+    const flipOpen = flipActive ? ease(clamp((flipT - 0.68) / 0.26, 0, 1)) : 0;
+    const flipCurl = flipActive ? clamp((Math.sin(flipT * Math.PI) * 0.52 + flipTuckBase * 0.86) * flipCurlStrength, 0, 1.38) : 0;
+    const flipTuck = flipActive ? clamp(ease(flipTuckBase) * flipTuckStrength, 0, 1.28) : 0;
     const flipLead = flipActive ? Math.sin(flipT * Math.PI * 2) * flipCurlStrength : 0;
+    const flipSpin = flipActive ? flipT * Math.PI * 2 : 0;
     const now = performance.now();
     // metrics — body proportions are shared; STANCE & motion come from the class style
     const S = cls.style;
@@ -8354,8 +8380,8 @@ PUBLIC.start = function (root, api) {
       guardCrouch = Math.max(guardCrouch, posture.drop);
     }
     if (flipActive) {
-      postureLean += player.flip.dir * (0.92 * flipCurl + 0.28 * flipLead);
-      guardCrouch -= 31 * flipCurl;
+      postureLean += player.flip.dir * (0.34 * flipCurl + 0.22 * flipTuck + 0.16 * flipLead - 0.14 * flipOpen);
+      guardCrouch -= 20 * flipCurl + 7 * flipTuck;
     }
 
     // ----- attack scalars (whole-body reaction) -----
@@ -8400,8 +8426,8 @@ PUBLIC.start = function (root, api) {
     let shX = hipX + upX * torso, shY = hipY + upY * torso;
     let headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
     if (flipActive) {
-      headCX = lerp(headCX, hipX - player.flip.dir * (13 + flipLead * 6), flipCurl * 0.68);
-      headCY = lerp(headCY, hipY - 13 + Math.abs(flipLead) * 3, flipCurl * 0.68);
+      headCX = lerp(headCX, hipX - player.flip.dir * (10 + flipTuck * 8 + flipLead * 2), flipCurl * 0.62);
+      headCY = lerp(headCY, hipY - 15 + flipTuck * 2 - flipOpen * 3, flipCurl * 0.64);
     }
     headCX += clipHeadX;                                  // clip: head leads the cut
 
@@ -8455,10 +8481,16 @@ PUBLIC.start = function (root, api) {
         foot.x = frontLeg ? f * (62 + 18 * slide) : -f * (38 + 12 * slide);
         foot.y = frontLeg ? 2 : -9;
       } else if (flipActive) {
-        const kick = Math.sin((flipT + (legSign > 0 ? 0.12 : -0.08)) * Math.PI * 2);
-        const cross = Math.sin((flipT + (legSign > 0 ? 0.20 : -0.16)) * Math.PI * 2);
-        foot.x = lerp(foot.x, -player.flip.dir * (14 + flipLead * 7) + legSign * 3 + cross * 1.4, flipTuck);
-        foot.y = lerp(foot.y, hipY - 5 + legSign * 2 + Math.abs(kick) * 0.9, flipTuck);
+        const kneePhase = flipSpin + legSign * 0.62;
+        const tuckX = -player.flip.dir * (18 + flipTuck * 9 + flipCurl * 2) + legSign * (8 - flipTuck * 3) + Math.cos(kneePhase) * 2.2;
+        const tuckY = hipY - 13 + legSign * 3 + Math.sin(kneePhase) * 2.2;
+        const openX = player.flip.dir * (11 + flipOpen * 13) + legSign * (8 + flipOpen * 5);
+        const openY = -9 + legSign * 2 - flipOpen * 4;
+        const tuckAmt = clamp(flipTuck * 1.08, 0, 1);
+        foot.x = lerp(foot.x, tuckX, tuckAmt);
+        foot.y = lerp(foot.y, tuckY, tuckAmt);
+        foot.x = lerp(foot.x, openX, flipOpen * 0.70);
+        foot.y = lerp(foot.y, openY, flipOpen * 0.70);
       } else if (posture.down > 0) {
         const frontLeg = legSign === -1;
         foot.x = lerp(foot.x, frontLeg ? f * 13 : -f * 11, posture.down);
@@ -8470,6 +8502,17 @@ PUBLIC.start = function (root, api) {
         else { foot.x = lerp(foot.x, -f * 10, wt * 0.7); foot.y = lerp(foot.y, lerp(0, -8, c.weightShift), wt * 0.7); }
       }
       return foot;
+    }
+    function rogueFlipHandTarget(side) {
+      const phase = flipSpin + side * 0.72;
+      const tuckX = shX - player.flip.dir * (19 + flipCurl * 8 + flipTuck * 8) + side * (6 - flipTuck * 2) + Math.cos(phase) * 2.5;
+      const tuckY = shY + 2 + flipTuck * 8 + Math.sin(phase) * 3.0;
+      const openX = shX + player.flip.dir * (side > 0 ? 23 : -10) + side * 3;
+      const openY = shY + (side > 0 ? 5 : 17) - flipOpen * 4;
+      return {
+        x: lerp(tuckX, openX, flipOpen * 0.62),
+        y: lerp(tuckY, openY, flipOpen * 0.62),
+      };
     }
     // free (back) arm: straight at rest, swings when running
     function armHand(theta) {
@@ -8497,9 +8540,10 @@ PUBLIC.start = function (root, api) {
         hand.y = lerp(hand.y, shY + (front ? 22 : 26), duck);
       }
       if (flipActive) {
-        const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
-        hand.x = lerp(hand.x, shX - player.flip.dir * (11 + flipCurl * 11) + sweep * 1.2, flipCurl);
-        hand.y = lerp(hand.y, shY + 11 + flipCurl * 4, flipCurl);
+        const target = rogueFlipHandTarget(theta === p ? 1 : -1);
+        const fold = clamp(flipCurl * 0.82 + flipTuck * 0.35, 0, 1);
+        hand.x = lerp(hand.x, target.x, fold);
+        hand.y = lerp(hand.y, target.y, fold);
       }
       return hand;
     }
@@ -8520,7 +8564,7 @@ PUBLIC.start = function (root, api) {
       h = { x: bc.hx, y: bc.hy };
     } else if (cls.id === 'rogue') {
       h = flipActive
-        ? { x: shX - player.flip.dir * (13 + flipCurl * 10), y: shY + 14 + flipCurl * 5 }
+        ? rogueFlipHandTarget(-1)
         : moveType === 'slide'
           ? { x: shX - f * 28, y: shY + 29 }
           : { x: shX - f * 9, y: shY + 20 };                       // off dagger held at low guard
@@ -8595,7 +8639,7 @@ PUBLIC.start = function (root, api) {
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
     let lt = legFoot(p + Math.PI, +1);
-    const flipLegScale = flipActive ? lerp(1, 0.42, flipTuck) : 1;
+    const flipLegScale = flipActive ? lerp(1, 0.68, flipTuck) : 1;
     const farBend = flipActive ? player.flip.dir : -f;
     const nearBend = flipActive ? -player.flip.dir : -f;
     let k = ik(hipBX, hipY, hipBX + lt.x, lt.y, thigh * flipLegScale, shin * flipLegScale, farBend, flipActive ? 1 : 0.6);
@@ -8664,9 +8708,9 @@ PUBLIC.start = function (root, api) {
         drawAim = f > 0 ? -1.08 : Math.PI + 1.08;
         handT = { x: shX + f * 12, y: shY + 12 };
       } else if (cls.id === 'rogue') {
-        drawAim = flipActive ? -Math.PI / 2 + player.flip.dir * 0.35 : f > 0 ? 0.12 : Math.PI - 0.12;
+        drawAim = flipActive ? -Math.PI / 2 + player.flip.dir * (0.24 + flipTuck * 0.18) + Math.sin(flipSpin) * 0.16 : f > 0 ? 0.12 : Math.PI - 0.12;
         handT = flipActive
-          ? { x: shX - player.flip.dir * (12 + flipCurl * 8), y: shY + 11 + flipCurl * 2 }
+          ? rogueFlipHandTarget(1)
           : moveType === 'slide'
             ? { x: shX + f * 46, y: shY + 24 }
             : posture.down > 0 || posture.sweep > 0
