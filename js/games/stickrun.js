@@ -74,7 +74,7 @@ const CLASSES = [
       breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
   { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast blades, thrown knives, and slippery close-range pressure.',
     weapon: 'dagger', main: 'dualSlash', alt: 'throw', move: 'slide',
-    reach: 0.78, speedMul: 1.32, trail: [150, 255, 110], dur: { dualSlash: 210, rogueStab: 225, throw: 225, legSweep: 250 }, moveDur: { slide: 300 }, dual: true,
+    reach: 0.78, speedMul: 1.32, trail: [150, 255, 110], dur: { dualSlash: 210, rogueStab: 225, throw: 225, legSweep: 250 }, moveDur: { slide: 300, acroDash: 230, risingDash: 300 }, dual: true,
     // athletic & quick: low knife stance, long smooth strides, restless hands
     style: { hipH: 46, stanceW: 5, strideH: 15, lift: 7, bounceAmp: 1.0, cadence: 1.14, armStride: 12, baseLean: 0.08, squash: 0.9,
       breatheAmp: 1.1, breatheSpd: 0.0034, hover: 0, idle: 'sneak', spring: { lean: [150, 9], head: [120, 9], aim: [170, 12] } } },
@@ -113,7 +113,7 @@ const CLASS_TREES = {
   rogue: {
     branches: {
       bladeslinger: { name: 'Bladeslinger', desc: 'Ranged knife pressure, recoverable blades, trick shots, and blade-control payoffs.' },
-      acrobat: { name: 'Acrobat', desc: 'Slides, wall movement, vaults, sweeps, and air-control route attacks.' },
+      acrobat: { name: 'Acrobat', desc: 'Fast dash offense, simple movement cancels, launchers, and big crossing slash routes.' },
       nightshade: { name: 'Nightshade', desc: 'Smoke, poison, partial invisibility, ambush windows, and escape routes.' },
     },
   },
@@ -186,9 +186,9 @@ const ABILITIES = (() => {
   add('rg_venomcloud', { cls: 'rogue', branch: 'nightshade', tier: 3, slot: 'q', name: 'Venom Cloud', desc: 'Throw a heavier poison bomb that rolls out a choking green cloud and weakens enemies inside.', effect: { kind: 'smokeBomb', r: 218, life: 3000, range: 520, poison: 1 }, cd: 8800, tags: ['Stealth', 'Poison', 'Field'] });
   add('rg_nightshade', { cls: 'rogue', branch: 'nightshade', tier: 4, slot: 'passive', name: 'Nightshade', desc: 'Keystone: smoke and poison windows make enemies lose target lock for longer.', key: true, tags: ['Stealth', 'Poison'] });
   add('rg_sweep', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'attack', name: 'Low Sweep', desc: 'A low control strike that pairs with crouch and slide play.', type: 'attack', action: 'legSweep', tags: ['Control'] });
-  add('rg_wallkick', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'shift', name: 'Wall Kick', desc: 'A rising slide-vault that helps cross platforms and kicks enemies upward.', effect: { kind: 'vaultStrike' }, cd: 1600, tags: ['Movement', 'Launch'] });
-  add('rg_vaulttoss', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'e', name: 'Vault Toss', desc: 'Vault over a close target and kick them back toward the room.', effect: { kind: 'vaultToss' }, cd: 3200, tags: ['Movement', 'Ledges'] });
-  add('rg_airspiral', { cls: 'rogue', branch: 'acrobat', tier: 3, slot: 'q', name: 'Air Spiral', desc: 'Leap and carve a circular air slash that launches clustered enemies.', effect: { kind: 'airSpiral' }, cd: 8400, tags: ['Launch', 'Movement'] });
+  add('rg_wallkick', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'shift', name: 'Dash Cut', desc: 'Fast, simple forward dash slash that cuts a whole lane and is useful almost anytime.', effect: { kind: 'acroDash', variant: 'cut', range: 168, force: 20 }, cd: 900, tags: ['Movement', 'Burst'] });
+  add('rg_vaulttoss', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'e', name: 'Rising Dash', desc: 'Quick upward dash slash that pops enemies into the air and doubles as easy platform movement.', effect: { kind: 'acroDash', variant: 'rise', range: 150, force: 23 }, cd: 1450, tags: ['Movement', 'Launch'] });
+  add('rg_airspiral', { cls: 'rogue', branch: 'acrobat', tier: 3, slot: 'q', name: 'Dash Frenzy', desc: 'Launch a target or space, then tear through it with a flurry of crossing dash slashes.', effect: { kind: 'dashFrenzy' }, cd: 7600, tags: ['Launch', 'Movement', 'Burst'] });
   add('rg_bloodrush', { cls: 'rogue', branch: 'acrobat', tier: 4, slot: 'passive', name: 'Bloodrush', desc: 'Keystone: each KO refunds Shift and gives a brief invulnerable movement window.', key: true, tags: ['Movement'] });
 
   // Lancer base + branches
@@ -330,11 +330,11 @@ const ABILITIES = (() => {
   add('rg_vaultstab', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'attack', name: 'Vault Stab', desc: 'A downward aerial knife stab that rewards platform drops.', type: 'attack', action: 'vaultKick', tags: ['Movement', 'Launch'] });
   add('rg_lowroll', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'shift', name: 'Low Roll', desc: 'Short shoulder roll ending crouched, safer under high attacks.', type: 'move', action: 'slide', cd: 980, tags: ['Movement'] });
   add('rg_legsweep', { cls: 'rogue', branch: 'acrobat', tier: 3, slot: 'e', name: 'Leg Sweep', desc: 'Close sweep that knocks enemies low and changes their collision posture briefly.', type: 'attack', action: 'legSweep', cd: 2600, tags: ['Control', 'Movement'] });
-  add('rg_skyblade', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Skyblade Acrobat', desc: 'Advanced variation: aerial Flow turns wall kicks, vaults, and flips into air combos.', key: true, prereqAll: ['rg_wallkick', 'rg_airspiral'], tags: ['Movement', 'Launch'] });
+  add('rg_skyblade', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Skyblade Acrobat', desc: 'Advanced variation: aerial Flow turns dash cuts, rising dashes, and flips into air combos.', key: true, prereqAll: ['rg_wallkick', 'rg_airspiral'], tags: ['Movement', 'Launch'] });
   add('rg_tuckedflip', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Tucked Flip', desc: 'Double jump gains a more intentional tuck and builds aerial Flow near enemies.', key: true, prereq: 'rg_skyblade', tags: ['Movement'] });
-  add('rg_heelrebound', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'shift', name: 'Heel Rebound', desc: 'Kick off an enemy, wall, or large crate for a diagonal rebound.', effect: { kind: 'heelRebound' }, cd: 1350, prereq: 'rg_skyblade', tags: ['Movement', 'Crates'] });
+  add('rg_heelrebound', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'shift', name: 'Sky Dash', desc: 'Longer aerial dash cut that stays simple: move fast, slice through the lane, keep flowing.', effect: { kind: 'acroDash', variant: 'sky', range: 190, force: 24 }, cd: 1050, prereq: 'rg_skyblade', tags: ['Movement', 'Crates'] });
   add('rg_divingneedle', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'attack', name: 'Diving Needle', desc: 'Air attack becomes a downward stab that pins briefly on landing impact.', type: 'attack', action: 'rogueStab', prereq: 'rg_skyblade', tags: ['Movement', 'Ledges'] });
-  add('rg_spirallanding', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Spiral Landing', desc: 'Keystone: Air Spiral ends in a controlled landing slash near the ground.', key: true, prereq: ['rg_heelrebound', 'rg_divingneedle'], tags: ['Movement', 'Burst'] });
+  add('rg_spirallanding', { cls: 'rogue', branch: 'acrobat', tier: 5, slot: 'passive', name: 'Frenzy Landing', desc: 'Keystone: Dash Frenzy ends in a controlled landing slash near the ground.', key: true, prereq: ['rg_heelrebound', 'rg_divingneedle'], tags: ['Movement', 'Burst'] });
 
   add('ln_sweepbutt', { cls: 'lancer', branch: 'phalanx', tier: 2, slot: 'attack', name: 'Sweeping Butt', desc: 'Short rear-end sweep that covers the Lancer close blind spot.', type: 'attack', action: 'lanceSwing', tags: ['Reach', 'Control'] });
   add('ln_plantpivot', { cls: 'lancer', branch: 'phalanx', tier: 2, slot: 'shift', name: 'Plant Pivot', desc: 'Plant the lance and rotate quickly without giving up the lane.', type: 'move', action: 'brace', cd: 1200, tags: ['Reach', 'Movement'] });
@@ -431,7 +431,7 @@ const ABILITIES = (() => {
 })();
 const PLAYTEST_BRANCH_PATCHES = {
   rg_tempo: { branch: 'bladeslinger', name: 'Knife Tempo', desc: 'Class mechanic: clean throws, recalls, and pickups build Tempo for faster knife volleys.', tags: ['Projectile', 'Burst'] },
-  rg_crosscut: { branch: 'acrobat', name: 'Cross-Step Cut', desc: 'A quick crossing slash used after slides, jumps, or vaults to keep movement offense flowing.', tags: ['Movement', 'Burst', 'Crates'] },
+  rg_crosscut: { branch: 'acrobat', name: 'Cross-Step Cut', desc: 'A quick crossing slash used after slides, jumps, or dash cuts to keep movement offense flowing.', tags: ['Movement', 'Burst', 'Crates'] },
   rg_dueliststep: { branch: 'nightshade', name: 'Shadow Step', desc: 'A tiny evasive step that preserves smoke/invisibility windows without forcing close parry timing.', tags: ['Movement', 'Stealth'] },
   rg_parryflick: { branch: 'bladeslinger', name: 'Knife Ward', desc: 'Fan your knives outward to deflect nearby projectiles and set up a safer throwing lane.', tags: ['Projectile', 'Control'] },
   rg_perfectrhythm: { branch: 'acrobat', name: 'Flow Rhythm', desc: 'Keystone: alternating slide, jump, and knife hits lowers Shift/E recovery and keeps Flow longer.', tags: ['Movement', 'Burst'] },
@@ -479,8 +479,8 @@ const LAB_BUILDS = {
   rogue: [
     { id: 'base', name: 'Base Rogue', note: 'Starting kit for close-range knife chains, slide, ammo recovery, and secondary knife throws.', loadout: {} },
     { id: 'bladeslinger', name: 'Bladeslinger', note: 'Knife throwing: fast main toss, ricochet, dense fan knives, blade recall, and a tracking blade barrage.', loadout: { attack: 'rg_throw', secondary: 'rg_ricochet', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: 'rg_trapmaster' } },
-    { id: 'acrobat', name: 'Acrobat', note: 'Movement offense: sweep, wall kick, vault toss, air spiral.', loadout: { attack: 'rg_sweep', secondary: 'rg_dual', shift: 'rg_wallkick', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_bloodrush' } },
-    { id: 'skyblade', name: 'Skyblade Acrobat', note: 'Advanced Acrobat: heel rebound, diving stabs, and air spiral landings.', loadout: { attack: 'rg_divingneedle', secondary: 'rg_dual', shift: 'rg_heelrebound', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_skyblade' } },
+    { id: 'acrobat', name: 'Acrobat', note: 'Fast movement offense: dash cut, rising dash launcher, and a big dash-frenzy ultimate.', loadout: { attack: 'rg_sweep', secondary: 'rg_dual', shift: 'rg_wallkick', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_bloodrush' } },
+    { id: 'skyblade', name: 'Skyblade Acrobat', note: 'Advanced Acrobat: longer sky dash, diving stabs, rising dash, and dash frenzy.', loadout: { attack: 'rg_divingneedle', secondary: 'rg_dual', shift: 'rg_heelrebound', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_skyblade' } },
     { id: 'nightshade', name: 'Nightshade', note: 'Smoke/poison stealth: poison knife, smoke slide, smoke bomb, venom cloud.', loadout: { attack: 'rg_stab', secondary: 'rg_poisonknife', shift: 'rg_smoke', e: 'rg_smokebomb', q: 'rg_venomcloud', passive: 'rg_nightshade' } },
   ],
   lancer: [
@@ -1328,6 +1328,16 @@ PUBLIC.start = function (root, api) {
     } else if (type === 'vault') {
       player.vx += player.facing * 3.8; player.vy = -8.8; player.grounded = false;
       burst(player.x, player.y - 8, cls.color, 10, 2.8);
+    } else if (type === 'acroDash') {
+      player.vx = player.facing * 13.2;
+      player.vy = Math.min(player.vy, -1.4);
+      player.grounded = false;
+      burst(player.x - player.facing * 14, player.y - 38, cls.color, 16, 3.6);
+    } else if (type === 'risingDash') {
+      player.vx = player.facing * 9.2;
+      player.vy = -8.9;
+      player.grounded = false;
+      burst(player.x - player.facing * 10, player.y - 24, cls.color, 18, 3.8);
     } else if (type === 'shieldStep' || type === 'shoulder') {
       player.vx = player.facing * (type === 'shoulder' ? 6.8 : 5.2);
       burst(player.x, player.y - 24, cls.color, 8, 2.4);
@@ -1446,6 +1456,99 @@ PUBLIC.start = function (root, api) {
     burst(cx, cy, cls.color, 38, 5.4);
     burst(cx, cy, '#ffffff', 16, 3.4);
     addShake(3.4, 130);
+    return true;
+  }
+  function acrobatTrailLine(ax, ay, bx, by, opts) {
+    opts = opts || {};
+    const steps = opts.steps || 5;
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      slashTrail.push({
+        x: lerp(ax, bx, u) + rand(-4, 4),
+        y: lerp(ay, by, u) + rand(-4, 4),
+        life: opts.life || 230,
+        c: cls.trail,
+      });
+      if (Math.random() < 0.78) particles.push({
+        x: lerp(ax, bx, u) + rand(-5, 5),
+        y: lerp(ay, by, u) + rand(-5, 5),
+        vx: (bx - ax) * 0.006 + rand(-0.55, 0.55),
+        vy: (by - ay) * 0.006 + rand(-0.55, 0.25),
+        life: rand(150, 310),
+        max: 310,
+        color: Math.random() < 0.35 ? '#ffffff' : cls.color,
+        r: rand(1.0, 2.8),
+      });
+    }
+    while (slashTrail.length > 90) slashTrail.shift();
+  }
+  function useAcrobatDash(e, ang) {
+    const f = Math.cos(ang) >= 0 ? 1 : -1;
+    player.facing = f;
+    const variant = e.variant || 'cut';
+    const type = variant === 'rise' ? 'risingDash' : 'acroDash';
+    if (!startClassMove(type)) return false;
+    if (variant === 'sky') {
+      player.vx = f * 14.2;
+      player.vy = Math.min(player.vy, -5.4);
+    }
+    player.invuln = Math.max(player.invuln || 0, variant === 'rise' ? 120 : 95);
+    const range = e.range || (variant === 'rise' ? 150 : 168);
+    const y = player.y - (variant === 'rise' ? 36 : 54);
+    const ax = player.x - f * 18;
+    const ay = y + (variant === 'rise' ? 18 : 8);
+    const bx = player.x + f * range;
+    const by = y + (variant === 'rise' ? -70 : -8);
+    hitBoxesSegment(ax, ay, bx, by, f, variant === 'rise' ? -0.82 : -0.20, e.force || (variant === 'rise' ? 23 : 20), variant === 'rise' ? 18 : 16);
+    acrobatTrailLine(ax, ay, bx, by, { steps: 6, life: variant === 'rise' ? 260 : 220 });
+    burst(player.x + f * Math.min(range, 104), y - 8, cls.color, variant === 'rise' ? 22 : 18, variant === 'rise' ? 4.4 : 3.8);
+    addShake(variant === 'rise' ? 2.4 : 1.8, 105);
+    return true;
+  }
+  function acrobatFrenzyCenter(ang) {
+    const px = player.x, py = player.y - 50;
+    let best = { x: px + Math.cos(ang) * 240, y: py + Math.sin(ang) * 90, d: 520 };
+    for (const t of targetActorsForPlayer()) {
+      const x = t.x, y = t.y - 48, d = Math.hypot(x - px, y - py);
+      if (d < best.d) best = { x, y, d };
+    }
+    if (dummies) for (const d of dummies) {
+      const p = d && d.pts && (d.pts.chest || d.pts.head);
+      if (!p) continue;
+      const dd = Math.hypot(p.x - px, p.y - py);
+      if (dd < best.d) best = { x: p.x, y: p.y, d: dd };
+    }
+    return best;
+  }
+  function useDashFrenzy(ang) {
+    if (!startVisualAttack('dualSlash', ang, { kind: 'dashFrenzy' })) return false;
+    const f = Math.cos(ang) >= 0 ? 1 : -1;
+    player.facing = f;
+    player.invuln = Math.max(player.invuln || 0, 520);
+    player.vx = f * 10.6;
+    player.vy = Math.min(player.vy, -6.8);
+    player.grounded = false;
+    const c = acrobatFrenzyCenter(ang);
+    const cx = c.x, cy = c.y;
+    const cuts = hasPassive('rg_skyblade') ? 12 : 10;
+    hitBoxesSegment(cx - f * 46, cy + 44, cx + f * 42, cy - 96, f, -1.05, 27, 20);
+    for (let i = 0; i < cuts; i++) {
+      const u = cuts <= 1 ? 0.5 : i / (cuts - 1);
+      const a = ang + (u - 0.5) * 2.9 + (i % 2 ? Math.PI * 0.72 : -Math.PI * 0.72);
+      const len = 112 + (i % 3) * 24 + rand(-6, 18);
+      const bend = Math.sin(i * 1.7) * 28;
+      const ax = cx - Math.cos(a) * len + Math.cos(a + Math.PI / 2) * bend;
+      const ay = cy - Math.sin(a) * len * 0.58 + Math.sin(a + Math.PI / 2) * bend * 0.32;
+      const bx = cx + Math.cos(a) * len - Math.cos(a + Math.PI / 2) * bend;
+      const by = cy + Math.sin(a) * len * 0.58 - Math.sin(a + Math.PI / 2) * bend * 0.32;
+      hitBoxesSegment(ax, ay, bx, by, Math.cos(a), Math.sin(a) * 0.35 - 0.18, 18 + i % 3 * 2, 14 + i % 2 * 2);
+      acrobatTrailLine(ax, ay, bx, by, { steps: 4, life: 260 + i * 10 });
+    }
+    pushBoxesRadial(cx, cy, 22, 154, player.team);
+    burst(cx, cy, cls.color, 42, 5.8);
+    burst(cx, cy, '#ffffff', 14, 3.5);
+    spawnShockwaveRing(cx, cy, 176, cls.color, { life: 520, width: 5.5, fill: 0.05, rough: 0.095 });
+    addShake(5.2, 210);
     return true;
   }
   function spawnAirSpiralRead(cx, cy, dir) {
@@ -2763,6 +2866,12 @@ PUBLIC.start = function (root, api) {
     }
     if (e.kind === 'smokeBomb') {
       return spawnSmokeBombProjectile(ang, e);
+    }
+    if (e.kind === 'acroDash') {
+      return useAcrobatDash(e, ang);
+    }
+    if (e.kind === 'dashFrenzy') {
+      return useDashFrenzy(ang);
     }
     if (e.kind === 'vaultStrike' || e.kind === 'vaultToss') {
       startClassMove('vault');
@@ -5969,6 +6078,8 @@ PUBLIC.start = function (root, api) {
     if (mageHovering()) m *= 0.68;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
     if (activeMove('slide')) m = Math.max(m, 8.0);
+    if (activeMove('acroDash')) m = Math.max(m, 13.6);
+    if (activeMove('risingDash')) m = Math.max(m, 11.2);
     if (activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
     if (player && actorPosture(player).down > 0) m *= 0.45;
@@ -6012,6 +6123,29 @@ PUBLIC.start = function (root, api) {
       player.vy = Math.min(player.vy, -0.35 + t * 1.2);
       if (Math.random() < 0.45) particles.push({ x: player.x - player.facing * rand(8, 28), y: player.y - rand(24, 56),
         vx: -player.facing * rand(0.6, 1.5), vy: rand(-0.4, 0.7), life: rand(160, 310), max: 310, color: cls.color, r: rand(1.2, 2.6) });
+    } else if (m.type === 'acroDash') {
+      player.vx = player.facing * (12.4 - t * 2.7);
+      player.vy = Math.min(player.vy, -0.45 + t * 1.5);
+      if (Math.random() < 0.72) particles.push({ x: player.x - player.facing * rand(16, 44), y: player.y - rand(28, 66),
+        vx: -player.facing * rand(1.0, 2.8), vy: rand(-0.6, 0.8), life: rand(140, 290), max: 290, color: Math.random() < 0.35 ? '#ffffff' : cls.color, r: rand(1.0, 2.8) });
+      if (!m.struck && t > 0.20) {
+        m.struck = true;
+        const y = player.y - 52;
+        hitBoxesSegment(player.x - player.facing * 24, y + 6, player.x + player.facing * 118, y - 6, player.facing, -0.18, 21, 16);
+        slashTrail.push({ x: player.x + player.facing * 52, y: y - 3, life: 220, c: cls.trail });
+        burst(player.x + player.facing * 70, y, cls.color, 18, 3.8);
+      }
+    } else if (m.type === 'risingDash') {
+      player.vx = player.facing * (8.8 - t * 1.8);
+      player.vy = Math.min(player.vy, -4.8 + t * 7.8);
+      if (Math.random() < 0.76) particles.push({ x: player.x - player.facing * rand(10, 32), y: player.y - rand(8, 54),
+        vx: -player.facing * rand(0.6, 2.0), vy: rand(-1.5, 0.2), life: rand(150, 310), max: 310, color: Math.random() < 0.35 ? '#ffffff' : cls.color, r: rand(1.1, 3.0) });
+      if (!m.struck && t > 0.24) {
+        m.struck = true;
+        hitBoxesSegment(player.x + player.facing * 8, player.y - 28, player.x + player.facing * 104, player.y - 110, player.facing, -0.85, 25, 18);
+        slashTrail.push({ x: player.x + player.facing * 48, y: player.y - 76, life: 240, c: cls.trail });
+        burst(player.x + player.facing * 58, player.y - 78, cls.color, 22, 4.2);
+      }
     } else if (m.type === 'backstep') {
       player.vx = -player.facing * (5.8 - t * 2.4);
       player.vy = Math.min(player.vy, 1.2);
