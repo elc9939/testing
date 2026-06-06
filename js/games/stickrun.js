@@ -2643,6 +2643,7 @@ PUBLIC.start = function (root, api) {
     if (slot === 'attack' && cls.id === 'rogue') return `${player.rogueBurst || 0}/${ROGUE_BURST_MAX} burst`;
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
+    if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.spiritCharges || 0}/6 spirit`;
     if (slot === 'passive') return spec ? 'keystone' : '';
     return '';
   }
@@ -3068,6 +3069,7 @@ PUBLIC.start = function (root, api) {
     const buildOpts = builds.map(b => `<option value="${b.id}"${b.id === labBuildId ? ' selected' : ''}>${html(b.name)}</option>`).join('');
     const testButtons = ['attack', 'secondary', 'shift', 'jump', 'e', 'q'].map(labSlotButton).join('');
     const rogueTools = cls.id === 'rogue' ? `<button data-lab-act="knife">Drop Knife</button>` : '';
+    const spiritTools = cls.id === 'mage' && mageSpiritLoadoutActive() ? `<button data-lab-act="spirit">Spirit</button>` : '';
     labPanel.innerHTML = `<b>Ability Lab</b>
       <div class="sr-labrow">
         <select data-lab-select="class" aria-label="Class">${classOpts}</select>
@@ -3085,6 +3087,7 @@ PUBLIC.start = function (root, api) {
         <button data-lab-act="barrel">Barrel</button>
         <button data-lab-act="spring">Spring</button>
         ${rogueTools}
+        ${spiritTools}
         <button data-lab-act="debug" class="${debug.enabled ? 'active' : ''}">Hitboxes</button>
         <button data-lab-act="menu">Menu</button>
       </div>`;
@@ -3191,6 +3194,7 @@ PUBLIC.start = function (root, api) {
     else if (act === 'barrel') spawnLabObject('barrel');
     else if (act === 'spring') spawnLabObject('spring');
     else if (act === 'knife') spawnLabDroppedKnife();
+    else if (act === 'spirit') grantSpiritCharge(player.x, player.y - 58, 1);
     else if (act === 'debug') {
       debug.enabled = !debug.enabled;
       exposeDebugApi();
@@ -5584,6 +5588,25 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawSpiritOrbit(cx, cy, charges) {
+    const count = clamp(Math.floor(charges || 0), 0, 6);
+    if (!count) return;
+    const t = performance.now() * 0.0032;
+    ctx.save();
+    for (let i = 0; i < count; i++) {
+      const a = t + i * Math.PI * 2 / count;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2.1 + i);
+      const x = cx + Math.cos(a) * (25 + pulse * 3.5);
+      const y = cy + Math.sin(a) * (10 + pulse * 2.0);
+      ctx.globalAlpha = 0.24 + pulse * 0.10;
+      ctx.fillStyle = '#b48cff';
+      ctx.beginPath(); ctx.arc(x, y, 7.5 + pulse * 2, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.86;
+      ctx.fillStyle = '#f5efff';
+      ctx.beginPath(); ctx.arc(x, y, 2.6 + pulse * 0.9, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
 
   // ===========================================================================
   // ANIMATION CLIPS (prototype pipeline — currently the knight slash)
@@ -5797,6 +5820,9 @@ PUBLIC.start = function (root, api) {
     const hipFX = hipX, hipBX = hipX;
 
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
+    if (cls.id === 'mage' && player.team === 'hero' && mageSpiritLoadoutActive() && (player.spiritCharges || 0) > 0) {
+      drawSpiritOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.spiritCharges);
+    }
     if (cls.id === 'ranger') drawQuiver(shX - f * 13, shY + 23, f, player.arrowAmmo);
 
     // foot target: blend the ground running gait with an air pose by `air`
