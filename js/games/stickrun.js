@@ -1119,8 +1119,11 @@ PUBLIC.start = function (root, api) {
     if (isLancerAttack(type)) player.vx *= 0.18;
     spendAttackCooldown(type);
     spendRogueBurst(type);
-    // rogue dual-wield: one tap = one hand, alternating each strike
-    if (cls.id === 'rogue' && type === 'dualSlash') { a.rogueHand = a.rogueHandNext | 0; a.rogueHandNext = a.rogueHand ? 0 : 1; }
+    // rogue dual-wield: one tap = one hand, alternating slashes and stabs.
+    if (cls.id === 'rogue' && (type === 'dualSlash' || type === 'rogueStab')) {
+      a.rogueHand = player.knifeAmmo > 1 ? (a.rogueHandNext | 0) : 0;
+      a.rogueHandNext = a.rogueHand ? 0 : 1;
+    }
     // knight slash combo: chain taps cycle diagonal -> horizontal -> overhead
     if (type === 'slash') {
       const nowMs = performance.now();
@@ -5333,18 +5336,19 @@ PUBLIC.start = function (root, api) {
       return hand;
     }
 
-    // rogue dual-wield strikes alternate hands; this swing belongs to the off hand
-    const rogueOff = cls.id === 'rogue' && a.atkActive && a.atkType === 'dualSlash' && a.rogueHand === 1;
+    // rogue dual-wield strikes alternate hands; this strike belongs to the off hand
+    const rogueOff = cls.id === 'rogue' && a.atkActive && (a.atkType === 'dualSlash' || a.atkType === 'rogueStab') && a.rogueHand === 1;
+    const rogueStrikeT = a.atkType === 'rogueStab' ? stabT : slashT;
     // ----- back arm (ragdoll: hand position springs loosely so the elbow swings) -----
     const knifeTrick = cls.id === 'rogue' && !a.atkActive && idleAmt > 0.72 && ((now % 4300) / 4300) > 0.70
       ? ease((((now % 4300) / 4300) - 0.70) / 0.30) : 0;
     let h = armHand(p), offhandAim = null, offhandStretch = 1, offhandBend = f;
-    if (rogueOff && slashT !== null) {
-      // full-range off-hand swing (uses the same raise-to-top engine as the front hand)
-      const pose = weaponPose('dualSlash', slashT, a.atkAim, f, a.atkVar);
+    if (rogueOff && rogueStrikeT !== null) {
+      // full-range off-hand strike (uses the same engine as the front hand)
+      const pose = weaponPose(a.atkType, rogueStrikeT, a.atkAim, f, a.atkVar);
       const bc = armChain(shX, shY, pose.shAng, pose.elBend);
       offhandAim = bc.foreAng + pose.wrBend;
-      offhandStretch = 1 + Math.sin(clamp(slashT, 0, 1) * Math.PI) * 0.18;
+      offhandStretch = 1 + Math.sin(clamp(rogueStrikeT, 0, 1) * Math.PI) * 0.18;
       h = { x: bc.hx, y: bc.hy };
     } else if (cls.id === 'rogue') {
       h = flipActive
