@@ -681,7 +681,9 @@ PUBLIC.start = function (root, api) {
     <span><span id="sr-mode-label">W</span><b id="sr-lvl">1</b></span>
     <span><b id="sr-lvls">0</b> <span id="sr-foe-label">foes</span></span>
     <span><b id="sr-party">0</b> <span id="sr-party-label">allies</span></span>
-    <span><span id="sr-score-label">KO</span> <b id="sr-coins">0</b></span>`;
+    <span><span id="sr-score-label">KO</span> <b id="sr-coins">0</b></span>
+    <span class="sr-resourcechip" id="sr-ammo" style="display:none"><span id="sr-ammo-icon">🔪</span> <b id="sr-knives">0</b> <small id="sr-ammo-detail"></small></span>
+    <span class="sr-resourcechip" id="sr-cool" style="display:none">SKILL <b id="sr-cool-val">READY</b></span>`;
 
   const helpBtn = document.createElement('button');
   helpBtn.className = 'sr-helpbtn';
@@ -730,6 +732,9 @@ PUBLIC.start = function (root, api) {
       display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.72);
       color:#141414;text-shadow:none;box-shadow:0 8px 24px rgba(0,0,0,.12);font-size:clamp(12px,2.4vw,15px);white-space:nowrap}
     .sr-hud b{font-weight:900}.sr-classchip{color:#111;font-weight:900}
+    .sr-resourcechip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;
+      background:rgba(17,20,32,.09);border:1px solid rgba(17,20,32,.08)}
+    .sr-resourcechip small{font-size:10px;font-weight:800;letter-spacing:.01em;opacity:.72}
     .sr-helpbtn{position:absolute;top:calc(56px + env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:42;
       width:30px;height:30px;border-radius:50%;border:1px solid rgba(20,20,20,.38);background:rgba(255,255,255,.76);
       color:#161616;font:900 15px/1 system-ui;box-shadow:0 6px 18px rgba(0,0,0,.12)}
@@ -2409,6 +2414,41 @@ PUBLIC.start = function (root, api) {
     }
   }
 
+  function countRecoverableRogueKnives() {
+    if (!droppedKnives || !droppedKnives.length) return 0;
+    let count = 0;
+    for (const k of droppedKnives) if (k && k.grounded) count++;
+    return count;
+  }
+  function nearestRecoverableRogueKnifeDist() {
+    if (!player || !droppedKnives || !droppedKnives.length) return Infinity;
+    let best = Infinity;
+    for (const k of droppedKnives) {
+      if (!k || !k.grounded) continue;
+      best = Math.min(best, Math.hypot(k.x - player.x, k.y - (player.y - 25)));
+    }
+    return best;
+  }
+  function rogueAmmoDetailText() {
+    if (!player || cls.id !== 'rogue') return '';
+    const recoverable = countRecoverableRogueKnives();
+    if (recoverable > 0 && player.knifeAmmo < ROGUE_MAX_KNIVES) {
+      const dist = nearestRecoverableRogueKnifeDist();
+      if (dist < 34) return 'pickup now';
+      if (dist < 96) return 'pickup nearby';
+      return `${recoverable} down`;
+    }
+    if (player.knifeAmmo >= ROGUE_MAX_KNIVES) return 'full';
+    const left = Math.max(0, ROGUE_REGEN - (player.knifeRegen || 0));
+    return `regen ${(left / 1000).toFixed(1)}s`;
+  }
+  function rangerAmmoDetailText() {
+    if (!player || cls.id !== 'ranger') return '';
+    if (player.arrowAmmo >= RANGER_MAX_ARROWS) return 'full';
+    const left = Math.max(0, RANGER_REGEN - (player.arrowRegen || 0));
+    return `regen ${(left / 1000).toFixed(1)}s`;
+  }
+
   function cooldownForUi(slot) {
     if (!player || slot === 'jump') return { left: 0, max: 1, locked: false };
     if (slot === 'attack') {
@@ -2495,6 +2535,32 @@ PUBLIC.start = function (root, api) {
     const got = totalCoins - coinsLeft.filter(c => !c.got).length;
     const ko = document.getElementById('sr-coins');
     if (ko) ko.textContent = arenaMode ? (arenaKills || 0) : got;
+    const ammo = document.getElementById('sr-ammo');
+    if (ammo) {
+      const hasAmmo = state === 'playing' && (cls.id === 'rogue' || cls.id === 'ranger');
+      ammo.style.display = hasAmmo ? 'inline-flex' : 'none';
+      const icon = document.getElementById('sr-ammo-icon');
+      const val = document.getElementById('sr-knives');
+      const detail = document.getElementById('sr-ammo-detail');
+      if (icon) icon.textContent = cls.id === 'ranger' ? '🏹' : '🔪';
+      if (val) val.textContent = player
+        ? (cls.id === 'ranger' ? `${player.arrowAmmo}/${RANGER_MAX_ARROWS}` : `${player.knifeAmmo}/${ROGUE_MAX_KNIVES}`)
+        : (cls.id === 'ranger' ? `${RANGER_MAX_ARROWS}/${RANGER_MAX_ARROWS}` : `${ROGUE_MAX_KNIVES}/${ROGUE_MAX_KNIVES}`);
+      if (detail) detail.textContent = cls.id === 'rogue' ? rogueAmmoDetailText() : rangerAmmoDetailText();
+    }
+    const cool = document.getElementById('sr-cool');
+    const coolVal = document.getElementById('sr-cool-val');
+    if (cool && coolVal) {
+      const show = !!player && state === 'playing';
+      cool.style.display = show ? 'inline-flex' : 'none';
+      if (show && cls.id === 'rogue') {
+        cool.firstChild.nodeValue = 'BURST ';
+        coolVal.textContent = `${player.rogueBurst || 0}/${ROGUE_BURST_MAX}`;
+      } else if (show) {
+        cool.firstChild.nodeValue = 'SKILL ';
+        coolVal.textContent = `${slotStateText('e')} ${slotStateText('shift')} ${slotStateText('q')}`;
+      }
+    }
     syncAbilityBar();
   }
 
@@ -2764,6 +2830,15 @@ PUBLIC.start = function (root, api) {
       <span>${SLOT_LABEL[slot]}</span><small>${compactAbilityName(name)}</small>
     </button>`;
   }
+  function spawnLabDroppedKnife() {
+    if (!player || cls.id !== 'rogue') return false;
+    const x = player.x + player.facing * 92;
+    const y = Math.min(player.y - 18, terrainYAt(x) - 6);
+    droppedKnives.push({ x, y, vx: 0, vy: 0, angle: player.facing * 0.18, grounded: true, life: 9000, age: 0 });
+    burst(x, y, '#cfd6df', 10, 1.8);
+    syncHud();
+    return true;
+  }
   function testLabJump() {
     if (!labMode || state !== 'playing' || !player) return false;
     refillLabResources();
@@ -2809,6 +2884,7 @@ PUBLIC.start = function (root, api) {
     const classOpts = CLASSES.map(c => `<option value="${c.id}"${c.id === cls.id ? ' selected' : ''}>${html(c.name)}</option>`).join('');
     const buildOpts = builds.map(b => `<option value="${b.id}"${b.id === labBuildId ? ' selected' : ''}>${html(b.name)}</option>`).join('');
     const testButtons = ['attack', 'secondary', 'shift', 'jump', 'e', 'q'].map(labSlotButton).join('');
+    const rogueTools = cls.id === 'rogue' ? `<button data-lab-act="knife">Drop Knife</button>` : '';
     labPanel.innerHTML = `<b>Ability Lab</b>
       <div class="sr-labrow">
         <select data-lab-select="class" aria-label="Class">${classOpts}</select>
@@ -2825,6 +2901,7 @@ PUBLIC.start = function (root, api) {
         <button data-lab-act="crate">Crate</button>
         <button data-lab-act="barrel">Barrel</button>
         <button data-lab-act="spring">Spring</button>
+        ${rogueTools}
         <button data-lab-act="debug" class="${debug.enabled ? 'active' : ''}">Hitboxes</button>
         <button data-lab-act="menu">Menu</button>
       </div>`;
@@ -2930,6 +3007,7 @@ PUBLIC.start = function (root, api) {
     else if (act === 'crate') spawnLabObject('crate');
     else if (act === 'barrel') spawnLabObject('barrel');
     else if (act === 'spring') spawnLabObject('spring');
+    else if (act === 'knife') spawnLabDroppedKnife();
     else if (act === 'debug') {
       debug.enabled = !debug.enabled;
       exposeDebugApi();
