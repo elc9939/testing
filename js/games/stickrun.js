@@ -2752,7 +2752,6 @@ PUBLIC.start = function (root, api) {
       projectiles.push({ kind: 'bolt', team: player.team, x: gravityCore.x + Math.cos(a) * 18, y: gravityCore.y + Math.sin(a) * 18, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 1050, color: gravityAccent(), r: 11, hit: 16, sparkle: 3, bounce: hasPassive('ricochet_key') ? 1 : 0, wind: 1 });
       if (e.shoveCore) { gravityCore.vx += Math.cos(ang) * 0.9; gravityCore.vy += Math.sin(ang) * 0.55; }
       chargeGravityCore(e.shoveCore ? 0.72 : 0.45, player.x, player.y - 70);
-      rememberDebugSegment('ability', player.x, player.y - 70, gravityCore.x, gravityCore.y, 8, gravityAccent(), 260);
       burst(gravityCore.x, gravityCore.y, gravityAccent(), 18, 3.6);
       return true;
     }
@@ -3075,10 +3074,6 @@ PUBLIC.start = function (root, api) {
       }
       radialActorPulse(src.x, src.y, r, force, player.team, src.color || gravityAccent());
       pushBoxesRadial(src.x, src.y, boxForce, r, player.team);
-      for (let i = 0; i < 16; i++) {
-        const a = i * Math.PI * 2 / 16;
-        rememberDebugSegment('ability', src.x, src.y, src.x + Math.cos(a) * r, src.y + Math.sin(a) * r * 0.55, 5, src.color || gravityAccent(), 260);
-      }
       if (gravityCore) {
         src.resonance = 0;
         src.resonancePulse = 860;
@@ -6049,7 +6044,6 @@ PUBLIC.start = function (root, api) {
     const from = gravityCore
       ? { x: gravityCore.x + Math.cos(spin) * gravityCore.r * rand(0.34, 0.78), y: gravityCore.y + Math.sin(spin) * gravityCore.r * rand(0.22, 0.52) }
       : { x: player.x + Math.cos(spin) * fromR, y: player.y - 72 + Math.sin(spin * 0.82) * rand(48, 88) };
-    rememberDebugSegment('ability', from.x, from.y, to.x, to.y, 5, gravityAccent(), 300);
     for (let i = 0; i < 10; i++) {
       const u = i / 10;
       const x = lerp(from.x, to.x, u) + rand(-12, 12);
@@ -6882,7 +6876,6 @@ PUBLIC.start = function (root, api) {
       mass: power,
       sparkle: 2,
     });
-    if (!fromCore) rememberDebugSegment('ability', player.x, player.y - 70, origin.x, origin.y, 8, gravityAccent(), 260);
     for (let i = 0; i < (spent ? 18 : 11); i++) {
       const a = ang + Math.PI + rand(-0.62, 0.62);
       gravityParticle(origin.x + rand(-4, 4), origin.y + rand(-4, 4), Math.cos(a) * rand(0.45, 1.7), Math.sin(a) * rand(0.45, 1.7), {
@@ -7002,7 +6995,6 @@ PUBLIC.start = function (root, api) {
     const p = aimedPoint(opts.range || 380);
     const radius = opts.radius || 154;
     const force = opts.force || 28;
-    rememberDebugSegment('ability', player.x, player.y - 68, p.x, p.y, 12, gravityAccent(), 260);
     for (let i = 0; i < 36; i++) {
       const a = rand(0, Math.PI * 2), rr = rand(0, radius * 0.88);
       gravityParticle(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr * 0.55 - rand(12, 42),
@@ -7851,7 +7843,6 @@ PUBLIC.start = function (root, api) {
     const before = g.resonance || 0;
     g.resonance = clamp(before + (amount || 1), 0, max);
     g.resonancePulse = Math.max(g.resonancePulse || 0, 520);
-    if (x != null && y != null) rememberDebugSegment('ability', x, y, g.x, g.y, 6, g.color || cls.color, 420);
     if (g.resonance > before + 0.05) {
       const gain = g.resonance - before;
       burst(g.x, g.y, gravityHighlight(), 7 + gain * 5, 2.6 + gain * 0.7);
@@ -8891,25 +8882,26 @@ PUBLIC.start = function (root, api) {
       const staffBias = castPull * (0.55 + pulse * 0.35);
       const x = lerp(rawX, staff.x - Math.cos(aim) * (8 + i * 2), staffBias);
       const y = lerp(rawY, staff.y - Math.sin(aim) * (5 + i * 2), staffBias);
+      const r = 7.0 + lane * 0.9 + pulse * 2.4 + (active ? 1.5 : 0);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.08 + pulse * 0.08 + (active ? 0.06 : 0);
+      ctx.fillStyle = GRAVITY_COLORS.edge;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.5, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 0.20 + pulse * 0.18 + (active ? 0.10 : 0);
-      ctx.strokeStyle = GRAVITY_COLORS.edge;
-      ctx.lineWidth = 1.9 + pulse * 0.8;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a + 1.4) * 8, cy - 9 + Math.sin(a) * 4);
-      ctx.quadraticCurveTo((cx + x) * 0.5 + Math.sin(a) * 14, (cy + y) * 0.5 - 16 + Math.cos(a) * 5, x, y);
-      ctx.stroke();
-      ctx.globalAlpha = 0.10 + pulse * 0.08;
-      ctx.strokeStyle = GRAVITY_COLORS.bright;
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-      ctx.moveTo(staff.x - Math.cos(aim) * 6, staff.y - Math.sin(aim) * 5);
-      ctx.quadraticCurveTo((staff.x + x) * 0.5 - Math.sin(a) * 6, (staff.y + y) * 0.5 - 5, x, y);
-      ctx.stroke();
+      ctx.fillStyle = GRAVITY_COLORS.bright;
+      for (let j = 0; j < 2; j++) {
+        const moteA = a + j * Math.PI + t * (1.2 + j * 0.18);
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(moteA) * r * 1.8, y + Math.sin(moteA) * r * 1.2, 1.5 + pulse * 1.0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.90;
       ctx.fillStyle = i % 2 ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
       ctx.strokeStyle = i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.bright;
       ctx.lineWidth = 1.35;
-      const r = 7.0 + lane * 0.9 + pulse * 2.4 + (active ? 1.5 : 0);
       ctx.beginPath();
       const pts = 7;
       for (let k = 0; k < pts; k++) {
@@ -9859,36 +9851,33 @@ PUBLIC.start = function (root, api) {
     const targets = gravityCoreTetherTargets(g);
     if (!targets.length) return;
     ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.setLineDash([8, 9]);
-    ctx.lineDashOffset = -t * 0.04;
+    ctx.globalCompositeOperation = 'lighter';
     for (const target of targets) {
-      const dx = g.x - target.x, dy = g.y - target.y;
-      const mx = target.x + dx * 0.52 + Math.sin(t * 0.004 + target.x * 0.02) * 9;
-      const my = target.y + dy * 0.52 - 8 + Math.cos(t * 0.003 + target.y * 0.02) * 5;
-      const alpha = 0.16 + target.pull * 0.36 + Math.sin(t * 0.012 + target.d) * 0.035;
-      ctx.globalAlpha = clamp(alpha, 0.12, 0.56);
-      ctx.strokeStyle = g.color || gravityAccent();
-      ctx.lineWidth = 2.4 + target.pull * 2.6;
+      const pull = clamp(target.pull || 0, 0, 1);
+      const pulse = 0.5 + 0.5 * Math.sin(t * 0.012 + target.d * 0.08 + (g.phase || 0));
+      const driftA = Math.atan2(g.y - target.y, g.x - target.x);
+      const glintColor = target.kind === 'barrel' ? '#ffd45e' : GRAVITY_COLORS.bright;
+      ctx.globalAlpha = clamp(0.12 + pull * 0.30 + pulse * 0.07, 0.12, 0.48);
+      ctx.fillStyle = glintColor;
       ctx.beginPath();
-      ctx.moveTo(target.x, target.y);
-      ctx.quadraticCurveTo(mx, my, g.x, g.y);
-      ctx.stroke();
-      ctx.globalAlpha = clamp(alpha * 0.74, 0.08, 0.35);
-      ctx.strokeStyle = GRAVITY_COLORS.bright;
-      ctx.lineWidth = 1.1 + target.pull * 1.2;
-      ctx.beginPath();
-      ctx.moveTo(target.x, target.y);
-      ctx.quadraticCurveTo(mx, my, g.x, g.y);
-      ctx.stroke();
-      ctx.globalAlpha = clamp(0.20 + target.pull * 0.32, 0.16, 0.52);
-      ctx.setLineDash([]);
-      ctx.fillStyle = target.kind === 'barrel' ? '#ffd45e' : GRAVITY_COLORS.white;
-      ctx.beginPath();
-      ctx.arc(target.x, target.y, 2.8 + target.pull * 3.4, 0, Math.PI * 2);
+      ctx.arc(target.x, target.y, 2.8 + pull * 4.2 + pulse * 1.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.setLineDash([8, 9]);
+      ctx.globalAlpha = clamp(0.08 + pull * 0.20, 0.08, 0.32);
+      ctx.strokeStyle = g.color || gravityAccent();
+      ctx.lineWidth = 1.1 + pull * 0.8;
+      ctx.beginPath();
+      ctx.arc(target.x, target.y, 8 + pull * 13 + pulse * 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = clamp(0.06 + pull * 0.17, 0.06, 0.25);
+      ctx.fillStyle = GRAVITY_COLORS.white;
+      for (let i = 0; i < 2; i++) {
+        const tug = 7 + i * 8 + pulse * 4;
+        const sx = target.x - Math.cos(driftA) * tug + Math.sin(driftA) * (i ? 3 : -3);
+        const sy = target.y - Math.sin(driftA) * tug - Math.cos(driftA) * (i ? 3 : -3);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1.4 + pull * 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }
