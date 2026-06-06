@@ -79,6 +79,10 @@ Games are validated with **headless Node harnesses**: stub a minimal DOM + a NaN
 - Match the surrounding file's style; many games are large and idiomatic to themselves.
 - Design docs live in `docs/` (e.g. `docs/stick-arena-tactics.md` is the active Stick Arena progression + tactical-combat spec). Treat the committed Markdown as the source of truth for in-progress designs.
 
+## Task backlog
+
+`tasks/TASKS.md` is the user's committed to-do list for Claude. **At the start of a session, read it**, work the top unblocked **Todo** (honoring `[p1]` priority), and on completion move the item to **Done** with the date + PR number. It's repo-only (not deployed to Pages). The file documents its own add/work workflow.
+
 ## Git / PR workflow
 
 - Branch off `main` for changes; CI runs on pushes to `main` and on PRs.
