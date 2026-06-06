@@ -70,7 +70,7 @@ Arcade.define([
     desc: 'Pick a fighter, build a party, unlock abilities, and survive class-based bot waves.',
     color: '#ff9f6e',
     kind: 'arena',
-    src: 'js/games/stickrun.js?v=61',
+    src: 'js/games/stickrun.js?v=62',
   },
   {
     id: 'pinball',

@@ -771,13 +771,16 @@ PUBLIC.start = function (root, api) {
     .sr-labpanel button{cursor:pointer}.sr-labpanel button:hover{border-color:#8fe6ff;background:rgba(143,230,255,.16)}
     .sr-labpanel option{background:#101525;color:#eaf2ff}
     .sr-labnote{font-size:11px;line-height:1.28;color:#d9e4f5;opacity:.82;margin:5px 0 8px}
+    .sr-labtests{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:0 0 8px}
+    .sr-labslot{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 3px}
+    .sr-labslot span{font-size:10px;font-weight:950;color:#8fe6ff}.sr-labslot small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;opacity:.78}
     .sr-labtools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     @media (max-width:760px){
       .sr-hud{top:calc(52px + env(safe-area-inset-top));max-width:calc(100vw - 92px);overflow:hidden;gap:7px;font-size:12px}
       .sr-helpbtn{top:calc(52px + env(safe-area-inset-top));width:28px;height:28px}
       .sr-labpanel{top:calc(86px + env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));width:min(280px,calc(100vw - 16px));
         padding:8px;max-height:38vh;overflow:auto}
-      .sr-labrow{grid-template-columns:1fr}.sr-labtools{grid-template-columns:repeat(2,1fr)}
+      .sr-labrow{grid-template-columns:1fr}.sr-labtests{grid-template-columns:repeat(3,1fr)}.sr-labtools{grid-template-columns:repeat(2,1fr)}
       .sr-abilitybar{left:auto;right:max(8px,env(safe-area-inset-right));transform:none;max-width:calc(100vw - 112px);
         justify-content:flex-end;flex-wrap:wrap;gap:5px;padding:5px}
       .sr-abilitybar .sr-btn{width:54px;height:48px;border-radius:10px}
@@ -2637,18 +2640,48 @@ PUBLIC.start = function (root, api) {
     burst(x, y - (spec.h || 44) / 2, kind === 'barrel' ? '#ff9f6e' : kind === 'spring' ? '#8fe6ff' : '#caa15a', 18, 3.0);
     syncHud();
   }
+  function compactAbilityName(name) {
+    name = name || 'Ready';
+    return name.length > 13 ? html(name.slice(0, 12)) + '&hellip;' : html(name);
+  }
+  function labSlotButton(slot) {
+    const spec = equipped(slot);
+    const name = spec ? spec.name : actionName(cls[slot] || slot);
+    return `<button class="sr-labslot" data-lab-slot="${slot}" title="${html(name)}">
+      <span>${SLOT_LABEL[slot]}</span><small>${compactAbilityName(name)}</small>
+    </button>`;
+  }
+  function testLabSlot(slot) {
+    if (!labMode || state !== 'playing' || !player) return false;
+    refillLabResources();
+    const wasPointerActive = pointer.active;
+    pointer.active = false;
+    let ok = false;
+    if (slot === 'attack') ok = mainAttack();
+    else if (slot === 'secondary') ok = altAttack();
+    else ok = triggerSlotAbility(slot);
+    if (cls.id === 'ranger' && player.draw && player.draw.active) {
+      player.draw.t = Math.max(player.draw.t || 0, RANGER_DRAW_MAX);
+      ok = releaseRangerDraw() || ok;
+    }
+    pointer.active = wasPointerActive;
+    syncHud();
+    return ok;
+  }
   function renderLabPanel() {
     if (!labMode) { labPanel.style.display = 'none'; return; }
     const builds = labBuildsFor(cls.id);
     const preset = currentLabPreset();
     const classOpts = CLASSES.map(c => `<option value="${c.id}"${c.id === cls.id ? ' selected' : ''}>${html(c.name)}</option>`).join('');
     const buildOpts = builds.map(b => `<option value="${b.id}"${b.id === labBuildId ? ' selected' : ''}>${html(b.name)}</option>`).join('');
+    const testButtons = ['attack', 'secondary', 'shift', 'e', 'q'].map(labSlotButton).join('');
     labPanel.innerHTML = `<b>Ability Lab</b>
       <div class="sr-labrow">
         <select data-lab-select="class" aria-label="Class">${classOpts}</select>
         <select data-lab-select="build" aria-label="Build">${buildOpts}</select>
       </div>
       <div class="sr-labnote">${html(preset.note || 'Test this build against controlled targets and objects.')}</div>
+      <div class="sr-labtests" aria-label="Test current abilities">${testButtons}</div>
       <div class="sr-labtools">
         <button data-lab-act="reset">Reset</button>
         <button data-lab-act="cooldowns">Ready</button>
@@ -2750,6 +2783,8 @@ PUBLIC.start = function (root, api) {
     if (kind === 'build') applyLabBuild(e.target.value);
   });
   labPanel.addEventListener('click', e => {
+    const slotBtn = e.target.closest && e.target.closest('[data-lab-slot]');
+    if (slotBtn) { testLabSlot(slotBtn.dataset.labSlot); return; }
     const act = e.target.dataset && e.target.dataset.labAct;
     if (!act) return;
     if (act === 'reset') resetLabScene();
