@@ -213,11 +213,11 @@ const ABILITIES = (() => {
   add('mg_resonance', { cls: 'mage', branch: 'graviturge', tier: 4, slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure near affected enemies.', key: true, tags: ['Gravity', 'Projectile'] });
   add('mg_eventhorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'passive', name: 'Event Horizon', desc: 'Advanced variation: Gravity Core lasts longer, pulls objects harder, and makes core detonation the build payoff.', key: true, tags: ['Gravity', 'Field'] });
   add('mg_resonancepulse', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Resonance Pulse', desc: 'Pulse the active Gravity Core outward. Without a core, staff-slam a local shockwave.', effect: { kind: 'resonancePulse' }, cd: 7200, tags: ['Gravity', 'Shockwave', 'Crates'] });
-  add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast ember projectile that bursts into a small flame impact.', effect: { kind: 'firebolt', power: 1.12 }, cd: 260, tags: ['Fire', 'Projectile'] });
-  add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Pool', desc: 'Place a lingering burn zone that controls a route and ignites barrels.', effect: { kind: 'fireZone', r: 126, life: 2600, range: 430 }, cd: 2300, tags: ['Fire', 'Field', 'Barrels'] });
-  add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Detonate a hot circle at the cursor, shoving enemies and objects outward.', effect: { kind: 'fireBurst', r: 142, range: 440, force: 25 }, cd: 3400, tags: ['Fire', 'Barrels', 'Push'] });
-  add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Inferno', desc: 'Large fire zone with a heavy opening blast and lingering area denial.', effect: { kind: 'inferno', r: 230, life: 3800, range: 540 }, cd: 9800, tags: ['Fire', 'Field', 'Barrels'] });
-  add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire zones last longer and barrel/object explosions burn brighter.', key: true, tags: ['Fire', 'Barrels'] });
+  add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast staff-led fire shot. It scorches a small pocket, burns targets, and starts the heat chain.', effect: { kind: 'firebolt', power: 1.18, scorch: 1 }, cd: 240, tags: ['Fire', 'Projectile', 'Burn'] });
+  add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Pool', desc: 'Paint a readable burning zone that heats crates/barrels and primes enemies for Ignition.', effect: { kind: 'fireZone', r: 138, life: 3100, range: 470, openingFlare: 1 }, cd: 2200, tags: ['Fire', 'Field', 'Barrels'] });
+  add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Snap to nearby burning targets or hot barrels, draw flame lines, then pop them outward.', effect: { kind: 'fireBurst', r: 164, range: 500, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
+  add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Inferno', desc: 'Call down a huge fire field with an opening blast and a final eruption when it expires.', effect: { kind: 'inferno', r: 252, life: 4300, range: 590, detonateOnEnd: 1 }, cd: 9600, tags: ['Fire', 'Field', 'Barrels'] });
+  add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire zones burn longer, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
   add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Haunting projectile that builds spirit charge on hit or KO.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
   add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Raise one stored spirit or pull a visible remnant from a nearby defeated body.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
   add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Soul Flare', desc: 'Spend a spirit charge for a short fear pulse that shoves enemies away from allies.', effect: { kind: 'soulFlare' }, cd: 3600, tags: ['Spirit', 'Allies', 'Push'] });
@@ -2418,26 +2418,36 @@ PUBLIC.start = function (root, api) {
       addShake(gravityCore ? 6.4 + charge * 0.45 : 4.2, 170);
       return true;
     }
-    if (e.kind === 'firebolt') { spawnFirebolt(ang, e.power || 1); return true; }
+    if (e.kind === 'firebolt') { spawnFirebolt(ang, e.power || 1, e); return true; }
     if (e.kind === 'fireZone') {
       const p = aimedPoint(e.range || 420);
+      pyroStaffFlare(ang, 1.15);
       spawnFireZone(p.x, p.y, player.team, e);
       return true;
     }
     if (e.kind === 'fireBurst') {
-      const p = aimedPoint(e.range || 420);
-      spawnFireZone(p.x, p.y, player.team, { r: e.r || 132, life: 780, ultimate: true });
-      radialActorPulse(p.x, p.y, e.r || 132, e.force || 24, player.team, '#ff6b32');
-      detonateBurningTargets(p.x, p.y, e.r || 132, (e.force || 24) + 10, player.team, '#ff6b32');
-      pushBoxesRadial(p.x, p.y, e.force || 24, e.r || 132, player.team);
+      const aim = aimedPoint(e.range || 420);
+      const anchor = nearestPyroAnchor(aim.x, aim.y, e.snap || 0, player.team);
+      const p = anchor || aim;
+      const r = e.r || 132, force = e.force || 24;
+      pyroStaffFlare(ang, 1.35);
+      spawnFireZone(p.x, p.y, player.team, { r: r * 0.82, life: 820, ultimate: true, openingFlare: 1 });
+      flareNearbyFireZones(p.x, p.y, r + 90, player.team, '#ff6b32');
+      radialActorPulse(p.x, p.y, r, force, player.team, '#ff6b32');
+      detonateBurningTargets(p.x, p.y, r, force + 12, player.team, '#ff6b32', { link: true, chain: e.chain });
+      pushBoxesRadial(p.x, p.y, force, r, player.team);
+      spawnShockwaveRing(p.x, p.y, r + 18, '#ff6b32', { life: 320, width: 4.8, yScale: 0.48, fill: 0.10 });
       return true;
     }
     if (e.kind === 'inferno') {
       const p = aimedPoint(e.range || 540);
-      spawnFireZone(p.x, p.y, player.team, { r: e.r || 220, life: e.life || 3600, ultimate: true });
-      radialActorPulse(p.x, p.y, e.r || 220, 34, player.team, '#ff6b32');
-      detonateBurningTargets(p.x, p.y, e.r || 220, 45, player.team, '#ff6b32');
-      pushBoxesRadial(p.x, p.y, 34, e.r || 220, player.team);
+      const r = e.r || 220;
+      pyroStaffFlare(ang, 1.85);
+      spawnFireZone(p.x, p.y, player.team, { r, life: e.life || 3600, ultimate: true, detonateOnEnd: e.detonateOnEnd !== false, openingFlare: 1 });
+      radialActorPulse(p.x, p.y, r, 36, player.team, '#ff6b32');
+      detonateBurningTargets(p.x, p.y, r, 48, player.team, '#ff6b32', { link: true, chain: true });
+      pushBoxesRadial(p.x, p.y, 36, r, player.team);
+      spawnShockwaveRing(p.x, p.y, r + 42, '#ffd45e', { life: 520, width: 6.2, yScale: 0.52, fill: 0.14 });
       return true;
     }
     if (e.kind === 'spiritBolt') { spawnSpiritBolt(ang); return true; }
@@ -2699,6 +2709,7 @@ PUBLIC.start = function (root, api) {
   let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, bladeRecallTrails, projectiles, gravityFields, fireZones, smokeZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
   let labMode = false, labBuildId = 'base', labCollapsed = false;
+  let debugExposeAt = 0;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
@@ -3059,6 +3070,7 @@ PUBLIC.start = function (root, api) {
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
     if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.spiritCharges || 0}/6 spirit`;
+    if (cls.id === 'mage' && magePyroLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return pyroStatusText();
     if (slot === 'passive') return spec ? 'keystone' : '';
     return branchShort(spec);
   }
@@ -3442,6 +3454,42 @@ PUBLIC.start = function (root, api) {
     syncHud();
     return true;
   }
+  function setupLabPyroChain() {
+    if (!player || cls.id !== 'mage' || !magePyroLoadoutActive()) return false;
+    const f = player.facing || 1;
+    const x1 = player.x + f * 175;
+    const x2 = player.x + f * 285;
+    const y1 = terrainYAt(x1);
+    const y2 = terrainYAt(x2);
+    const d = makeDummy(x1, y1, { hp: 99 });
+    dummies.push(d);
+    markBurnDummy(d, 3600, '#ff6b32');
+    fighters = fighters || [];
+    const e = makeFighter('rogue', x2 + f * 30, y2, { hp: 10, min: x2 - 70, max: x2 + 90, facing: -f });
+    e.brain.alert = 9999;
+    fighters.push(e);
+    markBurnActor(e, 3600, '#ff6b32');
+    const barrel = makeBoxSpec({ x: x2 - 18, y: y2 - 34, w: 36, h: 36, m: 1.2, kind: 'barrel', heat: 76, heatFlash: 260 });
+    boxes.push(barrel);
+    spawnFireZone(x1 + f * 70, terrainYAt(x1 + f * 70) - 4, player.team, { r: 116, life: 2100, openingFlare: 1 });
+    pyroLink(player.x, player.y - 68, x1, y1 - 44, '#ff6b32', 460);
+    pyroLink(player.x, player.y - 68, x2 + f * 30, y2 - 44, '#ff6b32', 460);
+    refillLabResources();
+    syncHud();
+    return true;
+  }
+  function spawnLabHotBarrel() {
+    if (!player || cls.id !== 'mage' || !magePyroLoadoutActive()) return false;
+    const f = player.facing || 1;
+    const x = player.x + f * 165;
+    const y = terrainYAt(x);
+    const b = makeBoxSpec({ x: x - 18, y: y - 36, w: 36, h: 36, m: 1.2, kind: 'barrel', heat: 88, heatFlash: 320 });
+    boxes.push(b);
+    burst(x, y - 18, '#ffd45e', 20, 4.0);
+    pyroLink(player.x, player.y - 68, x, y - 18, '#ffd45e', 420);
+    syncHud();
+    return true;
+  }
   function testLabJump() {
     if (!labMode || state !== 'playing' || !player) return false;
     refillLabResources();
@@ -3494,6 +3542,7 @@ PUBLIC.start = function (root, api) {
     const buildOpts = builds.map(b => `<option value="${b.id}"${b.id === labBuildId ? ' selected' : ''}>${html(b.name)}</option>`).join('');
     const testButtons = ['attack', 'secondary', 'shift', 'jump', 'e', 'q'].map(labSlotButton).join('');
     const rogueTools = cls.id === 'rogue' ? `<button data-lab-act="knife">Drop Knife</button>` : '';
+    const pyroTools = cls.id === 'mage' && magePyroLoadoutActive() ? `<button data-lab-act="pyrochain">Pyro Setup</button><button data-lab-act="hotbarrel">Hot Barrel</button>` : '';
     const spiritTools = cls.id === 'mage' && mageSpiritLoadoutActive() ? `<button data-lab-act="spirit">Spirit</button>` : '';
     labPanel.innerHTML = `<div class="sr-labhead"><b>Ability Lab</b><button data-lab-act="collapse" class="sr-labcollapse">Hide</button></div>
       <div class="sr-labrow">
@@ -3512,6 +3561,7 @@ PUBLIC.start = function (root, api) {
         <button data-lab-act="barrel">Barrel</button>
         <button data-lab-act="spring">Spring</button>
         ${rogueTools}
+        ${pyroTools}
         ${spiritTools}
         <button data-lab-act="debug" class="${debug.enabled ? 'active' : ''}">Hitboxes</button>
         <button data-lab-act="menu">Menu</button>
@@ -3568,6 +3618,26 @@ PUBLIC.start = function (root, api) {
     loadLevel(0, false);
     exposeDebugApi();
   }
+  function validClassId(id) {
+    return CLASSES.some(c => c.id === id) ? id : null;
+  }
+  function validLabBuildId(classId, buildId) {
+    const builds = labBuildsFor(classId);
+    return builds.some(b => b.id === buildId) ? buildId : (builds[0] && builds[0].id || 'base');
+  }
+  function startFromQuery() {
+    const labClass = validClassId(query.get('lab') || query.get('stickLab') || query.get('labClass'));
+    if (labClass) {
+      startLab(labClass, validLabBuildId(labClass, query.get('build') || query.get('labBuild')));
+      return;
+    }
+    const playClass = validClassId(query.get('class') || query.get('cls') || query.get('fighter'));
+    if (playClass && (query.has('play') || query.has('arena'))) {
+      play(playClass);
+      return;
+    }
+    showMenu();
+  }
   function nextLevel() {
     if (li + 1 < levels.length) {
       burst(player.x, player.y - PH / 2, '#ffd45e', 30, 6);
@@ -3622,6 +3692,8 @@ PUBLIC.start = function (root, api) {
     else if (act === 'barrel') spawnLabObject('barrel');
     else if (act === 'spring') spawnLabObject('spring');
     else if (act === 'knife') spawnLabDroppedKnife();
+    else if (act === 'pyrochain') setupLabPyroChain();
+    else if (act === 'hotbarrel') spawnLabHotBarrel();
     else if (act === 'spirit') {
       spawnSpiritRemnant(player.x + player.facing * 86, player.y - 56, { groundY: player.y, source: 'lab' });
       grantSpiritCharge(player.x, player.y - 58, 1);
@@ -5637,13 +5709,16 @@ PUBLIC.start = function (root, api) {
     burst(mx, my, '#ffffff', 18, 3.2);
     burst(mx, my, cls.color, 28, 4.2);
   }
-  function spawnFirebolt(ang, power) {
-    const shX = player.x, shY = player.y - 76, spd = 21.5 * (power || 1);
+  function spawnFirebolt(ang, power, opts) {
+    opts = opts || {};
+    const shX = player.x, shY = player.y - 76, spd = 24.5 * (power || 1);
     const mx = shX + Math.cos(ang) * 38, my = shY + Math.sin(ang) * 38;
     projectiles.push({ kind: 'firebolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
-      life: 820, color: '#ff6b32', r: 11, hit: 15, angle: ang, fire: true });
-    burst(mx, my, '#ffd45e', 16, 3.6);
-    burst(mx, my, '#ff6b32', 18, 4.2);
+      life: 900, color: '#ff6b32', r: 12.5, hit: 16.5 * (power || 1), angle: ang, fire: true,
+      sparkle: 3, scorch: !!opts.scorch });
+    pyroStaffFlare(ang, 1.0);
+    burst(mx, my, '#ffd45e', 22, 4.2);
+    burst(mx, my, '#ff6b32', 24, 4.8);
   }
   function spawnSpiritBolt(ang) {
     const shX = player.x, shY = player.y - 76, spd = 19.5;
@@ -5658,10 +5733,139 @@ PUBLIC.start = function (root, api) {
     const pyromancy = (team || 'hero') === 'hero' && hasPassive('mg_pyromancy');
     const r = (opts.r || 128) * (pyromancy ? 1.12 : 1);
     const life = (opts.life || 2400) + (pyromancy ? 520 : 0);
-    fireZones.push({ x, y, team: team || 'hero', r, max: life, life, tick: 80, color: opts.color || '#ff6b32', ultimate: !!opts.ultimate });
-    burst(x, y, '#ffd45e', opts.ultimate ? 42 : 24, opts.ultimate ? 6.5 : 4.6);
-    burst(x, y, opts.color || '#ff6b32', opts.ultimate ? 58 : 34, opts.ultimate ? 7.2 : 5.2);
+    fireZones.push({
+      x, y,
+      team: team || 'hero',
+      r,
+      max: life,
+      life,
+      age: 0,
+      tick: opts.openingFlare ? 30 : 80,
+      color: opts.color || '#ff6b32',
+      ultimate: !!opts.ultimate,
+      flare: opts.openingFlare ? 380 : 0,
+      detonateOnEnd: !!opts.detonateOnEnd,
+    });
+    burst(x, y, '#ffd45e', opts.ultimate ? 54 : 30, opts.ultimate ? 7.2 : 5.2);
+    burst(x, y, opts.color || '#ff6b32', opts.ultimate ? 72 : 42, opts.ultimate ? 8.0 : 5.8);
+    spawnShockwaveRing(x, y, r + (opts.ultimate ? 28 : 8), opts.color || '#ff6b32', {
+      life: opts.ultimate ? 420 : 280,
+      width: opts.ultimate ? 5.8 : 3.8,
+      yScale: 0.46,
+      fill: opts.ultimate ? 0.12 : 0.07,
+    });
     addShake(opts.ultimate ? 6.2 : 3.4, opts.ultimate ? 180 : 110);
+  }
+  function magePyroLoadoutActive() {
+    if (!loadout) return false;
+    return loadout.passive === 'mg_pyromancy' || ['attack', 'secondary', 'e', 'q'].some(slot => {
+      const spec = ability(loadout[slot]);
+      return spec && spec.branch === 'pyromancer';
+    });
+  }
+  function pyroStatusCounts() {
+    const hotBoxes = (boxes || []).filter(b => !b.dead && (b.heat || 0) > 22).length;
+    const burningActors = (player && (player.burned || 0) > 0 ? 1 : 0) +
+      (fighters ? fighters.filter(e => (e.burned || 0) > 0).length : 0) +
+      (allies ? allies.filter(a => (a.burned || 0) > 0).length : 0) +
+      (dummies ? dummies.filter(d => (d.burned || 0) > 0).length : 0);
+    return { hotBoxes, burningActors, fireZones: fireZones ? fireZones.length : 0 };
+  }
+  function pyroStatusText() {
+    const c = pyroStatusCounts();
+    const parts = [];
+    if (c.burningActors) parts.push(`${c.burningActors} burn`);
+    if (c.hotBoxes) parts.push(`${c.hotBoxes} hot`);
+    if (c.fireZones) parts.push(`${c.fireZones} zone`);
+    return parts.length ? parts.join(' / ') : 'prime heat';
+  }
+  function pyroStaffFlare(ang, scale) {
+    if (!player || player.team !== 'hero') return;
+    scale = scale || 1;
+    const sx = player.x + Math.cos(ang) * 20;
+    const sy = player.y - 72 + Math.sin(ang) * 20;
+    burst(sx, sy, '#ffd45e', Math.round(8 * scale), 2.6 + scale);
+    burst(sx, sy, '#ff6b32', Math.round(12 * scale), 3.0 + scale);
+  }
+  function pyroLink(ax, ay, bx, by, color, life) {
+    spawnBladeRecallTrail(ax, ay, bx, by, {
+      color: '#ffd45e',
+      accent: color || '#ff6b32',
+      life: life || 360,
+      phase: rand(0, Math.PI * 2),
+    });
+    rememberDebugSegment('ability', ax, ay, bx, by, 8, color || '#ff6b32', life || 360);
+    const dx = bx - ax, dy = by - ay;
+    for (let i = 0; i < 5; i++) {
+      const t = rand(0.15, 0.90);
+      particles.push({
+        x: ax + dx * t + rand(-4, 4),
+        y: ay + dy * t + rand(-4, 4),
+        vx: rand(-0.35, 0.35),
+        vy: rand(-1.05, -0.18),
+        life: rand(180, 340),
+        max: 340,
+        color: Math.random() < 0.42 ? '#ffd45e' : color || '#ff6b32',
+        r: rand(1.4, 3.4),
+      });
+    }
+  }
+  function nearestPyroAnchor(x, y, range, team) {
+    if (!range || range <= 0) return null;
+    const side = team || 'hero';
+    let best = null, bd = range;
+    const check = (tx, ty, weight) => {
+      const d = Math.hypot(tx - x, ty - y) - (weight || 0);
+      if (d < bd) { bd = d; best = { x: tx, y: ty }; }
+    };
+    if (fireZones) for (const z of fireZones) {
+      if ((z.team || 'hero') !== side) continue;
+      check(z.x, z.y, Math.min(70, z.r * 0.35));
+    }
+    const actors = side === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
+    for (const a of actors) if ((a.burned || 0) > 0) check(a.x, a.y - 42, 36);
+    if (side !== 'enemy' && dummies) for (const d of dummies) if ((d.burned || 0) > 0) {
+      const p = d.pts && (d.pts.chest || d.pts.head);
+      if (p) check(p.x, p.y, 30);
+    }
+    for (const b of boxes || []) {
+      if (b.dead) continue;
+      const heat = b.heat || 0;
+      if (heat <= 20 && b.kind !== 'barrel') continue;
+      check(b.x + b.w / 2, b.y + b.h / 2, b.kind === 'barrel' ? 54 : clamp(heat * 0.36, 8, 44));
+    }
+    return best;
+  }
+  function flareNearbyFireZones(x, y, radius, team, color) {
+    let any = false;
+    for (const z of fireZones || []) {
+      if ((z.team || 'hero') !== (team || 'hero')) continue;
+      const d = Math.hypot(z.x - x, z.y - y);
+      if (d > radius + z.r * 0.42) continue;
+      z.flare = Math.max(z.flare || 0, 420);
+      z.tick = Math.min(z.tick || 0, 22);
+      z.life = Math.max(z.life || 0, Math.min(z.max || 1000, 620));
+      pyroLink(x, y, z.x, z.y, color || z.color, 340);
+      any = true;
+    }
+    return any;
+  }
+  function finishFireZone(z) {
+    if (!z) return;
+    const r = z.r + (z.ultimate ? 62 : 20);
+    const color = z.color || '#ff6b32';
+    burst(z.x, z.y, '#ffd45e', z.ultimate ? 52 : 20, z.ultimate ? 7.2 : 3.4);
+    burst(z.x, z.y, color, z.ultimate ? 78 : 28, z.ultimate ? 8.2 : 4.0);
+    spawnShockwaveRing(z.x, z.y, r, color, {
+      life: z.ultimate ? 520 : 280,
+      width: z.ultimate ? 6.8 : 3.8,
+      yScale: 0.48,
+      fill: z.ultimate ? 0.16 : 0.07,
+    });
+    radialActorPulse(z.x, z.y, r, z.ultimate ? 30 : 12, z.team, color);
+    detonateBurningTargets(z.x, z.y, r, z.ultimate ? 42 : 18, z.team, color, { link: !!z.ultimate, chain: !!z.ultimate });
+    pushBoxesRadial(z.x, z.y, z.ultimate ? 32 : 12, r, z.team);
+    addShake(z.ultimate ? 6.8 : 2.8, z.ultimate ? 190 : 90);
   }
   function spawnGravityField(x, y, team, color, opts) {
     opts = opts || {};
@@ -5913,8 +6117,10 @@ PUBLIC.start = function (root, api) {
       if (p && Math.hypot(p.x - z.x, p.y - z.y) <= z.r + 18) markBurnDummy(d, dur, z.color);
     }
   }
-  function detonateBurningTargets(x, y, radius, force, team, color) {
+  function detonateBurningTargets(x, y, radius, force, team, color, opts) {
+    opts = opts || {};
     color = color || '#ff6b32';
+    const chainMul = (opts.chain || hasPassive('mg_pyromancy')) ? 1.18 : 1;
     let pops = 0;
     const actors = (team || 'hero') === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
     for (const t of actors.slice()) {
@@ -5923,11 +6129,12 @@ PUBLIC.start = function (root, api) {
       const nx = (t.x - x) / (d || 1), ny = ((t.y - 42) - y) / (d || 1);
       t.burned = 0;
       t.burnedMax = 0;
+      if (opts.link) pyroLink(x, y, t.x, t.y - 42, color, 380);
       burst(t.x, t.y - 44, '#ffd45e', 18, 4.8);
       burst(t.x, t.y - 44, color, 24, 5.4);
       spawnShockwaveRing(t.x, t.y - 42, 64, color, { life: 260, width: 3.2, yScale: 0.58, fill: 0.10 });
-      if ((team || 'hero') === 'enemy') hurtEnemyTarget(t, nx, ny - 0.18, force * 0.78, t.x, t.y - 42);
-      else hurtFighter(t, nx, ny - 0.18, force * 0.78, t.x, t.y - 42);
+      if ((team || 'hero') === 'enemy') hurtEnemyTarget(t, nx, ny - 0.18, force * 0.78 * chainMul, t.x, t.y - 42);
+      else hurtFighter(t, nx, ny - 0.18, force * 0.78 * chainMul, t.x, t.y - 42);
       pops++;
     }
     if ((team || 'hero') !== 'enemy' && dummies) for (const d of dummies) {
@@ -5939,10 +6146,11 @@ PUBLIC.start = function (root, api) {
       d.burned = 0;
       d.burnedMax = 0;
       const nx = (p.x - x) / (dist || 1), ny = (p.y - y) / (dist || 1);
+      if (opts.link) pyroLink(x, y, p.x, p.y, color, 360);
       burst(p.x, p.y, '#ffd45e', 16, 4.6);
       burst(p.x, p.y, color, 22, 5.2);
       spawnShockwaveRing(p.x, p.y, 58, color, { life: 240, width: 3.0, yScale: 0.58, fill: 0.09 });
-      hurtDummy(d, nx, ny - 0.16, force * 0.90, p.x, p.y);
+      hurtDummy(d, nx, ny - 0.16, force * 0.90 * chainMul, p.x, p.y);
       pops++;
     }
     for (const b of boxes || []) {
@@ -5951,8 +6159,9 @@ PUBLIC.start = function (root, api) {
       if (d > radius + 54) continue;
       const heat = b.heat || 0;
       if (heat > 20 || b.kind === 'barrel') {
-        heatBoxFromFire(b, { x, y, color, ultimate: true }, 38 + heat * 0.22);
-        pushBox(b, (cx - x) / (d || 1), (cy - y) / (d || 1) - 0.15, force * 0.42);
+        if (opts.link) pyroLink(x, y, cx, cy, heat > 76 || b.kind === 'barrel' ? '#ffd45e' : color, 320);
+        heatBoxFromFire(b, { x, y, color, ultimate: true }, 42 + heat * 0.28);
+        pushBox(b, (cx - x) / (d || 1), (cy - y) / (d || 1) - 0.15, force * 0.46 * chainMul);
         pops++;
       }
     }
@@ -5966,27 +6175,31 @@ PUBLIC.start = function (root, api) {
     if (!fireZones) return;
     for (let i = fireZones.length - 1; i >= 0; i--) {
       const z = fireZones[i];
+      z.age = (z.age || 0) + dtStep;
       z.life -= dtStep;
       z.tick -= dtStep;
-      if (Math.random() < 0.75) {
+      z.flare = Math.max(0, (z.flare || 0) - dtStep);
+      const flare = clamp((z.flare || 0) / 420, 0, 1);
+      if (Math.random() < (z.ultimate ? 0.94 : 0.75) + flare * 0.22) {
         const a = rand(0, Math.PI * 2), rr = rand(10, z.r);
         particles.push({ x: z.x + Math.cos(a) * rr, y: z.y + Math.sin(a) * rr * 0.42,
-          vx: Math.cos(a) * rand(0.05, 0.22), vy: rand(-1.35, -0.2), life: rand(180, 420), max: 420,
-          color: Math.random() < 0.34 ? '#ffd45e' : z.color, r: rand(1.4, 3.8) });
+          vx: Math.cos(a) * rand(0.05, 0.32 + flare * 0.18), vy: rand(-1.35 - flare * 0.8, -0.2), life: rand(180, 460 + flare * 120), max: 540,
+          color: Math.random() < 0.34 + flare * 0.18 ? '#ffd45e' : z.color, r: rand(1.4, 4.2 + flare * 1.4) });
       }
       if (z.tick <= 0) {
-        z.tick = z.ultimate ? 150 : 210;
-        radialActorPulse(z.x, z.y, z.r, z.ultimate ? 10 : 6.2, z.team, z.color);
-        markBurnsInFireZone(z, z.ultimate ? 1650 : 1080);
+        z.tick = Math.max(70, (z.ultimate ? 142 : 195) - flare * 55);
+        radialActorPulse(z.x, z.y, z.r, (z.ultimate ? 10.5 : 6.6) + flare * 4, z.team, z.color);
+        markBurnsInFireZone(z, z.ultimate ? 1850 : 1280);
         for (const b of boxes || []) {
           const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - z.x, cy - z.y) || 1;
           if (d > z.r) continue;
-          heatBoxFromFire(b, z, z.ultimate ? 58 : 34);
-          if (b.kind !== 'barrel') pushBox(b, (cx - z.x) / d, -0.26, z.ultimate ? 10 : 5.5);
+          heatBoxFromFire(b, z, (z.ultimate ? 60 : 36) + flare * 16);
+          if (b.kind !== 'barrel') pushBox(b, (cx - z.x) / d, -0.26, (z.ultimate ? 10 : 5.5) + flare * 4);
         }
       }
       if (z.life <= 0) {
-        burst(z.x, z.y, '#5b1e12', 16, 2.8);
+        if (z.detonateOnEnd || z.ultimate) finishFireZone(z);
+        else burst(z.x, z.y, '#5b1e12', 16, 2.8);
         fireZones.splice(i, 1);
       }
     }
@@ -6321,6 +6534,19 @@ PUBLIC.start = function (root, api) {
       ctx.beginPath(); ctx.moveTo(hx - dx * 48 + nx * 4, hy - dy * 48 + ny * 4); ctx.lineTo(hx - dx * 48 - nx * 4, hy - dy * 48 - ny * 4); ctx.stroke();
       ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
       ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
+      if (cls.id === 'mage' && magePyroLoadoutActive()) {
+        const tipX = hx + dx * 69 * L, tipY = hy + dy * 69 * L;
+        const cast = player && player.anim && player.anim.atkActive ? Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0;
+        const pulse = 0.55 + 0.45 * Math.sin(performance.now() * 0.018);
+        ctx.save();
+        ctx.globalAlpha = 0.20 + pulse * 0.18 + cast * 0.24;
+        ctx.fillStyle = '#ff6b32';
+        ctx.beginPath(); ctx.arc(tipX, tipY, 8 + cast * 7 + pulse * 2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.70 + cast * 0.22;
+        ctx.fillStyle = '#ffd45e';
+        ctx.beginPath(); ctx.arc(tipX, tipY, 3.8 + pulse * 1.4 + cast * 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
     } else if (cls.weapon === 'bow') {
       const pull = currentBowPull();
       const nock = currentRangerNock();
@@ -7467,19 +7693,32 @@ PUBLIC.start = function (root, api) {
     ctx.lineCap = 'round';
     for (const z of fireZones) {
       const fade = clamp(z.life / z.max, 0, 1);
-      const pulse = 1 + Math.sin(t * 0.011 + z.x) * 0.055;
+      const flare = clamp((z.flare || 0) / 420, 0, 1);
+      const birth = clamp((z.age || 0) / 420, 0, 1);
+      const pulse = 1 + Math.sin(t * 0.011 + z.x) * (0.055 + flare * 0.035) + flare * 0.08;
       const rr = z.r * pulse;
       const grad = ctx.createRadialGradient(z.x, z.y, 4, z.x, z.y, rr);
-      grad.addColorStop(0, `rgba(255,212,94,${0.24 * fade})`);
-      grad.addColorStop(0.38, `rgba(255,107,50,${0.20 * fade})`);
+      grad.addColorStop(0, `rgba(255,212,94,${(0.24 + flare * 0.14) * fade})`);
+      grad.addColorStop(0.38, `rgba(255,107,50,${(0.20 + flare * 0.10) * fade})`);
       grad.addColorStop(1, 'rgba(255,107,50,0)');
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.ellipse(z.x, z.y, rr, rr * 0.42, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = (z.ultimate ? 0.72 : 0.48) * fade;
+      ctx.globalAlpha = (z.ultimate ? 0.78 : 0.52) * fade;
       ctx.strokeStyle = z.ultimate ? '#ffd45e' : z.color;
-      ctx.lineWidth = z.ultimate ? 3.2 : 2.1;
+      ctx.lineWidth = (z.ultimate ? 3.2 : 2.1) + flare * 1.8;
       ctx.beginPath(); ctx.ellipse(z.x, z.y, rr * 0.92, rr * 0.39, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 0.28 * fade;
+      if (z.ultimate) {
+        ctx.globalAlpha = (0.16 + flare * 0.18) * fade;
+        ctx.strokeStyle = '#ffd45e';
+        ctx.lineWidth = 1.5 + flare * 1.2;
+        ctx.setLineDash([18, 12]);
+        ctx.lineDashOffset = -t * 0.05;
+        ctx.beginPath();
+        ctx.ellipse(z.x, z.y, rr * (1.04 + (1 - birth) * 0.18), rr * (0.44 + (1 - birth) * 0.08), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.globalAlpha = (0.28 + flare * 0.22) * fade;
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1.4;
       for (let i = 0; i < 8; i++) {
@@ -7827,7 +8066,7 @@ PUBLIC.start = function (root, api) {
                 vx: -b.vx * rand(0.01, 0.035) + rand(-0.45, 0.45), vy: -b.vy * rand(0.01, 0.035) + rand(-0.45, 0.45),
                 life: rand(180, 360), max: 360, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.7) });
             }
-            if (b.kind === 'firebolt' && Math.random() < 0.72) particles.push({ x: b.x + rand(-3, 3), y: b.y + rand(-3, 3), vx: -b.vx * 0.02 + rand(-0.3, 0.3), vy: rand(-0.8, -0.1), life: rand(160, 310), max: 310, color: Math.random() < 0.5 ? '#ffd45e' : '#ff6b32', r: rand(1.3, 3.2) });
+            if (b.kind === 'firebolt' && Math.random() < 0.86) particles.push({ x: b.x + rand(-4, 4), y: b.y + rand(-4, 4), vx: -b.vx * 0.026 + rand(-0.36, 0.36), vy: rand(-1.1, -0.08), life: rand(170, 360), max: 360, color: Math.random() < 0.54 ? '#ffd45e' : '#ff6b32', r: rand(1.5, 3.8) });
             if (b.kind === 'spiritBolt' && Math.random() < 0.60) particles.push({ x: b.x + rand(-3, 3), y: b.y + rand(-3, 3), vx: rand(-0.35, 0.35), vy: rand(-0.55, 0.10), life: rand(200, 380), max: 380, color: Math.random() < 0.45 ? '#ffffff' : '#b48cff', r: rand(1.2, 2.8) });
           } else if (b.kind === 'sigil') {
             b.age += dt;
@@ -7841,7 +8080,7 @@ PUBLIC.start = function (root, api) {
           const sp = Math.hypot(b.vx, b.vy) || 1;
           if (crate) {
             if (b.kind === 'firebolt') {
-              heatBoxFromFire(crate, { x: b.x, y: b.y, color: b.color, ultimate: false }, crate.kind === 'barrel' ? 70 : 42);
+              heatBoxFromFire(crate, { x: b.x, y: b.y, color: b.color, ultimate: !!b.scorch }, crate.kind === 'barrel' ? 82 : b.scorch ? 58 : 42);
               if (crate.kind === 'barrel') {
                 crate.vx += b.vx / sp * 1.2;
                 crate.va += (b.vx >= 0 ? 1 : -1) * 0.08;
@@ -7857,7 +8096,7 @@ PUBLIC.start = function (root, api) {
               if (h) {
                 if (b.kind !== 'gravitySeed') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
                 if (b.poison) t.poisoned = Math.max(t.poisoned || 0, 1600);
-                if (b.fire) markBurnActor(t, 1350, b.color);
+                if (b.fire) markBurnActor(t, b.scorch ? 1850 : 1350, b.color);
                 struckActor = true;
                 break;
               }
@@ -7868,7 +8107,7 @@ PUBLIC.start = function (root, api) {
               const h = projectileHitsDummy(b, px, py, d);
               if (h) {
                 if (b.kind !== 'gravitySeed') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
-                if (b.fire) markBurnDummy(d, 1350, b.color);
+                if (b.fire) markBurnDummy(d, b.scorch ? 1850 : 1350, b.color);
                 if (b.spirit) grantSpiritCharge(h.p.x, h.p.y, 0.35);
                 addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
@@ -7880,7 +8119,7 @@ PUBLIC.start = function (root, api) {
                   hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
                   if (b.pin) { e.vx *= 0.25; e.vy *= 0.25; e.brain.stagger = Math.max(e.brain.stagger || 0, 420); }
                   if (b.poison) e.poisoned = Math.max(e.poisoned || 0, 1800);
-                  if (b.fire) markBurnActor(e, 1350, b.color);
+                  if (b.fire) markBurnActor(e, b.scorch ? 1850 : 1350, b.color);
                   if (b.spirit) grantSpiritCharge(h.x, h.y, 0.5);
                 }
                 addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
@@ -7906,8 +8145,9 @@ PUBLIC.start = function (root, api) {
             else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
             else if (b.kind === 'sigil') explodeSigil(b);
             else if (b.kind === 'firebolt') {
-              spawnFireZone(b.x, b.y, b.team, { r: 86, life: 900, color: b.color });
-              radialActorPulse(b.x, b.y, 92, 12, b.team, b.color);
+              spawnFireZone(b.x, b.y, b.team, { r: b.scorch ? 102 : 86, life: b.scorch ? 1250 : 900, color: b.color, openingFlare: !!b.scorch });
+              radialActorPulse(b.x, b.y, b.scorch ? 112 : 92, b.scorch ? 15 : 12, b.team, b.color);
+              detonateBurningTargets(b.x, b.y, b.scorch ? 86 : 64, b.scorch ? 18 : 12, b.team, b.color, { link: false, chain: false });
             }
             else if (b.kind === 'spiritBolt') {
               burst(b.x, b.y, '#b48cff', 20, 3.8);
@@ -7932,6 +8172,13 @@ PUBLIC.start = function (root, api) {
     const moveAmt = player ? (freeze > 0 ? lastMoveAmt : (lastMoveAmt = animate(dt))) : 0;
     if (player && freeze <= 0) { animateFighters(dt); animateAllies(dt); }
     if (player) render(moveAmt);
+    if (player && (labMode || debug.enabled)) {
+      const nowMs = performance.now();
+      if (nowMs - debugExposeAt > 180) {
+        debugExposeAt = nowMs;
+        exposeDebugApi();
+      }
+    }
   });
 
   // test seam (no-op in production): lets the headless harness drive internals
@@ -8024,6 +8271,7 @@ PUBLIC.start = function (root, api) {
               (fighters ? fighters.filter(e => (e.burned || 0) > 0).length : 0) +
               (allies ? allies.filter(a => (a.burned || 0) > 0).length : 0) +
               (dummies ? dummies.filter(d => (d.burned || 0) > 0).length : 0),
+            hotBoxes: boxes ? boxes.filter(b => !b.dead && (b.heat || 0) > 22).length : 0,
           },
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
@@ -8067,6 +8315,7 @@ PUBLIC.start = function (root, api) {
           spiritAllies: effects.spiritAllies ? effects.spiritAllies.length : 0,
           spiritCommands: effects.spiritCommands ? effects.spiritCommands.length : 0,
           burningActors: effects.burningActors || 0,
+          hotBoxes: effects.hotBoxes || 0,
         });
       }
     }
@@ -8081,7 +8330,7 @@ PUBLIC.start = function (root, api) {
     }
   }
 
-  showMenu();
+  startFromQuery();
   exposeDebugApi();
 };
 
