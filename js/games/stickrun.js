@@ -790,7 +790,10 @@ PUBLIC.start = function (root, api) {
     .sr-labpanel{position:absolute;left:max(12px,env(safe-area-inset-left));top:calc(96px + env(safe-area-inset-top));z-index:38;
       width:min(330px,calc(100vw - 24px));padding:10px;border:1px solid rgba(255,255,255,.24);border-radius:12px;
       background:rgba(8,11,22,.72);backdrop-filter:blur(9px);color:#eaf2ff;box-shadow:0 12px 32px rgba(0,0,0,.24)}
+    .sr-labpanel.collapsed{width:auto;padding:6px;border-radius:999px;background:rgba(8,11,22,.58)}
     .sr-labpanel b{display:block;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8fe6ff;margin-bottom:6px}
+    .sr-labhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+    .sr-labhead b{margin-bottom:0}.sr-labcollapse{min-height:26px!important;border-radius:999px!important;padding:3px 8px!important;font-size:10px!important}
     .sr-labrow{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px}
     .sr-labpanel select,.sr-labpanel button{min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.22);
       background:rgba(255,255,255,.10);color:#eaf2ff;font:800 12px system-ui;padding:5px 8px}
@@ -2550,7 +2553,7 @@ PUBLIC.start = function (root, api) {
   // ---------- game state ----------
   let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, bladeRecallTrails, projectiles, gravityFields, fireZones, smokeZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
-  let labMode = false, labBuildId = 'base';
+  let labMode = false, labBuildId = 'base', labCollapsed = false;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
@@ -3333,6 +3336,12 @@ PUBLIC.start = function (root, api) {
   }
   function renderLabPanel() {
     if (!labMode) { labPanel.style.display = 'none'; return; }
+    labPanel.classList.toggle('collapsed', labCollapsed);
+    if (labCollapsed) {
+      labPanel.innerHTML = '<button data-lab-act="collapse" class="sr-labcollapse">Ability Lab</button>';
+      labPanel.style.display = state === 'playing' || state === 'help' ? 'block' : 'none';
+      return;
+    }
     const builds = labBuildsFor(cls.id);
     const preset = currentLabPreset();
     const classOpts = CLASSES.map(c => `<option value="${c.id}"${c.id === cls.id ? ' selected' : ''}>${html(c.name)}</option>`).join('');
@@ -3340,7 +3349,7 @@ PUBLIC.start = function (root, api) {
     const testButtons = ['attack', 'secondary', 'shift', 'jump', 'e', 'q'].map(labSlotButton).join('');
     const rogueTools = cls.id === 'rogue' ? `<button data-lab-act="knife">Drop Knife</button>` : '';
     const spiritTools = cls.id === 'mage' && mageSpiritLoadoutActive() ? `<button data-lab-act="spirit">Spirit</button>` : '';
-    labPanel.innerHTML = `<b>Ability Lab</b>
+    labPanel.innerHTML = `<div class="sr-labhead"><b>Ability Lab</b><button data-lab-act="collapse" class="sr-labcollapse">Hide</button></div>
       <div class="sr-labrow">
         <select data-lab-select="class" aria-label="Class">${classOpts}</select>
         <select data-lab-select="build" aria-label="Build">${buildOpts}</select>
@@ -3365,6 +3374,7 @@ PUBLIC.start = function (root, api) {
   }
   function startLab(clsId, buildId) {
     labMode = true;
+    labCollapsed = false;
     if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
     labBuildId = buildId || 'base';
     applyLabBuild(labBuildId);
@@ -3380,6 +3390,7 @@ PUBLIC.start = function (root, api) {
 
   function showMenu() {
     labMode = false;
+    labCollapsed = false;
     state = 'menu';
     setPlayUi(false);
     ov.classList.remove('hidden');
@@ -3455,7 +3466,8 @@ PUBLIC.start = function (root, api) {
     if (slotBtn) { testLabSlot(slotBtn.dataset.labSlot); return; }
     const act = e.target.dataset && e.target.dataset.labAct;
     if (!act) return;
-    if (act === 'reset') resetLabScene();
+    if (act === 'collapse') { labCollapsed = !labCollapsed; renderLabPanel(); }
+    else if (act === 'reset') resetLabScene();
     else if (act === 'cooldowns') refillLabResources();
     else if (act === 'dummy') spawnLabDummy('dummy');
     else if (act === 'enemy') spawnLabDummy('enemy');
