@@ -1868,12 +1868,13 @@ PUBLIC.start = function (root, api) {
     const source = spiritClassFromSource(opts.cls || opts.source);
     const color = opts.color || spiritColorFromSource(source, '#b48cff');
     const groundY = surfaceYFor(hero || player, x, 300, 180) || y;
+    const fallbackFacing = opts.facing == null ? (hero ? hero.facing : player.facing) : opts.facing;
     const a = makeFighter(source, x, groundY, {
       team: 'ally',
       hp: opts.hp || 2,
       min: x - 130,
       max: x + 130,
-      facing: opts.facing || (hero ? hero.facing : player.facing),
+      facing: spiritSpawnFacing(x, groundY, fallbackFacing, opts.target, opts.range),
     });
     a.cls = Object.assign({}, a.cls, { color });
     a.brain.alert = 9999;
@@ -1914,6 +1915,11 @@ PUBLIC.start = function (root, api) {
     }
     return best;
   }
+  function spiritSpawnFacing(x, y, fallback, target, range) {
+    const t = target || spiritCommandTarget(range || 760);
+    if (t && Math.abs(t.x - x) > 8) return t.x >= x ? 1 : -1;
+    return fallback || 1;
+  }
   function commandSpiritAlly(a, opts) {
     if (!a || a.dead) return false;
     opts = opts || {};
@@ -1952,17 +1958,19 @@ PUBLIC.start = function (root, api) {
   function bindSpiritAlly() {
     const remnant = nearestSpiritRemnant(340);
     if (remnant) {
+      const target = spiritCommandTarget(720);
       consumeSpiritRemnant(remnant);
       const ally = spawnSpiritAlly(remnant.x, remnant.groundY || remnant.y + 42, {
         hp: 2.25,
         life: 10800,
-        facing: player.facing,
+        facing: spiritSpawnFacing(remnant.x, remnant.groundY || remnant.y + 42, player.facing, target),
+        target,
         color: remnant.color,
         source: remnant.source,
         fromX: player.x,
         fromY: player.y - 58,
       });
-      commandSpiritAlly(ally, { force: 15, dash: 6.2, life: 980, range: 720 });
+      commandSpiritAlly(ally, { target, force: 15, dash: 6.2, life: 980, range: 720 });
       syncHud();
       return true;
     }
@@ -1973,9 +1981,10 @@ PUBLIC.start = function (root, api) {
       return false;
     }
     const p = pointAhead(72);
+    const target = spiritCommandTarget(620);
     player.spiritCharges--;
-    const ally = spawnSpiritAlly(p.x, p.y, { hp: 1.45, life: 6900, facing: player.facing, source: 'rogue', fromX: player.x, fromY: player.y - 58 });
-    commandSpiritAlly(ally, { force: 12, dash: 5.4, life: 820, range: 620 });
+    const ally = spawnSpiritAlly(p.x, p.y, { hp: 1.45, life: 6900, facing: spiritSpawnFacing(p.x, p.y, player.facing, target), target, source: 'rogue', fromX: player.x, fromY: player.y - 58 });
+    commandSpiritAlly(ally, { target, force: 12, dash: 5.4, life: 820, range: 620 });
     syncHud();
     return true;
   }
@@ -2019,13 +2028,15 @@ PUBLIC.start = function (root, api) {
       return false;
     }
     const spawned = [];
+    const target = spiritCommandTarget(720);
     for (let i = 0; i < remnantCount; i++) {
       const r = nearby[i];
       consumeSpiritRemnant(r);
       spawned.push(spawnSpiritAlly(r.x, r.groundY || r.y + 42, {
         hp: 2.15,
         life: 11600,
-        facing: player.facing,
+        facing: spiritSpawnFacing(r.x, r.groundY || r.y + 42, player.facing, target),
+        target,
         color: r.color,
         source: r.source,
         fromX: player.x,
@@ -2035,9 +2046,8 @@ PUBLIC.start = function (root, api) {
     for (let i = 0; i < chargeCount; i++) {
       const off = (i - (chargeCount - 1) / 2) * 42;
       const p = pointAhead(78 + off);
-      spawned.push(spawnSpiritAlly(p.x, p.y, { hp: 1.55, life: 7600, facing: player.facing, source: 'rogue', fromX: player.x, fromY: player.y - 62 }));
+      spawned.push(spawnSpiritAlly(p.x, p.y, { hp: 1.55, life: 7600, facing: spiritSpawnFacing(p.x, p.y, player.facing, target), target, source: 'rogue', fromX: player.x, fromY: player.y - 62 }));
     }
-    const target = spiritCommandTarget(720);
     for (const a of spawned) commandSpiritAlly(a, { target, force: 17, dash: 6.9, life: 1260, fallback: 250 });
     player.spiritCharges = Math.max(0, charges - chargeCount);
     emitSoulWisp(player.x, player.y - 62, target ? target.x : player.x + player.facing * 300, target ? target.y : player.y - 76, { count: 30, color: '#b48cff', lifeMin: 360, lifeMax: 900 });
@@ -4894,7 +4904,7 @@ PUBLIC.start = function (root, api) {
     e.patrolMax = opts.max == null ? x + 120 : opts.max;
     e.brain = {
       dir: e.facing, atkCd: rand(300, 900), moveCd: rand(200, 700), stagger: 0, alert: 0, retreat: 0,
-      jumpCd: rand(0, 300), airJumpCd: rand(120, 420), combo: 0, aggroRange: enemyAggro(clsId), tgt: null, pauseT: rand(0, 800),
+      jumpCd: rand(520, 1000), airJumpCd: rand(1000, 1600), combo: 0, aggroRange: enemyAggro(clsId), tgt: null, pauseT: rand(0, 800),
     };
     return e;
   }
@@ -4915,9 +4925,16 @@ PUBLIC.start = function (root, api) {
     const idx = Math.max(0, livingAllies().indexOf(e));
     const goalX = hero.x - hero.facing * (58 + idx * 36);
     const dx = goalX - e.x;
-    if (Math.abs(dx) > 48) pressToward(e, dx > 0 ? 1 : -1);
-    if (e.grounded && hero.y < e.y - 32) e.intent.jump = true;
-    if (e.cls.fly) e.intent.jumpHeld = hero.y < e.y + 12;
+    const dir = dx >= 0 ? 1 : -1;
+    if (Math.abs(dx) > 48) pressToward(e, dir);
+    const nav = e.grounded && Math.abs(dx) > 40 ? fighterNavProbe(e, dir) : null;
+    const stepHeight = nav && nav.cur !== null && nav.near !== null ? nav.cur - nav.near : 0;
+    const obstacle = nav && (nav.blocked || nav.gap || nav.stepUp && stepHeight > 22);
+    const heroMuchHigher = hero.y < e.y - 86 && Math.abs(dx) < 260;
+    if ((obstacle || heroMuchHigher) && queueAiJump(e, obstacle && nav.gap ? 900 : 680, obstacle && nav.gap ? 1260 : 1040)) {
+      e.brain.pauseT = 0;
+    }
+    if (e.cls.fly) e.intent.jumpHeld = hero.y < e.y - 58 && Math.abs(dx) < 280;
   }
   function surfaceYFor(act, x, maxDrop, maxRise) {
     const L = levels[li], bottom = act.y + (maxDrop == null ? 120 : maxDrop), top = act.y - (maxRise == null ? 8 : maxRise);
@@ -4961,14 +4978,23 @@ PUBLIC.start = function (root, api) {
     const alt = fighterNavProbe(e, -n.face);
     return navScore(e, alt, -n.face, n.face, n.dy) > navScore(e, direct, n.face, n.face, n.dy) ? -n.face : n.face;
   }
+  function queueAiJump(e, minCd, maxCd) {
+    if (!e || !e.grounded || !e.intent || !e.brain || (e.brain.jumpCd || 0) > 0) return false;
+    e.intent.jump = true;
+    e.brain.jumpCd = rand(minCd || 680, maxCd || 1040);
+    return true;
+  }
   // movement intent helpers (leashed so enemies don't wander off their platform)
   function pressToward(e, dir) {
     const it = e.intent, lo = e.patrolMin - 80, hi = e.patrolMax + 80;
     const nav = e.grounded ? fighterNavProbe(e, dir) : null;
     if (nav && nav.ledge && !nav.safeDrop) return false;
-    if (nav && e.grounded && (nav.blocked || nav.stepUp || nav.gap)) {
-      it.jump = true;
-      e.brain.jumpCd = Math.max(e.brain.jumpCd || 0, nav.gap ? 380 : 260);
+    if (nav && e.grounded) {
+      const stepHeight = nav.cur !== null && nav.near !== null ? nav.cur - nav.near : 0;
+      const meaningfulStep = nav.stepUp && stepHeight > 22;
+      if (nav.blocked || nav.gap || meaningfulStep) {
+        queueAiJump(e, nav.gap ? 900 : 680, nav.gap ? 1260 : 1040);
+      }
     }
     if (dir > 0 && e.x < hi) it.right = true; else if (dir < 0 && e.x > lo) it.left = true;
     return it.left || it.right;
@@ -4983,23 +5009,26 @@ PUBLIC.start = function (root, api) {
     const b = e.brain, it = e.intent, nav = n.nav;
     if (e.cls.fly) {
       const target = n.target || hero;
-      it.jumpHeld = b.alert > 0 && (n.dy < 90 || n.adx < 330 || e.y > target.y + 24);
+      const stepHeight = nav && nav.cur !== null && nav.near !== null ? nav.cur - nav.near : 0;
+      const obstacleLift = e.grounded && nav && (nav.blocked || nav.gap || nav.stepUp && stepHeight > 26);
+      const needsLift = target && e.y > target.y + 60 && n.adx < 340;
+      const keepTakeoff = !e.grounded && e.airTime < 18 && e.vy < -0.1;
+      it.jumpHeld = b.alert > 0 && (needsLift || obstacleLift || keepTakeoff);
       return;
     }
-    if (e.grounded && b.jumpCd <= 0) {
-      const chaseUp = n.dy < -30 && n.adx < 280;
-      const surfaceLift = nav.cur !== null && nav.near !== null && nav.near < nav.cur - 8;
-      const chaseDrop = n.dy > 32 && (nav.drop || nav.safeDrop);
-      if (chaseUp || chaseDrop || nav.blocked || nav.stepUp || nav.gap || surfaceLift) {
-        it.jump = true;
-        b.jumpCd = nav.gap ? 520 : 360;
-      }
+    if (e.grounded) {
+      const stepHeight = nav.cur !== null && nav.near !== null ? nav.cur - nav.near : 0;
+      const tallStep = nav.stepUp && stepHeight > 24;
+      const chaseUp = n.dy < -78 && n.adx < 240 && (tallStep || nav.blocked || nav.gap);
+      const chaseDrop = n.dy > 54 && (nav.drop || nav.safeDrop);
+      const obstacle = nav.blocked || nav.gap || tallStep;
+      if (chaseUp || chaseDrop || obstacle) queueAiJump(e, nav.gap ? 920 : 720, nav.gap ? 1320 : 1100);
     } else if (e.cls.id === 'rogue' && !e.rogueAirJump && e.airTime > 8 && b.airJumpCd <= 0) {
-      const followUp = n.dy < -22 && n.adx < 260;
-      const saveGap = Math.abs(e.vx) > 1.1 && n.dy < 36 && n.adx < 260;
+      const followUp = n.dy < -70 && n.adx < 190;
+      const saveGap = n.nav && (n.nav.gap || n.nav.ledge) && Math.abs(e.vx) > 1.25 && n.dy < 28 && n.adx < 230;
       if (followUp || saveGap) {
         it.jump = true;                          // Rogue enemy spends its double-jump to follow upward or clear gaps
-        b.airJumpCd = 720;
+        b.airJumpCd = rand(1250, 1750);
       }
     }
   }
@@ -5051,7 +5080,7 @@ PUBLIC.start = function (root, api) {
     mage(e, n) {                                 // floats and kites, raining bolts; blooms up close
       const b = e.brain;
       const target = b.target || hero;
-      e.intent.jumpHeld = n.adx < 390 || n.dy < 100 || e.y > target.y + 18;
+      e.intent.jumpHeld = !!target && (e.y > target.y + 64 && n.adx < 340 || !e.grounded && e.airTime < 18 && e.vy < -0.1);
       if (n.adx < 185) { pressToward(e, -n.face); if (n.adx < 135 && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(1050, 1700); } }
       else if (n.adx > 310) pressToward(e, n.route);
       if (b.atkCd <= 0) {
@@ -5093,7 +5122,10 @@ PUBLIC.start = function (root, api) {
     e.anim.aimTarget = Math.atan2((target.y - 44) - (e.y - 77), target.x - e.x);
     if (b.alert <= 0) { patrolFighter(e); return; }
     if (atkLocked) {
-      if (e.cls.fly) it.jumpHeld = true;          // casters keep hovering while committed to a spell
+      if (e.cls.fly) {
+        const castTarget = b.target || hero;
+        it.jumpHeld = !!castTarget && e.y > castTarget.y + 64 || !e.grounded && e.airTime < 18 && e.vy < -0.1;
+      }
       return;
     }
     const nav = fighterNavProbe(e, face);
