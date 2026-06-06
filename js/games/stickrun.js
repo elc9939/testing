@@ -91,57 +91,161 @@ const LOADOUT_SLOTS = ['attack', 'secondary', 'shift', 'e', 'q'];
 const HELP_SLOTS = ['attack', 'secondary', 'shift', 'e', 'q', 'passive'];
 const SLOT_LABEL = { attack: 'ATK', secondary: 'ALT', shift: 'SHIFT', e: 'E', q: 'Q', passive: 'KEY' };
 const SLOT_KEY = { attack: 'Click / J', secondary: 'Right / L', shift: 'Shift', e: 'E', q: 'Q', passive: 'Passive' };
-const ABILITIES = {
-  kn_slash: { cls: 'knight', slot: 'attack', name: 'Slash', desc: 'Balanced sword combo with a readable wind-up and clean knockback.', type: 'attack', action: 'slash' },
-  kn_crush: { cls: 'knight', slot: 'attack', name: 'Crush', desc: 'Heavier overhead chop. Slower, but it throws bodies and crates harder.', type: 'attack', action: 'crush', draft: true },
-  kn_guard: { cls: 'knight', slot: 'secondary', name: 'Shield Guard', desc: 'Raise a large shield that blocks hits from the front for a short window.', type: 'attack', action: 'shieldGuard' },
-  kn_step: { cls: 'knight', slot: 'shift', name: 'Shield Step', desc: 'Short armored step for staying in range without feeling slippery.', type: 'move', action: 'shieldStep', cd: 1700 },
-  kn_shoulder: { cls: 'knight', slot: 'shift', name: 'Shoulder Check', desc: 'A committed armored shove that can interrupt a nearby bot.', type: 'move', action: 'shoulder', cd: 2100, draft: true },
-  kn_bash: { cls: 'knight', slot: 'e', name: 'Shield Bash', desc: 'Drive the shield forward to stagger and shove a target.', type: 'attack', action: 'shieldBash', cd: 2600 },
-  kn_quake: { cls: 'knight', slot: 'e', name: 'Quake', desc: 'Slam the ground and launch crates or enemies around your feet.', type: 'attack', action: 'quake', cd: 3600, draft: true },
-  kn_rally: { cls: 'knight', slot: 'q', name: 'Rally Guard', desc: 'Give yourself and nearby allies a shield burst.', type: 'custom', use: 'knightRally', cd: 9000 },
-  kn_vengeance: { cls: 'knight', slot: 'passive', name: 'Vengeance', desc: 'Keystone: blocked damage charges your next hit into a shockwave.', draft: true, key: true },
-  kn_bulwark: { cls: 'knight', slot: 'passive', name: 'Bulwark', desc: 'Keystone: guard blocks harder and reduces knockback while shielding.', draft: true, key: true },
-
-  rg_dual: { cls: 'rogue', slot: 'attack', name: 'Twin Slash', desc: 'Burst combo that alternates daggers and mixes in quick stabs.', type: 'attack', action: 'rogueCombo' },
-  rg_stab: { cls: 'rogue', slot: 'attack', name: 'Needle Stabs', desc: 'A stab-heavy chain for tighter hitboxes and faster point pressure.', type: 'attack', action: 'rogueStab', draft: true },
-  rg_sweep: { cls: 'rogue', slot: 'attack', name: 'Low Sweep', desc: 'A low control strike that pairs with crouch and slide play.', type: 'attack', action: 'legSweep', draft: true },
-  rg_throw: { cls: 'rogue', slot: 'secondary', name: 'Knife Toss', desc: 'Overhand thrown knife. Consumes one knife, then can be recovered or regenerated.', type: 'attack', action: 'throw' },
-  rg_slide: { cls: 'rogue', slot: 'shift', name: 'Slide', desc: 'Low evasive slide that changes your body hitbox.', type: 'move', action: 'slide', cd: 1400 },
-  rg_fan: { cls: 'rogue', slot: 'e', name: 'Fan Knives', desc: 'Spend up to three knives in a quick spread.', type: 'custom', use: 'rogueFan', cd: 3000 },
-  rg_storm: { cls: 'rogue', slot: 'q', name: 'Blade Storm', desc: 'Eight fast cuts around you for clearing a cluster.', type: 'custom', use: 'bladeStorm', cd: 8200 },
-  rg_bloodrush: { cls: 'rogue', slot: 'passive', name: 'Bloodrush', desc: 'Keystone: each KO refunds Shift and gives a brief invulnerable window.', draft: true, key: true },
-  rg_assassinate: { cls: 'rogue', slot: 'passive', name: 'Assassinate', desc: 'Keystone: finish wounded enemies with extra force.', draft: true, key: true },
-
-  ln_thrust: { cls: 'lancer', slot: 'attack', name: 'Brace Thrust', desc: 'Pure forward lance stab with long reach.', type: 'attack', action: 'braceThrust' },
-  ln_skewer: { cls: 'lancer', slot: 'attack', name: 'Skewer', desc: 'Even longer committed stab that locks your body into the line.', type: 'attack', action: 'lanceCharge', draft: true },
-  ln_charge: { cls: 'lancer', slot: 'secondary', name: 'Lance Charge', desc: 'Long forced run charge. Pick a direction, then commit.', type: 'attack', action: 'lanceCharge' },
-  ln_brace: { cls: 'lancer', slot: 'shift', name: 'Brace Step', desc: 'Heavy reposition that keeps the lance in front.', type: 'move', action: 'brace', cd: 2100 },
-  ln_anchor: { cls: 'lancer', slot: 'e', name: 'Anchor Thrust', desc: 'Plant and stab through a long lane, excellent near ledges.', type: 'custom', use: 'lancerAnchor', cd: 2800 },
-  ln_vault: { cls: 'lancer', slot: 'e', name: 'Vault Pin', desc: 'A pole-vault style hit that pops enemies upward.', type: 'move', action: 'vault', cd: 3000, draft: true },
-  ln_breaker: { cls: 'lancer', slot: 'q', name: 'Breaker Charge', desc: 'A huge forward stab-charge meant to ring enemies out.', type: 'attack', action: 'lanceCharge', cd: 9800 },
-  ln_ironstance: { cls: 'lancer', slot: 'passive', name: 'Iron Stance', desc: 'Keystone: standing still primes your next lance hit for extra force.', draft: true, key: true },
-
-  mg_bolt: { cls: 'mage', slot: 'attack', name: 'Arc Bolt', desc: 'Fast staff projectile with bright impact particles.', type: 'attack', action: 'cast' },
-  mg_staff: { cls: 'mage', slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc for when bots get too close.', type: 'attack', action: 'staffSweep', draft: true },
-  mg_bloom: { cls: 'mage', slot: 'secondary', name: 'Gravity Bloom', desc: 'Shoot a seed that blooms into a zero-gravity pull field.', type: 'attack', action: 'arcaneBloom' },
-  mg_dash: { cls: 'mage', slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800 },
-  mg_sigil: { cls: 'mage', slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400 },
-  mg_singularity: { cls: 'mage', slot: 'q', name: 'Singularity', desc: 'Large gravity well that suspends enemies, then implodes inward.', type: 'custom', use: 'mageSingularity', cd: 9600 },
-  mg_resonance: { cls: 'mage', slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure.', draft: true, key: true },
-
-  rn_arrow: { cls: 'ranger', slot: 'attack', name: 'Draw Shot', desc: 'Hold and release a gravity-affected arrow.', type: 'attack', action: 'arrow' },
-  rn_power: { cls: 'ranger', slot: 'attack', name: 'Power Shot', desc: 'Heavier arrow for knocking bots toward hazards.', type: 'custom', use: 'rangerPower', draft: true },
-  rn_volley: { cls: 'ranger', slot: 'secondary', name: 'Volley Draw', desc: 'Hold and release a three-arrow shot from the quiver.', type: 'attack', action: 'volley' },
-  rn_backstep: { cls: 'ranger', slot: 'shift', name: 'Backstep', desc: 'Quick retreat that resets bow spacing.', type: 'move', action: 'backstep', cd: 1600 },
-  rn_kickshot: { cls: 'ranger', slot: 'e', name: 'Power Shot', desc: 'Instant heavy arrow that pierces and pushes.', type: 'custom', use: 'rangerPower', cd: 2800 },
-  rn_arrowstorm: { cls: 'ranger', slot: 'q', name: 'Arrow Storm', desc: 'Fan of arrows for covering a lane or finishing a clump.', type: 'custom', use: 'rangerStorm', cd: 8800 },
-  rn_packbond: { cls: 'ranger', slot: 'passive', name: 'Pack Bond', desc: 'Keystone: your party becomes the build focus; KOs refresh ally pressure.', draft: true, key: true },
-  rn_hunter: { cls: 'ranger', slot: 'passive', name: "Hunter's Mark", desc: 'Keystone: after a KO, your next shots and movement become snappier.', draft: true, key: true },
-
-  momentum: { cls: 'neutral', slot: 'passive', name: 'Momentum', desc: 'Keystone: your hits launch enemies harder toward hazards.', draft: true, key: true },
-  executioner: { cls: 'neutral', slot: 'passive', name: 'Executioner', desc: 'Keystone: damaged enemies are easier to finish with burst abilities.', draft: true, key: true },
+const CLASS_TREES = {
+  knight: {
+    branches: {
+      bulwark: { name: 'Bulwark', desc: 'Shield/body control, cover, ally protection, and shove routes.' },
+      avenger: { name: 'Avenger', desc: 'Block pressure, store it, then answer with counter-shockwaves.' },
+      earthbreaker: { name: 'Earthbreaker', desc: 'Heavy sword impacts that launch crates, barrels, and enemies.' },
+    },
+  },
+  rogue: {
+    branches: {
+      duelist: { name: 'Duelist', desc: 'Close burst, flank timing, quick stabs, and executions.' },
+      saboteur: { name: 'Saboteur', desc: 'Knife tricks, ricochets, smoke, traps, and barrel setups.' },
+      acrobat: { name: 'Acrobat', desc: 'Slides, wall movement, vaults, sweeps, and air-control attacks.' },
+    },
+  },
+  lancer: {
+    branches: {
+      phalanx: { name: 'Phalanx', desc: 'Lane denial, bracing, pins, and defensive spear walls.' },
+      dragoon: { name: 'Dragoon', desc: 'Committed charges, vaults, carries, and ring-out payoffs.' },
+      harpooner: { name: 'Harpooner', desc: 'Hooks, tethers, pulls, and object/enemy repositioning.' },
+    },
+  },
+  mage: {
+    branches: {
+      graviturge: { name: 'Graviturge', desc: 'Gravity wells, updrafts, clusters, and implosions.' },
+      stormcaller: { name: 'Stormcaller', desc: 'Wind, lightning chains, static fields, and faster spell tempo.' },
+      riftweaver: { name: 'Riftweaver', desc: 'Phase movement, swaps, portals, and zone collapse.' },
+    },
+  },
+  ranger: {
+    branches: {
+      sharpshooter: { name: 'Sharpshooter', desc: 'Power draw, wall pins, piercing lines, and ledge shots.' },
+      trapper: { name: 'Trapper', desc: 'Snares, caltrops, spring traps, barrels, and prepared ground.' },
+      beastwarden: { name: 'Beastwarden', desc: 'Marks, decoys, party commands, and ally pressure.' },
+    },
+  },
 };
+const ABILITIES = (() => {
+  const A = {};
+  const add = (id, spec) => { A[id] = Object.assign({ id, draft: true, tier: 1, tags: [] }, spec); };
+
+  // Knight base + branches
+  add('kn_slash', { cls: 'knight', slot: 'attack', branch: 'bulwark', tier: 0, name: 'Slash', desc: 'Balanced sword combo with a readable wind-up and clean knockback.', type: 'attack', action: 'slash', draft: false, tags: ['Weapon'] });
+  add('kn_guard', { cls: 'knight', slot: 'secondary', branch: 'bulwark', tier: 0, name: 'Shield Guard', desc: 'Raise a large shield that blocks hits from the front for a short window.', type: 'attack', action: 'shieldGuard', draft: false, tags: ['Block'] });
+  add('kn_step', { cls: 'knight', slot: 'shift', branch: 'bulwark', tier: 0, name: 'Shield Step', desc: 'Short armored step for staying in range without feeling slippery.', type: 'move', action: 'shieldStep', cd: 1700, draft: false, tags: ['Movement'] });
+  add('kn_bash', { cls: 'knight', slot: 'e', branch: 'bulwark', tier: 0, name: 'Shield Bash', desc: 'Drive the shield forward to stagger and shove a target.', type: 'attack', action: 'shieldBash', cd: 2600, draft: false, tags: ['Push'] });
+  add('kn_rally', { cls: 'knight', slot: 'q', branch: 'bulwark', tier: 0, name: 'Rally Guard', desc: 'Give yourself and nearby allies a shield burst.', type: 'custom', use: 'knightRally', cd: 9000, draft: false, tags: ['Allies', 'Block'] });
+  add('kn_wall', { cls: 'knight', branch: 'bulwark', tier: 1, slot: 'e', name: 'Shield Wall', desc: 'Plant a temporary barricade that blocks bodies, catches projectiles, and can be shoved.', effect: { kind: 'barrier', w: 42, h: 78, life: 5200 }, cd: 3300, tags: ['Walls', 'Crates', 'Block'] });
+  add('kn_guardstep', { cls: 'knight', branch: 'bulwark', tier: 2, slot: 'shift', name: 'Guard Step', desc: 'A slower step with a shield flash that body-checks nearby enemies and crates.', type: 'move', action: 'shieldStep', cd: 1450, tags: ['Movement', 'Crates'] });
+  add('kn_dome', { cls: 'knight', branch: 'bulwark', tier: 3, slot: 'q', name: 'Rally Dome', desc: 'Large guard burst: shields allies, shoves enemies away, and clears crates around the party.', effect: { kind: 'rallyDome' }, cd: 9800, tags: ['Allies', 'Push', 'Crates'] });
+  add('kn_bulwark', { cls: 'knight', branch: 'bulwark', tier: 4, slot: 'passive', name: 'Bulwark', desc: 'Keystone: guard blocks harder, and shield abilities shove bodies and objects harder.', key: true, tags: ['Block', 'Push'] });
+  add('kn_riposte', { cls: 'knight', branch: 'avenger', tier: 1, slot: 'attack', name: 'Riposte Slash', desc: 'A tighter counter slash that releases extra force if you recently blocked.', type: 'attack', action: 'slash', tags: ['Counter', 'Weapon'] });
+  add('kn_counterguard', { cls: 'knight', branch: 'avenger', tier: 1, slot: 'secondary', name: 'Vengeance Guard', desc: 'Guard stores more blocked impact for your next attack.', type: 'attack', action: 'shieldGuard', tags: ['Counter', 'Block'] });
+  add('kn_counterlunge', { cls: 'knight', branch: 'avenger', tier: 2, slot: 'shift', name: 'Counter Lunge', desc: 'Short armored lunge that spends stored guard energy as a forward shove.', type: 'move', action: 'shoulder', cd: 1900, tags: ['Counter', 'Ledges'] });
+  add('kn_punish', { cls: 'knight', branch: 'avenger', tier: 3, slot: 'e', name: 'Punish Quake', desc: 'Slam stored guard force into the ground, launching enemies and crates nearby.', type: 'attack', action: 'quake', cd: 3300, tags: ['Counter', 'Crates', 'Launch'] });
+  add('kn_vengeance', { cls: 'knight', branch: 'avenger', tier: 4, slot: 'passive', name: 'Vengeance', desc: 'Keystone: blocked damage charges your next hit into a terrain shockwave.', key: true, tags: ['Counter', 'Shockwave'] });
+  add('kn_crush', { cls: 'knight', branch: 'earthbreaker', tier: 1, slot: 'attack', name: 'Crush', desc: 'Heavier overhead chop. Slower, but it throws bodies, crates, and barrels harder.', type: 'attack', action: 'crush', tags: ['Crates', 'Barrels'] });
+  add('kn_stomp', { cls: 'knight', branch: 'earthbreaker', tier: 1, slot: 'e', name: 'Stomp Launch', desc: 'Ground stomp that pops nearby enemies and loose objects upward.', effect: { kind: 'radial', force: 30, radius: 116, y: -0.85 }, cd: 3300, tags: ['Launch', 'Crates', 'Barrels'] });
+  add('kn_cratebreaker', { cls: 'knight', branch: 'earthbreaker', tier: 2, slot: 'secondary', name: 'Crate Breaker', desc: 'A brutal shield chop that punts objects into enemies or barrels.', effect: { kind: 'line', range: 104, force: 38, radius: 18, y: -0.35 }, cd: 2200, tags: ['Crates', 'Barrels'] });
+  add('kn_faultline', { cls: 'knight', branch: 'earthbreaker', tier: 3, slot: 'q', name: 'Faultline', desc: 'A long ground rupture that launches bodies and objects down a lane.', effect: { kind: 'faultline' }, cd: 9800, tags: ['Launch', 'Walls', 'Ledges'] });
+  add('kn_aftershock', { cls: 'knight', branch: 'earthbreaker', tier: 4, slot: 'passive', name: 'Aftershock', desc: 'Keystone: heavy hits leave a delayed object-shoving aftershock.', key: true, tags: ['Crates', 'Shockwave'] });
+
+  // Rogue base + branches
+  add('rg_dual', { cls: 'rogue', branch: 'duelist', tier: 0, slot: 'attack', name: 'Twin Slash', desc: 'Burst combo that alternates daggers and mixes in quick stabs.', type: 'attack', action: 'rogueCombo', draft: false, tags: ['Burst'] });
+  add('rg_throw', { cls: 'rogue', branch: 'saboteur', tier: 0, slot: 'secondary', name: 'Knife Toss', desc: 'Overhand thrown knife. Consumes one knife, then can be recovered or regenerated.', type: 'attack', action: 'throw', draft: false, tags: ['Projectile'] });
+  add('rg_slide', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'shift', name: 'Slide', desc: 'Low evasive slide that changes your body hitbox.', type: 'move', action: 'slide', cd: 1400, draft: false, tags: ['Movement'] });
+  add('rg_fan', { cls: 'rogue', branch: 'saboteur', tier: 0, slot: 'e', name: 'Fan Knives', desc: 'Spend up to three knives in a quick spread.', type: 'custom', use: 'rogueFan', cd: 3000, draft: false, tags: ['Projectile'] });
+  add('rg_storm', { cls: 'rogue', branch: 'duelist', tier: 0, slot: 'q', name: 'Blade Storm', desc: 'Eight fast cuts around you for clearing a cluster.', type: 'custom', use: 'bladeStorm', cd: 8200, draft: false, tags: ['Burst'] });
+  add('rg_stab', { cls: 'rogue', branch: 'duelist', tier: 1, slot: 'attack', name: 'Needle Stabs', desc: 'A stab-heavy chain for tighter hitboxes and faster point pressure.', type: 'attack', action: 'rogueStab', tags: ['Burst'] });
+  add('rg_dodgecut', { cls: 'rogue', branch: 'duelist', tier: 1, slot: 'shift', name: 'Dodge Cut', desc: 'Slide through pressure and clip the nearest enemy as you pass.', effect: { kind: 'moveStrike', move: 'slide', range: 72, force: 17 }, cd: 1500, tags: ['Movement', 'Burst'] });
+  add('rg_backstab', { cls: 'rogue', branch: 'duelist', tier: 2, slot: 'e', name: 'Backstab Mark', desc: 'Blink behind the closest front enemy and stab them toward a ledge.', effect: { kind: 'backstab' }, cd: 3400, tags: ['Ledges', 'Movement'] });
+  add('rg_assassinate', { cls: 'rogue', branch: 'duelist', tier: 4, slot: 'passive', name: 'Assassinate', desc: 'Keystone: finish wounded enemies with extra force and shorter burst downtime.', key: true, tags: ['Burst'] });
+  add('rg_ricochet', { cls: 'rogue', branch: 'saboteur', tier: 1, slot: 'secondary', name: 'Ricochet Knife', desc: 'Knife toss bounces once off walls or crates before landing.', effect: { kind: 'knife', count: 1, bounce: 1 }, cd: 650, tags: ['Walls', 'Crates'] });
+  add('rg_tripwire', { cls: 'rogue', branch: 'saboteur', tier: 1, slot: 'e', name: 'Tripwire', desc: 'Drop a low trap that sweeps enemies or bumps crates into their legs.', effect: { kind: 'trap', trap: 'tripwire' }, cd: 3300, tags: ['Traps', 'Crates'] });
+  add('rg_smoke', { cls: 'rogue', branch: 'saboteur', tier: 2, slot: 'shift', name: 'Smoke Slide', desc: 'Slide leaves a smoke pop that staggers nearby enemies and hides your retreat.', effect: { kind: 'smokeSlide' }, cd: 1800, tags: ['Movement', 'Control'] });
+  add('rg_explosive', { cls: 'rogue', branch: 'saboteur', tier: 3, slot: 'q', name: 'Explosive Knives', desc: 'Throw a fan of knives that burst barrels and shove enemies on impact.', effect: { kind: 'knifeFan', explosive: 1 }, cd: 8800, tags: ['Barrels', 'Projectile'] });
+  add('rg_trapmaster', { cls: 'rogue', branch: 'saboteur', tier: 4, slot: 'passive', name: 'Trap Master', desc: 'Keystone: traps arm faster, barrels you trigger explode harder, and knives bounce once.', key: true, tags: ['Traps', 'Barrels'] });
+  add('rg_sweep', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'attack', name: 'Low Sweep', desc: 'A low control strike that pairs with crouch and slide play.', type: 'attack', action: 'legSweep', tags: ['Control'] });
+  add('rg_wallkick', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'shift', name: 'Wall Kick', desc: 'A rising slide-vault that helps cross platforms and kicks enemies upward.', effect: { kind: 'vaultStrike' }, cd: 1600, tags: ['Movement', 'Launch'] });
+  add('rg_vaulttoss', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'e', name: 'Vault Toss', desc: 'Vault over a close target and kick them back toward the room.', effect: { kind: 'vaultToss' }, cd: 3200, tags: ['Movement', 'Ledges'] });
+  add('rg_airspiral', { cls: 'rogue', branch: 'acrobat', tier: 3, slot: 'q', name: 'Air Spiral', desc: 'Leap and carve a circular air slash that launches clustered enemies.', effect: { kind: 'airSpiral' }, cd: 8400, tags: ['Launch', 'Movement'] });
+  add('rg_bloodrush', { cls: 'rogue', branch: 'acrobat', tier: 4, slot: 'passive', name: 'Bloodrush', desc: 'Keystone: each KO refunds Shift and gives a brief invulnerable movement window.', key: true, tags: ['Movement'] });
+
+  // Lancer base + branches
+  add('ln_thrust', { cls: 'lancer', branch: 'phalanx', tier: 0, slot: 'attack', name: 'Brace Thrust', desc: 'Pure forward lance stab with long reach.', type: 'attack', action: 'braceThrust', draft: false, tags: ['Reach'] });
+  add('ln_charge', { cls: 'lancer', branch: 'dragoon', tier: 0, slot: 'secondary', name: 'Lance Charge', desc: 'Long forced run charge. Pick a direction, then commit.', type: 'attack', action: 'lanceCharge', draft: false, tags: ['Ledges'] });
+  add('ln_brace', { cls: 'lancer', branch: 'phalanx', tier: 0, slot: 'shift', name: 'Brace Step', desc: 'Heavy reposition that keeps the lance in front.', type: 'move', action: 'brace', cd: 2100, draft: false, tags: ['Movement'] });
+  add('ln_anchor', { cls: 'lancer', branch: 'phalanx', tier: 0, slot: 'e', name: 'Anchor Thrust', desc: 'Plant and stab through a long lane, excellent near ledges.', type: 'custom', use: 'lancerAnchor', cd: 2800, draft: false, tags: ['Reach', 'Ledges'] });
+  add('ln_breaker', { cls: 'lancer', branch: 'dragoon', tier: 0, slot: 'q', name: 'Breaker Charge', desc: 'A huge forward stab-charge meant to ring enemies out.', type: 'attack', action: 'lanceCharge', cd: 9800, draft: false, tags: ['Ledges'] });
+  add('ln_spearwall', { cls: 'lancer', branch: 'phalanx', tier: 1, slot: 'e', name: 'Spear Wall', desc: 'Create a braced line that pokes enemies and blocks narrow routes.', effect: { kind: 'spearWall' }, cd: 3200, tags: ['Walls', 'Reach'] });
+  add('ln_pin', { cls: 'lancer', branch: 'phalanx', tier: 2, slot: 'attack', name: 'Pinning Thrust', desc: 'A precise thrust that spikes enemies into nearby walls or crates.', type: 'attack', action: 'braceThrust', tags: ['Walls', 'Crates'] });
+  add('ln_fortress', { cls: 'lancer', branch: 'phalanx', tier: 3, slot: 'q', name: 'Fortress Line', desc: 'A long defensive shock line that pushes enemies away from your lane.', effect: { kind: 'fortressLine' }, cd: 9800, tags: ['Walls', 'Push'] });
+  add('ln_ironstance', { cls: 'lancer', branch: 'phalanx', tier: 4, slot: 'passive', name: 'Iron Stance', desc: 'Keystone: standing still primes your next lance hit for extra force and ignores knockback.', key: true, tags: ['Reach', 'Block'] });
+  add('ln_skewer', { cls: 'lancer', branch: 'dragoon', tier: 1, slot: 'attack', name: 'Skewer', desc: 'Even longer committed stab that locks your body into the line.', type: 'attack', action: 'lanceCharge', tags: ['Ledges', 'Reach'] });
+  add('ln_vault', { cls: 'lancer', branch: 'dragoon', tier: 1, slot: 'e', name: 'Vault Pin', desc: 'A pole-vault style hit that pops enemies upward.', type: 'move', action: 'vault', cd: 3000, tags: ['Launch', 'Movement'] });
+  add('ln_carry', { cls: 'lancer', branch: 'dragoon', tier: 2, slot: 'secondary', name: 'Impale Carry', desc: 'Charge carries the first enemy or crate farther before releasing it.', effect: { kind: 'impaleCarry' }, cd: 2600, tags: ['Ledges', 'Crates'] });
+  add('ln_momentum', { cls: 'lancer', branch: 'dragoon', tier: 4, slot: 'passive', name: 'Momentum Lance', desc: 'Keystone: lance charges gain extra force near ledges or after a long run.', key: true, tags: ['Ledges'] });
+  add('ln_hookthrust', { cls: 'lancer', branch: 'harpooner', tier: 1, slot: 'attack', name: 'Hook Thrust', desc: 'Thrust tags the target with a short yank toward your lance line.', effect: { kind: 'tetherLine', range: 150, pull: 7 }, cd: 500, tags: ['Pull', 'Ledges'] });
+  add('ln_chain', { cls: 'lancer', branch: 'harpooner', tier: 1, slot: 'secondary', name: 'Chain Lance', desc: 'Throw a tether point that drags the nearest enemy or crate toward you.', effect: { kind: 'pull', range: 300, all: 0, force: 8.5 }, cd: 1800, tags: ['Pull', 'Crates'] });
+  add('ln_reel', { cls: 'lancer', branch: 'harpooner', tier: 2, slot: 'shift', name: 'Reel Step', desc: 'Step backward while pulling a tagged target into the danger zone.', effect: { kind: 'reelStep' }, cd: 1900, tags: ['Pull', 'Movement'] });
+  add('ln_maw', { cls: 'lancer', branch: 'harpooner', tier: 3, slot: 'q', name: 'Maw', desc: 'Drag all enemies and loose objects in front into one narrow lane.', effect: { kind: 'pull', range: 360, all: 1, force: 10.5 }, cd: 9400, tags: ['Pull', 'Crates'] });
+  add('ln_tethermaster', { cls: 'lancer', branch: 'harpooner', tier: 4, slot: 'passive', name: 'Tether Master', desc: 'Keystone: pulls also tug crates/barrels and briefly slow enemies after the yank.', key: true, tags: ['Pull', 'Crates'] });
+
+  // Mage base + branches
+  add('mg_bolt', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'attack', name: 'Arc Bolt', desc: 'Fast staff projectile with bright impact particles.', type: 'attack', action: 'cast', draft: false, tags: ['Projectile'] });
+  add('mg_bloom', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'secondary', name: 'Gravity Bloom', desc: 'Shoot a seed that blooms into a zero-gravity pull field.', type: 'attack', action: 'arcaneBloom', draft: false, tags: ['Gravity'] });
+  add('mg_dash', { cls: 'mage', branch: 'riftweaver', tier: 0, slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
+  add('mg_sigil', { cls: 'mage', branch: 'stormcaller', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
+  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'q', name: 'Singularity', desc: 'Large gravity well that suspends enemies, then implodes inward.', type: 'custom', use: 'mageSingularity', cd: 9600, draft: false, tags: ['Gravity', 'Pull'] });
+  add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
+  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Updraft', desc: 'Lift enemies and crates upward so they drift into ledges, platforms, or wells.', effect: { kind: 'radial', force: 20, radius: 132, y: -1.8 }, cd: 3300, tags: ['Gravity', 'Launch', 'Crates'] });
+  add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Gravity Well', desc: 'A shorter-range bloom that opens faster and pulls crates harder.', effect: { kind: 'field', r: 178, life: 2400, range: 360 }, cd: 1900, tags: ['Gravity', 'Crates'] });
+  add('mg_resonance', { cls: 'mage', branch: 'graviturge', tier: 4, slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure near affected enemies.', key: true, tags: ['Gravity', 'Projectile'] });
+  add('mg_windbolt', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'attack', name: 'Wind Bolt', desc: 'A quick bolt that shoves targets and barrels instead of only damaging them.', effect: { kind: 'bolt', power: 1.15, wind: 1 }, cd: 180, tags: ['Push', 'Projectile'] });
+  add('mg_gust', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'shift', name: 'Gust Hover', desc: 'Air dash leaves a wind burst that knocks enemies and crates away.', effect: { kind: 'gustDash' }, cd: 1900, tags: ['Movement', 'Crates'] });
+  add('mg_chain', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'e', name: 'Chain Spark', desc: 'Lightning jumps through enemies, metal objects, and crates in a short chain.', effect: { kind: 'chain', jumps: 4 }, cd: 3100, tags: ['Crates', 'Projectile'] });
+  add('mg_tempest', { cls: 'mage', branch: 'stormcaller', tier: 3, slot: 'q', name: 'Tempest', desc: 'A wide storm field that repeatedly bumps bodies, barrels, and projectiles.', effect: { kind: 'tempest' }, cd: 9300, tags: ['Field', 'Barrels'] });
+  add('mg_overcharge', { cls: 'mage', branch: 'stormcaller', tier: 4, slot: 'passive', name: 'Overcharge', desc: 'Keystone: every fourth spell chains a small lightning burst through nearby objects.', key: true, tags: ['Crates', 'Projectile'] });
+  add('mg_phase', { cls: 'mage', branch: 'riftweaver', tier: 1, slot: 'shift', name: 'Phase Step', desc: 'A longer air dash that briefly phases through enemies and crates.', type: 'move', action: 'airDash', cd: 1700, tags: ['Movement'] });
+  add('mg_swap', { cls: 'mage', branch: 'riftweaver', tier: 1, slot: 'e', name: 'Swap Sigil', desc: 'Swap places with the nearest front enemy or loose object, then pop them upward.', effect: { kind: 'swap' }, cd: 3600, tags: ['Crates', 'Movement'] });
+  add('mg_portal', { cls: 'mage', branch: 'riftweaver', tier: 2, slot: 'secondary', name: 'Portal Shot', desc: 'A bolt that reappears farther along its aim line after the first hit.', effect: { kind: 'portalShot' }, cd: 1600, tags: ['Walls', 'Projectile'] });
+  add('mg_collapse', { cls: 'mage', branch: 'riftweaver', tier: 3, slot: 'q', name: 'Rift Collapse', desc: 'Open a short rift, then collapse it to pull enemies and objects through.', effect: { kind: 'riftCollapse' }, cd: 9400, tags: ['Pull', 'Crates'] });
+  add('mg_echo', { cls: 'mage', branch: 'riftweaver', tier: 4, slot: 'passive', name: 'Echo', desc: 'Keystone: the first E or secondary spell after Q echoes once at reduced force.', key: true, tags: ['Projectile', 'Gravity'] });
+
+  // Ranger base + branches
+  add('rn_arrow', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'attack', name: 'Draw Shot', desc: 'Hold and release a gravity-affected arrow.', type: 'attack', action: 'arrow', draft: false, tags: ['Projectile'] });
+  add('rn_volley', { cls: 'ranger', branch: 'beastwarden', tier: 0, slot: 'secondary', name: 'Volley Draw', desc: 'Hold and release a three-arrow shot from the quiver.', type: 'attack', action: 'volley', draft: false, tags: ['Projectile'] });
+  add('rn_backstep', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'shift', name: 'Backstep', desc: 'Quick retreat that resets bow spacing.', type: 'move', action: 'backstep', cd: 1600, draft: false, tags: ['Movement'] });
+  add('rn_kickshot', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'e', name: 'Power Shot', desc: 'Instant heavy arrow that pierces and pushes.', type: 'custom', use: 'rangerPower', cd: 2800, draft: false, tags: ['Ledges', 'Projectile'] });
+  add('rn_arrowstorm', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'q', name: 'Arrow Storm', desc: 'Fan of arrows for covering a lane or finishing a clump.', type: 'custom', use: 'rangerStorm', cd: 8800, draft: false, tags: ['Projectile'] });
+  add('rn_power', { cls: 'ranger', branch: 'sharpshooter', tier: 1, slot: 'attack', name: 'Power Draw', desc: 'Heavier draw shot for knocking bots toward hazards.', type: 'custom', use: 'rangerPower', cd: 650, tags: ['Ledges', 'Projectile'] });
+  add('rn_wallpin', { cls: 'ranger', branch: 'sharpshooter', tier: 1, slot: 'e', name: 'Wall Pin', desc: 'Pin an enemy or crate against a wall, briefly freezing its momentum.', effect: { kind: 'wallPin' }, cd: 3100, tags: ['Walls', 'Crates'] });
+  add('rn_pierce', { cls: 'ranger', branch: 'sharpshooter', tier: 2, slot: 'secondary', name: 'Piercing Arrow', desc: 'A narrow shot that pierces enemies and crates in a line.', effect: { kind: 'arrow', power: 1.35, pierce: 2 }, cd: 1200, tags: ['Crates', 'Projectile'] });
+  add('rn_hunter', { cls: 'ranger', branch: 'sharpshooter', tier: 4, slot: 'passive', name: "Hunter's Mark", desc: 'Keystone: after a KO, your next shots and movement become snappier.', key: true, tags: ['Ledges'] });
+  add('rn_snare', { cls: 'ranger', branch: 'trapper', tier: 1, slot: 'e', name: 'Snare Arrow', desc: 'Fire a tethering arrow that yanks the nearest foe or crate backward.', effect: { kind: 'pull', range: 240, all: 0, force: 7 }, cd: 3000, tags: ['Pull', 'Crates'] });
+  add('rn_caltrops', { cls: 'ranger', branch: 'trapper', tier: 1, slot: 'secondary', name: 'Caltrops', desc: 'Scatter a low hazard that trips enemies and nudges crates.', effect: { kind: 'trap', trap: 'caltrops' }, cd: 2100, tags: ['Traps', 'Control'] });
+  add('rn_springtrap', { cls: 'ranger', branch: 'trapper', tier: 2, slot: 'shift', name: 'Spring Trap', desc: 'Hop backward and leave a spring pad that launches enemies, allies, or boxes.', effect: { kind: 'springTrap' }, cd: 2200, tags: ['Traps', 'Launch', 'Crates'] });
+  add('rn_barrelshot', { cls: 'ranger', branch: 'trapper', tier: 2, slot: 'e', name: 'Barrel Shot', desc: 'Shoot or spawn an explosive barrel, then use arrows to detonate it.', effect: { kind: 'barrelShot' }, cd: 3600, tags: ['Barrels', 'Projectile'] });
+  add('rn_minevolley', { cls: 'ranger', branch: 'trapper', tier: 3, slot: 'q', name: 'Mine Volley', desc: 'Lob three spring mines that turn a route into a launch trap.', effect: { kind: 'mineVolley' }, cd: 9300, tags: ['Traps', 'Launch'] });
+  add('rn_prepared', { cls: 'ranger', branch: 'trapper', tier: 4, slot: 'passive', name: 'Prepared Ground', desc: 'Keystone: traps last longer and trigger with stronger launch force.', key: true, tags: ['Traps'] });
+  add('rn_markshot', { cls: 'ranger', branch: 'beastwarden', tier: 1, slot: 'attack', name: 'Mark Shot', desc: 'Draw shot marks enemies so allies shove them toward hazards.', type: 'attack', action: 'arrow', tags: ['Allies', 'Projectile'] });
+  add('rn_decoy', { cls: 'ranger', branch: 'beastwarden', tier: 1, slot: 'e', name: 'Decoy Call', desc: 'Summon a fragile decoy ally that pulls aggro and blocks a lane.', effect: { kind: 'decoy' }, cd: 3900, tags: ['Allies', 'Walls'] });
+  add('rn_packcmd', { cls: 'ranger', branch: 'beastwarden', tier: 2, slot: 'secondary', name: 'Pack Command', desc: 'Command nearby allies to surge forward and body-check enemies.', effect: { kind: 'packCommand' }, cd: 4200, tags: ['Allies', 'Push'] });
+  add('rn_hunt', { cls: 'ranger', branch: 'beastwarden', tier: 3, slot: 'q', name: 'Hunt', desc: 'Mark the room: allies and arrows push all marked enemies toward ledges.', effect: { kind: 'hunt' }, cd: 9200, tags: ['Allies', 'Ledges'] });
+  add('rn_packbond', { cls: 'ranger', branch: 'beastwarden', tier: 4, slot: 'passive', name: 'Pack Bond', desc: 'Keystone: your party becomes the build focus; KOs can spawn a temporary rogue ally.', key: true, tags: ['Allies'] });
+
+  // Neutral physics keystones
+  add('momentum', { cls: 'neutral', branch: 'physics', tier: 2, slot: 'passive', name: 'Momentum', desc: 'Keystone: your hits launch enemies harder toward hazards.', key: true, tags: ['Ledges', 'Push'] });
+  add('executioner', { cls: 'neutral', branch: 'physics', tier: 2, slot: 'passive', name: 'Executioner', desc: 'Keystone: damaged enemies are easier to finish with burst abilities.', key: true, tags: ['Burst'] });
+  add('ricochet_key', { cls: 'neutral', branch: 'physics', tier: 3, slot: 'passive', name: 'Ricochet', desc: 'Keystone: arrows, knives, and bolts bounce once off walls or crates.', key: true, tags: ['Walls', 'Crates'] });
+  add('heavy_objects', { cls: 'neutral', branch: 'physics', tier: 3, slot: 'passive', name: 'Heavy Objects', desc: 'Keystone: crates and barrels you hit move slower but strike much harder.', key: true, tags: ['Crates', 'Barrels'] });
+  add('hazard_sense', { cls: 'neutral', branch: 'physics', tier: 3, slot: 'passive', name: 'Hazard Sense', desc: 'Keystone: enemies near ledges or barrels take extra knockback from your abilities.', key: true, tags: ['Ledges', 'Barrels'] });
+
+  return A;
+})();
 const CLASS_LOADOUT = {
   knight: { attack: 'kn_slash', secondary: 'kn_guard', shift: 'kn_step', e: 'kn_bash', q: 'kn_rally', passive: null },
   rogue: { attack: 'rg_dual', secondary: 'rg_throw', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
@@ -149,6 +253,7 @@ const CLASS_LOADOUT = {
   mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_sigil', q: 'mg_singularity', passive: null },
   ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
 };
+const TREE_NODES = ABILITIES;
 
 // ---------- action timeline library ----------
 // Every satisfying move needs the same bones: a readable wind-up, an active
@@ -312,9 +417,12 @@ const ARENA_LEVEL = lvl({
   coins: [],
   boxes: [
     { x: 318, y: G - 64, w: 66, h: 64, m: 2.3 },
+    { x: 520, y: G - 18, w: 34, h: 34, m: 1.2, kind: 'barrel' },
     { x: 786, y: G - 92, w: 78, h: 72, m: 2.9 },
     { x: 1308, y: G - 92, w: 86, h: 72, m: 3.2 },
+    { x: 1460, y: G - 60, w: 54, h: 18, m: 2.0, kind: 'spring' },
     { x: 1590, y: G - 38, w: 70, h: 56, m: 2.6 },
+    { x: 1850, y: G - 120, w: 34, h: 34, m: 1.2, kind: 'barrel' },
     { x: 2100, y: G - 92, w: 82, h: 74, m: 3.1 },
   ],
   dummies: [],
@@ -440,6 +548,7 @@ PUBLIC.start = function (root, api) {
     .sr-pick{cursor:pointer}.sr-pick:hover,.sr-pick:focus{background:rgba(255,159,110,.16);border-color:#ff9f6e;outline:none}
     .sr-pick .slot,.sr-help-row .slot{float:right;color:#ffcf8a;font-size:10px;font-weight:900;letter-spacing:.08em}
     .sr-pick b,.sr-help-row b{display:block;margin-bottom:3px}.sr-pick small,.sr-help-row small{display:block;opacity:.72;line-height:1.32}
+    .sr-tags{display:block;margin-top:5px;color:#8fe6ff;font-style:normal;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
     .sr-help-list{display:flex;flex-direction:column;gap:8px;width:min(560px,90vw);max-height:min(62vh,520px);overflow:auto}
     .sr-help-row.passive{border-color:rgba(255,212,94,.5)}
     @media (max-width:760px){
@@ -575,11 +684,76 @@ PUBLIC.start = function (root, api) {
   function baseLoadout(id) {
     return Object.assign({}, CLASS_LOADOUT[id] || CLASS_LOADOUT.knight);
   }
+  function baseRunBuild(id) {
+    return {
+      loadout: baseLoadout(id),
+      picked: [],
+      branchPoints: {},
+      softBranch: null,
+      lastDraft: null,
+    };
+  }
   function ability(id) {
     return id && ABILITIES[id] ? Object.assign({ id }, ABILITIES[id]) : null;
   }
   function equipped(slot) {
     return ability(loadout && loadout[slot]);
+  }
+  function branchInfo(classId, branchId) {
+    const tree = CLASS_TREES[classId] && CLASS_TREES[classId].branches;
+    return tree && tree[branchId] || null;
+  }
+  function branchName(spec) {
+    if (!spec) return '';
+    if (spec.cls === 'neutral') return 'Physics';
+    const info = branchInfo(spec.cls, spec.branch);
+    return info ? info.name : spec.branch || '';
+  }
+  function tagsText(spec) {
+    return spec && spec.tags && spec.tags.length ? spec.tags.join(' / ') : '';
+  }
+  function currentDraftTier() {
+    const w = arenaWave || 1;
+    if (w <= 2) return 1;
+    if (w <= 4) return 2;
+    if (w <= 6) return 3;
+    return 4;
+  }
+  function tierUnlocked(spec) {
+    if (!spec) return false;
+    if (spec.unlockWave && (arenaWave || 1) < spec.unlockWave) return false;
+    return (spec.tier || 1) <= currentDraftTier();
+  }
+  function nodePicked(id) {
+    return !!(runBuild && runBuild.picked && runBuild.picked.includes(id));
+  }
+  function prereqMet(spec) {
+    if (!spec || !spec.prereq) return true;
+    const list = Array.isArray(spec.prereq) ? spec.prereq : [spec.prereq];
+    return list.some(nodePicked);
+  }
+  function branchScore(branch) {
+    return runBuild && runBuild.branchPoints && runBuild.branchPoints[branch] || 0;
+  }
+  function recomputeSoftBranch() {
+    if (!runBuild) return null;
+    let best = null, bestScore = 0;
+    for (const [branch, score] of Object.entries(runBuild.branchPoints || {})) {
+      if (score > bestScore) { best = branch; bestScore = score; }
+    }
+    runBuild.softBranch = bestScore >= 2 ? best : null;
+    return runBuild.softBranch;
+  }
+  function slotAlreadyOffered(ids, spec) {
+    return ids.some(id => ability(id).slot === spec.slot);
+  }
+  function canDraftNode(id) {
+    const a = ability(id);
+    if (!a || !a.draft || !tierUnlocked(a) || !prereqMet(a)) return false;
+    if (a.cls !== cls.id && a.cls !== 'neutral') return false;
+    if (nodePicked(id)) return false;
+    if (a.slot === 'passive') return loadout.passive !== id;
+    return loadout[a.slot] !== id;
   }
   function hasPassive(id) {
     return !!(loadout && loadout.passive === id && player && player.team === 'hero');
@@ -723,7 +897,7 @@ PUBLIC.start = function (root, api) {
   }
   function startClassMove(type) {
     if (!player || state !== 'playing' || !type || player.move.active) return false;
-    if (cls.id === 'rogue') type = 'slide';
+    if (cls.id === 'rogue' && type === cls.move) type = 'slide';
     const dur = (cls.moveDur && cls.moveDur[type]) || 320;
     player.move = startMotion(type, dur);
     if (type === 'airDash') {
@@ -831,9 +1005,284 @@ PUBLIC.start = function (root, api) {
     burst(player.x + Math.cos(ang) * 40, player.y - 70 + Math.sin(ang) * 40, cls.color, 24, 4.2);
     return true;
   }
+  function targetActorsForPlayer() {
+    if (!player) return [];
+    return player.team === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : (fighters || []).filter(e => e && !e.dead);
+  }
+  function nearestTarget(range, frontOnly) {
+    let best = null, bd = range || 260;
+    const dir = player.facing || 1;
+    for (const t of targetActorsForPlayer()) {
+      const dx = t.x - player.x, dy = (t.y - 42) - (player.y - 44), d = Math.hypot(dx, dy);
+      if (frontOnly && Math.sign(dx || dir) !== dir) continue;
+      if (d < bd) { best = t; bd = d; }
+    }
+    return best;
+  }
+  function pointAhead(dist) {
+    const f = player.facing || 1;
+    const x = player.x + f * dist;
+    const y = surfaceYFor(player, x, 240, 160) || player.y;
+    return { x, y, f };
+  }
+  function spawnAbilityBox(kind, x, bottom, opts) {
+    opts = opts || {};
+    const box = makeBoxSpec({
+      kind,
+      x: x - (opts.w || 44) / 2,
+      bottom,
+      w: opts.w || 44,
+      h: opts.h || 44,
+      m: opts.m || (kind === 'barrier' ? 9 : kind === 'barrel' ? 1.2 : 2),
+      life: opts.life || 0,
+      team: player ? player.team : 'hero',
+    });
+    boxes.push(box);
+    burst(x, bottom - (opts.h || 44) / 2, opts.color || cls.color, 14, 3.2);
+    return box;
+  }
+  function pullActorsAndBoxes(ang, opts) {
+    opts = opts || {};
+    const p = aimedPoint(opts.range || 280);
+    const all = !!opts.all;
+    const targets = targetActorsForPlayer().filter(t => Math.hypot(t.x - p.x, (t.y - 42) - p.y) < (opts.range || 280));
+    const chosen = all ? targets : targets.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, 1);
+    const pullMul = hasPassive('ln_tethermaster') ? 1.22 : 1;
+    for (const t of chosen) {
+      const dx = p.x - t.x, dy = p.y - (t.y - 42), d = Math.hypot(dx, dy) || 1;
+      t.vx += (dx / d) * (opts.force || 7) * pullMul;
+      t.vy += (dy / d) * (opts.force || 7) * 0.32 - 1.6;
+      t.grounded = false;
+      t.flash = Math.max(t.flash || 0, 180);
+      if (t.brain) t.brain.stagger = Math.max(t.brain.stagger || 0, 220);
+    }
+    const boxRange = opts.range || 280;
+    if (all || hasPassive('ln_tethermaster')) for (const b of boxes) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - p.x, cy - p.y) || 1;
+      if (d < boxRange) pushBox(b, (p.x - cx) / d, (p.y - cy) / d, (opts.force || 7) * 2.1);
+    }
+    burst(p.x, p.y, cls.color, all ? 30 : 18, 4.4);
+    addShake(all ? 3.5 : 1.8, 120);
+    return chosen.length > 0 || all;
+  }
+  function chainLightning(ang, jumps) {
+    let from = { x: player.x, y: player.y - 70 };
+    const seen = new Set();
+    let hitAny = false;
+    for (let i = 0; i < (jumps || 4); i++) {
+      let best = null, bd = 210;
+      for (const t of targetActorsForPlayer()) {
+        if (seen.has(t)) continue;
+        const d = Math.hypot(t.x - from.x, (t.y - 42) - from.y);
+        if (d < bd) { best = t; bd = d; }
+      }
+      for (const b of boxes) {
+        if (seen.has(b)) continue;
+        const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - from.x, cy - from.y);
+        if (d < bd) { best = b; bd = d; }
+      }
+      if (!best) break;
+      const tx = best.cls ? best.x : best.x + best.w / 2, ty = best.cls ? best.y - 42 : best.y + best.h / 2;
+      rememberDebugSegment('ability', from.x, from.y, tx, ty, 8, '#8fe6ff', 300);
+      burst(tx, ty, '#8fe6ff', 12, 4.5);
+      if (best.cls) hurtFighter(best, Math.sign(tx - from.x) || player.facing, -0.35, 13, tx, ty);
+      else pushBox(best, Math.sign(tx - from.x) || player.facing, -0.45, 16);
+      seen.add(best); from = { x: tx, y: ty }; hitAny = true;
+    }
+    if (hitAny) addShake(2.4, 120);
+    return hitAny;
+  }
+  function useEffectAbility(spec, slot, ang) {
+    const e = spec.effect || {};
+    const f = player.facing || 1;
+    if (e.kind === 'line') {
+      hitBoxesSegment(player.x + f * 8, player.y - 54, player.x + f * (e.range || 110), player.y - 54 + (e.drop || 0), f, e.y || -0.15, e.force || 20, e.radius || 12);
+      return true;
+    }
+    if (e.kind === 'radial') {
+      pushBoxesRadial(player.x + f * 10, player.y - 30, e.force || 24, e.radius || 118, player.team);
+      return true;
+    }
+    if (e.kind === 'barrier') {
+      const p = pointAhead(58);
+      spawnAbilityBox('barrier', p.x, p.y, { w: e.w || 42, h: e.h || 78, life: e.life || 5200, m: 10, color: '#5ea0ff' });
+      activateShieldGuard();
+      return true;
+    }
+    if (e.kind === 'rallyDome') {
+      useKnightRally();
+      pushBoxesRadial(player.x, player.y - 42, 24, 170, player.team);
+      return true;
+    }
+    if (e.kind === 'faultline' || e.kind === 'fortressLine') {
+      const y = player.y - (e.kind === 'faultline' ? 24 : 56);
+      const rows = e.kind === 'faultline' ? 5 : 3;
+      for (let i = 0; i < rows; i++) {
+        const ax = player.x + f * (20 + i * 54);
+        hitBoxesSegment(ax, y + i * 3, ax + f * 62, y + i * 3, f, e.kind === 'faultline' ? -0.8 : -0.15, e.kind === 'faultline' ? 28 : 20, e.kind === 'faultline' ? 18 : 13);
+      }
+      burst(player.x + f * 130, y, cls.color, 30, 5.2);
+      addShake(e.kind === 'faultline' ? 6.0 : 3.8, 170);
+      return true;
+    }
+    if (e.kind === 'moveStrike') {
+      startClassMove(e.move || 'slide');
+      hitBoxesSegment(player.x, player.y - 34, player.x + f * (e.range || 80), player.y - 36, f, -0.25, e.force || 16, 13);
+      return true;
+    }
+    if (e.kind === 'backstab') {
+      const t = nearestTarget(210, true);
+      if (!t) return false;
+      player.x = t.x - Math.sign(t.facing || -f) * 34;
+      player.y = t.y;
+      player.facing = t.x >= player.x ? 1 : -1;
+      hitBoxesSegment(player.x, player.y - 52, t.x, t.y - 44, Math.sign(t.x - player.x) || f, -0.15, 24, 13);
+      return true;
+    }
+    if (e.kind === 'knife' || e.kind === 'knifeFan') {
+      const count = e.kind === 'knifeFan' ? Math.min(player.knifeAmmo || 0, 3) : 1;
+      if (player.knifeAmmo < count || count <= 0) return false;
+      player.knifeAmmo -= count; player.knifeRegen = 0;
+      const offs = count === 1 ? [0] : [-0.18, 0, 0.18];
+      for (const off of offs) spawnDagger(ang + off, { bounce: e.bounce || hasPassive('rg_trapmaster') || hasPassive('ricochet_key') ? 1 : 0, explosive: e.explosive });
+      return true;
+    }
+    if (e.kind === 'trap') {
+      const p = pointAhead(64);
+      spawnAbilityBox(e.trap === 'tripwire' || e.trap === 'caltrops' ? 'spring' : 'spring', p.x, p.y, { w: e.trap === 'caltrops' ? 74 : 62, h: 16, life: hasPassive('rn_prepared') ? 10000 : 7000, color: '#8fe6ff' });
+      return true;
+    }
+    if (e.kind === 'smokeSlide') {
+      startClassMove('slide');
+      pushBoxesRadial(player.x, player.y - 34, 14, 96, player.team);
+      burst(player.x, player.y - 34, '#cfe0f6', 34, 3.2);
+      return true;
+    }
+    if (e.kind === 'vaultStrike' || e.kind === 'vaultToss') {
+      startClassMove('vault');
+      player.vy = Math.min(player.vy, -8.4);
+      const t = nearestTarget(96, true);
+      if (t) hurtFighter(t, f, e.kind === 'vaultToss' ? -0.8 : -1.2, 22, t.x, t.y - 44);
+      return true;
+    }
+    if (e.kind === 'airSpiral') {
+      player.vy = Math.min(player.vy, -8.8); player.grounded = false;
+      useBladeStorm();
+      pushBoxesRadial(player.x, player.y - 54, 20, 128, player.team);
+      return true;
+    }
+    if (e.kind === 'spearWall') {
+      const p = pointAhead(82);
+      spawnAbilityBox('barrier', p.x, p.y, { w: 34, h: 96, life: 4200, m: 8, color: '#ffd45e' });
+      hitBoxesSegment(player.x + f * 16, player.y - 62, player.x + f * 162, player.y - 62, f, -0.05, 22, 13);
+      return true;
+    }
+    if (e.kind === 'impaleCarry') {
+      player.vx = f * 9.8;
+      hitBoxesSegment(player.x + f * 12, player.y - 62, player.x + f * 178, player.y - 62, f, -0.12, 38, 14);
+      return true;
+    }
+    if (e.kind === 'tetherLine') {
+      hitBoxesSegment(player.x + f * 16, player.y - 62, player.x + f * (e.range || 150), player.y - 62, -f, -0.2, e.pull || 16, 12);
+      return true;
+    }
+    if (e.kind === 'pull' || e.kind === 'reelStep') {
+      if (e.kind === 'reelStep') player.vx = -f * 4.8;
+      return pullActorsAndBoxes(ang, e);
+    }
+    if (e.kind === 'field') {
+      const p = aimedPoint(e.range || 380);
+      spawnGravityField(p.x, p.y, player.team, cls.color, { r: e.r || 160, life: e.life || 2400 });
+      return true;
+    }
+    if (e.kind === 'bolt') { spawnBolt(ang, e.power || 1.15, { wind: e.wind, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
+    if (e.kind === 'gustDash') {
+      startClassMove('airDash');
+      pushBoxesRadial(player.x - f * 22, player.y - 44, 18, 112, player.team);
+      return true;
+    }
+    if (e.kind === 'chain') return chainLightning(ang, e.jumps || 4);
+    if (e.kind === 'tempest') {
+      const p = aimedPoint(460);
+      spawnGravityField(p.x, p.y, player.team, '#8fe6ff', { r: 190, life: 3000, ultimate: true });
+      chainLightning(ang, 5);
+      return true;
+    }
+    if (e.kind === 'swap') {
+      const t = nearestTarget(260, true);
+      let target = t;
+      if (!target) target = boxes.find(b => Math.hypot(b.x + b.w / 2 - player.x, b.y + b.h / 2 - (player.y - 40)) < 220);
+      if (!target) return false;
+      const ox = player.x, oy = player.y;
+      if (target.cls) { player.x = target.x; player.y = target.y; target.x = ox + f * 46; target.y = oy; hurtFighter(target, f, -0.8, 12, target.x, target.y - 40); }
+      else { player.x = target.x + target.w / 2; player.y = target.y + target.h; target.x = ox; target.y = oy - target.h; pushBox(target, f, -0.7, 18); }
+      burst(player.x, player.y - 42, cls.color, 24, 4.4);
+      return true;
+    }
+    if (e.kind === 'portalShot') { spawnBolt(ang, 1.05, { portal: 1, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
+    if (e.kind === 'riftCollapse') {
+      const p = aimedPoint(520);
+      spawnGravityField(p.x, p.y, player.team, cls.color, { r: 182, life: 1900, ultimate: true });
+      pullActorsAndBoxes(ang, { range: 360, all: 1, force: 9.2 });
+      return true;
+    }
+    if (e.kind === 'arrow') {
+      if (player.arrowAmmo <= 0) return false;
+      player.arrowAmmo--; player.arrowRegen = 0;
+      spawnArrow(ang, e.power || 1.35, { pierce: e.pierce || 0, powerShot: true, bounce: hasPassive('ricochet_key') ? 1 : 0 });
+      return true;
+    }
+    if (e.kind === 'wallPin') {
+      spawnArrow(ang, 1.45, { pierce: 0, powerShot: true, pin: 1 });
+      return true;
+    }
+    if (e.kind === 'springTrap') {
+      startClassMove('backstep');
+      const p = pointAhead(-36);
+      spawnAbilityBox('spring', p.x, p.y, { w: 62, h: 16, life: hasPassive('rn_prepared') ? 10000 : 7000, color: '#8fe6ff' });
+      return true;
+    }
+    if (e.kind === 'barrelShot') {
+      const p = pointAhead(110);
+      const b = spawnAbilityBox('barrel', p.x, p.y, { w: 36, h: 36, life: 9500, color: '#ff9f6e' });
+      pushBox(b, f, -0.25, 8);
+      spawnArrow(ang, 1.05, { pierce: 0, powerShot: true });
+      return true;
+    }
+    if (e.kind === 'mineVolley') {
+      for (const off of [-60, 0, 60]) {
+        const p = pointAhead(120 + off);
+        spawnAbilityBox('spring', p.x, p.y, { w: 50, h: 16, life: hasPassive('rn_prepared') ? 11000 : 7600, color: '#8fe6ff' });
+      }
+      return true;
+    }
+    if (e.kind === 'decoy') {
+      if (!allies) allies = [];
+      const p = pointAhead(72);
+      const a = makeFighter('knight', p.x, p.y, { team: 'ally', hp: 2, min: p.x - 80, max: p.x + 80, facing: f });
+      a.brain.alert = 9999; a.brain.party = true; a.decoy = true; allies.push(a);
+      return true;
+    }
+    if (e.kind === 'packCommand') {
+      if (!allies || !allies.length) return false;
+      for (const a of livingAllies()) {
+        a.vx += (a.facing || f) * 5.5;
+        hitBoxesSegment(a.x, a.y - 42, a.x + (a.facing || f) * 76, a.y - 42, a.facing || f, -0.2, 16, 16);
+      }
+      return true;
+    }
+    if (e.kind === 'hunt') {
+      for (const t of targetActorsForPlayer()) { t.marked = 4200; hurtFighter(t, Math.sign(t.x - player.x) || f, -0.35, 10, t.x, t.y - 44); }
+      if (allies) for (const a of livingAllies()) a.brain.alert = 9999;
+      useRangerArrowStorm(ang);
+      return true;
+    }
+    return false;
+  }
   function runLoadoutAbility(spec, slot, ang) {
     if (!spec) return false;
     if (player && player.team === 'hero' && ang != null) abilityAimCue(ang);
+    if (spec.effect) return useEffectAbility(spec, slot, ang);
     if (spec.type === 'move') return startClassMove(spec.action);
     if (spec.type === 'attack') return triggerAttack(spec.action, { aim: spec.action === 'lanceCharge' ? lanceChargeAim({ aim: ang }) : ang });
     if (spec.use === 'knightRally') return useKnightRally();
@@ -962,7 +1411,7 @@ PUBLIC.start = function (root, api) {
 
   // ---------- game state ----------
   let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, droppedKnives, boxes, dummies, fighters, allies;
-  let loadout = null, prevState = null, arenaDraftChoices = null;
+  let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null;
   let cls = CLASSES[0];   // selected class
   let freeze = 0, lastMoveAmt = 0, shakeT = 0, shakeP = 0;   // hit-stop, last anim amount, camera impact
   const debug = {
@@ -993,11 +1442,16 @@ PUBLIC.start = function (root, api) {
   function makeBoxSpec(spec) {
     if (Array.isArray(spec)) {
       const w = spec[2] || 44, h = spec[3] || w, m = spec[4] || 1.6;
-      return { x: spec[0], y: spec[1] + 30 - h, w, h, vx: 0, vy: 0, angle: 0, va: 0, m };
+      return { x: spec[0], y: spec[1] + 30 - h, w, h, vx: 0, vy: 0, angle: 0, va: 0, m, kind: 'crate' };
     }
     const w = spec.w || 44, h = spec.h || w;
     const y = spec.y == null ? (spec.bottom == null ? G : spec.bottom) - h : spec.y;
-    return { x: spec.x || 0, y, w, h, vx: spec.vx || 0, vy: spec.vy || 0, angle: spec.angle || 0, va: spec.va || 0, m: spec.m || 1.6 };
+    return {
+      x: spec.x || 0, y, w, h,
+      vx: spec.vx || 0, vy: spec.vy || 0, angle: spec.angle || 0, va: spec.va || 0,
+      m: spec.m || 1.6, kind: spec.kind || 'crate', life: spec.life || 0,
+      armed: spec.armed == null ? 1 : spec.armed, team: spec.team || 'neutral',
+    };
   }
   function loadLevel(i, keepRun) {
     li = i;
@@ -1248,7 +1702,8 @@ PUBLIC.start = function (root, api) {
     const chip = document.getElementById('sr-classchip');
     if (chip) {
       const pass = equipped('passive');
-      chip.textContent = `${cls.name}${pass ? ' + ' + pass.name : ''}`;
+      const branch = runBuild && runBuild.softBranch ? branchInfo(cls.id, runBuild.softBranch) : null;
+      chip.textContent = `${cls.name}${branch ? ' / ' + branch.name : ''}${pass ? ' + ' + pass.name : ''}`;
       chip.style.color = cls.color;
     }
     const lvl = document.getElementById('sr-lvl'), bots = document.getElementById('sr-lvls');
@@ -1280,12 +1735,15 @@ PUBLIC.start = function (root, api) {
       const spec = equipped(slot), locked = slot !== 'attack' && slot !== 'secondary' && slot !== 'passive' && !slotUnlocked(slot);
       const name = locked ? `Unlocks at wave ${SLOT_UNLOCK_WAVE[slot] || 1}` : spec ? spec.name : 'No keystone yet';
       const desc = locked ? 'Clear more waves to open this slot.' : spec ? spec.desc : 'Draft a keystone between waves to change your rules.';
+      const meta = spec ? `${branchName(spec)}${tagsText(spec) ? ' - ' + tagsText(spec) : ''}` : '';
       return `<div class="sr-help-row${slot === 'passive' ? ' passive' : ''}">
         <span class="slot">${SLOT_LABEL[slot]} · ${SLOT_KEY[slot]}</span>
-        <b>${html(name)}</b><small>${html(desc)}</small>
+        <b>${html(name)}</b><small>${html(desc)}</small>${meta ? `<em class="sr-tags">${html(meta)}</em>` : ''}
       </div>`;
     }).join('');
+    const branch = runBuild && runBuild.softBranch ? branchInfo(cls.id, runBuild.softBranch) : null;
     ov.innerHTML = `<h2>${html(cls.name)} loadout</h2>
+      <p class="msg">${branch ? `Leaning ${html(branch.name)}: ${html(branch.desc)}` : 'Draft two picks from one path to lean into that subclass.'}</p>
       <div class="sr-help-list">${rows}</div>
       <button class="btn alt" data-act="resume">RESUME</button>`;
   }
@@ -1295,18 +1753,56 @@ PUBLIC.start = function (root, api) {
     ov.classList.add('hidden');
     prevState = null;
   }
+  function shuffledIds(ids) {
+    return ids.slice().sort(() => Math.random() - 0.5);
+  }
+  function pickDraftCandidate(candidates, usedSlots, preferBranch) {
+    const scored = shuffledIds(candidates).map(id => {
+      const a = ability(id);
+      let score = 0;
+      if (preferBranch && a.branch === preferBranch) score += 80;
+      score += Math.min(30, branchScore(a.branch) * 9);
+      score += (a.tier || 1) * 2;
+      if (a.slot === 'passive') score += 5;
+      return { id, score: score + Math.random() * 12 };
+    }).sort((a, b) => b.score - a.score);
+    for (const item of scored) {
+      const a = ability(item.id);
+      if (!usedSlots[a.slot]) { usedSlots[a.slot] = true; return item.id; }
+    }
+    return null;
+  }
   function draftPool() {
-    if (!loadout || !cls) return [];
-    const ids = Object.keys(ABILITIES).filter(id => {
-      const a = ABILITIES[id];
-      if (!a.draft) return false;
-      if (a.cls !== cls.id && a.cls !== 'neutral') return false;
-      if (a.slot === 'passive') return loadout.passive !== id;
-      return loadout[a.slot] !== id;
-    }).sort(() => Math.random() - 0.5);
-    const bySlot = {};
-    for (const id of ids) if (!bySlot[ABILITIES[id].slot]) bySlot[ABILITIES[id].slot] = id;
-    return Object.values(bySlot).sort(() => Math.random() - 0.5).slice(0, 3);
+    if (!loadout || !cls || !runBuild) return [];
+    recomputeSoftBranch();
+    const all = Object.keys(ABILITIES).filter(canDraftNode);
+    const usedSlots = {};
+    const out = [];
+    const addPick = id => {
+      if (!id || out.includes(id)) return false;
+      const a = ability(id);
+      if (slotAlreadyOffered(out, a)) return false;
+      out.push(id); usedSlots[a.slot] = true; return true;
+    };
+    if (runBuild.softBranch) {
+      const favored = all.filter(id => ability(id).cls === cls.id && ability(id).branch === runBuild.softBranch);
+      const hybrid = all.filter(id => ability(id).cls === 'neutral' || ability(id).branch !== runBuild.softBranch);
+      addPick(pickDraftCandidate(favored, usedSlots, runBuild.softBranch));
+      addPick(pickDraftCandidate(favored.filter(id => !out.includes(id)), usedSlots, runBuild.softBranch));
+      addPick(pickDraftCandidate(hybrid, usedSlots, null));
+    } else {
+      const branches = Object.keys(CLASS_TREES[cls.id] && CLASS_TREES[cls.id].branches || {});
+      for (const branch of shuffledIds(branches)) {
+        addPick(pickDraftCandidate(all.filter(id => ability(id).cls === cls.id && ability(id).branch === branch), usedSlots, branch));
+        if (out.length >= 3) break;
+      }
+      if (out.length < 3) addPick(pickDraftCandidate(all.filter(id => ability(id).cls === 'neutral'), usedSlots, null));
+    }
+    for (const id of shuffledIds(all)) {
+      if (out.length >= 3) break;
+      addPick(id);
+    }
+    return out.slice(0, 3);
   }
   function openArenaDraft() {
     if (!arenaMode || state !== 'playing') return false;
@@ -1318,12 +1814,14 @@ PUBLIC.start = function (root, api) {
     const cards = arenaDraftChoices.map(id => {
       const a = ability(id);
       return `<button class="sr-pick" data-pick="${id}">
-        <span class="slot">${SLOT_LABEL[a.slot]}</span>
+        <span class="slot">${SLOT_LABEL[a.slot]} - ${html(branchName(a))}</span>
         <b>${html(a.name)}</b><small>${html(a.desc)}</small>
+        <em class="sr-tags">${html(tagsText(a))}</em>
       </button>`;
     }).join('');
+    const branch = runBuild && runBuild.softBranch ? branchInfo(cls.id, runBuild.softBranch) : null;
     ov.innerHTML = `<h2>Wave ${arenaWave || 1} cleared</h2>
-      <p class="msg">Draft one branch. Each slot keeps one choice, so your build changes without piling on stat clutter.</p>
+      <p class="msg">${branch ? `Soft-locked toward ${html(branch.name)}. Two choices now favor that path, with one hybrid/object option.` : 'Draft one branch. Two picks in a path leans the run toward that subclass.'}</p>
       <div class="sr-draft">${cards}</div>`;
     return true;
   }
@@ -1331,6 +1829,15 @@ PUBLIC.start = function (root, api) {
     const spec = ability(id);
     if (!spec || state !== 'draft') return;
     loadout[spec.slot] = id;
+    if (runBuild) {
+      runBuild.loadout = loadout;
+      runBuild.picked.push(id);
+      if (spec.cls === cls.id && spec.branch) {
+        runBuild.branchPoints[spec.branch] = (runBuild.branchPoints[spec.branch] || 0) + 1;
+        recomputeSoftBranch();
+      }
+      runBuild.lastDraft = id;
+    }
     arenaDraftChoices = null;
     ov.classList.add('hidden');
     setPlayUi(true);
@@ -1358,7 +1865,8 @@ PUBLIC.start = function (root, api) {
   }
   function play(clsId) {
     if (clsId) cls = CLASSES.find(c => c.id === clsId) || cls;
-    loadout = baseLoadout(cls.id);
+    runBuild = baseRunBuild(cls.id);
+    loadout = runBuild.loadout;
     arenaDraftChoices = null;
     state = 'playing';
     ov.classList.add('hidden');
@@ -1491,7 +1999,11 @@ PUBLIC.start = function (root, api) {
   // dynamic crates: gravity, terrain + box-box collision, friction, bounce, and SPIN
   function updateBoxes() {
     const L = levels[li];
-    for (const b of boxes) {
+    for (let bi = boxes.length - 1; bi >= 0; bi--) {
+      const b = boxes[bi];
+      if (b.dead) { boxes.splice(bi, 1); continue; }
+      if (b.life > 0) { b.life -= STEP; if (b.life <= 0) { boxes.splice(bi, 1); continue; } }
+      if (b.springCd > 0) b.springCd = Math.max(0, b.springCd - STEP);
       b.vy = Math.min(b.vy + 0.55, 16);
       // horizontal
       b.x += b.vx;
@@ -1519,16 +2031,57 @@ PUBLIC.start = function (root, api) {
         const near = Math.round(b.angle / (Math.PI / 2)) * (Math.PI / 2);
         if (Math.abs(b.vx) < 1.5) { b.angle += (near - b.angle) * 0.18; b.va *= 0.6; }   // settle upright
       } else b.va *= 0.99;
-      if (b.y > L.h + 300) { b.y = -40; b.x = L.spawn.x + 200; b.vy = b.vx = b.va = 0; b.angle = 0; }
+      if (b.kind === 'spring') {
+        const actors = [hero].concat(fighters || [], allies || []).filter(Boolean);
+        for (const act of actors) {
+          if (!act.dead && act.vy >= 0 && Math.abs(act.x - (b.x + b.w / 2)) < b.w / 2 + 16 && Math.abs(act.y - b.y) < 18) triggerSpringBox(b, act, 15);
+        }
+      }
+      if (b.y > L.h + 300) {
+        if (b.life > 0 || b.kind === 'barrier' || b.kind === 'spring') { boxes.splice(bi, 1); continue; }
+        b.y = -40; b.x = L.spawn.x + 200; b.vy = b.vx = b.va = 0; b.angle = 0;
+      }
     }
   }
   // apply an impulse to one crate (force scaled by its mass), with a tumble
   function pushBox(b, dx, dy, force) {
+    if (!b || b.dead) return;
+    if (b.kind === 'barrier') force *= 0.35;
+    if (hasPassive('heavy_objects') && (b.kind === 'crate' || b.kind === 'barrel')) force *= 1.18;
+    if (hasPassive('rg_trapmaster') && b.kind === 'barrel') force *= 1.22;
     const f = force / b.m;
     b.vx += dx * f; b.vy += dy * f - 2 / b.m;
     b.va += dx * 0.05 + (Math.random() - 0.5) * 0.22;     // torque -> tumble
     b.va = clamp(b.va, -0.6, 0.6);
-    burst(b.x + b.w / 2, b.y + b.h / 2, '#caa15a', 8, 3);
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    if (b.kind === 'barrel' && force > 13) { explodeBox(b, force); return; }
+    if (b.kind === 'spring' && force > 10) triggerSpringBox(b, null, force);
+    burst(cx, cy, b.kind === 'barrel' ? '#ff9f6e' : b.kind === 'spring' ? '#8fe6ff' : '#caa15a', 8, 3);
+  }
+  function explodeBox(b, force) {
+    if (!b || b.dead) return;
+    b.dead = true;
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    const boom = (force || 18) * (hasPassive('rg_trapmaster') || hasPassive('heavy_objects') ? 1.25 : 1);
+    burst(cx, cy, '#ff5a36', 44, 7.2);
+    burst(cx, cy, '#ffd45e', 28, 5.4);
+    burst(cx, cy, '#ffffff', 16, 3.6);
+    addShake(6.8, 190);
+    pushBoxesRadial(cx, cy, boom, 178, b.team === 'enemy' ? 'enemy' : 'hero');
+  }
+  function triggerSpringBox(b, act, force) {
+    if (!b || b.dead || b.springCd > 0) return;
+    b.springCd = hasPassive('rn_prepared') ? 260 : 420;
+    const lift = (force || 13) * (hasPassive('rn_prepared') ? 1.28 : 1);
+    b.vy = Math.min(b.vy, -2.0);
+    b.va += 0.18;
+    burst(b.x + b.w / 2, b.y, '#8fe6ff', 18, 4.2);
+    if (act && !act.dead) {
+      act.vy = Math.min(act.vy, -7.5 - lift * 0.18);
+      act.vx += (act.x < b.x + b.w / 2 ? -1 : 1) * 1.2;
+      act.grounded = false;
+      if (act.anim) act.anim.squash = -0.45;
+    }
   }
   function livingAllies() {
     return allies ? allies.filter(a => a && !a.dead) : [];
@@ -2289,6 +2842,16 @@ PUBLIC.start = function (root, api) {
   function shieldBlocks(act, nx) {
     return act && act.cls && act.cls.id === 'knight' && (act.shieldGuard || 0) > 0 && (nx || 0) * act.facing < 0;
   }
+  function nearHazardOrEdge(act) {
+    if (!act) return false;
+    const L = levels[li];
+    const surface = surfaceYFor(act, act.x, 34, 80);
+    const left = surfaceYFor(act, act.x - 72, 90, 80);
+    const right = surfaceYFor(act, act.x + 72, 90, 80);
+    if (surface !== null && (left === null || right === null)) return true;
+    if (act.x < 90 || act.x > L.w - 90) return true;
+    return boxes && boxes.some(b => b.kind === 'barrel' && Math.hypot(b.x + b.w / 2 - act.x, b.y + b.h / 2 - (act.y - 38)) < 150);
+  }
   // hero hits a fighter: knockback + stagger + damage; death hands off to ragdoll
   function hurtFighter(e, nx, ny, force, hx, hy) {
     if (e.dead) return;
@@ -2296,6 +2859,8 @@ PUBLIC.start = function (root, api) {
     let tunedForce = force;
     if (player && player.team === 'hero') {
       if (hasPassive('momentum')) tunedForce *= 1.22;
+      if (hasPassive('hazard_sense') && nearHazardOrEdge(e)) tunedForce *= 1.22;
+      if (hasPassive('ln_momentum') && cls.id === 'lancer' && player.anim && (player.anim.atkType === 'lanceCharge' || player.anim.atkType === 'braceThrust')) tunedForce *= nearHazardOrEdge(e) ? 1.38 : 1.16;
       if (hasPassive('executioner') && e.hp < e.maxHp * 0.45) tunedForce *= 1.28;
       if (hasPassive('rg_assassinate') && e.hp < e.maxHp * 0.55) tunedForce *= 1.34;
       if (hasPassive('ln_ironstance') && player.grounded && Math.abs(player.vx) < 0.35) tunedForce *= 1.32;
@@ -2369,7 +2934,8 @@ PUBLIC.start = function (root, api) {
     const k = clamp(force * (blocked ? guardMul : 1), 4, 40), dir = (nx || 0) >= 0 ? 1 : -1;
     hero.invuln = blocked ? 240 : 640;
     if (blocked) { hero.shieldFlash = 180; burst(hx == null ? hero.x : hx, hy == null ? hero.y - 34 : hy, hero.cls.color, 12, 2.4); addShake(1.6, 80); }
-    if (blocked && loadout && loadout.passive === 'kn_vengeance') hero.venge = Math.min(80, (hero.venge || 0) + k);
+    const sec = equipped('secondary');
+    if (blocked && (hasPassive('kn_vengeance') || sec && sec.id === 'kn_counterguard')) hero.venge = Math.min(90, (hero.venge || 0) + k * (sec && sec.id === 'kn_counterguard' ? 1.35 : 1));
     hero.vx += dir * (3.2 + k * 0.12);
     hero.vy = Math.min(hero.vy, -3.2 - k * 0.05);
     hero.grounded = false; hero.anim.squash = -0.3;
@@ -2776,13 +3342,20 @@ PUBLIC.start = function (root, api) {
     const ang = player.anim.atkAim;
     const spec = attackSpec(type);
     const byHero = player.team !== 'enemy';   // enemy swings don't hijack hitstop/camera
-    if (byHero && loadout && loadout.passive === 'kn_vengeance' && player.venge > 0 && type !== 'shieldGuard') {
+    const atkNode = equipped('attack'), secNode = equipped('secondary');
+    const vengeanceReady = byHero && player.venge > 0 && type !== 'shieldGuard' &&
+      (hasPassive('kn_vengeance') || atkNode && atkNode.id === 'kn_riposte' || secNode && secNode.id === 'kn_counterguard');
+    if (vengeanceReady) {
       const pow = clamp(player.venge, 8, 80);
       pushBoxesRadial(player.x + player.facing * 24, player.y - 42, 12 + pow * 0.28, 96 + pow, player.team);
       burst(player.x + player.facing * 32, player.y - 46, cls.color, 26, 4.8);
       burst(player.x + player.facing * 32, player.y - 46, '#ffffff', 12, 3.2);
       addShake(3.8 + pow * 0.025, 140);
       player.venge = 0;
+    }
+    if (byHero && hasPassive('mg_overcharge') && (type === 'cast' || type === 'arcaneBloom')) {
+      player.spellCount = (player.spellCount || 0) + 1;
+      if (player.spellCount % 4 === 0) chainLightning(ang, 3);
     }
     if (type === 'shieldGuard') { activateShieldGuard(); return; }
     if (type === 'cast') { spawnBolt(ang, 1.4); return; }
@@ -2810,6 +3383,10 @@ PUBLIC.start = function (root, api) {
     const seg = meleeSweepHit(type, ang);     // sweeps the arc; hits crates + dummy at the contact point
     burst(seg.bx, seg.by, cls.color, type === 'dualSlash' ? 12 : heavy ? 22 : 15, type === 'dualSlash' ? 3.4 : 5.2);
     if (type !== 'dualSlash') burst(seg.bx, seg.by, '#ffffff', heavy ? 12 : 8, 3.4);
+    if (byHero && hasPassive('kn_aftershock') && (heavy || type === 'crush' || type === 'quake')) {
+      pushBoxesRadial(seg.bx, seg.by, 15, 92, player.team);
+      burst(seg.bx, seg.by, '#ffd45e', 14, 3.4);
+    }
   }
   function attackBodyOffset(type, t, f) {
     const bell = Math.max(0, Math.sin(clamp(t, 0, 1) * Math.PI));
@@ -2936,17 +3513,19 @@ PUBLIC.start = function (root, api) {
     return impact;
   }
   // a fast, punchy magic bolt (size = power)
-  function spawnBolt(ang, power) {
+  function spawnBolt(ang, power, opts) {
+    opts = opts || {};
     const shX = player.x, shY = player.y - 77, spd = 24;
     const mx = shX + Math.cos(ang) * 46, my = shY + Math.sin(ang) * 46;
-    projectiles.push({ kind: 'bolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1020, color: cls.color, r: 9.5 * power, hit: 14 * power, sparkle: 3 });
+    projectiles.push({ kind: 'bolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1020, color: cls.color, r: 9.5 * power, hit: 14 * power, sparkle: 3, bounce: opts.bounce || 0, portal: opts.portal || 0, wind: opts.wind || 0 });
     burst(mx, my, '#ffffff', 18, 5.2); burst(mx, my, cls.color, 26, 4.6);
   }
   // a straight thrown dagger that can be recovered after landing
-  function spawnDagger(ang) {
+  function spawnDagger(ang, opts) {
+    opts = opts || {};
     const shX = player.x + player.facing * 11, shY = player.y - 96, spd = 28;
     const mx = shX + Math.cos(ang) * 22, my = shY + Math.sin(ang) * 10;
-    projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: 11 });
+    projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: opts.explosive ? 15 : 11, bounce: opts.bounce || 0, explosive: !!opts.explosive });
   }
   function arrowSpeed(power) {
     return 23 + 10 * clamp(power, 0.45, 1.55);
@@ -2958,7 +3537,7 @@ PUBLIC.start = function (root, api) {
   function spawnArrow(ang, power, opts) {
     const spd = arrowSpeed(power), o = arrowOrigin(ang), mx = o.x, my = o.y;
     opts = opts || {};
-    projectiles.push({ kind: 'arrow', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1280, color: cls.color, angle: ang, hit: 8 + 9 * clamp(power, 0.45, 1.55), pierce: opts.pierce || 0, powerShot: !!opts.powerShot, storm: !!opts.storm });
+    projectiles.push({ kind: 'arrow', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1280, color: cls.color, angle: ang, hit: 8 + 9 * clamp(power, 0.45, 1.55), pierce: opts.pierce || 0, powerShot: !!opts.powerShot, storm: !!opts.storm, bounce: opts.bounce || 0, pin: opts.pin || 0 });
     burst(mx, my, cls.color, 8, 2.4);
   }
   function activateShieldGuard() {
@@ -2978,8 +3557,9 @@ PUBLIC.start = function (root, api) {
   }
   function spawnGravityField(x, y, team, color, opts) {
     opts = opts || {};
-    const life = opts.life || 2600;
-    const r = opts.r || 152;
+    let life = opts.life || 2600;
+    let r = opts.r || 152;
+    if ((team || 'hero') === 'hero' && hasPassive('mg_resonance')) { life += 420; r *= 1.08; }
     gravityFields.push({ x, y, team: team || 'hero', color: color || '#ff77d2', life, max: life, r, ultimate: !!opts.ultimate });
     burst(x, y, '#ffffff', opts.ultimate ? 28 : 22, opts.ultimate ? 4.8 : 3.8);
     burst(x, y, color || '#ff77d2', opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
@@ -3976,6 +4556,28 @@ PUBLIC.start = function (root, api) {
     const cx = b.x + b.w / 2 - cam.x, cy = b.y + b.h / 2 - cam.y, hw = b.w / 2, hh = b.h / 2;
     ctx.save();
     ctx.translate(cx, cy); ctx.rotate(b.angle || 0);
+    if (b.kind === 'barrel') {
+      ctx.fillStyle = '#b64628';
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-hw, -hh, b.w, b.h, 8) : ctx.rect(-hw, -hh, b.w, b.h);
+      ctx.fill();
+      ctx.fillStyle = '#ffd45e'; ctx.fillRect(-hw + 5, -4, b.w - 10, 8);
+      ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeRect(-hw + 1.5, -hh + 1.5, b.w - 3, b.h - 3);
+      ctx.restore(); return;
+    }
+    if (b.kind === 'spring') {
+      ctx.fillStyle = '#26384f'; ctx.fillRect(-hw, -hh, b.w, b.h);
+      ctx.strokeStyle = '#8fe6ff'; ctx.lineWidth = 2;
+      for (let x = -hw + 6; x < hw - 4; x += 10) { ctx.beginPath(); ctx.moveTo(x, hh - 3); ctx.lineTo(x + 5, -hh + 3); ctx.lineTo(x + 10, hh - 3); ctx.stroke(); }
+      ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeRect(-hw + 1, -hh + 1, b.w - 2, b.h - 2);
+      ctx.restore(); return;
+    }
+    if (b.kind === 'barrier') {
+      const fade = b.life ? clamp(b.life / 5200, 0.25, 1) : 0.75;
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = 'rgba(120,170,255,.42)'; ctx.fillRect(-hw, -hh, b.w, b.h);
+      ctx.strokeStyle = '#5ea0ff'; ctx.lineWidth = 3; ctx.strokeRect(-hw + 1.5, -hh + 1.5, b.w - 3, b.h - 3);
+      ctx.restore(); return;
+    }
     ctx.fillStyle = '#bb8a4e'; ctx.fillRect(-hw, -hh, b.w, b.h);          // wood
     ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.lineJoin = 'miter';
     ctx.strokeRect(-hw + 1.5, -hh + 1.5, b.w - 3, b.h - 3);
@@ -4368,19 +4970,40 @@ PUBLIC.start = function (root, api) {
             }
             if (!struckActor && fighters) for (const e of fighters.slice()) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), e);
-              if (h) { if (b.kind !== 'gravitySeed') hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y); addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' ? 2.5 : 1.1, 75); struckActor = true; break; }
+              if (h) {
+                if (b.kind !== 'gravitySeed') {
+                  hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
+                  if (b.pin) { e.vx *= 0.25; e.vy *= 0.25; e.brain.stagger = Math.max(e.brain.stagger || 0, 420); }
+                }
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' ? 2.5 : 1.1, 75); struckActor = true; break;
+              }
             }
           }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
           if (struckActor && b.pierce > 0) { b.pierce--; struckActor = false; }
           const hitPlatform = L.platforms.some(pl => !isOneWay(pl) && projectileHitsBox(b, px, py, pl));
           const rangedBurst = b.kind === 'gravitySeed' && b.range && b.traveled >= b.range;
+          if ((crate || hitPlatform) && b.bounce > 0 && !struckActor) {
+            b.bounce--;
+            if (crate) { b.vx *= -0.72; b.vy *= 0.82; }
+            else { b.vx *= -0.78; b.vy *= 0.90; }
+            b.x = px; b.y = py;
+            b.angle = Math.atan2(b.vy, b.vx);
+            burst(b.x, b.y, b.color, 8, 2.6);
+            continue;
+          }
           const dead = b.life <= 0 || crate || struckActor || hitPlatform || rangedBurst;
           if (dead) {
             if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
             else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
             else if (b.kind === 'sigil') explodeSigil(b);
             else {
+              if (b.explosive) pushBoxesRadial(b.x, b.y, 18, 112, b.team);
+              if (b.portal && b.portal > 0) {
+                b.portal = 0; b.life = 520; b.x += b.vx * 12; b.y += b.vy * 12;
+                burst(b.x, b.y, b.color, 18, 3.6);
+                continue;
+              }
               burst(b.x, b.y, b.color, b.kind === 'bolt' ? 20 : 10, b.kind === 'bolt' ? 4 : 3);
               if (b.kind === 'bolt') burst(b.x, b.y, '#ffffff', 10, 3.4);
             }
@@ -4431,10 +5054,11 @@ PUBLIC.start = function (root, api) {
           mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
           arenaMode, arenaWave, arenaKills, arenaNextWave,
           loadout: Object.assign({}, loadout || {}), draftChoices: arenaDraftChoices ? arenaDraftChoices.slice() : null,
+          runBuild: runBuild ? { picked: runBuild.picked.slice(), branchPoints: Object.assign({}, runBuild.branchPoints), softBranch: runBuild.softBranch } : null,
           player: actorSnapshot(player),
           allies: allies ? allies.map(actorSnapshot) : [],
           fighters: fighters ? fighters.map(actorSnapshot) : [],
-          boxes: boxes ? boxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, vx: b.vx, vy: b.vy })) : [],
+          boxes: boxes ? boxes.map(b => ({ kind: b.kind || 'crate', x: b.x, y: b.y, w: b.w, h: b.h, vx: b.vx, vy: b.vy, life: b.life || 0 })) : [],
           coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
           projectiles: projectiles ? projectiles.length : 0,
           gravityFields: gravityFields ? gravityFields.length : 0,
@@ -4447,6 +5071,8 @@ PUBLIC.start = function (root, api) {
       get fighters() { return fighters; },
       get allies() { return allies; },
       get cls() { return cls; },
+      trees: CLASS_TREES,
+      nodes: TREE_NODES,
     };
     return testApi;
   }

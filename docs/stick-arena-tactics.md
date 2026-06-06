@@ -158,6 +158,23 @@ ring-out + push/pull tools into `stickrun.js` and layer the loadout draft on top
 - Clearing a wave in arena mode now pauses into a 1-of-3 draft that swaps one
   slot or picks a keystone, then starts the next wave.
 
+**Deep 5-class branching pass (current):**
+- The live Stick Arena tree now keeps the existing five classes but gives each
+  three major run-only branches:
+  Knight (Bulwark / Avenger / Earthbreaker), Rogue (Duelist / Saboteur /
+  Acrobat), Lancer (Phalanx / Dragoon / Harpooner), Mage (Graviturge /
+  Stormcaller / Riftweaver), and Ranger (Sharpshooter / Trapper / Beastwarden).
+- Drafts track `runBuild` branch points. Before commitment, offers try to show
+  one pick from each branch; after two picks in one branch, the run soft-locks
+  so two choices favor that branch and one remains a hybrid/physics option.
+- Ability specs now carry branch, tier, tags, and effect data. Draft/help UI
+  exposes branch names plus interaction tags such as Crates, Barrels, Walls,
+  Ledges, Gravity, Traps, and Allies.
+- The arena has first-pass physics objects: explosive barrels, spring pads, and
+  temporary shield walls/traps. New ability primitives include line/radial
+  object impulses, barriers, pulls/tethers, traps, chain lightning, rift swaps,
+  gravity fields, decoys, and pack commands.
+
 ## Open questions / next
 - Exact stagger numbers & decay; knockback scaling vs. enemy mass.
 - Camera: fixed single-screen (prototype) vs. the scrolling arena.
