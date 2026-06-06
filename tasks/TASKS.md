@@ -51,8 +51,6 @@ edit, reprioritize, or delete them freely._
 
 - [ ] [p2] [area:stickrun] Playtest-tune Stick Arena: class balance, cooldown
       lengths, and whether ranged classes (Mage/Ranger) feel too safe.
-- [ ] [p3] [area:stickrun] Delete the retired `js/games/arenatactics.js` file
-      once you're sure nothing from it is still wanted (it's already disabled).
 - [ ] [p3] [area:pwa] PWA app polish: iOS splash/launch images + verify install
       meta, so it feels more like a native app when added to the home screen.
 
@@ -62,4 +60,6 @@ _(nothing yet)_
 
 ## ✅ Done
 
+- [x] 2026-06-06 — [p3] [area:stickrun] Delete the retired `js/games/arenatactics.js` file
+      once you're sure nothing from it is still wanted (it's already disabled). (#26)
 - [x] 2026-06-06 — Set up this task backlog (`tasks/TASKS.md`).
