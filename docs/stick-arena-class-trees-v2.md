@@ -9,7 +9,7 @@ This doc drafts the major branches for each current class:
 - Knight: Guardian, Avenger, Earthbreaker
 - Rogue: Bladeslinger, Acrobat, Nightshade
 - Lancer: Phalanx, Dragoon, Harpooner
-- Mage: Graviturge, Stormcaller, Riftweaver
+- Mage: Graviturge, Pyromancer, third branch TBD
 - Ranger: Sharpshooter, Trapper, Beastwarden
 
 ## Tree Rules
@@ -147,9 +147,12 @@ The Mage has Focus and Float Control.
 
 Branch hooks:
 
-- Graviturge spends Focus to increase gravity field size, pull, and implosion.
-- Stormcaller spends Focus on chained lightning and air movement bursts.
-- Riftweaver spends Focus on swaps, portals, and delayed collapse zones.
+- Graviturge spends Focus to strengthen a visible gravity core, pull, orbit,
+  suspension, and implosion.
+- Pyromancer spends Focus on bigger fire areas, burn duration, early
+  detonations, and object ignition.
+- The third Mage branch is not locked. Conduit/Stormcaller, Resonance, and
+  Geomancer are the current candidates.
 
 Current Mage direction:
 
@@ -162,7 +165,21 @@ Current Mage direction:
 - Focus motes orbit the staff and are spent on stronger fields, early
   detonations, chained effects, portals, or controlled movement.
 
-Proposed Mage branch structure:
+Current Mage redraft:
+
+- Graviturge is the strongest locked identity. The gravity core should be the
+  branch's center: enemies, crates, projectiles, and ragdolls visibly react to
+  one readable point of force.
+- Pyromancer is the likely second identity because it gives the Mage a plain,
+  satisfying big-AOE fantasy: fireballs, flame pools, burning routes, barrel
+  ignition, and huge Q moments.
+- Stormcaller should be treated as lightning/conductivity if it stays. Remove
+  most wind movement so it does not overlap with gravity hover.
+- Riftweaver is demoted to a future advanced/experimental branch. Portals,
+  swaps, and displacement are cool, but they may be too hard to play and too
+  annoying to fight before the arena AI and object systems are stronger.
+
+Mage branch shortlist:
 
 ```text
 Mage
@@ -170,14 +187,14 @@ Mage
 |  |- Event Horizon: persistent gravity core, orbiting objects, implosion rhythm
 |  |- Liftbinder: levitate enemies/objects, suspend hazards, controlled drops
 |  |- Crusher: gravity slams, heavy knockdowns, terrain shockwaves
-|- Stormcaller: air, lightning, momentum, smoother caster movement
-|  |- Tempest Dancer: slower controlled flight, air casting, wind bursts
-|  |- Chaincaller: lightning arcs through enemies, crates, metal/future water
-|  |- Pressure Mage: gusts, projectile deflection, vortex wind lanes
-|- Riftweaver: portals, swaps, echoes, delayed space collapse
-|  |- Portal Architect: linked portals for projectiles, bodies, and objects
-|  |- Echo Caster: decoys, delayed repeat casts, fake positions
-|  |- Displacer: swaps, short blinks, enemy/object repositioning
+|- Pyromancer: big AOE, burn zones, ignition, explosions
+|  |- Wildfire: spreading flame, route denial, burning floor control
+|  |- Detonator: fire bombs, barrels, crates, delayed explosions
+|  |- Sunfire: slower huge casts, giant circles, high damage
+|- Third slot candidates:
+|  |- Conduit/Stormcaller: chain lightning, charged targets, conductivity
+|  |- Resonance: staff shockwaves, vibration, wall/object stagger bursts
+|  |- Geomancer: stone pillars, short walls, spikes, terrain shaping
 ```
 
 ### Ranger: Draw And Focus
