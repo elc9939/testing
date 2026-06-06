@@ -1644,6 +1644,56 @@ PUBLIC.start = function (root, api) {
     syncHud();
     return a;
   }
+  function spiritCommandTarget(range) {
+    const caster = hero || player;
+    if (!caster) return null;
+    let best = null, bd = range || 560;
+    const consider = (target, x, y, type) => {
+      const d = Math.hypot(x - caster.x, y - (caster.y - 44));
+      if (d < bd) { best = { target, x, y, type }; bd = d; }
+    };
+    if (fighters) for (const e of fighters) if (e && !e.dead) consider(e, e.x, e.y - 44, 'fighter');
+    if (dummies) for (const d of dummies) {
+      if (!d || d.defeated) continue;
+      const p = d.pts && (d.pts.chest || d.pts.head);
+      if (p) consider(d, p.x, p.y, 'dummy');
+    }
+    return best;
+  }
+  function commandSpiritAlly(a, opts) {
+    if (!a || a.dead) return false;
+    opts = opts || {};
+    const target = opts.target || spiritCommandTarget(opts.range || 620);
+    const fallback = pointAhead(opts.fallback || 210);
+    const tx = target ? target.x : fallback.x;
+    const ty = target ? target.y : fallback.y - 46;
+    const dx = tx - a.x, dy = ty - (a.y - 44), d = Math.hypot(dx, dy) || 1;
+    a.spiritCommand = {
+      life: opts.life || 1120,
+      max: opts.life || 1120,
+      x: tx,
+      y: ty,
+      target: target && target.target,
+      type: target && target.type || 'point',
+      force: opts.force || 14,
+      hit: false,
+    };
+    a.facing = dx >= 0 ? 1 : -1;
+    a.vx += (dx / d) * (opts.dash || 5.6);
+    a.vy = Math.min(a.vy, (dy / d) * 2.2 - 2.4);
+    if (a.brain) { a.brain.alert = 9999; a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
+    rememberDebugSegment('ability', a.x, a.y - 46, tx, ty, 8, '#b48cff', 520);
+    burst(a.x, a.y - 42, '#b48cff', 12, 3.0);
+    return true;
+  }
+  function commandSpiritAllies(opts) {
+    const list = livingAllies().filter(a => a.spirit);
+    if (!list.length) return 0;
+    const target = spiritCommandTarget(opts && opts.range || 650);
+    let count = 0;
+    for (const a of list) if (commandSpiritAlly(a, Object.assign({}, opts || {}, { target }))) count++;
+    return count;
+  }
   function bindSpiritAlly() {
     const remnant = nearestSpiritRemnant(260);
     if (remnant) {
@@ -1668,7 +1718,8 @@ PUBLIC.start = function (root, api) {
     const x = player.x, y = player.y - 44;
     radialActorPulse(x, y, 170, 18, player.team, '#b48cff');
     pushBoxesRadial(x, y, 14, 150, player.team);
-    for (const a of livingAllies()) {
+    const commanded = commandSpiritAllies({ force: 15, dash: 6.4, life: 980, range: 700 });
+    if (!commanded) for (const a of livingAllies()) {
       a.vx += (a.facing || player.facing) * 3.4;
       a.brain.alert = 9999;
       burst(a.x, a.y - 42, '#b48cff', 8, 2.2);
@@ -1682,16 +1733,62 @@ PUBLIC.start = function (root, api) {
   function graveCall() {
     const charges = player.spiritCharges || 0;
     const count = clamp(charges || 2, 2, 5);
+    const spawned = [];
     for (let i = 0; i < count; i++) {
       const off = (i - (count - 1) / 2) * 42;
       const p = pointAhead(74 + off);
-      spawnSpiritAlly(p.x, p.y, { hp: charges ? 2 : 1, life: charges ? 10500 : 6200, facing: player.facing });
+      spawned.push(spawnSpiritAlly(p.x, p.y, { hp: charges ? 2 : 1, life: charges ? 10500 : 6200, facing: player.facing }));
     }
+    const target = spiritCommandTarget(720);
+    for (const a of spawned) commandSpiritAlly(a, { target, force: 17, dash: 6.9, life: 1260, fallback: 250 });
     player.spiritCharges = 0;
     burst(player.x, player.y - 58, '#b48cff', 48, 6.2);
     addShake(5.4, 180);
     syncHud();
     return true;
+  }
+  function updateSpiritCommand(a, dtStep) {
+    const cmd = a && a.spiritCommand;
+    if (!cmd) return;
+    cmd.life -= dtStep;
+    const targetGone = cmd.type === 'fighter' && (!cmd.target || cmd.target.dead) || cmd.type === 'dummy' && (!cmd.target || cmd.target.defeated);
+    if (targetGone || cmd.life <= 0) { a.spiritCommand = null; return; }
+    if (cmd.target) {
+      if (cmd.type === 'fighter') { cmd.x = cmd.target.x; cmd.y = cmd.target.y - 44; }
+      else if (cmd.target.pts) {
+        const p = cmd.target.pts.chest || cmd.target.pts.head;
+        if (p) { cmd.x = p.x; cmd.y = p.y; }
+      }
+    }
+    const sx = a.x, sy = a.y - 44;
+    const dx = cmd.x - sx, dy = cmd.y - sy, d = Math.hypot(dx, dy) || 1;
+    const fade = clamp(cmd.life / Math.max(1, cmd.max || cmd.life), 0, 1);
+    a.facing = dx >= 0 ? 1 : -1;
+    a.vx += (dx / d) * (0.34 + fade * 0.24);
+    a.vy += (dy / d) * 0.12 - 0.03;
+    if (Math.random() < 0.36) particles.push({
+      x: lerp(sx, cmd.x, rand(0.16, 0.84)),
+      y: lerp(sy, cmd.y, rand(0.16, 0.84)) + rand(-8, 8),
+      vx: rand(-0.25, 0.25),
+      vy: rand(-0.45, 0.12),
+      life: rand(180, 360),
+      max: 360,
+      color: Math.random() < 0.35 ? '#ffffff' : '#b48cff',
+      r: rand(1.2, 2.8),
+    });
+    if (!cmd.hit && d < 46) {
+      const nx = dx / d || a.facing || 1, ny = dy / d || -0.15;
+      if (cmd.type === 'fighter' && cmd.target && !cmd.target.dead) hurtFighter(cmd.target, nx, ny - 0.18, cmd.force || 14, cmd.x, cmd.y);
+      else if (cmd.type === 'dummy' && cmd.target && !cmd.target.defeated) hurtDummy(cmd.target, nx, ny - 0.18, (cmd.force || 14) * 0.92, cmd.x, cmd.y);
+      else radialActorPulse(cmd.x, cmd.y, 62, (cmd.force || 14) * 0.7, a.team || 'hero', '#b48cff');
+      pushBoxesRadial(cmd.x, cmd.y, (cmd.force || 14) * 0.55, 82, a.team || 'hero');
+      spawnShockwaveRing(cmd.x, cmd.y, 66, '#b48cff', { life: 360, width: 3.2 });
+      burst(cmd.x, cmd.y, '#b48cff', 24, 4.4);
+      burst(cmd.x, cmd.y, '#ffffff', 9, 2.8);
+      cmd.hit = true;
+      cmd.life = Math.min(cmd.life, 220);
+      addShake(2.2, 100);
+    }
   }
   function updateSpiritRemnants(dtStep) {
     if (!spiritRemnants || !spiritRemnants.length) return;
@@ -4469,7 +4566,7 @@ PUBLIC.start = function (root, api) {
         }
       }
       a.flash = Math.max(0, a.flash - dtStep);
-      withActor(a, () => { thinkFighter(a, dtStep); stepActor(dtStep); });
+      withActor(a, () => { thinkFighter(a, dtStep); updateSpiritCommand(a, dtStep); stepActor(dtStep); });
       if (a.y - PH > L.h + 180) {
         burst(a.x, Math.min(a.y, L.h), a.cls.color, 10, 2.8);
         allies.splice(i, 1);
@@ -4605,6 +4702,28 @@ PUBLIC.start = function (root, api) {
       ctx.quadraticCurveTo(mx, my, a.x, chestY);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+    if (a.spiritCommand) {
+      const cmd = a.spiritCommand;
+      const cmdFade = clamp(cmd.life / Math.max(1, cmd.max || cmd.life), 0, 1);
+      const mx = (a.x + cmd.x) * 0.5 + Math.sin(now * 0.009) * 10;
+      const my = (chestY + cmd.y) * 0.5 - 24;
+      ctx.globalAlpha = 0.18 + cmdFade * 0.42;
+      ctx.strokeStyle = '#f5efff';
+      ctx.lineWidth = 1.6 + pulse * 1.0;
+      ctx.setLineDash([4, 7]);
+      ctx.lineDashOffset = -now * 0.06;
+      ctx.beginPath();
+      ctx.moveTo(a.x, chestY);
+      ctx.quadraticCurveTo(mx, my, cmd.x, cmd.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.14 + cmdFade * 0.28;
+      ctx.strokeStyle = '#b48cff';
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.ellipse(cmd.x, cmd.y, 20 + pulse * 7, 8 + pulse * 3, 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
     const grad = ctx.createRadialGradient(a.x, chestY, 4, a.x, chestY, 38 + pulse * 8);
     grad.addColorStop(0, `rgba(255,255,255,${0.20 * fade})`);
@@ -7699,6 +7818,7 @@ PUBLIC.start = function (root, api) {
       cooldowns: Object.assign({}, act.cooldowns || {}),
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
       burned: act.burned || 0,
+      spiritCommand: act.spiritCommand ? { x: act.spiritCommand.x, y: act.spiritCommand.y, life: act.spiritCommand.life || 0, max: act.spiritCommand.max || 0, type: act.spiritCommand.type || 'point' } : null,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
     };
   }
@@ -7733,6 +7853,8 @@ PUBLIC.start = function (root, api) {
           smokeZones: smokeZones ? smokeZones.length : 0,
           shockwaves: shockwaves ? shockwaves.length : 0,
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
+          spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).length : 0,
+          spiritCommands: allies ? allies.filter(a => a && a.spiritCommand).length : 0,
           bladeRecallTrails: bladeRecallTrails ? bladeRecallTrails.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
           effects: {
@@ -7742,6 +7864,8 @@ PUBLIC.start = function (root, api) {
             smokeZones: smokeZones ? smokeZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, poison: !!z.poison, team: z.team })) : [],
             shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
             spiritRemnants: spiritRemnants ? spiritRemnants.map(r => ({ x: r.x, y: r.y, groundY: r.groundY, life: r.life || 0, max: r.max || 0, source: r.source || 'enemy', bindable: r === bindableRemnant })) : [],
+            spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).map(a => ({ x: a.x, y: a.y, life: a.spiritLife || 0, max: a.spiritMaxLife || 0, commanded: !!a.spiritCommand })) : [],
+            spiritCommands: allies ? allies.filter(a => a && a.spiritCommand).map(a => ({ x: a.spiritCommand.x, y: a.spiritCommand.y, life: a.spiritCommand.life || 0, max: a.spiritCommand.max || 0, type: a.spiritCommand.type || 'point' })) : [],
             burningActors: (player && (player.burned || 0) > 0 ? 1 : 0) +
               (fighters ? fighters.filter(e => (e.burned || 0) > 0).length : 0) +
               (allies ? allies.filter(a => (a.burned || 0) > 0).length : 0) +
@@ -7782,6 +7906,8 @@ PUBLIC.start = function (root, api) {
           smokeZones: effects.smokeZones ? effects.smokeZones.length : 0,
           shockwaves: effects.shockwaves ? effects.shockwaves.length : 0,
           spiritRemnants: effects.spiritRemnants ? effects.spiritRemnants.length : 0,
+          spiritAllies: effects.spiritAllies ? effects.spiritAllies.length : 0,
+          spiritCommands: effects.spiritCommands ? effects.spiritCommands.length : 0,
           burningActors: effects.burningActors || 0,
         });
       }
