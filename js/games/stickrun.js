@@ -770,6 +770,7 @@ PUBLIC.start = function (root, api) {
     .sr-labpanel select,.sr-labpanel button{min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.22);
       background:rgba(255,255,255,.10);color:#eaf2ff;font:800 12px system-ui;padding:5px 8px}
     .sr-labpanel button{cursor:pointer}.sr-labpanel button:hover{border-color:#8fe6ff;background:rgba(143,230,255,.16)}
+    .sr-labpanel button.active{border-color:#9cff5e;background:rgba(156,255,94,.18);color:#f3ffe9;box-shadow:0 0 14px rgba(156,255,94,.18)}
     .sr-labpanel option{background:#101525;color:#eaf2ff}
     .sr-labnote{font-size:11px;line-height:1.28;color:#d9e4f5;opacity:.82;margin:5px 0 8px}
     .sr-labtests{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:0 0 8px}
@@ -2824,6 +2825,7 @@ PUBLIC.start = function (root, api) {
         <button data-lab-act="crate">Crate</button>
         <button data-lab-act="barrel">Barrel</button>
         <button data-lab-act="spring">Spring</button>
+        <button data-lab-act="debug" class="${debug.enabled ? 'active' : ''}">Hitboxes</button>
         <button data-lab-act="menu">Menu</button>
       </div>`;
     labPanel.style.display = state === 'playing' || state === 'help' ? 'block' : 'none';
@@ -2928,6 +2930,11 @@ PUBLIC.start = function (root, api) {
     else if (act === 'crate') spawnLabObject('crate');
     else if (act === 'barrel') spawnLabObject('barrel');
     else if (act === 'spring') spawnLabObject('spring');
+    else if (act === 'debug') {
+      debug.enabled = !debug.enabled;
+      exposeDebugApi();
+      renderLabPanel();
+    }
     else if (act === 'menu') showMenu();
   });
   api.on(helpBtn, 'click', () => { if (state === 'help') closeHelp(); else openHelp(); });
