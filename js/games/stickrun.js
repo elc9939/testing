@@ -2092,6 +2092,7 @@ PUBLIC.start = function (root, api) {
       const spd = 25;
       projectiles.push({ kind: 'bolt', team: player.team, x: gravityCore.x + Math.cos(a) * 18, y: gravityCore.y + Math.sin(a) * 18, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 1050, color: cls.color, r: 11, hit: 16, sparkle: 3, bounce: hasPassive('ricochet_key') ? 1 : 0, wind: 1 });
       if (e.shoveCore) { gravityCore.vx += Math.cos(ang) * 0.9; gravityCore.vy += Math.sin(ang) * 0.55; }
+      chargeGravityCore(e.shoveCore ? 0.72 : 0.45, player.x, player.y - 70);
       rememberDebugSegment('ability', player.x, player.y - 70, gravityCore.x, gravityCore.y, 8, cls.color, 260);
       burst(gravityCore.x, gravityCore.y, cls.color, 18, 3.6);
       return true;
@@ -2389,17 +2390,32 @@ PUBLIC.start = function (root, api) {
     }
     if (e.kind === 'resonancePulse') {
       const src = gravityCore || { x: player.x + f * 18, y: player.y - 42, r: 142, color: cls.color, team: player.team };
-      const r = gravityCore ? src.r + 72 : 142;
+      const charge = gravityCore ? clamp(src.resonance || 0, 0, src.resonanceMax || 5) : 0;
+      const r = gravityCore ? src.r + 72 + charge * 24 : 142;
+      const force = gravityCore ? 30 + charge * 6.5 : 22;
+      const boxForce = gravityCore ? 26 + charge * 5.4 : 19;
       burst(src.x, src.y, '#ffffff', 28, 5.2);
-      burst(src.x, src.y, src.color || cls.color, 46, 6.2);
-      spawnShockwaveRing(src.x, src.y, r, src.color || cls.color, { life: gravityCore ? 520 : 390, width: gravityCore ? 7 : 5, yScale: gravityCore ? 0.62 : 0.52, fill: gravityCore ? 0.13 : 0.08 });
-      radialActorPulse(src.x, src.y, r, gravityCore ? 32 : 22, player.team, src.color || cls.color);
-      pushBoxesRadial(src.x, src.y, gravityCore ? 28 : 19, r, player.team);
+      burst(src.x, src.y, src.color || cls.color, 46 + charge * 9, 6.2 + charge * 0.35);
+      const rings = gravityCore ? 1 + Math.floor(charge) : 1;
+      for (let n = 0; n < rings; n++) {
+        spawnShockwaveRing(src.x, src.y, Math.max(76, r - n * 24), src.color || cls.color, {
+          life: gravityCore ? 560 + n * 44 : 390,
+          width: gravityCore ? 7.2 - n * 0.45 : 5,
+          yScale: gravityCore ? 0.62 : 0.52,
+          fill: gravityCore ? 0.14 : 0.08,
+        });
+      }
+      radialActorPulse(src.x, src.y, r, force, player.team, src.color || cls.color);
+      pushBoxesRadial(src.x, src.y, boxForce, r, player.team);
       for (let i = 0; i < 16; i++) {
         const a = i * Math.PI * 2 / 16;
         rememberDebugSegment('ability', src.x, src.y, src.x + Math.cos(a) * r, src.y + Math.sin(a) * r * 0.55, 5, src.color || cls.color, 260);
       }
-      addShake(gravityCore ? 6.4 : 4.2, 170);
+      if (gravityCore) {
+        src.resonance = 0;
+        src.resonancePulse = 860;
+      }
+      addShake(gravityCore ? 6.4 + charge * 0.45 : 4.2, 170);
       return true;
     }
     if (e.kind === 'firebolt') { spawnFirebolt(ang, e.power || 1); return true; }
@@ -5586,6 +5602,7 @@ PUBLIC.start = function (root, api) {
     burst(x, y, color || '#ff77d2', opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
     spawnShockwaveRing(x, y, r, color || '#ff77d2', { life: opts.ultimate ? 520 : 360, width: opts.ultimate ? 6 : 4, yScale: 0.64, fill: opts.ultimate ? 0.10 : 0.06 });
     addShake(opts.ultimate ? 5.4 : 3.6, opts.ultimate ? 170 : 120);
+    if ((team || 'hero') === 'hero' && gravityCore) chargeGravityCore(opts.ultimate ? 1.45 : 0.85, x, y);
   }
   function spawnGravityCore(x, y, team, color, opts) {
     opts = opts || {};
@@ -5600,10 +5617,28 @@ PUBLIC.start = function (root, api) {
       age: 0,
       pulse: 0,
       power: hasPassive('mg_eventhorizon') ? 1.24 : 1,
+      resonance: 1,
+      resonanceMax: hasPassive('mg_eventhorizon') ? 5 : 4,
+      resonancePulse: 620,
     };
     burst(x, y, '#ffffff', 30, 4.2);
     burst(x, y, color || '#ff77d2', 56, 5.4);
     addShake(4.6, 145);
+  }
+  function chargeGravityCore(amount, x, y) {
+    const g = gravityCore;
+    if (!g) return 0;
+    const max = g.resonanceMax || (hasPassive('mg_eventhorizon') ? 5 : 4);
+    const before = g.resonance || 0;
+    g.resonance = clamp(before + (amount || 1), 0, max);
+    g.resonancePulse = Math.max(g.resonancePulse || 0, 520);
+    if (x != null && y != null) rememberDebugSegment('ability', x, y, g.x, g.y, 6, g.color || cls.color, 420);
+    if (g.resonance > before + 0.05) {
+      const gain = g.resonance - before;
+      burst(g.x, g.y, '#ffffff', 6 + gain * 5, 2.5 + gain * 0.7);
+      burst(g.x, g.y, g.color || cls.color, 8 + gain * 7, 3.0 + gain * 0.8);
+    }
+    return g.resonance;
   }
   function fieldAffectsActor(g, act) {
     return act && !act.dead && ((g.team || 'hero') === 'enemy' ? act.team !== 'enemy' : act.team === 'enemy');
@@ -5647,15 +5682,18 @@ PUBLIC.start = function (root, api) {
     if (!g) return;
     g.age += dtStep;
     g.pulse = Math.sin(g.age * 0.006) * 0.5 + 0.5;
-    const core = { x: g.x, y: g.y, team: g.team, color: g.color, r: g.r, ultimate: true };
+    g.resonancePulse = Math.max(0, (g.resonancePulse || 0) - dtStep);
+    const resonance = clamp(g.resonance || 0, 0, g.resonanceMax || 5);
+    const core = { x: g.x, y: g.y, team: g.team, color: g.color, r: g.r + resonance * 7, ultimate: true };
+    const resonancePower = 1 + resonance * 0.085;
     for (const b of boxes) {
       applyGravityFieldToBox(core, b);
       const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
       if (d < g.r) {
         const u = 1 - d / g.r;
-        b.vx += (dx / d) * 0.055 * g.power * u;
-        b.vy += (dy / d) * 0.035 * g.power * u;
-        b.va += (dx / d) * 0.009 * g.power;
+        b.vx += (dx / d) * 0.055 * g.power * resonancePower * u;
+        b.vy += (dy / d) * 0.035 * g.power * resonancePower * u;
+        b.va += (dx / d) * 0.009 * g.power * resonancePower;
       }
     }
     if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(core, t);
@@ -7256,12 +7294,14 @@ PUBLIC.start = function (root, api) {
     if (!g) return;
     const t = performance.now();
     const pulse = 1 + Math.sin(t * 0.006) * 0.045;
-    const rr = g.r * pulse;
+    const charge = clamp(g.resonance || 0, 0, g.resonanceMax || 5);
+    const chargeFlash = clamp((g.resonancePulse || 0) / 620, 0, 1);
+    const rr = (g.r + charge * 7) * pulse;
     ctx.save();
     const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
-    grad.addColorStop(0, 'rgba(255,255,255,.34)');
-    grad.addColorStop(0.22, 'rgba(255,119,210,.22)');
-    grad.addColorStop(0.68, 'rgba(255,119,210,.10)');
+    grad.addColorStop(0, `rgba(255,255,255,${0.34 + chargeFlash * 0.12})`);
+    grad.addColorStop(0.22, `rgba(255,119,210,${0.22 + charge * 0.018})`);
+    grad.addColorStop(0.68, `rgba(255,119,210,${0.10 + charge * 0.012})`);
     grad.addColorStop(1, 'rgba(255,119,210,0)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
@@ -7280,11 +7320,31 @@ PUBLIC.start = function (root, api) {
       }
       ctx.closePath(); ctx.stroke();
     }
+    const moteCount = Math.ceil(charge);
+    for (let i = 0; i < moteCount; i++) {
+      const a = t * (0.003 + i * 0.00038) + i * Math.PI * 2 / Math.max(1, moteCount);
+      const orbit = rr * (0.28 + (i % 3) * 0.13);
+      const x = g.x + Math.cos(a) * orbit;
+      const y = g.y + Math.sin(a) * orbit * 0.68;
+      const motePulse = 0.55 + 0.45 * Math.sin(t * 0.013 + i);
+      ctx.globalAlpha = 0.44 + chargeFlash * 0.25;
+      ctx.fillStyle = i % 2 ? g.color : '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, 3.2 + motePulse * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.24 + chargeFlash * 0.22;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(x, y, 7 + motePulse * 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     drawGravityCoreTethers(g, t);
     ctx.fillStyle = g.color;
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.arc(g.x, g.y, 9 + Math.sin(t * 0.01) * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 1.4 + chargeFlash * 1.1;
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(g.x, g.y, 9 + charge * 0.9 + Math.sin(t * 0.01) * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
   function drawAbilityMarkers() {
@@ -7856,10 +7916,11 @@ PUBLIC.start = function (root, api) {
           spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).length : 0,
           spiritCommands: allies ? allies.filter(a => a && a.spiritCommand).length : 0,
           bladeRecallTrails: bladeRecallTrails ? bladeRecallTrails.length : 0,
-          gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
+          gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0 } : null,
           effects: {
             projectiles: projectiles ? projectiles.slice(0, 18).map(p => ({ kind: p.kind || 'bolt', x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life || 0, team: p.team })) : [],
             gravityFields: gravityFields ? gravityFields.map(g => ({ x: g.x, y: g.y, r: g.r, life: g.life || 0, max: g.max || 0, ultimate: !!g.ultimate, team: g.team })) : [],
+            gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0, pulse: gravityCore.resonancePulse || 0 } : null,
             fireZones: fireZones ? fireZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, ultimate: !!z.ultimate, team: z.team })) : [],
             smokeZones: smokeZones ? smokeZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, poison: !!z.poison, team: z.team })) : [],
             shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
@@ -7902,6 +7963,7 @@ PUBLIC.start = function (root, api) {
         root.dataset.stickEffectCounts = JSON.stringify({
           projectiles: effects.projectiles ? effects.projectiles.length : 0,
           gravityFields: effects.gravityFields ? effects.gravityFields.length : 0,
+          gravityCoreResonance: effects.gravityCore ? effects.gravityCore.resonance || 0 : 0,
           fireZones: effects.fireZones ? effects.fireZones.length : 0,
           smokeZones: effects.smokeZones ? effects.smokeZones.length : 0,
           shockwaves: effects.shockwaves ? effects.shockwaves.length : 0,
