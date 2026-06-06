@@ -4797,14 +4797,21 @@ PUBLIC.start = function (root, api) {
     const hot = clamp(d.flash / 200, 0, 1);
     const burnFade = clamp((d.burned || 0) / Math.max(1, d.burnedMax || d.burned || 1), 0, 1);
     const enemy = d.kind === 'enemy';
-    const ink = d.defeated ? '#6a6360' : hot > 0.02 ? '#a9544b' : enemy ? '#2c1618' : INK;
+    const ink = d.defeated ? '#6a6360' : hot > 0.02 ? '#a9544b' : INK;
+    const accent = enemy && !d.defeated ? actorTeamAccent({ team: 'enemy' }) : null;
     const fL = P('footL'), fR = P('footR'), midX = (fL.x + fR.x) / 2, baseY = Math.max(fL.y, fR.y);
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (!enemy || !d.defeated) {
-      ctx.fillStyle = enemy ? '#7a2d32' : '#5a4d3d';
+      ctx.fillStyle = '#5a4d3d';
       ctx.beginPath(); ctx.moveTo(midX - 17, baseY + 3); ctx.lineTo(midX + 17, baseY + 3);
       ctx.lineTo(midX + 9, baseY - 7); ctx.lineTo(midX - 9, baseY - 7); ctx.closePath(); ctx.fill();
+    }
+    if (accent) {
+      ctx.save();
+      ctx.translate(midX, baseY);
+      drawTeamGroundMarker(accent, d.dir || 1);
+      ctx.restore();
     }
     ctx.strokeStyle = ink; ctx.fillStyle = ink;
     for (const [a, j, b, w] of DUMMY_LIMBS) { const pa = P(a), pj = P(j), pb = P(b); seg(pa.x, pa.y, pj.x, pj.y, pb.x, pb.y, w); }
@@ -4812,11 +4819,7 @@ PUBLIC.start = function (root, api) {
     ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(chest.x, chest.y); ctx.stroke();   // torso
     ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(chest.x, chest.y); ctx.lineTo(head.x, head.y); ctx.stroke(); // neck
     ctx.beginPath(); ctx.arc(head.x, head.y, DUMMY.headR, 0, Math.PI * 2); ctx.fill();
-    if (enemy && !d.defeated) {
-      ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 2;
-      const dir = d.dir || 1;
-      ctx.beginPath(); ctx.moveTo(head.x + dir * 2, head.y - 2); ctx.lineTo(head.x + dir * 8, head.y - 2); ctx.stroke();
-    }
+    if (accent) drawTeamBodyMarker(accent, hip.x, hip.y, chest.x, chest.y, head.x, head.y, DUMMY.headR, d.dir || 1);
     const tx = lerp(hip.x, chest.x, 0.55), ty = lerp(hip.y, chest.y, 0.55);
     ctx.beginPath(); ctx.arc(tx, ty, 7, 0, Math.PI * 2); ctx.fillStyle = '#e7e0d2'; ctx.fill();
     ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = enemy ? '#ff5a5a' : hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
@@ -5291,6 +5294,99 @@ PUBLIC.start = function (root, api) {
       const cx = (hipX + shX) * 0.5 + Math.cos(a) * (10 + i * 2);
       const cy = (hipY + shY) * 0.5 + Math.sin(a) * (10 + i * 2);
       traceWobblyCirclePath(cx, cy, 18 + i * 5, { phase: a + now * 0.001, rough: 0.16, steps: 18 });
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function actorTeamAccent(act) {
+    if (!act) return null;
+    if (act.team === 'hero') return { role: 'hero', color: '#35d9ff', glow: '#e9fbff', alpha: 0.84, core: 5.8, ground: 1.0 };
+    if (act.team === 'ally') {
+      if (act.spirit) return { role: 'spirit', color: '#b48cff', glow: '#f5efff', alpha: 0.76, core: 5.3, ground: 0.82 };
+      if (act.decoy) return { role: 'decoy', color: '#9cff5e', glow: '#f1ffe6', alpha: 0.72, core: 5.0, ground: 0.78 };
+      return { role: 'ally', color: '#53d4ff', glow: '#eefbff', alpha: 0.70, core: 5.1, ground: 0.76 };
+    }
+    if (act.team === 'enemy') return { role: 'enemy', color: '#ff744d', glow: '#ffe0d4', alpha: 0.72, core: 4.9, ground: 0.68 };
+    return null;
+  }
+  function drawTeamGroundMarker(accent, f) {
+    if (!accent) return;
+    const pulse = 0.72 + 0.28 * Math.sin(performance.now() * 0.004 + (player.x || 0) * 0.02);
+    const w = accent.role === 'hero' ? 26 : accent.role === 'enemy' ? 22 : 23;
+    const y = 5.5;
+    const parentAlpha = ctx.globalAlpha;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = parentAlpha * accent.alpha * accent.ground * (accent.role === 'hero' ? 0.82 + pulse * 0.18 : 0.78);
+    ctx.strokeStyle = accent.color;
+    ctx.lineWidth = accent.role === 'hero' ? 2.4 : 2.0;
+    ctx.beginPath();
+    ctx.moveTo(-w, y);
+    ctx.quadraticCurveTo(-w * 0.78, y + 5, -w * 0.36, y + 6);
+    ctx.moveTo(w, y);
+    ctx.quadraticCurveTo(w * 0.78, y + 5, w * 0.36, y + 6);
+    if (accent.role === 'hero') {
+      ctx.moveTo(-4, y + 7);
+      ctx.lineTo(0, y + 10);
+      ctx.lineTo(4, y + 7);
+    } else if (accent.role === 'enemy') {
+      ctx.moveTo(f * 4, y + 8);
+      ctx.lineTo(f * 12, y + 3);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  function drawTeamBodyMarker(accent, hipX, hipY, shX, shY, headCX, headCY, headR, f) {
+    if (!accent) return;
+    const now = performance.now();
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.006 + (player.x || 0) * 0.03);
+    const cx = lerp(hipX, shX, 0.58);
+    const cy = lerp(hipY, shY, 0.58);
+    const parentAlpha = ctx.globalAlpha;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = parentAlpha * accent.alpha;
+    ctx.fillStyle = accent.color;
+    ctx.strokeStyle = accent.glow;
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.arc(cx, cy, accent.core + pulse * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = parentAlpha * accent.alpha * 0.92;
+    ctx.stroke();
+    ctx.globalAlpha = parentAlpha * (accent.role === 'hero' ? 0.72 : 0.50);
+    ctx.strokeStyle = accent.color;
+    ctx.lineWidth = accent.role === 'hero' ? 2.1 : 1.8;
+    if (accent.role === 'hero') {
+      const y = headCY - headR - 9;
+      ctx.beginPath();
+      ctx.moveTo(headCX - 7, y);
+      ctx.lineTo(headCX, y - 5 - pulse * 2);
+      ctx.lineTo(headCX + 7, y);
+      ctx.stroke();
+    } else if (accent.role === 'enemy') {
+      const y = headCY - headR - 2;
+      ctx.beginPath();
+      ctx.moveTo(headCX - f * 4, y);
+      ctx.lineTo(headCX + f * 7, y - 5);
+      ctx.lineTo(headCX + f * 13, y - 2);
+      ctx.stroke();
+    } else if (accent.role === 'spirit') {
+      const y = headCY - headR - 8;
+      ctx.beginPath();
+      ctx.moveTo(headCX, y - 4 - pulse * 2);
+      ctx.quadraticCurveTo(headCX + 5, y + 1, headCX, y + 7);
+      ctx.quadraticCurveTo(headCX - 5, y + 1, headCX, y - 4 - pulse * 2);
+      ctx.stroke();
+    } else {
+      const y = headCY - headR - 6;
+      ctx.beginPath();
+      ctx.moveTo(headCX - 6, y);
+      ctx.lineTo(headCX + 6, y);
+      ctx.moveTo(headCX, y - 6);
+      ctx.lineTo(headCX, y + 6);
       ctx.stroke();
     }
     ctx.restore();
@@ -8595,6 +8691,9 @@ PUBLIC.start = function (root, api) {
 
     if (hiddenFade > 0) drawHiddenSilhouette(hipX, hipY, shX, shY, headCX, headCY, hiddenFade, f);
 
+    const teamAccent = actorTeamAccent(player);
+    drawTeamGroundMarker(teamAccent, f);
+
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
     if (cls.id === 'mage' && player.team === 'hero' && mageSpiritLoadoutActive() && (player.spiritCharges || 0) > 0) {
       drawSpiritOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.spiritCharges);
@@ -8808,6 +8907,7 @@ PUBLIC.start = function (root, api) {
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();          // spine
     ctx.beginPath(); ctx.arc(headCX + a.headLag * (1 - air), headCY, headR, 0, Math.PI * 2); ctx.fill();
     drawPyromancerCrest(headCX + a.headLag * (1 - air), headCY, shX, shY, f, clamp((player.pyroBreath || 0) / 900, 0, 1));
+    drawTeamBodyMarker(teamAccent, hipX, hipY, shX, shY, headCX + a.headLag * (1 - air), headCY, headR, f);
 
     // ----- near leg -----
     lt = legFoot(p, -1);
