@@ -19,7 +19,7 @@ const GRA = 0.62, MAXV = 3.7, RUN_ACC = 0.7, AIR_ACC = 0.45;
 const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
-const ROGUE_MAX_KNIVES = 3, ROGUE_REGEN = 1850, ROGUE_BURST_MAX = 3, ROGUE_BURST_REGEN = 900;
+const ROGUE_MAX_KNIVES = 3, ROGUE_REGEN = 1850, ROGUE_BURST_MAX = 3, ROGUE_BURST_REGEN = 900, ROGUE_QUEUE_MS = 540;
 const RANGER_MAX_ARROWS = 7, RANGER_REGEN = 1350, RANGER_DRAW_MAX = 900;
 const RANGER_NOCK_TIME = 190, RANGER_RELOAD_TIME = 360, ARROW_GRAVITY = 0.13;
 const KNIGHT_SHIELD_TIME = 1250;
@@ -1060,6 +1060,7 @@ PUBLIC.start = function (root, api) {
   function triggerAttack(type, opts) {
     if (!player || state !== 'playing' || !type) return false;
     const a = player.anim;
+    if (cls.id === 'rogue' && !(opts && opts.queued)) player.queuedAttack = null;
     if (player.draw && player.draw.active && !(opts && opts.fromDraw)) return false;
     if (a.atkActive) return false;           // one swing at a time
     if (!(opts && opts.fromDraw) && !canUseAttackCooldown(type)) return false;
@@ -1982,6 +1983,29 @@ PUBLIC.start = function (root, api) {
     const i = player && player.anim ? (player.anim.rogueComboNext || 0) : 0;
     return i === 2 || i === 4 ? 'rogueStab' : 'dualSlash';
   }
+  function queueRogueAttack(type, slot) {
+    if (cls.id !== 'rogue' || !player || !player.anim || !player.anim.atkActive || !type) return false;
+    if (slot === 'attack' && !isRogueKnifeAttack(type)) return false;
+    if (slot === 'secondary' && type !== 'throw') return false;
+    if (!canRogueAttack(type)) return false;
+    player.queuedAttack = { type, slot, at: performance.now() };
+    return true;
+  }
+  function consumeQueuedRogueAttack() {
+    if (cls.id !== 'rogue' || !player || !player.queuedAttack) return false;
+    const q = player.queuedAttack;
+    player.queuedAttack = null;
+    if (performance.now() - q.at > ROGUE_QUEUE_MS) return false;
+    if (q.slot === 'attack') {
+      const type = q.type || rogueMainAttackType();
+      if (!type) return false;
+      const ok = triggerAttack(type, { queued: true });
+      if (ok && type !== 'legSweep') player.anim.rogueComboNext = ((player.anim.rogueComboNext || 0) + 1) % 5;
+      return ok;
+    }
+    if (q.slot === 'secondary') return triggerAttack(q.type || cls.alt, { queued: true });
+    return false;
+  }
   function runClickSlotAbility(spec, slot, fallbackCd) {
     if (!spec || !(spec.type === 'custom' || spec.effect)) return null;
     if (!cooldownReady(spec.id)) return false;
@@ -1992,6 +2016,10 @@ PUBLIC.start = function (root, api) {
   }
   function mainAttack() {
     const spec = equipped('attack');
+    if (cls.id === 'rogue' && player && player.anim && player.anim.atkActive) {
+      const queued = spec && spec.action === 'rogueCombo' ? rogueMainAttackType() : spec && spec.action || rogueMainAttackType();
+      return queueRogueAttack(queued, 'attack');
+    }
     const slotted = runClickSlotAbility(spec, 'attack', 650);
     if (slotted !== null) return slotted;
     if (cls.id === 'ranger' && (!spec || spec.type === 'attack')) return startRangerDraw(spec && spec.action || 'arrow');
@@ -2003,6 +2031,9 @@ PUBLIC.start = function (root, api) {
   }
   function altAttack() {
     const spec = equipped('secondary');
+    if (cls.id === 'rogue' && player && player.anim && player.anim.atkActive) {
+      return queueRogueAttack(spec && spec.action || cls.alt, 'secondary');
+    }
     const slotted = runClickSlotAbility(spec, 'secondary', 900);
     if (slotted !== null) return slotted;
     if (cls.id === 'ranger' && (!spec || spec.type === 'attack')) return startRangerDraw(spec && spec.action || cls.alt || 'volley');
@@ -2089,7 +2120,7 @@ PUBLIC.start = function (root, api) {
       team: 'hero', intent: input, cls: null,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0,
       knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, arrowAmmo: RANGER_MAX_ARROWS, arrowRegen: 0,
-      rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0,
+      rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
       hoverTargetY: null,
@@ -4220,6 +4251,7 @@ PUBLIC.start = function (root, api) {
     player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
     player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
     player.rogueAirJump = false;
+    player.queuedAttack = null;
   }
 
   function centerCam(snap) {
@@ -4274,7 +4306,10 @@ PUBLIC.start = function (root, api) {
       a.atkPhase = a.action.phase;
       const sp = strikePoint(a.atkType);
       if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType, a.rogueHand); }   // impact / release moment
-      if (a.atkT >= 1) { a.atkActive = false; a.atkT = 0; a.atkPhase = 'idle'; a.action = null; }
+      if (a.atkT >= 1) {
+        a.atkActive = false; a.atkT = 0; a.atkPhase = 'idle'; a.action = null;
+        consumeQueuedRogueAttack();
+      }
     }
     return moveAmt;
   }
