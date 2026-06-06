@@ -5225,9 +5225,10 @@ PUBLIC.start = function (root, api) {
     let life = opts.life || 2600;
     let r = opts.r || 152;
     if ((team || 'hero') === 'hero' && hasPassive('mg_resonance')) { life += 420; r *= 1.08; }
-    gravityFields.push({ x, y, team: team || 'hero', color: color || '#ff77d2', life, max: life, r, ultimate: !!opts.ultimate });
+    gravityFields.push({ x, y, team: team || 'hero', color: color || '#ff77d2', life, max: life, r, ultimate: !!opts.ultimate, tether: opts.tether !== false, phase: rand(0, Math.PI * 2) });
     burst(x, y, '#ffffff', opts.ultimate ? 28 : 22, opts.ultimate ? 4.8 : 3.8);
     burst(x, y, color || '#ff77d2', opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
+    spawnShockwaveRing(x, y, r, color || '#ff77d2', { life: opts.ultimate ? 520 : 360, width: opts.ultimate ? 6 : 4, yScale: 0.64, fill: opts.ultimate ? 0.10 : 0.06 });
     addShake(opts.ultimate ? 5.4 : 3.6, opts.ultimate ? 170 : 120);
   }
   function spawnGravityCore(x, y, team, color, opts) {
@@ -5321,6 +5322,7 @@ PUBLIC.start = function (root, api) {
   function implodeGravityField(g) {
     burst(g.x, g.y, '#ffffff', 26, 5.2);
     burst(g.x, g.y, g.color, 42, 5.8);
+    spawnShockwaveRing(g.x, g.y, g.r + 70, g.color, { life: g.ultimate ? 560 : 430, width: g.ultimate ? 6.5 : 5, yScale: 0.62, fill: g.ultimate ? 0.14 : 0.09 });
     addShake(5.6, 170);
     for (const b of boxes) {
       const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
@@ -7015,7 +7017,8 @@ PUBLIC.start = function (root, api) {
     drawSmokeZones();
     drawFireZones();
     for (const g of gravityFields) {
-      const pulse = Math.sin(performance.now() * 0.009) * 0.08 + 1;
+      const now = performance.now();
+      const pulse = Math.sin(now * 0.009 + (g.phase || 0)) * 0.08 + 1;
       const fade = clamp(g.life / g.max, 0, 1);
       const rr = g.r * pulse;
       const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
@@ -7029,14 +7032,21 @@ PUBLIC.start = function (root, api) {
       ctx.globalAlpha = 0.42 * fade;
       ctx.lineWidth = g.ultimate ? 2.2 : 1.6;
       for (let i = 0; i < 10; i++) {
-        const a = i * Math.PI * 2 / 10 + performance.now() * 0.0018;
-        const outer = rr * (0.86 + 0.05 * Math.sin(performance.now() * 0.006 + i));
+        const a = i * Math.PI * 2 / 10 + now * 0.0018 + (g.phase || 0);
+        const outer = rr * (0.86 + 0.05 * Math.sin(now * 0.006 + i + (g.phase || 0)));
         const inner = rr * 0.45;
         ctx.beginPath();
         ctx.moveTo(g.x + Math.cos(a) * outer, g.y + Math.sin(a) * outer);
         ctx.lineTo(g.x + Math.cos(a) * inner, g.y + Math.sin(a) * inner);
         ctx.stroke();
       }
+      if (g.tether) drawGravityCoreTethers(g, now);
+      ctx.globalAlpha = 0.82 * fade;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.ultimate ? 7 : 5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.92 * fade;
+      ctx.fillStyle = g.color;
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.ultimate ? 4.2 : 3.2, 0, Math.PI * 2); ctx.fill();
       if (g.ultimate) {
         ctx.globalAlpha = 0.36 * fade;
         ctx.beginPath(); ctx.arc(g.x, g.y, rr * 0.96, 0, Math.PI * 2); ctx.stroke();
