@@ -2315,6 +2315,7 @@ PUBLIC.start = function (root, api) {
       const p = aimedPoint(e.range || 420);
       spawnFireZone(p.x, p.y, player.team, { r: e.r || 132, life: 780, ultimate: true });
       radialActorPulse(p.x, p.y, e.r || 132, e.force || 24, player.team, '#ff6b32');
+      detonateBurningTargets(p.x, p.y, e.r || 132, (e.force || 24) + 10, player.team, '#ff6b32');
       pushBoxesRadial(p.x, p.y, e.force || 24, e.r || 132, player.team);
       return true;
     }
@@ -2322,6 +2323,7 @@ PUBLIC.start = function (root, api) {
       const p = aimedPoint(e.range || 540);
       spawnFireZone(p.x, p.y, player.team, { r: e.r || 220, life: e.life || 3600, ultimate: true });
       radialActorPulse(p.x, p.y, e.r || 220, 34, player.team, '#ff6b32');
+      detonateBurningTargets(p.x, p.y, e.r || 220, 45, player.team, '#ff6b32');
       pushBoxesRadial(p.x, p.y, 34, e.r || 220, player.team);
       return true;
     }
@@ -2600,7 +2602,7 @@ PUBLIC.start = function (root, api) {
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null, queuedFlash: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
-      hidden: 0, poisoned: 0, smokeBlind: 0, smokeBlindMax: 0, spiritCharges: 0,
+      hidden: 0, poisoned: 0, burned: 0, burnedMax: 0, smokeBlind: 0, smokeBlindMax: 0, spiritCharges: 0,
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
@@ -3940,7 +3942,7 @@ PUBLIC.start = function (root, api) {
     }
     const bones = DUMMY_BONES.map(([a, b]) => [a, b, Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y)]);
     return {
-      baseX: x, baseY: y, homeX: x, pts, bones, flash: 0,
+      baseX: x, baseY: y, homeX: x, pts, bones, flash: 0, burned: 0, burnedMax: 0,
       kind: opts.kind || 'dummy',
       patrolMin: opts.patrolMin == null ? x - 90 : opts.patrolMin,
       patrolMax: opts.patrolMax == null ? x + 90 : opts.patrolMax,
@@ -3955,6 +3957,26 @@ PUBLIC.start = function (root, api) {
     const steps = Math.max(1, Math.round(dt / 16.7));    // keep verlet stable if dt is large
     for (const d of dummies) {
       d.flash = Math.max(0, d.flash - dt);
+      d.burned = Math.max(0, (d.burned || 0) - dt);
+      if (d.burned <= 0) d.burnedMax = 0;
+      if ((d.burned || 0) > 0 && !d.defeated) {
+        d.burnTick = Math.max(0, (d.burnTick || 0) - dt);
+        const p = d.pts.chest;
+        if (p && Math.random() < 0.16) particles.push({
+          x: p.x + rand(-14, 14),
+          y: p.y + rand(-10, 18),
+          vx: rand(-0.35, 0.35),
+          vy: rand(-1.1, -0.2),
+          life: rand(170, 340),
+          max: 340,
+          color: Math.random() < 0.45 ? '#ffd45e' : '#ff6b32',
+          r: rand(1.2, 3.0),
+        });
+        if (d.kind === 'enemy' && d.burnTick <= 0) {
+          d.burnTick = 520;
+          hurtDummy(d, 0, -0.12, 4.2, p.x, p.y);
+        }
+      }
       updateEnemyAI(d, dt);
       for (let s = 0; s < steps; s++) dummyStep(d);
     }
@@ -4080,6 +4102,7 @@ PUBLIC.start = function (root, api) {
   function drawDummy(d) {
     const P = k => ({ x: d.pts[k].x - cam.x, y: d.pts[k].y - cam.y });
     const hot = clamp(d.flash / 200, 0, 1);
+    const burnFade = clamp((d.burned || 0) / Math.max(1, d.burnedMax || d.burned || 1), 0, 1);
     const enemy = d.kind === 'enemy';
     const ink = d.defeated ? '#6a6360' : hot > 0.02 ? '#a9544b' : enemy ? '#2c1618' : INK;
     const fL = P('footL'), fR = P('footR'), midX = (fL.x + fR.x) / 2, baseY = Math.max(fL.y, fR.y);
@@ -4104,6 +4127,7 @@ PUBLIC.start = function (root, api) {
     const tx = lerp(hip.x, chest.x, 0.55), ty = lerp(hip.y, chest.y, 0.55);
     ctx.beginPath(); ctx.arc(tx, ty, 7, 0, Math.PI * 2); ctx.fillStyle = '#e7e0d2'; ctx.fill();
     ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = enemy ? '#ff5a5a' : hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
+    if (burnFade > 0.02) drawBurnCue(tx, ty - 8, burnFade, enemy ? 1.08 : 0.96);
     ctx.restore();
   }
 
@@ -4504,9 +4528,49 @@ PUBLIC.start = function (root, api) {
     ctx.stroke();
     ctx.restore();
   }
+  function drawBurnCue(x, y, fade, scale) {
+    fade = clamp(fade || 0, 0, 1);
+    if (fade <= 0.02) return;
+    scale = scale || 1;
+    const now = performance.now();
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.011 + x * 0.03);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.18 + fade * 0.22;
+    ctx.fillStyle = '#ff6b32';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 20 * scale, (18 + pulse * 5) * scale, (6 + pulse * 2) * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.30 + fade * 0.34;
+    ctx.strokeStyle = '#ffd45e';
+    ctx.lineWidth = (1.4 + fade * 1.2) * scale;
+    ctx.setLineDash([7, 8]);
+    ctx.lineDashOffset = -now * 0.038;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 6 * scale, (23 + pulse * 5) * scale, (34 + pulse * 9) * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (let i = 0; i < 5; i++) {
+      const a = now * 0.004 + i * Math.PI * 2 / 5 + x * 0.01;
+      ctx.globalAlpha = (0.16 + fade * 0.28) * (0.55 + 0.45 * Math.sin(now * 0.007 + i));
+      ctx.strokeStyle = i % 2 ? '#ff6b32' : '#ffd45e';
+      ctx.lineWidth = 1.1 * scale;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * 10 * scale, y + Math.sin(a) * 8 * scale);
+      ctx.lineTo(x + Math.cos(a) * 24 * scale, y - 18 * scale + Math.sin(a) * 14 * scale);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawActorBurnCue(e) {
+    const fade = clamp((e && e.burned || 0) / Math.max(1, e && (e.burnedMax || e.burned) || 1), 0, 1);
+    if (fade <= 0.02 || !e || !e.cls) return;
+    const hover = ((e.anim && e.anim.fly) || 0) * ((e.cls.style && e.cls.style.hover) || 0);
+    drawBurnCue(e.x, e.y - e.cls.style.hipH - 46 - hover, fade, e.cls.id === 'lancer' ? 1.08 : 1);
+  }
   function drawFighters() {
     if (!fighters) return;
-    for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawSmokeDisruptedCue(e); drawFighterHealth(e); }
+    for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawSmokeDisruptedCue(e); drawActorBurnCue(e); drawFighterHealth(e); }
   }
   function drawSpiritAllyAura(a) {
     if (!a || !a.spirit) return;
@@ -4555,7 +4619,7 @@ PUBLIC.start = function (root, api) {
   }
   function drawAllies() {
     if (!allies) return;
-    for (const a of allies) { drawSpiritAllyAura(a); withActor(a, () => drawStick(a._moveAmt || 0)); drawFighterHealth(a); }
+    for (const a of allies) { drawSpiritAllyAura(a); withActor(a, () => drawStick(a._moveAmt || 0)); drawActorBurnCue(a); drawFighterHealth(a); }
   }
   function drawFighterHealth(e) {
     if (e.hp >= e.maxHp) return;
@@ -4796,6 +4860,8 @@ PUBLIC.start = function (root, api) {
     player.hunterHaste = Math.max(0, (player.hunterHaste || 0) - dtStep);
     player.hidden = Math.max(0, (player.hidden || 0) - dtStep);
     player.poisoned = Math.max(0, (player.poisoned || 0) - dtStep);
+    player.burned = Math.max(0, (player.burned || 0) - dtStep);
+    if (player.burned <= 0) player.burnedMax = 0;
     player.smokeBlind = Math.max(0, (player.smokeBlind || 0) - dtStep);
     if (player.smokeBlind <= 0) player.smokeBlindMax = 0;
     if ((player.poisoned || 0) > 0) {
@@ -4813,6 +4879,23 @@ PUBLIC.start = function (root, api) {
       if (player.team === 'enemy' && player.poisonTick <= 0) {
         player.poisonTick = 460;
         hurtFighter(player, 0, -0.1, 4, player.x, player.y - 44);
+      }
+    }
+    if ((player.burned || 0) > 0) {
+      player.burnTick = Math.max(0, (player.burnTick || 0) - dtStep);
+      if (Math.random() < 0.14) particles.push({
+        x: player.x + rand(-14, 14),
+        y: player.y - rand(18, 70),
+        vx: rand(-0.42, 0.42),
+        vy: rand(-1.15, -0.18),
+        life: rand(170, 340),
+        max: 340,
+        color: Math.random() < 0.45 ? '#ffd45e' : '#ff6b32',
+        r: rand(1.2, 3.0),
+      });
+      if (player.team === 'enemy' && player.burnTick <= 0) {
+        player.burnTick = 520;
+        hurtFighter(player, 0, -0.12, 4.0, player.x, player.y - 44);
       }
     }
     if ((player.hidden || 0) > 0 && Math.random() < 0.18) {
@@ -5553,6 +5636,104 @@ PUBLIC.start = function (root, api) {
     if ((team || 'hero') !== 'enemy' && dummies) for (const d of dummies) hitAny = pushDummyRadial(d, x, y, radius, force * 1.35, color) || hitAny;
     return hitAny;
   }
+  function markBurnActor(act, ms, color) {
+    if (!act || act.dead) return false;
+    const dur = ms || 1100;
+    act.burned = Math.max(act.burned || 0, dur);
+    act.burnedMax = Math.max(act.burnedMax || 0, dur);
+    act.flash = Math.max(act.flash || 0, 90);
+    if (Math.random() < 0.45) particles.push({
+      x: act.x + rand(-12, 12),
+      y: act.y - rand(24, 70),
+      vx: rand(-0.45, 0.45),
+      vy: rand(-1.1, -0.2),
+      life: rand(160, 330),
+      max: 330,
+      color: Math.random() < 0.45 ? '#ffd45e' : color || '#ff6b32',
+      r: rand(1.2, 3.0),
+    });
+    return true;
+  }
+  function markBurnDummy(d, ms, color) {
+    if (!d || d.defeated) return false;
+    const dur = ms || 1100;
+    d.burned = Math.max(d.burned || 0, dur);
+    d.burnedMax = Math.max(d.burnedMax || 0, dur);
+    d.flash = Math.max(d.flash || 0, 120);
+    const p = d.pts && d.pts.chest;
+    if (p && Math.random() < 0.55) particles.push({
+      x: p.x + rand(-14, 14),
+      y: p.y + rand(-10, 14),
+      vx: rand(-0.35, 0.35),
+      vy: rand(-1.0, -0.18),
+      life: rand(160, 330),
+      max: 330,
+      color: Math.random() < 0.45 ? '#ffd45e' : color || '#ff6b32',
+      r: rand(1.2, 3.0),
+    });
+    return true;
+  }
+  function markBurnsInFireZone(z, dur) {
+    const team = z.team || 'hero';
+    const actors = team === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
+    for (const t of actors) {
+      const d = Math.hypot(t.x - z.x, (t.y - 42) - z.y);
+      if (d <= z.r) markBurnActor(t, dur, z.color);
+    }
+    if (team !== 'enemy' && dummies) for (const d of dummies) {
+      const p = dummyNearest(d, z.x, z.y).p;
+      if (p && Math.hypot(p.x - z.x, p.y - z.y) <= z.r + 18) markBurnDummy(d, dur, z.color);
+    }
+  }
+  function detonateBurningTargets(x, y, radius, force, team, color) {
+    color = color || '#ff6b32';
+    let pops = 0;
+    const actors = (team || 'hero') === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
+    for (const t of actors.slice()) {
+      const d = Math.hypot(t.x - x, (t.y - 42) - y);
+      if (d > radius + 72 || (t.burned || 0) <= 0) continue;
+      const nx = (t.x - x) / (d || 1), ny = ((t.y - 42) - y) / (d || 1);
+      t.burned = 0;
+      t.burnedMax = 0;
+      burst(t.x, t.y - 44, '#ffd45e', 18, 4.8);
+      burst(t.x, t.y - 44, color, 24, 5.4);
+      spawnShockwaveRing(t.x, t.y - 42, 64, color, { life: 260, width: 3.2, yScale: 0.58, fill: 0.10 });
+      if ((team || 'hero') === 'enemy') hurtEnemyTarget(t, nx, ny - 0.18, force * 0.78, t.x, t.y - 42);
+      else hurtFighter(t, nx, ny - 0.18, force * 0.78, t.x, t.y - 42);
+      pops++;
+    }
+    if ((team || 'hero') !== 'enemy' && dummies) for (const d of dummies) {
+      if ((d.burned || 0) <= 0) continue;
+      const p = dummyNearest(d, x, y).p;
+      if (!p) continue;
+      const dist = Math.hypot(p.x - x, p.y - y);
+      if (dist > radius + 76) continue;
+      d.burned = 0;
+      d.burnedMax = 0;
+      const nx = (p.x - x) / (dist || 1), ny = (p.y - y) / (dist || 1);
+      burst(p.x, p.y, '#ffd45e', 16, 4.6);
+      burst(p.x, p.y, color, 22, 5.2);
+      spawnShockwaveRing(p.x, p.y, 58, color, { life: 240, width: 3.0, yScale: 0.58, fill: 0.09 });
+      hurtDummy(d, nx, ny - 0.16, force * 0.90, p.x, p.y);
+      pops++;
+    }
+    for (const b of boxes || []) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      const d = Math.hypot(cx - x, cy - y);
+      if (d > radius + 54) continue;
+      const heat = b.heat || 0;
+      if (heat > 20 || b.kind === 'barrel') {
+        heatBoxFromFire(b, { x, y, color, ultimate: true }, 38 + heat * 0.22);
+        pushBox(b, (cx - x) / (d || 1), (cy - y) / (d || 1) - 0.15, force * 0.42);
+        pops++;
+      }
+    }
+    if (pops > 0) {
+      addShake(Math.min(7.5, 3.8 + pops * 0.55), 160);
+      spawnShockwaveRing(x, y, radius + 22, color, { life: 320, width: 4.2, yScale: 0.50, fill: 0.08 });
+    }
+    return pops;
+  }
   function updateFireZones(dtStep) {
     if (!fireZones) return;
     for (let i = fireZones.length - 1; i >= 0; i--) {
@@ -5568,6 +5749,7 @@ PUBLIC.start = function (root, api) {
       if (z.tick <= 0) {
         z.tick = z.ultimate ? 150 : 210;
         radialActorPulse(z.x, z.y, z.r, z.ultimate ? 10 : 6.2, z.team, z.color);
+        markBurnsInFireZone(z, z.ultimate ? 1650 : 1080);
         for (const b of boxes || []) {
           const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - z.x, cy - z.y) || 1;
           if (d > z.r) continue;
@@ -7423,6 +7605,7 @@ PUBLIC.start = function (root, api) {
               if (h) {
                 if (b.kind !== 'gravitySeed') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
                 if (b.poison) t.poisoned = Math.max(t.poisoned || 0, 1600);
+                if (b.fire) markBurnActor(t, 1350, b.color);
                 struckActor = true;
                 break;
               }
@@ -7433,6 +7616,7 @@ PUBLIC.start = function (root, api) {
               const h = projectileHitsDummy(b, px, py, d);
               if (h) {
                 if (b.kind !== 'gravitySeed') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
+                if (b.fire) markBurnDummy(d, 1350, b.color);
                 if (b.spirit) grantSpiritCharge(h.p.x, h.p.y, 0.35);
                 addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
@@ -7444,6 +7628,7 @@ PUBLIC.start = function (root, api) {
                   hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
                   if (b.pin) { e.vx *= 0.25; e.vy *= 0.25; e.brain.stagger = Math.max(e.brain.stagger || 0, 420); }
                   if (b.poison) e.poisoned = Math.max(e.poisoned || 0, 1800);
+                  if (b.fire) markBurnActor(e, 1350, b.color);
                   if (b.spirit) grantSpiritCharge(h.x, h.y, 0.5);
                 }
                 addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
@@ -7513,6 +7698,7 @@ PUBLIC.start = function (root, api) {
       queuedFlash: act.queuedFlash ? { slot: act.queuedFlash.slot } : null,
       cooldowns: Object.assign({}, act.cooldowns || {}),
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
+      burned: act.burned || 0,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
     };
   }
@@ -7556,6 +7742,10 @@ PUBLIC.start = function (root, api) {
             smokeZones: smokeZones ? smokeZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, poison: !!z.poison, team: z.team })) : [],
             shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
             spiritRemnants: spiritRemnants ? spiritRemnants.map(r => ({ x: r.x, y: r.y, groundY: r.groundY, life: r.life || 0, max: r.max || 0, source: r.source || 'enemy', bindable: r === bindableRemnant })) : [],
+            burningActors: (player && (player.burned || 0) > 0 ? 1 : 0) +
+              (fighters ? fighters.filter(e => (e.burned || 0) > 0).length : 0) +
+              (allies ? allies.filter(a => (a.burned || 0) > 0).length : 0) +
+              (dummies ? dummies.filter(d => (d.burned || 0) > 0).length : 0),
           },
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
@@ -7592,6 +7782,7 @@ PUBLIC.start = function (root, api) {
           smokeZones: effects.smokeZones ? effects.smokeZones.length : 0,
           shockwaves: effects.shockwaves ? effects.shockwaves.length : 0,
           spiritRemnants: effects.spiritRemnants ? effects.spiritRemnants.length : 0,
+          burningActors: effects.burningActors || 0,
         });
       }
     }
