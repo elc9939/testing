@@ -222,11 +222,11 @@ const ABILITIES = (() => {
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
   add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Mass Slam', desc: 'Grab nearby mass at the cursor and slam enemies, crates, barrels, and dummies downward into the arena.', effect: { kind: 'massSlam', force: 28, radius: 154, range: 380 }, cd: 3300, tags: ['Gravity', 'Damage', 'Crates'] });
   add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Gravity Well', desc: 'A shorter-range bloom that opens faster and pulls crates harder.', effect: { kind: 'field', r: 178, life: 2400, range: 360 }, cd: 1900, tags: ['Gravity', 'Crates'] });
-  add('mg_gravitycore', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'e', name: 'Gravity Core', desc: 'Event Horizon prototype: place one persistent core that slowly pulls enemies, dummies, crates, and barrels.', effect: { kind: 'gravityCore', r: 205, range: 460 }, cd: 2600, tags: ['Gravity', 'Crates', 'Field'] });
-  add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'True Horizon', desc: 'Event Horizon prototype: collapse the active Gravity Core into a larger implosion. If no core exists, create a short singularity.', effect: { kind: 'trueHorizon' }, cd: 10500, tags: ['Gravity', 'Pull', 'Crates'] });
+  add('mg_gravitycore', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'e', name: 'Archived Gravity Core', desc: 'Archived persistent-core experiment. Hidden from drafts while Graviturge stays focused on Mass Slam and Black Hole.', effect: { kind: 'gravityCore', r: 205, range: 460 }, cd: 2600, draft: false, tags: ['Gravity', 'Crates', 'Field'] });
+  add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'Archived Core Collapse', desc: 'Archived persistent-core collapse experiment. Hidden from drafts while Graviturge stays focused on Black Hole.', effect: { kind: 'trueHorizon' }, cd: 10500, draft: false, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_resonance', { cls: 'mage', branch: 'graviturge', tier: 4, slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure near affected enemies.', key: true, tags: ['Gravity', 'Projectile'] });
-  add('mg_eventhorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'passive', name: 'Event Horizon', desc: 'Advanced variation: Gravity Core lasts longer, pulls objects harder, and makes core detonation the build payoff.', key: true, tags: ['Gravity', 'Field'] });
-  add('mg_resonancepulse', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Resonance Pulse', desc: 'Pulse the active Gravity Core outward. Without a core, staff-slam a local shockwave.', effect: { kind: 'resonancePulse' }, cd: 7200, tags: ['Gravity', 'Shockwave', 'Crates'] });
+  add('mg_eventhorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'passive', name: 'Archived Core Keystone', desc: 'Archived persistent-core keystone. Hidden from drafts while Graviturge stays as one focused class.', key: true, draft: false, tags: ['Gravity', 'Field'] });
+  add('mg_resonancepulse', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Resonance Pulse', desc: 'Staff-slam a local gravity shockwave that shoves enemies and loose objects.', effect: { kind: 'resonancePulse' }, cd: 7200, tags: ['Gravity', 'Shockwave', 'Crates'] });
   add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast staff-led fire shot. It scorches a small pocket, burns targets, and starts the heat chain.', effect: { kind: 'firebolt', power: 1.18, scorch: 1 }, cd: 240, tags: ['Fire', 'Projectile', 'Burn'] });
   add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Flow', desc: 'Pour fire from the staff so it crawls across nearby ground, crates, and barrels instead of appearing from nowhere.', effect: { kind: 'groundFireFlow', range: 320, life: 1550, lanes: 5 }, cd: 2200, tags: ['Fire', 'Field', 'Barrels'] });
   add('mg_flamebreath', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'secondary', name: 'Flame Breath', desc: 'Channel a dense stream of fire and smoke from the staff, pushing bodies and heating barrels in its path.', effect: { kind: 'flameBreath', range: 286, life: 760, cone: 0.56, force: 15, heat: 20 }, cd: 1750, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
@@ -366,12 +366,12 @@ const ABILITIES = (() => {
   add('ln_dragnet', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'passive', name: 'Dragnet', desc: 'Keystone: two anchors form a slowing line that can yank crossing enemies.', key: true, prereq: ['ln_wardenanchor', 'ln_winchstep'], tags: ['Pull', 'Walls'] });
 
   add('mg_motes', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'passive', name: 'Gravity Motes', desc: 'Class mechanic: gravity casts create motes that strengthen pull and lift.', key: true, tags: ['Gravity'] });
-  add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Shard', desc: 'Throw a denser piece of lifted debris. It hits harder, tumbles through crates, and feeds Gravity Core resonance.', effect: { kind: 'gravityDebris', power: 1.28, core: 0.42 }, cd: 240, tags: ['Gravity', 'Projectile', 'Crates'] });
-  add('mg_orbitbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Orbit Shard', desc: 'Throw debris from your orbit; if a Gravity Core exists, the shard launches from the core and bends around it.', effect: { kind: 'gravityDebris', power: 1.08, orbit: 1, core: 0.52 }, cd: 220, tags: ['Gravity', 'Projectile', 'Crates'] });
+  add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Shard', desc: 'Throw a dense lifted shard. It hits harder, tumbles through crates, and keeps the gravity-debris loop active.', effect: { kind: 'gravityDebris', power: 1.28, core: 0.42 }, cd: 240, tags: ['Gravity', 'Projectile', 'Crates'] });
+  add('mg_orbitbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Orbit Shard', desc: 'Archived orbit-core shard experiment. Hidden from drafts while Mass Shard remains the main Graviturge attack.', effect: { kind: 'gravityDebris', power: 1.08, orbit: 1, core: 0.52 }, cd: 220, draft: false, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_floatstep', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Float Step', desc: 'Short controlled hover drift that can cross gaps while aiming.', type: 'move', action: 'airDash', cd: 1700, tags: ['Movement', 'Gravity'] });
   add('mg_brake', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Gravity Brake', desc: 'Brake your own momentum while enemies and objects continue sliding past.', effect: { kind: 'gravityBrake' }, cd: 1500, tags: ['Gravity', 'Movement'] });
-  add('mg_orbitalcast', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'attack', name: 'Orbital Debris', desc: 'Gravity Core hurls heavy orbiting debris and nudges itself along your aim line.', effect: { kind: 'gravityDebris', power: 1.18, orbit: 1, shoveCore: 1, core: 0.72 }, cd: 205, prereq: 'mg_eventhorizon', tags: ['Gravity', 'Projectile', 'Crates'] });
-  add('mg_corestep', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'shift', name: 'Core Step', desc: 'Hover near the Gravity Core in a controlled orbit instead of a straight dash.', effect: { kind: 'coreStep' }, cd: 1600, prereq: 'mg_eventhorizon', tags: ['Gravity', 'Movement'] });
+  add('mg_orbitalcast', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'attack', name: 'Archived Orbital Debris', desc: 'Archived orbit-core attack experiment. Hidden from drafts.', effect: { kind: 'gravityDebris', power: 1.18, orbit: 1, shoveCore: 1, core: 0.72 }, cd: 205, prereq: 'mg_eventhorizon', draft: false, tags: ['Gravity', 'Projectile', 'Crates'] });
+  add('mg_corestep', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'shift', name: 'Archived Core Step', desc: 'Archived orbit-core movement experiment. Hidden from drafts.', effect: { kind: 'coreStep' }, cd: 1600, prereq: 'mg_eventhorizon', draft: false, tags: ['Gravity', 'Movement'] });
 
   add('mg_staticcharge', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'passive', name: 'Static Charge', desc: 'Class mechanic: airborne casts and grouped hits build lightning Charge.', key: true, tags: ['Projectile', 'Movement'] });
   add('mg_arcspear', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'attack', name: 'Arc Spear', desc: 'Thin precise lightning spear. Less area, higher direct shove.', effect: { kind: 'bolt', power: 1.45, wind: 1 }, cd: 240, tags: ['Projectile'] });
@@ -497,7 +497,6 @@ const LAB_BUILDS = {
   mage: [
     { id: 'base', name: 'Base Mage', note: 'Neutral starter caster: Arcane Bolt, Arcane Burst orb, Arc Sigil, and Arcane Nova.', loadout: {} },
     { id: 'graviturge', name: 'Graviturge Core', note: 'Damage gravity caster: Mass Shards, Gravity Well, hover drift, Mass Slam, and Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
-    { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital debris, Core Step, and True Horizon black-hole collapse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
     { id: 'spiritbinder', name: 'Spiritbinder', note: 'Necromancer prototype: spirit bolts, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
@@ -1948,7 +1947,7 @@ PUBLIC.start = function (root, api) {
     return gravity > 0 && gravity >= other;
   }
   function gravityDebrisMax() {
-    return MAGE_DEBRIS_MAX + (hasPassive('mg_eventhorizon') ? 1 : 0);
+    return MAGE_DEBRIS_MAX;
   }
   function spiritClassFromSource(source) {
     const id = source && String(source);
@@ -7826,7 +7825,7 @@ PUBLIC.start = function (root, api) {
   }
   function spawnGravityCore(x, y, team, color, opts) {
     opts = opts || {};
-    const r = (opts.r || 205) * (hasPassive('mg_eventhorizon') ? 1.12 : 1);
+    const r = opts.r || 205;
     gravityCore = {
       x, y,
       vx: 0, vy: 0,
@@ -7836,9 +7835,9 @@ PUBLIC.start = function (root, api) {
       max: r,
       age: 0,
       pulse: 0,
-      power: hasPassive('mg_eventhorizon') ? 1.24 : 1,
+      power: 1,
       resonance: 1,
-      resonanceMax: hasPassive('mg_eventhorizon') ? 5 : 4,
+      resonanceMax: 4,
       resonancePulse: 620,
     };
     burst(x, y, gravityHighlight(), 34, 4.4);
@@ -7848,7 +7847,7 @@ PUBLIC.start = function (root, api) {
   function chargeGravityCore(amount, x, y) {
     const g = gravityCore;
     if (!g) return 0;
-    const max = g.resonanceMax || (hasPassive('mg_eventhorizon') ? 5 : 4);
+    const max = g.resonanceMax || 4;
     const before = g.resonance || 0;
     g.resonance = clamp(before + (amount || 1), 0, max);
     g.resonancePulse = Math.max(g.resonancePulse || 0, 520);
@@ -8000,11 +7999,11 @@ PUBLIC.start = function (root, api) {
       return;
     }
     const g = Object.assign({}, gravityCore, {
-      r: gravityCore.r + (hasPassive('mg_eventhorizon') ? 104 : 72),
+      r: gravityCore.r + 72,
       color: gravityCore.color,
       ultimate: true,
       blackHole: true,
-      pullPower: hasPassive('mg_eventhorizon') ? 1.65 : 1.42,
+      pullPower: 1.42,
     });
     burst(g.x, g.y, gravityHighlight(), 62, 6.6);
     burst(g.x, g.y, g.color || gravityAccent(), 88, 7.4);
