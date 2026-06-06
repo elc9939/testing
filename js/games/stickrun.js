@@ -2853,11 +2853,19 @@ PUBLIC.start = function (root, api) {
       if (!startVisualAttack('pyroDragon', ang, { range: e.range || 760 })) return false;
       return startPyroBreath(ang, Object.assign({}, e, { dragon: true, spread: true, color: '#ff5a20' }));
     }
-    if (e.kind === 'spiritBolt') { spawnSpiritBolt(ang); return true; }
+    if (e.kind === 'spiritBolt') {
+      if (!startVisualAttack('cast', ang, { range: e.range || 420, kind: 'spiritBolt' })) return false;
+      spawnSpiritBolt(ang);
+      return true;
+    }
     if (e.kind === 'bindSpirit') return bindSpiritAlly();
     if (e.kind === 'soulFlare') return soulFlare();
     if (e.kind === 'graveCall') return graveCall();
-    if (e.kind === 'bolt') { spawnBolt(ang, e.power || 1.15, { wind: e.wind, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
+    if (e.kind === 'bolt') {
+      if (!startVisualAttack('cast', ang, { range: e.range || 420, kind: 'bolt' })) return false;
+      spawnBolt(ang, e.power || 1.15, { wind: e.wind, bounce: hasPassive('ricochet_key') ? 1 : 0, staffT: 0.38 });
+      return true;
+    }
     if (e.kind === 'gustDash') {
       startClassMove('airDash');
       pushBoxesRadial(player.x - f * 22, player.y - 44, 18, 112, player.team);
@@ -2881,7 +2889,11 @@ PUBLIC.start = function (root, api) {
       burst(player.x, player.y - 42, cls.color, 24, 4.4);
       return true;
     }
-    if (e.kind === 'portalShot') { spawnBolt(ang, 1.05, { portal: 1, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
+    if (e.kind === 'portalShot') {
+      if (!startVisualAttack('cast', ang, { range: e.range || 460, kind: 'portalShot' })) return false;
+      spawnBolt(ang, 1.05, { portal: 1, bounce: hasPassive('ricochet_key') ? 1 : 0, staffT: 0.38 });
+      return true;
+    }
     if (e.kind === 'riftCollapse') {
       const p = aimedPoint(520);
       spawnGravityField(p.x, p.y, player.team, cls.color, { r: 182, life: 1900, ultimate: true });
@@ -2952,7 +2964,11 @@ PUBLIC.start = function (root, api) {
     if (spec.use === 'bladeBarrage') return useBladeBarrage(ang);
     if (spec.use === 'bladeStorm') return useBladeStorm();
     if (spec.use === 'lancerAnchor') return useLancerAnchor();
-    if (spec.use === 'mageSigil') { spawnMageSigil(ang); return true; }
+    if (spec.use === 'mageSigil') {
+      if (!startVisualAttack('cast', ang, { range: 420, kind: 'mageSigil' })) return false;
+      spawnMageSigil(ang);
+      return true;
+    }
     if (spec.use === 'mageSingularity') return useMageSingularity();
     if (spec.use === 'rangerPower') return useRangerPowerShot(ang);
     if (spec.use === 'rangerStorm') return useRangerArrowStorm(ang);
@@ -6303,6 +6319,54 @@ PUBLIC.start = function (root, api) {
     const hipY = baseY - S.hipH + body.y;
     return { shX: hipX + upX * 30, shY: hipY + upY * 30, baseY };
   }
+  function staffFrontLength() {
+    if (cls && cls.id === 'mage' && magePyroLoadoutActive()) return 74;
+    if (cls && cls.id === 'mage' && mageGraviturgeLoadoutActive()) return 82;
+    return 68;
+  }
+  function staffCastTime(type, opts) {
+    opts = opts || {};
+    if (opts.t != null) return clamp(opts.t, 0, 1);
+    const a = player && player.anim;
+    if (a && a.atkActive && (!type || a.atkType === type || a.visualKind === type)) return clamp(a.atkT || 0, 0, 1);
+    if (type === 'pyroFirebolt') return 0.24;
+    if (type === 'pyroIgnite') return 0.38;
+    if (type === 'pyroBreath') return 0.22;
+    if (type === 'pyroDragon') return 0.18;
+    if (type === 'pyroGroundFlow') return 0.28;
+    if (type === 'arcaneBloom') return 0.42;
+    return 0.38;
+  }
+  function staffTipOrigin(ang, opts) {
+    opts = opts || {};
+    if (!player || !cls || cls.weapon !== 'staff') {
+      const px = player ? player.x : 0, py = player ? player.y - 76 : 0;
+      return { x: px + Math.cos(ang) * 42, y: py + Math.sin(ang) * 36, angle: ang };
+    }
+    const type = opts.type || 'cast';
+    const t = staffCastTime(type, opts);
+    const f = Math.cos(ang) >= 0 ? 1 : -1;
+    const S = cls.style || { hipH: 49 };
+    const body = attackBodyOffset(type, t, f);
+    const lean = (player.anim && player.anim.lean || 0) + body.lean;
+    const upX = Math.sin(lean) * f, upY = -Math.cos(lean);
+    const baseY = player.y - visualHoverOffset();
+    const hipX = player.x + body.x;
+    const hipY = baseY - (S.hipH || 49) + body.y;
+    const shX = hipX + upX * 30, shY = hipY + upY * 30;
+    const pose = weaponPose(type, t, ang, f, player.anim && player.anim.atkVar || 0);
+    const wc = armChain(shX, shY, pose.shAng, pose.elBend);
+    const staffAng = wc.foreAng + pose.wrBend;
+    const tipPad = opts.tipPad == null ? 3 : opts.tipPad;
+    const len = (opts.frontLen || staffFrontLength()) + tipPad;
+    return {
+      x: wc.hx + Math.cos(staffAng) * len,
+      y: wc.hy + Math.sin(staffAng) * len,
+      angle: staffAng,
+      handX: wc.hx,
+      handY: wc.hy,
+    };
+  }
   function meleeSegment(type, ang, t) {
     if (t == null) t = strikePoint(type);
     const f = player.facing, root = meleeRoot(type, t), shX = root.shX, shY = root.shY, baseY = root.baseY;
@@ -6395,8 +6459,9 @@ PUBLIC.start = function (root, api) {
   // a fast, punchy magic bolt (size = power)
   function spawnBolt(ang, power, opts) {
     opts = opts || {};
-    const shX = player.x, shY = player.y - 77, spd = 24;
-    const mx = shX + Math.cos(ang) * 46, my = shY + Math.sin(ang) * 46;
+    const origin = staffTipOrigin(ang, { type: opts.staffType || 'cast', t: opts.staffT });
+    const spd = 24;
+    const mx = origin.x, my = origin.y;
     projectiles.push({ kind: 'bolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1020, color: cls.color, r: 9.5 * power, hit: 14 * power, sparkle: 3, bounce: opts.bounce || 0, portal: opts.portal || 0, wind: opts.wind || 0 });
     burst(mx, my, '#ffffff', 18, 5.2); burst(mx, my, cls.color, 26, 4.6);
   }
@@ -6409,8 +6474,8 @@ PUBLIC.start = function (root, api) {
     return true;
   }
   function gravityStaffOrigin(ang) {
-    const shX = player.x, shY = player.y - 76;
-    return { x: shX + Math.cos(ang) * 42, y: shY + Math.sin(ang) * 34 };
+    const activeT = player && player.anim && player.anim.atkActive ? player.anim.atkT : 0;
+    return staffTipOrigin(ang, { type: 'cast', t: activeT > 0.08 ? activeT : 0.38, tipPad: 0 });
   }
   function gravityAccent() {
     return GRAVITY_COLORS.violet;
@@ -6700,8 +6765,9 @@ PUBLIC.start = function (root, api) {
     burst(player.x + player.facing * 28, player.y - 46, '#dcecff', 10, 2.2);
   }
   function spawnGravitySeed(ang) {
-    const shX = player.x, shY = player.y - 76, spd = 16.5;
-    const mx = shX + Math.cos(ang) * 40, my = shY + Math.sin(ang) * 40;
+    const origin = staffTipOrigin(ang, { type: 'arcaneBloom', t: 0.42 });
+    const spd = 16.5;
+    const mx = origin.x, my = origin.y;
     const range = clamp(player.anim.atkRange || 500, 130, 580);
     projectiles.push({ kind: 'gravitySeed', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
       life: 900, color: cls.color, r: 10, hit: 0, angle: ang, range, traveled: 0 });
@@ -6709,8 +6775,9 @@ PUBLIC.start = function (root, api) {
     burst(mx, my, cls.color, 28, 4.2);
   }
   function spawnArcaneOrb(ang) {
-    const shX = player.x, shY = player.y - 76, spd = 19.5;
-    const mx = shX + Math.cos(ang) * 42, my = shY + Math.sin(ang) * 36;
+    const origin = staffTipOrigin(ang, { type: 'arcaneBloom', t: 0.42 });
+    const spd = 19.5;
+    const mx = origin.x, my = origin.y;
     const range = clamp(player.anim.atkRange || 460, 120, 540);
     projectiles.push({
       kind: 'arcaneOrb',
@@ -6755,12 +6822,13 @@ PUBLIC.start = function (root, api) {
   }
   function spawnFirebolt(ang, power, opts) {
     opts = opts || {};
-    const shX = player.x, shY = player.y - 76, spd = 24.5 * (power || 1);
-    const mx = shX + Math.cos(ang) * 38, my = shY + Math.sin(ang) * 38;
+    const origin = staffTipOrigin(ang, { type: 'pyroFirebolt', t: 0.24, tipPad: 4 });
+    const spd = 24.5 * (power || 1);
+    const mx = origin.x, my = origin.y;
     projectiles.push({ kind: 'firebolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
       life: 900, color: '#ff6b32', r: 12.5, hit: 16.5 * (power || 1), angle: ang, fire: true,
       sparkle: 3, scorch: !!opts.scorch });
-    pyroStaffFlare(ang, 1.0);
+    pyroStaffFlare(ang, 1.0, origin);
     burst(mx, my, '#ffd45e', 22, 4.2);
     burst(mx, my, '#ff6b32', 24, 4.8);
     emitFlameJet(mx, my, ang, 18, { spread: 0.26, speed: 7.4, length: 28, life: 360, r: 4.8, color: '#ff6b32' });
@@ -6768,14 +6836,16 @@ PUBLIC.start = function (root, api) {
   }
   function spawnIgnitionOrb(ang, opts) {
     opts = opts || {};
-    const shX = player.x, shY = player.y - 74;
-    const origin = { x: shX + Math.cos(ang) * 42, y: shY + Math.sin(ang) * 26 };
+    let origin = staffTipOrigin(ang, { type: 'pyroIgnite', t: 0.32, tipPad: 4 });
     const aim = aimedPoint(opts.range || 520);
     const anchor = nearestPyroAnchor(aim.x, aim.y, opts.snap || 0, player.team);
     const target = anchor || aim;
-    const dx = target.x - origin.x, dy = target.y - origin.y;
+    let dx = target.x - origin.x, dy = target.y - origin.y;
+    let throwAng = Math.atan2(dy, dx);
+    origin = staffTipOrigin(throwAng, { type: 'pyroIgnite', t: 0.38, tipPad: 4 });
+    dx = target.x - origin.x; dy = target.y - origin.y;
+    throwAng = Math.atan2(dy, dx);
     const dist = clamp(Math.hypot(dx, dy) || 1, 90, opts.range || 520);
-    const throwAng = Math.atan2(dy, dx);
     const spd = 19.6;
     projectiles.push({
       kind: 'ignitionOrb',
@@ -6795,7 +6865,7 @@ PUBLIC.start = function (root, api) {
       originY: origin.y,
       ignition: Object.assign({}, opts),
     });
-    pyroStaffFlare(throwAng, 1.45);
+    pyroStaffFlare(throwAng, 1.45, origin);
     emitFlameJet(origin.x, origin.y, throwAng, 24, { spread: 0.36, speed: 7.4, length: 34, life: 420, r: 5.4, color: '#ff6b32' });
     emitSmokePuff(origin.x - Math.cos(throwAng) * 6, origin.y + 2, throwAng + Math.PI, 8, { speed: 1.4, life: 860, alpha: 0.28 });
     addShake(1.8, 85);
@@ -6857,8 +6927,9 @@ PUBLIC.start = function (root, api) {
     addShake(4.8, 150);
   }
   function spawnSpiritBolt(ang) {
-    const shX = player.x, shY = player.y - 76, spd = 19.5;
-    const mx = shX + Math.cos(ang) * 38, my = shY + Math.sin(ang) * 38;
+    const origin = staffTipOrigin(ang, { type: 'cast', t: 0.38, tipPad: 4 });
+    const shX = origin.handX || player.x, shY = origin.handY || player.y - 76, spd = 19.5;
+    const mx = origin.x, my = origin.y;
     projectiles.push({ kind: 'spiritBolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
       life: 920, color: '#b48cff', r: 10, hit: 11, angle: ang, spirit: true });
     emitSoulWisp(shX - player.facing * 8, shY + 12, mx, my, { count: 12, color: '#b48cff', lifeMin: 220, lifeMax: 520 });
@@ -6986,11 +7057,16 @@ PUBLIC.start = function (root, api) {
     if (c.flameBreaths) parts.push(`${c.flameBreaths} breath`);
     return parts.length ? parts.join(' / ') : 'prime heat';
   }
-  function pyroStaffFlare(ang, scale) {
+  function pyroStaffFlare(ang, scale, origin) {
     if (!player || player.team !== 'hero') return;
     scale = scale || 1;
-    const sx = player.x + Math.cos(ang) * 20;
-    const sy = player.y - 72 + Math.sin(ang) * 20;
+    origin = origin || staffTipOrigin(ang, {
+      type: player.anim && player.anim.atkActive && isPyroVisualAttack(player.anim.atkType) ? player.anim.atkType : 'pyroFirebolt',
+      t: player.anim && player.anim.atkActive ? player.anim.atkT : 0.24,
+      tipPad: 4,
+    });
+    const sx = origin.x;
+    const sy = origin.y;
     burst(sx, sy, '#ffd45e', Math.round(10 * scale), 2.9 + scale);
     burst(sx, sy, '#ff6b32', Math.round(15 * scale), 3.3 + scale);
     emitFlameJet(sx, sy, ang, Math.round(12 + scale * 10), { spread: 0.38, speed: 4.9 + scale * 1.7, length: 22 + scale * 12, life: 340 + scale * 100, r: 4.2 + scale * 1.15, color: '#ff6b32' });
@@ -7132,6 +7208,12 @@ PUBLIC.start = function (root, api) {
     const ax = actor ? actor.x : player.x;
     const ay = actor ? actor.y : player.y;
     const castType = type || (actor && actor.anim && isPyroVisualAttack(actor.anim.atkType) ? actor.anim.atkType : 'pyroBreath');
+    if (!actor || actor === player) {
+      const castT = t == null
+        ? clamp(player && player.anim && isPyroVisualAttack(player.anim.atkType) ? player.anim.atkT : 0.22, 0, 1)
+        : clamp(t, 0, 1);
+      return staffTipOrigin(ang, { type: castType, t: castT, tipPad: 2 });
+    }
     if (castType === 'pyroBreath' || castType === 'pyroDragon') {
       const f = Math.cos(ang) >= 0 ? 1 : -1;
       const castT = t == null
@@ -7197,7 +7279,7 @@ PUBLIC.start = function (root, api) {
     player.vx -= Math.cos(ang) * (dragon ? 2.4 : 0.75);
     if (!player.grounded) player.vy -= dragon ? 0.45 : 0.18;
     const o = flameBreathOrigin(player, ang, dragon ? 'pyroDragon' : 'pyroBreath', dragon ? 0.18 : 0.22);
-    pyroStaffFlare(ang, dragon ? 2.75 : 1.80);
+    pyroStaffFlare(ang, dragon ? 2.75 : 1.80, o);
     emitFlameJet(o.x, o.y, ang, dragon ? 82 : 38, { spread: b.cone * (dragon ? 0.96 : 0.76), speed: dragon ? 11.2 : 7.8, length: dragon ? 78 : 44, life: dragon ? 680 : 440, r: dragon ? 11.4 : 6.8, color: b.color });
     emitSmokePuff(o.x - Math.cos(ang) * 8, o.y + 2, ang + Math.PI, dragon ? 30 : 12, { spread: dragon ? 1.14 : 0.88, speed: dragon ? 2.2 : 1.5, life: dragon ? 1320 : 860, alpha: dragon ? 0.36 : 0.28 });
     addShake(dragon ? 7.4 : 2.8, dragon ? 260 : 120);
@@ -7210,7 +7292,7 @@ PUBLIC.start = function (root, api) {
     const o = flameBreathOrigin(player, fireAng);
     const probe = { yScale: 0.38, dragon: false };
     const limit = flameRayBlockDistance(o, fireAng, opts.range || 320, probe);
-    pyroStaffFlare(fireAng, 1.3);
+    pyroStaffFlare(fireAng, 1.3, o);
     emitFlameJet(o.x, o.y, fireAng, 28, { spread: 0.34, speed: 6.6, length: 46, life: 460, r: 5.6, color: '#ff6b32' });
     const lanes = opts.lanes || 5;
     for (let i = 0; i < lanes; i++) {
@@ -7882,8 +7964,8 @@ PUBLIC.start = function (root, api) {
     }
   }
   function spawnMageSigil(ang) {
-    const shX = player.x, shY = player.y - 76;
-    const mx = shX + Math.cos(ang) * 42, my = shY + Math.sin(ang) * 42;
+    const origin = staffTipOrigin(ang, { type: 'cast', t: 0.38, tipPad: 4 });
+    const mx = origin.x, my = origin.y;
     projectiles.push({ kind: 'sigil', team: player.team, x: mx, y: my, vx: Math.cos(ang) * 8.6, vy: Math.sin(ang) * 8.6,
       life: 700, age: 0, color: cls.color, r: 18, hit: 19, angle: ang });
     burst(mx, my, '#ffffff', 22, 3.6);
@@ -8071,36 +8153,36 @@ PUBLIC.start = function (root, api) {
       elBend = s * lerp(-1.00, -0.20, bell);
       wrBend = s * 0.15 * (1 - bell);
     } else if (arc === 'pyroBolt') {
-      const snap = ease(clamp(t / 0.24, 0, 1));
-      const settle = ease(clamp((t - 0.24) / 0.56, 0, 1));
-      const draw = aim - s * 0.86;
-      const line = aim - s * 0.04;
+      const snap = ease(clamp(t / 0.22, 0, 1));
+      const settle = ease(clamp((t - 0.22) / 0.54, 0, 1));
+      const draw = aim - s * 0.54;
+      const line = aim - s * 0.02;
       shAng = lerpAngle(draw, line, snap);
-      elBend = s * lerp(-1.24, -0.12, snap);
-      wrBend = s * lerp(0.42, -0.16, snap) * (1 - settle * 0.55);
+      elBend = s * lerp(-0.88, -0.10, snap);
+      wrBend = s * lerp(0.28, -0.10, snap) * (1 - settle * 0.55);
     } else if (arc === 'pyroThrow') {
-      const up = -Math.PI / 2 - s * 0.20;
-      const back = aim - s * 1.06;
-      const snapT = ease(clamp((t - 0.24) / 0.18, 0, 1));
-      if (t < 0.24) shAng = lerpAngle(aim, up, ease(t / 0.24));
-      else if (t < 0.42) shAng = lerpAngle(up, aim + s * 0.16, snapT);
-      else shAng = lerpAngle(aim + s * 0.16, aim, ease(clamp((t - 0.42) / 0.42, 0, 1)));
-      elBend = s * kfa(t, [[0, -0.48], [0.18, -1.48], [0.34, -1.12], [0.46, -0.08], [0.66, 0.04], [1, -0.42]]);
-      wrBend = s * kfa(t, [[0, 0.22], [0.24, 0.92], [0.42, -0.54], [0.62, -0.10], [1, 0.16]]);
-      if (t < 0.16) shAng = lerpAngle(back, shAng, ease(t / 0.16));
+      const lift = aim - s * 0.46;
+      const back = aim - s * 0.62;
+      const snapT = ease(clamp((t - 0.20) / 0.18, 0, 1));
+      if (t < 0.20) shAng = lerpAngle(aim, lift, ease(t / 0.20));
+      else if (t < 0.38) shAng = lerpAngle(lift, aim + s * 0.10, snapT);
+      else shAng = lerpAngle(aim + s * 0.10, aim, ease(clamp((t - 0.38) / 0.42, 0, 1)));
+      elBend = s * kfa(t, [[0, -0.36], [0.18, -1.02], [0.32, -0.82], [0.44, -0.08], [0.64, 0.02], [1, -0.36]]);
+      wrBend = s * kfa(t, [[0, 0.16], [0.22, 0.56], [0.40, -0.32], [0.60, -0.06], [1, 0.12]]);
+      if (t < 0.14) shAng = lerpAngle(back, shAng, ease(t / 0.14));
     } else if (arc === 'pyroBreath') {
       const dragon = type === 'pyroDragon';
       const brace = ease(clamp(t / (dragon ? 0.12 : 0.18), 0, 1));
       const pulse = Math.sin(t * Math.PI * (dragon ? 7.0 : 5.5)) * (dragon ? 0.025 : 0.018) * brace;
-      shAng = lerpAngle(aim - s * (dragon ? 0.98 : 0.88), aim - s * (dragon ? 0.36 : 0.30), brace);
-      elBend = s * lerp(-1.06, dragon ? 0.34 : 0.30, brace);
+      shAng = lerpAngle(aim - s * (dragon ? 0.66 : 0.56), aim - s * (dragon ? 0.22 : 0.18), brace);
+      elBend = s * lerp(-0.82, dragon ? 0.20 : 0.16, brace);
       wrBend = aim + s * pulse - (shAng + elBend);
     } else if (arc === 'pyroFlow') {
       const target = Math.atan2(0.46 + Math.sin(aim) * 0.20, Math.cos(aim) || s);
       const pour = ease(clamp(t / 0.24, 0, 1));
-      shAng = lerpAngle(aim - s * 0.72, target - s * 0.20, pour);
-      elBend = s * lerp(-1.12, -0.24, pour);
-      wrBend = s * lerp(0.30, -0.34, pour);
+      shAng = lerpAngle(aim - s * 0.46, target - s * 0.12, pour);
+      elBend = s * lerp(-0.78, -0.18, pour);
+      wrBend = s * lerp(0.20, -0.24, pour);
     } else if (arc === 'throw') {
       const P = THROW_VARIANTS[v % THROW_VARIANTS.length];
       const up = -Math.PI / 2, back = P.raiseT, fwd = P.raiseT + 0.16;
