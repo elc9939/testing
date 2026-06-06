@@ -4168,8 +4168,27 @@ PUBLIC.start = function (root, api) {
     return { p: best, d: bd };
   }
   // apply an impulse AT a point on the body (displacing a verlet node = giving it velocity)
+  function pointInHeroSmoke(x, y) {
+    return !!(smokeZones && smokeZones.some(z => (z.team || 'hero') === 'hero' && Math.hypot(x - z.x, y - z.y) < z.r));
+  }
+  function rogueStealthPassiveActive() {
+    return hasPassive('rg_assassinate') || hasPassive('rg_nightshade');
+  }
+  function rogueStealthWindowAt(x, y, target) {
+    if (!player || player.team !== 'hero' || cls.id !== 'rogue' || !rogueStealthPassiveActive()) return false;
+    return (player.hidden || 0) > 0 || pointInHeroSmoke(player.x, player.y - 38) || pointInHeroSmoke(x, y) || !!(target && (target.poisoned || 0) > 0);
+  }
+  function rogueAssassinateMultiplier(target, hx, hy) {
+    if (!player || player.team !== 'hero' || cls.id !== 'rogue' || !rogueStealthPassiveActive()) return 1;
+    const wounded = target && target.maxHp && target.hp < target.maxHp * 0.55;
+    const stealth = rogueStealthWindowAt(hx == null ? player.x : hx, hy == null ? player.y - 44 : hy, target);
+    if (stealth && wounded) return 1.52;
+    if (stealth) return 1.28;
+    return wounded ? 1.34 : 1;
+  }
   function hurtDummy(d, nx, ny, force, hx, hy) {
-    const k = clamp(force, 4, 44);
+    const stealthMult = rogueStealthWindowAt(hx, hy, d) ? 1.24 : 1;
+    const k = clamp(force * stealthMult, 4, 44);
     nx = nx || 0; ny = ny || 0;
     const near = dummyNearest(d, hx, hy);
     if (!near.p) return;
@@ -4182,6 +4201,10 @@ PUBLIC.start = function (root, api) {
       p.x += nx * f2; p.y += ny * f2;
     }
     d.flash = 200;
+    if (stealthMult > 1) {
+      burst(hx, hy, '#cfe0f6', 12, 2.6);
+      burst(hx, hy, '#9cff5e', 7, 2.2);
+    }
     if (d.kind === 'enemy' && !d.defeated) {
       d.hp -= Math.max(0.5, k / 16);
       if (d.hp <= 0) {
@@ -4681,6 +4704,46 @@ PUBLIC.start = function (root, api) {
     const hover = ((e.anim && e.anim.fly) || 0) * ((e.cls.style && e.cls.style.hover) || 0);
     drawBurnCue(e.x, e.y - e.cls.style.hipH - 46 - hover, fade, e.cls.id === 'lancer' ? 1.08 : 1);
   }
+  function drawHiddenSilhouette(hipX, hipY, shX, shY, headCX, headCY, fade, f) {
+    if (fade <= 0.02) return;
+    const now = performance.now();
+    const night = hasPassive('rg_nightshade');
+    const tint = night ? '#9cff5e' : '#cfe0f6';
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.16 + fade * 0.30;
+    ctx.strokeStyle = tint;
+    ctx.lineWidth = 4.2;
+    ctx.setLineDash([7, 9]);
+    ctx.lineDashOffset = -now * 0.045;
+    ctx.beginPath();
+    ctx.moveTo(hipX - f * 9, hipY + 1);
+    ctx.quadraticCurveTo((hipX + shX) * 0.5 - f * 17, (hipY + shY) * 0.5 - 4, shX - f * 8, shY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(headCX - f * 7, headCY, 15 + fade * 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.10 + fade * 0.26;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      const a = now * 0.005 + i * Math.PI * 2 / 3;
+      ctx.beginPath();
+      ctx.ellipse(
+        (hipX + shX) * 0.5 + Math.cos(a) * (12 + i * 2),
+        (hipY + shY) * 0.5 + Math.sin(a) * (12 + i * 2),
+        20 + i * 6,
+        42 + i * 5,
+        Math.sin(a) * 0.10,
+        a * 0.16,
+        a * 0.16 + Math.PI * 1.38
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function drawFighters() {
     if (!fighters) return;
     for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawSmokeDisruptedCue(e); drawActorBurnCue(e); drawFighterHealth(e); }
@@ -4787,7 +4850,15 @@ PUBLIC.start = function (root, api) {
       if (hasPassive('hazard_sense') && nearHazardOrEdge(e)) tunedForce *= 1.22;
       if (hasPassive('ln_momentum') && cls.id === 'lancer' && player.anim && (player.anim.atkType === 'lanceCharge' || player.anim.atkType === 'braceThrust')) tunedForce *= nearHazardOrEdge(e) ? 1.38 : 1.16;
       if (hasPassive('executioner') && e.hp < e.maxHp * 0.45) tunedForce *= 1.28;
-      if (hasPassive('rg_assassinate') && e.hp < e.maxHp * 0.55) tunedForce *= 1.34;
+      const stealthMult = rogueAssassinateMultiplier(e, hx, hy);
+      if (stealthMult > 1) {
+        const sx = hx == null ? e.x : hx, sy = hy == null ? e.y - 44 : hy;
+        tunedForce *= stealthMult;
+        e.smokeBlind = Math.max(e.smokeBlind || 0, stealthMult > 1.4 ? 840 : 560);
+        e.smokeBlindMax = Math.max(e.smokeBlindMax || 0, e.smokeBlind);
+        burst(sx, sy, '#cfe0f6', 12, 2.8);
+        burst(sx, sy, '#9cff5e', 8, 2.3);
+      }
       if (hasPassive('ln_ironstance') && player.grounded && Math.abs(player.vx) < 0.35) tunedForce *= 1.32;
     }
     const k = clamp(tunedForce * (blocked ? 0.32 : 1), 4, 44);
@@ -6676,6 +6747,8 @@ PUBLIC.start = function (root, api) {
     const shFX = shX, shFY = shY, shBX = shX, shBY = shY;
     const hipFX = hipX, hipBX = hipX;
 
+    if (hiddenFade > 0) drawHiddenSilhouette(hipX, hipY, shX, shY, headCX, headCY, hiddenFade, f);
+
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
     if (cls.id === 'mage' && player.team === 'hero' && mageSpiritLoadoutActive() && (player.spiritCharges || 0) > 0) {
       drawSpiritOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.spiritCharges);
@@ -7877,7 +7950,7 @@ PUBLIC.start = function (root, api) {
       queuedFlash: act.queuedFlash ? { slot: act.queuedFlash.slot } : null,
       cooldowns: Object.assign({}, act.cooldowns || {}),
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
-      burned: act.burned || 0,
+      hidden: act.hidden || 0, smokeBlind: act.smokeBlind || 0, poisoned: act.poisoned || 0, burned: act.burned || 0,
       spiritCommand: act.spiritCommand ? { x: act.spiritCommand.x, y: act.spiritCommand.y, life: act.spiritCommand.life || 0, max: act.spiritCommand.max || 0, type: act.spiritCommand.type || 'point' } : null,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
     };
@@ -7911,6 +7984,16 @@ PUBLIC.start = function (root, api) {
           projectiles: projectiles ? projectiles.length : 0,
           gravityFields: gravityFields ? gravityFields.length : 0,
           smokeZones: smokeZones ? smokeZones.length : 0,
+          hiddenActors: (player && (player.hidden || 0) > 0 ? 1 : 0) +
+            (fighters ? fighters.filter(e => (e.hidden || 0) > 0).length : 0) +
+            (allies ? allies.filter(a => (a.hidden || 0) > 0).length : 0),
+          smokeBlinded: (player && (player.smokeBlind || 0) > 0 ? 1 : 0) +
+            (fighters ? fighters.filter(e => (e.smokeBlind || 0) > 0).length : 0) +
+            (allies ? allies.filter(a => (a.smokeBlind || 0) > 0).length : 0),
+          poisonedActors: (player && (player.poisoned || 0) > 0 ? 1 : 0) +
+            (fighters ? fighters.filter(e => (e.poisoned || 0) > 0).length : 0) +
+            (allies ? allies.filter(a => (a.poisoned || 0) > 0).length : 0) +
+            (dummies ? dummies.filter(d => (d.poisoned || 0) > 0).length : 0),
           shockwaves: shockwaves ? shockwaves.length : 0,
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
           spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).length : 0,
@@ -7923,6 +8006,16 @@ PUBLIC.start = function (root, api) {
             gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0, pulse: gravityCore.resonancePulse || 0 } : null,
             fireZones: fireZones ? fireZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, ultimate: !!z.ultimate, team: z.team })) : [],
             smokeZones: smokeZones ? smokeZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, poison: !!z.poison, team: z.team })) : [],
+            hiddenActors: (player && (player.hidden || 0) > 0 ? 1 : 0) +
+              (fighters ? fighters.filter(e => (e.hidden || 0) > 0).length : 0) +
+              (allies ? allies.filter(a => (a.hidden || 0) > 0).length : 0),
+            smokeBlinded: (player && (player.smokeBlind || 0) > 0 ? 1 : 0) +
+              (fighters ? fighters.filter(e => (e.smokeBlind || 0) > 0).length : 0) +
+              (allies ? allies.filter(a => (a.smokeBlind || 0) > 0).length : 0),
+            poisonedActors: (player && (player.poisoned || 0) > 0 ? 1 : 0) +
+              (fighters ? fighters.filter(e => (e.poisoned || 0) > 0).length : 0) +
+              (allies ? allies.filter(a => (a.poisoned || 0) > 0).length : 0) +
+              (dummies ? dummies.filter(d => (d.poisoned || 0) > 0).length : 0),
             shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
             spiritRemnants: spiritRemnants ? spiritRemnants.map(r => ({ x: r.x, y: r.y, groundY: r.groundY, life: r.life || 0, max: r.max || 0, source: r.source || 'enemy', bindable: r === bindableRemnant })) : [],
             spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).map(a => ({ x: a.x, y: a.y, life: a.spiritLife || 0, max: a.spiritMaxLife || 0, commanded: !!a.spiritCommand })) : [],
@@ -7966,6 +8059,9 @@ PUBLIC.start = function (root, api) {
           gravityCoreResonance: effects.gravityCore ? effects.gravityCore.resonance || 0 : 0,
           fireZones: effects.fireZones ? effects.fireZones.length : 0,
           smokeZones: effects.smokeZones ? effects.smokeZones.length : 0,
+          hiddenActors: effects.hiddenActors || 0,
+          smokeBlinded: effects.smokeBlinded || 0,
+          poisonedActors: effects.poisonedActors || 0,
           shockwaves: effects.shockwaves ? effects.shockwaves.length : 0,
           spiritRemnants: effects.spiritRemnants ? effects.spiritRemnants.length : 0,
           spiritAllies: effects.spiritAllies ? effects.spiritAllies.length : 0,
