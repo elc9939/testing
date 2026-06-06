@@ -33,6 +33,15 @@ Pages deploy doesn't include `tasks/`).
    `- [x] 2026-06-06 — Did the thing (#42)`.
 4. If something's ambiguous, I ask before building (lesson learned 😄).
 
+**On autopilot (optional):** a scheduled [Routine](https://code.claude.com/docs/en/routines)
+can work this backlog unattended every couple of hours — it reads
+`tasks/ROUTINE.md` and opens a *draft* PR for the top eligible item (you still
+review + merge). Set it up at [claude.ai/code/routines](https://claude.ai/code/routines):
+new routine → this repo → Schedule trigger → instructions `Read tasks/ROUTINE.md
+and follow it exactly`. For "every 2 hours" pick the **hourly** preset, then
+`/schedule update` in your local CLI to set cron `0 */2 * * *` (the minimum
+interval is 1 hour). Pause it anytime from the routine's detail page.
+
 ---
 
 ## 📥 Todo
