@@ -1152,6 +1152,10 @@ PUBLIC.start = function (root, api) {
     } else if (type === 'brace') {
       player.vx = player.facing * 3.0;
       burst(player.x, player.y - 28, cls.color, 8, 1.8);
+    } else if (type === 'slide') {
+      player.vx = player.facing * 9.0;
+      player.vy = Math.min(player.vy, 1.0);
+      burst(player.x - player.facing * 12, player.y - 9, cls.color, 10, 2.8);
     }
     return true;
   }
@@ -2819,11 +2823,11 @@ PUBLIC.start = function (root, api) {
     const crouch = clamp(Math.max(down * 0.72, slide, sweep * 0.88), 0, 1);
     return {
       crouch, down, slide, sweep, shoulder,
-      drop: Math.max(down * 17, slide * 28, sweep * 22, shoulder * 5),
-      lean: -act.facing * (down * 0.16 + slide * 0.72 + sweep * 0.42) + act.facing * shoulder * 0.16,
-      w: PW + slide * 28 + sweep * 18 + shoulder * 8,
-      h: PH - Math.max(down * 15, slide * 24, sweep * 20),
-      ox: act.facing * (slide * 9 + sweep * 7 + shoulder * 4),
+      drop: Math.max(down * 17, slide * 34, sweep * 22, shoulder * 5),
+      lean: -act.facing * (down * 0.16 + slide * 0.94 + sweep * 0.42) + act.facing * shoulder * 0.16,
+      w: PW + slide * 36 + sweep * 18 + shoulder * 8,
+      h: PH - Math.max(down * 15, slide * 31, sweep * 20),
+      ox: act.facing * (slide * 13 + sweep * 7 + shoulder * 4),
     };
   }
   function actorBox(act) {
@@ -4002,13 +4006,17 @@ PUBLIC.start = function (root, api) {
     const t = clamp(m.t, 0, 1), bell = Math.sin(t * Math.PI);
     m.phase = timelinePhase(m.spec || DEFAULT_MOTION, t);
     if (m.type === 'slide') {
-      player.vx = player.facing * (6.8 + 1.8 * (1 - t));
+      player.vx = player.facing * (7.4 + 2.2 * (1 - t));
       player.vy = Math.min(player.vy, 1.5);
+      if (Math.random() < 0.42) {
+        particles.push({ x: player.x - player.facing * rand(16, 34), y: player.y - rand(2, 9),
+          vx: -player.facing * rand(0.4, 1.6), vy: rand(-0.25, 0.35), life: rand(130, 260), max: 260, color: '#cfc6b6', r: rand(1.0, 2.4) });
+      }
       if (!m.struck && t > 0.32) {
         m.struck = true;
-        const b = actorBox(player), y = b.y + b.h - 10;
-        hitBoxesSegment(player.x + player.facing * 8, y, player.x + player.facing * 66, y - 2, player.facing, -0.35, 14, 12);
-        burst(player.x + player.facing * 30, y, cls.color, 10, 3);
+        const b = actorBox(player), y = b.y + b.h - 7;
+        hitBoxesSegment(player.x + player.facing * 4, y, player.x + player.facing * 82, y - 4, player.facing, -0.42, 16, 14);
+        burst(player.x + player.facing * 38, y, cls.color, 12, 3.4);
       }
     } else if (m.type === 'shieldStep') {
       player.vx = player.facing * (3.4 + bell * 2.6);
@@ -4420,6 +4428,7 @@ PUBLIC.start = function (root, api) {
     const shX = player.x + player.facing * 11, shY = player.y - 96, spd = 28;
     const mx = shX + Math.cos(ang) * 22, my = shY + Math.sin(ang) * 10;
     projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: opts.explosive ? 15 : 11, bounce: opts.bounce || 0, explosive: !!opts.explosive });
+    burst(mx, my, cls.color, 8, 2.4);
   }
   function arrowSpeed(power) {
     return 23 + 10 * clamp(power, 0.45, 1.55);
@@ -4731,7 +4740,7 @@ PUBLIC.start = function (root, api) {
     { back: -0.50, over: 0.78, raiseT: 0.18, cutT: 0.50, coil: 1.12, whip: 0.98, rising: true }, // rising uppercut
   ];
   const CHOP_VARIANTS = [{ lean: 0.45 }, { lean: 0.05 }, { lean: 0.80 }];
-  const THROW_VARIANTS = [{ raiseT: 0.20, over: 0.00 }, { raiseT: 0.16, over: 0.14 }];
+  const THROW_VARIANTS = [{ raiseT: 0.26, over: -0.08 }, { raiseT: 0.23, over: 0.08 }];
   function weaponPose(type, t, aim, f, v) {
     v = v | 0;
     const s = (Math.cos(aim) >= 0 ? 1 : -1);
@@ -5168,7 +5177,7 @@ PUBLIC.start = function (root, api) {
     hoverY = fly * (S.hover + Math.sin(now * 0.004) * 1.8);
 
     let postureLean = 0, guardCrouch = 0;            // (no cursor aiming for now)
-    if (moveType === 'slide') { postureLean -= f * 0.72; guardCrouch = 30 * Math.sin(moveT * Math.PI); }
+    if (moveType === 'slide') { postureLean -= f * 0.96; guardCrouch = 36 * Math.sin(moveT * Math.PI); }
     else if (moveType === 'shoulder' || moveType === 'shieldStep' || moveType === 'brace') postureLean += f * 0.16 * Math.sin(moveT * Math.PI);
     else if (moveType === 'airDash') postureLean += f * 0.22;
     if (posture.down > 0 || posture.sweep > 0) {
@@ -5176,8 +5185,8 @@ PUBLIC.start = function (root, api) {
       guardCrouch = Math.max(guardCrouch, posture.drop);
     }
     if (flipActive) {
-      postureLean += player.flip.dir * (0.52 * flipCurl + 0.26 * flipLead);
-      guardCrouch -= 17 * flipCurl;
+      postureLean += player.flip.dir * (0.70 * flipCurl + 0.20 * flipLead);
+      guardCrouch -= 23 * flipCurl;
     }
 
     // ----- attack scalars (whole-body reaction) -----
@@ -5197,7 +5206,7 @@ PUBLIC.start = function (root, api) {
       else if (ty === 'lunge' || ty === 'lanceCharge') { lungeT = t; const l = Math.max(0, lungeReach(t)); atkHip = f * l * 20; atkLean = f * l * 0.19; }
       else if (ty === 'cast' || ty === 'arcaneBloom') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
       else if (ty === 'arrow' || ty === 'volley') { shootT = t; atkHip = -f * bell * 2; atkLean = -f * bell * 0.05; }
-      else if (ty === 'throw') { throwT = t; atkHip = f * bell * 3; atkLean = -f * 0.08 + f * bell * 0.14; }
+      else if (ty === 'throw') { throwT = t; atkHip = f * bell * 5; atkLean = -f * 0.16 + f * bell * 0.24; }
       else { slashT = t; atkHip = f * bell * (ty === 'dualSlash' ? 4 : 6); atkLean = f * bell * (ty === 'dualSlash' ? 0.11 : 0.16); }   // slash body commit
     }
 
@@ -5215,8 +5224,8 @@ PUBLIC.start = function (root, api) {
     let shX = hipX + upX * torso, shY = hipY + upY * torso;
     let headCX = shX + upX * (neck + headR), headCY = shY + upY * (neck + headR);
     if (flipActive) {
-      headCX = lerp(headCX, hipX - player.flip.dir * (8 + flipLead * 5), flipCurl * 0.55);
-      headCY = lerp(headCY, hipY - 18 + Math.abs(flipLead) * 5, flipCurl * 0.55);
+      headCX = lerp(headCX, hipX - player.flip.dir * (13 + flipLead * 6), flipCurl * 0.68);
+      headCY = lerp(headCY, hipY - 13 + Math.abs(flipLead) * 3, flipCurl * 0.68);
     }
     headCX += clipHeadX;                                  // clip: head leads the cut
 
@@ -5259,13 +5268,13 @@ PUBLIC.start = function (root, api) {
       } else if (moveType === 'slide') {
         const frontLeg = legSign === -1;
         const slide = Math.sin(moveT * Math.PI);
-        foot.x = frontLeg ? f * (50 + 16 * slide) : -f * (30 + 10 * slide);
-        foot.y = frontLeg ? 1 : -20;
+        foot.x = frontLeg ? f * (62 + 18 * slide) : -f * (38 + 12 * slide);
+        foot.y = frontLeg ? 2 : -9;
       } else if (flipActive) {
         const kick = Math.sin((flipT + (legSign > 0 ? 0.12 : -0.08)) * Math.PI * 2);
         const cross = Math.sin((flipT + (legSign > 0 ? 0.20 : -0.16)) * Math.PI * 2);
-        foot.x = lerp(foot.x, -player.flip.dir * (3 + flipLead * 6) + legSign * 3 + cross * 2.4, flipTuck);
-        foot.y = lerp(foot.y, hipY + 3 + legSign * 2 + Math.abs(kick) * 1.5, flipTuck);
+        foot.x = lerp(foot.x, -player.flip.dir * (10 + flipLead * 5) + legSign * 4 + cross * 2.2, flipTuck);
+        foot.y = lerp(foot.y, hipY - 8 + legSign * 3 + Math.abs(kick) * 1.4, flipTuck);
       } else if (posture.down > 0) {
         const frontLeg = legSign === -1;
         foot.x = lerp(foot.x, frontLeg ? f * 13 : -f * 11, posture.down);
@@ -5294,8 +5303,8 @@ PUBLIC.start = function (root, api) {
       if (moveType === 'slide') {
         const front = theta === p;
         const slide = Math.sin(moveT * Math.PI);
-        hand.x = lerp(hand.x, shX + f * (front ? 32 : -18), slide);
-        hand.y = lerp(hand.y, shY + (front ? 18 : 24), slide);
+        hand.x = lerp(hand.x, shX + f * (front ? 44 : -24), slide);
+        hand.y = lerp(hand.y, shY + (front ? 25 : 29), slide);
       }
       if (posture.down > 0 || posture.sweep > 0) {
         const duck = Math.max(posture.down, posture.sweep);
@@ -5305,8 +5314,8 @@ PUBLIC.start = function (root, api) {
       }
       if (flipActive) {
         const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
-        hand.x = lerp(hand.x, shX - player.flip.dir * (5 + flipCurl * 8) + sweep * 3, flipCurl);
-        hand.y = lerp(hand.y, shY + 12 + flipCurl * 4, flipCurl);
+        hand.x = lerp(hand.x, shX - player.flip.dir * (10 + flipCurl * 9) + sweep * 2.2, flipCurl);
+        hand.y = lerp(hand.y, shY + 8 + flipCurl * 2, flipCurl);
       }
       return hand;
     }
@@ -5325,7 +5334,11 @@ PUBLIC.start = function (root, api) {
       offhandStretch = 1 + Math.sin(clamp(slashT, 0, 1) * Math.PI) * 0.18;
       h = { x: bc.hx, y: bc.hy };
     } else if (cls.id === 'rogue') {
-      h = { x: shX - f * 9, y: shY + 20 };                        // off dagger held at low guard
+      h = flipActive
+        ? { x: shX - player.flip.dir * (15 + flipCurl * 8), y: shY + 11 + flipCurl * 2 }
+        : moveType === 'slide'
+          ? { x: shX - f * 28, y: shY + 29 }
+          : { x: shX - f * 9, y: shY + 20 };                       // off dagger held at low guard
     } else if (cls.offhand === 'shield') {
       const guarding = (player.shieldGuard || 0) > 0 || (a.atkActive && a.atkType === 'shieldGuard');
       const push = guarding ? 0.72 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? Math.sin(Math.min(1, a.atkT || moveT) * Math.PI) : 0;
@@ -5384,7 +5397,7 @@ PUBLIC.start = function (root, api) {
 
     // ----- far leg ----- (knees bend forward: bend = -f; 0.6 = visually straighter)
     let lt = legFoot(p + Math.PI, +1);
-    const flipLegScale = flipActive ? lerp(1, 0.58, flipTuck) : 1;
+    const flipLegScale = flipActive ? lerp(1, 0.42, flipTuck) : 1;
     const farBend = flipActive ? player.flip.dir : -f;
     const nearBend = flipActive ? -player.flip.dir : -f;
     let k = ik(hipBX, hipY, hipBX + lt.x, lt.y, thigh * flipLegScale, shin * flipLegScale, farBend, flipActive ? 1 : 0.6);
@@ -5449,9 +5462,9 @@ PUBLIC.start = function (root, api) {
       } else if (cls.id === 'rogue') {
         drawAim = flipActive ? -Math.PI / 2 + player.flip.dir * 0.35 : f > 0 ? 0.12 : Math.PI - 0.12;
         handT = flipActive
-          ? { x: shX - player.flip.dir * (5 + flipCurl * 7), y: shY + 18 + flipCurl * 4 }
+          ? { x: shX - player.flip.dir * (12 + flipCurl * 8), y: shY + 11 + flipCurl * 2 }
           : moveType === 'slide'
-            ? { x: shX + f * 34, y: shY + 20 }
+            ? { x: shX + f * 46, y: shY + 24 }
             : posture.down > 0 || posture.sweep > 0
               ? { x: shX + f * 18, y: shY + 27 }
             : { x: shX + f * 16, y: shY + 22 };
