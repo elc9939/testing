@@ -216,9 +216,9 @@ const ABILITIES = (() => {
   add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast staff-led fire shot. It scorches a small pocket, burns targets, and starts the heat chain.', effect: { kind: 'firebolt', power: 1.18, scorch: 1 }, cd: 240, tags: ['Fire', 'Projectile', 'Burn'] });
   add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Flow', desc: 'Pour fire from the staff so it crawls across nearby ground, crates, and barrels instead of appearing from nowhere.', effect: { kind: 'groundFireFlow', range: 320, life: 1550, lanes: 5 }, cd: 2200, tags: ['Fire', 'Field', 'Barrels'] });
   add('mg_flamebreath', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'secondary', name: 'Flame Breath', desc: 'Channel a physical cone of fire and smoke from the staff, pushing bodies and heating barrels in its path.', effect: { kind: 'flameBreath', range: 286, life: 760, cone: 0.56, force: 15, heat: 20 }, cd: 1750, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
-  add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, lights the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
+  add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, drags an afterburn trail across the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
   add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Dragon Breath', desc: 'Unleash a huge staff-driven fire torrent. Walls cut it off, objects catch heat, and the floor burns where the flame lands.', effect: { kind: 'dragonBreath', range: 760, life: 1350, cone: 0.42, force: 34, heat: 48 }, cd: 9600, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
-  add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire zones burn longer, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
+  add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire abilities feed lingering ground flames, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
   add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Haunting projectile that builds spirit charge on hit or KO.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
   add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Raise one stored spirit or pull a visible remnant from a nearby defeated body.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
   add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Soul Flare', desc: 'Spend a spirit charge for a short fear pulse that shoves enemies away from allies.', effect: { kind: 'soulFlare' }, cd: 3600, tags: ['Spirit', 'Allies', 'Push'] });
@@ -5812,12 +5812,40 @@ PUBLIC.start = function (root, api) {
       angle: throwAng,
       range: dist,
       traveled: 0,
+      originX: origin.x,
+      originY: origin.y,
       ignition: Object.assign({}, opts),
     });
     pyroStaffFlare(throwAng, 1.45);
     emitFlameJet(origin.x, origin.y, throwAng, 24, { spread: 0.36, speed: 7.4, length: 34, life: 420, r: 5.4, color: '#ff6b32' });
     emitSmokePuff(origin.x - Math.cos(throwAng) * 6, origin.y + 2, throwAng + Math.PI, 8, { speed: 1.4, life: 860, alpha: 0.28 });
     addShake(1.8, 85);
+  }
+  function spawnIgnitionAfterburnTrail(fromX, fromY, toX, toY, team, opts) {
+    opts = opts || {};
+    if (fromX == null || fromY == null) return;
+    const dx = toX - fromX, dy = toY - fromY;
+    const len = Math.hypot(dx, dy) || 1;
+    const steps = clamp(Math.floor(len / 84), 2, 7);
+    for (let i = 1; i <= steps; i++) {
+      const t = i / (steps + 1);
+      const x = fromX + dx * t + rand(-18, 18);
+      const airY = fromY + dy * t;
+      const gy = terrainYAt(x);
+      if (Math.abs(gy - airY) > 180) continue;
+      const hot = hasPassive('mg_pyromancy');
+      spawnFireZone(x, gy - 4, team, {
+        r: hot ? rand(42, 62) : rand(30, 44),
+        w: hot ? rand(118, 172) : rand(74, 112),
+        life: hot ? rand(1500, 2300) : rand(720, 1100),
+        color: '#ff6b32',
+        ground: true,
+        spread: hot,
+        quiet: true,
+      });
+      if (hot) feedPyromancyGroundFire(x, gy, team, { r: 42, w: 128, life: 1500, radius: 130 });
+      pyroLink(fromX + dx * Math.max(0, t - 0.10), fromY + dy * Math.max(0, t - 0.10), x, gy - 18, '#ff6b32', 260);
+    }
   }
   function detonateIgnitionOrb(x, y, team, opts) {
     opts = opts || {};
@@ -5831,21 +5859,22 @@ PUBLIC.start = function (root, api) {
     emitSmokePuff(x, y, -Math.PI / 2, 18, { spread: 1.4, speed: 2.0, life: 1180, alpha: 0.33 });
     burst(x, y, '#ffd45e', 16, 4.8);
     burst(x, y, '#ff6b32', 22, 5.4);
+    spawnIgnitionAfterburnTrail(opts.fromX, opts.fromY, x, y, team, opts);
     if (groundish) spawnFireZone(x, groundY - 4, team, {
-      r: r * 0.38,
-      w: r * 1.45,
-      life: 1150,
+      r: r * (hasPassive('mg_pyromancy') ? 0.48 : 0.34),
+      w: r * (hasPassive('mg_pyromancy') ? 1.85 : 1.20),
+      life: hasPassive('mg_pyromancy') ? 1900 : 1050,
       color: '#ff6b32',
       ground: true,
-      spread: true,
+      spread: hasPassive('mg_pyromancy'),
       quiet: true,
     });
     else spawnFireZone(x, y, team, { r: r * 0.42, life: 720, color: '#ff6b32', quiet: true });
+    feedPyromancyGroundFire(x, y, team, { r: 56, w: 160, life: 1850, radius: 170, flare: 430 });
     flareNearbyFireZones(x, y, r + 100, team, '#ff6b32');
     radialActorPulse(x, y, r, force, team, '#ff6b32');
     detonateBurningTargets(x, y, r, force + 12, team, '#ff6b32', { link: true, chain: opts.chain });
     pushBoxesRadial(x, y, force, r, team);
-    spawnShockwaveRing(x, y, r + 18, '#ff6b32', { life: 300, width: 3.4, yScale: 0.46, fill: 0.06 });
     addShake(4.8, 150);
   }
   function spawnSpiritBolt(ang) {
@@ -5903,6 +5932,51 @@ PUBLIC.start = function (root, api) {
       fill: 0.12,
     });
     if (!opts.quiet) addShake(opts.ultimate ? 6.2 : 2.0, opts.ultimate ? 180 : 70);
+  }
+  function feedPyromancyGroundFire(x, y, team, opts) {
+    opts = opts || {};
+    team = team || 'hero';
+    if (team !== 'hero' || !hasPassive('mg_pyromancy')) return false;
+    const gy = terrainYAt(x);
+    if (y != null && Math.abs(gy - y) > (opts.maxDelta || 170)) return false;
+    const radius = opts.radius || 145;
+    let fed = false;
+    for (const z of fireZones || []) {
+      if ((z.team || 'hero') !== team || !z.ground) continue;
+      const d = Math.hypot(z.x - x, z.y - gy);
+      if (d > radius + z.r * 0.45) continue;
+      const bonus = opts.life || 980;
+      const oldMax = z.max || z.life || bonus;
+      z.max = Math.min(4600, Math.max(oldMax, oldMax + bonus * 0.28));
+      z.life = Math.min(z.max, Math.max(z.life || 0, bonus * 0.62) + bonus * 0.46);
+      z.flare = Math.max(z.flare || 0, opts.flare || 360);
+      z.spread = true;
+      z.spreadTick = Math.min(z.spreadTick || 260, 190);
+      fed = true;
+    }
+    if (!fed && (!fireZones || fireZones.length < 24)) {
+      spawnFireZone(x, gy - 4, team, {
+        r: opts.r || 42,
+        w: opts.w || 112,
+        life: opts.life || 980,
+        color: opts.color || '#ff6b32',
+        ground: true,
+        spread: true,
+        quiet: true,
+      });
+      fed = true;
+    }
+    if (fed) {
+      for (let i = 0; i < 6; i++) {
+        const px = x + rand(-32, 32), py = gy - rand(4, 16);
+        flameParticle(px, py, rand(-0.35, 0.35), rand(-1.7, -0.25), {
+          life: rand(240, 520),
+          r: rand(2.6, 7.6),
+          color: Math.random() < 0.42 ? '#ffd45e' : opts.color || '#ff6b32',
+        });
+      }
+    }
+    return fed;
   }
   function magePyroLoadoutActive() {
     if (!loadout) return false;
@@ -6089,6 +6163,7 @@ PUBLIC.start = function (root, api) {
     opts = opts || {};
     const life = opts.life || 720;
     const dragon = !!opts.dragon;
+    const pyromancy = (player.team || 'hero') === 'hero' && hasPassive('mg_pyromancy');
     const b = {
       actor: player,
       team: player.team || 'hero',
@@ -6104,7 +6179,7 @@ PUBLIC.start = function (root, api) {
       spreadTick: 0,
       color: opts.color || '#ff6b32',
       dragon,
-      spread: !!opts.spread,
+      spread: !!opts.spread || pyromancy,
       yScale: dragon ? 0.58 : 0.72,
     };
     flameBreaths.push(b);
@@ -6179,7 +6254,9 @@ PUBLIC.start = function (root, api) {
     }
   }
   function spreadGroundFireFromBreath(b, o) {
-    if (!b.spread || !fireZones || fireZones.length > 22) return;
+    if (!b.spread || !fireZones) return;
+    const pyromancy = (b.team || 'hero') === 'hero' && hasPassive('mg_pyromancy');
+    const atCap = fireZones.length > 22;
     const count = b.dragon ? 3 : 1;
     for (let i = 0; i < count; i++) {
       const a = b.angle + rand(-b.cone * 0.62, b.cone * 0.62);
@@ -6190,16 +6267,21 @@ PUBLIC.start = function (root, api) {
       const y = terrainYAt(p.x) - 4;
       if (Math.abs(y - p.y) > (b.dragon ? 150 : 90)) continue;
       const near = fireZones.some(z => Math.hypot(z.x - p.x, z.y - y) < z.r * 0.62);
-      if (near) continue;
+      if (near) {
+        feedPyromancyGroundFire(p.x, y, b.team, { r: b.dragon ? 62 : 38, w: b.dragon ? 176 : 110, life: b.dragon ? 1500 : 950, radius: b.dragon ? 152 : 116, maxDelta: 110 });
+        continue;
+      }
+      if (atCap) continue;
       spawnFireZone(p.x, y, b.team, {
         r: b.dragon ? rand(62, 92) : rand(38, 56),
         w: b.dragon ? rand(150, 230) : rand(88, 130),
-        life: b.dragon ? rand(1150, 1900) : rand(720, 1200),
+        life: b.dragon || pyromancy ? rand(1150, 1900) : rand(720, 1200),
         color: b.color,
         ground: true,
-        spread: b.dragon && Math.random() < 0.45,
+        spread: (b.dragon || pyromancy) && Math.random() < 0.45,
         quiet: true,
       });
+      feedPyromancyGroundFire(p.x, y, b.team, { r: b.dragon ? 62 : 38, w: b.dragon ? 176 : 110, life: b.dragon ? 1500 : 950, radius: b.dragon ? 152 : 116, maxDelta: 110 });
     }
   }
   function updateFlameBreaths(dtStep) {
@@ -8171,16 +8253,22 @@ PUBLIC.start = function (root, api) {
       const fade = clamp(z.life / z.max, 0, 1);
       const flare = clamp((z.flare || 0) / 420, 0, 1);
       const pulse = 1 + Math.sin(t * 0.011 + z.x) * (0.055 + flare * 0.035) + flare * 0.08;
-      const rr = z.r * pulse;
       const rw = (z.w || (z.ground ? z.r * 2.05 : z.r * 1.35)) * pulse;
       const rh = (z.ground ? z.r * 0.22 : z.r * 0.34) * (0.88 + flare * 0.10);
-      const grad = ctx.createRadialGradient(z.x, z.y, 3, z.x, z.y, Math.max(rw, rh));
-      grad.addColorStop(0, `rgba(255,212,94,${(0.24 + flare * 0.14) * fade})`);
-      grad.addColorStop(0.38, `rgba(255,107,50,${(0.20 + flare * 0.10) * fade})`);
-      grad.addColorStop(1, 'rgba(255,107,50,0)');
-      ctx.fillStyle = grad;
-      ctx.globalAlpha = (z.ground ? 0.58 : 0.42) * fade;
-      ctx.beginPath(); ctx.ellipse(z.x, z.y, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.18 * fade;
+      ctx.strokeStyle = '#5b1e12';
+      ctx.lineWidth = 2.2 + flare * 0.8;
+      ctx.beginPath();
+      const scorchN = 8;
+      for (let i = 0; i <= scorchN; i++) {
+        const u = -0.5 + i / scorchN;
+        const x = z.x + u * rw * 1.12;
+        const y = z.y + Math.sin(t * 0.004 + i * 1.9 + z.x * 0.02) * Math.max(2, rh * 0.22);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < (z.ground ? 14 : 10); i++) {
         const phase = t * 0.010 + i * 1.71 + z.x * 0.013;
@@ -8611,6 +8699,9 @@ PUBLIC.start = function (root, api) {
                 alpha: 0.24,
               });
             if (Math.random() < 0.18) emberParticle(b.x, b.y, -b.vx * rand(0.02, 0.05), rand(-1.3, 0.2));
+            if ((b.team || 'hero') === 'hero' && hasPassive('mg_pyromancy') && Math.random() < 0.18) {
+              feedPyromancyGroundFire(b.x, b.y, b.team, { r: 24, w: 68, life: 720, radius: 84, maxDelta: 120, flare: 220 });
+            }
           }
           else if (b.kind === 'bolt' || b.kind === 'firebolt' || b.kind === 'spiritBolt') {
             for (let s = 0; s < (b.sparkle || 1); s++) if (Math.random() < 0.65) {
@@ -8713,12 +8804,27 @@ PUBLIC.start = function (root, api) {
             else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
             else if (b.kind === 'sigil') explodeSigil(b);
             else if (b.kind === 'firebolt') {
-              spawnFireZone(b.x, b.y, b.team, { r: b.scorch ? 102 : 86, life: b.scorch ? 1250 : 900, color: b.color, openingFlare: !!b.scorch });
+              const gy = terrainYAt(b.x);
+              if (Math.abs(gy - b.y) < 135) {
+                spawnFireZone(b.x, gy - 4, b.team, {
+                  r: b.scorch ? 44 : 34,
+                  w: b.scorch ? 116 : 82,
+                  life: b.scorch ? 980 : 660,
+                  color: b.color,
+                  ground: true,
+                  spread: b.scorch && (b.team || 'hero') === 'hero' && hasPassive('mg_pyromancy'),
+                  quiet: true,
+                });
+                feedPyromancyGroundFire(b.x, gy, b.team, { r: b.scorch ? 44 : 34, w: b.scorch ? 128 : 92, life: b.scorch ? 1300 : 920, radius: 118 });
+              } else {
+                emitFlameJet(b.x, b.y, -Math.PI / 2, 18, { spread: 1.05, speed: 4.0, length: 28, life: 380, r: 5.4, color: b.color });
+                emitSmokePuff(b.x, b.y, -Math.PI / 2, 8, { spread: 1.2, speed: 1.4, life: 780, alpha: 0.25 });
+              }
               radialActorPulse(b.x, b.y, b.scorch ? 112 : 92, b.scorch ? 15 : 12, b.team, b.color);
               detonateBurningTargets(b.x, b.y, b.scorch ? 86 : 64, b.scorch ? 18 : 12, b.team, b.color, { link: false, chain: false });
             }
             else if (b.kind === 'ignitionOrb') {
-              detonateIgnitionOrb(b.x, b.y, b.team, b.ignition || {});
+              detonateIgnitionOrb(b.x, b.y, b.team, Object.assign({}, b.ignition || {}, { fromX: b.originX, fromY: b.originY }));
             }
             else if (b.kind === 'spiritBolt') {
               burst(b.x, b.y, '#b48cff', 20, 3.8);
