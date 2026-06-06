@@ -84,10 +84,10 @@ const CLASSES = [
     // tall & tanky: rooted feet, small bounce, hands braced around the lance
     style: { hipH: 47, stanceW: 13, strideH: 13, lift: 6, bounceAmp: 0.8, cadence: 0.74, armStride: 4, baseLean: 0.02, squash: 0.75,
       breatheAmp: 0.75, breatheSpd: 0.0013, hover: 0, idle: 'lance', spring: { lean: [85, 24], head: [75, 24], aim: [110, 25] } } },
-  { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Floaty staff caster.',
+  { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Neutral staff caster.',
     weapon: 'staff', main: 'cast', alt: 'arcaneBloom', move: 'airDash',
     reach: 0.96, speedMul: 0.96, trail: [255, 140, 220], dur: { cast: 210, arcaneBloom: 420 }, moveDur: { airDash: 260 }, ranged: true, gravityMul: 1, fly: true,
-    // grounded until the player holds hover; then legs trail and the staff drives flight
+    // Base Mage stays grounded; Graviturge uses held hover and a stronger flying pose.
     style: { hipH: 49, stanceW: 5, strideH: 8, lift: 5, bounceAmp: 1.0, cadence: 0.72, armStride: 5, baseLean: -0.03, squash: 0.75,
       breatheAmp: 1.5, breatheSpd: 0.0017, hover: 3, idle: 'mystic', spring: { lean: [62, 11], head: [55, 12], aim: [90, 12] } } },
   { id: 'ranger', name: 'Ranger', emoji: '🏹', color: '#53d4ff', blurb: 'Mobile bow shots.',
@@ -215,7 +215,7 @@ const ABILITIES = (() => {
   // Mage base + branches
   add('mg_bolt', { cls: 'mage', branch: 'starter', tier: 0, slot: 'attack', name: 'Arcane Bolt', desc: 'Simple staff shot for direct damage without pulling from any branch fantasy.', type: 'attack', action: 'cast', cd: 260, draft: false, tags: ['Projectile'] });
   add('mg_bloom', { cls: 'mage', branch: 'starter', tier: 0, slot: 'secondary', name: 'Arcane Burst', desc: 'Shoot a bright orb that travels to the target, then pops into a straightforward AOE blast.', type: 'attack', action: 'arcaneBloom', draft: false, tags: ['Projectile', 'AOE'] });
-  add('mg_dash', { cls: 'mage', branch: 'starter', tier: 0, slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
+  add('mg_dash', { cls: 'mage', branch: 'starter', tier: 0, slot: 'shift', name: 'Arcane Dash', desc: 'Short staff-led dash. Best for crossing gaps or slipping past pressure without borrowing the gravity hover fantasy.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
   add('mg_sigil', { cls: 'mage', branch: 'starter', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
   add('mg_arcane_nova', { cls: 'mage', branch: 'starter', tier: 0, slot: 'q', name: 'Arcane Nova', desc: 'Release a clean circular blast around the staff, shoving enemies and loose objects away.', effect: { kind: 'arcaneNova', r: 168, force: 26 }, cd: 9000, draft: false, tags: ['AOE', 'Push'] });
   add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Create a violent black hole that drags enemies, debris, crates, and dummies inward, damages them, then collapses hard.', effect: { kind: 'blackHole', r: 265, life: 2200, range: 620, force: 1.15 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
@@ -1937,8 +1937,7 @@ PUBLIC.start = function (root, api) {
   }
   function mageGraviturgeLoadoutActive() {
     if (!player || !cls || cls.id !== 'mage') return false;
-    if (player.team === 'enemy') return true;
-    if (!loadout) return true;
+    if (!loadout) return false;
     let gravity = 0, other = 0;
     for (const slot of ['attack', 'secondary', 'e', 'q', 'passive']) {
       const spec = ability(loadout[slot]);
@@ -6208,6 +6207,12 @@ PUBLIC.start = function (root, api) {
     if (cls.id !== 'mage' || !mageGraviturgeLoadoutActive() || !it || !it.jumpHeld) return false;
     return player.team === 'enemy' || (it.jumpHold || 0) >= MAGE_HOVER_DELAY;
   }
+  function mageFloatVisualTarget() {
+    if (cls.id !== 'mage') return activeMove('airDash') ? 1 : 0;
+    if (mageHovering()) return 1;
+    if (!activeMove('airDash')) return 0;
+    return mageGraviturgeLoadoutActive() ? 0.85 : 0.28;
+  }
   function tickJumpHold(act, dtStep) {
     const it = act && act.intent;
     if (!it) return;
@@ -6476,7 +6481,7 @@ PUBLIC.start = function (root, api) {
     const a = player.anim, S = cls.style, sp = Math.abs(player.vx), moveAmt = clamp(sp / maxV(), 0, 1);
     a.phase += (player.grounded ? sp * 0.0030 + 0.0010 : 0.0014) * dt * S.cadence;  // class gait tempo
     a.air = lerp(a.air, player.grounded ? 0 : 1, 1 - Math.pow(0.0006, dt / 1000));
-    a.fly = lerp(a.fly || 0, mageHovering() || activeMove('airDash') ? 1 : 0, 1 - Math.pow(0.0003, dt / 1000));
+    a.fly = lerp(a.fly || 0, mageFloatVisualTarget(), 1 - Math.pow(0.0003, dt / 1000));
     a.squash = lerp(a.squash, 0, 1 - Math.pow(0.004, dt / 1000));
     // ---- secondary-motion springs, tuned per class (the fluidity + personality layer) ----
     const dts = Math.min(dt, 32) / 1000;          // clamp for stability
@@ -6487,16 +6492,34 @@ PUBLIC.start = function (root, api) {
     springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
     if (cls.id === 'mage' && moveAmt < 0.12 && !a.atkActive && Math.random() < dt * 0.000075) {
       const pyroIdle = magePyroLoadoutActive();
-      particles.push({
-        x: player.x + rand(-18, 18),
-        y: player.y - rand(mageHovering() ? 44 : 34, mageHovering() ? 86 : 72),
-        vx: rand(-0.18, 0.18),
-        vy: pyroIdle ? rand(-0.38, -0.05) : rand(-0.55, -0.08),
-        life: pyroIdle ? rand(360, 680) : rand(420, 760),
-        max: 760,
-        color: pyroIdle ? (Math.random() < 0.58 ? '#ff6b32' : '#ffd45e') : (Math.random() < 0.5 ? '#ff77d2' : '#7ee7ff'),
-        r: pyroIdle ? rand(0.9, 2.0) : rand(1.1, 2.4),
-      });
+      const gravIdle = mageGraviturgeLoadoutActive();
+      const spiritIdle = mageSpiritLoadoutActive();
+      if (gravIdle) {
+        gravityParticle(player.x + rand(-32, 32), player.y - rand(52, 104), rand(-0.18, 0.18), rand(-0.36, 0.04), {
+          life: rand(260, 520),
+          color: gravityParticleColor(),
+          r: rand(1.0, 2.8),
+          tail: rand(5, 11),
+        });
+      } else if (spiritIdle) {
+        soulParticle(player.x + rand(-22, 22), player.y - rand(44, 92), rand(-0.18, 0.18), rand(-0.46, -0.04), {
+          color: Math.random() < 0.42 ? '#f5efff' : '#b48cff',
+          life: rand(360, 760),
+          r: rand(0.9, 2.2),
+          tail: rand(8, 18),
+        });
+      } else {
+        particles.push({
+          x: player.x + rand(-16, 16),
+          y: player.y - rand(34, 76),
+          vx: rand(-0.16, 0.16),
+          vy: pyroIdle ? rand(-0.38, -0.05) : rand(-0.40, -0.04),
+          life: pyroIdle ? rand(360, 680) : rand(340, 640),
+          max: 760,
+          color: pyroIdle ? (Math.random() < 0.58 ? '#ff6b32' : '#ffd45e') : (Math.random() < 0.55 ? '#ff77d2' : '#d8e4ff'),
+          r: pyroIdle ? rand(0.9, 2.0) : rand(0.8, 1.8),
+        });
+      }
     }
     if (a.atkActive) {
       if (!a.action || a.action.type !== a.atkType) a.action = startAttackAction(a.atkType);
