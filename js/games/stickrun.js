@@ -72,8 +72,8 @@ const CLASSES = [
     // armored duelist: grounded sword stance with a shield-side weight shift
     style: { hipH: 44, stanceW: 10, strideH: 12, lift: 9, bounceAmp: 4.4, cadence: 0.72, armStride: 8, baseLean: 0.01, squash: 1.25,
       breatheAmp: 1.9, breatheSpd: 0.0019, hover: 0, idle: 'shift', spring: { lean: [70, 20], head: [62, 20], aim: [135, 18] } } },
-  { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast thrown knives and slippery close-range backup.',
-    weapon: 'dagger', main: 'throw', alt: 'dualSlash', move: 'slide',
+  { id: 'rogue', name: 'Rogue', emoji: '🔪', color: '#9cff5e', blurb: 'Fast blades, thrown knives, and slippery close-range pressure.',
+    weapon: 'dagger', main: 'dualSlash', alt: 'throw', move: 'slide',
     reach: 0.78, speedMul: 1.32, trail: [150, 255, 110], dur: { dualSlash: 210, rogueStab: 225, throw: 225, legSweep: 250 }, moveDur: { slide: 300 }, dual: true,
     // athletic & quick: low knife stance, long smooth strides, restless hands
     style: { hipH: 46, stanceW: 5, strideH: 15, lift: 7, bounceAmp: 1.0, cadence: 1.14, armStride: 12, baseLean: 0.08, squash: 0.9,
@@ -165,10 +165,11 @@ const ABILITIES = (() => {
   add('kn_aftershock', { cls: 'knight', branch: 'earthbreaker', tier: 4, slot: 'passive', name: 'Aftershock', desc: 'Keystone: heavy hits leave a delayed object-shoving aftershock.', key: true, tags: ['Crates', 'Shockwave'] });
 
   // Rogue base + branches
-  add('rg_dual', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'secondary', name: 'Twin Slash', desc: 'Close-range backup that alternates both daggers when enemies get inside your throw lane.', type: 'attack', action: 'dualSlash', draft: false, tags: ['Burst'] });
+  add('rg_combo', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'attack', name: 'Knife Combo', desc: 'Default close-range Rogue chain: alternating slashes with occasional stabs, while Bladeslinger swaps this into knife throws.', type: 'attack', action: 'rogueCombo', draft: false, tags: ['Burst'] });
+  add('rg_dual', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'secondary', name: 'Twin Slash', desc: 'Close-range backup that alternates both daggers when enemies get inside your space.', type: 'attack', action: 'dualSlash', draft: false, tags: ['Burst'] });
   add('rg_throw', { cls: 'rogue', branch: 'bladeslinger', tier: 0, slot: 'attack', name: 'Knife Toss', desc: 'Quick overhand knife throw. Consumes one knife, then can be recovered or regenerated.', type: 'attack', action: 'throw', draft: false, tags: ['Projectile'] });
   add('rg_slide', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'shift', name: 'Slide', desc: 'Low evasive slide that changes your body hitbox.', type: 'move', action: 'slide', cd: 1400, draft: false, tags: ['Movement'] });
-  add('rg_fan', { cls: 'rogue', branch: 'bladeslinger', tier: 0, slot: 'e', name: 'Fan Knives', desc: 'Spend up to five knives in a wide, readable spread.', type: 'custom', use: 'rogueFan', cd: 2400, draft: false, tags: ['Projectile'] });
+  add('rg_fan', { cls: 'rogue', branch: 'bladeslinger', tier: 0, slot: 'e', name: 'Fan Knives', desc: 'Spend one knife to release a wide, readable fan of blades.', type: 'custom', use: 'rogueFan', cd: 2400, draft: false, tags: ['Projectile'] });
   add('rg_storm', { cls: 'rogue', branch: 'bladeslinger', tier: 0, slot: 'q', name: 'Blade Barrage', desc: 'Summon twenty floating knives that stagger, then streak toward targets one after another.', type: 'custom', use: 'bladeBarrage', cd: 9000, draft: false, tags: ['Projectile', 'Burst'] });
   add('rg_stab', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'attack', name: 'Needle Stabs', desc: 'A stab-heavy chain for tighter hitboxes and faster point pressure.', type: 'attack', action: 'rogueStab', tags: ['Burst'] });
   add('rg_dodgecut', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'shift', name: 'Dodge Cut', desc: 'Slide through pressure and clip the nearest enemy as you pass.', effect: { kind: 'moveStrike', move: 'slide', range: 72, force: 17 }, cd: 1500, tags: ['Movement', 'Burst'] });
@@ -460,7 +461,7 @@ for (const spec of Object.values(ABILITIES)) {
 }
 const CLASS_LOADOUT = {
   knight: { attack: 'kn_slash', secondary: 'kn_guard', shift: 'kn_step', e: 'kn_bash', q: 'kn_rally', passive: null },
-  rogue: { attack: 'rg_throw', secondary: 'rg_dual', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
+  rogue: { attack: 'rg_combo', secondary: 'rg_throw', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
   lancer: { attack: 'ln_thrust', secondary: 'ln_charge', shift: 'ln_brace', e: 'ln_anchor', q: 'ln_breaker', passive: null },
   mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_sigil', q: 'mg_arcane_nova', passive: null },
   ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
@@ -476,10 +477,10 @@ const LAB_BUILDS = {
     { id: 'siege', name: 'Siege Knight', note: 'Advanced Earthbreaker: shove objects, lock barricades, and break through clutter.', loadout: { attack: 'kn_siegepush', secondary: 'kn_cratebreaker', shift: 'kn_rampbreak', e: 'kn_lockbarricade', q: 'kn_faultline', passive: 'kn_siege' } },
   ],
   rogue: [
-    { id: 'base', name: 'Base Rogue', note: 'Starting kit for fast knife throws, slide, ammo recovery, and close-range backup slashes.', loadout: {} },
+    { id: 'base', name: 'Base Rogue', note: 'Starting kit for close-range knife chains, slide, ammo recovery, and secondary knife throws.', loadout: {} },
     { id: 'bladeslinger', name: 'Bladeslinger', note: 'Knife throwing: fast main toss, ricochet, dense fan knives, blade recall, and a tracking blade barrage.', loadout: { attack: 'rg_throw', secondary: 'rg_ricochet', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: 'rg_trapmaster' } },
-    { id: 'acrobat', name: 'Acrobat', note: 'Movement offense: sweep, wall kick, vault toss, air spiral.', loadout: { attack: 'rg_sweep', secondary: 'rg_throw', shift: 'rg_wallkick', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_bloodrush' } },
-    { id: 'skyblade', name: 'Skyblade Acrobat', note: 'Advanced Acrobat: heel rebound, diving stabs, and air spiral landings.', loadout: { attack: 'rg_divingneedle', secondary: 'rg_throw', shift: 'rg_heelrebound', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_skyblade' } },
+    { id: 'acrobat', name: 'Acrobat', note: 'Movement offense: sweep, wall kick, vault toss, air spiral.', loadout: { attack: 'rg_sweep', secondary: 'rg_dual', shift: 'rg_wallkick', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_bloodrush' } },
+    { id: 'skyblade', name: 'Skyblade Acrobat', note: 'Advanced Acrobat: heel rebound, diving stabs, and air spiral landings.', loadout: { attack: 'rg_divingneedle', secondary: 'rg_dual', shift: 'rg_heelrebound', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_skyblade' } },
     { id: 'nightshade', name: 'Nightshade', note: 'Smoke/poison stealth: poison knife, smoke slide, smoke bomb, venom cloud.', loadout: { attack: 'rg_stab', secondary: 'rg_poisonknife', shift: 'rg_smoke', e: 'rg_smokebomb', q: 'rg_venomcloud', passive: 'rg_nightshade' } },
   ],
   lancer: [
@@ -1378,11 +1379,11 @@ PUBLIC.start = function (root, api) {
   }
   function useRogueFanKnives(ang) {
     const maxFan = hasPassive('rg_trapmaster') ? 6 : 5;
-    const count = Math.min(player.knifeAmmo || 0, maxFan);
-    if (count <= 0) return false;
-    player.knifeAmmo -= count;
+    const count = maxFan;
+    if ((player.knifeAmmo || 0) <= 0) return false;
+    player.knifeAmmo--;
     player.knifeRegen = 0;
-    spawnKnifeSpread(ang, count, { hit: 13, speed: 31.5, bounce: hasPassive('rg_trapmaster') ? 1 : 0 });
+    spawnKnifeSpread(ang, count, { hit: 13, speed: 31.5, bounce: hasPassive('rg_trapmaster') ? 1 : 0, noDrop: true });
     burst(player.x + Math.cos(ang) * 24, player.y - 72 + Math.sin(ang) * 24, cls.color, 16, 3.4);
     if (count >= 5) spawnShockwaveRing(player.x + Math.cos(ang) * 54, player.y - 72 + Math.sin(ang) * 32, 92, cls.color, { life: 260, width: 3.4, fill: 0.05, rough: 0.070 });
     return true;
@@ -1393,24 +1394,29 @@ PUBLIC.start = function (root, api) {
     const cx = player.x;
     const cy = player.y - 58;
     for (let i = 0; i < total; i++) {
-      const ring = i % 2;
-      const a = ang + Math.PI + (i / total) * Math.PI * 2 + rand(-0.10, 0.10);
-      const rx = 42 + ring * 23 + rand(-4, 8);
-      const ry = 24 + ring * 15 + rand(-3, 7);
+      const ring = i % 3;
+      const side = i % 2 === 0 ? 1 : -1;
+      const fanT = total <= 1 ? 0.5 : i / (total - 1);
+      const a = ang + Math.PI + fanT * Math.PI * 2 + side * rand(0.08, 0.20);
+      const rx = 54 + ring * 24 + rand(-5, 12);
+      const ry = 32 + ring * 17 + rand(-4, 10);
       const x = cx + Math.cos(a) * rx;
       const y = cy + Math.sin(a) * ry;
-      const launch = a + rand(-0.75, 0.75);
+      const arcOut = (fanT - 0.5) * 1.42 + side * rand(0.22, 0.48);
+      const launch = ang + arcOut;
       spawnDagger(launch, {
         x, y,
-        speed: rand(0.5, 1.5),
+        speed: rand(1.1, 2.6),
         hit: 8.8,
         homing: true,
         summoned: true,
         noDrop: true,
         arm: 150 + i * 22,
         phase: a,
+        curve: side * rand(7.5, 14.0) + (fanT - 0.5) * 7.0,
+        curveLife: rand(520, 860),
         stagger: 540,
-        life: 2100 + i * 18,
+        life: 2300 + i * 20,
         color: cls.color,
         quiet: true,
       });
@@ -1427,8 +1433,8 @@ PUBLIC.start = function (root, api) {
     }
     burst(cx, cy, cls.color, 28, 4.6);
     burst(cx, cy, '#ffffff', 10, 2.8);
-    spawnShockwaveRing(cx, cy, 138, cls.color, { life: 420, width: 4.4, fill: 0.08, rough: 0.060 });
-    addShake(2.4, 130);
+    spawnShockwaveRing(cx, cy, 164, cls.color, { life: 500, width: 5.0, fill: 0.06, rough: 0.085 });
+    addShake(3.2, 160);
     return true;
   }
   function useBladeStorm() {
@@ -1558,12 +1564,16 @@ PUBLIC.start = function (root, api) {
       });
       return;
     }
+    b.seekAge = (b.seekAge || 0) + STEP;
     const tgt = nearestKnifeHomingTarget(b);
     if (tgt) {
       const dx = tgt.x - b.x, dy = tgt.y - b.y, d = Math.hypot(dx, dy) || 1;
       const spd = b.seekSpeed || 24;
-      b.vx = lerp(b.vx, dx / d * spd, 0.14);
-      b.vy = lerp(b.vy, dy / d * spd, 0.14);
+      const curveFade = b.curveLife ? clamp(1 - (b.seekAge || 0) / b.curveLife, 0, 1) : 0;
+      const curve = (b.curve || 0) * curveFade;
+      const nx = -dy / d, ny = dx / d;
+      b.vx = lerp(b.vx, dx / d * spd + nx * curve, 0.13);
+      b.vy = lerp(b.vy, dy / d * spd + ny * curve, 0.13);
     } else {
       b.vy += 0.06;
       b.vx *= 0.995;
@@ -2683,9 +2693,10 @@ PUBLIC.start = function (root, api) {
     }
     if (e.kind === 'knife' || e.kind === 'knifeFan') {
       const wanted = e.kind === 'knifeFan' ? (e.count || (e.explosive ? 6 : 5)) : (e.count || 1);
-      const count = e.kind === 'knifeFan' ? Math.min(player.knifeAmmo || 0, wanted + (hasPassive('rg_trapmaster') ? 1 : 0), ROGUE_MAX_KNIVES) : Math.min(player.knifeAmmo || 0, wanted);
-      if (player.knifeAmmo < count || count <= 0) return false;
-      player.knifeAmmo -= count; player.knifeRegen = 0;
+      const count = e.kind === 'knifeFan' ? Math.min(wanted + (hasPassive('rg_trapmaster') ? 1 : 0), ROGUE_MAX_KNIVES) : Math.min(player.knifeAmmo || 0, wanted);
+      const cost = e.kind === 'knifeFan' ? 1 : count;
+      if (player.knifeAmmo < cost || count <= 0) return false;
+      player.knifeAmmo -= cost; player.knifeRegen = 0;
       spawnKnifeSpread(ang, count, {
         tight: !!e.tight,
         spread: e.spread,
@@ -2694,6 +2705,7 @@ PUBLIC.start = function (root, api) {
         poison: e.poison,
         hit: e.hit || (e.explosive ? 17 : 13),
         speed: e.tight ? 33 : 31,
+        noDrop: e.kind === 'knifeFan',
       });
       return true;
     }
@@ -6774,6 +6786,8 @@ PUBLIC.start = function (root, api) {
       stagger: opts.stagger || 0,
       seekSpeed: opts.seekSpeed || (opts.summoned ? 24 : 21),
       seekRange: opts.seekRange || 760,
+      curve: opts.curve || 0,
+      curveLife: opts.curveLife || 0,
     });
     if (!opts.quiet) burst(mx, my, opts.summoned ? '#ffffff' : cls.color, opts.summoned ? 5 : 10, opts.summoned ? 1.8 : 2.6);
   }
