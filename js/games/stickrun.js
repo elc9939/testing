@@ -1735,9 +1735,13 @@ PUBLIC.start = function (root, api) {
         const targets = (z.team || 'hero') === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : (fighters || []);
         for (const t of targets) {
           if (!actorInSmokeZone(t, z)) continue;
+          const blind = z.poison ? 760 : hasPassive('rg_nightshade') ? 620 : 440;
+          t.smokeBlind = Math.max(t.smokeBlind || 0, blind);
+          t.smokeBlindMax = Math.max(t.smokeBlindMax || 0, blind);
           if (t.brain) {
             t.brain.stagger = Math.max(t.brain.stagger || 0, z.poison ? 220 : 140);
             t.brain.alert = Math.max(t.brain.alert || 0, hasPassive('rg_nightshade') ? 520 : 300);
+            t.brain.atkCd = Math.max(t.brain.atkCd || 0, z.poison ? 260 : 180);
           }
           if (z.poison) t.poisoned = Math.max(t.poisoned || 0, 1300);
         }
@@ -2563,7 +2567,7 @@ PUBLIC.start = function (root, api) {
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null, queuedFlash: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
-      hidden: 0, poisoned: 0, spiritCharges: 0,
+      hidden: 0, poisoned: 0, smokeBlind: 0, smokeBlindMax: 0, spiritCharges: 0,
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
@@ -4099,6 +4103,7 @@ PUBLIC.start = function (root, api) {
       if (!t || t.dead || t === e) continue;
       const d = Math.hypot(t.x - e.x, (t.y - 44) - (e.y - 44));
       if ((t.hidden || 0) > 0 && d > 86) continue;
+      if ((e.smokeBlind || 0) > 0 && d > lerp(82, 178, 1 - clamp((e.smokeBlind || 0) / Math.max(1, e.smokeBlindMax || 620), 0, 1))) continue;
       if (d < bd) { bd = d; best = t; }
     }
     return best;
@@ -4412,9 +4417,52 @@ PUBLIC.start = function (root, api) {
     if (!allies) return;
     for (const a of allies) a._moveAmt = withActor(a, () => animate(dt));
   }
+  function drawSmokeDisruptedCue(e) {
+    const blind = e && (e.smokeBlind || 0);
+    if (blind <= 0) return;
+    const max = Math.max(1, e.smokeBlindMax || 620);
+    const fade = clamp(blind / max, 0, 1);
+    const now = performance.now();
+    const hover = ((e.anim && e.anim.fly) || 0) * ((e.cls && e.cls.style && e.cls.style.hover) || 0);
+    const x = e.x, y = e.y - e.cls.style.hipH - 64 - hover;
+    const tint = (e.poisoned || 0) > 0 ? '#9cff5e' : '#cfe0f6';
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = tint;
+    ctx.lineWidth = 1.35 + fade * 1.25;
+    for (let i = 0; i < 2; i++) {
+      const phase = now * 0.005 + i * Math.PI + e.x * 0.01;
+      ctx.globalAlpha = (0.18 + fade * 0.34) * (1 - i * 0.22);
+      ctx.beginPath();
+      ctx.ellipse(
+        x + Math.sin(phase) * 4,
+        y - 10 + i * 9,
+        14 + i * 5 + Math.sin(phase * 0.7) * 2,
+        4.6 + i * 1.4,
+        Math.sin(phase) * 0.18,
+        phase * 0.12,
+        phase * 0.12 + Math.PI * 1.38
+      );
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.24 + fade * 0.48;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.35 + fade * 1.0;
+    ctx.beginPath();
+    ctx.moveTo(x - 13, y - 10);
+    ctx.lineTo(x + 13, y + 5);
+    ctx.stroke();
+    ctx.globalAlpha = 0.18 + fade * 0.36;
+    ctx.strokeStyle = tint;
+    ctx.beginPath();
+    ctx.arc(x, y - 2, 3.5 + fade * 2.2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
   function drawFighters() {
     if (!fighters) return;
-    for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawFighterHealth(e); }
+    for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawSmokeDisruptedCue(e); drawFighterHealth(e); }
   }
   function drawSpiritAllyAura(a) {
     if (!a || !a.spirit) return;
@@ -4704,6 +4752,8 @@ PUBLIC.start = function (root, api) {
     player.hunterHaste = Math.max(0, (player.hunterHaste || 0) - dtStep);
     player.hidden = Math.max(0, (player.hidden || 0) - dtStep);
     player.poisoned = Math.max(0, (player.poisoned || 0) - dtStep);
+    player.smokeBlind = Math.max(0, (player.smokeBlind || 0) - dtStep);
+    if (player.smokeBlind <= 0) player.smokeBlindMax = 0;
     if ((player.poisoned || 0) > 0) {
       player.poisonTick = Math.max(0, (player.poisonTick || 0) - dtStep);
       if (Math.random() < 0.10) particles.push({
