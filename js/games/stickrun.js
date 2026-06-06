@@ -5760,8 +5760,14 @@ PUBLIC.start = function (root, api) {
       else { slashT = t; atkHip = f * bell * (ty === 'dualSlash' ? 4 : 6); atkLean = f * bell * (ty === 'dualSlash' ? 0.11 : 0.16); }   // slash body commit
     }
 
+    const hiddenFade = clamp((player.hidden || 0) / (hasPassive('rg_nightshade') ? 1900 : 1300), 0, 1);
     ctx.save();
     ctx.translate(player.x, player.y - hoverY);         // hoverY floats the whole figure (Mage)
+    if (hiddenFade > 0) {
+      ctx.globalAlpha = lerp(1, 0.48, hiddenFade);
+      ctx.shadowColor = `rgba(88, 94, 116, ${0.22 + hiddenFade * 0.28})`;
+      ctx.shadowBlur = 8 + hiddenFade * 10;
+    }
     const runPulse = moveAmt * (1 - air) * Math.cos(2 * p) * 0.04;
     const sy = (1 - a.squash * 0.40 * S.squash) * (1 + runPulse);
     const sx = (1 + a.squash * 0.36 * S.squash) * (1 - runPulse * 0.6);
