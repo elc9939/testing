@@ -24,6 +24,22 @@ function assetPath(asset) {
   return withoutQuery.startsWith('./') ? withoutQuery.slice(2) : withoutQuery;
 }
 
+function splitAssetRef(asset) {
+  const suffixIndex = asset.search(/[?#]/);
+  if (suffixIndex < 0) return [asset, ''];
+  return [asset.slice(0, suffixIndex), asset.slice(suffixIndex)];
+}
+
+function normalizeSourceRelativeAsset(asset, sourceFile) {
+  const trimmed = (asset || '').trim();
+  const normalized = normalizeAsset(trimmed);
+  if (!normalized || trimmed.startsWith('/')) return normalized;
+
+  const [assetPart, suffix] = splitAssetRef(trimmed);
+  const sourceDir = path.posix.dirname(assetPath(sourceFile).replace(/\\/g, '/'));
+  return normalizeAsset(`${path.posix.normalize(path.posix.join(sourceDir, assetPart))}${suffix}`);
+}
+
 function collectIndexAssets() {
   const assets = new Set(['./', './index.html']);
   const attrPattern = /\b(?:src|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+))/gi;
@@ -66,9 +82,8 @@ function collectAppManifestAssets() {
   return [...assets].sort();
 }
 
-function collectFetchAssets(files) {
+function collectLiteralAssets(files, pattern, resolveAsset) {
   const assets = new Set();
-  const fetchPattern = /\bfetch\(\s*(?:"([^"]*)"|'([^']*)')/g;
 
   for (const file of files) {
     const fullPath = path.join(root, assetPath(file));
@@ -76,13 +91,32 @@ function collectFetchAssets(files) {
 
     const source = fs.readFileSync(fullPath, 'utf8');
     let match;
-    while ((match = fetchPattern.exec(source)) !== null) {
-      const asset = normalizeAsset(match[1] || match[2]);
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(source)) !== null) {
+      const asset = resolveAsset(match[1] || match[2], file);
       if (asset) assets.add(asset);
     }
   }
 
   return [...assets].sort();
+}
+
+function collectFetchAssets(files, options = {}) {
+  const fetchPattern = /\bfetch\(\s*(?:"([^"]*)"|'([^']*)')/g;
+  const resolveAsset = options.sourceRelative
+    ? normalizeSourceRelativeAsset
+    : asset => normalizeAsset(asset);
+  return collectLiteralAssets(files, fetchPattern, resolveAsset);
+}
+
+function collectWorkerAssets(files) {
+  const workerPattern = /\bnew\s+Worker\(\s*(?:"([^"]*)"|'([^']*)')/g;
+  return collectLiteralAssets(files, workerPattern, asset => normalizeAsset(asset));
+}
+
+function collectImportScriptAssets(files) {
+  const importScriptsPattern = /\bimportScripts\(\s*(?:"([^"]*)"|'([^']*)')/g;
+  return collectLiteralAssets(files, importScriptsPattern, normalizeSourceRelativeAsset);
 }
 
 function collectCachedAssets() {
@@ -99,11 +133,15 @@ function collectCachedAssets() {
 }
 
 const appManifestAssets = collectAppManifestAssets();
+const workerAssets = collectWorkerAssets(appManifestAssets);
 const requiredAssets = [...new Set([
   ...collectIndexAssets(),
   ...collectManifestAssets(),
   ...appManifestAssets,
   ...collectFetchAssets(appManifestAssets),
+  ...workerAssets,
+  ...collectFetchAssets(workerAssets, { sourceRelative: true }),
+  ...collectImportScriptAssets(workerAssets),
 ])].sort();
 const cachedAssets = collectCachedAssets();
 const cached = new Set(cachedAssets);
