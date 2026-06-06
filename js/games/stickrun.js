@@ -822,12 +822,7 @@ PUBLIC.start = function (root, api) {
   let jumpBuf = 0;
   const press = (held) => {
     if (held && player && state === 'playing' && cls.id === 'rogue' && !player.grounded && player.coyote <= 0 && !player.rogueAirJump) {
-      player.rogueAirJump = true;
-      player.vy = JUMP * 0.78;
-      player.vx += player.facing * 1.7;
-      player.flip = { active: true, t: 0, dur: 520, dir: player.facing };
-      player.anim.squash = -0.35;
-      burst(player.x, player.y - 34, cls.color, 12, 2.8);
+      startRogueAirFlip(player);
       jumpBuf = 0; input.jumpHeld = true; input.jumpHold = 0;
       return;
     }
@@ -992,6 +987,67 @@ PUBLIC.start = function (root, api) {
   }
   function hasPassive(id) {
     return !!(loadout && loadout.passive === id && player && player.team === 'hero');
+  }
+  function hasRunNode(id) {
+    return hasPassive(id) || nodePicked(id);
+  }
+  function rogueFlipConfig(act) {
+    const heroRogue = act && act.team === 'hero';
+    const advanced = heroRogue && (hasRunNode('rg_skyblade') || hasRunNode('rg_tuckedflip'));
+    const tucked = advanced || heroRogue && hasRunNode('rg_bloodrush');
+    const flowy = heroRogue && (hasRunNode('rg_flow') || hasRunNode('rg_skyblade') || hasRunNode('rg_tuckedflip'));
+    return {
+      dur: advanced ? 620 : tucked ? 560 : 520,
+      vx: advanced ? 2.25 : tucked ? 1.95 : 1.7,
+      burst: advanced ? 15 : tucked ? 13 : 12,
+      tuck: advanced ? 1.35 : tucked ? 1.15 : 1,
+      curl: advanced ? 1.28 : tucked ? 1.14 : 1,
+      flowRadius: advanced ? 128 : flowy ? 112 : 0,
+      flowGain: advanced ? 2 : flowy ? 1 : 0,
+      flowSpark: advanced ? 14 : 10,
+    };
+  }
+  function startRogueAirFlip(act, opts) {
+    if (!act) return false;
+    const cfg = rogueFlipConfig(act);
+    const dir = act.facing || 1;
+    act.rogueAirJump = true;
+    act.vy = JUMP * 0.78;
+    act.vx += dir * cfg.vx;
+    act.flip = {
+      active: true, t: 0, dur: cfg.dur, dir,
+      tuck: cfg.tuck, curl: cfg.curl,
+      flowRadius: cfg.flowRadius, flowGain: cfg.flowGain, flowSpark: cfg.flowSpark, flowHit: false,
+    };
+    act.anim.squash = -0.35;
+    const burstScale = opts && opts.burstScale || 1;
+    burst(act.x - dir * 4, act.y - 34, cls.color, cfg.burst * burstScale, 2.8 + (cfg.tuck - 1) * 0.8);
+    return true;
+  }
+  function grantRogueFlipFlow(act) {
+    if (!act || !act.flip || !act.flip.active || act.flip.flowHit || !act.flip.flowGain || act.team !== 'hero') return;
+    const radius = act.flip.flowRadius || 0;
+    if (radius <= 0) return;
+    const foes = targetActorsForPlayer();
+    let nearest = null;
+    let best = radius;
+    for (const foe of foes) {
+      if (!foe || foe.hp <= 0) continue;
+      const dx = foe.x - act.x;
+      const dy = (foe.y - 38) - (act.y - 44);
+      const d = Math.hypot(dx, dy);
+      if (d < best) { best = d; nearest = foe; }
+    }
+    if (!nearest) return;
+    act.flip.flowHit = true;
+    if (cls.id === 'rogue') {
+      act.rogueBurst = Math.min(ROGUE_BURST_MAX, (act.rogueBurst || 0) + act.flip.flowGain);
+      act.rogueBurstRegen = 0;
+    }
+    burst(nearest.x, nearest.y - 42, '#ffffff', act.flip.flowSpark || 10, 2.6);
+    burst(act.x, act.y - 36, cls.color, 9 + act.flip.flowGain * 2, 2.2);
+    addShake(1.1, 70);
+    syncHud();
   }
   function abilityCooldown(slot) {
     const spec = equipped(slot);
@@ -2712,12 +2768,7 @@ PUBLIC.start = function (root, api) {
     player.jumpCut = false;
     player.y -= cls.id === 'rogue' ? 14 : 4;
     if (cls.id === 'rogue') {
-      player.rogueAirJump = true;
-      player.vy = JUMP * 0.78;
-      player.vx += player.facing * 1.9;
-      player.flip = { active: true, t: 0, dur: 560, dir: player.facing };
-      player.anim.squash = -0.36;
-      burst(player.x - player.facing * 8, player.y - 30, cls.color, 16, 3.1);
+      startRogueAirFlip(player, { burstScale: 1.12 });
     } else {
       player.vy = JUMP;
       player.anim.squash = -0.5;
@@ -3713,12 +3764,7 @@ PUBLIC.start = function (root, api) {
     } else {
       p.hoverTargetY = null;
       if (it.jump && cls.id === 'rogue' && !p.grounded && p.coyote <= 0 && !p.rogueAirJump) {
-        p.rogueAirJump = true;
-        p.vy = JUMP * 0.78;
-        p.vx += p.facing * 1.45;
-        p.flip = { active: true, t: 0, dur: 520, dir: p.facing };
-        p.anim.squash = -0.35;
-        burst(p.x, p.y - 34, cls.color, 8, 2.2);
+        startRogueAirFlip(p, { burstScale: 0.7 });
       } else if (it.jump && (p.grounded || p.coyote > 0)) {
         p.vy = JUMP; p.grounded = false; p.coyote = 0; p.jumpCut = false; p.anim.squash = -0.5;
       }
@@ -4144,6 +4190,7 @@ PUBLIC.start = function (root, api) {
   function updateRogueFlip() {
     if (!player.flip || !player.flip.active) return;
     player.flip.t += STEP / player.flip.dur;
+    grantRogueFlipFlow(player);
     if (player.flip.t >= 1) player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
   }
   function updateAttackMotion() {
@@ -5233,9 +5280,11 @@ PUBLIC.start = function (root, api) {
     const fly = a.fly || 0, moveType = player.move.active ? player.move.type : null, moveT = player.move.active ? clamp(player.move.t, 0, 1) : 0;
     const flipActive = player.flip && player.flip.active;
     const flipT = flipActive ? clamp(player.flip.t, 0, 1) : 0;
-    const flipCurl = flipActive ? Math.sin(flipT * Math.PI) : 0;
-    const flipTuck = flipActive ? ease(Math.min(1, flipCurl * 1.35)) : 0;
-    const flipLead = flipActive ? Math.sin(flipT * Math.PI * 2) : 0;
+    const flipCurlStrength = flipActive ? (player.flip.curl || 1) : 1;
+    const flipTuckStrength = flipActive ? (player.flip.tuck || 1) : 1;
+    const flipCurl = flipActive ? clamp(Math.sin(flipT * Math.PI) * flipCurlStrength, 0, 1.35) : 0;
+    const flipTuck = flipActive ? ease(Math.min(1, flipCurl * (1.35 * flipTuckStrength))) : 0;
+    const flipLead = flipActive ? Math.sin(flipT * Math.PI * 2) * flipCurlStrength : 0;
     const now = performance.now();
     // metrics — body proportions are shared; STANCE & motion come from the class style
     const S = cls.style;
@@ -5275,8 +5324,8 @@ PUBLIC.start = function (root, api) {
       guardCrouch = Math.max(guardCrouch, posture.drop);
     }
     if (flipActive) {
-      postureLean += player.flip.dir * (0.70 * flipCurl + 0.20 * flipLead);
-      guardCrouch -= 23 * flipCurl;
+      postureLean += player.flip.dir * (0.92 * flipCurl + 0.28 * flipLead);
+      guardCrouch -= 31 * flipCurl;
     }
 
     // ----- attack scalars (whole-body reaction) -----
@@ -5363,8 +5412,8 @@ PUBLIC.start = function (root, api) {
       } else if (flipActive) {
         const kick = Math.sin((flipT + (legSign > 0 ? 0.12 : -0.08)) * Math.PI * 2);
         const cross = Math.sin((flipT + (legSign > 0 ? 0.20 : -0.16)) * Math.PI * 2);
-        foot.x = lerp(foot.x, -player.flip.dir * (10 + flipLead * 5) + legSign * 4 + cross * 2.2, flipTuck);
-        foot.y = lerp(foot.y, hipY - 8 + legSign * 3 + Math.abs(kick) * 1.4, flipTuck);
+        foot.x = lerp(foot.x, -player.flip.dir * (14 + flipLead * 7) + legSign * 3 + cross * 1.4, flipTuck);
+        foot.y = lerp(foot.y, hipY - 5 + legSign * 2 + Math.abs(kick) * 0.9, flipTuck);
       } else if (posture.down > 0) {
         const frontLeg = legSign === -1;
         foot.x = lerp(foot.x, frontLeg ? f * 13 : -f * 11, posture.down);
@@ -5404,8 +5453,8 @@ PUBLIC.start = function (root, api) {
       }
       if (flipActive) {
         const sweep = Math.sin((flipT + (theta === p ? 0.08 : -0.08)) * Math.PI * 2);
-        hand.x = lerp(hand.x, shX - player.flip.dir * (10 + flipCurl * 9) + sweep * 2.2, flipCurl);
-        hand.y = lerp(hand.y, shY + 8 + flipCurl * 2, flipCurl);
+        hand.x = lerp(hand.x, shX - player.flip.dir * (11 + flipCurl * 11) + sweep * 1.2, flipCurl);
+        hand.y = lerp(hand.y, shY + 11 + flipCurl * 4, flipCurl);
       }
       return hand;
     }
@@ -5426,7 +5475,7 @@ PUBLIC.start = function (root, api) {
       h = { x: bc.hx, y: bc.hy };
     } else if (cls.id === 'rogue') {
       h = flipActive
-        ? { x: shX - player.flip.dir * (15 + flipCurl * 8), y: shY + 11 + flipCurl * 2 }
+        ? { x: shX - player.flip.dir * (13 + flipCurl * 10), y: shY + 14 + flipCurl * 5 }
         : moveType === 'slide'
           ? { x: shX - f * 28, y: shY + 29 }
           : { x: shX - f * 9, y: shY + 20 };                       // off dagger held at low guard
