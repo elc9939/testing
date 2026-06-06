@@ -3880,12 +3880,13 @@ PUBLIC.start = function (root, api) {
     return false;
   }
   function spawnDroppedKnife(x, y, angle, vx, vy) {
-    droppedKnives.push({ x, y, vx: (vx || 0) * 0.12, vy: (vy || 0) * 0.12, angle, grounded: false, life: 9000 });
+    droppedKnives.push({ x, y, vx: (vx || 0) * 0.12, vy: (vy || 0) * 0.12, angle, grounded: false, life: 9000, age: 0 });
   }
   function updateDroppedKnives(dt) {
     const L = levels[li];
     for (let i = droppedKnives.length - 1; i >= 0; i--) {
       const k = droppedKnives[i];
+      k.age = (k.age || 0) + dt;
       k.life -= dt;
       if (!k.grounded) {
         k.vy = Math.min(k.vy + 0.45, 12);
@@ -3895,10 +3896,22 @@ PUBLIC.start = function (root, api) {
           k.y = p.y - 3; k.vx = k.vy = 0; k.grounded = true;
         }
       }
-      if (k.grounded && cls.id === 'rogue' && player.knifeAmmo < ROGUE_MAX_KNIVES && Math.hypot(k.x - player.x, k.y - (player.y - 25)) < 28) {
+      const recoverable = k.grounded && cls.id === 'rogue' && player.knifeAmmo < ROGUE_MAX_KNIVES;
+      if (recoverable) {
+        const dx = player.x - k.x, dy = (player.y - 25) - k.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist < 92) {
+          const pull = (1 - dist / 92) * 0.72;
+          k.x += dx / dist * pull; k.y += dy / dist * pull;
+          if (Math.random() < 0.22) particles.push({ x: k.x + rand(-3, 3), y: k.y + rand(-3, 3),
+            vx: dx / dist * rand(0.18, 0.42), vy: dy / dist * rand(0.18, 0.42), life: rand(120, 220), max: 220, color: '#cfd6df', r: rand(1, 2.2) });
+        }
+      }
+      if (recoverable && Math.hypot(k.x - player.x, k.y - (player.y - 25)) < 30) {
         player.knifeAmmo++;
         player.knifeRegen = 0;
-        burst(k.x, k.y, '#cfd6df', 8, 2.4);
+        burst(k.x, k.y, '#cfd6df', 12, 2.8);
+        burst(k.x, k.y, cls.color, 6, 2.1);
         syncHud();
         droppedKnives.splice(i, 1);
       } else if (k.life <= 0) droppedKnives.splice(i, 1);
@@ -5829,7 +5842,18 @@ PUBLIC.start = function (root, api) {
     }
     ctx.globalAlpha = 1;
     for (const k of droppedKnives) {
-      ctx.save(); ctx.translate(k.x - cam.x, k.y - cam.y); ctx.rotate(k.angle);
+      const recoverable = cls.id === 'rogue' && player && player.knifeAmmo < ROGUE_MAX_KNIVES;
+      const near = recoverable ? clamp(1 - Math.hypot(k.x - player.x, k.y - (player.y - 25)) / 112, 0, 1) : 0;
+      const pulse = Math.sin((k.age || 0) * 0.012) * 0.5 + 0.5;
+      ctx.save(); ctx.translate(k.x - cam.x, k.y - cam.y);
+      if (recoverable) {
+        ctx.strokeStyle = `rgba(156,255,94,${0.28 + near * 0.40})`;
+        ctx.lineWidth = 1.5 + near * 1.2;
+        ctx.beginPath(); ctx.arc(0, 0, 12 + pulse * 3 + near * 5, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = `rgba(156,255,94,${0.08 + near * 0.12})`;
+        ctx.beginPath(); ctx.arc(0, 0, 8 + near * 5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.rotate(k.angle);
       ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineWidth = 2.4;
       ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(1, 0); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(1, -2); ctx.lineTo(11, 0); ctx.lineTo(1, 2); ctx.closePath();
