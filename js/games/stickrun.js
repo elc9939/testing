@@ -26,6 +26,8 @@ const KNIGHT_SHIELD_TIME = 1250;
 const MAGE_HOVER_HEIGHT = 42;
 const MAGE_HOVER_STEP = 92;
 const MAGE_HOVER_DELAY = 165;
+const MAGE_DEBRIS_MAX = 3;
+const MAGE_DEBRIS_REGEN = 1250;
 const ARENA_WAVE_DELAY = 850;
 const ATTACK_COOLDOWN = {
   slash: 110, dualSlash: 80, rogueStab: 95, legSweep: 420,
@@ -200,13 +202,13 @@ const ABILITIES = (() => {
   add('ln_tethermaster', { cls: 'lancer', branch: 'harpooner', tier: 4, slot: 'passive', name: 'Tether Master', desc: 'Keystone: pulls also tug crates/barrels and briefly slow enemies after the yank.', key: true, tags: ['Pull', 'Crates'] });
 
   // Mage base + branches
-  add('mg_bolt', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'attack', name: 'Arc Bolt', desc: 'Fast staff projectile with bright impact particles.', type: 'attack', action: 'cast', draft: false, tags: ['Projectile'] });
+  add('mg_bolt', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'attack', name: 'Debris Throw', desc: 'Lift a rock or dense gravity orb around the staff, then hurl it for direct damage and object knockback.', effect: { kind: 'gravityDebris', power: 1.0 }, cd: 260, draft: false, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_bloom', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'secondary', name: 'Gravity Bloom', desc: 'Shoot a seed that blooms into a zero-gravity pull field.', type: 'attack', action: 'arcaneBloom', draft: false, tags: ['Gravity'] });
   add('mg_dash', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
   add('mg_sigil', { cls: 'mage', branch: 'stormcaller', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
-  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'q', name: 'Singularity', desc: 'Large gravity well that suspends enemies, then implodes inward.', type: 'custom', use: 'mageSingularity', cd: 9600, draft: false, tags: ['Gravity', 'Pull'] });
+  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'q', name: 'Black Hole', desc: 'Create a violent black hole that drags enemies, debris, crates, and dummies inward, damages them, then collapses hard.', effect: { kind: 'blackHole', r: 265, life: 2200, range: 620, force: 1.15 }, cd: 9800, draft: false, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
-  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Updraft', desc: 'Lift enemies and crates upward so they drift into ledges, platforms, or wells.', effect: { kind: 'radial', force: 20, radius: 132, y: -1.8 }, cd: 3300, tags: ['Gravity', 'Launch', 'Crates'] });
+  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Mass Slam', desc: 'Grab nearby mass at the cursor and slam enemies, crates, barrels, and dummies downward into the arena.', effect: { kind: 'massSlam', force: 28, radius: 154, range: 380 }, cd: 3300, tags: ['Gravity', 'Damage', 'Crates'] });
   add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Gravity Well', desc: 'A shorter-range bloom that opens faster and pulls crates harder.', effect: { kind: 'field', r: 178, life: 2400, range: 360 }, cd: 1900, tags: ['Gravity', 'Crates'] });
   add('mg_gravitycore', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'e', name: 'Gravity Core', desc: 'Event Horizon prototype: place one persistent core that slowly pulls enemies, dummies, crates, and barrels.', effect: { kind: 'gravityCore', r: 205, range: 460 }, cd: 2600, tags: ['Gravity', 'Crates', 'Field'] });
   add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'True Horizon', desc: 'Event Horizon prototype: collapse the active Gravity Core into a larger implosion. If no core exists, create a short singularity.', effect: { kind: 'trueHorizon' }, cd: 10500, tags: ['Gravity', 'Pull', 'Crates'] });
@@ -352,11 +354,11 @@ const ABILITIES = (() => {
   add('ln_dragnet', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'passive', name: 'Dragnet', desc: 'Keystone: two anchors form a slowing line that can yank crossing enemies.', key: true, prereq: ['ln_wardenanchor', 'ln_winchstep'], tags: ['Pull', 'Walls'] });
 
   add('mg_motes', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'passive', name: 'Gravity Motes', desc: 'Class mechanic: gravity casts create motes that strengthen pull and lift.', key: true, tags: ['Gravity'] });
-  add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Bolt', desc: 'A heavier bolt that pushes crates and makes targets easier to pull.', effect: { kind: 'bolt', power: 1.35, wind: 1 }, cd: 220, tags: ['Gravity', 'Projectile'] });
-  add('mg_orbitbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Orbit Bolt', desc: 'A faster bolt that curves around the active Gravity Core when present.', effect: { kind: 'orbitalBolt' }, cd: 210, tags: ['Gravity', 'Projectile'] });
+  add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Shard', desc: 'Throw a denser piece of lifted debris. It hits harder, tumbles through crates, and feeds Gravity Core resonance.', effect: { kind: 'gravityDebris', power: 1.28, core: 0.42 }, cd: 240, tags: ['Gravity', 'Projectile', 'Crates'] });
+  add('mg_orbitbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Orbit Shard', desc: 'Throw debris from your orbit; if a Gravity Core exists, the shard launches from the core and bends around it.', effect: { kind: 'gravityDebris', power: 1.08, orbit: 1, core: 0.52 }, cd: 220, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_floatstep', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Float Step', desc: 'Short controlled hover drift that can cross gaps while aiming.', type: 'move', action: 'airDash', cd: 1700, tags: ['Movement', 'Gravity'] });
   add('mg_brake', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Gravity Brake', desc: 'Brake your own momentum while enemies and objects continue sliding past.', effect: { kind: 'gravityBrake' }, cd: 1500, tags: ['Gravity', 'Movement'] });
-  add('mg_orbitalcast', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'attack', name: 'Orbital Cast', desc: 'Bolts bend around the Gravity Core and nudge its position.', effect: { kind: 'orbitalBolt', shoveCore: 1 }, cd: 200, prereq: 'mg_eventhorizon', tags: ['Gravity', 'Projectile'] });
+  add('mg_orbitalcast', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'attack', name: 'Orbital Debris', desc: 'Gravity Core hurls heavy orbiting debris and nudges itself along your aim line.', effect: { kind: 'gravityDebris', power: 1.18, orbit: 1, shoveCore: 1, core: 0.72 }, cd: 205, prereq: 'mg_eventhorizon', tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_corestep', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'shift', name: 'Core Step', desc: 'Hover near the Gravity Core in a controlled orbit instead of a straight dash.', effect: { kind: 'coreStep' }, cd: 1600, prereq: 'mg_eventhorizon', tags: ['Gravity', 'Movement'] });
 
   add('mg_staticcharge', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'passive', name: 'Static Charge', desc: 'Class mechanic: airborne casts and grouped hits build lightning Charge.', key: true, tags: ['Projectile', 'Movement'] });
@@ -450,7 +452,7 @@ const CLASS_LOADOUT = {
   knight: { attack: 'kn_slash', secondary: 'kn_guard', shift: 'kn_step', e: 'kn_bash', q: 'kn_rally', passive: null },
   rogue: { attack: 'rg_dual', secondary: 'rg_throw', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
   lancer: { attack: 'ln_thrust', secondary: 'ln_charge', shift: 'ln_brace', e: 'ln_anchor', q: 'ln_breaker', passive: null },
-  mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_singularity', passive: null },
+  mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_updraft', q: 'mg_singularity', passive: null },
   ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
 };
 const LAB_BUILDS = {
@@ -480,9 +482,9 @@ const LAB_BUILDS = {
     { id: 'warden', name: 'Chain Warden', note: 'Advanced Harpooner: persistent anchors, cross-tethers, and winch movement.', loadout: { attack: 'ln_crosstether', secondary: 'ln_chain', shift: 'ln_winchstep', e: 'ln_wardenanchor', q: 'ln_maw', passive: 'ln_warden' } },
   ],
   mage: [
-    { id: 'base', name: 'Base Mage', note: 'Starting kit for staff, hover, Gravity Bloom, Ignition Burst, and Singularity.', loadout: {} },
-    { id: 'graviturge', name: 'Graviturge Core', note: 'Push/pull physics: Gravity Core, orbital casts, Core Step, and Resonance Pulse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_resonancepulse', passive: 'mg_eventhorizon' } },
-    { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital casts, and True Horizon collapse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
+    { id: 'base', name: 'Base Mage', note: 'Starting Graviturge kit: hover, debris throw, Gravity Bloom, Mass Slam, and Black Hole.', loadout: {} },
+    { id: 'graviturge', name: 'Graviturge Core', note: 'Damage gravity caster: Mass Shards, Gravity Well, hover drift, Mass Slam, and Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
+    { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital debris, Core Step, and True Horizon black-hole collapse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
     { id: 'spiritbinder', name: 'Spiritbinder', note: 'Necromancer prototype: spirit bolts, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
@@ -1417,7 +1419,7 @@ PUBLIC.start = function (root, api) {
   }
   function useMageSingularity() {
     const p = aimedPoint(620);
-    spawnGravityField(p.x, p.y, player.team, cls.color, { r: 205, life: 3200, ultimate: true });
+    spawnBlackHole(p.x, p.y, player.team, cls.color, { r: 265, life: 2200, pullPower: 1.15 });
     return true;
   }
   function useRangerPowerShot(ang) {
@@ -1615,6 +1617,22 @@ PUBLIC.start = function (root, api) {
       const spec = ability(id);
       return spec && spec.branch === 'spiritbinder';
     });
+  }
+  function mageGraviturgeLoadoutActive() {
+    if (!player || !cls || cls.id !== 'mage') return false;
+    if (player.team === 'enemy') return true;
+    if (!loadout) return true;
+    let gravity = 0, other = 0;
+    for (const slot of ['attack', 'secondary', 'e', 'q', 'passive']) {
+      const spec = ability(loadout[slot]);
+      if (!spec || spec.cls !== 'mage' || !spec.branch) continue;
+      if (spec.branch === 'graviturge') gravity++;
+      else other++;
+    }
+    return gravity > 0 && gravity >= other;
+  }
+  function gravityDebrisMax() {
+    return MAGE_DEBRIS_MAX + (hasPassive('mg_eventhorizon') ? 1 : 0);
   }
   function spiritClassFromSource(source) {
     const id = source && String(source);
@@ -2269,6 +2287,22 @@ PUBLIC.start = function (root, api) {
       rememberDebugSegment('ability', player.x, player.y - 44, a.x, a.y, 8, cls.color, 420);
       return true;
     }
+    if (e.kind === 'gravityDebris') {
+      if (!startVisualAttack('cast', ang, { range: e.range || 520, kind: 'gravityDebris' })) return false;
+      spawnGravityDebrisShot(ang, e);
+      return true;
+    }
+    if (e.kind === 'massSlam') {
+      if (!startVisualAttack('cast', ang, { range: e.range || 380, kind: 'massSlam' })) return false;
+      useMassSlam(e);
+      return true;
+    }
+    if (e.kind === 'blackHole') {
+      if (!startVisualAttack('arcaneBloom', ang, { range: e.range || 620, kind: 'blackHole' })) return false;
+      const p = aimedPoint(e.range || 620);
+      spawnBlackHole(p.x, p.y, player.team, cls.color, e);
+      return true;
+    }
     if (e.kind === 'orbitalBolt') {
       if (!gravityCore) { spawnBolt(ang, 1.22, { wind: 1, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
       const p = aimedPoint(520);
@@ -2912,6 +2946,7 @@ PUBLIC.start = function (root, api) {
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
       hidden: 0, poisoned: 0, burned: 0, burnedMax: 0, smokeBlind: 0, smokeBlindMax: 0, spiritCharges: 0,
+      gravityDebris: MAGE_DEBRIS_MAX, gravityDebrisRegen: 0, gravityDebrisSpin: 0,
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
@@ -3227,7 +3262,7 @@ PUBLIC.start = function (root, api) {
   }
   function helpCooldownText(slot, spec) {
     if (slot === 'passive') return 'Passive';
-    if (slot === 'jump') return cls && cls.id === 'mage' ? 'Tap jump / hold float' : 'Movement';
+    if (slot === 'jump') return cls && cls.id === 'mage' && mageGraviturgeLoadoutActive() ? 'Tap jump / hold float' : 'Movement';
     if (!spec) return '';
     let ms = spec.cd;
     if (slot === 'attack' && !(spec.type === 'custom' || spec.effect)) {
@@ -3256,6 +3291,7 @@ PUBLIC.start = function (root, api) {
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
     if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.spiritCharges || 0}/6 spirit`;
+    if (cls.id === 'mage' && mageGraviturgeLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.gravityDebris || 0}/${gravityDebrisMax()} debris`;
     if (cls.id === 'mage' && magePyroLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return pyroStatusText();
     if (slot === 'passive') return spec ? 'keystone' : '';
     return branchShort(spec);
@@ -3288,7 +3324,7 @@ PUBLIC.start = function (root, api) {
       jump.classList.remove('locked');
       const nm = jump.querySelector('.sr-name'), ex = jump.querySelector('.sr-extra'), fi = jump.querySelector('.sr-cdfill');
       if (nm) nm.textContent = 'Jump';
-      if (ex) ex.textContent = cls.id === 'mage' ? 'hold float' : cls.id === 'rogue' ? 'air flip' : '';
+      if (ex) ex.textContent = cls.id === 'mage' && mageGraviturgeLoadoutActive() ? 'hold float' : cls.id === 'rogue' ? 'air flip' : '';
       if (fi) fi.style.transform = 'scaleY(0)';
       jump.style.borderColor = cls && cls.color ? cls.color + '99' : '';
     }
@@ -3327,8 +3363,9 @@ PUBLIC.start = function (root, api) {
     const ammo = document.getElementById('sr-ammo');
     if (ammo) {
       const hasSpirits = cls.id === 'mage' && player && mageSpiritLoadoutActive();
+      const hasGravityDebris = cls.id === 'mage' && player && mageGraviturgeLoadoutActive();
       const hasAmmo = state === 'playing' && (cls.id === 'rogue' || cls.id === 'ranger');
-      ammo.style.display = (hasAmmo || hasSpirits) ? 'inline-flex' : 'none';
+      ammo.style.display = (hasAmmo || hasSpirits || hasGravityDebris) ? 'inline-flex' : 'none';
       const icon = document.getElementById('sr-ammo-icon');
       const val = document.getElementById('sr-knives');
       const detail = document.getElementById('sr-ammo-detail');
@@ -3337,7 +3374,7 @@ PUBLIC.start = function (root, api) {
         ? (cls.id === 'ranger' ? `${player.arrowAmmo}/${RANGER_MAX_ARROWS}` : `${player.knifeAmmo}/${ROGUE_MAX_KNIVES}`)
         : (cls.id === 'ranger' ? `${RANGER_MAX_ARROWS}/${RANGER_MAX_ARROWS}` : `${ROGUE_MAX_KNIVES}/${ROGUE_MAX_KNIVES}`);
       if (detail) detail.textContent = cls.id === 'rogue' ? rogueAmmoDetailText() : rangerAmmoDetailText();
-      if (!hasAmmo && !hasSpirits) {
+      if (!hasAmmo && !hasSpirits && !hasGravityDebris) {
         if (icon) icon.textContent = '';
         if (val) val.textContent = '';
         if (detail) detail.textContent = '';
@@ -3350,6 +3387,14 @@ PUBLIC.start = function (root, api) {
       if (icon) icon.textContent = 'SP';
       if (val) val.textContent = `${player.spiritCharges || 0}/6`;
       if (detail) detail.textContent = 'charges from KOs';
+    }
+    if (ammo && cls.id === 'mage' && player && mageGraviturgeLoadoutActive()) {
+      const icon = document.getElementById('sr-ammo-icon');
+      const val = document.getElementById('sr-knives');
+      const detail = document.getElementById('sr-ammo-detail');
+      if (icon) icon.textContent = 'GR';
+      if (val) val.textContent = `${player.gravityDebris || 0}/${gravityDebrisMax()}`;
+      if (detail) detail.textContent = 'orbiting debris';
     }
     const cool = document.getElementById('sr-cool');
     const coolVal = document.getElementById('sr-cool-val');
@@ -4199,7 +4244,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' ? 4.5 : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 14 : p.kind === 'spiritBolt' ? 9 : p.r || 8;
+    return p.kind === 'dagger' ? 4.5 : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'gravityDebris' ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 14 : p.kind === 'spiritBolt' ? 9 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -5404,6 +5449,47 @@ PUBLIC.start = function (root, api) {
       burst(player.x - player.facing * 10, player.y - 44, cls.color, 4, 1.4);
     }
   }
+  function updateGravityDebris(dtStep) {
+    if (cls.id !== 'mage') return;
+    if (!mageGraviturgeLoadoutActive()) {
+      if (player.team === 'hero') {
+        player.gravityDebris = 0;
+        player.gravityDebrisRegen = 0;
+      }
+      return;
+    }
+    const max = gravityDebrisMax();
+    if (player.gravityDebris == null) player.gravityDebris = max;
+    player.gravityDebris = clamp(player.gravityDebris, 0, max);
+    player.gravityDebrisSpin = (player.gravityDebrisSpin || 0) + (dtStep || STEP) * 0.0042;
+    if (player.gravityDebris >= max) player.gravityDebrisRegen = 0;
+    else {
+      player.gravityDebrisRegen = (player.gravityDebrisRegen || 0) + (dtStep || STEP);
+      while (player.gravityDebrisRegen >= MAGE_DEBRIS_REGEN && player.gravityDebris < max) {
+        player.gravityDebrisRegen -= MAGE_DEBRIS_REGEN;
+        player.gravityDebris++;
+        if (player.team !== 'enemy') burst(player.x, player.y - 68, '#8f7dff', 5, 1.8);
+      }
+    }
+    const count = clamp(player.gravityDebris || 0, 0, max);
+    if (count > 0 && Math.random() < 0.16) gravityParticle(player.x + rand(-28, 28), player.y - rand(42, 92), rand(-0.22, 0.22), rand(-0.38, 0.08), {
+      life: rand(220, 420),
+      color: Math.random() < 0.42 ? '#d9d4ff' : '#8f7dff',
+      r: rand(1.0, 2.3),
+    });
+    if (player.team !== 'enemy' && boxes && (mageHovering() || count >= max)) {
+      for (const b of boxes) {
+        if (!b || b.dead) continue;
+        const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+        const dx = player.x - cx, dy = (player.y - 48) - cy, d = Math.hypot(dx, dy) || 1;
+        if (d > 168) continue;
+        const u = (1 - d / 168) * (0.35 + count * 0.12);
+        b.vx += (dx / d) * 0.015 * u;
+        b.vy += (dy / d) * 0.010 * u - 0.018 * u;
+        b.va += (dx / d) * 0.006 * u;
+      }
+    }
+  }
   function updateActorResources(dtStep) {
     const cds = cooldownBag(player);
     for (const k in cds) {
@@ -5488,6 +5574,7 @@ PUBLIC.start = function (root, api) {
     updateRogueAmmo(dtStep);
     updateRogueBurst(dtStep);
     updateRangerAmmo(dtStep);
+    updateGravityDebris(dtStep);
     syncHud();
   }
   function activeMove(type) {
@@ -5501,7 +5588,7 @@ PUBLIC.start = function (root, api) {
   }
   function mageHovering() {
     const it = player && player.intent;
-    if (cls.id !== 'mage' || !it || !it.jumpHeld) return false;
+    if (cls.id !== 'mage' || !mageGraviturgeLoadoutActive() || !it || !it.jumpHeld) return false;
     return player.team === 'enemy' || (it.jumpHold || 0) >= MAGE_HOVER_DELAY;
   }
   function tickJumpHold(act, dtStep) {
@@ -5981,6 +6068,149 @@ PUBLIC.start = function (root, api) {
     const mx = shX + Math.cos(ang) * 46, my = shY + Math.sin(ang) * 46;
     projectiles.push({ kind: 'bolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1020, color: cls.color, r: 9.5 * power, hit: 14 * power, sparkle: 3, bounce: opts.bounce || 0, portal: opts.portal || 0, wind: opts.wind || 0 });
     burst(mx, my, '#ffffff', 18, 5.2); burst(mx, my, cls.color, 26, 4.6);
+  }
+  function spendGravityDebris() {
+    if (!player || cls.id !== 'mage' || !mageGraviturgeLoadoutActive()) return false;
+    if ((player.gravityDebris || 0) <= 0) return false;
+    player.gravityDebris--;
+    player.gravityDebrisRegen = 0;
+    if (player.team === 'hero') syncHud();
+    return true;
+  }
+  function gravityStaffOrigin(ang) {
+    const shX = player.x, shY = player.y - 76;
+    return { x: shX + Math.cos(ang) * 42, y: shY + Math.sin(ang) * 34 };
+  }
+  function gravityParticle(x, y, vx, vy, opts) {
+    opts = opts || {};
+    particles.push({
+      kind: 'gravity',
+      x, y, vx, vy,
+      life: opts.life || rand(220, 460),
+      max: opts.max || opts.life || 460,
+      color: opts.color || (Math.random() < 0.38 ? '#d9d4ff' : '#8f7dff'),
+      r: opts.r || rand(1.0, 2.8),
+      seed: opts.seed || rand(0, Math.PI * 2),
+    });
+  }
+  function spawnGravityDebrisShot(ang, opts) {
+    opts = opts || {};
+    const spent = spendGravityDebris();
+    const fromCore = opts.orbit && gravityCore;
+    const aim = aimedPoint(opts.range || 560);
+    let origin = gravityStaffOrigin(ang);
+    if (fromCore) {
+      const coreAng = Math.atan2(aim.y - gravityCore.y, aim.x - gravityCore.x);
+      origin = { x: gravityCore.x + Math.cos(coreAng) * 22, y: gravityCore.y + Math.sin(coreAng) * 22 };
+      ang = coreAng;
+      chargeGravityCore(opts.core || 0.45, player.x, player.y - 70);
+      if (opts.shoveCore) {
+        gravityCore.vx += Math.cos(ang) * 0.9;
+        gravityCore.vy += Math.sin(ang) * 0.50;
+      }
+    }
+    const power = (opts.power || 1) * (spent ? 1.22 : 0.78);
+    const spd = 22 + power * 3.8;
+    const r = 8 + power * 4.2;
+    projectiles.push({
+      kind: 'gravityDebris',
+      team: player.team,
+      x: origin.x,
+      y: origin.y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      life: 1160,
+      color: cls.color,
+      r,
+      hit: 15 + power * 8,
+      angle: ang,
+      spin: rand(-0.18, 0.18),
+      gravity: true,
+      heavy: spent,
+      mass: power,
+      sparkle: 2,
+    });
+    if (!fromCore) rememberDebugSegment('ability', player.x, player.y - 70, origin.x, origin.y, 8, cls.color, 260);
+    for (let i = 0; i < (spent ? 18 : 11); i++) {
+      const a = ang + Math.PI + rand(-0.62, 0.62);
+      gravityParticle(origin.x + rand(-4, 4), origin.y + rand(-4, 4), Math.cos(a) * rand(0.45, 1.7), Math.sin(a) * rand(0.45, 1.7), {
+        color: Math.random() < 0.5 ? '#d9d4ff' : cls.color,
+        life: rand(180, 360),
+        r: rand(1.0, spent ? 3.0 : 2.2),
+      });
+    }
+    burst(origin.x, origin.y, spent ? '#d9d4ff' : cls.color, spent ? 13 : 8, spent ? 3.2 : 2.4);
+  }
+  function gravityDebrisImpact(x, y, team, color, hit, opts) {
+    opts = opts || {};
+    const heavy = !!opts.heavy;
+    const radius = heavy ? 112 : 82;
+    const force = heavy ? 17 : 11;
+    burst(x, y, '#d9d4ff', heavy ? 18 : 10, heavy ? 4.2 : 3.1);
+    burst(x, y, color || '#8f7dff', heavy ? 26 : 16, heavy ? 4.8 : 3.8);
+    spawnShockwaveRing(x, y, radius, color || '#8f7dff', { life: heavy ? 330 : 240, width: heavy ? 4.2 : 3.1, yScale: 0.74, fill: heavy ? 0.09 : 0.05 });
+    radialActorPulse(x, y, radius, force, team, color || '#8f7dff');
+    pushBoxesRadial(x, y, heavy ? 20 : 13, radius, team);
+    for (let i = 0; i < (heavy ? 24 : 14); i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(0.5, heavy ? 3.2 : 2.3);
+      gravityParticle(x, y, Math.cos(a) * sp, Math.sin(a) * sp - rand(0.2, 1.1), {
+        color: Math.random() < 0.30 ? '#ffffff' : color || '#8f7dff',
+        life: rand(200, 520),
+        r: rand(1.0, heavy ? 3.4 : 2.5),
+      });
+    }
+    if (heavy) addShake(3.7, 110);
+  }
+  function useMassSlam(opts) {
+    opts = opts || {};
+    const p = aimedPoint(opts.range || 380);
+    const radius = opts.radius || 154;
+    const force = opts.force || 28;
+    rememberDebugSegment('ability', player.x, player.y - 68, p.x, p.y, 12, cls.color, 260);
+    for (let i = 0; i < 26; i++) {
+      const a = rand(0, Math.PI * 2), rr = rand(0, radius * 0.88);
+      gravityParticle(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr * 0.55 - rand(12, 42),
+        -Math.cos(a) * rand(0.05, 0.5), rand(1.2, 4.0), {
+          color: Math.random() < 0.26 ? '#ffffff' : cls.color,
+          life: rand(180, 430),
+          r: rand(1.2, 3.4),
+        });
+    }
+    const targets = player.team === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
+    for (const t of targets.slice()) {
+      const dx = t.x - p.x, dy = (t.y - 42) - p.y, d = Math.hypot(dx, dy) || 1;
+      if (d > radius) continue;
+      const u = 1 - d / radius;
+      t.vy += 5.2 * u;
+      t.grounded = false;
+      if (player.team === 'enemy') hurtEnemyTarget(t, dx / d * 0.28, 0.78, force * u, p.x, p.y);
+      else hurtFighter(t, dx / d * 0.28, 0.78, force * u, p.x, p.y);
+    }
+    if (player.team !== 'enemy' && dummies) for (const d of dummies) {
+      for (const k in d.pts) {
+        const pt = d.pts[k];
+        if (pt.pin) continue;
+        const dx = pt.x - p.x, dy = pt.y - p.y, dist = Math.hypot(dx, dy) || 1;
+        if (dist > radius) continue;
+        const u = 1 - dist / radius;
+        pt.y += 15 * u;
+        pt.x += (dx / dist) * 5 * u;
+      }
+      d.flash = Math.max(d.flash || 0, 160);
+    }
+    for (const b of boxes || []) {
+      if (!b || b.dead) continue;
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = cx - p.x, dy = cy - p.y, d = Math.hypot(dx, dy) || 1;
+      if (d > radius + 28) continue;
+      const u = 1 - Math.min(d, radius) / radius;
+      pushBox(b, dx / d * 0.35, 0.95, (force * 0.78 + 8) * u);
+      b.va += (dx / d) * 0.10 * u;
+    }
+    burst(p.x, p.y, '#d9d4ff', 18, 4.0);
+    burst(p.x, p.y, cls.color, 32, 5.2);
+    spawnShockwaveRing(p.x, p.y, radius, cls.color, { life: 360, width: 5, yScale: 0.48, fill: 0.10 });
+    addShake(4.8, 145);
+    chargeGravityCore(0.85, p.x, p.y);
   }
   // a straight thrown dagger that can be recovered after landing
   function spawnDagger(ang, opts) {
@@ -6583,15 +6813,49 @@ PUBLIC.start = function (root, api) {
     }
     if (player) player.pyroBreath = Math.max(0, (player.pyroBreath || 0) - dtStep);
   }
+  function emitBlackHoleBirth(x, y, r, color) {
+    burst(x, y, '#ffffff', 18, 3.4);
+    burst(x, y, color || '#8f7dff', 58, 6.4);
+    for (let i = 0; i < 52; i++) {
+      const a = rand(0, Math.PI * 2), rr = rand(r * 0.34, r * 0.98);
+      const tangent = a + Math.PI / 2;
+      gravityParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr,
+        Math.cos(tangent) * rand(0.25, 1.4) - Math.cos(a) * rand(0.10, 0.55),
+        Math.sin(tangent) * rand(0.25, 1.4) - Math.sin(a) * rand(0.10, 0.55), {
+          color: Math.random() < 0.24 ? '#ffffff' : color || '#8f7dff',
+          life: rand(360, 860),
+          r: rand(1.1, 3.2),
+        });
+    }
+    spawnShockwaveRing(x, y, r * 0.88, color || '#8f7dff', { life: 480, width: 5.6, yScale: 0.90, fill: 0.08 });
+    addShake(6.6, 190);
+  }
+  function spawnBlackHole(x, y, team, color, opts) {
+    opts = Object.assign({}, opts || {}, { blackHole: true, ultimate: true, tether: true });
+    spawnGravityField(x, y, team, color || '#8f7dff', opts);
+  }
   function spawnGravityField(x, y, team, color, opts) {
     opts = opts || {};
     let life = opts.life || 2600;
     let r = opts.r || 152;
     if ((team || 'hero') === 'hero' && hasPassive('mg_resonance')) { life += 420; r *= 1.08; }
-    gravityFields.push({ x, y, team: team || 'hero', color: color || '#ff77d2', life, max: life, r, ultimate: !!opts.ultimate, tether: opts.tether !== false, phase: rand(0, Math.PI * 2) });
+    const blackHole = !!opts.blackHole;
+    const fieldColor = color || (blackHole ? '#8f7dff' : '#ff77d2');
+    gravityFields.push({
+      x, y, team: team || 'hero', color: fieldColor, life, max: life, r,
+      ultimate: !!opts.ultimate, tether: opts.tether !== false, phase: rand(0, Math.PI * 2),
+      blackHole,
+      pullPower: opts.force || opts.pullPower || (blackHole ? 1.35 : 1),
+      damageTick: blackHole ? 90 : 0,
+    });
+    if (blackHole) {
+      emitBlackHoleBirth(x, y, r, fieldColor);
+      if ((team || 'hero') === 'hero' && gravityCore) chargeGravityCore(1.65, x, y);
+      return;
+    }
     burst(x, y, '#ffffff', opts.ultimate ? 28 : 22, opts.ultimate ? 4.8 : 3.8);
-    burst(x, y, color || '#ff77d2', opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
-    spawnShockwaveRing(x, y, r, color || '#ff77d2', { life: opts.ultimate ? 520 : 360, width: opts.ultimate ? 6 : 4, yScale: 0.64, fill: opts.ultimate ? 0.10 : 0.06 });
+    burst(x, y, fieldColor, opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
+    spawnShockwaveRing(x, y, r, fieldColor, { life: opts.ultimate ? 520 : 360, width: opts.ultimate ? 6 : 4, yScale: 0.64, fill: opts.ultimate ? 0.10 : 0.06 });
     addShake(opts.ultimate ? 5.4 : 3.6, opts.ultimate ? 170 : 120);
     if ((team || 'hero') === 'hero' && gravityCore) chargeGravityCore(opts.ultimate ? 1.45 : 0.85, x, y);
   }
@@ -6640,8 +6904,13 @@ PUBLIC.start = function (root, api) {
     const dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
     if (d > g.r) return;
     const u = 1 - d / g.r;
-    act.vx += (dx / d) * (0.035 + u * 0.11);
-    act.vy = act.vy * (0.90 - u * 0.12) + (dy / d) * (0.05 + u * 0.12) - GRA * (0.55 + u * 0.55);
+    const power = g.pullPower || 1;
+    act.vx += (dx / d) * (0.035 + u * 0.11) * power;
+    act.vy = act.vy * (0.90 - u * 0.12) + (dy / d) * (0.05 + u * 0.12) * power - GRA * (0.55 + u * (g.blackHole ? 0.15 : 0.55));
+    if (g.blackHole && u > 0.45) {
+      act.vx += (dx / d) * 0.10 * u;
+      act.vy += (dy / d) * 0.07 * u;
+    }
     if (u > 0.25) { act.grounded = false; act.coyote = Math.max(act.coyote || 0, 2); }
   }
   function applyGravityFieldToDummy(g, d) {
@@ -6653,8 +6922,9 @@ PUBLIC.start = function (root, api) {
       const dx = g.x - p.x, dy = g.y - p.y, dist = Math.hypot(dx, dy) || 1;
       if (dist > g.r) continue;
       const u = 1 - dist / g.r;
-      p.x += (dx / dist) * (0.45 + u * 1.2);
-      p.y += (dy / dist) * (0.35 + u * 1.0) - (0.9 + u * 1.2);
+      const power = g.pullPower || 1;
+      p.x += (dx / dist) * (0.45 + u * 1.2) * power;
+      p.y += (dy / dist) * (0.35 + u * 1.0) * power - (g.blackHole ? 0.18 : 0.9 + u * 1.2);
       touched = true;
     }
     if (touched) d.flash = Math.max(d.flash, 60);
@@ -6664,9 +6934,10 @@ PUBLIC.start = function (root, api) {
     const dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
     if (d > g.r) return;
     const u = 1 - d / g.r;
-    b.vx += (dx / d) * (0.12 + u * 0.24);
-    b.vy = b.vy * (0.86 - u * 0.08) + (dy / d) * (0.08 + u * 0.20) - 0.58 * (0.8 + u);
-    b.va += (dx / d) * 0.012;
+    const power = g.pullPower || 1;
+    b.vx += (dx / d) * (0.12 + u * 0.24) * power;
+    b.vy = b.vy * (0.86 - u * 0.08) + (dy / d) * (0.08 + u * 0.20) * power - (g.blackHole ? 0.05 : 0.58 * (0.8 + u));
+    b.va += (dx / d) * 0.012 * power;
   }
   function updateGravityCore(dtStep) {
     const g = gravityCore;
@@ -6705,45 +6976,66 @@ PUBLIC.start = function (root, api) {
     }
   }
   function implodeGravityField(g) {
-    burst(g.x, g.y, '#ffffff', 26, 5.2);
-    burst(g.x, g.y, g.color, 42, 5.8);
-    spawnShockwaveRing(g.x, g.y, g.r + 70, g.color, { life: g.ultimate ? 560 : 430, width: g.ultimate ? 6.5 : 5, yScale: 0.62, fill: g.ultimate ? 0.14 : 0.09 });
-    addShake(5.6, 170);
+    const blackHole = !!g.blackHole;
+    burst(g.x, g.y, blackHole ? '#d9d4ff' : '#ffffff', blackHole ? 34 : 26, blackHole ? 6.2 : 5.2);
+    burst(g.x, g.y, g.color, blackHole ? 72 : 42, blackHole ? 7.0 : 5.8);
+    spawnShockwaveRing(g.x, g.y, g.r + (blackHole ? 108 : 70), g.color, {
+      life: blackHole ? 650 : g.ultimate ? 560 : 430,
+      width: blackHole ? 8 : g.ultimate ? 6.5 : 5,
+      yScale: blackHole ? 0.92 : 0.62,
+      fill: blackHole ? 0.18 : g.ultimate ? 0.14 : 0.09,
+    });
+    addShake(blackHole ? 8.4 : 5.6, blackHole ? 230 : 170);
+    if (blackHole) {
+      for (let i = 0; i < 70; i++) {
+        const a = rand(0, Math.PI * 2), sp = rand(1.2, 5.2);
+        gravityParticle(g.x, g.y, Math.cos(a) * sp, Math.sin(a) * sp - rand(0.2, 1.4), {
+          color: Math.random() < 0.28 ? '#ffffff' : g.color,
+          life: rand(280, 760),
+          r: rand(1.2, 3.8),
+        });
+      }
+    }
     for (const b of boxes) {
       const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
-      if (d < g.r + 70) { b.vx += (dx / d) * 8.5; b.vy += (dy / d) * 6.5 - 2; b.va += (dx / d) * 0.18; }
+      const reach = g.r + (blackHole ? 108 : 70);
+      if (d < reach) { b.vx += (dx / d) * (blackHole ? 12.5 : 8.5); b.vy += (dy / d) * (blackHole ? 9.0 : 6.5) - (blackHole ? 0.5 : 2); b.va += (dx / d) * (blackHole ? 0.26 : 0.18); }
     }
     if ((g.team || 'hero') === 'enemy') {
       for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
         const dx = g.x - t.x, dy = g.y - (t.y - 38), d = Math.hypot(dx, dy) || 1;
-        if (d < g.r + 70) hurtEnemyTarget(t, dx / d, dy / d, 18 * (1 - Math.min(d, g.r + 70) / (g.r + 70)), g.x, g.y);
+        const reach = g.r + (blackHole ? 108 : 70);
+        if (d < reach) hurtEnemyTarget(t, dx / d, dy / d, (blackHole ? 32 : 18) * (1 - Math.min(d, reach) / reach), g.x, g.y);
       }
     } else {
       if (fighters) for (const e of fighters.slice()) {
         const dx = g.x - e.x, dy = g.y - (e.y - 42), d = Math.hypot(dx, dy) || 1;
-        if (d < g.r + 70) hurtFighter(e, dx / d, dy / d, 20 * (1 - Math.min(d, g.r + 70) / (g.r + 70)), g.x, g.y);
+        const reach = g.r + (blackHole ? 108 : 70);
+        if (d < reach) hurtFighter(e, dx / d, dy / d, (blackHole ? 34 : 20) * (1 - Math.min(d, reach) / reach), g.x, g.y);
       }
       if (dummies) for (const d of dummies) {
         for (const k in d.pts) {
           const p = d.pts[k];
           if (p.pin) continue;
           const dx = g.x - p.x, dy = g.y - p.y, dist = Math.hypot(dx, dy) || 1;
-          if (dist < g.r + 60) { p.x += (dx / dist) * 12; p.y += (dy / dist) * 10; }
+          if (dist < g.r + (blackHole ? 94 : 60)) { p.x += (dx / dist) * (blackHole ? 20 : 12); p.y += (dy / dist) * (blackHole ? 17 : 10); }
         }
-        d.flash = Math.max(d.flash, 180);
+        d.flash = Math.max(d.flash, blackHole ? 260 : 180);
       }
     }
   }
   function collapseGravityCore(ang) {
     if (!gravityCore) {
       const p = aimedPoint(500);
-      spawnGravityField(p.x, p.y, player.team, cls.color, { r: 210, life: 1500, ultimate: true });
+      spawnBlackHole(p.x, p.y, player.team, cls.color, { r: 235, life: 1850, pullPower: 1.35 });
       return;
     }
     const g = Object.assign({}, gravityCore, {
       r: gravityCore.r + (hasPassive('mg_eventhorizon') ? 104 : 72),
       color: gravityCore.color,
       ultimate: true,
+      blackHole: true,
+      pullPower: hasPassive('mg_eventhorizon') ? 1.65 : 1.42,
     });
     burst(g.x, g.y, '#ffffff', 54, 6.4);
     burst(g.x, g.y, g.color, 76, 7.2);
@@ -6980,16 +7272,65 @@ PUBLIC.start = function (root, api) {
       rand(-0.7, 0.7), rand(-2.0, -0.25), { life: rand(320, 760), r: rand(1.2, 2.8) });
     if (b.kind === 'barrel' && b.heat >= 100) explodeBox(b, z.ultimate ? 24 : 18);
   }
+  function tickBlackHoleDamage(g, dtStep) {
+    if (!g.blackHole) return;
+    g.damageTick = (g.damageTick || 0) - dtStep;
+    if (g.damageTick > 0) return;
+    g.damageTick = 135;
+    const radius = g.r * 0.76;
+    const team = g.team || 'hero';
+    const targets = team === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
+    for (const t of targets.slice()) {
+      const dx = g.x - t.x, dy = g.y - (t.y - 42), d = Math.hypot(dx, dy) || 1;
+      if (d > radius) continue;
+      const u = 1 - d / radius;
+      t.vx += (dx / d) * 0.75 * u;
+      t.vy += (dy / d) * 0.55 * u;
+      if (team === 'enemy') hurtEnemyTarget(t, dx / d, dy / d, 5.5 + u * 8.5, g.x, g.y);
+      else hurtFighter(t, dx / d, dy / d, 6.0 + u * 9.0, g.x, g.y);
+    }
+    if (team !== 'enemy' && dummies) for (const d of dummies) {
+      let touched = false;
+      for (const k in d.pts) {
+        const p = d.pts[k];
+        if (p.pin) continue;
+        const dx = g.x - p.x, dy = g.y - p.y, dist = Math.hypot(dx, dy) || 1;
+        if (dist > radius) continue;
+        const u = 1 - dist / radius;
+        p.x += (dx / dist) * (1.8 + u * 3.8);
+        p.y += (dy / dist) * (1.4 + u * 3.0);
+        touched = true;
+      }
+      if (touched) d.flash = Math.max(d.flash || 0, 120);
+    }
+    for (const b of boxes || []) {
+      if (!b || b.dead) continue;
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
+      if (d > g.r) continue;
+      const u = 1 - d / g.r;
+      b.vx += (dx / d) * 0.78 * u;
+      b.vy += (dy / d) * 0.58 * u;
+      b.va += (dx / d) * 0.030 * u;
+    }
+  }
   function updateGravityFields(dtStep) {
     if (!gravityFields) return;
     for (let i = gravityFields.length - 1; i >= 0; i--) {
       const g = gravityFields[i];
       g.life -= dtStep;
+      tickBlackHoleDamage(g, dtStep);
       for (const b of boxes) applyGravityFieldToBox(g, b);
       if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(g, t);
       else if (fighters) for (const e of fighters) applyGravityFieldToActor(g, e);
       if (dummies) for (const d of dummies) applyGravityFieldToDummy(g, d);
-      if (Math.random() < 0.75) {
+      if (g.blackHole && Math.random() < 0.96) {
+        const a = rand(0, Math.PI * 2), rr = rand(26, g.r);
+        const tangent = a + Math.PI / 2;
+        particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
+          vx: Math.cos(tangent) * rand(0.18, 0.95) - Math.cos(a) * rand(0.10, 0.62),
+          vy: Math.sin(tangent) * rand(0.18, 0.95) - Math.sin(a) * rand(0.10, 0.62),
+          life: rand(260, 620), max: 620, color: Math.random() < 0.24 ? '#ffffff' : g.color, r: rand(1, 2.9) });
+      } else if (Math.random() < 0.75) {
         const a = rand(0, Math.PI * 2), rr = rand(18, g.r);
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
           vx: -Math.cos(a) * rand(0.2, 0.9), vy: -Math.sin(a) * rand(0.2, 0.9) - 0.2,
@@ -7320,11 +7661,12 @@ PUBLIC.start = function (root, api) {
       ctx.fillStyle = '#9a6b3f'; ctx.beginPath(); ctx.arc(hx - dx * 38, hy - dy * 38, 3.5, 0, Math.PI * 2); ctx.fill();
     } else if (cls.weapon === 'staff') {
       const pyro = cls.id === 'mage' && magePyroLoadoutActive();
-      const backLen = pyro ? 58 : 48;
-      const frontLen = pyro ? 74 : 64;
-      ctx.strokeStyle = pyro ? '#3f2919' : '#62462c';
+      const grav = cls.id === 'mage' && mageGraviturgeLoadoutActive();
+      const backLen = pyro ? 58 : grav ? 62 : 48;
+      const frontLen = pyro ? 74 : grav ? 78 : 64;
+      ctx.strokeStyle = pyro ? '#3f2919' : grav ? '#352c55' : '#62462c';
       ctx.lineCap = 'round';
-      ctx.lineWidth = pyro ? 4.6 : 4.2;
+      ctx.lineWidth = pyro ? 4.6 : grav ? 4.7 : 4.2;
       ctx.beginPath(); ctx.moveTo(hx - dx * backLen, hy - dy * backLen); ctx.lineTo(hx + dx * frontLen * L, hy + dy * frontLen * L); ctx.stroke();
       if (pyro) {
         const now = performance.now();
@@ -7377,11 +7719,19 @@ PUBLIC.start = function (root, api) {
         ctx.fill();
         ctx.restore();
       } else {
-        ctx.strokeStyle = '#9aa0aa'; ctx.lineWidth = 2.4;
-        ctx.beginPath(); ctx.moveTo(hx + dx * 64 * L + nx * 5, hy + dy * 64 * L + ny * 5); ctx.lineTo(hx + dx * 64 * L - nx * 5, hy + dy * 64 * L - ny * 5); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(hx - dx * 48 + nx * 4, hy - dy * 48 + ny * 4); ctx.lineTo(hx - dx * 48 - nx * 4, hy - dy * 48 - ny * 4); ctx.stroke();
+        ctx.strokeStyle = grav ? '#8f7dff' : '#9aa0aa'; ctx.lineWidth = grav ? 2.7 : 2.4;
+        ctx.beginPath(); ctx.moveTo(hx + dx * frontLen * L + nx * 5, hy + dy * frontLen * L + ny * 5); ctx.lineTo(hx + dx * frontLen * L - nx * 5, hy + dy * frontLen * L - ny * 5); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(hx - dx * backLen + nx * 4, hy - dy * backLen + ny * 4); ctx.lineTo(hx - dx * backLen - nx * 4, hy - dy * backLen - ny * 4); ctx.stroke();
         ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
-        ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
+        if (grav) {
+          const tipX = hx + dx * (frontLen + 4) * L, tipY = hy + dy * (frontLen + 4) * L;
+          ctx.fillStyle = '#090814';
+          ctx.beginPath(); ctx.arc(tipX, tipY, 5.2, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#d9d4ff'; ctx.lineWidth = 1.1;
+          ctx.beginPath(); ctx.arc(tipX, tipY, 8.4, -0.85, Math.PI * 1.18); ctx.stroke();
+        } else {
+          ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
+        }
       }
     } else if (cls.weapon === 'bow') {
       const pull = currentBowPull();
@@ -7534,6 +7884,48 @@ PUBLIC.start = function (root, api) {
       ctx.quadraticCurveTo(x, y - 3.2, x - Math.cos(a) * 5.2, y);
       ctx.quadraticCurveTo(x, y + 3.2, x + Math.cos(a) * 3.8, y);
       ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawGravityDebrisOrbit(cx, cy, count, max) {
+    count = clamp(Math.floor(count || 0), 0, max || MAGE_DEBRIS_MAX);
+    if (!count) return;
+    const t = (player.gravityDebrisSpin || 0) + performance.now() * 0.0021;
+    const active = player.anim && player.anim.atkActive && player.anim.visualKind === 'gravityDebris';
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < count; i++) {
+      const a = t + i * Math.PI * 2 / Math.max(1, max || count);
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2.4 + i * 1.7);
+      const orbitX = 30 + pulse * 4 + (active ? 8 : 0);
+      const orbitY = 17 + pulse * 2;
+      const x = cx + Math.cos(a) * orbitX;
+      const y = cy + Math.sin(a) * orbitY - 9;
+      ctx.globalAlpha = 0.16 + pulse * 0.12;
+      ctx.strokeStyle = '#8f7dff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 7);
+      ctx.quadraticCurveTo((cx + x) * 0.5 + Math.sin(a) * 5, (cy + y) * 0.5 - 8, x, y);
+      ctx.stroke();
+      ctx.globalAlpha = 0.90;
+      ctx.fillStyle = i % 2 ? '#6d62b8' : '#8574d9';
+      ctx.strokeStyle = '#d9d4ff';
+      ctx.lineWidth = 1.1;
+      const r = 4.2 + pulse * 1.7;
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const aa = a * 1.7 + k * Math.PI * 2 / 6;
+        const rr = r * (0.72 + ((k + i) % 3) * 0.18);
+        const px = x + Math.cos(aa) * rr;
+        const py = y + Math.sin(aa) * rr;
+        if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 0.72;
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -7860,6 +8252,9 @@ PUBLIC.start = function (root, api) {
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
     if (cls.id === 'mage' && player.team === 'hero' && mageSpiritLoadoutActive() && (player.spiritCharges || 0) > 0) {
       drawSpiritOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.spiritCharges);
+    }
+    if (cls.id === 'mage' && player.team === 'hero' && mageGraviturgeLoadoutActive() && (player.gravityDebris || 0) > 0) {
+      drawGravityDebrisOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.gravityDebris, gravityDebrisMax());
     }
     if (cls.id === 'ranger') drawQuiver(shX - f * 13, shY + 23, f, player.arrowAmmo);
 
@@ -8547,6 +8942,51 @@ PUBLIC.start = function (root, api) {
     ctx.beginPath(); ctx.arc(g.x, g.y, 9 + charge * 0.9 + Math.sin(t * 0.01) * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
+  function drawBlackHoleField(g, t) {
+    const fade = clamp(g.life / (g.max || 1), 0, 1);
+    const age = 1 - fade;
+    const pulse = 1 + Math.sin(t * 0.010 + (g.phase || 0)) * 0.035;
+    const rr = g.r * pulse;
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
+    grad.addColorStop(0, `rgba(0,0,0,${0.94 * fade})`);
+    grad.addColorStop(0.16, `rgba(8,7,18,${0.88 * fade})`);
+    grad.addColorStop(0.36, `rgba(86,72,176,${0.30 * fade})`);
+    grad.addColorStop(0.72, `rgba(143,125,255,${0.12 * fade})`);
+    grad.addColorStop(1, 'rgba(143,125,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
+
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let ring = 0; ring < 4; ring++) {
+      const baseR = rr * (0.22 + ring * 0.145 + Math.sin(t * 0.002 + ring) * 0.012);
+      ctx.globalAlpha = fade * (ring === 0 ? 0.82 : 0.34);
+      ctx.strokeStyle = ring === 0 ? '#d9d4ff' : (ring % 2 ? g.color : '#ffffff');
+      ctx.lineWidth = ring === 0 ? 2.8 : 1.5;
+      ctx.beginPath();
+      for (let i = 0; i <= 96; i++) {
+        const u = i / 96;
+        const a = u * Math.PI * 2 + t * (0.0032 + ring * 0.0008) + ring * 0.7;
+        const swirl = Math.sin(u * Math.PI * 6 + t * 0.006 + ring) * (3.5 + ring);
+        const x = g.x + Math.cos(a) * (baseR + swirl);
+        const y = g.y + Math.sin(a) * (baseR + swirl);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.96 * fade;
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(g.x, g.y, 19 + age * 9, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.82 * fade;
+    ctx.strokeStyle = '#d9d4ff';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(g.x, g.y, 25 + Math.sin(t * 0.014) * 2.3, 0, Math.PI * 2); ctx.stroke();
+    drawGravityCoreTethers(g, t);
+    ctx.restore();
+  }
   function drawAbilityMarkers() {
     const t = performance.now();
     ctx.save();
@@ -8889,6 +9329,27 @@ PUBLIC.start = function (root, api) {
         ctx.quadraticCurveTo(sx + rr * 1.45, sy, sx, sy + rr * 1.8);
         ctx.quadraticCurveTo(sx - rr * 1.45, sy, sx, sy - rr * 1.7);
         ctx.fill();
+      } else if (pt.kind === 'gravity') {
+        const rr = pt.r * (0.8 + fade * 0.55);
+        const ang = Math.atan2(pt.vy || -1, pt.vx || 0) + (pt.seed || 0) * 0.22;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 0.24 * fade;
+        ctx.strokeStyle = pt.color || '#8f7dff';
+        ctx.lineWidth = Math.max(0.8, rr * 0.72);
+        ctx.beginPath();
+        ctx.moveTo(sx - Math.cos(ang) * rr * 6, sy - Math.sin(ang) * rr * 6);
+        ctx.lineTo(sx, sy);
+        ctx.stroke();
+        ctx.globalAlpha = 0.70 * fade;
+        ctx.fillStyle = pt.color || '#8f7dff';
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(ang) * rr * 1.8, sy + Math.sin(ang) * rr * 1.8);
+        ctx.lineTo(sx + Math.cos(ang + 2.35) * rr, sy + Math.sin(ang + 2.35) * rr);
+        ctx.lineTo(sx - Math.cos(ang) * rr * 1.2, sy - Math.sin(ang) * rr * 1.2);
+        ctx.lineTo(sx + Math.cos(ang - 2.35) * rr, sy + Math.sin(ang - 2.35) * rr);
+        ctx.closePath();
+        ctx.fill();
       } else {
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = fade;
@@ -8928,6 +9389,10 @@ PUBLIC.start = function (root, api) {
     drawFlameBreaths();
     for (const g of gravityFields) {
       const now = performance.now();
+      if (g.blackHole) {
+        drawBlackHoleField(g, now);
+        continue;
+      }
       const pulse = Math.sin(now * 0.009 + (g.phase || 0)) * 0.08 + 1;
       const fade = clamp(g.life / g.max, 0, 1);
       const rr = g.r * pulse;
@@ -8999,6 +9464,43 @@ PUBLIC.start = function (root, api) {
           const a = i * Math.PI / 2;
           ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * (r + 8), Math.sin(a) * (r + 8)); ctx.stroke();
         }
+        ctx.restore();
+      } else if (b.kind === 'gravityDebris') {
+        const r = b.r || 11;
+        const ang = Math.atan2(b.vy, b.vx);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = b.heavy ? 0.42 : 0.28;
+        ctx.strokeStyle = b.color || '#8f7dff';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = b.heavy ? 7 : 4.5;
+        ctx.beginPath();
+        ctx.moveTo(b.x - Math.cos(ang) * (42 + r), b.y - Math.sin(ang) * (42 + r));
+        ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 0.8, b.y + Math.cos(ang) * r * 0.8, b.x, b.y);
+        ctx.stroke();
+        ctx.restore();
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate((b.angle || 0) + performance.now() * 0.003);
+        ctx.fillStyle = b.heavy ? '#5d56a3' : '#7068b4';
+        ctx.strokeStyle = '#d9d4ff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        const pts = 7;
+        for (let i = 0; i < pts; i++) {
+          const a = i * Math.PI * 2 / pts;
+          const rr = r * (0.72 + (i % 3) * 0.14);
+          const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.globalAlpha = 0.72;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.20, -r * 0.42);
+        ctx.lineTo(r * 0.46, r * 0.08);
+        ctx.stroke();
         ctx.restore();
       } else if (b.kind === 'gravitySeed') {
         const r = b.r || 8;
@@ -9117,6 +9619,12 @@ PUBLIC.start = function (root, api) {
             pt.vy -= pt.lift || 0.024;
             pt.vx *= pt.drag || 0.976;
             pt.vy *= pt.drag || 0.976;
+          } else if (pt.kind === 'gravity') {
+            const swirl = Math.sin((runTime || 0) * 0.013 + (pt.seed || 0) + age * 5.6) * 0.018;
+            pt.vx += swirl;
+            pt.vy -= 0.010;
+            pt.vx *= 0.982;
+            pt.vy *= 0.982;
           } else {
             pt.vy += 0.12;
           }
@@ -9162,6 +9670,20 @@ PUBLIC.start = function (root, api) {
             if (Math.random() < 0.18) emberParticle(b.x, b.y, -b.vx * rand(0.02, 0.05), rand(-1.3, 0.2));
             if ((b.team || 'hero') === 'hero' && hasPassive('mg_pyromancy') && Math.random() < 0.18) {
               feedPyromancyGroundFire(b.x, b.y, b.team, { r: 24, w: 68, life: 720, radius: 84, maxDelta: 120, flare: 220 });
+            }
+          }
+          else if (b.kind === 'gravityDebris') {
+            b.angle = (b.angle || 0) + (b.spin || 0.08);
+            b.vy += 0.035;
+            b.vx *= 0.998;
+            if (Math.random() < 0.82) {
+              const a = Math.atan2(b.vy, b.vx) + Math.PI + rand(-0.38, 0.38);
+              gravityParticle(b.x + rand(-4, 4), b.y + rand(-4, 4),
+                Math.cos(a) * rand(0.35, 1.4), Math.sin(a) * rand(0.35, 1.4) - 0.12, {
+                  color: Math.random() < 0.34 ? '#ffffff' : b.color,
+                  life: rand(160, 360),
+                  r: rand(0.9, b.heavy ? 2.8 : 2.0),
+                });
             }
           }
           else if (b.kind === 'bolt' || b.kind === 'firebolt' || b.kind === 'spiritBolt') {
@@ -9212,8 +9734,11 @@ PUBLIC.start = function (root, api) {
             } else if (b.kind === 'ignitionOrb') {
               heatBoxFromFire(crate, { x: b.x, y: b.y, color: b.color, ultimate: true }, crate.kind === 'barrel' ? 90 : 46);
               pushBox(crate, b.vx / sp, b.vy / sp - 0.12, 9);
+            } else if (b.kind === 'gravityDebris') {
+              pushBox(crate, b.vx / sp, b.vy / sp - 0.08, (b.hit || 16) * (b.heavy ? 1.15 : 0.78));
+              crate.va += (b.vx >= 0 ? 1 : -1) * (b.heavy ? 0.12 : 0.07);
             } else pushBox(crate, b.vx / sp, b.vy / sp, b.hit);
-            addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' ? 2.8 : 1.2, 80);
+            addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'gravityDebris' ? 2.8 : 1.2, 80);
           }
           let struckActor = false;
           if ((b.team || 'hero') === 'enemy') {
@@ -9236,7 +9761,7 @@ PUBLIC.start = function (root, api) {
                 if (b.kind !== 'gravitySeed' && b.kind !== 'ignitionOrb') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
                 if (b.fire) markBurnDummy(d, b.scorch ? 1850 : 1350, b.color);
                 if (b.spirit) grantSpiritCharge(h.p.x, h.p.y, 0.35);
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
             if (!struckActor && fighters) for (const e of fighters.slice()) {
@@ -9249,7 +9774,7 @@ PUBLIC.start = function (root, api) {
                   if (b.fire) markBurnActor(e, b.scorch ? 1850 : 1350, b.color);
                   if (b.spirit) grantSpiritCharge(h.x, h.y, 0.5);
                 }
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
           }
@@ -9270,6 +9795,7 @@ PUBLIC.start = function (root, api) {
           if (dead) {
             if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
             else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
+            else if (b.kind === 'gravityDebris') gravityDebrisImpact(b.x, b.y, b.team, b.color, b.hit || 16, { heavy: b.heavy });
             else if (b.kind === 'sigil') explodeSigil(b);
             else if (b.kind === 'firebolt') {
               const gy = terrainYAt(b.x);
@@ -9337,6 +9863,7 @@ PUBLIC.start = function (root, api) {
       facing: act.facing, grounded: act.grounded, coyote: act.coyote, airTime: act.airTime,
       jumpHeld: !!(act.intent && act.intent.jumpHeld), jumpHold: act.intent && act.intent.jumpHold || 0,
       rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, arrowAmmo: act.arrowAmmo,
+      gravityDebris: act.gravityDebris || 0,
       rogueBurst: act.rogueBurst, attackCd: act.attackCd, abilityCd: act.abilityCd, moveCd: act.moveCd,
       queuedAttack: act.queuedAttack ? { type: act.queuedAttack.type, slot: act.queuedAttack.slot } : null,
       queuedFlash: act.queuedFlash ? { slot: act.queuedFlash.slot } : null,
@@ -9395,7 +9922,7 @@ PUBLIC.start = function (root, api) {
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0 } : null,
           effects: {
             projectiles: projectiles ? projectiles.slice(0, 18).map(p => ({ kind: p.kind || 'bolt', x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life || 0, team: p.team })) : [],
-            gravityFields: gravityFields ? gravityFields.map(g => ({ x: g.x, y: g.y, r: g.r, life: g.life || 0, max: g.max || 0, ultimate: !!g.ultimate, team: g.team })) : [],
+            gravityFields: gravityFields ? gravityFields.map(g => ({ x: g.x, y: g.y, r: g.r, life: g.life || 0, max: g.max || 0, ultimate: !!g.ultimate, blackHole: !!g.blackHole, team: g.team })) : [],
             gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0, pulse: gravityCore.resonancePulse || 0 } : null,
             fireZones: fireZones ? fireZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, ultimate: !!z.ultimate, team: z.team })) : [],
             flameBreaths: flameBreaths ? flameBreaths.map(b => ({ x: flameBreathOrigin(b.actor || player, b.angle).x, y: flameBreathOrigin(b.actor || player, b.angle).y, range: b.range, life: b.life || 0, max: b.max || 0, team: b.team })) : [],
