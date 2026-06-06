@@ -19,7 +19,7 @@ const GRA = 0.62, MAXV = 3.7, RUN_ACC = 0.7, AIR_ACC = 0.45;
 const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
-const ROGUE_MAX_KNIVES = 3, ROGUE_REGEN = 1850, ROGUE_BURST_MAX = 3, ROGUE_BURST_REGEN = 900, ROGUE_QUEUE_MS = 540;
+const ROGUE_MAX_KNIVES = 3, ROGUE_REGEN = 1850, ROGUE_BURST_MAX = 3, ROGUE_BURST_REGEN = 900, ROGUE_QUEUE_MS = 540, ROGUE_QUEUE_FLASH_MS = 420;
 const RANGER_MAX_ARROWS = 7, RANGER_REGEN = 1350, RANGER_DRAW_MAX = 900;
 const RANGER_NOCK_TIME = 190, RANGER_RELOAD_TIME = 360, ARROW_GRAVITY = 0.13;
 const KNIGHT_SHIELD_TIME = 1250;
@@ -740,6 +740,7 @@ PUBLIC.start = function (root, api) {
       background:rgba(255,255,255,.78);overflow:hidden;color:#171717;font-size:12px;box-shadow:0 5px 18px rgba(0,0,0,.12);
       flex-direction:column;gap:1px;padding:4px 3px}
     .sr-abilitybar .sr-btn.ready{border-color:rgba(255,159,110,.85);box-shadow:0 0 18px rgba(255,159,110,.25)}
+    .sr-abilitybar .sr-btn.queued{border-color:rgba(156,255,94,.96);box-shadow:0 0 20px rgba(156,255,94,.42);background:rgba(226,255,206,.86)}
     .sr-abilitybar .sr-btn.locked{opacity:.48;filter:saturate(.55)}
     .sr-cdfill{position:absolute;left:0;right:0;bottom:0;height:100%;transform:scaleY(0);transform-origin:bottom;
       background:rgba(0,0,0,.34);pointer-events:none}
@@ -1989,6 +1990,9 @@ PUBLIC.start = function (root, api) {
     if (slot === 'secondary' && type !== 'throw') return false;
     if (!canRogueAttack(type)) return false;
     player.queuedAttack = { type, slot, at: performance.now() };
+    player.queuedFlash = { slot, at: performance.now() };
+    burst(player.x + player.facing * 18, player.y - 48, cls.color, 5, 1.6);
+    syncHud();
     return true;
   }
   function consumeQueuedRogueAttack() {
@@ -2120,7 +2124,7 @@ PUBLIC.start = function (root, api) {
       team: 'hero', intent: input, cls: null,
       grounded: false, coyote: 0, jumpCut: false, airTime: 0, rogueAirJump: false, invuln: 0,
       knifeAmmo: ROGUE_MAX_KNIVES, knifeRegen: 0, arrowAmmo: RANGER_MAX_ARROWS, arrowRegen: 0,
-      rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null,
+      rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null, queuedFlash: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
       hoverTargetY: null,
@@ -2363,16 +2367,23 @@ PUBLIC.start = function (root, api) {
   }
   function abilityExtra(slot, spec) {
     if (!player || state !== 'playing') return '';
+    if (isQueuedRogueSlot(slot)) return 'queued';
     if (slot === 'attack' && cls.id === 'rogue') return `${player.rogueBurst || 0}/${ROGUE_BURST_MAX} burst`;
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
     if (slot === 'passive') return spec ? 'keystone' : '';
     return '';
   }
+  function isQueuedRogueSlot(slot) {
+    if (cls.id !== 'rogue' || !player) return false;
+    if (player.queuedAttack && player.queuedAttack.slot === slot) return true;
+    return !!(player.queuedFlash && player.queuedFlash.slot === slot && performance.now() - player.queuedFlash.at < ROGUE_QUEUE_FLASH_MS);
+  }
   function syncAbilityBar() {
     for (const slot of ['attack', 'secondary', 'shift', 'e', 'q']) {
       const btn = abilityButtons[slot], spec = equipped(slot), cd = cooldownForUi(slot);
       if (!btn) continue;
+      const queued = isQueuedRogueSlot(slot);
       const name = cd.locked ? `Wave ${SLOT_UNLOCK_WAVE[slot]}` : (spec ? spec.name : actionName(cls[slot] || slot));
       const fill = cd.locked ? 1 : clamp(cd.left / Math.max(1, cd.max), 0, 1);
       const key = btn.querySelector('.sr-key'), nm = btn.querySelector('.sr-name'), ex = btn.querySelector('.sr-extra'), fi = btn.querySelector('.sr-cdfill');
@@ -2381,8 +2392,9 @@ PUBLIC.start = function (root, api) {
       if (ex) ex.textContent = cd.locked ? 'locked' : abilityExtra(slot, spec);
       if (fi) fi.style.transform = `scaleY(${fill})`;
       btn.classList.toggle('ready', !cd.locked && fill <= 0.001);
+      btn.classList.toggle('queued', queued);
       btn.classList.toggle('locked', !!cd.locked);
-      btn.style.borderColor = cls && cls.color ? cls.color + '99' : '';
+      btn.style.borderColor = queued ? '' : cls && cls.color ? cls.color + '99' : '';
     }
     const jump = abilityButtons.jump;
     if (jump) {
@@ -4252,6 +4264,7 @@ PUBLIC.start = function (root, api) {
     player.flip = { active: false, t: 0, dur: 0, dir: player.facing };
     player.rogueAirJump = false;
     player.queuedAttack = null;
+    player.queuedFlash = null;
   }
 
   function centerCam(snap) {
@@ -6170,6 +6183,8 @@ PUBLIC.start = function (root, api) {
       jumpHeld: !!(act.intent && act.intent.jumpHeld), jumpHold: act.intent && act.intent.jumpHold || 0,
       rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, arrowAmmo: act.arrowAmmo,
       rogueBurst: act.rogueBurst, attackCd: act.attackCd, abilityCd: act.abilityCd, moveCd: act.moveCd,
+      queuedAttack: act.queuedAttack ? { type: act.queuedAttack.type, slot: act.queuedAttack.slot } : null,
+      queuedFlash: act.queuedFlash ? { slot: act.queuedFlash.slot } : null,
       cooldowns: Object.assign({}, act.cooldowns || {}),
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
