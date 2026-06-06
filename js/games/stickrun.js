@@ -1604,6 +1604,7 @@ PUBLIC.start = function (root, api) {
     a.brain.party = true;
     a.spirit = true;
     a.spiritLife = opts.life || 8500;
+    a.spiritMaxLife = a.spiritLife;
     allies.push(a);
     burst(x, groundY - 42, '#b48cff', 28, 4.6);
     burst(x, groundY - 42, '#ffffff', 12, 2.8);
@@ -4372,12 +4373,26 @@ PUBLIC.start = function (root, api) {
       const a = allies[i];
       if (a.dead) { allies.splice(i, 1); syncHud(); continue; }
       if (a.spiritLife != null) {
+        if (!a.spiritMaxLife) a.spiritMaxLife = a.spiritLife || 1;
         a.spiritLife -= dtStep;
         if (a.spiritLife <= 0) {
           burst(a.x, a.y - 42, '#b48cff', 18, 3.4);
           allies.splice(i, 1);
           syncHud();
           continue;
+        }
+        if (a.spirit && Math.random() < 0.18) {
+          const fade = clamp(a.spiritLife / Math.max(1, a.spiritMaxLife || a.spiritLife), 0, 1);
+          particles.push({
+            x: a.x + rand(-16, 16),
+            y: a.y - rand(38, 86),
+            vx: rand(-0.25, 0.25),
+            vy: rand(-0.78, -0.18),
+            life: rand(260, 480),
+            max: 480,
+            color: Math.random() < 0.35 ? '#ffffff' : '#b48cff',
+            r: rand(1.2, 3.0) * (0.75 + fade * 0.45),
+          });
         }
       }
       a.flash = Math.max(0, a.flash - dtStep);
@@ -4401,9 +4416,54 @@ PUBLIC.start = function (root, api) {
     if (!fighters) return;
     for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawFighterHealth(e); }
   }
+  function drawSpiritAllyAura(a) {
+    if (!a || !a.spirit) return;
+    const now = performance.now();
+    const fade = clamp((a.spiritLife || 0) / Math.max(1, a.spiritMaxLife || a.spiritLife || 1), 0, 1);
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.007 + a.x * 0.02);
+    const chestY = a.y - 62 - ((a.anim && a.anim.fly) || 0) * (a.cls.style.hover || 0);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.18 + fade * 0.18;
+    ctx.fillStyle = '#b48cff';
+    ctx.beginPath();
+    ctx.ellipse(a.x, a.y - 7, 23 + pulse * 6, 7 + pulse * 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.28 + fade * 0.20;
+    ctx.strokeStyle = '#f5efff';
+    ctx.lineWidth = 1.4 + pulse * 0.9;
+    ctx.beginPath();
+    ctx.ellipse(a.x, a.y - 7, 28 + pulse * 8, 10 + pulse * 3, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    if (hero && mageSpiritLoadoutActive()) {
+      const hx = hero.x, hy = hero.y - 58;
+      const mx = (hx + a.x) * 0.5 + Math.sin(now * 0.004 + a.x) * 12;
+      const my = (hy + chestY) * 0.5 - 18;
+      ctx.setLineDash([7, 10]);
+      ctx.lineDashOffset = -now * 0.035;
+      ctx.globalAlpha = 0.10 + fade * 0.20;
+      ctx.strokeStyle = '#b48cff';
+      ctx.lineWidth = 2.3;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.quadraticCurveTo(mx, my, a.x, chestY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const grad = ctx.createRadialGradient(a.x, chestY, 4, a.x, chestY, 38 + pulse * 8);
+    grad.addColorStop(0, `rgba(255,255,255,${0.20 * fade})`);
+    grad.addColorStop(0.36, `rgba(180,140,255,${0.22 * fade})`);
+    grad.addColorStop(1, 'rgba(180,140,255,0)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(a.x, chestY, 38 + pulse * 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   function drawAllies() {
     if (!allies) return;
-    for (const a of allies) { withActor(a, () => drawStick(a._moveAmt || 0)); drawFighterHealth(a); }
+    for (const a of allies) { drawSpiritAllyAura(a); withActor(a, () => drawStick(a._moveAmt || 0)); drawFighterHealth(a); }
   }
   function drawFighterHealth(e) {
     if (e.hp >= e.maxHp) return;
