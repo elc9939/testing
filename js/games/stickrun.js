@@ -219,10 +219,10 @@ const ABILITIES = (() => {
   add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Inferno', desc: 'Large fire zone with a heavy opening blast and lingering area denial.', effect: { kind: 'inferno', r: 230, life: 3800, range: 540 }, cd: 9800, tags: ['Fire', 'Field', 'Barrels'] });
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire zones last longer and barrel/object explosions burn brighter.', key: true, tags: ['Fire', 'Barrels'] });
   add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Haunting projectile that builds spirit charge on hit or KO.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
-  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Raise one stored spirit or pull a spirit charge from a nearby defeated body.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
+  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Raise one stored spirit or pull a visible remnant from a nearby defeated body.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
   add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Soul Flare', desc: 'Spend a spirit charge for a short fear pulse that shoves enemies away from allies.', effect: { kind: 'soulFlare' }, cd: 3600, tags: ['Spirit', 'Allies', 'Push'] });
   add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Grave Call', desc: 'Release stored spirits as temporary followers that fight around you.', effect: { kind: 'graveCall' }, cd: 9800, tags: ['Spirit', 'Allies'] });
-  add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies leave spirit charges and can rise as temporary allies.', key: true, tags: ['Spirit', 'Allies'] });
+  add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies leave visible remnants and can rise as temporary allies.', key: true, tags: ['Spirit', 'Allies'] });
   add('mg_windbolt', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'attack', name: 'Wind Bolt', desc: 'A quick bolt that shoves targets and barrels instead of only damaging them.', effect: { kind: 'bolt', power: 1.15, wind: 1 }, cd: 180, tags: ['Push', 'Projectile'] });
   add('mg_gust', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'shift', name: 'Gust Hover', desc: 'Air dash leaves a wind burst that knocks enemies and crates away.', effect: { kind: 'gustDash' }, cd: 1900, tags: ['Movement', 'Crates'] });
   add('mg_chain', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'e', name: 'Chain Spark', desc: 'Lightning jumps through enemies, metal objects, and crates in a short chain.', effect: { kind: 'chain', jumps: 4 }, cd: 3100, tags: ['Crates', 'Projectile'] });
@@ -1511,6 +1511,44 @@ PUBLIC.start = function (root, api) {
     syncHud();
     return true;
   }
+  function spawnSpiritRemnant(x, y, opts) {
+    if (!hero || !mageSpiritLoadoutActive()) return null;
+    opts = opts || {};
+    if (!spiritRemnants) spiritRemnants = [];
+    const groundY = opts.groundY || surfaceYFor(hero, x, 520, 180) || y + 42;
+    const remnant = {
+      x, y, groundY,
+      age: 0,
+      life: opts.life || 14000,
+      max: opts.life || 14000,
+      color: opts.color || '#b48cff',
+      source: opts.source || 'enemy',
+    };
+    spiritRemnants.push(remnant);
+    if (spiritRemnants.length > 10) spiritRemnants.shift();
+    burst(x, y, remnant.color, 18, 3.2);
+    burst(x, y, '#ffffff', 7, 2.2);
+    return remnant;
+  }
+  function nearestSpiritRemnant(range) {
+    if (!player || !spiritRemnants || !spiritRemnants.length) return null;
+    const px = player.x, py = player.y - 48;
+    let best = null, bd = range || 240;
+    for (const r of spiritRemnants) {
+      const d = Math.hypot(r.x - px, r.y - py);
+      if (d < bd) { best = r; bd = d; }
+    }
+    return best;
+  }
+  function consumeSpiritRemnant(r) {
+    if (!r || !spiritRemnants) return false;
+    const i = spiritRemnants.indexOf(r);
+    if (i >= 0) spiritRemnants.splice(i, 1);
+    burst(r.x, r.y, r.color || '#b48cff', 26, 4.8);
+    burst(r.x, r.y, '#ffffff', 12, 2.8);
+    rememberDebugSegment('ability', player.x, player.y - 58, r.x, r.y, 8, r.color || '#b48cff', 420);
+    return true;
+  }
   function spawnSpiritAlly(x, y, opts) {
     opts = opts || {};
     if (!allies) allies = [];
@@ -1534,6 +1572,13 @@ PUBLIC.start = function (root, api) {
     return a;
   }
   function bindSpiritAlly() {
+    const remnant = nearestSpiritRemnant(260);
+    if (remnant) {
+      consumeSpiritRemnant(remnant);
+      spawnSpiritAlly(remnant.x, remnant.groundY || remnant.y + 42, { hp: 2.2, life: 10500, facing: player.facing, color: remnant.color });
+      syncHud();
+      return true;
+    }
     const charges = player.spiritCharges || 0;
     const p = pointAhead(72);
     if (charges > 0) player.spiritCharges--;
@@ -1574,6 +1619,31 @@ PUBLIC.start = function (root, api) {
     addShake(5.4, 180);
     syncHud();
     return true;
+  }
+  function updateSpiritRemnants(dtStep) {
+    if (!spiritRemnants || !spiritRemnants.length) return;
+    for (let i = spiritRemnants.length - 1; i >= 0; i--) {
+      const r = spiritRemnants[i];
+      r.age += dtStep;
+      r.life -= dtStep;
+      if (r.life <= 0 || !mageSpiritLoadoutActive()) {
+        spiritRemnants.splice(i, 1);
+        continue;
+      }
+      if (Math.random() < 0.32) {
+        const a = rand(0, Math.PI * 2), rr = rand(2, 18);
+        particles.push({
+          x: r.x + Math.cos(a) * rr,
+          y: r.y + Math.sin(a) * rr * 0.62,
+          vx: Math.cos(a) * rand(-0.08, 0.08),
+          vy: rand(-0.42, 0.04),
+          life: rand(180, 360),
+          max: 360,
+          color: Math.random() < 0.36 ? '#ffffff' : r.color,
+          r: rand(1, 2.5),
+        });
+      }
+    }
   }
   function updateAbilityMarkers(dtStep) {
     if (anchors && anchors.length) {
@@ -2343,7 +2413,7 @@ PUBLIC.start = function (root, api) {
   api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, shockwaves, droppedKnives, boxes, dummies, fighters, allies;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
   let labMode = false, labBuildId = 'base';
   let cls = CLASSES[0];   // selected class
@@ -2403,6 +2473,7 @@ PUBLIC.start = function (root, api) {
     gravityFields = [];
     fireZones = [];
     shockwaves = [];
+    spiritRemnants = [];
     gravityCore = null;
     anchors = [];
     portals = [];
@@ -3212,7 +3283,10 @@ PUBLIC.start = function (root, api) {
     else if (act === 'barrel') spawnLabObject('barrel');
     else if (act === 'spring') spawnLabObject('spring');
     else if (act === 'knife') spawnLabDroppedKnife();
-    else if (act === 'spirit') grantSpiritCharge(player.x, player.y - 58, 1);
+    else if (act === 'spirit') {
+      spawnSpiritRemnant(player.x + player.facing * 86, player.y - 56, { groundY: player.y, source: 'lab' });
+      grantSpiritCharge(player.x, player.y - 58, 1);
+    }
     else if (act === 'debug') {
       debug.enabled = !debug.enabled;
       exposeDebugApi();
@@ -3755,6 +3829,7 @@ PUBLIC.start = function (root, api) {
         d.flash = 650;
         d.attackCd = 9999;
         for (const foot of ['footL', 'footR']) d.pts[foot].pin = false;
+        spawnSpiritRemnant(hx, hy, { groundY: d.baseY, source: 'dummy' });
         grantSpiritCharge(hx, hy, 1);
         burst(hx, hy, '#ff5a5a', 26, 5.2);
         addShake(4.5, 150);
@@ -4233,6 +4308,7 @@ PUBLIC.start = function (root, api) {
       arenaKills++;
       arenaBanner = Math.max(arenaBanner || 0, 420);
       if (hero && mageSpiritLoadoutActive()) {
+        spawnSpiritRemnant(e.x, e.y - 44, { groundY, source: e.cls && e.cls.id || 'enemy' });
         grantSpiritCharge(e.x, e.y - 44, 1);
         if (loadout && loadout.passive === 'mg_spiritbinder' && allies && livingAllies().length < 4) {
           spawnSpiritAlly(e.x, groundY, { hp: 1.5, life: 7600, facing: hero.facing });
@@ -5646,6 +5722,47 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawSpiritRemnants() {
+    if (!spiritRemnants || !spiritRemnants.length) return;
+    const now = performance.now();
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const r of spiritRemnants) {
+      const fade = clamp(r.life / (r.max || 1), 0, 1);
+      const pulse = 0.5 + 0.5 * Math.sin(now * 0.007 + r.x * 0.03);
+      const x = r.x - cam.x;
+      const y = r.y - cam.y + Math.sin(now * 0.003 + r.y * 0.02) * 3;
+      const gy = (r.groundY || r.y + 42) - cam.y;
+      ctx.globalAlpha = 0.18 * fade;
+      ctx.strokeStyle = r.color || '#b48cff';
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.moveTo(x, gy);
+      ctx.quadraticCurveTo(x + Math.sin(now * 0.004 + r.x) * 8, (gy + y) * 0.52, x, y);
+      ctx.stroke();
+      const grad = ctx.createRadialGradient(x, y, 2, x, y, 22 + pulse * 9);
+      grad.addColorStop(0, `rgba(255,255,255,${0.72 * fade})`);
+      grad.addColorStop(0.38, `rgba(180,140,255,${0.34 * fade})`);
+      grad.addColorStop(1, 'rgba(180,140,255,0)');
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, 22 + pulse * 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.82 * fade;
+      ctx.fillStyle = '#f5efff';
+      ctx.beginPath();
+      ctx.arc(x, y, 3.4 + pulse * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.48 * fade;
+      ctx.strokeStyle = r.color || '#b48cff';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 8, 12 + pulse * 5, 5 + pulse * 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   // ===========================================================================
   // ANIMATION CLIPS (prototype pipeline — currently the knight slash)
@@ -6594,6 +6711,7 @@ PUBLIC.start = function (root, api) {
     for (const c of coinsLeft) drawCoin(c);
     for (const b of boxes) drawBox(b);
     for (const d of dummies) drawDummy(d);
+    drawSpiritRemnants();
     if (!arenaMode) drawFlag(L);
     // particles
     for (const pt of particles) {
@@ -6755,6 +6873,7 @@ PUBLIC.start = function (root, api) {
           if (pt.life <= 0) particles.splice(i, 1);
         }
         updateDroppedKnives(dt);
+        updateSpiritRemnants(dt);
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
         if (shockwaves) for (let i = shockwaves.length - 1; i >= 0; i--) { if ((shockwaves[i].life -= dt) <= 0) shockwaves.splice(i, 1); }
         for (let i = debug.segments.length - 1; i >= 0; i--) { if ((debug.segments[i].life -= dt) <= 0) debug.segments.splice(i, 1); }
@@ -6930,6 +7049,7 @@ PUBLIC.start = function (root, api) {
           projectiles: projectiles ? projectiles.length : 0,
           gravityFields: gravityFields ? gravityFields.length : 0,
           shockwaves: shockwaves ? shockwaves.length : 0,
+          spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
