@@ -538,6 +538,16 @@ const ATTACK_TIMELINES = {
   volley: { kind: 'projectile', strike: 0.32, hitstop: 0, impulse: 0, tags: ['projectile', 'burst'] },
   cast: { kind: 'projectile', strike: 0.38, hitstop: 0, impulse: 0, tags: ['magic'] },
   arcaneBloom: { kind: 'projectile', strike: 0.42, hitstop: 0, impulse: 0, tags: ['magic', 'gravity', 'area'] },
+  pyroFirebolt: { kind: 'visual', strike: 0.20, hitstop: 0, impulse: 0, dur: 230, durScale: 1, tags: ['fire', 'staff', 'projectile'],
+    phases: { anticipation: [0.00, 0.16], active: [0.16, 0.34], recovery: [0.34, 1.00] } },
+  pyroIgnite: { kind: 'visual', strike: 0.34, hitstop: 0, impulse: 0, dur: 500, durScale: 1, tags: ['fire', 'staff', 'throw'],
+    phases: { anticipation: [0.00, 0.34], active: [0.34, 0.50], recovery: [0.50, 1.00] } },
+  pyroBreath: { kind: 'visual', strike: 0.10, hitstop: 0, impulse: 0, dur: 760, durScale: 1, tags: ['fire', 'staff', 'channel'],
+    phases: { anticipation: [0.00, 0.12], active: [0.12, 0.88], recovery: [0.88, 1.00] } },
+  pyroDragon: { kind: 'visual', strike: 0.06, hitstop: 0, impulse: 0, dur: 1350, durScale: 1, tags: ['fire', 'staff', 'ultimate', 'channel'],
+    phases: { anticipation: [0.00, 0.10], active: [0.10, 0.94], recovery: [0.94, 1.00] } },
+  pyroGroundFlow: { kind: 'visual', strike: 0.18, hitstop: 0, impulse: 0, dur: 560, durScale: 1, tags: ['fire', 'staff', 'ground'],
+    phases: { anticipation: [0.00, 0.22], active: [0.22, 0.76], recovery: [0.76, 1.00] } },
   quake: { kind: 'area', strike: 0.48, hitstop: 46, impulse: 0, tags: ['area', 'heavy'] },
 };
 const DEFAULT_MOTION = {
@@ -561,6 +571,10 @@ function withDefaults(spec, fallback) {
 }
 function attackSpec(type) { return withDefaults(ATTACK_TIMELINES[type], DEFAULT_ATTACK); }
 function motionSpec(type) { return withDefaults(MOTION_TIMELINES[type], DEFAULT_MOTION); }
+function isPyroVisualAttack(type) {
+  return type === 'pyroFirebolt' || type === 'pyroIgnite' || type === 'pyroBreath' ||
+    type === 'pyroDragon' || type === 'pyroGroundFlow';
+}
 
 // ---------- levels (world coords, y down) ----------
 const G = 470;
@@ -1180,6 +1194,30 @@ PUBLIC.start = function (root, api) {
     player.draw.active = false; player.draw.type = null; player.draw.t = 0; player.draw.aim = aim; player.draw.reload = RANGER_RELOAD_TIME; player.draw.lastType = shotType;
     return triggerAttack(shotType, { aim, drawPower: power, fromDraw: true });
   }
+  function startVisualAttack(type, ang, opts) {
+    if (!player || state !== 'playing' || !type) return false;
+    const a = player.anim;
+    if (!a || a.atkActive) return false;
+    opts = opts || {};
+    a.atkAim = ang != null ? ang : aimedAngle();
+    player.facing = Math.cos(a.atkAim) >= 0 ? 1 : -1;
+    a.aimShown = a.atkAim;
+    a.aimShownV = 0;
+    a.action = startAttackAction(type);
+    a.atkActive = true;
+    a.atkType = type;
+    a.atkT = 0;
+    a.atkDur = a.action.dur;
+    a.atkPhase = 'anticipation';
+    a.struck = false;
+    a.struck2 = false;
+    a.visualOnly = true;
+    a.visualKind = opts.kind || type;
+    a.drawPower = 1;
+    a.atkRange = opts.range || 0;
+    a.atkVar = (Math.random() * 64) | 0;
+    return true;
+  }
   function triggerAttack(type, opts) {
     if (!player || state !== 'playing' || !type) return false;
     const a = player.anim;
@@ -1237,6 +1275,8 @@ PUBLIC.start = function (root, api) {
     a.action = startAttackAction(type);
     a.atkActive = true; a.atkType = type; a.atkT = 0; a.atkDur = a.action.dur; a.atkPhase = 'anticipation'; a.struck = false;
     a.struck2 = false;
+    a.visualOnly = false;
+    a.visualKind = null;
     a.drawPower = opts && opts.drawPower != null ? opts.drawPower : (cls.id === 'ranger' && isRangerShot(type) ? 0.82 : 1);
     a.atkRange = opts && opts.range != null ? opts.range : type === 'arcaneBloom' ? clamp(aimedDistance(500), 130, 560) : 0;
     a.atkVar = (Math.random() * 64) | 0;     // vary the swing so motions aren't identical
@@ -2419,21 +2459,37 @@ PUBLIC.start = function (root, api) {
       addShake(gravityCore ? 6.4 + charge * 0.45 : 4.2, 170);
       return true;
     }
-    if (e.kind === 'firebolt') { spawnFirebolt(ang, e.power || 1, e); return true; }
-    if (e.kind === 'flameBreath') { return startPyroBreath(ang, e); }
-    if (e.kind === 'dragonBreath') { return startPyroBreath(ang, Object.assign({}, e, { dragon: true, spread: true, color: '#ff5a20' })); }
-    if (e.kind === 'groundFireFlow') { return startGroundFireFlow(ang, e); }
+    if (e.kind === 'firebolt') {
+      if (!startVisualAttack('pyroFirebolt', ang, { range: e.range || 420 })) return false;
+      spawnFirebolt(ang, e.power || 1, e);
+      return true;
+    }
+    if (e.kind === 'flameBreath') {
+      if (!startVisualAttack('pyroBreath', ang, { range: e.range || 286 })) return false;
+      return startPyroBreath(ang, e);
+    }
+    if (e.kind === 'dragonBreath') {
+      if (!startVisualAttack('pyroDragon', ang, { range: e.range || 760 })) return false;
+      return startPyroBreath(ang, Object.assign({}, e, { dragon: true, spread: true, color: '#ff5a20' }));
+    }
+    if (e.kind === 'groundFireFlow') {
+      if (!startVisualAttack('pyroGroundFlow', ang, { range: e.range || 320 })) return false;
+      return startGroundFireFlow(ang, e);
+    }
     if (e.kind === 'fireZone') {
+      if (!startVisualAttack('pyroGroundFlow', ang, { range: e.range || 420 })) return false;
       const p = aimedPoint(e.range || 420);
       pyroStaffFlare(ang, 1.15);
       spawnFireZone(p.x, p.y, player.team, e);
       return true;
     }
     if (e.kind === 'fireBurst') {
+      if (!startVisualAttack('pyroIgnite', ang, { range: e.range || 520 })) return false;
       spawnIgnitionOrb(ang, e);
       return true;
     }
     if (e.kind === 'inferno') {
+      if (!startVisualAttack('pyroDragon', ang, { range: e.range || 760 })) return false;
       return startPyroBreath(ang, Object.assign({}, e, { dragon: true, spread: true, color: '#ff5a20' }));
     }
     if (e.kind === 'spiritBolt') { spawnSpiritBolt(ang); return true; }
@@ -5523,15 +5579,16 @@ PUBLIC.start = function (root, api) {
     springTo(a, 'headLag', clamp(-player.vx * 1.1, -6, 6), S.spring.head[0], S.spring.head[1], dts);
     springAngle(a, 'aimShown', a.aimTarget, S.spring.aim[0], S.spring.aim[1], dts);
     if (cls.id === 'mage' && moveAmt < 0.12 && !a.atkActive && Math.random() < dt * 0.000075) {
+      const pyroIdle = magePyroLoadoutActive();
       particles.push({
         x: player.x + rand(-18, 18),
         y: player.y - rand(mageHovering() ? 44 : 34, mageHovering() ? 86 : 72),
         vx: rand(-0.18, 0.18),
-        vy: rand(-0.55, -0.08),
-        life: rand(420, 760),
+        vy: pyroIdle ? rand(-0.38, -0.05) : rand(-0.55, -0.08),
+        life: pyroIdle ? rand(360, 680) : rand(420, 760),
         max: 760,
-        color: Math.random() < 0.5 ? '#ff77d2' : '#7ee7ff',
-        r: rand(1.1, 2.4),
+        color: pyroIdle ? (Math.random() < 0.58 ? '#ff6b32' : '#ffd45e') : (Math.random() < 0.5 ? '#ff77d2' : '#7ee7ff'),
+        r: pyroIdle ? rand(0.9, 2.0) : rand(1.1, 2.4),
       });
     }
     if (a.atkActive) {
@@ -5547,6 +5604,7 @@ PUBLIC.start = function (root, api) {
       if (!a.struck && a.atkT >= sp) { a.struck = true; onStrike(a.atkType, a.rogueHand); }   // impact / release moment
       if (a.atkT >= 1) {
         a.atkActive = false; a.atkT = 0; a.atkPhase = 'idle'; a.action = null;
+        a.visualOnly = false; a.visualKind = null;
         consumeQueuedRogueAttack();
       }
     }
@@ -5560,6 +5618,7 @@ PUBLIC.start = function (root, api) {
     const ang = player.anim.atkAim;
     const spec = attackSpec(type);
     const byHero = player.team !== 'enemy';   // enemy swings don't hijack hitstop/camera
+    if (player.anim && player.anim.visualOnly) return;
     const atkNode = equipped('attack'), secNode = equipped('secondary');
     const vengeanceReady = byHero && player.venge > 0 && type !== 'shieldGuard' &&
       (hasPassive('kn_vengeance') || atkNode && atkNode.id === 'kn_riposte' || secNode && secNode.id === 'kn_counterguard');
@@ -5606,6 +5665,32 @@ PUBLIC.start = function (root, api) {
       burst(seg.bx, seg.by, '#ffd45e', 14, 3.4);
     }
   }
+  function pyroBodyOffset(type, t, f) {
+    const bell = Math.max(0, Math.sin(clamp(t, 0, 1) * Math.PI));
+    if (type === 'pyroFirebolt') {
+      const snap = ease(clamp(t / 0.22, 0, 1));
+      return { x: f * (snap * 7 - bell * 1.5), y: -bell * 1.5, lean: f * (0.04 + snap * 0.10 - bell * 0.03) };
+    }
+    if (type === 'pyroIgnite') {
+      const coil = ease(clamp(t / 0.28, 0, 1));
+      const release = ease(clamp((t - 0.28) / 0.18, 0, 1));
+      return { x: f * (-5 * coil + 13 * release), y: -5 * coil + 2 * release, lean: -f * 0.18 * coil + f * 0.28 * release };
+    }
+    if (type === 'pyroBreath') {
+      const brace = ease(clamp(t / 0.20, 0, 1));
+      return { x: f * (7 * brace - 3), y: 1.5 * brace, lean: f * (0.09 + 0.12 * brace + bell * 0.025) };
+    }
+    if (type === 'pyroDragon') {
+      const brace = ease(clamp(t / 0.16, 0, 1));
+      const rumble = Math.sin(t * Math.PI * 12) * 0.018;
+      return { x: f * (14 * brace - 9), y: 3.5 * brace, lean: f * (0.18 + 0.18 * brace + rumble) };
+    }
+    if (type === 'pyroGroundFlow') {
+      const pour = ease(clamp(t / 0.26, 0, 1));
+      return { x: f * (4 + 5 * pour), y: 5 * pour, lean: f * (0.08 + 0.07 * pour) };
+    }
+    return { x: 0, y: 0, lean: 0 };
+  }
   function attackBodyOffset(type, t, f) {
     const bell = Math.max(0, Math.sin(clamp(t, 0, 1) * Math.PI));
     const clip = actionClip(type, t, f);
@@ -5628,6 +5713,7 @@ PUBLIC.start = function (root, api) {
     }
     if (type === 'shieldGuard') return { x: -f * bell * 2, y: bell * 2, lean: -f * (0.06 + bell * 0.10) };
     if (type === 'cast' || type === 'arcaneBloom') return { x: f * bell * 3, y: 0, lean: f * bell * 0.05 };
+    if (isPyroVisualAttack(type)) return pyroBodyOffset(type, t, f);
     if (type === 'arrow' || type === 'volley') return { x: -f * bell * 2, y: 0, lean: -f * bell * 0.05 };
     if (type === 'throw') return { x: f * bell * 3, y: 0, lean: -f * 0.08 + f * bell * 0.14 };
     return { x: f * bell * (type === 'dualSlash' ? 4 : 6), y: 0, lean: f * bell * (type === 'dualSlash' ? 0.11 : 0.16) };
@@ -6854,6 +6940,10 @@ PUBLIC.start = function (root, api) {
     if (type === 'crush') return 'chop';
     if (type === 'stab' || type === 'rogueStab' || type === 'lunge' || type === 'braceThrust' || type === 'lanceCharge') return 'thrust';
     if (type === 'cast' || type === 'arcaneBloom') return 'cast';
+    if (type === 'pyroFirebolt') return 'pyroBolt';
+    if (type === 'pyroIgnite') return 'pyroThrow';
+    if (type === 'pyroBreath' || type === 'pyroDragon') return 'pyroBreath';
+    if (type === 'pyroGroundFlow') return 'pyroFlow';
     if (type === 'throw') return 'throw';
     if (type === 'arrow' || type === 'volley') return 'shoot';
     if (type === 'shieldBash' || type === 'shieldGuard') return 'bash';
@@ -6939,6 +7029,37 @@ PUBLIC.start = function (root, api) {
       shAng = aim - s * 0.10 * (1 - bell);
       elBend = s * lerp(-1.00, -0.20, bell);
       wrBend = s * 0.15 * (1 - bell);
+    } else if (arc === 'pyroBolt') {
+      const snap = ease(clamp(t / 0.24, 0, 1));
+      const settle = ease(clamp((t - 0.24) / 0.56, 0, 1));
+      const draw = aim - s * 0.86;
+      const line = aim - s * 0.04;
+      shAng = lerpAngle(draw, line, snap);
+      elBend = s * lerp(-1.24, -0.12, snap);
+      wrBend = s * lerp(0.42, -0.16, snap) * (1 - settle * 0.55);
+    } else if (arc === 'pyroThrow') {
+      const up = -Math.PI / 2 - s * 0.20;
+      const back = aim - s * 1.06;
+      const snapT = ease(clamp((t - 0.24) / 0.18, 0, 1));
+      if (t < 0.24) shAng = lerpAngle(aim, up, ease(t / 0.24));
+      else if (t < 0.42) shAng = lerpAngle(up, aim + s * 0.16, snapT);
+      else shAng = lerpAngle(aim + s * 0.16, aim, ease(clamp((t - 0.42) / 0.42, 0, 1)));
+      elBend = s * kfa(t, [[0, -0.48], [0.18, -1.48], [0.34, -1.12], [0.46, -0.08], [0.66, 0.04], [1, -0.42]]);
+      wrBend = s * kfa(t, [[0, 0.22], [0.24, 0.92], [0.42, -0.54], [0.62, -0.10], [1, 0.16]]);
+      if (t < 0.16) shAng = lerpAngle(back, shAng, ease(t / 0.16));
+    } else if (arc === 'pyroBreath') {
+      const dragon = type === 'pyroDragon';
+      const brace = ease(clamp(t / (dragon ? 0.12 : 0.18), 0, 1));
+      const hold = 0.5 + 0.5 * Math.sin(t * Math.PI * (dragon ? 5.5 : 4.0));
+      shAng = lerpAngle(aim - s * 0.86, aim - s * (dragon ? 0.20 : 0.26), brace);
+      elBend = s * lerp(-1.18, dragon ? -0.10 : -0.18, brace);
+      wrBend = s * (dragon ? -0.05 : 0.02) + s * hold * (dragon ? 0.04 : 0.025);
+    } else if (arc === 'pyroFlow') {
+      const target = Math.atan2(0.46 + Math.sin(aim) * 0.20, Math.cos(aim) || s);
+      const pour = ease(clamp(t / 0.24, 0, 1));
+      shAng = lerpAngle(aim - s * 0.72, target - s * 0.20, pour);
+      elBend = s * lerp(-1.12, -0.24, pour);
+      wrBend = s * lerp(0.30, -0.34, pour);
     } else if (arc === 'throw') {
       const P = THROW_VARIANTS[v % THROW_VARIANTS.length];
       const up = -Math.PI / 2, back = P.raiseT, fwd = P.raiseT + 0.16;
@@ -7040,25 +7161,69 @@ PUBLIC.start = function (root, api) {
       ctx.closePath(); ctx.fillStyle = '#aeb4bd'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.stroke();
       ctx.fillStyle = '#9a6b3f'; ctx.beginPath(); ctx.arc(hx - dx * 38, hy - dy * 38, 3.5, 0, Math.PI * 2); ctx.fill();
     } else if (cls.weapon === 'staff') {
-      ctx.strokeStyle = '#62462c'; ctx.lineCap = 'round'; ctx.lineWidth = 4.2;
-      ctx.beginPath(); ctx.moveTo(hx - dx * 48, hy - dy * 48); ctx.lineTo(hx + dx * 64 * L, hy + dy * 64 * L); ctx.stroke();
-      ctx.strokeStyle = '#9aa0aa'; ctx.lineWidth = 2.4;
-      ctx.beginPath(); ctx.moveTo(hx + dx * 64 * L + nx * 5, hy + dy * 64 * L + ny * 5); ctx.lineTo(hx + dx * 64 * L - nx * 5, hy + dy * 64 * L - ny * 5); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(hx - dx * 48 + nx * 4, hy - dy * 48 + ny * 4); ctx.lineTo(hx - dx * 48 - nx * 4, hy - dy * 48 - ny * 4); ctx.stroke();
-      ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
-      ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
-      if (cls.id === 'mage' && magePyroLoadoutActive()) {
-        const tipX = hx + dx * 69 * L, tipY = hy + dy * 69 * L;
-        const cast = player && player.anim && player.anim.atkActive ? Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0;
-        const pulse = 0.55 + 0.45 * Math.sin(performance.now() * 0.018);
+      const pyro = cls.id === 'mage' && magePyroLoadoutActive();
+      const backLen = pyro ? 58 : 48;
+      const frontLen = pyro ? 74 : 64;
+      ctx.strokeStyle = pyro ? '#3f2919' : '#62462c';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = pyro ? 4.6 : 4.2;
+      ctx.beginPath(); ctx.moveTo(hx - dx * backLen, hy - dy * backLen); ctx.lineTo(hx + dx * frontLen * L, hy + dy * frontLen * L); ctx.stroke();
+      if (pyro) {
+        const now = performance.now();
+        const cast = player && player.anim && player.anim.atkActive && isPyroVisualAttack(player.anim.atkType)
+          ? Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0;
         ctx.save();
-        ctx.globalAlpha = 0.20 + pulse * 0.18 + cast * 0.24;
+        ctx.lineCap = 'round';
+        for (const mark of [-34, -8, 18, 46]) {
+          const wob = Math.sin(now * 0.011 + mark) * 0.7;
+          ctx.globalAlpha = 0.28 + cast * 0.18;
+          ctx.strokeStyle = mark > 12 ? '#ff6b32' : '#9a4c24';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(hx + dx * mark + nx * (3.2 + wob), hy + dy * mark + ny * (3.2 + wob));
+          ctx.lineTo(hx + dx * mark - nx * (3.2 - wob), hy + dy * mark - ny * (3.2 - wob));
+          ctx.stroke();
+        }
+        const tipX = hx + dx * frontLen * L, tipY = hy + dy * frontLen * L;
+        ctx.globalAlpha = 0.95;
+        ctx.strokeStyle = '#2a1a11';
+        ctx.lineWidth = 1.7;
+        ctx.beginPath();
+        ctx.moveTo(tipX - dx * 8 + nx * 6, tipY - dy * 8 + ny * 6);
+        ctx.lineTo(tipX + dx * 5, tipY + dy * 5);
+        ctx.lineTo(tipX - dx * 8 - nx * 6, tipY - dy * 8 - ny * 6);
+        ctx.stroke();
+        const pulse = 0.5 + 0.5 * Math.sin(now * 0.018);
+        const flameLen = 16 + cast * 18 + pulse * 4;
+        const flameW = 6 + cast * 4;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.70 + cast * 0.20;
         ctx.fillStyle = '#ff6b32';
-        ctx.beginPath(); ctx.arc(tipX, tipY, 8 + cast * 7 + pulse * 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 0.70 + cast * 0.22;
+        ctx.beginPath();
+        ctx.moveTo(tipX + nx * flameW, tipY + ny * flameW);
+        ctx.quadraticCurveTo(tipX + dx * flameLen * 0.38 + nx * (flameW * 1.2), tipY + dy * flameLen * 0.38 + ny * (flameW * 1.2),
+          tipX + dx * flameLen + nx * Math.sin(now * 0.020) * 3, tipY + dy * flameLen + ny * Math.sin(now * 0.017) * 3);
+        ctx.quadraticCurveTo(tipX + dx * flameLen * 0.38 - nx * (flameW * 1.2), tipY + dy * flameLen * 0.38 - ny * (flameW * 1.2),
+          tipX - nx * flameW, tipY - ny * flameW);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.86 + cast * 0.10;
         ctx.fillStyle = '#ffd45e';
-        ctx.beginPath(); ctx.arc(tipX, tipY, 3.8 + pulse * 1.4 + cast * 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(tipX + nx * (flameW * 0.36), tipY + ny * (flameW * 0.36));
+        ctx.quadraticCurveTo(tipX + dx * flameLen * 0.34 + nx * 2, tipY + dy * flameLen * 0.34 + ny * 2,
+          tipX + dx * flameLen * 0.72, tipY + dy * flameLen * 0.72);
+        ctx.quadraticCurveTo(tipX + dx * flameLen * 0.34 - nx * 2, tipY + dy * flameLen * 0.34 - ny * 2,
+          tipX - nx * (flameW * 0.36), tipY - ny * (flameW * 0.36));
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
+      } else {
+        ctx.strokeStyle = '#9aa0aa'; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.moveTo(hx + dx * 64 * L + nx * 5, hy + dy * 64 * L + ny * 5); ctx.lineTo(hx + dx * 64 * L - nx * 5, hy + dy * 64 * L - ny * 5); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(hx - dx * 48 + nx * 4, hy - dy * 48 + ny * 4); ctx.lineTo(hx - dx * 48 - nx * 4, hy - dy * 48 - ny * 4); ctx.stroke();
+        ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
+        ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
       }
     } else if (cls.weapon === 'bow') {
       const pull = currentBowPull();
@@ -7201,6 +7366,41 @@ PUBLIC.start = function (root, api) {
       ctx.fillStyle = '#f5efff';
       ctx.beginPath(); ctx.arc(x, y, 2.6 + pulse * 0.9, 0, Math.PI * 2); ctx.fill();
     }
+    ctx.restore();
+  }
+  function drawPyromancerCrest(headCX, headCY, shX, shY, f, power) {
+    if (!(cls.id === 'mage' && magePyroLoadoutActive())) return;
+    const now = performance.now();
+    const cast = player && player.anim && player.anim.atkActive && isPyroVisualAttack(player.anim.atkType)
+      ? Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0;
+    const heat = clamp((power || 0) + cast, 0, 1.6);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) {
+      const off = (i - 1) * 5.2;
+      const sway = Math.sin(now * (0.010 + i * 0.002) + i * 2.1) * (2.2 + heat);
+      const baseX = headCX + off;
+      const baseY = headCY - 12;
+      const tipX = baseX + sway + f * heat * 1.5;
+      const tipY = baseY - (9 + i * 2.5 + heat * 5.5);
+      ctx.globalAlpha = 0.42 + heat * 0.18;
+      ctx.strokeStyle = i === 1 ? '#ffd45e' : '#ff6b32';
+      ctx.lineWidth = i === 1 ? 2.0 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.quadraticCurveTo((baseX + tipX) * 0.5 - sway * 0.7, (baseY + tipY) * 0.5, tipX, tipY);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.34 + heat * 0.10;
+    ctx.strokeStyle = '#ff6b32';
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.moveTo(shX - f * 5, shY + 6);
+    ctx.quadraticCurveTo(shX + f * (7 + heat * 2), shY + 14, shX - f * 2, shY + 25);
+    ctx.stroke();
     ctx.restore();
   }
   function drawSpiritRemnants() {
@@ -7444,6 +7644,7 @@ PUBLIC.start = function (root, api) {
       else if (ty === 'lanceSwing') { slashT = t; atkHip = f * bell * 10; atkLean = f * bell * 0.22; }
       else if (ty === 'stab' || ty === 'rogueStab' || ty === 'braceThrust') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * (ty === 'braceThrust' ? 19 : ty === 'rogueStab' ? 7 : 13); atkLean = f * l * (ty === 'braceThrust' ? 0.18 : ty === 'rogueStab' ? 0.08 : 0.12); }
       else if (ty === 'lunge' || ty === 'lanceCharge') { lungeT = t; const l = Math.max(0, lungeReach(t)); atkHip = f * l * 20; atkLean = f * l * 0.19; }
+      else if (isPyroVisualAttack(ty)) { castT = t; const m = pyroBodyOffset(ty, t, f); atkHip = m.x; clipHipY = m.y; atkLean = m.lean; }
       else if (ty === 'cast' || ty === 'arcaneBloom') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
       else if (ty === 'arrow' || ty === 'volley') { shootT = t; atkHip = -f * bell * 2; atkLean = -f * bell * 0.05; }
       else if (ty === 'throw') { throwT = t; atkHip = f * bell * 5; atkLean = -f * 0.16 + f * bell * 0.24; }
@@ -7598,9 +7799,22 @@ PUBLIC.start = function (root, api) {
     } else if (cls.weapon === 'lance') {
       h = { x: shX - f * (4 + idleLift * 1.6), y: shY + 18 + idleFidget * 1.0 };
     } else if (cls.weapon === 'staff') {
-      h = fly > 0.25
-        ? { x: shX + f * (10 + idleLift * 2), y: shY + 24 + idleFidget * 1.6 }
-        : { x: shX + f * (8 + idleLift * 1.4), y: shY + 32 + idleFidget * 1.3 };
+      if (a.atkActive && isPyroVisualAttack(a.atkType)) {
+        const pose = weaponPose(a.atkType, clamp(a.atkT, 0, 1), a.atkAim, f, a.atkVar);
+        const wc = armChain(shX, shY, pose.shAng, pose.elBend);
+        const wang = wc.foreAng + pose.wrBend;
+        const gripBack = a.atkType === 'pyroDragon' ? 36 : a.atkType === 'pyroBreath' ? 30 : a.atkType === 'pyroGroundFlow' ? 26 : 20;
+        h = { x: wc.hx - Math.cos(wang) * gripBack, y: wc.hy - Math.sin(wang) * gripBack };
+        offhandBend = -f;
+      } else if (magePyroLoadoutActive()) {
+        h = fly > 0.25
+          ? { x: shX + f * (13 + idleLift * 2), y: shY + 21 + idleFidget * 1.4 }
+          : { x: shX + f * (7 + idleLift * 1.4), y: shY + 28 + idleFidget * 1.1 };
+      } else {
+        h = fly > 0.25
+          ? { x: shX + f * (10 + idleLift * 2), y: shY + 24 + idleFidget * 1.6 }
+          : { x: shX + f * (8 + idleLift * 1.4), y: shY + 32 + idleFidget * 1.3 };
+      }
     } else if (cls.weapon === 'bo') {
       if (a.atkActive && (a.atkType === 'staffSweep' || a.atkType === 'vaultKick')) h = { x: shX - f * 10, y: shY + 20 };
     } else if (cls.weapon === 'bow') {
@@ -7660,6 +7874,7 @@ PUBLIC.start = function (root, api) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();          // spine
     ctx.beginPath(); ctx.arc(headCX + a.headLag * (1 - air), headCY, headR, 0, Math.PI * 2); ctx.fill();
+    drawPyromancerCrest(headCX + a.headLag * (1 - air), headCY, shX, shY, f, clamp((player.pyroBreath || 0) / 900, 0, 1));
 
     // ----- near leg -----
     lt = legFoot(p, -1);
@@ -7697,8 +7912,13 @@ PUBLIC.start = function (root, api) {
       } else if (cls.weapon === 'staff') {
         // two-hand staff grip; while flying the long staff stays upright and a
         // little forward so the arms read like they are steering it.
-        drawAim = -Math.PI / 2 + f * (fly > 0.25 ? 0.24 : 0.16);
-        handT = fly > 0.25 ? { x: shX + f * 15, y: shY + 8 } : { x: shX + f * 12, y: shY + 19 };
+        if (magePyroLoadoutActive()) {
+          drawAim = -Math.PI / 2 + f * (fly > 0.25 ? 0.42 : 0.30);
+          handT = fly > 0.25 ? { x: shX + f * 17, y: shY + 7 } : { x: shX + f * 16, y: shY + 15 };
+        } else {
+          drawAim = -Math.PI / 2 + f * (fly > 0.25 ? 0.24 : 0.16);
+          handT = fly > 0.25 ? { x: shX + f * 15, y: shY + 8 } : { x: shX + f * 12, y: shY + 19 };
+        }
       } else if (cls.weapon === 'bow') {
         drawAim = bowActive ? bowAim : bowRestAim;
         handT = bowActive
@@ -8255,34 +8475,54 @@ PUBLIC.start = function (root, api) {
       const pulse = 1 + Math.sin(t * 0.011 + z.x) * (0.055 + flare * 0.035) + flare * 0.08;
       const rw = (z.w || (z.ground ? z.r * 2.05 : z.r * 1.35)) * pulse;
       const rh = (z.ground ? z.r * 0.22 : z.r * 0.34) * (0.88 + flare * 0.10);
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.18 * fade;
-      ctx.strokeStyle = '#5b1e12';
-      ctx.lineWidth = 2.2 + flare * 0.8;
-      ctx.beginPath();
-      const scorchN = 8;
-      for (let i = 0; i <= scorchN; i++) {
-        const u = -0.5 + i / scorchN;
-        const x = z.x + u * rw * 1.12;
-        const y = z.y + Math.sin(t * 0.004 + i * 1.9 + z.x * 0.02) * Math.max(2, rh * 0.22);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < (z.ground ? 14 : 10); i++) {
-        const phase = t * 0.010 + i * 1.71 + z.x * 0.013;
-        const u = -0.86 + i * (1.72 / Math.max(1, (z.ground ? 13 : 9)));
-        const x0 = z.x + u * rw * (0.72 + 0.10 * Math.sin(phase));
-        const y0 = z.y + Math.sin(phase * 0.6) * rh * 0.22;
-        const lick = (18 + flare * 18 + (z.ground ? 8 : 0)) * (0.65 + 0.35 * Math.sin(phase));
-        ctx.globalAlpha = (0.12 + flare * 0.13 + (z.ultimate ? 0.08 : 0)) * fade;
-        ctx.strokeStyle = i % 3 === 0 ? '#ffd45e' : z.color;
-        ctx.lineWidth = z.ground ? 2.1 : 1.7;
+      if (z.ground) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.18 * fade;
+        ctx.strokeStyle = '#5b1e12';
+        ctx.lineWidth = 2.2 + flare * 0.8;
         ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.quadraticCurveTo(x0 + Math.sin(phase) * 10, y0 - lick * 0.55, x0 + Math.cos(phase) * 8, y0 - lick);
+        const scorchN = 8;
+        for (let i = 0; i <= scorchN; i++) {
+          const u = -0.5 + i / scorchN;
+          const x = z.x + u * rw * 1.12;
+          const y = z.y + Math.sin(t * 0.004 + i * 1.9 + z.x * 0.02) * Math.max(2, rh * 0.22);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
         ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 14; i++) {
+          const phase = t * 0.010 + i * 1.71 + z.x * 0.013;
+          const u = -0.86 + i * (1.72 / 13);
+          const x0 = z.x + u * rw * (0.72 + 0.10 * Math.sin(phase));
+          const y0 = z.y + Math.sin(phase * 0.6) * rh * 0.22;
+          const lick = (26 + flare * 18) * (0.65 + 0.35 * Math.sin(phase));
+          ctx.globalAlpha = (0.12 + flare * 0.13 + (z.ultimate ? 0.08 : 0)) * fade;
+          ctx.strokeStyle = i % 3 === 0 ? '#ffd45e' : z.color;
+          ctx.lineWidth = 2.1;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.quadraticCurveTo(x0 + Math.sin(phase) * 10, y0 - lick * 0.55, x0 + Math.cos(phase) * 8, y0 - lick);
+          ctx.stroke();
+        }
+      } else {
+        ctx.globalCompositeOperation = 'lighter';
+        const ring = z.r * (0.40 + flare * 0.15) * pulse;
+        for (let i = 0; i < 11; i++) {
+          const phase = t * 0.010 + i * 1.43 + z.x * 0.013;
+          const a = i / 11 * Math.PI * 2 + Math.sin(phase) * 0.10;
+          const x0 = z.x + Math.cos(a) * ring * (0.34 + 0.22 * Math.sin(phase));
+          const y0 = z.y + Math.sin(a) * ring * (0.34 + 0.18 * Math.cos(phase));
+          const lick = (20 + flare * 18) * (0.65 + 0.35 * Math.sin(phase));
+          ctx.globalAlpha = (0.13 + flare * 0.14 + (z.ultimate ? 0.08 : 0)) * fade;
+          ctx.strokeStyle = i % 3 === 0 ? '#ffd45e' : z.color;
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.quadraticCurveTo(x0 + Math.cos(a) * lick * 0.25, y0 + Math.sin(a) * lick * 0.25,
+            x0 + Math.cos(a) * lick * 0.58, y0 + Math.sin(a) * lick * 0.58);
+          ctx.stroke();
+        }
       }
       ctx.globalCompositeOperation = 'source-over';
       for (const b of boxes || []) {
