@@ -214,10 +214,10 @@ const ABILITIES = (() => {
   add('mg_eventhorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'passive', name: 'Event Horizon', desc: 'Advanced variation: Gravity Core lasts longer, pulls objects harder, and makes core detonation the build payoff.', key: true, tags: ['Gravity', 'Field'] });
   add('mg_resonancepulse', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Resonance Pulse', desc: 'Pulse the active Gravity Core outward. Without a core, staff-slam a local shockwave.', effect: { kind: 'resonancePulse' }, cd: 7200, tags: ['Gravity', 'Shockwave', 'Crates'] });
   add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast staff-led fire shot. It scorches a small pocket, burns targets, and starts the heat chain.', effect: { kind: 'firebolt', power: 1.18, scorch: 1 }, cd: 240, tags: ['Fire', 'Projectile', 'Burn'] });
-  add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Pool', desc: 'Paint a readable burning zone that heats crates/barrels and primes enemies for Ignition.', effect: { kind: 'fireZone', r: 138, life: 3100, range: 470, openingFlare: 1 }, cd: 2200, tags: ['Fire', 'Field', 'Barrels'] });
+  add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Flow', desc: 'Pour fire from the staff so it crawls across nearby ground, crates, and barrels instead of appearing from nowhere.', effect: { kind: 'groundFireFlow', range: 320, life: 1550, lanes: 5 }, cd: 2200, tags: ['Fire', 'Field', 'Barrels'] });
   add('mg_flamebreath', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'secondary', name: 'Flame Breath', desc: 'Channel a physical cone of fire and smoke from the staff, pushing bodies and heating barrels in its path.', effect: { kind: 'flameBreath', range: 286, life: 760, cone: 0.56, force: 15, heat: 20 }, cd: 1750, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Snap to nearby burning targets or hot barrels, draw flame lines, then pop them outward.', effect: { kind: 'fireBurst', r: 164, range: 500, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
-  add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Inferno', desc: 'Call down a huge fire field with an opening blast and a final eruption when it expires.', effect: { kind: 'inferno', r: 252, life: 4300, range: 590, detonateOnEnd: 1 }, cd: 9600, tags: ['Fire', 'Field', 'Barrels'] });
+  add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Dragon Breath', desc: 'Unleash a huge staff-driven fire torrent. Walls cut it off, objects catch heat, and the floor burns where the flame lands.', effect: { kind: 'dragonBreath', range: 760, life: 1350, cone: 0.42, force: 34, heat: 48 }, cd: 9600, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire zones burn longer, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
   add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Haunting projectile that builds spirit charge on hit or KO.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
   add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Raise one stored spirit or pull a visible remnant from a nearby defeated body.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
@@ -483,7 +483,7 @@ const LAB_BUILDS = {
     { id: 'base', name: 'Base Mage', note: 'Starting kit for staff, hover, Gravity Bloom, Ignition Burst, and Singularity.', loadout: {} },
     { id: 'graviturge', name: 'Graviturge Core', note: 'Push/pull physics: Gravity Core, orbital casts, Core Step, and Resonance Pulse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_resonancepulse', passive: 'mg_eventhorizon' } },
     { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital casts, and True Horizon collapse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
-    { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Inferno, and barrel pressure.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
+    { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
     { id: 'spiritbinder', name: 'Spiritbinder', note: 'Necromancer prototype: spirit bolts, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
   ranger: [
@@ -2421,6 +2421,8 @@ PUBLIC.start = function (root, api) {
     }
     if (e.kind === 'firebolt') { spawnFirebolt(ang, e.power || 1, e); return true; }
     if (e.kind === 'flameBreath') { return startPyroBreath(ang, e); }
+    if (e.kind === 'dragonBreath') { return startPyroBreath(ang, Object.assign({}, e, { dragon: true, spread: true, color: '#ff5a20' })); }
+    if (e.kind === 'groundFireFlow') { return startGroundFireFlow(ang, e); }
     if (e.kind === 'fireZone') {
       const p = aimedPoint(e.range || 420);
       pyroStaffFlare(ang, 1.15);
@@ -2442,15 +2444,7 @@ PUBLIC.start = function (root, api) {
       return true;
     }
     if (e.kind === 'inferno') {
-      const p = aimedPoint(e.range || 540);
-      const r = e.r || 220;
-      pyroStaffFlare(ang, 1.85);
-      spawnFireZone(p.x, p.y, player.team, { r, life: e.life || 3600, ultimate: true, detonateOnEnd: e.detonateOnEnd !== false, openingFlare: 1 });
-      radialActorPulse(p.x, p.y, r, 36, player.team, '#ff6b32');
-      detonateBurningTargets(p.x, p.y, r, 48, player.team, '#ff6b32', { link: true, chain: true });
-      pushBoxesRadial(p.x, p.y, 36, r, player.team);
-      spawnShockwaveRing(p.x, p.y, r + 42, '#ffd45e', { life: 520, width: 6.2, yScale: 0.52, fill: 0.14 });
-      return true;
+      return startPyroBreath(ang, Object.assign({}, e, { dragon: true, spread: true, color: '#ff5a20' }));
     }
     if (e.kind === 'spiritBolt') { spawnSpiritBolt(ang); return true; }
     if (e.kind === 'bindSpirit') return bindSpiritAlly();
@@ -5828,10 +5822,16 @@ PUBLIC.start = function (root, api) {
       ultimate: !!opts.ultimate,
       flare: opts.openingFlare ? 380 : 0,
       detonateOnEnd: !!opts.detonateOnEnd,
+      ground: !!opts.ground,
+      spread: !!opts.spread,
+      spreadTick: rand(180, 320),
+      w: opts.w || 0,
     });
-    burst(x, y, '#ffd45e', opts.ultimate ? 54 : 30, opts.ultimate ? 7.2 : 5.2);
-    burst(x, y, opts.color || '#ff6b32', opts.ultimate ? 72 : 42, opts.ultimate ? 8.0 : 5.8);
-    for (let i = 0; i < (opts.ultimate ? 52 : 28); i++) {
+    if (!opts.quiet) {
+      burst(x, y, '#ffd45e', opts.ultimate ? 54 : 18, opts.ultimate ? 7.2 : 3.8);
+      burst(x, y, opts.color || '#ff6b32', opts.ultimate ? 72 : 24, opts.ultimate ? 8.0 : 4.2);
+    }
+    for (let i = 0; i < (opts.ultimate ? 52 : opts.ground ? 16 : 28); i++) {
       const a = rand(0, Math.PI * 2), rr = rand(6, r * 0.86);
       flameParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.38, Math.cos(a) * rand(0.5, 2.4), rand(-3.2, -0.55), {
         life: rand(260, opts.ultimate ? 620 : 480),
@@ -5845,13 +5845,13 @@ PUBLIC.start = function (root, api) {
         alpha: opts.ultimate ? 0.32 : 0.24,
       });
     }
-    spawnShockwaveRing(x, y, r + (opts.ultimate ? 28 : 8), opts.color || '#ff6b32', {
-      life: opts.ultimate ? 420 : 280,
-      width: opts.ultimate ? 5.8 : 3.8,
+    if (opts.ultimate && !opts.ground) spawnShockwaveRing(x, y, r + 28, opts.color || '#ff6b32', {
+      life: 420,
+      width: 5.8,
       yScale: 0.46,
-      fill: opts.ultimate ? 0.12 : 0.07,
+      fill: 0.12,
     });
-    addShake(opts.ultimate ? 6.2 : 3.4, opts.ultimate ? 180 : 110);
+    if (!opts.quiet) addShake(opts.ultimate ? 6.2 : 2.0, opts.ultimate ? 180 : 70);
   }
   function magePyroLoadoutActive() {
     if (!loadout) return false;
@@ -5990,6 +5990,28 @@ PUBLIC.start = function (root, api) {
   function angleDelta(a, b) {
     return Math.atan2(Math.sin(a - b), Math.cos(a - b));
   }
+  function flamePathPoint(o, ang, dist, b) {
+    const yScale = b && b.yScale || 0.72;
+    return { x: o.x + Math.cos(ang) * dist, y: o.y + Math.sin(ang) * dist * yScale };
+  }
+  function pointInExpandedAabb(px, py, r, pad) {
+    pad = pad || 0;
+    return px >= r.x - pad && px <= r.x + r.w + pad && py >= r.y - pad && py <= r.y + r.h + pad;
+  }
+  function flameObstacleAt(px, py, ignoreBox) {
+    const L = levels[li];
+    for (const p of L.platforms) if (!isOneWay(p) && pointInExpandedAabb(px, py, p, 5)) return p;
+    for (const b of boxes || []) if (b && !b.dead && b !== ignoreBox && b.kind !== 'spring' && pointInExpandedAabb(px, py, b, 6)) return b;
+    return null;
+  }
+  function flameRayBlockDistance(o, ang, range, b, ignoreBox) {
+    const step = b && b.dragon ? 13 : 17;
+    for (let d = 18; d <= range; d += step) {
+      const p = flamePathPoint(o, ang, d, b);
+      if (flameObstacleAt(p.x, p.y, ignoreBox)) return Math.max(18, d - step * 0.8);
+    }
+    return range;
+  }
   function flameBreathOrigin(actor, ang) {
     const ax = actor ? actor.x : player.x;
     const ay = actor ? actor.y : player.y;
@@ -5998,18 +6020,24 @@ PUBLIC.start = function (root, api) {
       y: ay - 66 + Math.sin(ang) * 12,
     };
   }
-  function pointInFlameBreath(px, py, b, o) {
+  function pointInFlameBreath(px, py, b, o, ignoreBox) {
     const dx = px - o.x, dy = py - o.y;
-    const d = Math.hypot(dx, dy) || 1;
+    const yScale = b && b.yScale || 0.72;
+    const sy = dy / yScale;
+    const d = Math.hypot(dx, sy) || 1;
     if (d > b.range) return null;
     const half = (b.cone || 0.54) * (0.52 + 0.48 * clamp(d / Math.max(1, b.range), 0, 1));
-    const off = Math.abs(angleDelta(Math.atan2(dy, dx), b.angle));
+    const rayAng = Math.atan2(sy, dx);
+    const off = Math.abs(angleDelta(rayAng, b.angle));
     if (off > half) return null;
+    const block = flameRayBlockDistance(o, rayAng, Math.min(b.range, d + 18), b, ignoreBox);
+    if (block < d - 12) return null;
     return { d, u: 1 - d / b.range, off };
   }
   function startPyroBreath(ang, opts) {
     opts = opts || {};
     const life = opts.life || 720;
+    const dragon = !!opts.dragon;
     const b = {
       actor: player,
       team: player.team || 'hero',
@@ -6022,50 +6050,105 @@ PUBLIC.start = function (root, api) {
       max: life,
       age: 0,
       tick: 0,
+      spreadTick: 0,
       color: opts.color || '#ff6b32',
+      dragon,
+      spread: !!opts.spread,
+      yScale: dragon ? 0.58 : 0.72,
     };
     flameBreaths.push(b);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
     player.pyroBreath = Math.max(player.pyroBreath || 0, life);
-    player.vx -= Math.cos(ang) * 0.75;
-    if (!player.grounded) player.vy -= 0.18;
+    player.vx -= Math.cos(ang) * (dragon ? 2.4 : 0.75);
+    if (!player.grounded) player.vy -= dragon ? 0.45 : 0.18;
     const o = flameBreathOrigin(player, ang);
-    pyroStaffFlare(ang, 1.65);
-    emitFlameJet(o.x, o.y, ang, 24, { spread: b.cone * 0.64, speed: 7.2, length: 34, life: 360, r: 5.8, color: '#ff6b32' });
-    emitSmokePuff(o.x - Math.cos(ang) * 8, o.y + 2, ang + Math.PI, 8, { spread: 0.8, speed: 1.4, life: 760, alpha: 0.26 });
-    addShake(2.8, 120);
+    pyroStaffFlare(ang, dragon ? 2.55 : 1.65);
+    emitFlameJet(o.x, o.y, ang, dragon ? 54 : 24, { spread: b.cone * (dragon ? 0.82 : 0.64), speed: dragon ? 10.6 : 7.2, length: dragon ? 58 : 34, life: dragon ? 520 : 360, r: dragon ? 9.6 : 5.8, color: b.color });
+    emitSmokePuff(o.x - Math.cos(ang) * 8, o.y + 2, ang + Math.PI, dragon ? 20 : 8, { spread: dragon ? 1.05 : 0.8, speed: dragon ? 2.0 : 1.4, life: dragon ? 1120 : 760, alpha: dragon ? 0.34 : 0.26 });
+    addShake(dragon ? 7.4 : 2.8, dragon ? 260 : 120);
+    return true;
+  }
+  function startGroundFireFlow(ang, opts) {
+    opts = opts || {};
+    const f = Math.cos(ang) >= 0 ? 1 : -1;
+    const fireAng = Math.atan2(0.10 + Math.sin(ang) * 0.22, f);
+    const o = flameBreathOrigin(player, fireAng);
+    const probe = { yScale: 0.38, dragon: false };
+    const limit = flameRayBlockDistance(o, fireAng, opts.range || 320, probe);
+    pyroStaffFlare(fireAng, 1.3);
+    emitFlameJet(o.x, o.y, fireAng, 28, { spread: 0.34, speed: 6.6, length: 46, life: 460, r: 5.6, color: '#ff6b32' });
+    const lanes = opts.lanes || 5;
+    for (let i = 0; i < lanes; i++) {
+      const d = clamp(44 + i * 58, 38, limit - 12);
+      if (d <= 32) continue;
+      const x = o.x + Math.cos(fireAng) * d;
+      const y = terrainYAt(x) - 4;
+      spawnFireZone(x, y, player.team, { r: 48 + i * 4, w: 96 + i * 16, life: (opts.life || 1550) - i * 90, color: '#ff6b32', ground: true, spread: true, quiet: i > 0 });
+    }
+    addShake(2.4, 95);
     return true;
   }
   function emitFlameBreathParticles(b, o) {
     const live = clamp(b.life / Math.max(1, b.max), 0, 1);
-    const push = 0.65 + (1 - live) * 0.18;
-    for (let i = 0; i < 8; i++) {
-      const dist = rand(10, b.range * rand(0.20, 0.96));
-      const spread = rand(-b.cone, b.cone) * (0.18 + 0.82 * dist / b.range);
+    const push = (b.dragon ? 1.15 : 0.65) + (1 - live) * (b.dragon ? 0.35 : 0.18);
+    for (let i = 0; i < (b.dragon ? 20 : 8); i++) {
+      const seedDist = rand(10, b.range * 0.96);
+      const spread = rand(-b.cone, b.cone) * (0.18 + 0.82 * seedDist / b.range);
       const a = b.angle + spread;
-      const x = o.x + Math.cos(a) * dist + rand(-4, 4);
-      const y = o.y + Math.sin(a) * dist * 0.72 + rand(-4, 4);
-      const s = rand(2.4, 7.4) * push * (1 - dist / b.range * 0.42);
+      const maxDist = flameRayBlockDistance(o, a, b.range, b);
+      if (maxDist < 24) continue;
+      const dist = rand(10, maxDist * rand(0.22, 0.98));
+      const p = flamePathPoint(o, a, dist, b);
+      const x = p.x + rand(-4, 4);
+      const y = p.y + rand(-4, 4);
+      const s = rand(b.dragon ? 4.2 : 2.4, b.dragon ? 11.8 : 7.4) * push * (1 - dist / b.range * 0.42);
       flameParticle(x, y, Math.cos(a) * s, Math.sin(a) * s * 0.52 + rand(-0.45, 0.18), {
-        life: rand(210, 470),
-        r: rand(3.2, 9.4),
+        life: rand(210, b.dragon ? 680 : 470),
+        r: rand(b.dragon ? 5.2 : 3.2, b.dragon ? 15.5 : 9.4),
         color: Math.random() < 0.38 ? '#ffd45e' : b.color,
-        buoy: rand(0.020, 0.060),
-        grow: rand(0.018, 0.060),
+        buoy: rand(0.020, b.dragon ? 0.088 : 0.060),
+        grow: rand(0.018, b.dragon ? 0.086 : 0.060),
         alpha: 0.96,
       });
       if (Math.random() < 0.34) emberParticle(x, y, Math.cos(a) * rand(1.8, 4.8), Math.sin(a) * rand(0.6, 2.4) - rand(0.6, 1.5));
     }
-    for (let i = 0; i < 3; i++) {
-      const dist = rand(b.range * 0.35, b.range * 0.98);
+    for (let i = 0; i < (b.dragon ? 8 : 3); i++) {
       const spread = rand(-b.cone * 0.92, b.cone * 0.92);
       const a = b.angle + spread;
-      smokeParticle(o.x + Math.cos(a) * dist, o.y + Math.sin(a) * dist * 0.58 + rand(-6, 6),
-        Math.cos(a) * rand(0.55, 1.8), Math.sin(a) * rand(0.15, 0.75) - rand(0.25, 0.9), {
-          life: rand(680, 1300),
-          r: rand(6.5, 16.5),
-          alpha: rand(0.20, 0.36),
+      const maxDist = flameRayBlockDistance(o, a, b.range, b);
+      if (maxDist < 34) continue;
+      const dist = rand(maxDist * 0.35, maxDist * 0.98);
+      const p = flamePathPoint(o, a, dist, b);
+      smokeParticle(p.x, p.y + rand(-6, 6),
+        Math.cos(a) * rand(0.55, b.dragon ? 3.1 : 1.8), Math.sin(a) * rand(0.15, 0.75) - rand(0.25, 0.9), {
+          life: rand(680, b.dragon ? 1720 : 1300),
+          r: rand(6.5, b.dragon ? 25.5 : 16.5),
+          alpha: rand(0.20, b.dragon ? 0.44 : 0.36),
         });
+    }
+  }
+  function spreadGroundFireFromBreath(b, o) {
+    if (!b.spread || !fireZones || fireZones.length > 22) return;
+    const count = b.dragon ? 3 : 1;
+    for (let i = 0; i < count; i++) {
+      const a = b.angle + rand(-b.cone * 0.62, b.cone * 0.62);
+      const maxDist = flameRayBlockDistance(o, a, b.range, b);
+      if (maxDist < 80) continue;
+      const d = rand(72, maxDist * 0.90);
+      const p = flamePathPoint(o, a, d, b);
+      const y = terrainYAt(p.x) - 4;
+      if (Math.abs(y - p.y) > (b.dragon ? 150 : 90)) continue;
+      const near = fireZones.some(z => Math.hypot(z.x - p.x, z.y - y) < z.r * 0.62);
+      if (near) continue;
+      spawnFireZone(p.x, y, b.team, {
+        r: b.dragon ? rand(62, 92) : rand(38, 56),
+        w: b.dragon ? rand(150, 230) : rand(88, 130),
+        life: b.dragon ? rand(1150, 1900) : rand(720, 1200),
+        color: b.color,
+        ground: true,
+        spread: b.dragon && Math.random() < 0.45,
+        quiet: true,
+      });
     }
   }
   function updateFlameBreaths(dtStep) {
@@ -6077,11 +6160,18 @@ PUBLIC.start = function (root, api) {
       b.life -= dtStep;
       b.age = (b.age || 0) + dtStep;
       const o = flameBreathOrigin(actor, b.angle);
+      b.centerBlock = flameRayBlockDistance(o, b.angle, b.range, b);
       emitFlameBreathParticles(b, o);
-      rememberDebugSegment('ability', o.x, o.y, o.x + Math.cos(b.angle) * b.range, o.y + Math.sin(b.angle) * b.range * 0.72, 28, b.color, 120);
+      const tip = flamePathPoint(o, b.angle, b.centerBlock || b.range, b);
+      rememberDebugSegment('ability', o.x, o.y, tip.x, tip.y, b.dragon ? 48 : 28, b.color, 120);
+      b.spreadTick -= dtStep;
+      if (b.spreadTick <= 0) {
+        b.spreadTick = b.dragon ? 86 : 160;
+        spreadGroundFireFromBreath(b, o);
+      }
       b.tick -= dtStep;
       if (b.tick <= 0) {
-        b.tick = 64;
+        b.tick = b.dragon ? 46 : 64;
         const team = b.team || 'hero';
         const targets = team === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
         for (const t of targets.slice()) {
@@ -6103,7 +6193,7 @@ PUBLIC.start = function (root, api) {
         for (const bx of boxes || []) {
           if (!bx || bx.dead) continue;
           const cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2;
-          const hit = pointInFlameBreath(cx, cy, b, o);
+          const hit = pointInFlameBreath(cx, cy, b, o, bx);
           if (!hit) continue;
           heatBoxFromFire(bx, { x: o.x, y: o.y, color: b.color, ultimate: hit.u > 0.45 }, b.heat * (0.72 + hit.u * 0.95));
           pushBox(bx, Math.cos(b.angle), Math.sin(b.angle) * 0.18 - 0.10, (b.force * 0.34) * (0.65 + hit.u));
@@ -6429,6 +6519,28 @@ PUBLIC.start = function (root, api) {
       z.tick -= dtStep;
       z.flare = Math.max(0, (z.flare || 0) - dtStep);
       const flare = clamp((z.flare || 0) / 420, 0, 1);
+      if (z.spread && fireZones.length < 22) {
+        z.spreadTick = (z.spreadTick || 0) - dtStep;
+        if (z.spreadTick <= 0 && z.life > 520) {
+          z.spreadTick = rand(520, 860);
+          const dir = Math.random() < 0.5 ? -1 : 1;
+          const nx = z.x + dir * rand(z.r * 0.62, z.r * 1.10);
+          const ny = terrainYAt(nx) - 4;
+          const blocked = flameObstacleAt((z.x + nx) * 0.5, Math.min(z.y, ny) - 18, null);
+          const near = fireZones.some(o => o !== z && Math.hypot(o.x - nx, o.y - ny) < Math.max(34, o.r * 0.68));
+          if (!blocked && !near && Math.abs(ny - z.y) < 92) {
+            spawnFireZone(nx, ny, z.team, {
+              r: Math.max(28, z.r * rand(0.48, 0.72)),
+              w: Math.max(72, (z.w || z.r * 1.8) * rand(0.58, 0.86)),
+              life: Math.min(z.life * 0.62, rand(820, 1450)),
+              color: z.color,
+              ground: true,
+              spread: Math.random() < 0.28,
+              quiet: true,
+            });
+          }
+        }
+      }
       if (Math.random() < (z.ultimate ? 0.94 : 0.75) + flare * 0.22) {
         const a = rand(0, Math.PI * 2), rr = rand(10, z.r);
         const px = z.x + Math.cos(a) * rr, py = z.y + Math.sin(a) * rr * 0.42;
@@ -7964,35 +8076,35 @@ PUBLIC.start = function (root, api) {
       const o = flameBreathOrigin(actor, b.angle);
       const fade = clamp(b.life / Math.max(1, b.max), 0, 1);
       const birth = clamp((b.age || 0) / 140, 0, 1);
-      const len = b.range * (0.72 + birth * 0.28);
+      const centerLen = (b.centerBlock || flameRayBlockDistance(o, b.angle, b.range, b)) * (0.72 + birth * 0.28);
       const half = b.cone || 0.54;
       const left = b.angle - half;
       const right = b.angle + half;
-      const tipX = o.x + Math.cos(b.angle) * len;
-      const tipY = o.y + Math.sin(b.angle) * len * 0.72;
-      const lX = o.x + Math.cos(left) * len * 0.76;
-      const lY = o.y + Math.sin(left) * len * 0.55;
-      const rX = o.x + Math.cos(right) * len * 0.76;
-      const rY = o.y + Math.sin(right) * len * 0.55;
-      const grad = ctx.createRadialGradient(o.x, o.y, 4, tipX, tipY, len);
-      grad.addColorStop(0, `rgba(255,244,186,${0.32 * fade})`);
-      grad.addColorStop(0.26, `rgba(255,167,54,${0.24 * fade})`);
-      grad.addColorStop(0.68, `rgba(255,82,26,${0.13 * fade})`);
+      const leftLen = flameRayBlockDistance(o, left, b.range, b) * (0.68 + birth * 0.22);
+      const rightLen = flameRayBlockDistance(o, right, b.range, b) * (0.68 + birth * 0.22);
+      const tip = flamePathPoint(o, b.angle, centerLen, b);
+      const lp = flamePathPoint(o, left, leftLen * 0.82, b);
+      const rp = flamePathPoint(o, right, rightLen * 0.82, b);
+      const drawLen = Math.max(centerLen, leftLen, rightLen, 40);
+      const grad = ctx.createRadialGradient(o.x, o.y, 4, tip.x, tip.y, drawLen);
+      grad.addColorStop(0, `rgba(255,244,186,${(b.dragon ? 0.42 : 0.32) * fade})`);
+      grad.addColorStop(0.26, `rgba(255,167,54,${(b.dragon ? 0.33 : 0.24) * fade})`);
+      grad.addColorStop(0.68, `rgba(255,82,26,${(b.dragon ? 0.20 : 0.13) * fade})`);
       grad.addColorStop(1, 'rgba(255,82,26,0)');
       ctx.fillStyle = grad;
-      ctx.globalAlpha = 0.75;
+      ctx.globalAlpha = b.dragon ? 0.90 : 0.75;
       ctx.beginPath();
       ctx.moveTo(o.x, o.y);
-      ctx.quadraticCurveTo((o.x + lX) / 2, (o.y + lY) / 2 - 18, lX, lY);
-      ctx.quadraticCurveTo(tipX, tipY - 18, rX, rY);
-      ctx.quadraticCurveTo((o.x + rX) / 2, (o.y + rY) / 2 + 10, o.x, o.y);
+      ctx.quadraticCurveTo((o.x + lp.x) / 2, (o.y + lp.y) / 2 - (b.dragon ? 34 : 18), lp.x, lp.y);
+      ctx.quadraticCurveTo(tip.x, tip.y - (b.dragon ? 38 : 18), rp.x, rp.y);
+      ctx.quadraticCurveTo((o.x + rp.x) / 2, (o.y + rp.y) / 2 + 10, o.x, o.y);
       ctx.fill();
-      ctx.globalAlpha = 0.35 * fade;
+      ctx.globalAlpha = (b.dragon ? 0.48 : 0.35) * fade;
       ctx.strokeStyle = '#ffd45e';
-      ctx.lineWidth = 2.0;
+      ctx.lineWidth = b.dragon ? 3.8 : 2.0;
       ctx.beginPath();
       ctx.moveTo(o.x, o.y);
-      ctx.quadraticCurveTo((o.x + tipX) / 2, (o.y + tipY) / 2 - 20, tipX, tipY);
+      ctx.quadraticCurveTo((o.x + tip.x) / 2, (o.y + tip.y) / 2 - (b.dragon ? 42 : 20), tip.x, tip.y);
       ctx.stroke();
     }
     ctx.restore();
@@ -8007,43 +8119,30 @@ PUBLIC.start = function (root, api) {
     for (const z of fireZones) {
       const fade = clamp(z.life / z.max, 0, 1);
       const flare = clamp((z.flare || 0) / 420, 0, 1);
-      const birth = clamp((z.age || 0) / 420, 0, 1);
       const pulse = 1 + Math.sin(t * 0.011 + z.x) * (0.055 + flare * 0.035) + flare * 0.08;
       const rr = z.r * pulse;
-      const grad = ctx.createRadialGradient(z.x, z.y, 4, z.x, z.y, rr);
+      const rw = (z.w || (z.ground ? z.r * 2.05 : z.r * 1.35)) * pulse;
+      const rh = (z.ground ? z.r * 0.22 : z.r * 0.34) * (0.88 + flare * 0.10);
+      const grad = ctx.createRadialGradient(z.x, z.y, 3, z.x, z.y, Math.max(rw, rh));
       grad.addColorStop(0, `rgba(255,212,94,${(0.24 + flare * 0.14) * fade})`);
       grad.addColorStop(0.38, `rgba(255,107,50,${(0.20 + flare * 0.10) * fade})`);
       grad.addColorStop(1, 'rgba(255,107,50,0)');
       ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.ellipse(z.x, z.y, rr, rr * 0.42, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = (z.ultimate ? 0.78 : 0.52) * fade;
-      ctx.strokeStyle = z.ultimate ? '#ffd45e' : z.color;
-      ctx.lineWidth = (z.ultimate ? 3.2 : 2.1) + flare * 1.8;
-      ctx.beginPath(); ctx.ellipse(z.x, z.y, rr * 0.92, rr * 0.39, 0, 0, Math.PI * 2); ctx.stroke();
-      if (z.ultimate) {
-        ctx.globalAlpha = (0.16 + flare * 0.18) * fade;
-        ctx.strokeStyle = '#ffd45e';
-        ctx.lineWidth = 1.5 + flare * 1.2;
-        ctx.setLineDash([18, 12]);
-        ctx.lineDashOffset = -t * 0.05;
-        ctx.beginPath();
-        ctx.ellipse(z.x, z.y, rr * (1.04 + (1 - birth) * 0.18), rr * (0.44 + (1 - birth) * 0.08), 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
+      ctx.globalAlpha = (z.ground ? 0.58 : 0.42) * fade;
+      ctx.beginPath(); ctx.ellipse(z.x, z.y, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < (z.ultimate ? 16 : 10); i++) {
-        const a = i * Math.PI * 2 / (z.ultimate ? 16 : 10) + Math.sin(t * 0.003 + i) * 0.16;
-        const base = rr * rand(0.22, 0.86);
-        const x0 = z.x + Math.cos(a) * base;
-        const y0 = z.y + Math.sin(a) * base * 0.34;
-        const lick = (18 + flare * 18 + (z.ultimate ? 16 : 0)) * (0.65 + 0.35 * Math.sin(t * 0.011 + i * 1.7));
+      for (let i = 0; i < (z.ground ? 14 : 10); i++) {
+        const phase = t * 0.010 + i * 1.71 + z.x * 0.013;
+        const u = -0.86 + i * (1.72 / Math.max(1, (z.ground ? 13 : 9)));
+        const x0 = z.x + u * rw * (0.72 + 0.10 * Math.sin(phase));
+        const y0 = z.y + Math.sin(phase * 0.6) * rh * 0.22;
+        const lick = (18 + flare * 18 + (z.ground ? 8 : 0)) * (0.65 + 0.35 * Math.sin(phase));
         ctx.globalAlpha = (0.12 + flare * 0.13 + (z.ultimate ? 0.08 : 0)) * fade;
-        ctx.strokeStyle = Math.random() < 0.35 ? '#ffd45e' : z.color;
-        ctx.lineWidth = z.ultimate ? 2.4 : 1.7;
+        ctx.strokeStyle = i % 3 === 0 ? '#ffd45e' : z.color;
+        ctx.lineWidth = z.ground ? 2.1 : 1.7;
         ctx.beginPath();
         ctx.moveTo(x0, y0);
-        ctx.quadraticCurveTo(x0 + Math.sin(a) * 10, y0 - lick * 0.55, x0 + Math.cos(a) * 8, y0 - lick);
+        ctx.quadraticCurveTo(x0 + Math.sin(phase) * 10, y0 - lick * 0.55, x0 + Math.cos(phase) * 8, y0 - lick);
         ctx.stroke();
       }
       ctx.globalCompositeOperation = 'source-over';
