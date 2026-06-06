@@ -3182,6 +3182,7 @@ PUBLIC.start = function (root, api) {
     if (player) refillLabResources();
     renderLabPanel();
     if (player && coinsLeft) syncHud();
+    exposeDebugApi();
   }
   function refillLabResources() {
     if (!player) return;
@@ -3463,7 +3464,7 @@ PUBLIC.start = function (root, api) {
   });
   labPanel.addEventListener('click', e => {
     const slotBtn = e.target.closest && e.target.closest('[data-lab-slot]');
-    if (slotBtn) { testLabSlot(slotBtn.dataset.labSlot); return; }
+    if (slotBtn) { testLabSlot(slotBtn.dataset.labSlot); exposeDebugApi(); return; }
     const act = e.target.dataset && e.target.dataset.labAct;
     if (!act) return;
     if (act === 'collapse') { labCollapsed = !labCollapsed; renderLabPanel(); }
@@ -3485,7 +3486,8 @@ PUBLIC.start = function (root, api) {
       exposeDebugApi();
       renderLabPanel();
     }
-    else if (act === 'menu') showMenu();
+    else if (act === 'menu') { showMenu(); return; }
+    if (labMode) exposeDebugApi();
   });
   api.on(helpBtn, 'click', () => { if (state === 'help') closeHelp(); else openHelp(); });
 
@@ -7499,6 +7501,7 @@ PUBLIC.start = function (root, api) {
       segBoxDistance(a, b) { return segAabbDist(a.ax, a.ay, a.bx, a.by, b); },
       setDebug(v) { debug.enabled = !!v; exposeDebugApi(); },
       state() {
+        const bindableRemnant = nearestSpiritRemnant(260);
         return {
           mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
           arenaMode, labMode, labBuildId, arenaWave, arenaKills, arenaNextWave,
@@ -7516,6 +7519,14 @@ PUBLIC.start = function (root, api) {
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
           bladeRecallTrails: bladeRecallTrails ? bladeRecallTrails.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0 } : null,
+          effects: {
+            projectiles: projectiles ? projectiles.slice(0, 18).map(p => ({ kind: p.kind || 'bolt', x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life || 0, team: p.team })) : [],
+            gravityFields: gravityFields ? gravityFields.map(g => ({ x: g.x, y: g.y, r: g.r, life: g.life || 0, max: g.max || 0, ultimate: !!g.ultimate, team: g.team })) : [],
+            fireZones: fireZones ? fireZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, ultimate: !!z.ultimate, team: z.team })) : [],
+            smokeZones: smokeZones ? smokeZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, poison: !!z.poison, team: z.team })) : [],
+            shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
+            spiritRemnants: spiritRemnants ? spiritRemnants.map(r => ({ x: r.x, y: r.y, groundY: r.groundY, life: r.life || 0, max: r.max || 0, source: r.source || 'enemy', bindable: r === bindableRemnant })) : [],
+          },
           droppedKnives: droppedKnives ? droppedKnives.length : 0,
         };
       },
@@ -7535,8 +7546,34 @@ PUBLIC.start = function (root, api) {
     if (typeof window === 'undefined') return;
     const apiObj = getTestApi();
     if (window.__stickTest) window.__stickTest(apiObj);
-    if (debug.enabled) window.__stickDebug = apiObj;
-    else if (window.__stickDebug === apiObj) delete window.__stickDebug;
+    const exposed = debug.enabled || labMode;
+    if (exposed) {
+      window.__stickDebug = apiObj;
+      if (root && root.dataset) {
+        const snap = apiObj.state();
+        const effects = snap.effects || {};
+        root.dataset.stickDebug = '1';
+        root.dataset.stickClass = snap.classId || '';
+        root.dataset.stickLabBuild = snap.labMode ? (snap.labBuildId || '') : '';
+        root.dataset.stickEffectCounts = JSON.stringify({
+          projectiles: effects.projectiles ? effects.projectiles.length : 0,
+          gravityFields: effects.gravityFields ? effects.gravityFields.length : 0,
+          fireZones: effects.fireZones ? effects.fireZones.length : 0,
+          smokeZones: effects.smokeZones ? effects.smokeZones.length : 0,
+          shockwaves: effects.shockwaves ? effects.shockwaves.length : 0,
+          spiritRemnants: effects.spiritRemnants ? effects.spiritRemnants.length : 0,
+        });
+      }
+    }
+    else {
+      if (window.__stickDebug === apiObj) delete window.__stickDebug;
+      if (root && root.dataset) {
+        delete root.dataset.stickDebug;
+        delete root.dataset.stickClass;
+        delete root.dataset.stickLabBuild;
+        delete root.dataset.stickEffectCounts;
+      }
+    }
   }
 
   showMenu();
