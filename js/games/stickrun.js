@@ -179,8 +179,9 @@ const ABILITIES = (() => {
   add('rg_tripwire', { cls: 'rogue', branch: 'bladeslinger', tier: 1, slot: 'e', name: 'Needle Volley', desc: 'Throw a tight volley of knives that punches through lanes and rattles crates.', effect: { kind: 'knifeFan', count: 5, tight: 1, hit: 13 }, cd: 2200, tags: ['Projectile', 'Crates'] });
   add('rg_smoke', { cls: 'rogue', branch: 'nightshade', tier: 1, slot: 'shift', name: 'Smoke Slide', desc: 'Slide leaves a smoke pop, briefly hides your silhouette, and breaks enemy aim.', effect: { kind: 'smokeSlide', hidden: 1 }, cd: 1800, tags: ['Movement', 'Stealth'] });
   add('rg_explosive', { cls: 'rogue', branch: 'bladeslinger', tier: 3, slot: 'q', name: 'Explosive Knives', desc: 'Throw six heavy knives that burst barrels and shove enemies on impact.', effect: { kind: 'knifeFan', count: 6, explosive: 1, hit: 17 }, cd: 7600, tags: ['Barrels', 'Projectile'] });
-  add('rg_trapmaster', { cls: 'rogue', branch: 'bladeslinger', tier: 4, slot: 'passive', name: 'Bladecaller', desc: 'Keystone: knife spreads throw one more blade, ricochet by default, and Blade Barrage adds extra seeking knives.', key: true, tags: ['Projectile', 'Barrels'] });
-  add('rg_bladecall', { cls: 'rogue', branch: 'bladeslinger', tier: 2, slot: 'secondary', name: 'Bladecall', desc: 'Recall dropped knives toward you, cutting through enemies on the way back.', effect: { kind: 'bladeRecall' }, cd: 2200, tags: ['Projectile', 'Pull'] });
+  add('rg_trapmaster', { cls: 'rogue', branch: 'bladeslinger', tier: 4, slot: 'passive', name: 'Bladecaller', desc: 'Keystone: loose knives tug toward you, knife spreads throw one more blade, and Bladecall adds extra seeking knives.', key: true, tags: ['Projectile', 'Pull'] });
+  add('rg_bladecall', { cls: 'rogue', branch: 'bladeslinger', tier: 2, slot: 'secondary', name: 'Knife Recall', desc: 'Recall dropped knives toward you, cutting through enemies on the way back.', effect: { kind: 'bladeRecall' }, cd: 2200, tags: ['Projectile', 'Pull'] });
+  add('rg_bladecall_q', { cls: 'rogue', branch: 'bladeslinger', tier: 5, slot: 'q', name: 'Bladecall', desc: 'Ultimate: call every loose knife plus spectral blades into orbit, then send them hunting through enemies.', type: 'custom', use: 'bladecallUltimate', cd: 9400, tags: ['Projectile', 'Pull', 'Burst'] });
   add('rg_poisonknife', { cls: 'rogue', branch: 'nightshade', tier: 1, slot: 'secondary', name: 'Poison Knife', desc: 'Throw a quiet knife that poisons targets and leaves a faint toxic trail.', effect: { kind: 'knife', count: 1, poison: 1 }, cd: 760, tags: ['Projectile', 'Poison'] });
   add('rg_smokebomb', { cls: 'rogue', branch: 'nightshade', tier: 2, slot: 'e', name: 'Smoke Bomb', desc: 'Throw a bomb that bursts into a thick drifting smoke cloud, hiding movement and breaking enemy aim.', effect: { kind: 'smokeBomb', r: 154, life: 1900, range: 440 }, cd: 3200, tags: ['Stealth', 'Control'] });
   add('rg_venomcloud', { cls: 'rogue', branch: 'nightshade', tier: 3, slot: 'q', name: 'Venom Cloud', desc: 'Throw a heavier poison bomb that rolls out a choking green cloud and weakens enemies inside.', effect: { kind: 'smokeBomb', r: 218, life: 3000, range: 520, poison: 1 }, cd: 8800, tags: ['Stealth', 'Poison', 'Field'] });
@@ -479,6 +480,7 @@ const LAB_BUILDS = {
   rogue: [
     { id: 'base', name: 'Base Rogue', note: 'Starting kit for close-range knife chains, slide, ammo recovery, and secondary knife throws.', loadout: {} },
     { id: 'bladeslinger', name: 'Bladeslinger', note: 'Knife throwing: fast main toss, ricochet, dense fan knives, blade recall, and a tracking blade barrage.', loadout: { attack: 'rg_throw', secondary: 'rg_ricochet', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: 'rg_trapmaster' } },
+    { id: 'bladecaller', name: 'Bladecaller', note: 'Knife control subclass: throw knives, recall loose blades, and use Q to call a full spectral blade storm back through targets.', loadout: { attack: 'rg_throw', secondary: 'rg_bladecall', shift: 'rg_slide', e: 'rg_tripwire', q: 'rg_bladecall_q', passive: 'rg_trapmaster' } },
     { id: 'acrobat', name: 'Acrobat', note: 'Fast movement offense: dash cut, rising dash launcher, and a big dash-frenzy ultimate.', loadout: { attack: 'rg_sweep', secondary: 'rg_dual', shift: 'rg_wallkick', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_bloodrush' } },
     { id: 'skyblade', name: 'Skyblade Acrobat', note: 'Advanced Acrobat: longer sky dash, diving stabs, rising dash, and dash frenzy.', loadout: { attack: 'rg_divingneedle', secondary: 'rg_dual', shift: 'rg_heelrebound', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_skyblade' } },
     { id: 'nightshade', name: 'Nightshade', note: 'Smoke/poison stealth: poison knife, smoke slide, smoke bomb, venom cloud.', loadout: { attack: 'rg_stab', secondary: 'rg_poisonknife', shift: 'rg_smoke', e: 'rg_smokebomb', q: 'rg_venomcloud', passive: 'rg_nightshade' } },
@@ -1445,6 +1447,81 @@ PUBLIC.start = function (root, api) {
     burst(cx, cy, '#ffffff', 10, 2.8);
     spawnShockwaveRing(cx, cy, 164, cls.color, { life: 500, width: 5.0, fill: 0.06, rough: 0.085 });
     addShake(3.2, 160);
+    return true;
+  }
+  function useBladecallUltimate(ang) {
+    if (!startVisualAttack('throw', ang, { kind: 'bladecallUltimate' })) return false;
+    const cx = player.x;
+    const cy = player.y - 62;
+    const loose = droppedKnives && droppedKnives.length ? droppedKnives.splice(0, droppedKnives.length) : [];
+    const bonus = Math.min(8, loose.length * 2) + (hasPassive('rg_trapmaster') ? 4 : 0);
+    const total = Math.min(30, 16 + bonus);
+    for (let i = 0; i < total; i++) {
+      const fanT = total <= 1 ? 0.5 : i / (total - 1);
+      const ring = i % 4;
+      const side = i % 2 === 0 ? 1 : -1;
+      const orbit = ang + Math.PI + fanT * Math.PI * 2 + side * rand(0.04, 0.16);
+      const rx = 46 + ring * 20 + rand(-6, 9);
+      const ry = 26 + ring * 13 + rand(-5, 8);
+      const x = cx + Math.cos(orbit) * rx;
+      const y = cy + Math.sin(orbit) * ry;
+      const recalled = i < loose.length ? loose[i] : null;
+      if (recalled) {
+        spawnBladeRecallTrail(recalled.x, recalled.y, x, y, { life: 520, phase: i * 0.42, accent: '#f1ffe8' });
+        for (let s = 1; s <= 5; s++) {
+          const u = s / 6;
+          particles.push({
+            x: lerp(recalled.x, x, u) + rand(-5, 5),
+            y: lerp(recalled.y, y, u) + rand(-5, 5),
+            vx: (x - recalled.x) * 0.003 + rand(-0.18, 0.18),
+            vy: (y - recalled.y) * 0.003 + rand(-0.18, 0.18),
+            life: rand(220, 420),
+            max: 420,
+            color: Math.random() < 0.46 ? '#ffffff' : cls.color,
+            r: rand(1.0, 2.8),
+          });
+        }
+      } else if (i < 22) {
+        spawnBladeRecallTrail(cx + rand(-12, 12), cy + rand(-10, 10), x, y, { life: 360, phase: i * 0.35, accent: cls.color });
+      }
+      const arcOut = (fanT - 0.5) * 1.18 + side * rand(0.28, 0.58);
+      spawnDagger(ang + arcOut, {
+        x, y,
+        speed: recalled ? rand(1.9, 3.4) : rand(0.8, 2.2),
+        hit: recalled ? 12.5 : 10.2,
+        homing: true,
+        summoned: true,
+        noDrop: true,
+        arm: 420 + i * 24,
+        phase: orbit,
+        curve: side * rand(9.0, 17.0) + (fanT - 0.5) * 9.0,
+        curveLife: rand(620, 960),
+        stagger: recalled ? 840 : 660,
+        seekSpeed: recalled ? 29 : 26,
+        seekRange: 940,
+        life: 3300 + i * 22,
+        color: i % 4 === 0 ? '#ffffff' : '#f1ffe8',
+        quiet: true,
+      });
+      particles.push({
+        x, y,
+        vx: Math.cos(orbit) * rand(0.2, 0.9),
+        vy: Math.sin(orbit) * rand(0.18, 0.72) - 0.10,
+        life: rand(300, 620),
+        max: 620,
+        color: Math.random() < 0.42 ? '#ffffff' : cls.color,
+        r: rand(1.1, 3.0),
+      });
+    }
+    if (loose.length && player.knifeAmmo < ROGUE_MAX_KNIVES) {
+      player.knifeAmmo = Math.min(ROGUE_MAX_KNIVES, player.knifeAmmo + Math.min(loose.length, 3));
+      player.knifeRegen = 0;
+    }
+    burst(cx, cy, '#ffffff', 18, 3.8);
+    burst(cx, cy, cls.color, 46 + loose.length * 3, 5.6);
+    spawnShockwaveRing(cx, cy, 196, cls.color, { life: 620, width: 5.4, fill: 0.07, rough: 0.095 });
+    addShake(4.2 + Math.min(3, loose.length * 0.35), 190);
+    syncHud();
     return true;
   }
   function useBladeStorm() {
@@ -3153,6 +3230,7 @@ PUBLIC.start = function (root, api) {
     if (spec.use === 'knightRally') return useKnightRally();
     if (spec.use === 'rogueFan') return useRogueFanKnives(ang);
     if (spec.use === 'bladeBarrage') return useBladeBarrage(ang);
+    if (spec.use === 'bladecallUltimate') return useBladecallUltimate(ang);
     if (spec.use === 'bladeStorm') return useBladeStorm();
     if (spec.use === 'lancerAnchor') return useLancerAnchor();
     if (spec.use === 'mageSigil') {
@@ -3560,7 +3638,7 @@ PUBLIC.start = function (root, api) {
       max: opts.life || 430,
       phase: opts.phase || 0,
     });
-    if (bladeRecallTrails.length > 16) bladeRecallTrails.shift();
+    if (bladeRecallTrails.length > 30) bladeRecallTrails.splice(0, bladeRecallTrails.length - 30);
   }
 
   function syncHudLegacy() {
