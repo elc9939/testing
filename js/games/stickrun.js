@@ -2277,8 +2277,8 @@ PUBLIC.start = function (root, api) {
   }
   function emitSmokeCloudBurst(x, y, r, poison, opts) {
     opts = opts || {};
-    const count = opts.count || (poison ? 112 : 86);
-    const force = opts.force || (poison ? 2.9 : 2.35);
+    const count = opts.count || (poison ? 178 : 136);
+    const force = opts.force || (poison ? 3.25 : 2.8);
     const baseVx = opts.vx || 0;
     const baseVy = opts.vy || 0;
     for (let i = 0; i < count; i++) {
@@ -2292,23 +2292,68 @@ PUBLIC.start = function (root, api) {
         baseVx + Math.cos(a) * s + rand(-0.25, 0.25),
         baseVy + Math.sin(a) * s * 0.34 - rand(0.18, poison ? 0.82 : 1.05), {
           color: smokeCloudColor(poison, i % 7 === 0),
-          life: rand(poison ? 920 : 760, poison ? 1900 : 1540),
-          r: rand(poison ? 7.0 : 8.0, poison ? 20.5 : 24.0),
-          alpha: rand(poison ? 0.28 : 0.24, poison ? 0.58 : 0.48),
+          life: rand(poison ? 1120 : 920, poison ? 2200 : 1860),
+          r: rand(poison ? 9.0 : 10.5, poison ? 27.0 : 30.0),
+          alpha: rand(poison ? 0.42 : 0.34, poison ? 0.78 : 0.66),
           grow: rand(0.040, 0.095),
           drag: rand(0.982, 0.992),
           buoy: poison ? rand(0.004, 0.020) : rand(0.012, 0.036),
           swirl: rand(0.010, 0.034),
+          poison,
+          groundHug: true,
+          settle: rand(-12, 10),
         });
     }
+  }
+  function smokeGroundYAt(x, fallbackY, poison) {
+    const gy = terrainYAt(x);
+    return (gy == null ? fallbackY + 28 : gy) - (poison ? 23 : 27);
+  }
+  function smokeZoneLobes(x, y, targetR, poison, opts) {
+    opts = opts || {};
+    const count = opts.lobes || (poison ? 13 : 12);
+    const lobes = [];
+    for (let i = 0; i < count; i++) {
+      const center = i === 0;
+      const side = i % 2 === 0 ? 1 : -1;
+      const rank = center ? 0 : Math.ceil(i / 2);
+      const spreadT = center ? 0 : rank / Math.ceil((count - 1) / 2);
+      const ox = center ? 0 : side * targetR * rand(0.05 + spreadT * 0.08, 0.16 + spreadT * 0.30);
+      const lx = x + ox;
+      lobes.push({
+        ox,
+        y: smokeGroundYAt(lx, y, poison) + rand(-5, 7),
+        r: Math.max(22, targetR * rand(center ? 0.18 : 0.10, center ? 0.28 : 0.20)),
+        targetR: targetR * rand(center ? 0.34 : 0.22, center ? 0.48 : 0.40),
+        vx: (center ? rand(-0.04, 0.04) : side * rand(0.18, poison ? 0.54 : 0.46)) + (opts.vx || 0) * 0.45,
+        phase: rand(0, Math.PI * 2),
+      });
+    }
+    return lobes;
+  }
+  function smokeZoneContainsPoint(z, x, y) {
+    if (z.lobes && z.lobes.length) {
+      for (const l of z.lobes) {
+        const lx = z.x + l.ox;
+        const ly = l.y;
+        const rx = Math.max(18, l.r);
+        const ry = Math.max(16, l.r * (z.poison ? 0.48 : 0.54));
+        const dx = (x - lx) / rx, dy = (y - ly) / ry;
+        if (dx * dx + dy * dy < 1) return true;
+      }
+      return false;
+    }
+    return Math.hypot(x - z.x, y - z.y) < z.r;
   }
   function spawnSmokeZone(x, y, team, opts) {
     opts = opts || {};
     if (!smokeZones) smokeZones = [];
     const life = opts.life || 1150;
     const targetR = opts.r || 128;
+    const groundY = smokeGroundYAt(x, y, !!opts.poison);
     smokeZones.push({
-      x, y,
+      x,
+      y: groundY,
       team: team || 'hero',
       r: opts.startR || Math.max(28, targetR * 0.34),
       targetR,
@@ -2323,12 +2368,13 @@ PUBLIC.start = function (root, api) {
       vy: opts.vy || 0,
       thickness: opts.thickness || (opts.poison ? 1.18 : 1.0),
       phase: rand(0, Math.PI * 2),
+      lobes: smokeZoneLobes(x, groundY, targetR, !!opts.poison, opts),
     });
     if (smokeZones.length > 10) smokeZones.shift();
   }
   function actorInSmokeZone(act, z) {
     if (!act || act.dead) return false;
-    return Math.hypot(act.x - z.x, (act.y - 38) - z.y) < z.r;
+    return smokeZoneContainsPoint(z, act.x, act.y - 38);
   }
   function updateSmokeZones(dtStep) {
     if (!smokeZones || !smokeZones.length) return;
@@ -2341,28 +2387,42 @@ PUBLIC.start = function (root, api) {
       z.age = (z.age || 0) + dtStep;
       z.r = lerp(z.r || z.targetR, z.targetR || z.r || 120, 1 - Math.pow(0.94, driftScale));
       z.x += (z.vx || 0) * driftScale;
-      z.y += (z.vy || 0) * driftScale;
+      z.y = lerp(z.y + (z.vy || 0) * driftScale, smokeGroundYAt(z.x, z.y, z.poison), 1 - Math.pow(0.90, driftScale));
       z.vx = (z.vx || 0) * Math.pow(0.986, driftScale) + Math.sin((runTime || 0) * 0.0017 + z.phase) * 0.010 * driftScale;
-      z.vy = (z.vy || 0) * Math.pow(0.988, driftScale) - (z.poison ? 0.0025 : 0.0060) * driftScale;
+      z.vy = (z.vy || 0) * Math.pow(0.988, driftScale) - (z.poison ? 0.0012 : 0.0022) * driftScale;
       const fade = clamp(z.life / z.max, 0, 1);
-      const density = (z.poison ? 2.7 : 2.0) * (z.thickness || 1) * (0.28 + fade * 0.92) * driftScale;
+      const lobes = z.lobes && z.lobes.length ? z.lobes : [{ ox: 0, y: z.y, r: z.r, targetR: z.r, vx: 0, phase: z.phase }];
+      for (const l of lobes) {
+        l.ox += (l.vx || 0) * driftScale;
+        l.ox = clamp(l.ox, -(z.targetR || z.r) * 1.12, (z.targetR || z.r) * 1.12);
+        l.vx = (l.vx || 0) * Math.pow(0.988, driftScale) + Math.sin((runTime || 0) * 0.0015 + l.phase) * 0.006 * driftScale;
+        l.r = lerp(l.r || l.targetR, l.targetR || z.r, 1 - Math.pow(0.935, driftScale));
+        l.y = lerp(l.y, smokeGroundYAt(z.x + l.ox, z.y, z.poison) + Math.sin((runTime || 0) * 0.0019 + l.phase) * 4, 1 - Math.pow(0.86, driftScale));
+      }
+      const density = (z.poison ? 7.6 : 6.4) * (z.thickness || 1) * (0.42 + fade * 1.08) * driftScale;
       const puffCount = Math.floor(density) + (Math.random() < density % 1 ? 1 : 0);
       for (let j = 0; j < puffCount; j++) {
-        const a = rand(0, Math.PI * 2), rr = Math.pow(Math.random(), 0.62) * z.r;
-        const edge = rr / Math.max(1, z.r);
+        const l = lobes[Math.floor(Math.random() * lobes.length)] || lobes[0];
+        const lx = z.x + l.ox;
+        const ly = l.y;
+        const a = rand(0, Math.PI * 2), rr = Math.pow(Math.random(), 0.58) * l.r;
+        const edge = rr / Math.max(1, l.r);
         smokeParticle(
-          z.x + Math.cos(a) * rr,
-          z.y + Math.sin(a) * rr * (z.poison ? 0.38 : 0.44),
-          (z.vx || 0) * 0.38 + Math.cos(a) * rand(0.02, 0.25) * (0.5 + edge),
-          (z.vy || 0) * 0.30 + rand(z.poison ? -0.18 : -0.34, 0.10), {
-            color: smokeCloudColor(z.poison, Math.random() < 0.16),
-            life: rand(z.poison ? 520 : 440, z.poison ? 1180 : 980),
-            r: rand(z.poison ? 5.6 : 6.2, z.poison ? 15.8 : 18.5) * (z.thickness || 1),
-            alpha: rand(z.poison ? 0.20 : 0.16, z.poison ? 0.44 : 0.34) * (0.6 + fade * 0.7),
-            grow: rand(0.030, 0.080),
-            drag: rand(0.984, 0.994),
-            buoy: z.poison ? rand(0.002, 0.014) : rand(0.010, 0.032),
-            swirl: rand(0.008, 0.030),
+          lx + Math.cos(a) * rr,
+          ly + Math.sin(a) * rr * (z.poison ? 0.34 : 0.40) + rand(-3, 3),
+          (z.vx || 0) * 0.34 + (l.vx || 0) * 0.32 + Math.cos(a) * rand(0.03, 0.36) * (0.5 + edge),
+          (z.vy || 0) * 0.22 + rand(z.poison ? -0.24 : -0.42, 0.08), {
+            color: smokeCloudColor(z.poison, Math.random() < 0.22),
+            life: rand(z.poison ? 720 : 620, z.poison ? 1480 : 1260),
+            r: rand(z.poison ? 7.8 : 8.8, z.poison ? 22.0 : 25.0) * (z.thickness || 1),
+            alpha: rand(z.poison ? 0.36 : 0.30, z.poison ? 0.70 : 0.58) * (0.72 + fade * 0.72),
+            grow: rand(0.040, 0.092),
+            drag: rand(0.986, 0.994),
+            buoy: z.poison ? rand(0.000, 0.010) : rand(0.004, 0.022),
+            swirl: rand(0.012, 0.038),
+            poison: z.poison,
+            groundHug: true,
+            settle: rand(-16, 14),
           });
       }
       if ((z.team || 'hero') === 'hero' && player && actorInSmokeZone(player, z)) {
@@ -2385,7 +2445,7 @@ PUBLIC.start = function (root, api) {
         }
         if ((z.team || 'hero') === 'hero' && dummies) for (const d of dummies) {
           const p = d.pts && (d.pts.chest || d.pts.head);
-          if (p && Math.hypot(p.x - z.x, p.y - z.y) < z.r) d.flash = Math.max(d.flash || 0, z.poison ? 170 : 90);
+          if (p && smokeZoneContainsPoint(z, p.x, p.y)) d.flash = Math.max(d.flash || 0, z.poison ? 170 : 90);
         }
       }
     }
@@ -4324,6 +4384,9 @@ PUBLIC.start = function (root, api) {
       swirl: opts.swirl == null ? rand(0.004, 0.020) : opts.swirl,
       seed: rand(0, Math.PI * 2),
       alpha: opts.alpha || 0.36,
+      poison: !!opts.poison,
+      groundHug: !!opts.groundHug,
+      settle: opts.settle || 0,
     });
   }
   function emberParticle(x, y, vx, vy, opts) {
@@ -4895,7 +4958,7 @@ PUBLIC.start = function (root, api) {
   }
   // apply an impulse AT a point on the body (displacing a verlet node = giving it velocity)
   function pointInHeroSmoke(x, y) {
-    return !!(smokeZones && smokeZones.some(z => (z.team || 'hero') === 'hero' && Math.hypot(x - z.x, y - z.y) < z.r));
+    return !!(smokeZones && smokeZones.some(z => (z.team || 'hero') === 'hero' && smokeZoneContainsPoint(z, x, y)));
   }
   function rogueStealthPassiveActive() {
     return hasPassive('rg_assassinate') || hasPassive('rg_nightshade');
@@ -6791,12 +6854,12 @@ PUBLIC.start = function (root, api) {
       hiddenBoost: poison ? 300 : 210,
     });
     player.hidden = Math.max(player.hidden || 0, hasPassive('rg_nightshade') ? 620 : 340);
-    emitSmokePuff(origin.x - Math.cos(throwAng) * 6, origin.y + 2, throwAng + Math.PI, poison ? 10 : 8, {
+    emitSmokePuff(origin.x - Math.cos(throwAng) * 6, origin.y + 2, throwAng + Math.PI, poison ? 18 : 14, {
       color: smokeCloudColor(poison, false),
-      speed: poison ? 1.5 : 1.35,
-      life: poison ? 980 : 780,
-      r: poison ? 8.2 : 9.5,
-      alpha: poison ? 0.34 : 0.28,
+      speed: poison ? 1.75 : 1.58,
+      life: poison ? 1120 : 940,
+      r: poison ? 10.6 : 11.8,
+      alpha: poison ? 0.48 : 0.40,
       spread: 0.72,
     });
     burst(origin.x, origin.y, poison ? '#9cff5e' : '#d8e4f0', poison ? 8 : 6, 1.8);
@@ -6809,7 +6872,9 @@ PUBLIC.start = function (root, api) {
     const life = b.smokeLife || (poison ? 2850 : 1800);
     const vx = clamp((b.vx || 0) * 0.030, -0.42, 0.42);
     const vy = clamp((b.vy || 0) * 0.018 - (poison ? 0.02 : 0.08), -0.42, 0.28);
-    spawnSmokeZone(b.x, b.y, b.team, {
+    const cloudY = smokeGroundYAt(b.x, b.y, poison);
+    burst(b.x, b.y, poison ? '#d7ffba' : '#ffffff', poison ? 18 : 12, poison ? 2.3 : 1.9);
+    spawnSmokeZone(b.x, cloudY, b.team, {
       r,
       startR: r * 0.24,
       life,
@@ -6819,18 +6884,17 @@ PUBLIC.start = function (root, api) {
       vy,
       thickness: poison ? 1.36 : 1.18,
     });
-    emitSmokeCloudBurst(b.x, b.y, r, poison, {
-      count: poison ? 138 : 104,
-      force: poison ? 3.15 : 2.55,
+    emitSmokeCloudBurst(b.x, cloudY, r, poison, {
+      count: poison ? 220 : 170,
+      force: poison ? 3.65 : 3.05,
       vx,
       vy,
     });
-    radialActorPulse(b.x, b.y, r, poison ? 10 : 6, b.team, poison ? '#9cff5e' : '#cfe0f6', { poison: poison ? 2400 : 0 });
-    pushBoxesRadial(b.x, b.y, poison ? 12 : 8, r, b.team);
-    if (player && (b.team || 'hero') === (player.team || 'hero') && Math.hypot(player.x - b.x, (player.y - 40) - b.y) < r) {
+    radialActorPulse(b.x, cloudY, r, poison ? 10 : 6, b.team, poison ? '#9cff5e' : '#cfe0f6', { poison: poison ? 2400 : 0 });
+    pushBoxesRadial(b.x, cloudY, poison ? 12 : 8, r, b.team);
+    if (player && (b.team || 'hero') === (player.team || 'hero') && smokeZones && smokeZones.some(z => smokeZoneContainsPoint(z, player.x, player.y - 40))) {
       player.hidden = Math.max(player.hidden || 0, poison ? 1200 : 900);
     }
-    burst(b.x, b.y, poison ? '#d7ffba' : '#ffffff', poison ? 18 : 12, poison ? 2.3 : 1.9);
     addShake(poison ? 3.1 : 2.2, 120);
   }
   function useMassSlam(opts) {
@@ -10026,28 +10090,35 @@ PUBLIC.start = function (root, api) {
     ctx.save();
     for (const z of smokeZones) {
       const fade = clamp(z.life / (z.max || 1), 0, 1);
-      const rr = z.r * (0.96 + Math.sin(t * 0.0017 + z.phase) * 0.035);
-      const lobes = z.poison ? 14 : 12;
       const main = z.poison ? [118, 176, 93] : [114, 124, 141];
       const bright = z.poison ? [156, 255, 94] : [210, 224, 240];
       const dark = z.poison ? [56, 76, 52] : [45, 51, 62];
-      for (let i = 0; i < lobes; i++) {
-        const seed = z.phase + i * 2.399;
+      const lobes = z.lobes && z.lobes.length ? z.lobes : [{ ox: 0, y: z.y, r: z.r, phase: z.phase }];
+      for (let i = 0; i < lobes.length; i++) {
+        const l = lobes[i];
+        const seed = (l.phase || z.phase) + i * 2.399;
         const wob = Math.sin(t * 0.0011 + seed) * 0.10;
-        const ring = (0.16 + ((i * 37) % 100) / 100 * 0.62) * rr;
-        const a = seed + Math.sin(t * 0.0008 + i) * 0.18;
-        const lx = z.x + Math.cos(a) * ring * (0.68 + wob);
-        const ly = z.y + Math.sin(a) * ring * (z.poison ? 0.34 : 0.40) - Math.sin(t * 0.0013 + seed) * 7;
-        const size = rr * (0.24 + (((i * 23) % 100) / 100) * 0.20) * (z.thickness || 1);
+        const lx = z.x + l.ox + Math.sin(t * 0.0013 + seed) * (4 + i % 3 * 2);
+        const ly = l.y + Math.cos(t * 0.0011 + seed) * (3 + i % 4);
+        const size = Math.max(20, l.r * (0.80 + (((i * 23) % 100) / 100) * 0.38) * (z.thickness || 1) * (0.96 + wob));
         const mix = i % 5 === 0 ? bright : i % 4 === 0 ? dark : main;
-        const alpha = (i % 5 === 0 ? 0.10 : i % 4 === 0 ? 0.13 : 0.18) * fade * (z.poison ? 1.10 : 0.92);
-        const grad = ctx.createRadialGradient(lx, ly, 2, lx, ly, size);
-        grad.addColorStop(0, `rgba(${mix[0]},${mix[1]},${mix[2]},${alpha})`);
-        grad.addColorStop(0.58, `rgba(${mix[0]},${mix[1]},${mix[2]},${alpha * 0.62})`);
+        const alpha = (i % 5 === 0 ? 0.30 : i % 4 === 0 ? 0.34 : 0.46) * fade * (z.poison ? 1.34 : 1.20);
+        const yJitter = 0.5 + Math.sin(seed * 12.9898 + 78.233) * 0.5;
+        const yScale = z.poison ? lerp(0.66, 0.80, yJitter) : lerp(0.72, 0.88, yJitter);
+        const shadow = ctx.createRadialGradient(lx, ly, 2, lx, ly, size * 1.08);
+        shadow.addColorStop(0, `rgba(${dark[0]},${dark[1]},${dark[2]},${alpha * 0.70})`);
+        shadow.addColorStop(0.62, `rgba(${main[0]},${main[1]},${main[2]},${alpha * 0.40})`);
+        shadow.addColorStop(1, `rgba(${dark[0]},${dark[1]},${dark[2]},0)`);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = shadow;
+        traceWobblyCirclePath(lx, ly, size * 1.06, { phase: seed + t * 0.0007, rough: 0.16, yScale, steps: 26 });
+        ctx.fill();
+        const grad = ctx.createRadialGradient(lx - size * 0.12, ly - size * 0.18, 2, lx, ly, size * 0.92);
+        grad.addColorStop(0, `rgba(${bright[0]},${bright[1]},${bright[2]},${alpha * 0.62})`);
+        grad.addColorStop(0.46, `rgba(${mix[0]},${mix[1]},${mix[2]},${alpha * 0.54})`);
         grad.addColorStop(1, `rgba(${mix[0]},${mix[1]},${mix[2]},0)`);
         ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(lx, ly, size, 0, Math.PI * 2);
+        traceWobblyCirclePath(lx, ly - size * 0.04, size * 0.76, { phase: seed * 1.31 - t * 0.0006, rough: 0.20, yScale: yScale * 0.92, steps: 22 });
         ctx.fill();
       }
     }
@@ -10133,10 +10204,13 @@ PUBLIC.start = function (root, api) {
         ctx.fill();
       } else if (pt.kind === 'smoke') {
         const rr = pt.r * (1 + age * 1.35);
+        const bloom = clamp(age * 4.2, 0, 1);
+        const deathFade = clamp(fade * 1.65, 0, 1);
+        const smokeAlpha = (pt.alpha || 0.34) * clamp(0.22 + bloom * 0.86, 0, 1) * deathFade;
         ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = (pt.alpha || 0.34) * Math.sin(fade * Math.PI);
+        ctx.globalAlpha = smokeAlpha;
         ctx.fillStyle = pt.color || '#46404a';
-        traceWobblyCirclePath(sx, sy, rr * 1.08, { phase: (pt.seed || 0) + age * 1.9, rough: 0.14, steps: 12 });
+        traceWobblyCirclePath(sx, sy, rr * 1.16, { phase: (pt.seed || 0) + age * 1.9, rough: 0.18, yScale: pt.groundHug ? 0.82 : 1, steps: 14 });
         ctx.fill();
       } else if (pt.kind === 'ember') {
         ctx.globalCompositeOperation = 'lighter';
@@ -10550,7 +10624,17 @@ PUBLIC.start = function (root, api) {
           } else {
             pt.vy += 0.12;
           }
-          pt.x += pt.vx; pt.y += pt.vy; pt.life -= dt;
+          pt.x += pt.vx; pt.y += pt.vy;
+          if (pt.kind === 'smoke' && pt.groundHug) {
+            const floorY = smokeGroundYAt(pt.x, pt.y, pt.poison) + (pt.settle || 0);
+            if (pt.y > floorY) {
+              pt.y = lerp(pt.y, floorY, 0.34);
+              pt.vy = Math.min(pt.vy, -0.035);
+            } else if (pt.y < floorY - 82) {
+              pt.vy += 0.018;
+            }
+          }
+          pt.life -= dt;
           if (pt.life <= 0) particles.splice(i, 1);
         }
         if (particles.length > PARTICLE_SOFT_LIMIT + 120) particles.splice(0, particles.length - PARTICLE_SOFT_LIMIT);
@@ -10590,18 +10674,20 @@ PUBLIC.start = function (root, api) {
             b.vx *= 0.996;
             b.angle = Math.atan2(b.vy, b.vx);
             b.spinAngle = (b.spinAngle || 0) + (b.spin || 0.18);
-            if (Math.random() < (b.poison ? 0.86 : 0.74)) smokeParticle(
-              b.x - b.vx * rand(0.08, 0.30) + rand(-2.5, 2.5),
-              b.y - b.vy * rand(0.08, 0.30) + rand(-2.5, 2.5),
-              -b.vx * rand(0.010, 0.026) + rand(-0.12, 0.12),
-              -b.vy * rand(0.004, 0.014) - rand(0.05, b.poison ? 0.32 : 0.50), {
-                color: smokeCloudColor(!!b.poison, Math.random() < 0.18),
-                life: rand(b.poison ? 560 : 460, b.poison ? 1050 : 880),
-                r: rand(b.poison ? 4.8 : 5.4, b.poison ? 11.8 : 13.6),
-                alpha: b.poison ? 0.30 : 0.24,
-                grow: rand(0.032, 0.076),
-                buoy: b.poison ? rand(0.004, 0.018) : rand(0.012, 0.034),
-              });
+            const trailDensity = b.poison ? 1.85 : 1.45;
+            const trailCount = Math.floor(trailDensity) + (Math.random() < trailDensity % 1 ? 1 : 0);
+            for (let sj = 0; sj < trailCount; sj++) smokeParticle(
+                b.x - b.vx * rand(0.08, 0.36) + rand(-3.5, 3.5),
+                b.y - b.vy * rand(0.08, 0.36) + rand(-3.5, 3.5),
+                -b.vx * rand(0.010, 0.030) + rand(-0.16, 0.16),
+                -b.vy * rand(0.004, 0.016) - rand(0.05, b.poison ? 0.38 : 0.56), {
+                  color: smokeCloudColor(!!b.poison, Math.random() < 0.22),
+                  life: rand(b.poison ? 700 : 560, b.poison ? 1250 : 1040),
+                  r: rand(b.poison ? 6.4 : 7.2, b.poison ? 15.8 : 17.8),
+                  alpha: b.poison ? 0.42 : 0.34,
+                  grow: rand(0.038, 0.084),
+                  buoy: b.poison ? rand(0.002, 0.016) : rand(0.008, 0.030),
+                });
           }
           else if (b.kind === 'gravitySeed') {
             b.angle += 0.08;
