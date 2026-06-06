@@ -1217,6 +1217,7 @@ PUBLIC.start = function (root, api) {
       player.vx = player.facing * 9.0;
       player.vy = Math.min(player.vy, 1.0);
       burst(player.x - player.facing * 12, player.y - 9, cls.color, 10, 2.8);
+      if (player.team === 'hero') syncHud();
     }
     return true;
   }
@@ -2033,8 +2034,12 @@ PUBLIC.start = function (root, api) {
     syncHud();
     return ok;
   }
+  function rogueSlideComboReady() {
+    return !!(cls.id === 'rogue' && player && player.move && player.move.active && player.move.type === 'slide');
+  }
   function rogueMainAttackType() {
     if (!player || player.knifeAmmo <= 0) return null;
+    if (rogueSlideComboReady()) return 'legSweep';
     if (player.intent.down) return 'legSweep';
     if (player.knifeAmmo < 2) return 'rogueStab';
     const i = player && player.anim ? (player.anim.rogueComboNext || 0) : 0;
@@ -2424,6 +2429,7 @@ PUBLIC.start = function (root, api) {
   function abilityExtra(slot, spec) {
     if (!player || state !== 'playing') return '';
     if (isQueuedRogueSlot(slot)) return 'queued';
+    if (slot === 'attack' && rogueSlideComboReady()) return 'slide sweep';
     if (slot === 'attack' && cls.id === 'rogue') return `${player.rogueBurst || 0}/${ROGUE_BURST_MAX} burst`;
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
