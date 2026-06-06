@@ -202,11 +202,12 @@ const ABILITIES = (() => {
   add('ln_tethermaster', { cls: 'lancer', branch: 'harpooner', tier: 4, slot: 'passive', name: 'Tether Master', desc: 'Keystone: pulls also tug crates/barrels and briefly slow enemies after the yank.', key: true, tags: ['Pull', 'Crates'] });
 
   // Mage base + branches
-  add('mg_bolt', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'attack', name: 'Debris Throw', desc: 'Lift a rock or dense gravity orb around the staff, then hurl it for direct damage and object knockback.', effect: { kind: 'gravityDebris', power: 1.0 }, cd: 260, draft: false, tags: ['Gravity', 'Projectile', 'Crates'] });
-  add('mg_bloom', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'secondary', name: 'Gravity Bloom', desc: 'Shoot a seed that blooms into a zero-gravity pull field.', type: 'attack', action: 'arcaneBloom', draft: false, tags: ['Gravity'] });
-  add('mg_dash', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
-  add('mg_sigil', { cls: 'mage', branch: 'stormcaller', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
-  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'q', name: 'Black Hole', desc: 'Create a violent black hole that drags enemies, debris, crates, and dummies inward, damages them, then collapses hard.', effect: { kind: 'blackHole', r: 265, life: 2200, range: 620, force: 1.15 }, cd: 9800, draft: false, tags: ['Gravity', 'Pull', 'Crates'] });
+  add('mg_bolt', { cls: 'mage', branch: 'starter', tier: 0, slot: 'attack', name: 'Arcane Bolt', desc: 'Simple staff shot for direct damage without pulling from any branch fantasy.', type: 'attack', action: 'cast', cd: 260, draft: false, tags: ['Projectile'] });
+  add('mg_bloom', { cls: 'mage', branch: 'starter', tier: 0, slot: 'secondary', name: 'Arcane Burst', desc: 'Shoot a bright orb that travels to the target, then pops into a straightforward AOE blast.', type: 'attack', action: 'arcaneBloom', draft: false, tags: ['Projectile', 'AOE'] });
+  add('mg_dash', { cls: 'mage', branch: 'starter', tier: 0, slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
+  add('mg_sigil', { cls: 'mage', branch: 'starter', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
+  add('mg_arcane_nova', { cls: 'mage', branch: 'starter', tier: 0, slot: 'q', name: 'Arcane Nova', desc: 'Release a clean circular blast around the staff, shoving enemies and loose objects away.', effect: { kind: 'arcaneNova', r: 168, force: 26 }, cd: 9000, draft: false, tags: ['AOE', 'Push'] });
+  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Create a violent black hole that drags enemies, debris, crates, and dummies inward, damages them, then collapses hard.', effect: { kind: 'blackHole', r: 265, life: 2200, range: 620, force: 1.15 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
   add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Mass Slam', desc: 'Grab nearby mass at the cursor and slam enemies, crates, barrels, and dummies downward into the arena.', effect: { kind: 'massSlam', force: 28, radius: 154, range: 380 }, cd: 3300, tags: ['Gravity', 'Damage', 'Crates'] });
   add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Gravity Well', desc: 'A shorter-range bloom that opens faster and pulls crates harder.', effect: { kind: 'field', r: 178, life: 2400, range: 360 }, cd: 1900, tags: ['Gravity', 'Crates'] });
@@ -452,7 +453,7 @@ const CLASS_LOADOUT = {
   knight: { attack: 'kn_slash', secondary: 'kn_guard', shift: 'kn_step', e: 'kn_bash', q: 'kn_rally', passive: null },
   rogue: { attack: 'rg_throw', secondary: 'rg_dual', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
   lancer: { attack: 'ln_thrust', secondary: 'ln_charge', shift: 'ln_brace', e: 'ln_anchor', q: 'ln_breaker', passive: null },
-  mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_updraft', q: 'mg_singularity', passive: null },
+  mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_sigil', q: 'mg_arcane_nova', passive: null },
   ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
 };
 const LAB_BUILDS = {
@@ -482,7 +483,7 @@ const LAB_BUILDS = {
     { id: 'warden', name: 'Chain Warden', note: 'Advanced Harpooner: persistent anchors, cross-tethers, and winch movement.', loadout: { attack: 'ln_crosstether', secondary: 'ln_chain', shift: 'ln_winchstep', e: 'ln_wardenanchor', q: 'ln_maw', passive: 'ln_warden' } },
   ],
   mage: [
-    { id: 'base', name: 'Base Mage', note: 'Starting Graviturge kit: hover, debris throw, Gravity Bloom, Mass Slam, and Black Hole.', loadout: {} },
+    { id: 'base', name: 'Base Mage', note: 'Neutral starter caster: Arcane Bolt, Arcane Burst orb, Arc Sigil, and Arcane Nova.', loadout: {} },
     { id: 'graviturge', name: 'Graviturge Core', note: 'Damage gravity caster: Mass Shards, Gravity Well, hover drift, Mass Slam, and Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
     { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital debris, Core Step, and True Horizon black-hole collapse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
@@ -1011,6 +1012,7 @@ PUBLIC.start = function (root, api) {
   function branchName(spec) {
     if (!spec) return '';
     if (spec.cls === 'neutral') return 'Physics';
+    if (spec.branch === 'starter') return 'Starter';
     const info = branchInfo(spec.cls, spec.branch);
     return info ? info.name : spec.branch || '';
   }
@@ -2611,6 +2613,17 @@ PUBLIC.start = function (root, api) {
     }
     if (e.kind === 'radial') {
       pushBoxesRadial(player.x + f * 10, player.y - 30, e.force || 24, e.radius || 118, player.team);
+      return true;
+    }
+    if (e.kind === 'arcaneNova') {
+      const cx = player.x + f * 8, cy = player.y - 48;
+      const r = e.r || 168;
+      burst(cx, cy, '#ffffff', 30, 4.4);
+      burst(cx, cy, cls.color, 46, 5.6);
+      spawnShockwaveRing(cx, cy, r, cls.color, { life: 420, width: 5.2, fill: 0.08, rough: 0.060 });
+      radialActorPulse(cx, cy, r, e.force || 26, player.team, cls.color);
+      pushBoxesRadial(cx, cy, (e.force || 26) * 0.82, r, player.team);
+      addShake(4.8, 160);
       return true;
     }
     if (e.kind === 'barrier') {
@@ -4420,7 +4433,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'gravityDebris' ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 14 : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' ? 9 : p.r || 8;
+    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'arcaneOrb' ? 12 : p.kind === 'gravityDebris' ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 14 : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' ? 9 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -6162,7 +6175,7 @@ PUBLIC.start = function (root, api) {
     }
     if (type === 'shieldGuard') { activateShieldGuard(); return; }
     if (type === 'cast') { spawnBolt(ang, 1.4); return; }
-    if (type === 'arcaneBloom') { spawnGravitySeed(ang); return; }
+    if (type === 'arcaneBloom') { spawnArcaneOrb(ang); return; }
     if (type === 'throw') {
       const ricochet = hasPassive('rg_trapmaster') || atkNode && atkNode.id === 'rg_ricochet' || secNode && secNode.id === 'rg_ricochet';
       spawnDagger(ang, { bounce: ricochet ? 1 : 0, hit: ricochet ? 15 : 14 });
@@ -6642,6 +6655,51 @@ PUBLIC.start = function (root, api) {
       life: 900, color: cls.color, r: 10, hit: 0, angle: ang, range, traveled: 0 });
     burst(mx, my, '#ffffff', 18, 3.2);
     burst(mx, my, cls.color, 28, 4.2);
+  }
+  function spawnArcaneOrb(ang) {
+    const shX = player.x, shY = player.y - 76, spd = 19.5;
+    const mx = shX + Math.cos(ang) * 42, my = shY + Math.sin(ang) * 36;
+    const range = clamp(player.anim.atkRange || 460, 120, 540);
+    projectiles.push({
+      kind: 'arcaneOrb',
+      team: player.team,
+      x: mx,
+      y: my,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      life: 860,
+      color: cls.color,
+      r: 12,
+      hit: 0,
+      angle: ang,
+      range,
+      traveled: 0,
+      sparkle: 4,
+    });
+    burst(mx, my, '#ffffff', 16, 3.0);
+    burst(mx, my, cls.color, 24, 4.0);
+  }
+  function detonateArcaneOrb(b) {
+    const r = b.burstR || 128;
+    burst(b.x, b.y, '#ffffff', 26, 4.4);
+    burst(b.x, b.y, b.color, 42, 5.6);
+    spawnShockwaveRing(b.x, b.y, r, b.color, { life: 360, width: 4.8, fill: 0.08, rough: 0.060 });
+    radialActorPulse(b.x, b.y, r, 19, b.team, b.color);
+    pushBoxesRadial(b.x, b.y, 16, r, b.team);
+    for (let j = 0; j < 18; j++) {
+      const a = Math.PI * 2 * j / 18;
+      particles.push({
+        x: b.x + Math.cos(a) * rand(8, 28),
+        y: b.y + Math.sin(a) * rand(8, 28),
+        vx: Math.cos(a) * rand(1.2, 3.8),
+        vy: Math.sin(a) * rand(1.0, 3.2) - 0.45,
+        life: rand(230, 520),
+        max: 520,
+        color: Math.random() < 0.35 ? '#ffffff' : b.color,
+        r: rand(1.5, 3.8),
+      });
+    }
+    addShake(3.8, 130);
   }
   function spawnFirebolt(ang, power, opts) {
     opts = opts || {};
@@ -9972,6 +10030,26 @@ PUBLIC.start = function (root, api) {
         ctx.beginPath(); ctx.moveTo(-r - 5, 0); ctx.lineTo(r + 5, 0); ctx.moveTo(0, -r - 5); ctx.lineTo(0, r + 5); ctx.stroke();
         ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
+      } else if (b.kind === 'arcaneOrb') {
+        const r = b.r || 12;
+        const wob = Math.sin(performance.now() * 0.018 + b.x * 0.01) * 1.8;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const grad = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, r * 2.4 + wob);
+        grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+        grad.addColorStop(0.36, 'rgba(255,119,210,0.72)');
+        grad.addColorStop(0.78, 'rgba(143,230,255,0.32)');
+        grad.addColorStop(1, 'rgba(143,230,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(b.x, b.y, r * 2.2 + wob, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8;
+        ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.92, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = b.color; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(b.x - r * 1.35, b.y); ctx.lineTo(b.x + r * 1.35, b.y);
+        ctx.moveTo(b.x, b.y - r * 1.35); ctx.lineTo(b.x, b.y + r * 1.35);
+        ctx.stroke();
+        ctx.restore();
       } else if (b.kind === 'ignitionOrb') {
         const r = b.r || 14;
         const wob = Math.sin(performance.now() * 0.022 + b.x * 0.01) * 2.2;
@@ -10127,7 +10205,7 @@ PUBLIC.start = function (root, api) {
           const b = projectiles[i];
           const px = b.x, py = b.y;
           b.x += b.vx; b.y += b.vy; b.life -= dt;
-          if (b.kind === 'gravitySeed' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb') b.traveled = (b.traveled || 0) + Math.hypot(b.x - px, b.y - py);
+          if (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb') b.traveled = (b.traveled || 0) + Math.hypot(b.x - px, b.y - py);
           if (b.kind === 'dagger') {
             if (b.homing) updateHomingDagger(b);
             else {
@@ -10169,6 +10247,20 @@ PUBLIC.start = function (root, api) {
             b.vx *= 0.992; b.vy *= 0.992;
             if (Math.random() < 0.85) particles.push({ x: b.x - b.vx * rand(0.1, 0.35) + rand(-2, 2), y: b.y - b.vy * rand(0.1, 0.35) + rand(-2, 2),
               vx: rand(-0.35, 0.35), vy: rand(-0.45, 0.25), life: rand(170, 310), max: 310, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.4) });
+          }
+          else if (b.kind === 'arcaneOrb') {
+            b.angle += 0.06;
+            b.vx *= 0.995; b.vy *= 0.995;
+            if (Math.random() < 0.92) particles.push({
+              x: b.x - b.vx * rand(0.08, 0.34) + rand(-3, 3),
+              y: b.y - b.vy * rand(0.08, 0.34) + rand(-3, 3),
+              vx: -b.vx * rand(0.010, 0.030) + rand(-0.38, 0.38),
+              vy: -b.vy * rand(0.010, 0.030) + rand(-0.38, 0.38),
+              life: rand(170, 340),
+              max: 340,
+              color: Math.random() < 0.42 ? '#ffffff' : b.color,
+              r: rand(1.2, 3.1),
+            });
           }
           else if (b.kind === 'ignitionOrb') {
             b.angle += 0.11;
@@ -10257,7 +10349,7 @@ PUBLIC.start = function (root, api) {
               pushBox(crate, b.vx / sp, b.vy / sp - 0.08, (b.hit || 16) * (b.heavy ? 1.15 : 0.78));
               crate.va += (b.vx >= 0 ? 1 : -1) * (b.heavy ? 0.12 : 0.07);
             } else pushBox(crate, b.vx / sp, b.vy / sp, b.hit);
-            addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'gravityDebris' || b.kind === 'smokeBomb' ? 2.8 : 1.2, 80);
+            addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'arcaneOrb' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'gravityDebris' || b.kind === 'smokeBomb' ? 2.8 : 1.2, 80);
           }
           let struckActor = false;
           if ((b.team || 'hero') === 'enemy') {
@@ -10265,7 +10357,7 @@ PUBLIC.start = function (root, api) {
             for (const t of enemyAttackTargets()) if (actorCanBeHitByEnemy(t)) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), t);
               if (h) {
-                if (b.kind !== 'gravitySeed' && b.kind !== 'ignitionOrb' && b.kind !== 'smokeBomb') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
+                if (b.kind !== 'gravitySeed' && b.kind !== 'arcaneOrb' && b.kind !== 'ignitionOrb' && b.kind !== 'smokeBomb') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
                 if (b.poison) t.poisoned = Math.max(t.poisoned || 0, 1600);
                 if (b.fire) markBurnActor(t, b.scorch ? 1850 : 1350, b.color);
                 if (b.kind === 'dagger') {
@@ -10281,20 +10373,20 @@ PUBLIC.start = function (root, api) {
             if (dummies) for (const d of dummies) {
               const h = projectileHitsDummy(b, px, py, d);
               if (h) {
-                if (b.kind !== 'gravitySeed' && b.kind !== 'ignitionOrb' && b.kind !== 'smokeBomb') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
+                if (b.kind !== 'gravitySeed' && b.kind !== 'arcaneOrb' && b.kind !== 'ignitionOrb' && b.kind !== 'smokeBomb') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
                 if (b.fire) markBurnDummy(d, b.scorch ? 1850 : 1350, b.color);
                 if (b.spirit) grantSpiritCharge(h.p.x, h.p.y, 0.35);
                 if (b.kind === 'dagger') {
                   burst(h.p.x, h.p.y, b.summoned ? '#ffffff' : b.color, b.summoned ? 8 : 6, b.summoned ? 2.4 : 1.9);
                   d.flash = Math.max(d.flash || 0, b.stagger ? 260 : 160);
                 }
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
             if (!struckActor && fighters) for (const e of fighters.slice()) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), e);
               if (h) {
-                if (b.kind !== 'gravitySeed' && b.kind !== 'smokeBomb') {
+                if (b.kind !== 'gravitySeed' && b.kind !== 'arcaneOrb' && b.kind !== 'smokeBomb') {
                   if (b.kind !== 'ignitionOrb') hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
                   if (b.pin) { e.vx *= 0.25; e.vy *= 0.25; e.brain.stagger = Math.max(e.brain.stagger || 0, 420); }
                   if (b.kind === 'dagger' && b.stagger) e.brain.stagger = Math.max(e.brain.stagger || 0, b.stagger);
@@ -10303,14 +10395,14 @@ PUBLIC.start = function (root, api) {
                   if (b.spirit) grantSpiritCharge(h.x, h.y, 0.5);
                 }
                 if (b.kind === 'dagger') burst(h.x, h.y, b.summoned ? '#ffffff' : b.color, b.summoned ? 8 : 6, b.summoned ? 2.4 : 1.9);
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
           }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
           if (struckActor && b.pierce > 0) { b.pierce--; struckActor = false; }
           const hitPlatform = L.platforms.some(pl => !isOneWay(pl) && projectileHitsBox(b, px, py, pl));
-          const rangedBurst = (b.kind === 'gravitySeed' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb') && b.range && b.traveled >= b.range;
+          const rangedBurst = (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb') && b.range && b.traveled >= b.range;
           if ((crate || hitPlatform) && b.bounce > 0 && !struckActor) {
             b.bounce--;
             if (crate) { b.vx *= -0.72; b.vy *= 0.82; }
@@ -10340,6 +10432,7 @@ PUBLIC.start = function (root, api) {
               }
             }
             else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
+            else if (b.kind === 'arcaneOrb') detonateArcaneOrb(b);
             else if (b.kind === 'gravityDebris') gravityDebrisImpact(b.x, b.y, b.team, b.color, b.hit || 16, { heavy: b.heavy });
             else if (b.kind === 'sigil') explodeSigil(b);
             else if (b.kind === 'smokeBomb') detonateSmokeBomb(b);
