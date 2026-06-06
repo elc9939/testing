@@ -6112,12 +6112,12 @@ PUBLIC.start = function (root, api) {
     }
     if (type === 'pyroBreath') {
       const brace = ease(clamp(t / 0.20, 0, 1));
-      return { x: f * (7 * brace - 3), y: 1.5 * brace, lean: f * (0.09 + 0.12 * brace + bell * 0.025) };
+      return { x: f * (5 * brace - 2), y: 1.0 * brace, lean: f * (0.06 + 0.08 * brace + bell * 0.012) };
     }
     if (type === 'pyroDragon') {
       const brace = ease(clamp(t / 0.16, 0, 1));
-      const rumble = Math.sin(t * Math.PI * 12) * 0.018;
-      return { x: f * (14 * brace - 9), y: 3.5 * brace, lean: f * (0.18 + 0.18 * brace + rumble) };
+      const rumble = Math.sin(t * Math.PI * 12) * 0.014;
+      return { x: f * (10 * brace - 6), y: 2.2 * brace, lean: f * (0.12 + 0.12 * brace + rumble) };
     }
     if (type === 'pyroGroundFlow') {
       const pour = ease(clamp(t / 0.26, 0, 1));
@@ -6922,9 +6922,27 @@ PUBLIC.start = function (root, api) {
     }
     return range;
   }
-  function flameBreathOrigin(actor, ang) {
+  function flameBreathOrigin(actor, ang, type, t) {
     const ax = actor ? actor.x : player.x;
     const ay = actor ? actor.y : player.y;
+    const castType = type || (actor && actor.anim && isPyroVisualAttack(actor.anim.atkType) ? actor.anim.atkType : 'pyroBreath');
+    if (castType === 'pyroBreath' || castType === 'pyroDragon') {
+      const f = Math.cos(ang) >= 0 ? 1 : -1;
+      const castT = t == null
+        ? clamp(actor && actor.anim && isPyroVisualAttack(actor.anim.atkType) ? actor.anim.atkT : 0.35, 0, 1)
+        : clamp(t, 0, 1);
+      const body = pyroBodyOffset(castType, castT, f);
+      const lean = (actor && actor.anim && actor.anim.lean || 0) + body.lean;
+      const shX = ax + body.x + Math.sin(lean) * f * 30;
+      const shY = ay - 49 + body.y - Math.cos(lean) * 30;
+      const pose = weaponPose(castType, castT, ang, f, 0);
+      const wc = armChain(shX, shY, pose.shAng, pose.elBend);
+      const staffAng = wc.foreAng + pose.wrBend;
+      return {
+        x: wc.hx + Math.cos(staffAng) * 66,
+        y: wc.hy + Math.sin(staffAng) * 66,
+      };
+    }
     return {
       x: ax + Math.cos(ang) * 30,
       y: ay - 66 + Math.sin(ang) * 12,
@@ -6972,7 +6990,7 @@ PUBLIC.start = function (root, api) {
     player.pyroBreath = Math.max(player.pyroBreath || 0, life);
     player.vx -= Math.cos(ang) * (dragon ? 2.4 : 0.75);
     if (!player.grounded) player.vy -= dragon ? 0.45 : 0.18;
-    const o = flameBreathOrigin(player, ang);
+    const o = flameBreathOrigin(player, ang, dragon ? 'pyroDragon' : 'pyroBreath', dragon ? 0.18 : 0.22);
     pyroStaffFlare(ang, dragon ? 2.75 : 1.80);
     emitFlameJet(o.x, o.y, ang, dragon ? 82 : 38, { spread: b.cone * (dragon ? 0.96 : 0.76), speed: dragon ? 11.2 : 7.8, length: dragon ? 78 : 44, life: dragon ? 680 : 440, r: dragon ? 11.4 : 6.8, color: b.color });
     emitSmokePuff(o.x - Math.cos(ang) * 8, o.y + 2, ang + Math.PI, dragon ? 30 : 12, { spread: dragon ? 1.14 : 0.88, speed: dragon ? 2.2 : 1.5, life: dragon ? 1320 : 860, alpha: dragon ? 0.36 : 0.28 });
@@ -7077,7 +7095,7 @@ PUBLIC.start = function (root, api) {
       if (!actor || actor.dead) { flameBreaths.splice(i, 1); continue; }
       b.life -= dtStep;
       b.age = (b.age || 0) + dtStep;
-      const o = flameBreathOrigin(actor, b.angle);
+      const o = flameBreathOrigin(actor, b.angle, b.dragon ? 'pyroDragon' : 'pyroBreath', clamp(b.age / (b.dragon ? 140 : 190), 0, 1));
       b.centerBlock = flameRayBlockDistance(o, b.angle, b.range, b);
       emitFlameBreathParticles(b, o);
       const tip = flamePathPoint(o, b.angle, b.centerBlock || b.range, b);
@@ -7860,10 +7878,10 @@ PUBLIC.start = function (root, api) {
     } else if (arc === 'pyroBreath') {
       const dragon = type === 'pyroDragon';
       const brace = ease(clamp(t / (dragon ? 0.12 : 0.18), 0, 1));
-      const hold = 0.5 + 0.5 * Math.sin(t * Math.PI * (dragon ? 5.5 : 4.0));
-      shAng = lerpAngle(aim - s * 0.86, aim - s * (dragon ? 0.20 : 0.26), brace);
-      elBend = s * lerp(-1.18, dragon ? -0.10 : -0.18, brace);
-      wrBend = s * (dragon ? -0.05 : 0.02) + s * hold * (dragon ? 0.04 : 0.025);
+      const pulse = Math.sin(t * Math.PI * (dragon ? 7.0 : 5.5)) * (dragon ? 0.025 : 0.018) * brace;
+      shAng = lerpAngle(aim - s * (dragon ? 0.98 : 0.88), aim - s * (dragon ? 0.36 : 0.30), brace);
+      elBend = s * lerp(-1.06, dragon ? 0.34 : 0.30, brace);
+      wrBend = aim + s * pulse - (shAng + elBend);
     } else if (arc === 'pyroFlow') {
       const target = Math.atan2(0.46 + Math.sin(aim) * 0.20, Math.cos(aim) || s);
       const pour = ease(clamp(t / 0.24, 0, 1));
@@ -8712,8 +8730,14 @@ PUBLIC.start = function (root, api) {
         const pose = weaponPose(a.atkType, clamp(a.atkT, 0, 1), a.atkAim, f, a.atkVar);
         const wc = armChain(shX, shY, pose.shAng, pose.elBend);
         const wang = wc.foreAng + pose.wrBend;
-        const gripBack = a.atkType === 'pyroDragon' ? 36 : a.atkType === 'pyroBreath' ? 30 : a.atkType === 'pyroGroundFlow' ? 26 : 20;
-        h = { x: wc.hx - Math.cos(wang) * gripBack, y: wc.hy - Math.sin(wang) * gripBack };
+        const breathChannel = a.atkType === 'pyroBreath' || a.atkType === 'pyroDragon';
+        const gripBack = a.atkType === 'pyroDragon' ? 52 : a.atkType === 'pyroBreath' ? 44 : a.atkType === 'pyroGroundFlow' ? 26 : 20;
+        const gripSide = breathChannel ? (a.atkType === 'pyroDragon' ? 2.5 : 1.5) : 0;
+        h = {
+          x: wc.hx - Math.cos(wang) * gripBack - Math.sin(wang) * gripSide,
+          y: wc.hy - Math.sin(wang) * gripBack + Math.cos(wang) * gripSide,
+        };
+        offhandStretch = breathChannel ? 1.08 : 1;
         offhandBend = -f;
       } else if (magePyroLoadoutActive()) {
         h = fly > 0.25
@@ -10347,7 +10371,10 @@ PUBLIC.start = function (root, api) {
             gravityFields: gravityFields ? gravityFields.map(g => ({ x: g.x, y: g.y, r: g.r, life: g.life || 0, max: g.max || 0, ultimate: !!g.ultimate, blackHole: !!g.blackHole, team: g.team })) : [],
             gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0, pulse: gravityCore.resonancePulse || 0 } : null,
             fireZones: fireZones ? fireZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, ultimate: !!z.ultimate, team: z.team })) : [],
-            flameBreaths: flameBreaths ? flameBreaths.map(b => ({ x: flameBreathOrigin(b.actor || player, b.angle).x, y: flameBreathOrigin(b.actor || player, b.angle).y, range: b.range, life: b.life || 0, max: b.max || 0, team: b.team })) : [],
+            flameBreaths: flameBreaths ? flameBreaths.map(b => {
+              const o = flameBreathOrigin(b.actor || player, b.angle, b.dragon ? 'pyroDragon' : 'pyroBreath', clamp(b.age / (b.dragon ? 140 : 190), 0, 1));
+              return { x: o.x, y: o.y, range: b.range, life: b.life || 0, max: b.max || 0, team: b.team };
+            }) : [],
             smokeZones: smokeZones ? smokeZones.map(z => ({ x: z.x, y: z.y, r: z.r, life: z.life || 0, max: z.max || 0, poison: !!z.poison, team: z.team })) : [],
             hiddenActors: (player && (player.hidden || 0) > 0 ? 1 : 0) +
               (fighters ? fighters.filter(e => (e.hidden || 0) > 0).length : 0) +
