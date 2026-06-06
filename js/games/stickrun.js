@@ -28,6 +28,15 @@ const MAGE_HOVER_STEP = 92;
 const MAGE_HOVER_DELAY = 165;
 const MAGE_DEBRIS_MAX = 3;
 const MAGE_DEBRIS_REGEN = 1250;
+const GRAVITY_COLORS = {
+  void: '#05030d',
+  deep: '#110a25',
+  core: '#201044',
+  edge: '#4e34a7',
+  violet: '#745bff',
+  bright: '#c8b9ff',
+  white: '#f2eeff',
+};
 const ARENA_WAVE_DELAY = 850;
 const ATTACK_COOLDOWN = {
   slash: 110, dualSlash: 80, rogueStab: 95, legSweep: 420,
@@ -540,7 +549,7 @@ const ATTACK_TIMELINES = {
     phases: { anticipation: [0.00, 0.16], active: [0.21, 0.30], recovery: [0.30, 1.00] } },
   volley: { kind: 'projectile', strike: 0.32, hitstop: 0, impulse: 0, tags: ['projectile', 'burst'] },
   cast: { kind: 'projectile', strike: 0.38, hitstop: 0, impulse: 0, tags: ['magic'] },
-  arcaneBloom: { kind: 'projectile', strike: 0.42, hitstop: 0, impulse: 0, tags: ['magic', 'gravity', 'area'] },
+  arcaneBloom: { kind: 'projectile', strike: 0.42, hitstop: 0, impulse: 0, tags: ['magic', 'area'] },
   pyroFirebolt: { kind: 'visual', strike: 0.20, hitstop: 0, impulse: 0, dur: 230, durScale: 1, tags: ['fire', 'staff', 'projectile'],
     phases: { anticipation: [0.00, 0.16], active: [0.16, 0.34], recovery: [0.34, 1.00] } },
   pyroIgnite: { kind: 'visual', strike: 0.34, hitstop: 0, impulse: 0, dur: 500, durScale: 1, tags: ['fire', 'staff', 'throw'],
@@ -1481,7 +1490,7 @@ PUBLIC.start = function (root, api) {
   }
   function useMageSingularity() {
     const p = aimedPoint(620);
-    spawnBlackHole(p.x, p.y, player.team, cls.color, { r: 265, life: 2200, pullPower: 1.15 });
+    spawnBlackHole(p.x, p.y, player.team, gravityAccent(), { r: 265, life: 2200, pullPower: 1.15 });
     return true;
   }
   function useRangerPowerShot(ang) {
@@ -2474,7 +2483,7 @@ PUBLIC.start = function (root, api) {
     if (e.kind === 'blackHole') {
       if (!startVisualAttack('arcaneBloom', ang, { range: e.range || 620, kind: 'blackHole' })) return false;
       const p = aimedPoint(e.range || 620);
-      spawnBlackHole(p.x, p.y, player.team, cls.color, e);
+      spawnBlackHole(p.x, p.y, player.team, gravityAccent(), e);
       return true;
     }
     if (e.kind === 'orbitalBolt') {
@@ -2482,17 +2491,17 @@ PUBLIC.start = function (root, api) {
       const p = aimedPoint(520);
       const a = Math.atan2(p.y - gravityCore.y, p.x - gravityCore.x);
       const spd = 25;
-      projectiles.push({ kind: 'bolt', team: player.team, x: gravityCore.x + Math.cos(a) * 18, y: gravityCore.y + Math.sin(a) * 18, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 1050, color: cls.color, r: 11, hit: 16, sparkle: 3, bounce: hasPassive('ricochet_key') ? 1 : 0, wind: 1 });
+      projectiles.push({ kind: 'bolt', team: player.team, x: gravityCore.x + Math.cos(a) * 18, y: gravityCore.y + Math.sin(a) * 18, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 1050, color: gravityAccent(), r: 11, hit: 16, sparkle: 3, bounce: hasPassive('ricochet_key') ? 1 : 0, wind: 1 });
       if (e.shoveCore) { gravityCore.vx += Math.cos(ang) * 0.9; gravityCore.vy += Math.sin(ang) * 0.55; }
       chargeGravityCore(e.shoveCore ? 0.72 : 0.45, player.x, player.y - 70);
-      rememberDebugSegment('ability', player.x, player.y - 70, gravityCore.x, gravityCore.y, 8, cls.color, 260);
-      burst(gravityCore.x, gravityCore.y, cls.color, 18, 3.6);
+      rememberDebugSegment('ability', player.x, player.y - 70, gravityCore.x, gravityCore.y, 8, gravityAccent(), 260);
+      burst(gravityCore.x, gravityCore.y, gravityAccent(), 18, 3.6);
       return true;
     }
     if (e.kind === 'gravityBrake') {
       player.vx *= 0.16; player.vy *= 0.34;
       player.hoverTargetY = player.y - 58;
-      spawnGravityField(player.x, player.y - 52, player.team, cls.color, { r: 118, life: 950 });
+      spawnGravityField(player.x, player.y - 52, player.team, gravityAccent(), { r: 118, life: 950, gravityVisual: true });
       return true;
     }
     if (e.kind === 'coreStep') {
@@ -2769,12 +2778,12 @@ PUBLIC.start = function (root, api) {
     }
     if (e.kind === 'field') {
       const p = aimedPoint(e.range || 380);
-      spawnGravityField(p.x, p.y, player.team, cls.color, { r: e.r || 160, life: e.life || 2400 });
+      spawnGravityField(p.x, p.y, player.team, gravityAccent(), { r: e.r || 160, life: e.life || 2400, gravityVisual: true });
       return true;
     }
     if (e.kind === 'gravityCore') {
       const p = aimedPoint(e.range || 460);
-      spawnGravityCore(p.x, p.y, player.team, cls.color, e);
+      spawnGravityCore(p.x, p.y, player.team, gravityAccent(), e);
       return true;
     }
     if (e.kind === 'trueHorizon') {
@@ -2782,27 +2791,27 @@ PUBLIC.start = function (root, api) {
       return true;
     }
     if (e.kind === 'resonancePulse') {
-      const src = gravityCore || { x: player.x + f * 18, y: player.y - 42, r: 142, color: cls.color, team: player.team };
+      const src = gravityCore || { x: player.x + f * 18, y: player.y - 42, r: 142, color: gravityAccent(), team: player.team };
       const charge = gravityCore ? clamp(src.resonance || 0, 0, src.resonanceMax || 5) : 0;
       const r = gravityCore ? src.r + 72 + charge * 24 : 142;
       const force = gravityCore ? 30 + charge * 6.5 : 22;
       const boxForce = gravityCore ? 26 + charge * 5.4 : 19;
-      burst(src.x, src.y, '#ffffff', 28, 5.2);
-      burst(src.x, src.y, src.color || cls.color, 46 + charge * 9, 6.2 + charge * 0.35);
+      burst(src.x, src.y, gravityHighlight(), 30, 5.2);
+      burst(src.x, src.y, src.color || gravityAccent(), 54 + charge * 10, 6.4 + charge * 0.35);
       const rings = gravityCore ? 1 + Math.floor(charge) : 1;
       for (let n = 0; n < rings; n++) {
-        spawnShockwaveRing(src.x, src.y, Math.max(76, r - n * 24), src.color || cls.color, {
+        spawnShockwaveRing(src.x, src.y, Math.max(76, r - n * 24), src.color || gravityAccent(), {
           life: gravityCore ? 560 + n * 44 : 390,
           width: gravityCore ? 7.2 - n * 0.45 : 5,
           fill: gravityCore ? 0.14 : 0.08,
           rough: 0.070,
         });
       }
-      radialActorPulse(src.x, src.y, r, force, player.team, src.color || cls.color);
+      radialActorPulse(src.x, src.y, r, force, player.team, src.color || gravityAccent());
       pushBoxesRadial(src.x, src.y, boxForce, r, player.team);
       for (let i = 0; i < 16; i++) {
         const a = i * Math.PI * 2 / 16;
-        rememberDebugSegment('ability', src.x, src.y, src.x + Math.cos(a) * r, src.y + Math.sin(a) * r * 0.55, 5, src.color || cls.color, 260);
+        rememberDebugSegment('ability', src.x, src.y, src.x + Math.cos(a) * r, src.y + Math.sin(a) * r * 0.55, 5, src.color || gravityAccent(), 260);
       }
       if (gravityCore) {
         src.resonance = 0;
@@ -5723,6 +5732,29 @@ PUBLIC.start = function (root, api) {
       burst(player.x - player.facing * 10, player.y - 44, cls.color, 4, 1.4);
     }
   }
+  function spawnGravityDebrisReturn() {
+    if (!player) return;
+    const ang = (player.anim && player.anim.atkActive) ? player.anim.atkAim : aimedAngle();
+    const to = gravityStaffOrigin(ang);
+    const spin = (player.gravityDebrisSpin || 0) + rand(-0.8, 0.8);
+    const fromR = rand(92, 148);
+    const from = gravityCore
+      ? { x: gravityCore.x + Math.cos(spin) * gravityCore.r * rand(0.34, 0.78), y: gravityCore.y + Math.sin(spin) * gravityCore.r * rand(0.22, 0.52) }
+      : { x: player.x + Math.cos(spin) * fromR, y: player.y - 72 + Math.sin(spin * 0.82) * rand(48, 88) };
+    rememberDebugSegment('ability', from.x, from.y, to.x, to.y, 5, gravityAccent(), 300);
+    for (let i = 0; i < 10; i++) {
+      const u = i / 10;
+      const x = lerp(from.x, to.x, u) + rand(-12, 12);
+      const y = lerp(from.y, to.y, u) + Math.sin(u * Math.PI) * rand(-18, 18);
+      gravityParticle(x, y, (to.x - from.x) * 0.006 + rand(-0.18, 0.18), (to.y - from.y) * 0.006 + rand(-0.18, 0.18), {
+        color: gravityParticleColor(),
+        life: rand(220, 430),
+        r: rand(1.2, 3.4),
+        tail: rand(7, 15),
+      });
+    }
+    burst(to.x, to.y, gravityHighlight(), 5, 1.7);
+  }
   function updateGravityDebris(dtStep) {
     if (cls.id !== 'mage') return;
     if (!mageGraviturgeLoadoutActive()) {
@@ -5735,21 +5767,22 @@ PUBLIC.start = function (root, api) {
     const max = gravityDebrisMax();
     if (player.gravityDebris == null) player.gravityDebris = max;
     player.gravityDebris = clamp(player.gravityDebris, 0, max);
-    player.gravityDebrisSpin = (player.gravityDebrisSpin || 0) + (dtStep || STEP) * 0.0042;
+    player.gravityDebrisSpin = (player.gravityDebrisSpin || 0) + (dtStep || STEP) * 0.00245;
     if (player.gravityDebris >= max) player.gravityDebrisRegen = 0;
     else {
       player.gravityDebrisRegen = (player.gravityDebrisRegen || 0) + (dtStep || STEP);
       while (player.gravityDebrisRegen >= MAGE_DEBRIS_REGEN && player.gravityDebris < max) {
         player.gravityDebrisRegen -= MAGE_DEBRIS_REGEN;
         player.gravityDebris++;
-        if (player.team !== 'enemy') burst(player.x, player.y - 68, '#8f7dff', 5, 1.8);
+        if (player.team !== 'enemy') spawnGravityDebrisReturn();
       }
     }
     const count = clamp(player.gravityDebris || 0, 0, max);
-    if (count > 0 && Math.random() < 0.16) gravityParticle(player.x + rand(-28, 28), player.y - rand(42, 92), rand(-0.22, 0.22), rand(-0.38, 0.08), {
-      life: rand(220, 420),
-      color: Math.random() < 0.42 ? '#d9d4ff' : '#8f7dff',
-      r: rand(1.0, 2.3),
+    if (count > 0 && Math.random() < 0.22) gravityParticle(player.x + rand(-42, 42), player.y - rand(48, 108), rand(-0.28, 0.28), rand(-0.44, 0.06), {
+      life: rand(240, 480),
+      color: gravityParticleColor(),
+      r: rand(1.1, 3.1),
+      tail: rand(6, 12),
     });
     if (player.team !== 'enemy' && boxes && (mageHovering() || count >= max)) {
       for (const b of boxes) {
@@ -6379,6 +6412,19 @@ PUBLIC.start = function (root, api) {
     const shX = player.x, shY = player.y - 76;
     return { x: shX + Math.cos(ang) * 42, y: shY + Math.sin(ang) * 34 };
   }
+  function gravityAccent() {
+    return GRAVITY_COLORS.violet;
+  }
+  function gravityHighlight() {
+    return GRAVITY_COLORS.bright;
+  }
+  function gravityParticleColor() {
+    const n = Math.random();
+    if (n < 0.18) return GRAVITY_COLORS.white;
+    if (n < 0.48) return GRAVITY_COLORS.bright;
+    if (n < 0.78) return GRAVITY_COLORS.violet;
+    return GRAVITY_COLORS.edge;
+  }
   function gravityParticle(x, y, vx, vy, opts) {
     opts = opts || {};
     particles.push({
@@ -6386,9 +6432,11 @@ PUBLIC.start = function (root, api) {
       x, y, vx, vy,
       life: opts.life || rand(220, 460),
       max: opts.max || opts.life || 460,
-      color: opts.color || (Math.random() < 0.38 ? '#d9d4ff' : '#8f7dff'),
+      color: opts.color || gravityParticleColor(),
       r: opts.r || rand(1.0, 2.8),
       seed: opts.seed || rand(0, Math.PI * 2),
+      tail: opts.tail || rand(5.5, 10.5),
+      dark: !!opts.dark,
     });
   }
   function spawnGravityDebrisShot(ang, opts) {
@@ -6418,7 +6466,7 @@ PUBLIC.start = function (root, api) {
       vx: Math.cos(ang) * spd,
       vy: Math.sin(ang) * spd,
       life: 1160,
-      color: cls.color,
+      color: gravityAccent(),
       r,
       hit: 15 + power * 8,
       angle: ang,
@@ -6428,33 +6476,36 @@ PUBLIC.start = function (root, api) {
       mass: power,
       sparkle: 2,
     });
-    if (!fromCore) rememberDebugSegment('ability', player.x, player.y - 70, origin.x, origin.y, 8, cls.color, 260);
+    if (!fromCore) rememberDebugSegment('ability', player.x, player.y - 70, origin.x, origin.y, 8, gravityAccent(), 260);
     for (let i = 0; i < (spent ? 18 : 11); i++) {
       const a = ang + Math.PI + rand(-0.62, 0.62);
       gravityParticle(origin.x + rand(-4, 4), origin.y + rand(-4, 4), Math.cos(a) * rand(0.45, 1.7), Math.sin(a) * rand(0.45, 1.7), {
-        color: Math.random() < 0.5 ? '#d9d4ff' : cls.color,
+        color: gravityParticleColor(),
         life: rand(180, 360),
-        r: rand(1.0, spent ? 3.0 : 2.2),
+        r: rand(1.2, spent ? 3.8 : 2.7),
+        tail: rand(7, 13),
       });
     }
-    burst(origin.x, origin.y, spent ? '#d9d4ff' : cls.color, spent ? 13 : 8, spent ? 3.2 : 2.4);
+    burst(origin.x, origin.y, spent ? gravityHighlight() : gravityAccent(), spent ? 13 : 8, spent ? 3.2 : 2.4);
   }
   function gravityDebrisImpact(x, y, team, color, hit, opts) {
     opts = opts || {};
     const heavy = !!opts.heavy;
     const radius = heavy ? 112 : 82;
     const force = heavy ? 17 : 11;
-    burst(x, y, '#d9d4ff', heavy ? 18 : 10, heavy ? 4.2 : 3.1);
-    burst(x, y, color || '#8f7dff', heavy ? 26 : 16, heavy ? 4.8 : 3.8);
-    spawnShockwaveRing(x, y, radius, color || '#8f7dff', { life: heavy ? 330 : 240, width: heavy ? 4.2 : 3.1, fill: heavy ? 0.09 : 0.05, rough: heavy ? 0.070 : 0.055 });
-    radialActorPulse(x, y, radius, force, team, color || '#8f7dff');
+    const accent = color || gravityAccent();
+    burst(x, y, gravityHighlight(), heavy ? 18 : 10, heavy ? 4.2 : 3.1);
+    burst(x, y, accent, heavy ? 26 : 16, heavy ? 4.8 : 3.8);
+    spawnShockwaveRing(x, y, radius, accent, { life: heavy ? 330 : 240, width: heavy ? 4.2 : 3.1, fill: heavy ? 0.09 : 0.05, rough: heavy ? 0.070 : 0.055 });
+    radialActorPulse(x, y, radius, force, team, accent);
     pushBoxesRadial(x, y, heavy ? 20 : 13, radius, team);
     for (let i = 0; i < (heavy ? 24 : 14); i++) {
       const a = rand(0, Math.PI * 2), sp = rand(0.5, heavy ? 3.2 : 2.3);
       gravityParticle(x, y, Math.cos(a) * sp, Math.sin(a) * sp - rand(0.2, 1.1), {
-        color: Math.random() < 0.30 ? '#ffffff' : color || '#8f7dff',
+        color: gravityParticleColor(),
         life: rand(200, 520),
-        r: rand(1.0, heavy ? 3.4 : 2.5),
+        r: rand(1.2, heavy ? 4.2 : 3.0),
+        tail: rand(7, 14),
       });
     }
     if (heavy) addShake(3.7, 110);
@@ -6544,14 +6595,15 @@ PUBLIC.start = function (root, api) {
     const p = aimedPoint(opts.range || 380);
     const radius = opts.radius || 154;
     const force = opts.force || 28;
-    rememberDebugSegment('ability', player.x, player.y - 68, p.x, p.y, 12, cls.color, 260);
-    for (let i = 0; i < 26; i++) {
+    rememberDebugSegment('ability', player.x, player.y - 68, p.x, p.y, 12, gravityAccent(), 260);
+    for (let i = 0; i < 36; i++) {
       const a = rand(0, Math.PI * 2), rr = rand(0, radius * 0.88);
       gravityParticle(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr * 0.55 - rand(12, 42),
         -Math.cos(a) * rand(0.05, 0.5), rand(1.2, 4.0), {
-          color: Math.random() < 0.26 ? '#ffffff' : cls.color,
+          color: gravityParticleColor(),
           life: rand(180, 430),
-          r: rand(1.2, 3.4),
+          r: rand(1.4, 4.0),
+          tail: rand(8, 15),
         });
     }
     const targets = player.team === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
@@ -6584,9 +6636,9 @@ PUBLIC.start = function (root, api) {
       pushBox(b, dx / d * 0.35, 0.95, (force * 0.78 + 8) * u);
       b.va += (dx / d) * 0.10 * u;
     }
-    burst(p.x, p.y, '#d9d4ff', 18, 4.0);
-    burst(p.x, p.y, cls.color, 32, 5.2);
-    spawnShockwaveRing(p.x, p.y, radius, cls.color, { life: 360, width: 5, fill: 0.10, rough: 0.070 });
+    burst(p.x, p.y, gravityHighlight(), 20, 4.0);
+    burst(p.x, p.y, gravityAccent(), 38, 5.4);
+    spawnShockwaveRing(p.x, p.y, radius, gravityAccent(), { life: 360, width: 5.4, fill: 0.12, rough: 0.080 });
     addShake(4.8, 145);
     chargeGravityCore(0.85, p.x, p.y);
   }
@@ -7297,25 +7349,27 @@ PUBLIC.start = function (root, api) {
     if (player) player.pyroBreath = Math.max(0, (player.pyroBreath || 0) - dtStep);
   }
   function emitBlackHoleBirth(x, y, r, color) {
-    burst(x, y, '#ffffff', 18, 3.4);
-    burst(x, y, color || '#8f7dff', 58, 6.4);
-    for (let i = 0; i < 52; i++) {
+    const accent = color || gravityAccent();
+    burst(x, y, gravityHighlight(), 24, 3.7);
+    burst(x, y, accent, 72, 6.9);
+    for (let i = 0; i < 76; i++) {
       const a = rand(0, Math.PI * 2), rr = rand(r * 0.34, r * 0.98);
       const tangent = a + Math.PI / 2;
       gravityParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr,
         Math.cos(tangent) * rand(0.25, 1.4) - Math.cos(a) * rand(0.10, 0.55),
         Math.sin(tangent) * rand(0.25, 1.4) - Math.sin(a) * rand(0.10, 0.55), {
-          color: Math.random() < 0.24 ? '#ffffff' : color || '#8f7dff',
-          life: rand(360, 860),
-          r: rand(1.1, 3.2),
+          color: gravityParticleColor(),
+          life: rand(420, 980),
+          r: rand(1.3, 4.1),
+          tail: rand(8, 17),
         });
     }
-    spawnShockwaveRing(x, y, r * 0.88, color || '#8f7dff', { life: 480, width: 5.6, fill: 0.08, rough: 0.075 });
+    spawnShockwaveRing(x, y, r * 0.88, accent, { life: 520, width: 6.2, fill: 0.12, rough: 0.085 });
     addShake(6.6, 190);
   }
   function spawnBlackHole(x, y, team, color, opts) {
     opts = Object.assign({}, opts || {}, { blackHole: true, ultimate: true, tether: true });
-    spawnGravityField(x, y, team, color || '#8f7dff', opts);
+    spawnGravityField(x, y, team, color || gravityAccent(), opts);
   }
   function spawnGravityField(x, y, team, color, opts) {
     opts = opts || {};
@@ -7323,7 +7377,8 @@ PUBLIC.start = function (root, api) {
     let r = opts.r || 152;
     if ((team || 'hero') === 'hero' && hasPassive('mg_resonance')) { life += 420; r *= 1.08; }
     const blackHole = !!opts.blackHole;
-    const fieldColor = color || (blackHole ? '#8f7dff' : '#ff77d2');
+    const fieldColor = color || (blackHole || opts.gravityVisual ? gravityAccent() : GRAVITY_COLORS.violet);
+    const gravityVisual = blackHole || opts.gravityVisual || fieldColor === gravityAccent();
     gravityFields.push({
       x, y, team: team || 'hero', color: fieldColor, life, max: life, r,
       ultimate: !!opts.ultimate, tether: opts.tether !== false, phase: rand(0, Math.PI * 2),
@@ -7336,9 +7391,9 @@ PUBLIC.start = function (root, api) {
       if ((team || 'hero') === 'hero' && gravityCore) chargeGravityCore(1.65, x, y);
       return;
     }
-    burst(x, y, '#ffffff', opts.ultimate ? 28 : 22, opts.ultimate ? 4.8 : 3.8);
-    burst(x, y, fieldColor, opts.ultimate ? 48 : 36, opts.ultimate ? 5.8 : 4.8);
-    spawnShockwaveRing(x, y, r, fieldColor, { life: opts.ultimate ? 520 : 360, width: opts.ultimate ? 6 : 4, fill: opts.ultimate ? 0.10 : 0.06, rough: opts.ultimate ? 0.080 : 0.060 });
+    burst(x, y, gravityVisual ? gravityHighlight() : '#ffffff', opts.ultimate ? 32 : 24, opts.ultimate ? 4.9 : 3.9);
+    burst(x, y, fieldColor, opts.ultimate ? 56 : 42, opts.ultimate ? 6.1 : 5.0);
+    spawnShockwaveRing(x, y, r, fieldColor, { life: opts.ultimate ? 540 : 380, width: opts.ultimate ? 6.4 : 4.4, fill: opts.ultimate ? 0.12 : 0.08, rough: opts.ultimate ? 0.088 : 0.072 });
     addShake(opts.ultimate ? 5.4 : 3.6, opts.ultimate ? 170 : 120);
     if ((team || 'hero') === 'hero' && gravityCore) chargeGravityCore(opts.ultimate ? 1.45 : 0.85, x, y);
   }
@@ -7349,7 +7404,7 @@ PUBLIC.start = function (root, api) {
       x, y,
       vx: 0, vy: 0,
       team: team || 'hero',
-      color: color || '#ff77d2',
+      color: color || gravityAccent(),
       r,
       max: r,
       age: 0,
@@ -7359,8 +7414,8 @@ PUBLIC.start = function (root, api) {
       resonanceMax: hasPassive('mg_eventhorizon') ? 5 : 4,
       resonancePulse: 620,
     };
-    burst(x, y, '#ffffff', 30, 4.2);
-    burst(x, y, color || '#ff77d2', 56, 5.4);
+    burst(x, y, gravityHighlight(), 34, 4.4);
+    burst(x, y, color || gravityAccent(), 68, 5.8);
     addShake(4.6, 145);
   }
   function chargeGravityCore(amount, x, y) {
@@ -7373,8 +7428,8 @@ PUBLIC.start = function (root, api) {
     if (x != null && y != null) rememberDebugSegment('ability', x, y, g.x, g.y, 6, g.color || cls.color, 420);
     if (g.resonance > before + 0.05) {
       const gain = g.resonance - before;
-      burst(g.x, g.y, '#ffffff', 6 + gain * 5, 2.5 + gain * 0.7);
-      burst(g.x, g.y, g.color || cls.color, 8 + gain * 7, 3.0 + gain * 0.8);
+      burst(g.x, g.y, gravityHighlight(), 7 + gain * 5, 2.6 + gain * 0.7);
+      burst(g.x, g.y, g.color || gravityAccent(), 10 + gain * 8, 3.1 + gain * 0.8);
     }
     return g.resonance;
   }
@@ -7444,24 +7499,27 @@ PUBLIC.start = function (root, api) {
     if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(core, t);
     else if (fighters) for (const e of fighters) applyGravityFieldToActor(core, e);
     if (dummies) for (const d of dummies) applyGravityFieldToDummy(core, d);
-    if (Math.random() < 0.92) {
+    if (Math.random() < 0.98) {
       const a = rand(0, Math.PI * 2), rr = rand(24, g.r * 0.92);
       particles.push({
+        kind: 'gravity',
         x: g.x + Math.cos(a) * rr,
         y: g.y + Math.sin(a) * rr,
         vx: -Math.cos(a) * rand(0.18, 0.7),
         vy: -Math.sin(a) * rand(0.18, 0.7) - 0.12,
-        life: rand(280, 520),
-        max: 520,
-        color: Math.random() < 0.32 ? '#ffffff' : g.color,
-        r: rand(1.1, 2.9),
+        life: rand(320, 640),
+        max: 640,
+        color: gravityParticleColor(),
+        r: rand(1.2, 3.8),
+        tail: rand(8, 16),
+        seed: rand(0, Math.PI * 2),
       });
     }
   }
   function implodeGravityField(g) {
     const blackHole = !!g.blackHole;
-    burst(g.x, g.y, blackHole ? '#d9d4ff' : '#ffffff', blackHole ? 34 : 26, blackHole ? 6.2 : 5.2);
-    burst(g.x, g.y, g.color, blackHole ? 72 : 42, blackHole ? 7.0 : 5.8);
+    burst(g.x, g.y, blackHole ? gravityHighlight() : '#ffffff', blackHole ? 42 : 26, blackHole ? 6.5 : 5.2);
+    burst(g.x, g.y, g.color || gravityAccent(), blackHole ? 88 : 44, blackHole ? 7.4 : 5.8);
     spawnShockwaveRing(g.x, g.y, g.r + (blackHole ? 108 : 70), g.color, {
       life: blackHole ? 650 : g.ultimate ? 560 : 430,
       width: blackHole ? 8 : g.ultimate ? 6.5 : 5,
@@ -7470,12 +7528,13 @@ PUBLIC.start = function (root, api) {
     });
     addShake(blackHole ? 8.4 : 5.6, blackHole ? 230 : 170);
     if (blackHole) {
-      for (let i = 0; i < 70; i++) {
+      for (let i = 0; i < 92; i++) {
         const a = rand(0, Math.PI * 2), sp = rand(1.2, 5.2);
         gravityParticle(g.x, g.y, Math.cos(a) * sp, Math.sin(a) * sp - rand(0.2, 1.4), {
-          color: Math.random() < 0.28 ? '#ffffff' : g.color,
-          life: rand(280, 760),
-          r: rand(1.2, 3.8),
+          color: gravityParticleColor(),
+          life: rand(320, 820),
+          r: rand(1.4, 4.6),
+          tail: rand(9, 18),
         });
       }
     }
@@ -7510,7 +7569,7 @@ PUBLIC.start = function (root, api) {
   function collapseGravityCore(ang) {
     if (!gravityCore) {
       const p = aimedPoint(500);
-      spawnBlackHole(p.x, p.y, player.team, cls.color, { r: 235, life: 1850, pullPower: 1.35 });
+      spawnBlackHole(p.x, p.y, player.team, gravityAccent(), { r: 235, life: 1850, pullPower: 1.35 });
       return;
     }
     const g = Object.assign({}, gravityCore, {
@@ -7520,8 +7579,8 @@ PUBLIC.start = function (root, api) {
       blackHole: true,
       pullPower: hasPassive('mg_eventhorizon') ? 1.65 : 1.42,
     });
-    burst(g.x, g.y, '#ffffff', 54, 6.4);
-    burst(g.x, g.y, g.color, 76, 7.2);
+    burst(g.x, g.y, gravityHighlight(), 62, 6.6);
+    burst(g.x, g.y, g.color || gravityAccent(), 88, 7.4);
     implodeGravityField(g);
     gravityCore = null;
   }
@@ -8385,41 +8444,65 @@ PUBLIC.start = function (root, api) {
   function drawGravityDebrisOrbit(cx, cy, count, max) {
     count = clamp(Math.floor(count || 0), 0, max || MAGE_DEBRIS_MAX);
     if (!count) return;
-    const t = (player.gravityDebrisSpin || 0) + performance.now() * 0.0021;
+    const t = (player.gravityDebrisSpin || 0) + performance.now() * 0.00072;
     const active = player.anim && player.anim.atkActive && player.anim.visualKind === 'gravityDebris';
+    const aim = active ? player.anim.atkAim : aimedAngle();
+    const staff = gravityStaffOrigin(aim);
+    const castPull = active ? 0.36 + 0.28 * Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0.16;
+    const hover = mageHovering ? (mageHovering() ? 1 : 0) : 0;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (let i = 0; i < count; i++) {
-      const a = t + i * Math.PI * 2 / Math.max(1, max || count);
-      const pulse = 0.5 + 0.5 * Math.sin(t * 2.4 + i * 1.7);
-      const orbitX = 30 + pulse * 4 + (active ? 8 : 0);
-      const orbitY = 25 + pulse * 3 + (active ? 4 : 0);
-      const x = cx + Math.cos(a) * orbitX;
-      const y = cy + Math.sin(a) * orbitY - 9;
-      ctx.globalAlpha = 0.16 + pulse * 0.12;
-      ctx.strokeStyle = '#8f7dff';
-      ctx.lineWidth = 1.5;
+      const slot = i / Math.max(1, max || count);
+      const a = t * (0.84 + i * 0.045) + slot * Math.PI * 2 + Math.sin(t * 1.8 + i) * 0.16;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2.1 + i * 1.7);
+      const lane = i % 3;
+      const orbitX = 48 + lane * 13 + pulse * 7 + (active ? 16 : 0) + hover * 5;
+      const orbitY = 34 + lane * 7 + pulse * 5 + (active ? 8 : 0) + hover * 4;
+      const rawX = cx + Math.cos(a) * orbitX + Math.sin(t * 1.35 + i) * 8;
+      const rawY = cy + Math.sin(a) * orbitY - 14 + Math.cos(t * 1.05 + i * 2) * 5;
+      const staffBias = castPull * (0.55 + pulse * 0.35);
+      const x = lerp(rawX, staff.x - Math.cos(aim) * (8 + i * 2), staffBias);
+      const y = lerp(rawY, staff.y - Math.sin(aim) * (5 + i * 2), staffBias);
+      ctx.globalAlpha = 0.20 + pulse * 0.18 + (active ? 0.10 : 0);
+      ctx.strokeStyle = GRAVITY_COLORS.edge;
+      ctx.lineWidth = 1.9 + pulse * 0.8;
       ctx.beginPath();
-      ctx.moveTo(cx, cy - 7);
-      ctx.quadraticCurveTo((cx + x) * 0.5 + Math.sin(a) * 5, (cy + y) * 0.5 - 8, x, y);
+      ctx.moveTo(cx + Math.cos(a + 1.4) * 8, cy - 9 + Math.sin(a) * 4);
+      ctx.quadraticCurveTo((cx + x) * 0.5 + Math.sin(a) * 14, (cy + y) * 0.5 - 16 + Math.cos(a) * 5, x, y);
+      ctx.stroke();
+      ctx.globalAlpha = 0.10 + pulse * 0.08;
+      ctx.strokeStyle = GRAVITY_COLORS.bright;
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.moveTo(staff.x - Math.cos(aim) * 6, staff.y - Math.sin(aim) * 5);
+      ctx.quadraticCurveTo((staff.x + x) * 0.5 - Math.sin(a) * 6, (staff.y + y) * 0.5 - 5, x, y);
       ctx.stroke();
       ctx.globalAlpha = 0.90;
-      ctx.fillStyle = i % 2 ? '#6d62b8' : '#8574d9';
-      ctx.strokeStyle = '#d9d4ff';
-      ctx.lineWidth = 1.1;
-      const r = 4.2 + pulse * 1.7;
+      ctx.fillStyle = i % 2 ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
+      ctx.strokeStyle = i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.bright;
+      ctx.lineWidth = 1.35;
+      const r = 7.0 + lane * 0.9 + pulse * 2.4 + (active ? 1.5 : 0);
       ctx.beginPath();
-      for (let k = 0; k < 6; k++) {
-        const aa = a * 1.7 + k * Math.PI * 2 / 6;
-        const rr = r * (0.72 + ((k + i) % 3) * 0.18);
+      const pts = 7;
+      for (let k = 0; k < pts; k++) {
+        const aa = a * 1.4 + k * Math.PI * 2 / pts;
+        const rr = r * (0.70 + ((k + i) % 4) * 0.13);
         const px = x + Math.cos(aa) * rr;
         const py = y + Math.sin(aa) * rr;
         if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
       ctx.closePath();
       ctx.fill();
-      ctx.globalAlpha = 0.72;
+      ctx.globalAlpha = 0.80;
+      ctx.stroke();
+      ctx.globalAlpha = 0.42 + pulse * 0.20;
+      ctx.strokeStyle = GRAVITY_COLORS.white;
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.25, y - r * 0.35);
+      ctx.lineTo(x + r * 0.36, y + r * 0.06);
       ctx.stroke();
     }
     ctx.restore();
@@ -9360,14 +9443,14 @@ PUBLIC.start = function (root, api) {
       const my = target.y + dy * 0.52 - 8 + Math.cos(t * 0.003 + target.y * 0.02) * 5;
       const alpha = 0.16 + target.pull * 0.36 + Math.sin(t * 0.012 + target.d) * 0.035;
       ctx.globalAlpha = clamp(alpha, 0.12, 0.56);
-      ctx.strokeStyle = g.color || '#ff77d2';
+      ctx.strokeStyle = g.color || gravityAccent();
       ctx.lineWidth = 2.4 + target.pull * 2.6;
       ctx.beginPath();
       ctx.moveTo(target.x, target.y);
       ctx.quadraticCurveTo(mx, my, g.x, g.y);
       ctx.stroke();
       ctx.globalAlpha = clamp(alpha * 0.74, 0.08, 0.35);
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = GRAVITY_COLORS.bright;
       ctx.lineWidth = 1.1 + target.pull * 1.2;
       ctx.beginPath();
       ctx.moveTo(target.x, target.y);
@@ -9375,7 +9458,7 @@ PUBLIC.start = function (root, api) {
       ctx.stroke();
       ctx.globalAlpha = clamp(0.20 + target.pull * 0.32, 0.16, 0.52);
       ctx.setLineDash([]);
-      ctx.fillStyle = target.kind === 'barrel' ? '#ffd45e' : '#ffffff';
+      ctx.fillStyle = target.kind === 'barrel' ? '#ffd45e' : GRAVITY_COLORS.white;
       ctx.beginPath();
       ctx.arc(target.x, target.y, 2.8 + target.pull * 3.4, 0, Math.PI * 2);
       ctx.fill();
@@ -9440,17 +9523,18 @@ PUBLIC.start = function (root, api) {
     const rr = (g.r + charge * 7) * pulse;
     ctx.save();
     const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
-    grad.addColorStop(0, `rgba(255,255,255,${0.34 + chargeFlash * 0.12})`);
-    grad.addColorStop(0.22, `rgba(255,119,210,${0.22 + charge * 0.018})`);
-    grad.addColorStop(0.68, `rgba(255,119,210,${0.10 + charge * 0.012})`);
-    grad.addColorStop(1, 'rgba(255,119,210,0)');
+    grad.addColorStop(0, `rgba(4,2,10,${0.86 + chargeFlash * 0.08})`);
+    grad.addColorStop(0.18, `rgba(17,10,37,${0.72 + charge * 0.020})`);
+    grad.addColorStop(0.46, `rgba(78,52,167,${0.24 + charge * 0.018})`);
+    grad.addColorStop(0.78, `rgba(116,91,255,${0.12 + charge * 0.012})`);
+    grad.addColorStop(1, 'rgba(116,91,255,0)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
     ctx.lineCap = 'round';
     for (let ring = 0; ring < 3; ring++) {
       const r = rr * (0.34 + ring * 0.18 + Math.sin(t * 0.002 + ring) * 0.018);
-      ctx.strokeStyle = ring === 0 ? 'rgba(255,255,255,.62)' : 'rgba(255,119,210,.44)';
-      ctx.lineWidth = ring === 0 ? 2.4 : 1.7;
+      ctx.strokeStyle = ring === 0 ? 'rgba(242,238,255,.66)' : ring === 1 ? 'rgba(116,91,255,.50)' : 'rgba(78,52,167,.46)';
+      ctx.lineWidth = ring === 0 ? 2.8 : 1.9;
       ctx.beginPath();
       for (let i = 0; i <= 56; i++) {
         const a = i / 56 * Math.PI * 2 + t * (0.0014 + ring * 0.00055);
@@ -9469,20 +9553,20 @@ PUBLIC.start = function (root, api) {
       const y = g.y + Math.sin(a) * orbit;
       const motePulse = 0.55 + 0.45 * Math.sin(t * 0.013 + i);
       ctx.globalAlpha = 0.44 + chargeFlash * 0.25;
-      ctx.fillStyle = i % 2 ? g.color : '#ffffff';
+      ctx.fillStyle = i % 2 ? g.color : GRAVITY_COLORS.bright;
       ctx.beginPath();
       ctx.arc(x, y, 3.2 + motePulse * 2.4, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 0.24 + chargeFlash * 0.22;
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = GRAVITY_COLORS.white;
       ctx.lineWidth = 1.1;
       ctx.beginPath();
       ctx.arc(x, y, 7 + motePulse * 4, 0, Math.PI * 2);
       ctx.stroke();
     }
     drawGravityCoreTethers(g, t);
-    ctx.fillStyle = g.color;
-    ctx.strokeStyle = '#ffffff';
+    ctx.fillStyle = GRAVITY_COLORS.void;
+    ctx.strokeStyle = GRAVITY_COLORS.bright;
     ctx.lineWidth = 1.4 + chargeFlash * 1.1;
     ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.arc(g.x, g.y, 9 + charge * 0.9 + Math.sin(t * 0.01) * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -9497,10 +9581,10 @@ PUBLIC.start = function (root, api) {
     ctx.globalCompositeOperation = 'source-over';
     const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
     grad.addColorStop(0, `rgba(0,0,0,${0.94 * fade})`);
-    grad.addColorStop(0.16, `rgba(8,7,18,${0.88 * fade})`);
-    grad.addColorStop(0.36, `rgba(86,72,176,${0.30 * fade})`);
-    grad.addColorStop(0.72, `rgba(143,125,255,${0.12 * fade})`);
-    grad.addColorStop(1, 'rgba(143,125,255,0)');
+    grad.addColorStop(0.15, `rgba(5,3,13,${0.92 * fade})`);
+    grad.addColorStop(0.34, `rgba(32,16,68,${0.52 * fade})`);
+    grad.addColorStop(0.62, `rgba(116,91,255,${0.20 * fade})`);
+    grad.addColorStop(1, 'rgba(116,91,255,0)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
 
@@ -9509,7 +9593,7 @@ PUBLIC.start = function (root, api) {
     for (let ring = 0; ring < 4; ring++) {
       const baseR = rr * (0.22 + ring * 0.145 + Math.sin(t * 0.002 + ring) * 0.012);
       ctx.globalAlpha = fade * (ring === 0 ? 0.82 : 0.34);
-      ctx.strokeStyle = ring === 0 ? '#d9d4ff' : (ring % 2 ? g.color : '#ffffff');
+      ctx.strokeStyle = ring === 0 ? GRAVITY_COLORS.bright : (ring % 2 ? (g.color || gravityAccent()) : GRAVITY_COLORS.white);
       ctx.lineWidth = ring === 0 ? 2.8 : 1.5;
       ctx.beginPath();
       for (let i = 0; i <= 96; i++) {
@@ -9824,14 +9908,21 @@ PUBLIC.start = function (root, api) {
         const ang = Math.atan2(pt.vy || -1, pt.vx || 0) + (pt.seed || 0) * 0.22;
         ctx.globalCompositeOperation = 'lighter';
         ctx.lineCap = 'round';
-        ctx.globalAlpha = 0.24 * fade;
+        ctx.globalAlpha = 0.30 * fade;
         ctx.strokeStyle = pt.color || '#8f7dff';
-        ctx.lineWidth = Math.max(0.8, rr * 0.72);
+        ctx.lineWidth = Math.max(0.9, rr * 0.82);
         ctx.beginPath();
-        ctx.moveTo(sx - Math.cos(ang) * rr * 6, sy - Math.sin(ang) * rr * 6);
+        ctx.moveTo(sx - Math.cos(ang) * (pt.tail || 8), sy - Math.sin(ang) * (pt.tail || 8));
         ctx.lineTo(sx, sy);
         ctx.stroke();
-        ctx.globalAlpha = 0.70 * fade;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.46 * fade;
+        ctx.fillStyle = GRAVITY_COLORS.void;
+        ctx.beginPath();
+        ctx.arc(sx, sy, rr * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.76 * fade;
         ctx.fillStyle = pt.color || '#8f7dff';
         ctx.beginPath();
         ctx.moveTo(sx + Math.cos(ang) * rr * 1.8, sy + Math.sin(ang) * rr * 1.8);
@@ -9886,16 +9977,24 @@ PUBLIC.start = function (root, api) {
       const pulse = Math.sin(now * 0.009 + (g.phase || 0)) * 0.08 + 1;
       const fade = clamp(g.life / g.max, 0, 1);
       const rr = g.r * pulse;
+      const gravityVisual = (g.color || '') === gravityAccent();
       const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
-      grad.addColorStop(0, `rgba(255,255,255,${0.22 * fade})`);
-      grad.addColorStop(0.45, `rgba(255,119,210,${0.13 * fade})`);
-      grad.addColorStop(1, 'rgba(255,119,210,0)');
+      if (gravityVisual) {
+        grad.addColorStop(0, `rgba(5,3,13,${0.82 * fade})`);
+        grad.addColorStop(0.24, `rgba(32,16,68,${0.56 * fade})`);
+        grad.addColorStop(0.58, `rgba(78,52,167,${0.30 * fade})`);
+        grad.addColorStop(1, 'rgba(116,91,255,0)');
+      } else {
+        grad.addColorStop(0, `rgba(255,255,255,${0.22 * fade})`);
+        grad.addColorStop(0.45, `rgba(255,119,210,${0.13 * fade})`);
+        grad.addColorStop(1, 'rgba(255,119,210,0)');
+      }
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = g.color; ctx.globalAlpha = (g.ultimate ? 0.52 : 0.35) * fade; ctx.lineWidth = g.ultimate ? 3 : 2;
+      ctx.strokeStyle = g.color; ctx.globalAlpha = (gravityVisual ? (g.ultimate ? 0.72 : 0.56) : (g.ultimate ? 0.52 : 0.35)) * fade; ctx.lineWidth = gravityVisual ? (g.ultimate ? 3.6 : 2.7) : (g.ultimate ? 3 : 2);
       ctx.beginPath(); ctx.arc(g.x, g.y, rr * 0.72, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 0.42 * fade;
-      ctx.lineWidth = g.ultimate ? 2.2 : 1.6;
+      ctx.globalAlpha = (gravityVisual ? 0.58 : 0.42) * fade;
+      ctx.lineWidth = gravityVisual ? (g.ultimate ? 2.7 : 2.0) : (g.ultimate ? 2.2 : 1.6);
       for (let i = 0; i < 10; i++) {
         const a = i * Math.PI * 2 / 10 + now * 0.0018 + (g.phase || 0);
         const outer = rr * (0.86 + 0.05 * Math.sin(now * 0.006 + i + (g.phase || 0)));
@@ -9907,10 +10006,10 @@ PUBLIC.start = function (root, api) {
       }
       if (g.tether) drawGravityCoreTethers(g, now);
       ctx.globalAlpha = 0.82 * fade;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = gravityVisual ? GRAVITY_COLORS.void : '#ffffff';
       ctx.beginPath(); ctx.arc(g.x, g.y, g.ultimate ? 7 : 5, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.92 * fade;
-      ctx.fillStyle = g.color;
+      ctx.fillStyle = gravityVisual ? GRAVITY_COLORS.bright : g.color;
       ctx.beginPath(); ctx.arc(g.x, g.y, g.ultimate ? 4.2 : 3.2, 0, Math.PI * 2); ctx.fill();
       if (g.ultimate) {
         ctx.globalAlpha = 0.36 * fade;
@@ -10001,8 +10100,8 @@ PUBLIC.start = function (root, api) {
         ctx.save();
         ctx.translate(b.x, b.y);
         ctx.rotate((b.angle || 0) + performance.now() * 0.003);
-        ctx.fillStyle = b.heavy ? '#5d56a3' : '#7068b4';
-        ctx.strokeStyle = '#d9d4ff';
+        ctx.fillStyle = b.heavy ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
+        ctx.strokeStyle = b.heavy ? GRAVITY_COLORS.bright : GRAVITY_COLORS.violet;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         const pts = 7;
@@ -10014,7 +10113,7 @@ PUBLIC.start = function (root, api) {
         }
         ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.globalAlpha = 0.72;
-        ctx.strokeStyle = '#ffffff';
+        ctx.strokeStyle = GRAVITY_COLORS.white;
         ctx.lineWidth = 1.0;
         ctx.beginPath();
         ctx.moveTo(-r * 0.20, -r * 0.42);
@@ -10024,11 +10123,11 @@ PUBLIC.start = function (root, api) {
       } else if (b.kind === 'gravitySeed') {
         const r = b.r || 8;
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate((b.angle || 0) + performance.now() * 0.01);
-        ctx.strokeStyle = b.color; ctx.lineWidth = 2.6;
+        ctx.strokeStyle = b.color || gravityAccent(); ctx.lineWidth = 2.6;
         ctx.beginPath(); ctx.arc(0, 0, r + 5 + Math.sin(performance.now() * 0.02) * 2, 0, Math.PI * 2); ctx.stroke();
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+        ctx.strokeStyle = GRAVITY_COLORS.white; ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.moveTo(-r - 5, 0); ctx.lineTo(r + 5, 0); ctx.moveTo(0, -r - 5); ctx.lineTo(0, r + 5); ctx.stroke();
-        ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = b.color || gravityAccent(); ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       } else if (b.kind === 'arcaneOrb') {
         const r = b.r || 12;
