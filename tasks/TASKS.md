@@ -15,6 +15,15 @@ Pages deploy doesn't include `tasks/`).
   - `@blocked` if it's waiting on something (say what in a sub-bullet).
 - On your phone: open this file on GitHub → ✏️ edit → commit. Or just tell me in
   chat and I'll file it here.
+- At a computer, the helper CLI edits this file for you (it round-trips with hand
+  edits, so mix and match freely):
+  ```bash
+  npm run task                                   # or: node scripts/task.js list
+  node scripts/task.js add "tune the Knight" --p 1 --area stickrun
+  node scripts/task.js start 2                    # Todo -> In progress (numbers from `list`)
+  node scripts/task.js done 2                     # -> Done (dated + checked)
+  node scripts/task.js rm 2                        # delete
+  ```
 
 ## How I work it (Claude)
 1. At the start of a session, read this file.

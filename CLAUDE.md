@@ -81,7 +81,7 @@ Games are validated with **headless Node harnesses**: stub a minimal DOM + a NaN
 
 ## Task backlog
 
-`tasks/TASKS.md` is the user's committed to-do list for Claude. **At the start of a session, read it**, work the top unblocked **Todo** (honoring `[p1]` priority), and on completion move the item to **Done** with the date + PR number. It's repo-only (not deployed to Pages). The file documents its own add/work workflow.
+`tasks/TASKS.md` is the user's committed to-do list for Claude. **At the start of a session, read it**, work the top unblocked **Todo** (honoring `[p1]` priority), and on completion move the item to **Done** with the date + PR number. It's repo-only (not deployed to Pages). A dependency-free CLI (`npm run task` → `scripts/task.js`, with `add`/`list`/`start`/`done`/`rm`) does line-level edits on the Markdown, which stays the hand-editable source of truth.
 
 ## Git / PR workflow
 

@@ -10,6 +10,7 @@
     "check:pwa": "node scripts/check-pwa-cache.js",
     "check:logminer": "node scripts/check-logminer.js",
     "icons": "node scripts/gen-icons.js",
+    "task": "node scripts/task.js",
     "ai:connect4:train": "node scripts/train-connect4.js",
     "ai:connect4:eval": "node scripts/eval-connect4.js"
   }
