@@ -1282,6 +1282,32 @@ PUBLIC.start = function (root, api) {
     addShake(3.4, 130);
     return true;
   }
+  function spawnAirSpiralRead(cx, cy, dir) {
+    const count = 18;
+    const spin = dir >= 0 ? 1 : -1;
+    for (let i = 0; i <= count; i++) {
+      const a = spin * (i / count * Math.PI * 2 + 0.28);
+      const squash = 0.60 + Math.sin(i * 0.7) * 0.05;
+      slashTrail.push({
+        x: cx + Math.cos(a) * (82 + Math.sin(i * 0.9) * 6),
+        y: cy + Math.sin(a) * (56 * squash),
+        life: 280,
+        c: cls.trail,
+      });
+      if (i % 3 === 0) particles.push({
+        x: cx + Math.cos(a) * 74,
+        y: cy + Math.sin(a) * 44,
+        vx: Math.cos(a) * rand(0.7, 1.8),
+        vy: Math.sin(a) * rand(0.35, 1.2) - 0.3,
+        life: rand(180, 340),
+        max: 340,
+        color: Math.random() < 0.35 ? '#ffffff' : cls.color,
+        r: rand(1.3, 3.2),
+      });
+    }
+    while (slashTrail.length > 70) slashTrail.shift();
+    spawnShockwaveRing(cx, cy, 136, cls.color, { life: 500, width: 5.8, yScale: 0.72, fill: 0.08 });
+  }
   function useKnightRally() {
     activateShieldGuard();
     if (allies) for (const a of allies) if (!a.dead && Math.hypot(a.x - player.x, a.y - player.y) < 430) {
@@ -2174,8 +2200,10 @@ PUBLIC.start = function (root, api) {
     }
     if (e.kind === 'airSpiral') {
       player.vy = Math.min(player.vy, -8.8); player.grounded = false;
+      const cx = player.x, cy = player.y - 54;
       useBladeStorm();
-      pushBoxesRadial(player.x, player.y - 54, 20, 128, player.team);
+      spawnAirSpiralRead(cx, cy, player.facing || f);
+      pushBoxesRadial(cx, cy, 20, 128, player.team);
       return true;
     }
     if (e.kind === 'spearWall') {
