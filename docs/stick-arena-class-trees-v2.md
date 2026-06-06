@@ -9,7 +9,7 @@ This doc drafts the major branches for each current class:
 - Knight: Guardian, Avenger, Earthbreaker
 - Rogue: Bladeslinger, Acrobat, Nightshade
 - Lancer: Phalanx, Dragoon, Harpooner
-- Mage: Graviturge, Pyromancer, third branch TBD
+- Mage: Graviturge, Pyromancer, Spiritbinder
 - Ranger: Sharpshooter, Trapper, Beastwarden
 
 ## Tree Rules
@@ -151,8 +151,8 @@ Branch hooks:
   suspension, and implosion.
 - Pyromancer spends Focus on bigger fire areas, burn duration, early
   detonations, and object ignition.
-- The third Mage branch is not locked. Conduit/Stormcaller, Resonance, and
-  Geomancer are the current candidates.
+- Spiritbinder spends Focus and spirit charges on temporary followers, curses,
+  soul flares, and defeated-enemy recruitment.
 
 Current Mage direction:
 
@@ -173,11 +173,15 @@ Current Mage redraft:
 - Pyromancer is the likely second identity because it gives the Mage a plain,
   satisfying big-AOE fantasy: fireballs, flame pools, burning routes, barrel
   ignition, and huge Q moments.
-- Stormcaller should be treated as lightning/conductivity if it stays. Remove
-  most wind movement so it does not overlap with gravity hover.
+- Lightning should not be a main branch for the first playtest. It can return
+  later as a Pyromancer evolution such as Stormfire or Plasma, where burning
+  targets chain sparks.
 - Riftweaver is demoted to a future advanced/experimental branch. Portals,
   swaps, and displacement are cool, but they may be too hard to play and too
   annoying to fight before the arena AI and object systems are stronger.
+- Spiritbinder becomes the third main branch because it supports a genuinely
+  different playstyle: building an army out of defeated enemies and using allies
+  as pressure, body-blocking, and shove tools.
 
 Mage branch shortlist:
 
@@ -191,11 +195,16 @@ Mage
 |  |- Wildfire: spreading flame, route denial, burning floor control
 |  |- Detonator: fire bombs, barrels, crates, delayed explosions
 |  |- Sunfire: slower huge casts, giant circles, high damage
-|- Third slot candidates:
-|  |- Conduit/Stormcaller: chain lightning, charged targets, conductivity
-|  |- Resonance: staff shockwaves, vibration, wall/object stagger bursts
-|  |- Geomancer: stone pillars, short walls, spikes, terrain shaping
+|- Spiritbinder: spirits, minions, curses, defeated enemies become allies
+|  |- Bonecaller: temporary physical minions from bodies and KOs
+|  |- Soulkeeper: spirit charges, shields, flares, and ally support
+|  |- Hexmaster: curses that turn kills into stronger summons or bursts
 ```
+
+Playtest implementation target:
+
+- See `docs/stick-arena-playtest-morning-plan.md` for the June 7, 2026 morning
+  vertical-slice plan.
 
 ### Ranger: Draw And Focus
 

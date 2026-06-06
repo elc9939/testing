@@ -101,9 +101,9 @@ const CLASS_TREES = {
   },
   rogue: {
     branches: {
-      duelist: { name: 'Duelist', desc: 'Close burst, flank timing, quick stabs, and executions.' },
-      saboteur: { name: 'Saboteur', desc: 'Knife tricks, ricochets, smoke, traps, and barrel setups.' },
-      acrobat: { name: 'Acrobat', desc: 'Slides, wall movement, vaults, sweeps, and air-control attacks.' },
+      bladeslinger: { name: 'Bladeslinger', desc: 'Ranged knife pressure, recoverable blades, trick shots, and blade-control payoffs.' },
+      acrobat: { name: 'Acrobat', desc: 'Slides, wall movement, vaults, sweeps, and air-control route attacks.' },
+      nightshade: { name: 'Nightshade', desc: 'Smoke, poison, partial invisibility, ambush windows, and escape routes.' },
     },
   },
   lancer: {
@@ -115,9 +115,9 @@ const CLASS_TREES = {
   },
   mage: {
     branches: {
-      graviturge: { name: 'Graviturge', desc: 'Gravity wells, updrafts, clusters, and implosions.' },
-      stormcaller: { name: 'Stormcaller', desc: 'Wind, lightning chains, static fields, and faster spell tempo.' },
-      riftweaver: { name: 'Riftweaver', desc: 'Phase movement, swaps, portals, and zone collapse.' },
+      graviturge: { name: 'Graviturge', desc: 'Gravity cores, resonance pulses, pull/orbit control, and implosions.' },
+      pyromancer: { name: 'Pyromancer', desc: 'Big fire AOE, burn zones, ignition, barrel pressure, and explosions.' },
+      spiritbinder: { name: 'Spiritbinder', desc: 'Spirit charges, defeated enemies becoming followers, curses, and ally pressure.' },
     },
   },
   ranger: {
@@ -154,20 +154,25 @@ const ABILITIES = (() => {
   add('kn_aftershock', { cls: 'knight', branch: 'earthbreaker', tier: 4, slot: 'passive', name: 'Aftershock', desc: 'Keystone: heavy hits leave a delayed object-shoving aftershock.', key: true, tags: ['Crates', 'Shockwave'] });
 
   // Rogue base + branches
-  add('rg_dual', { cls: 'rogue', branch: 'duelist', tier: 0, slot: 'attack', name: 'Twin Slash', desc: 'Burst combo that alternates daggers and mixes in quick stabs.', type: 'attack', action: 'rogueCombo', draft: false, tags: ['Burst'] });
-  add('rg_throw', { cls: 'rogue', branch: 'saboteur', tier: 0, slot: 'secondary', name: 'Knife Toss', desc: 'Overhand thrown knife. Consumes one knife, then can be recovered or regenerated.', type: 'attack', action: 'throw', draft: false, tags: ['Projectile'] });
+  add('rg_dual', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'attack', name: 'Twin Slash', desc: 'Burst combo that alternates daggers and mixes in quick stabs.', type: 'attack', action: 'rogueCombo', draft: false, tags: ['Burst'] });
+  add('rg_throw', { cls: 'rogue', branch: 'bladeslinger', tier: 0, slot: 'secondary', name: 'Knife Toss', desc: 'Overhand thrown knife. Consumes one knife, then can be recovered or regenerated.', type: 'attack', action: 'throw', draft: false, tags: ['Projectile'] });
   add('rg_slide', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'shift', name: 'Slide', desc: 'Low evasive slide that changes your body hitbox.', type: 'move', action: 'slide', cd: 1400, draft: false, tags: ['Movement'] });
-  add('rg_fan', { cls: 'rogue', branch: 'saboteur', tier: 0, slot: 'e', name: 'Fan Knives', desc: 'Spend up to three knives in a quick spread.', type: 'custom', use: 'rogueFan', cd: 3000, draft: false, tags: ['Projectile'] });
-  add('rg_storm', { cls: 'rogue', branch: 'duelist', tier: 0, slot: 'q', name: 'Blade Storm', desc: 'Eight fast cuts around you for clearing a cluster.', type: 'custom', use: 'bladeStorm', cd: 8200, draft: false, tags: ['Burst'] });
-  add('rg_stab', { cls: 'rogue', branch: 'duelist', tier: 1, slot: 'attack', name: 'Needle Stabs', desc: 'A stab-heavy chain for tighter hitboxes and faster point pressure.', type: 'attack', action: 'rogueStab', tags: ['Burst'] });
-  add('rg_dodgecut', { cls: 'rogue', branch: 'duelist', tier: 1, slot: 'shift', name: 'Dodge Cut', desc: 'Slide through pressure and clip the nearest enemy as you pass.', effect: { kind: 'moveStrike', move: 'slide', range: 72, force: 17 }, cd: 1500, tags: ['Movement', 'Burst'] });
-  add('rg_backstab', { cls: 'rogue', branch: 'duelist', tier: 2, slot: 'e', name: 'Backstab Mark', desc: 'Blink behind the closest front enemy and stab them toward a ledge.', effect: { kind: 'backstab' }, cd: 3400, tags: ['Ledges', 'Movement'] });
-  add('rg_assassinate', { cls: 'rogue', branch: 'duelist', tier: 4, slot: 'passive', name: 'Assassinate', desc: 'Keystone: finish wounded enemies with extra force and shorter burst downtime.', key: true, tags: ['Burst'] });
-  add('rg_ricochet', { cls: 'rogue', branch: 'saboteur', tier: 1, slot: 'secondary', name: 'Ricochet Knife', desc: 'Knife toss bounces once off walls or crates before landing.', effect: { kind: 'knife', count: 1, bounce: 1 }, cd: 650, tags: ['Walls', 'Crates'] });
-  add('rg_tripwire', { cls: 'rogue', branch: 'saboteur', tier: 1, slot: 'e', name: 'Tripwire', desc: 'Drop a low trap that sweeps enemies or bumps crates into their legs.', effect: { kind: 'trap', trap: 'tripwire' }, cd: 3300, tags: ['Traps', 'Crates'] });
-  add('rg_smoke', { cls: 'rogue', branch: 'saboteur', tier: 2, slot: 'shift', name: 'Smoke Slide', desc: 'Slide leaves a smoke pop that staggers nearby enemies and hides your retreat.', effect: { kind: 'smokeSlide' }, cd: 1800, tags: ['Movement', 'Control'] });
-  add('rg_explosive', { cls: 'rogue', branch: 'saboteur', tier: 3, slot: 'q', name: 'Explosive Knives', desc: 'Throw a fan of knives that burst barrels and shove enemies on impact.', effect: { kind: 'knifeFan', explosive: 1 }, cd: 8800, tags: ['Barrels', 'Projectile'] });
-  add('rg_trapmaster', { cls: 'rogue', branch: 'saboteur', tier: 4, slot: 'passive', name: 'Trap Master', desc: 'Keystone: traps arm faster, barrels you trigger explode harder, and knives bounce once.', key: true, tags: ['Traps', 'Barrels'] });
+  add('rg_fan', { cls: 'rogue', branch: 'bladeslinger', tier: 0, slot: 'e', name: 'Fan Knives', desc: 'Spend up to three knives in a quick spread.', type: 'custom', use: 'rogueFan', cd: 3000, draft: false, tags: ['Projectile'] });
+  add('rg_storm', { cls: 'rogue', branch: 'acrobat', tier: 0, slot: 'q', name: 'Blade Storm', desc: 'Eight fast cuts around you for clearing a cluster.', type: 'custom', use: 'bladeStorm', cd: 8200, draft: false, tags: ['Burst'] });
+  add('rg_stab', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'attack', name: 'Needle Stabs', desc: 'A stab-heavy chain for tighter hitboxes and faster point pressure.', type: 'attack', action: 'rogueStab', tags: ['Burst'] });
+  add('rg_dodgecut', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'shift', name: 'Dodge Cut', desc: 'Slide through pressure and clip the nearest enemy as you pass.', effect: { kind: 'moveStrike', move: 'slide', range: 72, force: 17 }, cd: 1500, tags: ['Movement', 'Burst'] });
+  add('rg_backstab', { cls: 'rogue', branch: 'nightshade', tier: 2, slot: 'e', name: 'Ambush Mark', desc: 'Vanish behind the closest front enemy and stab them toward a ledge.', effect: { kind: 'backstab', hidden: 1 }, cd: 3400, tags: ['Ledges', 'Stealth'] });
+  add('rg_assassinate', { cls: 'rogue', branch: 'nightshade', tier: 4, slot: 'passive', name: 'Assassinate', desc: 'Keystone: hidden or smoke attacks hit wounded enemies with extra force.', key: true, tags: ['Burst', 'Stealth'] });
+  add('rg_ricochet', { cls: 'rogue', branch: 'bladeslinger', tier: 1, slot: 'secondary', name: 'Ricochet Knife', desc: 'Knife toss bounces once off walls or crates before landing.', effect: { kind: 'knife', count: 1, bounce: 1 }, cd: 650, tags: ['Walls', 'Crates'] });
+  add('rg_tripwire', { cls: 'rogue', branch: 'bladeslinger', tier: 1, slot: 'e', name: 'Blade Wire', desc: 'Drop a low blade line that sweeps enemies or bumps crates into their legs.', effect: { kind: 'trap', trap: 'tripwire' }, cd: 3300, tags: ['Traps', 'Crates'] });
+  add('rg_smoke', { cls: 'rogue', branch: 'nightshade', tier: 1, slot: 'shift', name: 'Smoke Slide', desc: 'Slide leaves a smoke pop, briefly hides your silhouette, and breaks enemy aim.', effect: { kind: 'smokeSlide', hidden: 1 }, cd: 1800, tags: ['Movement', 'Stealth'] });
+  add('rg_explosive', { cls: 'rogue', branch: 'bladeslinger', tier: 3, slot: 'q', name: 'Explosive Knives', desc: 'Throw a fan of knives that burst barrels and shove enemies on impact.', effect: { kind: 'knifeFan', explosive: 1 }, cd: 8800, tags: ['Barrels', 'Projectile'] });
+  add('rg_trapmaster', { cls: 'rogue', branch: 'bladeslinger', tier: 4, slot: 'passive', name: 'Bladecaller', desc: 'Keystone: thrown knives bounce once and object hits create stronger blade setups.', key: true, tags: ['Traps', 'Barrels'] });
+  add('rg_bladecall', { cls: 'rogue', branch: 'bladeslinger', tier: 2, slot: 'e', name: 'Bladecall', desc: 'Recall dropped knives toward you, cutting through enemies on the way back.', effect: { kind: 'bladeRecall' }, cd: 2600, tags: ['Projectile', 'Pull'] });
+  add('rg_poisonknife', { cls: 'rogue', branch: 'nightshade', tier: 1, slot: 'secondary', name: 'Poison Knife', desc: 'Throw a quiet knife that poisons targets and leaves a faint toxic trail.', effect: { kind: 'knife', count: 1, poison: 1 }, cd: 760, tags: ['Projectile', 'Poison'] });
+  add('rg_smokebomb', { cls: 'rogue', branch: 'nightshade', tier: 2, slot: 'e', name: 'Smoke Bomb', desc: 'Burst smoke at the aimed point, briefly hiding you and staggering nearby enemies.', effect: { kind: 'smokeBomb', r: 132, life: 1250 }, cd: 3200, tags: ['Stealth', 'Control'] });
+  add('rg_venomcloud', { cls: 'rogue', branch: 'nightshade', tier: 3, slot: 'q', name: 'Venom Cloud', desc: 'Drop a larger poison-smoke field that hides Rogue movement and weakens enemies inside.', effect: { kind: 'smokeBomb', r: 186, life: 2300, poison: 1 }, cd: 8800, tags: ['Stealth', 'Poison', 'Field'] });
+  add('rg_nightshade', { cls: 'rogue', branch: 'nightshade', tier: 4, slot: 'passive', name: 'Nightshade', desc: 'Keystone: smoke and poison windows make enemies lose target lock for longer.', key: true, tags: ['Stealth', 'Poison'] });
   add('rg_sweep', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'attack', name: 'Low Sweep', desc: 'A low control strike that pairs with crouch and slide play.', type: 'attack', action: 'legSweep', tags: ['Control'] });
   add('rg_wallkick', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'shift', name: 'Wall Kick', desc: 'A rising slide-vault that helps cross platforms and kicks enemies upward.', effect: { kind: 'vaultStrike' }, cd: 1600, tags: ['Movement', 'Launch'] });
   add('rg_vaulttoss', { cls: 'rogue', branch: 'acrobat', tier: 2, slot: 'e', name: 'Vault Toss', desc: 'Vault over a close target and kick them back toward the room.', effect: { kind: 'vaultToss' }, cd: 3200, tags: ['Movement', 'Ledges'] });
@@ -197,7 +202,7 @@ const ABILITIES = (() => {
   // Mage base + branches
   add('mg_bolt', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'attack', name: 'Arc Bolt', desc: 'Fast staff projectile with bright impact particles.', type: 'attack', action: 'cast', draft: false, tags: ['Projectile'] });
   add('mg_bloom', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'secondary', name: 'Gravity Bloom', desc: 'Shoot a seed that blooms into a zero-gravity pull field.', type: 'attack', action: 'arcaneBloom', draft: false, tags: ['Gravity'] });
-  add('mg_dash', { cls: 'mage', branch: 'riftweaver', tier: 0, slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
+  add('mg_dash', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'shift', name: 'Air Dash', desc: 'Short hovering burst. Best for crossing gaps or slipping past pressure.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
   add('mg_sigil', { cls: 'mage', branch: 'stormcaller', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
   add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 0, slot: 'q', name: 'Singularity', desc: 'Large gravity well that suspends enemies, then implodes inward.', type: 'custom', use: 'mageSingularity', cd: 9600, draft: false, tags: ['Gravity', 'Pull'] });
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
@@ -207,6 +212,17 @@ const ABILITIES = (() => {
   add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'True Horizon', desc: 'Event Horizon prototype: collapse the active Gravity Core into a larger implosion. If no core exists, create a short singularity.', effect: { kind: 'trueHorizon' }, cd: 10500, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_resonance', { cls: 'mage', branch: 'graviturge', tier: 4, slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure near affected enemies.', key: true, tags: ['Gravity', 'Projectile'] });
   add('mg_eventhorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'passive', name: 'Event Horizon', desc: 'Advanced variation: Gravity Core lasts longer, pulls objects harder, and makes core detonation the build payoff.', key: true, tags: ['Gravity', 'Field'] });
+  add('mg_resonancepulse', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Resonance Pulse', desc: 'Pulse the active Gravity Core outward. Without a core, staff-slam a local shockwave.', effect: { kind: 'resonancePulse' }, cd: 7200, tags: ['Gravity', 'Shockwave', 'Crates'] });
+  add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast ember projectile that bursts into a small flame impact.', effect: { kind: 'firebolt', power: 1.12 }, cd: 260, tags: ['Fire', 'Projectile'] });
+  add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Pool', desc: 'Place a lingering burn zone that controls a route and ignites barrels.', effect: { kind: 'fireZone', r: 126, life: 2600, range: 430 }, cd: 2300, tags: ['Fire', 'Field', 'Barrels'] });
+  add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Detonate a hot circle at the cursor, shoving enemies and objects outward.', effect: { kind: 'fireBurst', r: 142, range: 440, force: 25 }, cd: 3400, tags: ['Fire', 'Barrels', 'Push'] });
+  add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Inferno', desc: 'Large fire zone with a heavy opening blast and lingering area denial.', effect: { kind: 'inferno', r: 230, life: 3800, range: 540 }, cd: 9800, tags: ['Fire', 'Field', 'Barrels'] });
+  add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire zones last longer and barrel/object explosions burn brighter.', key: true, tags: ['Fire', 'Barrels'] });
+  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Haunting projectile that builds spirit charge on hit or KO.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
+  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Raise one stored spirit or pull a spirit charge from a nearby defeated body.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
+  add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Soul Flare', desc: 'Spend a spirit charge for a short fear pulse that shoves enemies away from allies.', effect: { kind: 'soulFlare' }, cd: 3600, tags: ['Spirit', 'Allies', 'Push'] });
+  add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Grave Call', desc: 'Release stored spirits as temporary followers that fight around you.', effect: { kind: 'graveCall' }, cd: 9800, tags: ['Spirit', 'Allies'] });
+  add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies leave spirit charges and can rise as temporary allies.', key: true, tags: ['Spirit', 'Allies'] });
   add('mg_windbolt', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'attack', name: 'Wind Bolt', desc: 'A quick bolt that shoves targets and barrels instead of only damaging them.', effect: { kind: 'bolt', power: 1.15, wind: 1 }, cd: 180, tags: ['Push', 'Projectile'] });
   add('mg_gust', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'shift', name: 'Gust Hover', desc: 'Air dash leaves a wind burst that knocks enemies and crates away.', effect: { kind: 'gustDash' }, cd: 1900, tags: ['Movement', 'Crates'] });
   add('mg_chain', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'e', name: 'Chain Spark', desc: 'Lightning jumps through enemies, metal objects, and crates in a short chain.', effect: { kind: 'chain', jumps: 4 }, cd: 3100, tags: ['Crates', 'Projectile'] });
@@ -403,7 +419,7 @@ const CLASS_LOADOUT = {
   knight: { attack: 'kn_slash', secondary: 'kn_guard', shift: 'kn_step', e: 'kn_bash', q: 'kn_rally', passive: null },
   rogue: { attack: 'rg_dual', secondary: 'rg_throw', shift: 'rg_slide', e: 'rg_fan', q: 'rg_storm', passive: null },
   lancer: { attack: 'ln_thrust', secondary: 'ln_charge', shift: 'ln_brace', e: 'ln_anchor', q: 'ln_breaker', passive: null },
-  mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_sigil', q: 'mg_singularity', passive: null },
+  mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_singularity', passive: null },
   ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
 };
 const LAB_BUILDS = {
@@ -418,12 +434,10 @@ const LAB_BUILDS = {
   ],
   rogue: [
     { id: 'base', name: 'Base Rogue', note: 'Starting kit for knives, slide, ammo, and melee rhythm.', loadout: {} },
-    { id: 'duelist', name: 'Duelist', note: 'Close burst: needle stabs, dodge cut, backstab, Assassinate.', loadout: { attack: 'rg_stab', shift: 'rg_dodgecut', e: 'rg_backstab', q: 'rg_storm', passive: 'rg_assassinate' } },
-    { id: 'redline', name: 'Redline Duelist', note: 'Advanced Duelist: parry flicks, slip counters, and burst stab pressure.', loadout: { attack: 'rg_heartbeat', secondary: 'rg_throw', shift: 'rg_slipcounter', e: 'rg_parryflick', q: 'rg_storm', passive: 'rg_redline' } },
-    { id: 'saboteur', name: 'Saboteur', note: 'Knife/object tricks: ricochet, tripwire, smoke, explosive knives.', loadout: { secondary: 'rg_ricochet', shift: 'rg_smoke', e: 'rg_tripwire', q: 'rg_explosive', passive: 'rg_trapmaster' } },
-    { id: 'ghost', name: 'Ghost Saboteur', note: 'Advanced Saboteur: wire vaults, barrel needles, and phantom tripwire networks.', loadout: { attack: 'rg_trapcut', secondary: 'rg_ricochet', shift: 'rg_vanishslide', e: 'rg_phantomwire', q: 'rg_explosive', passive: 'rg_ghost' } },
+    { id: 'bladeslinger', name: 'Bladeslinger', note: 'Knife throwing: ricochet, blade recall, fan knives, and explosive blade payoff.', loadout: { attack: 'rg_dual', secondary: 'rg_ricochet', shift: 'rg_slide', e: 'rg_bladecall', q: 'rg_explosive', passive: 'rg_trapmaster' } },
     { id: 'acrobat', name: 'Acrobat', note: 'Movement offense: sweep, wall kick, vault toss, air spiral.', loadout: { attack: 'rg_sweep', secondary: 'rg_throw', shift: 'rg_wallkick', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_bloodrush' } },
     { id: 'skyblade', name: 'Skyblade Acrobat', note: 'Advanced Acrobat: heel rebound, diving stabs, and air spiral landings.', loadout: { attack: 'rg_divingneedle', secondary: 'rg_throw', shift: 'rg_heelrebound', e: 'rg_vaulttoss', q: 'rg_airspiral', passive: 'rg_skyblade' } },
+    { id: 'nightshade', name: 'Nightshade', note: 'Smoke/poison stealth: poison knife, smoke slide, smoke bomb, venom cloud.', loadout: { attack: 'rg_stab', secondary: 'rg_poisonknife', shift: 'rg_smoke', e: 'rg_smokebomb', q: 'rg_venomcloud', passive: 'rg_nightshade' } },
   ],
   lancer: [
     { id: 'base', name: 'Base Lancer', note: 'Starting kit for pure forward stab, charge lock, and long hitbox checks.', loadout: {} },
@@ -435,13 +449,11 @@ const LAB_BUILDS = {
     { id: 'warden', name: 'Chain Warden', note: 'Advanced Harpooner: persistent anchors, cross-tethers, and winch movement.', loadout: { attack: 'ln_crosstether', secondary: 'ln_chain', shift: 'ln_winchstep', e: 'ln_wardenanchor', q: 'ln_maw', passive: 'ln_warden' } },
   ],
   mage: [
-    { id: 'base', name: 'Base Mage', note: 'Starting kit for staff, hover, Gravity Bloom, and Singularity.', loadout: {} },
-    { id: 'graviturge', name: 'Graviturge', note: 'Area physics: gravity well, updraft, singularity, Resonance.', loadout: { attack: 'mg_staff', secondary: 'mg_gravitywell', shift: 'mg_dash', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_resonance' } },
-    { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital casts, and True Horizon.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
-    { id: 'stormcaller', name: 'Stormcaller', note: 'Wind/lightning: wind bolt, gust hover, chain spark, Tempest.', loadout: { attack: 'mg_windbolt', secondary: 'mg_bloom', shift: 'mg_gust', e: 'mg_chain', q: 'mg_tempest', passive: 'mg_overcharge' } },
-    { id: 'stormdancer', name: 'Storm Dancer', note: 'Advanced Stormcaller: downburst, wind weave, static fields, and lightning step.', loadout: { attack: 'mg_arcspear', secondary: 'mg_bloom', shift: 'mg_windweave', e: 'mg_lightningstep', q: 'mg_tempest', passive: 'mg_stormdancer' } },
-    { id: 'riftweaver', name: 'Riftweaver', note: 'Positioning magic: phase step, swap, portal shot, rift collapse.', loadout: { attack: 'mg_staff', secondary: 'mg_portal', shift: 'mg_phase', e: 'mg_swap', q: 'mg_collapse', passive: 'mg_echo' } },
-    { id: 'architect', name: 'Portal Architect', note: 'Advanced Riftweaver: portal pairs, lens shots, and doorstep movement.', loadout: { attack: 'mg_lensshot', secondary: 'mg_portal', shift: 'mg_doorstep', e: 'mg_portalpair', q: 'mg_grandcollapse', passive: 'mg_architect' } },
+    { id: 'base', name: 'Base Mage', note: 'Starting kit for staff, hover, Gravity Bloom, Ignition Burst, and Singularity.', loadout: {} },
+    { id: 'graviturge', name: 'Graviturge Core', note: 'Push/pull physics: Gravity Core, orbital casts, Core Step, and Resonance Pulse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_resonancepulse', passive: 'mg_eventhorizon' } },
+    { id: 'event', name: 'Event Horizon', note: 'Advanced Graviturge: persistent Gravity Core, orbital casts, and True Horizon collapse.', loadout: { attack: 'mg_orbitalcast', secondary: 'mg_gravitywell', shift: 'mg_corestep', e: 'mg_gravitycore', q: 'mg_truehorizon', passive: 'mg_eventhorizon' } },
+    { id: 'pyromancer', name: 'Pyromancer', note: 'Big AOE: firebolt, flame pool, ignition burst, Inferno, and barrel pressure.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamepool', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
+    { id: 'spiritbinder', name: 'Spiritbinder', note: 'Necromancer prototype: spirit bolts, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
   ranger: [
     { id: 'base', name: 'Base Ranger', note: 'Starting kit for draw/release, quiver, trajectory, and reload checks.', loadout: {} },
@@ -987,6 +999,7 @@ PUBLIC.start = function (root, api) {
     const a = ability(id);
     if (!a || !a.draft || !tierUnlocked(a) || !prereqMet(a)) return false;
     if (a.cls !== cls.id && a.cls !== 'neutral') return false;
+    if (a.cls === cls.id && a.branch && !branchInfo(a.cls, a.branch)) return false;
     if (nodePicked(id)) return false;
     if (a.slot === 'passive') return loadout.passive !== id;
     return loadout[a.slot] !== id;
@@ -1482,6 +1495,86 @@ PUBLIC.start = function (root, api) {
     burst(x, y - 42, opts.color || cls.color, 16, 3.2);
     return a;
   }
+  function mageSpiritLoadoutActive() {
+    if (!hero || !hero.cls || hero.cls.id !== 'mage' || !loadout) return false;
+    return loadout.passive === 'mg_spiritbinder' || ['attack', 'secondary', 'e', 'q'].some(slot => {
+      const id = loadout[slot];
+      const spec = ability(id);
+      return spec && spec.branch === 'spiritbinder';
+    });
+  }
+  function grantSpiritCharge(x, y, amount) {
+    if (!hero || !mageSpiritLoadoutActive()) return false;
+    hero.spiritCharges = clamp((hero.spiritCharges || 0) + Math.max(1, Math.round(amount || 1)), 0, 6);
+    burst(x, y, '#b48cff', 16, 3.6);
+    burst(x, y, '#ffffff', 8, 2.4);
+    syncHud();
+    return true;
+  }
+  function spawnSpiritAlly(x, y, opts) {
+    opts = opts || {};
+    if (!allies) allies = [];
+    const groundY = surfaceYFor(hero || player, x, 300, 180) || y;
+    const a = makeFighter(opts.cls || 'rogue', x, groundY, {
+      team: 'ally',
+      hp: opts.hp || 2,
+      min: x - 130,
+      max: x + 130,
+      facing: opts.facing || (hero ? hero.facing : player.facing),
+    });
+    a.cls = Object.assign({}, a.cls, { color: opts.color || '#b48cff' });
+    a.brain.alert = 9999;
+    a.brain.party = true;
+    a.spirit = true;
+    a.spiritLife = opts.life || 8500;
+    allies.push(a);
+    burst(x, groundY - 42, '#b48cff', 28, 4.6);
+    burst(x, groundY - 42, '#ffffff', 12, 2.8);
+    syncHud();
+    return a;
+  }
+  function bindSpiritAlly() {
+    const charges = player.spiritCharges || 0;
+    const p = pointAhead(72);
+    if (charges > 0) player.spiritCharges--;
+    spawnSpiritAlly(p.x, p.y, { hp: charges > 0 ? 2 : 1, life: charges > 0 ? 9200 : 4300, facing: player.facing });
+    if (charges <= 0) {
+      burst(player.x, player.y - 48, '#b48cff', 10, 2.6);
+      addShake(1.6, 80);
+    }
+    syncHud();
+    return true;
+  }
+  function soulFlare() {
+    if ((player.spiritCharges || 0) > 0) player.spiritCharges--;
+    const x = player.x, y = player.y - 44;
+    radialActorPulse(x, y, 170, 18, player.team, '#b48cff');
+    pushBoxesRadial(x, y, 14, 150, player.team);
+    for (const a of livingAllies()) {
+      a.vx += (a.facing || player.facing) * 3.4;
+      a.brain.alert = 9999;
+      burst(a.x, a.y - 42, '#b48cff', 8, 2.2);
+    }
+    burst(x, y, '#b48cff', 34, 5.4);
+    burst(x, y, '#ffffff', 14, 3.2);
+    addShake(3.6, 130);
+    syncHud();
+    return true;
+  }
+  function graveCall() {
+    const charges = player.spiritCharges || 0;
+    const count = clamp(charges || 2, 2, 5);
+    for (let i = 0; i < count; i++) {
+      const off = (i - (count - 1) / 2) * 42;
+      const p = pointAhead(74 + off);
+      spawnSpiritAlly(p.x, p.y, { hp: charges ? 2 : 1, life: charges ? 10500 : 6200, facing: player.facing });
+    }
+    player.spiritCharges = 0;
+    burst(player.x, player.y - 58, '#b48cff', 48, 6.2);
+    addShake(5.4, 180);
+    syncHud();
+    return true;
+  }
   function updateAbilityMarkers(dtStep) {
     if (anchors && anchors.length) {
       for (let i = anchors.length - 1; i >= 0; i--) {
@@ -1863,8 +1956,25 @@ PUBLIC.start = function (root, api) {
       if (player.knifeAmmo < count || count <= 0) return false;
       player.knifeAmmo -= count; player.knifeRegen = 0;
       const offs = count === 1 ? [0] : [-0.18, 0, 0.18];
-      for (const off of offs) spawnDagger(ang + off, { bounce: e.bounce || hasPassive('rg_trapmaster') || hasPassive('ricochet_key') ? 1 : 0, explosive: e.explosive });
+      for (const off of offs) spawnDagger(ang + off, { bounce: e.bounce || hasPassive('rg_trapmaster') || hasPassive('ricochet_key') ? 1 : 0, explosive: e.explosive, poison: e.poison });
       return true;
+    }
+    if (e.kind === 'bladeRecall') {
+      if (!droppedKnives || !droppedKnives.length) return false;
+      let recalled = 0;
+      for (let i = droppedKnives.length - 1; i >= 0; i--) {
+        const k = droppedKnives[i];
+        rememberDebugSegment('ability', k.x, k.y, player.x, player.y - 34, 7, '#cfd6df', 320);
+        hitBoxesSegment(k.x, k.y, player.x, player.y - 34, Math.sign(player.x - k.x) || player.facing, -0.12, 15, 8);
+        if (player.knifeAmmo < ROGUE_MAX_KNIVES) player.knifeAmmo++;
+        burst(k.x, k.y, '#cfd6df', 10, 2.6);
+        droppedKnives.splice(i, 1);
+        recalled++;
+      }
+      player.knifeRegen = 0;
+      burst(player.x, player.y - 34, cls.color, 12 + recalled * 3, 3.1);
+      syncHud();
+      return recalled > 0;
     }
     if (e.kind === 'trap') {
       const p = pointAhead(64);
@@ -1874,7 +1984,26 @@ PUBLIC.start = function (root, api) {
     if (e.kind === 'smokeSlide') {
       startClassMove('slide');
       pushBoxesRadial(player.x, player.y - 34, 14, 96, player.team);
+      player.hidden = Math.max(player.hidden || 0, hasPassive('rg_nightshade') || e.hidden ? 1500 : 760);
+      for (const t of targetActorsForPlayer()) if (Math.hypot(t.x - player.x, (t.y - 42) - (player.y - 34)) < 120) {
+        t.brain.stagger = Math.max(t.brain.stagger || 0, hasPassive('rg_nightshade') ? 420 : 260);
+      }
       burst(player.x, player.y - 34, '#cfe0f6', 34, 3.2);
+      return true;
+    }
+    if (e.kind === 'smokeBomb') {
+      const p = aimedPoint(e.range || 360);
+      const r = e.r || 128;
+      player.hidden = Math.max(player.hidden || 0, (e.life || 1100) + (hasPassive('rg_nightshade') ? 600 : 0));
+      for (let i = 0; i < (e.poison ? 48 : 34); i++) {
+        const a = rand(0, Math.PI * 2), rr = rand(0, r);
+        particles.push({ x: p.x + Math.cos(a) * rr, y: p.y + Math.sin(a) * rr * 0.46,
+          vx: Math.cos(a) * rand(0.08, 0.45), vy: rand(-0.65, 0.15), life: rand(420, e.life || 1200),
+          max: e.life || 1200, color: e.poison ? (Math.random() < 0.45 ? '#9cff5e' : '#cfe0f6') : '#cfe0f6', r: rand(2.2, 6.2) });
+      }
+      radialActorPulse(p.x, p.y, r, e.poison ? 10 : 6, player.team, e.poison ? '#9cff5e' : '#cfe0f6', { poison: e.poison ? 1900 : 0 });
+      pushBoxesRadial(p.x, p.y, e.poison ? 12 : 8, r, player.team);
+      addShake(e.poison ? 3.4 : 2.2, 120);
       return true;
     }
     if (e.kind === 'vaultStrike' || e.kind === 'vaultToss') {
@@ -1923,6 +2052,44 @@ PUBLIC.start = function (root, api) {
       collapseGravityCore(ang);
       return true;
     }
+    if (e.kind === 'resonancePulse') {
+      const src = gravityCore || { x: player.x + f * 18, y: player.y - 42, r: 142, color: cls.color, team: player.team };
+      const r = gravityCore ? src.r + 72 : 142;
+      burst(src.x, src.y, '#ffffff', 28, 5.2);
+      burst(src.x, src.y, src.color || cls.color, 46, 6.2);
+      radialActorPulse(src.x, src.y, r, gravityCore ? 32 : 22, player.team, src.color || cls.color);
+      pushBoxesRadial(src.x, src.y, gravityCore ? 28 : 19, r, player.team);
+      for (let i = 0; i < 16; i++) {
+        const a = i * Math.PI * 2 / 16;
+        rememberDebugSegment('ability', src.x, src.y, src.x + Math.cos(a) * r, src.y + Math.sin(a) * r * 0.55, 5, src.color || cls.color, 260);
+      }
+      addShake(gravityCore ? 6.4 : 4.2, 170);
+      return true;
+    }
+    if (e.kind === 'firebolt') { spawnFirebolt(ang, e.power || 1); return true; }
+    if (e.kind === 'fireZone') {
+      const p = aimedPoint(e.range || 420);
+      spawnFireZone(p.x, p.y, player.team, e);
+      return true;
+    }
+    if (e.kind === 'fireBurst') {
+      const p = aimedPoint(e.range || 420);
+      spawnFireZone(p.x, p.y, player.team, { r: e.r || 132, life: 780, ultimate: true });
+      radialActorPulse(p.x, p.y, e.r || 132, e.force || 24, player.team, '#ff6b32');
+      pushBoxesRadial(p.x, p.y, e.force || 24, e.r || 132, player.team);
+      return true;
+    }
+    if (e.kind === 'inferno') {
+      const p = aimedPoint(e.range || 540);
+      spawnFireZone(p.x, p.y, player.team, { r: e.r || 220, life: e.life || 3600, ultimate: true });
+      radialActorPulse(p.x, p.y, e.r || 220, 34, player.team, '#ff6b32');
+      pushBoxesRadial(p.x, p.y, 34, e.r || 220, player.team);
+      return true;
+    }
+    if (e.kind === 'spiritBolt') { spawnSpiritBolt(ang); return true; }
+    if (e.kind === 'bindSpirit') return bindSpiritAlly();
+    if (e.kind === 'soulFlare') return soulFlare();
+    if (e.kind === 'graveCall') return graveCall();
     if (e.kind === 'bolt') { spawnBolt(ang, e.power || 1.15, { wind: e.wind, bounce: hasPassive('ricochet_key') ? 1 : 0 }); return true; }
     if (e.kind === 'gustDash') {
       startClassMove('airDash');
@@ -2175,7 +2342,7 @@ PUBLIC.start = function (root, api) {
   api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, droppedKnives, boxes, dummies, fighters, allies;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, projectiles, gravityFields, fireZones, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
   let labMode = false, labBuildId = 'base';
   let cls = CLASSES[0];   // selected class
@@ -2194,6 +2361,7 @@ PUBLIC.start = function (root, api) {
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null, queuedFlash: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
+      hidden: 0, poisoned: 0, spiritCharges: 0,
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
@@ -2231,6 +2399,7 @@ PUBLIC.start = function (root, api) {
     slashTrail = [];
     projectiles = [];
     gravityFields = [];
+    fireZones = [];
     gravityCore = null;
     anchors = [];
     portals = [];
@@ -2537,8 +2706,9 @@ PUBLIC.start = function (root, api) {
     if (ko) ko.textContent = arenaMode ? (arenaKills || 0) : got;
     const ammo = document.getElementById('sr-ammo');
     if (ammo) {
+      const hasSpirits = cls.id === 'mage' && player && mageSpiritLoadoutActive();
       const hasAmmo = state === 'playing' && (cls.id === 'rogue' || cls.id === 'ranger');
-      ammo.style.display = hasAmmo ? 'inline-flex' : 'none';
+      ammo.style.display = (hasAmmo || hasSpirits) ? 'inline-flex' : 'none';
       const icon = document.getElementById('sr-ammo-icon');
       const val = document.getElementById('sr-knives');
       const detail = document.getElementById('sr-ammo-detail');
@@ -2547,6 +2717,19 @@ PUBLIC.start = function (root, api) {
         ? (cls.id === 'ranger' ? `${player.arrowAmmo}/${RANGER_MAX_ARROWS}` : `${player.knifeAmmo}/${ROGUE_MAX_KNIVES}`)
         : (cls.id === 'ranger' ? `${RANGER_MAX_ARROWS}/${RANGER_MAX_ARROWS}` : `${ROGUE_MAX_KNIVES}/${ROGUE_MAX_KNIVES}`);
       if (detail) detail.textContent = cls.id === 'rogue' ? rogueAmmoDetailText() : rangerAmmoDetailText();
+      if (!hasAmmo && !hasSpirits) {
+        if (icon) icon.textContent = '';
+        if (val) val.textContent = '';
+        if (detail) detail.textContent = '';
+      }
+    }
+    if (ammo && cls.id === 'mage' && player && mageSpiritLoadoutActive()) {
+      const icon = document.getElementById('sr-ammo-icon');
+      const val = document.getElementById('sr-knives');
+      const detail = document.getElementById('sr-ammo-detail');
+      if (icon) icon.textContent = 'SP';
+      if (val) val.textContent = `${player.spiritCharges || 0}/6`;
+      if (detail) detail.textContent = 'charges from KOs';
     }
     const cool = document.getElementById('sr-cool');
     const coolVal = document.getElementById('sr-cool-val');
@@ -3242,7 +3425,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' ? 4.5 : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.r || 8;
+    return p.kind === 'dagger' ? 4.5 : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'firebolt' ? 10 : p.kind === 'spiritBolt' ? 9 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -3548,6 +3731,7 @@ PUBLIC.start = function (root, api) {
         d.flash = 650;
         d.attackCd = 9999;
         for (const foot of ['footL', 'footR']) d.pts[foot].pin = false;
+        grantSpiritCharge(hx, hy, 1);
         burst(hx, hy, '#ff5a5a', 26, 5.2);
         addShake(4.5, 150);
       }
@@ -3638,6 +3822,7 @@ PUBLIC.start = function (root, api) {
     for (const t of pool) {
       if (!t || t.dead || t === e) continue;
       const d = Math.hypot(t.x - e.x, (t.y - 44) - (e.y - 44));
+      if ((t.hidden || 0) > 0 && d > 86) continue;
       if (d < bd) { bd = d; best = t; }
     }
     return best;
@@ -3911,6 +4096,15 @@ PUBLIC.start = function (root, api) {
     for (let i = allies.length - 1; i >= 0; i--) {
       const a = allies[i];
       if (a.dead) { allies.splice(i, 1); syncHud(); continue; }
+      if (a.spiritLife != null) {
+        a.spiritLife -= dtStep;
+        if (a.spiritLife <= 0) {
+          burst(a.x, a.y - 42, '#b48cff', 18, 3.4);
+          allies.splice(i, 1);
+          syncHud();
+          continue;
+        }
+      }
       a.flash = Math.max(0, a.flash - dtStep);
       withActor(a, () => { thinkFighter(a, dtStep); stepActor(dtStep); });
       if (a.y - PH > L.h + 180) {
@@ -4014,6 +4208,12 @@ PUBLIC.start = function (root, api) {
     if (arenaMode && e.team === 'enemy') {
       arenaKills++;
       arenaBanner = Math.max(arenaBanner || 0, 420);
+      if (hero && mageSpiritLoadoutActive()) {
+        grantSpiritCharge(e.x, e.y - 44, 1);
+        if (loadout && loadout.passive === 'mg_spiritbinder' && allies && livingAllies().length < 4) {
+          spawnSpiritAlly(e.x, groundY, { hp: 1.5, life: 7600, facing: hero.facing });
+        }
+      }
       if (loadout && loadout.passive === 'rg_bloodrush' && hero) {
         cooldownBag(hero)[slotKey('shift')] = 0;
         hero.invuln = Math.max(hero.invuln || 0, 260);
@@ -4166,6 +4366,37 @@ PUBLIC.start = function (root, api) {
     player.shieldGuard = Math.max(0, (player.shieldGuard || 0) - dtStep);
     player.shieldFlash = Math.max(0, (player.shieldFlash || 0) - dtStep);
     player.hunterHaste = Math.max(0, (player.hunterHaste || 0) - dtStep);
+    player.hidden = Math.max(0, (player.hidden || 0) - dtStep);
+    player.poisoned = Math.max(0, (player.poisoned || 0) - dtStep);
+    if ((player.poisoned || 0) > 0) {
+      player.poisonTick = Math.max(0, (player.poisonTick || 0) - dtStep);
+      if (Math.random() < 0.10) particles.push({
+        x: player.x + rand(-14, 14),
+        y: player.y - rand(16, 62),
+        vx: rand(-0.35, 0.35),
+        vy: rand(-0.45, 0.05),
+        life: rand(180, 320),
+        max: 320,
+        color: '#9cff5e',
+        r: rand(1.1, 2.5),
+      });
+      if (player.team === 'enemy' && player.poisonTick <= 0) {
+        player.poisonTick = 460;
+        hurtFighter(player, 0, -0.1, 4, player.x, player.y - 44);
+      }
+    }
+    if ((player.hidden || 0) > 0 && Math.random() < 0.18) {
+      particles.push({
+        x: player.x + rand(-18, 18),
+        y: player.y - rand(12, 68),
+        vx: rand(-0.45, 0.45),
+        vy: rand(-0.55, 0.10),
+        life: rand(180, 360),
+        max: 360,
+        color: '#cfe0f6',
+        r: rand(1.4, 3.2),
+      });
+    }
     if ((player.shieldGuard || 0) > 0 && Math.random() < 0.12) {
       particles.push({
         x: player.x + player.facing * rand(17, 34),
@@ -4338,6 +4569,7 @@ PUBLIC.start = function (root, api) {
     updateDummies(STEP);
     updateGravityFields(STEP);
     updateGravityCore(STEP);
+    updateFireZones(STEP);
     updateAbilityMarkers(STEP);
 
     // integrate + collide (x then y) — against terrain, then crates
@@ -4655,7 +4887,7 @@ PUBLIC.start = function (root, api) {
     opts = opts || {};
     const shX = player.x + player.facing * 11, shY = player.y - 96, spd = 28;
     const mx = shX + Math.cos(ang) * 22, my = shY + Math.sin(ang) * 10;
-    projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: '#cfd6df', angle: ang, hit: opts.explosive ? 15 : 11, bounce: opts.bounce || 0, explosive: !!opts.explosive });
+    projectiles.push({ kind: 'dagger', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 1400, color: opts.poison ? '#9cff5e' : '#cfd6df', angle: ang, hit: opts.explosive ? 15 : 11, bounce: opts.bounce || 0, explosive: !!opts.explosive, poison: !!opts.poison });
     burst(mx, my, cls.color, 8, 2.4);
   }
   function arrowSpeed(power) {
@@ -4685,6 +4917,32 @@ PUBLIC.start = function (root, api) {
       life: 900, color: cls.color, r: 10, hit: 0, angle: ang, range, traveled: 0 });
     burst(mx, my, '#ffffff', 18, 3.2);
     burst(mx, my, cls.color, 28, 4.2);
+  }
+  function spawnFirebolt(ang, power) {
+    const shX = player.x, shY = player.y - 76, spd = 21.5 * (power || 1);
+    const mx = shX + Math.cos(ang) * 38, my = shY + Math.sin(ang) * 38;
+    projectiles.push({ kind: 'firebolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      life: 820, color: '#ff6b32', r: 11, hit: 15, angle: ang, fire: true });
+    burst(mx, my, '#ffd45e', 16, 3.6);
+    burst(mx, my, '#ff6b32', 18, 4.2);
+  }
+  function spawnSpiritBolt(ang) {
+    const shX = player.x, shY = player.y - 76, spd = 19.5;
+    const mx = shX + Math.cos(ang) * 38, my = shY + Math.sin(ang) * 38;
+    projectiles.push({ kind: 'spiritBolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      life: 920, color: '#b48cff', r: 10, hit: 11, angle: ang, spirit: true });
+    burst(mx, my, '#ffffff', 10, 2.8);
+    burst(mx, my, '#b48cff', 18, 3.8);
+  }
+  function spawnFireZone(x, y, team, opts) {
+    opts = opts || {};
+    const pyromancy = (team || 'hero') === 'hero' && hasPassive('mg_pyromancy');
+    const r = (opts.r || 128) * (pyromancy ? 1.12 : 1);
+    const life = (opts.life || 2400) + (pyromancy ? 520 : 0);
+    fireZones.push({ x, y, team: team || 'hero', r, max: life, life, tick: 80, color: opts.color || '#ff6b32', ultimate: !!opts.ultimate });
+    burst(x, y, '#ffd45e', opts.ultimate ? 42 : 24, opts.ultimate ? 6.5 : 4.6);
+    burst(x, y, opts.color || '#ff6b32', opts.ultimate ? 58 : 34, opts.ultimate ? 7.2 : 5.2);
+    addShake(opts.ultimate ? 6.2 : 3.4, opts.ultimate ? 180 : 110);
   }
   function spawnGravityField(x, y, team, color, opts) {
     opts = opts || {};
@@ -4828,6 +5086,68 @@ PUBLIC.start = function (root, api) {
     burst(g.x, g.y, g.color, 76, 7.2);
     implodeGravityField(g);
     gravityCore = null;
+  }
+  function pushDummyRadial(d, x, y, radius, force, color) {
+    let touched = false;
+    for (const k in d.pts) {
+      const p = d.pts[k];
+      if (p.pin) continue;
+      const dx = p.x - x, dy = p.y - y, dist = Math.hypot(dx, dy) || 1;
+      if (dist > radius) continue;
+      const u = 1 - dist / radius;
+      p.x += (dx / dist) * force * u;
+      p.y += (dy / dist) * force * 0.55 * u - force * 0.12 * u;
+      touched = true;
+    }
+    if (touched) {
+      d.flash = Math.max(d.flash || 0, 180);
+      if (color) burst(x, y, color, 8, 2.4);
+    }
+    return touched;
+  }
+  function radialActorPulse(x, y, radius, force, team, color, opts) {
+    opts = opts || {};
+    const targets = (team || 'hero') === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
+    let hitAny = false;
+    for (const t of targets.slice()) {
+      const dx = t.x - x, dy = (t.y - 42) - y, d = Math.hypot(dx, dy) || 1;
+      if (d > radius) continue;
+      const u = 1 - d / radius;
+      if ((team || 'hero') === 'enemy') hurtEnemyTarget(t, dx / d, dy / d - 0.12, force * u, x, y);
+      else hurtFighter(t, dx / d, dy / d - 0.12, force * u, x, y);
+      if (opts.poison) t.poisoned = Math.max(t.poisoned || 0, opts.poison);
+      hitAny = true;
+    }
+    if ((team || 'hero') !== 'enemy' && dummies) for (const d of dummies) hitAny = pushDummyRadial(d, x, y, radius, force * 1.35, color) || hitAny;
+    return hitAny;
+  }
+  function updateFireZones(dtStep) {
+    if (!fireZones) return;
+    for (let i = fireZones.length - 1; i >= 0; i--) {
+      const z = fireZones[i];
+      z.life -= dtStep;
+      z.tick -= dtStep;
+      if (Math.random() < 0.75) {
+        const a = rand(0, Math.PI * 2), rr = rand(10, z.r);
+        particles.push({ x: z.x + Math.cos(a) * rr, y: z.y + Math.sin(a) * rr * 0.42,
+          vx: Math.cos(a) * rand(0.05, 0.22), vy: rand(-1.35, -0.2), life: rand(180, 420), max: 420,
+          color: Math.random() < 0.34 ? '#ffd45e' : z.color, r: rand(1.4, 3.8) });
+      }
+      if (z.tick <= 0) {
+        z.tick = z.ultimate ? 150 : 210;
+        radialActorPulse(z.x, z.y, z.r, z.ultimate ? 10 : 6.2, z.team, z.color);
+        for (const b of boxes || []) {
+          const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - z.x, cy - z.y) || 1;
+          if (d > z.r) continue;
+          if (b.kind === 'barrel') explodeBox(b, z.ultimate ? 22 : 16);
+          else pushBox(b, (cx - z.x) / d, -0.26, z.ultimate ? 10 : 5.5);
+        }
+      }
+      if (z.life <= 0) {
+        burst(z.x, z.y, '#5b1e12', 16, 2.8);
+        fireZones.splice(i, 1);
+      }
+    }
   }
   function updateGravityFields(dtStep) {
     if (!gravityFields) return;
@@ -6036,6 +6356,38 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawFireZones() {
+    if (!fireZones || !fireZones.length) return;
+    const t = performance.now();
+    ctx.save();
+    for (const z of fireZones) {
+      const fade = clamp(z.life / z.max, 0, 1);
+      const pulse = 1 + Math.sin(t * 0.011 + z.x) * 0.055;
+      const rr = z.r * pulse;
+      const grad = ctx.createRadialGradient(z.x, z.y, 4, z.x, z.y, rr);
+      grad.addColorStop(0, `rgba(255,212,94,${0.24 * fade})`);
+      grad.addColorStop(0.38, `rgba(255,107,50,${0.20 * fade})`);
+      grad.addColorStop(1, 'rgba(255,107,50,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.ellipse(z.x, z.y, rr, rr * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = (z.ultimate ? 0.72 : 0.48) * fade;
+      ctx.strokeStyle = z.ultimate ? '#ffd45e' : z.color;
+      ctx.lineWidth = z.ultimate ? 3.2 : 2.1;
+      ctx.beginPath(); ctx.ellipse(z.x, z.y, rr * 0.92, rr * 0.39, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.28 * fade;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.4;
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI * 2 / 8 + t * 0.002;
+        ctx.beginPath();
+        ctx.moveTo(z.x + Math.cos(a) * rr * 0.20, z.y + Math.sin(a) * rr * 0.12);
+        ctx.lineTo(z.x + Math.cos(a) * rr * 0.82, z.y + Math.sin(a) * rr * 0.35);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
 
   function render(moveAmt) {
     const L = levels[li];
@@ -6083,6 +6435,7 @@ PUBLIC.start = function (root, api) {
     drawRangerTrajectory();
     drawGravityCore();
     drawAbilityMarkers();
+    drawFireZones();
     for (const g of gravityFields) {
       const pulse = Math.sin(performance.now() * 0.009) * 0.08 + 1;
       const fade = clamp(g.life / g.max, 0, 1);
@@ -6226,13 +6579,15 @@ PUBLIC.start = function (root, api) {
             if (Math.random() < 0.85) particles.push({ x: b.x - b.vx * rand(0.1, 0.35) + rand(-2, 2), y: b.y - b.vy * rand(0.1, 0.35) + rand(-2, 2),
               vx: rand(-0.35, 0.35), vy: rand(-0.45, 0.25), life: rand(170, 310), max: 310, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.4) });
           }
-          else if (b.kind === 'bolt') {
+          else if (b.kind === 'bolt' || b.kind === 'firebolt' || b.kind === 'spiritBolt') {
             for (let s = 0; s < (b.sparkle || 1); s++) if (Math.random() < 0.65) {
               const trail = rand(0.12, 0.45);
               particles.push({ x: b.x - b.vx * trail + rand(-2.5, 2.5), y: b.y - b.vy * trail + rand(-2.5, 2.5),
                 vx: -b.vx * rand(0.01, 0.035) + rand(-0.45, 0.45), vy: -b.vy * rand(0.01, 0.035) + rand(-0.45, 0.45),
                 life: rand(180, 360), max: 360, color: Math.random() < 0.35 ? '#ffffff' : b.color, r: rand(1, 2.7) });
             }
+            if (b.kind === 'firebolt' && Math.random() < 0.72) particles.push({ x: b.x + rand(-3, 3), y: b.y + rand(-3, 3), vx: -b.vx * 0.02 + rand(-0.3, 0.3), vy: rand(-0.8, -0.1), life: rand(160, 310), max: 310, color: Math.random() < 0.5 ? '#ffd45e' : '#ff6b32', r: rand(1.3, 3.2) });
+            if (b.kind === 'spiritBolt' && Math.random() < 0.60) particles.push({ x: b.x + rand(-3, 3), y: b.y + rand(-3, 3), vx: rand(-0.35, 0.35), vy: rand(-0.55, 0.10), life: rand(200, 380), max: 380, color: Math.random() < 0.45 ? '#ffffff' : '#b48cff', r: rand(1.2, 2.8) });
           } else if (b.kind === 'sigil') {
             b.age += dt;
             b.angle += 0.045;
@@ -6251,6 +6606,7 @@ PUBLIC.start = function (root, api) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), t);
               if (h) {
                 if (b.kind !== 'gravitySeed') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
+                if (b.poison) t.poisoned = Math.max(t.poisoned || 0, 1600);
                 struckActor = true;
                 break;
               }
@@ -6259,7 +6615,11 @@ PUBLIC.start = function (root, api) {
             // hero fire hits training dummies + enemy fighters
             if (dummies) for (const d of dummies) {
               const h = projectileHitsDummy(b, px, py, d);
-              if (h) { if (b.kind !== 'gravitySeed') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y); addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' ? 2.5 : 1.1, 75); struckActor = true; break; }
+              if (h) {
+                if (b.kind !== 'gravitySeed') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
+                if (b.spirit) grantSpiritCharge(h.p.x, h.p.y, 0.35);
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+              }
             }
             if (!struckActor && fighters) for (const e of fighters.slice()) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), e);
@@ -6267,8 +6627,10 @@ PUBLIC.start = function (root, api) {
                 if (b.kind !== 'gravitySeed') {
                   hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
                   if (b.pin) { e.vx *= 0.25; e.vy *= 0.25; e.brain.stagger = Math.max(e.brain.stagger || 0, 420); }
+                  if (b.poison) e.poisoned = Math.max(e.poisoned || 0, 1800);
+                  if (b.spirit) grantSpiritCharge(h.x, h.y, 0.5);
                 }
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'firebolt' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
           }
@@ -6290,6 +6652,14 @@ PUBLIC.start = function (root, api) {
             if (b.kind === 'dagger') spawnDroppedKnife(b.x, b.y, b.angle, b.vx, b.vy);
             else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
             else if (b.kind === 'sigil') explodeSigil(b);
+            else if (b.kind === 'firebolt') {
+              spawnFireZone(b.x, b.y, b.team, { r: 86, life: 900, color: b.color });
+              radialActorPulse(b.x, b.y, 92, 12, b.team, b.color);
+            }
+            else if (b.kind === 'spiritBolt') {
+              burst(b.x, b.y, '#b48cff', 20, 3.8);
+              burst(b.x, b.y, '#ffffff', 8, 2.4);
+            }
             else {
               if (b.explosive) pushBoxesRadial(b.x, b.y, 18, 112, b.team);
               if (b.portal && b.portal > 0) {
