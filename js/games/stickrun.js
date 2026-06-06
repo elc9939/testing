@@ -2385,6 +2385,7 @@ PUBLIC.start = function (root, api) {
       vx: spec.vx || 0, vy: spec.vy || 0, angle: spec.angle || 0, va: spec.va || 0,
       m: spec.m || 1.6, kind: spec.kind || 'crate', life: spec.life || 0,
       armed: spec.armed == null ? 1 : spec.armed, team: spec.team || 'neutral',
+      heat: spec.heat || 0, heatFlash: 0,
     };
   }
   function loadLevel(i, keepRun) {
@@ -3301,6 +3302,8 @@ PUBLIC.start = function (root, api) {
       if (b.dead) { boxes.splice(bi, 1); continue; }
       if (b.life > 0) { b.life -= STEP; if (b.life <= 0) { boxes.splice(bi, 1); continue; } }
       if (b.springCd > 0) b.springCd = Math.max(0, b.springCd - STEP);
+      if (b.heat > 0) b.heat = Math.max(0, b.heat - STEP * 0.018);
+      if (b.heatFlash > 0) b.heatFlash = Math.max(0, b.heatFlash - STEP);
       b.vy = Math.min(b.vy + 0.55, 16);
       // horizontal
       b.x += b.vx;
@@ -3336,7 +3339,7 @@ PUBLIC.start = function (root, api) {
       }
       if (b.y > L.h + 300) {
         if (b.life > 0 || b.kind === 'barrier' || b.kind === 'spring') { boxes.splice(bi, 1); continue; }
-        b.y = -40; b.x = L.spawn.x + 200; b.vy = b.vx = b.va = 0; b.angle = 0;
+        b.y = -40; b.x = L.spawn.x + 200; b.vy = b.vx = b.va = 0; b.angle = 0; b.heat = 0; b.heatFlash = 0;
       }
     }
   }
@@ -5143,8 +5146,8 @@ PUBLIC.start = function (root, api) {
         for (const b of boxes || []) {
           const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - z.x, cy - z.y) || 1;
           if (d > z.r) continue;
-          if (b.kind === 'barrel') explodeBox(b, z.ultimate ? 22 : 16);
-          else pushBox(b, (cx - z.x) / d, -0.26, z.ultimate ? 10 : 5.5);
+          heatBoxFromFire(b, z, z.ultimate ? 58 : 34);
+          if (b.kind !== 'barrel') pushBox(b, (cx - z.x) / d, -0.26, z.ultimate ? 10 : 5.5);
         }
       }
       if (z.life <= 0) {
@@ -5152,6 +5155,25 @@ PUBLIC.start = function (root, api) {
         fireZones.splice(i, 1);
       }
     }
+  }
+  function heatBoxFromFire(b, z, amount) {
+    if (!b || b.dead) return;
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    b.heat = clamp((b.heat || 0) + amount, 0, 120);
+    b.heatFlash = 220;
+    b.vx += (cx - z.x) * 0.0018;
+    b.va += (cx < z.x ? -1 : 1) * 0.018;
+    particles.push({
+      x: cx + rand(-b.w * 0.35, b.w * 0.35),
+      y: cy + rand(-b.h * 0.35, b.h * 0.25),
+      vx: rand(-0.35, 0.35),
+      vy: rand(-1.6, -0.35),
+      life: rand(180, 360),
+      max: 360,
+      color: Math.random() < 0.45 ? '#ffd45e' : z.color,
+      r: rand(1.2, 3.1),
+    });
+    if (b.kind === 'barrel' && b.heat >= 100) explodeBox(b, z.ultimate ? 24 : 18);
   }
   function updateGravityFields(dtStep) {
     if (!gravityFields) return;
@@ -6109,6 +6131,30 @@ PUBLIC.start = function (root, api) {
     ctx.fillStyle = '#cbc7b8'; ctx.fillRect(x, y, p.w, p.h);          // light body
     ctx.fillStyle = INK; ctx.fillRect(x, y, p.w, 5);                 // bold black ledge
   }
+  function drawBoxHeatOverlay(b, hw, hh) {
+    const heat = clamp((b.heat || 0) / 100, 0, 1);
+    const flash = clamp((b.heatFlash || 0) / 220, 0, 1);
+    if (heat <= 0 && flash <= 0) return;
+    const pulse = 0.55 + 0.45 * Math.sin(performance.now() * 0.018 + b.x);
+    ctx.save();
+    ctx.globalAlpha = 0.12 + heat * 0.34 + flash * 0.16;
+    ctx.fillStyle = '#ff6b32';
+    ctx.fillRect(-hw + 2, -hh + 2, hw * 2 - 4, hh * 2 - 4);
+    ctx.globalAlpha = 0.24 + heat * 0.52;
+    ctx.strokeStyle = heat > 0.75 ? '#ffd45e' : '#ff9f6e';
+    ctx.lineWidth = 1.4 + heat * 2.2;
+    ctx.strokeRect(-hw + 3, -hh + 3, hw * 2 - 6, hh * 2 - 6);
+    if (b.kind === 'barrel') {
+      ctx.globalAlpha = 0.45 + heat * 0.45;
+      ctx.strokeStyle = '#ffd45e';
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.moveTo(-hw * 0.3, -hh - 5);
+      ctx.quadraticCurveTo(0, -hh - 13 - pulse * 5, hw * 0.28, -hh - 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function drawBox(b) {
     const cx = b.x + b.w / 2 - cam.x, cy = b.y + b.h / 2 - cam.y, hw = b.w / 2, hh = b.h / 2;
     ctx.save();
@@ -6119,6 +6165,7 @@ PUBLIC.start = function (root, api) {
       ctx.fill();
       ctx.fillStyle = '#ffd45e'; ctx.fillRect(-hw + 5, -4, b.w - 10, 8);
       ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeRect(-hw + 1.5, -hh + 1.5, b.w - 3, b.h - 3);
+      drawBoxHeatOverlay(b, hw, hh);
       ctx.restore(); return;
     }
     if (b.kind === 'spring') {
@@ -6126,6 +6173,7 @@ PUBLIC.start = function (root, api) {
       ctx.strokeStyle = '#8fe6ff'; ctx.lineWidth = 2;
       for (let x = -hw + 6; x < hw - 4; x += 10) { ctx.beginPath(); ctx.moveTo(x, hh - 3); ctx.lineTo(x + 5, -hh + 3); ctx.lineTo(x + 10, hh - 3); ctx.stroke(); }
       ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeRect(-hw + 1, -hh + 1, b.w - 2, b.h - 2);
+      drawBoxHeatOverlay(b, hw, hh);
       ctx.restore(); return;
     }
     if (b.kind === 'barrier') {
@@ -6133,6 +6181,7 @@ PUBLIC.start = function (root, api) {
       ctx.globalAlpha = fade;
       ctx.fillStyle = 'rgba(120,170,255,.42)'; ctx.fillRect(-hw, -hh, b.w, b.h);
       ctx.strokeStyle = '#5ea0ff'; ctx.lineWidth = 3; ctx.strokeRect(-hw + 1.5, -hh + 1.5, b.w - 3, b.h - 3);
+      drawBoxHeatOverlay(b, hw, hh);
       ctx.restore(); return;
     }
     ctx.fillStyle = '#bb8a4e'; ctx.fillRect(-hw, -hh, b.w, b.h);          // wood
@@ -6143,6 +6192,7 @@ PUBLIC.start = function (root, api) {
     ctx.moveTo(-hw + 3, -hh + 3); ctx.lineTo(hw - 3, hh - 3);
     ctx.moveTo(hw - 3, -hh + 3); ctx.lineTo(-hw + 3, hh - 3);
     ctx.stroke();
+    drawBoxHeatOverlay(b, hw, hh);
     ctx.restore();
   }
   function drawCoin(c) {
@@ -6629,8 +6679,17 @@ PUBLIC.start = function (root, api) {
             if (b.age > 430) b.life = 0;
           }
           const crate = boxes.find(bx => projectileHitsBox(b, px, py, bx));
-          if (crate) { const sp = Math.hypot(b.vx, b.vy) || 1; pushBox(crate, b.vx / sp, b.vy / sp, b.hit); addShake(b.kind === 'bolt' || b.kind === 'sigil' ? 2.8 : 1.2, 80); }
           const sp = Math.hypot(b.vx, b.vy) || 1;
+          if (crate) {
+            if (b.kind === 'firebolt') {
+              heatBoxFromFire(crate, { x: b.x, y: b.y, color: b.color, ultimate: false }, crate.kind === 'barrel' ? 70 : 42);
+              if (crate.kind === 'barrel') {
+                crate.vx += b.vx / sp * 1.2;
+                crate.va += (b.vx >= 0 ? 1 : -1) * 0.08;
+              } else pushBox(crate, b.vx / sp, b.vy / sp, (b.hit || 12) * 0.75);
+            } else pushBox(crate, b.vx / sp, b.vy / sp, b.hit);
+            addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'firebolt' ? 2.8 : 1.2, 80);
+          }
           let struckActor = false;
           if ((b.team || 'hero') === 'enemy') {
             // enemy fire seeks the hero and party allies
@@ -6755,7 +6814,7 @@ PUBLIC.start = function (root, api) {
           player: actorSnapshot(player),
           allies: allies ? allies.map(actorSnapshot) : [],
           fighters: fighters ? fighters.map(actorSnapshot) : [],
-          boxes: boxes ? boxes.map(b => ({ kind: b.kind || 'crate', x: b.x, y: b.y, w: b.w, h: b.h, vx: b.vx, vy: b.vy, life: b.life || 0 })) : [],
+          boxes: boxes ? boxes.map(b => ({ kind: b.kind || 'crate', x: b.x, y: b.y, w: b.w, h: b.h, vx: b.vx, vy: b.vy, life: b.life || 0, heat: b.heat || 0 })) : [],
           coinsLeft: coinsLeft ? coinsLeft.filter(c => !c.got).length : 0,
           projectiles: projectiles ? projectiles.length : 0,
           gravityFields: gravityFields ? gravityFields.length : 0,
