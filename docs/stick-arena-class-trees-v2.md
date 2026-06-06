@@ -151,6 +151,35 @@ Branch hooks:
 - Stormcaller spends Focus on chained lightning and air movement bursts.
 - Riftweaver spends Focus on swaps, portals, and delayed collapse zones.
 
+Current Mage direction:
+
+- Mage should not read as three colors of projectile. Mage should feel like the
+  class that changes the rules of the arena.
+- The staff is the source of intent. Startup, aiming, pull, release, recovery,
+  and idle float should all be readable through staff position.
+- Every spell needs visible cause and effect: staff action, field/force forming,
+  objects or bodies reacting, then payoff.
+- Focus motes orbit the staff and are spent on stronger fields, early
+  detonations, chained effects, portals, or controlled movement.
+
+Proposed Mage branch structure:
+
+```text
+Mage
+|- Graviturge: mass, gravity, falling, hovering, pulling, crushing
+|  |- Event Horizon: persistent gravity core, orbiting objects, implosion rhythm
+|  |- Liftbinder: levitate enemies/objects, suspend hazards, controlled drops
+|  |- Crusher: gravity slams, heavy knockdowns, terrain shockwaves
+|- Stormcaller: air, lightning, momentum, smoother caster movement
+|  |- Tempest Dancer: slower controlled flight, air casting, wind bursts
+|  |- Chaincaller: lightning arcs through enemies, crates, metal/future water
+|  |- Pressure Mage: gusts, projectile deflection, vortex wind lanes
+|- Riftweaver: portals, swaps, echoes, delayed space collapse
+|  |- Portal Architect: linked portals for projectiles, bodies, and objects
+|  |- Echo Caster: decoys, delayed repeat casts, fake positions
+|  |- Displacer: swaps, short blinks, enemy/object repositioning
+```
+
 ### Ranger: Draw And Focus
 
 The Ranger has a Draw state and Focus stacks.
