@@ -143,7 +143,7 @@ const CLASS_TREES = {
     branches: {
       graviturge: { name: 'Graviturge', desc: 'Persistent orbit rocks, lifted objects, passive float, and violent black holes.' },
       pyromancer: { name: 'Pyromancer', desc: 'Big fire AOE, burn zones, ignition, barrel pressure, and explosions.' },
-      spiritbinder: { name: 'Spiritbinder', desc: 'Dark soul-binding, haunted followers, curse pressure, and shepherded spirits.' },
+      spiritbinder: { name: 'Spiritbinder', desc: 'Corpse puppetry, dark lightning chains, ghost-form escapes, and shambling zombie commands.' },
     },
   },
   ranger: {
@@ -248,9 +248,9 @@ const ABILITIES = (() => {
   add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, drags an afterburn trail across the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
   add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Dragon Breath', desc: 'Unleash a huge staff-driven fire torrent. Walls cut it off, objects catch heat, and the floor burns where the flame lands.', effect: { kind: 'dragonBreath', range: 760, life: 1350, cone: 0.42, force: 34, heat: 48 }, cd: 9600, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire abilities feed lingering ground flames, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
-  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Dark Bolt', desc: 'Simple staff-fired dark energy bolt. Reliable damage with dark ghost particles, no corpse or soul spending gimmick.', effect: { kind: 'darkBolt' }, cd: 300, tags: ['Spirit', 'Projectile'] });
-  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Reanimate Missile', desc: 'Fire a dark missile. Corpses twitch and rise as zombies; living enemies only take a light curse hit.', effect: { kind: 'reanimateMissile' }, cd: 1600, tags: ['Spirit', 'Projectile', 'Allies'] });
-  add('mg_ghostform', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'shift', name: 'Ghost Form', desc: 'Briefly fade into dark soul smoke with floatier movement and invulnerability. Attacking ends the escape window.', effect: { kind: 'ghostForm', life: 1280 }, cd: 3600, tags: ['Spirit', 'Movement'] });
+  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Dark Bolt', desc: 'Staff-fired dark lightning that chains through nearby enemies, crates, and barrels for reliable pressure.', effect: { kind: 'darkBolt' }, cd: 300, tags: ['Spirit', 'Chain', 'Objects'] });
+  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Reanimate Lash', desc: 'Send a corpse-seeking dark lightning lash through walls. It only wakes corpses into zombies.', effect: { kind: 'reanimateMissile' }, cd: 1600, tags: ['Spirit', 'Chain', 'Allies'] });
+  add('mg_ghostform', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'shift', name: 'Ghost Form', desc: 'Fade into dark soul smoke with floatier movement and invulnerability. Attacking ends the escape window.', effect: { kind: 'ghostForm', life: 1800 }, cd: 3600, tags: ['Spirit', 'Movement'] });
   add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Unholy Command', desc: 'Tether dark energy into all active zombies, making them shamble faster and slam harder for a short frenzy.', effect: { kind: 'unholyCommand' }, cd: 4200, tags: ['Spirit', 'Allies'] });
   add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Mass Reanimate', desc: 'Perform a wide ritual: nearby corpses twitch, tendrils bind their limbs, and they rise one by one. If none exist, call one weak shadow zombie.', effect: { kind: 'massReanimate' }, cd: 10500, tags: ['Spirit', 'Allies', 'AOE'] });
   add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies become corpse resources for a capped shambling zombie army with visible dark auras.', key: true, tags: ['Spirit', 'Allies'] });
@@ -519,7 +519,7 @@ const LAB_BUILDS = {
     { id: 'base', name: 'Base Mage', note: 'Neutral starter caster: Arcane Bolt, Arcane Burst orb, Arc Sigil, and Arcane Nova.', loadout: {} },
     { id: 'graviturge', name: 'Graviturge Core', note: 'Persistent orbit rocks: Mass Shard, Shard Volley, passive float, Recall Mass, and slow-forming Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
-    { id: 'spiritbinder', name: 'Spiritbinder', note: 'Corpse puppeteer: Dark Bolt, Reanimate Missile, Ghost Form, Unholy Command, and Mass Reanimate zombies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_ghostform', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
+    { id: 'spiritbinder', name: 'Spiritbinder', note: 'Corpse puppeteer: Dark Bolt, Reanimate Lash, Ghost Form, Unholy Command, and Mass Reanimate zombies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_ghostform', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
   ranger: [
     { id: 'base', name: 'Base Ranger', note: 'Starting kit for draw/release, quiver, trajectory, and reload checks.', loadout: {} },
@@ -2280,57 +2280,7 @@ PUBLIC.start = function (root, api) {
   function updateSpiritFollowers(dtStep) {
     const h = hero;
     if (!h || player !== h) return;
-    if (!mageSpiritLoadoutActive()) {
-      if (h.spiritFollowers && h.spiritFollowers.length) h.spiritFollowers.length = 0;
-      return;
-    }
-    const followers = ensureSpiritFollowers(h);
-    if (!followers.length) return;
-    const ds = clamp((dtStep || STEP) / 16.67, 0.35, 2.4);
-    const now = (runTime || 0) * 0.001;
-    const fwd = h.facing || 1;
-    const speed = clamp(Math.abs(h.vx || 0) / 7, 0, 1);
-    const active = h.anim && h.anim.atkActive && (h.anim.atkType === 'cast' || h.anim.atkType === 'spiritSummon');
-    const aim = h.anim && h.anim.atkAim != null ? h.anim.atkAim : fwd > 0 ? 0 : Math.PI;
-    for (let i = 0; i < followers.length; i++) {
-      const s = followers[i];
-      s.age += dtStep || STEP;
-      const lane = i - (followers.length - 1) / 2;
-      const phase = s.phase + now * (0.62 + i * 0.035);
-      const trailBack = 44 + i * 19 + speed * 24;
-      let tx = h.x - fwd * trailBack + lane * 10 + Math.sin(phase * 1.15) * (18 + speed * 5);
-      let ty = h.y - 72 - i * 2.6 + Math.cos(phase * 0.92) * 15 + Math.sin(phase * 0.43 + i) * 8;
-      if (active) {
-        const pull = 0.28 + 0.18 * Math.sin(clamp(h.anim.atkT || 0, 0, 1) * Math.PI);
-        tx = lerp(tx, h.x + Math.cos(aim) * (46 + i * 5), pull);
-        ty = lerp(ty, h.y - 74 + Math.sin(aim) * (34 + i * 3), pull);
-      }
-      const dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy) || 1;
-      if (d > 420) {
-        s.x = lerp(s.x, tx, 0.018 * ds);
-        s.y = lerp(s.y, ty, 0.018 * ds);
-      }
-      s.vx = (s.vx || 0) * Math.pow(0.91, ds) + dx * 0.0065 * ds;
-      s.vy = (s.vy || 0) * Math.pow(0.91, ds) + dy * 0.0065 * ds - 0.002 * ds;
-      const maxV = 3.4 + speed * 1.2;
-      const v = Math.hypot(s.vx, s.vy);
-      if (v > maxV) { s.vx = s.vx / v * maxV; s.vy = s.vy / v * maxV; }
-      const px = s.x, py = s.y;
-      s.x += s.vx * ds;
-      s.y += s.vy * ds;
-      if (!s.trail) s.trail = [];
-      if (!s.trail.length || Math.hypot(s.x - s.trail[s.trail.length - 1].x, s.y - s.trail[s.trail.length - 1].y) > 6) {
-        s.trail.push({ x: s.x, y: s.y });
-        if (s.trail.length > 7) s.trail.shift();
-      }
-      if (Math.random() < 0.16) soulParticle(lerp(px, s.x, 0.5), lerp(py, s.y, 0.5), -s.vx * 0.08 + rand(-0.10, 0.10), -s.vy * 0.08 + rand(-0.20, 0.02), {
-        color: spiritParticleColor(s.color || SPIRIT_COLORS.ghost, 0.18),
-        life: rand(190, 460),
-        r: rand(0.8, 1.8),
-        alpha: 0.52,
-        tail: rand(7, 18),
-      });
-    }
+    if (h.spiritFollowers && h.spiritFollowers.length) h.spiritFollowers.length = 0;
   }
   function soulParticle(x, y, vx, vy, opts) {
     opts = opts || {};
@@ -2351,6 +2301,79 @@ PUBLIC.start = function (root, api) {
       alpha: opts.alpha || 0.82,
       tail: opts.tail || rand(6, 17),
     });
+  }
+  function darkLightningSpark(x, y, opts) {
+    opts = opts || {};
+    const color = opts.color || SPIRIT_COLORS.ghost;
+    soulParticle(x + rand(-4, 4), y + rand(-4, 4), rand(-0.34, 0.34), rand(-0.72, 0.08), {
+      color: spiritParticleColor(color, 0.18),
+      coreColor: opts.core || SPIRIT_COLORS.pale,
+      shadowColor: SPIRIT_COLORS.shadow,
+      life: rand(opts.lifeMin || 150, opts.lifeMax || 420),
+      r: rand(opts.rMin || 0.8, opts.rMax || 2.3),
+      lift: rand(0.000, 0.018),
+      sway: rand(0.002, 0.014),
+      alpha: opts.alpha || 0.78,
+      tail: rand(opts.tailMin || 9, opts.tailMax || 26),
+    });
+  }
+  function spawnDarkLightningArc(ax, ay, bx, by, opts) {
+    opts = opts || {};
+    if (!darkLightningArcs) darkLightningArcs = [];
+    const dx = bx - ax, dy = by - ay, dist = Math.hypot(dx, dy) || 1;
+    const nx = dx / dist, ny = dy / dist, px = -ny, py = nx;
+    const steps = Math.max(3, Math.min(14, opts.steps || Math.round(dist / 38)));
+    const jitter = opts.jitter == null ? Math.min(24, 7 + dist * 0.045) : opts.jitter;
+    const points = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const endFade = Math.sin(t * Math.PI);
+      const jag = (rand(-1, 1) * jitter + Math.sin((opts.seed || 0) + i * 1.73) * jitter * 0.22) * endFade;
+      const along = rand(-dist * 0.010, dist * 0.010) * endFade;
+      points.push({
+        x: ax + nx * (dist * t + along) + px * jag,
+        y: ay + ny * (dist * t + along) + py * jag,
+      });
+    }
+    points[0] = { x: ax, y: ay };
+    points[points.length - 1] = { x: bx, y: by };
+    const branches = [];
+    const branchCount = opts.branches == null ? Math.min(4, Math.floor(dist / 135) + 1) : opts.branches;
+    for (let i = 0; i < branchCount; i++) {
+      const idx = Math.max(1, Math.min(points.length - 2, Math.floor(rand(1, points.length - 1))));
+      const root = points[idx];
+      const len = rand(18, 54) * (opts.branchScale || 1);
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const bend = side * rand(0.55, 1.25);
+      branches.push({
+        x1: root.x,
+        y1: root.y,
+        x2: root.x + (px * bend + nx * rand(-0.25, 0.45)) * len,
+        y2: root.y + (py * bend + ny * rand(-0.25, 0.45)) * len,
+      });
+    }
+    darkLightningArcs.push({
+      points,
+      branches,
+      life: opts.life || 170,
+      max: opts.life || 170,
+      color: opts.color || SPIRIT_COLORS.ghost,
+      core: opts.core || SPIRIT_COLORS.pale,
+      mid: opts.mid || SPIRIT_COLORS.sick,
+      width: opts.width || 4.2,
+      shadowWidth: opts.shadowWidth || 13,
+      alpha: opts.alpha == null ? 1 : opts.alpha,
+    });
+    while (darkLightningArcs.length > 42) darkLightningArcs.shift();
+    const sparkCount = opts.sparks == null ? Math.min(12, 4 + Math.floor(dist / 80)) : opts.sparks;
+    for (let i = 0; i < sparkCount; i++) {
+      const t = rand(0.08, 0.96);
+      darkLightningSpark(lerp(ax, bx, t) + px * rand(-jitter * 0.28, jitter * 0.28), lerp(ay, by, t) + py * rand(-jitter * 0.28, jitter * 0.28), {
+        color: opts.color || SPIRIT_COLORS.ghost,
+        lifeMax: opts.big ? 650 : 420,
+      });
+    }
+    return darkLightningArcs[darkLightningArcs.length - 1];
   }
   function emitSoulWisp(ax, ay, bx, by, opts) {
     opts = opts || {};
@@ -2376,47 +2399,10 @@ PUBLIC.start = function (root, api) {
     return list.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
   }
   function grantSpiritCharge(x, y, amount) {
-    if (!hero || !mageSpiritLoadoutActive()) return false;
-    const gain = Math.max(1, Math.round(amount || 1));
-    const before = clamp(hero.spiritCharges || 0, 0, 6);
-    const after = clamp(before + gain, 0, 6);
-    const gained = Math.max(0, after - before);
-    hero.spiritCharges = after;
-    const color = spiritColorFromSource('enemy', SPIRIT_COLORS.ghost);
-    if (gained > 0) {
-      for (let i = 0; i < gained; i++) addSpiritFollower(hero, x + rand(-5, 5), y + rand(-4, 4), { color, source: 'enemy' });
-      emitSoulWisp(x, y, hero.x - hero.facing * 34, hero.y - 72, { count: 12 + gained * 4, color, lifeMin: 320, lifeMax: 820 });
-    }
-    for (let i = 0; i < 5 + gained * 2; i++) soulParticle(x + rand(-5, 5), y + rand(-4, 4), rand(-0.32, 0.32), rand(-1.05, -0.12), { color: spiritParticleColor(color, 0.30), life: rand(260, 620), r: rand(1.0, 2.3), tail: rand(10, 26) });
-    syncHud();
-    return true;
+    return false;
   }
   function spawnSpiritRemnant(x, y, opts) {
-    if (!hero || !mageSpiritLoadoutActive()) return null;
-    opts = opts || {};
-    if (!spiritRemnants) spiritRemnants = [];
-    const groundY = opts.groundY || surfaceYFor(hero, x, 520, 180) || y + 42;
-    const source = spiritClassFromSource(opts.source || opts.cls);
-    const color = opts.color || spiritColorFromSource(source, SPIRIT_COLORS.ghost);
-    const remnant = {
-      x, y, groundY,
-      vx: opts.vx || rand(-0.32, 0.32),
-      vy: opts.vy || rand(-0.50, -0.14),
-      age: 0,
-      life: opts.life || 14000,
-      max: opts.life || 14000,
-      color,
-      source,
-      commandX: null,
-      commandY: null,
-      shepherd: 0,
-      lashCd: rand(220, 520),
-    };
-    spiritRemnants.push(remnant);
-    if (spiritRemnants.length > 10) spiritRemnants.shift();
-    emitSoulWisp(x, y + 20, x, y - 16, { count: 16, color, lifeMin: 360, lifeMax: 880 });
-    if (hero) emitSoulWisp(x, y, hero.x, hero.y - 60, { count: 7, color, lifeMin: 260, lifeMax: 620 });
-    return remnant;
+    return null;
   }
   function nearestSpiritRemnant(range) {
     if (!player || !spiritRemnants || !spiritRemnants.length) return null;
@@ -2458,13 +2444,28 @@ PUBLIC.start = function (root, api) {
     const ang = Math.atan2(ty - sy, tx - sx);
     if (!startVisualAttack('spiritSummon', ang, { range: Math.hypot(tx - sx, ty - sy), kind: 'spiritSummon' })) return false;
     const origin = staffTipOrigin(ang, { type: 'spiritSummon', t: 0.34, tipPad: 5 });
-    emitSoulWisp(player.x, player.y - 58, origin.x, origin.y, { count: opts.big ? 18 : 12, color: SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 640 });
-    emitSoulWisp(origin.x, origin.y, tx, ty + 20, { count: opts.big ? 24 : 14, color: SPIRIT_COLORS.curse, lifeMin: 320, lifeMax: 860 });
-    for (let i = 0; i < (opts.big ? 16 : 9); i++) soulParticle(origin.x + rand(-8, 8), origin.y + rand(-8, 8), rand(-0.52, 0.52), rand(-1.25, -0.04), {
-      color: spiritParticleColor(SPIRIT_COLORS.ghost, 0.38),
-      life: rand(300, 720),
-      r: rand(1.2, opts.big ? 3.5 : 2.7),
-      tail: rand(10, 26),
+    spawnDarkLightningArc(player.x, player.y - 58, origin.x, origin.y, {
+      color: SPIRIT_COLORS.ghost,
+      mid: SPIRIT_COLORS.sick,
+      life: opts.big ? 260 : 170,
+      width: opts.big ? 4.8 : 3.4,
+      shadowWidth: opts.big ? 14 : 10,
+      branches: opts.big ? 4 : 2,
+      sparks: opts.big ? 14 : 7,
+    });
+    spawnDarkLightningArc(origin.x, origin.y, tx, ty + 20, {
+      color: SPIRIT_COLORS.curse,
+      mid: SPIRIT_COLORS.ghost,
+      life: opts.big ? 320 : 190,
+      width: opts.big ? 5.6 : 3.8,
+      shadowWidth: opts.big ? 16 : 11,
+      branches: opts.big ? 6 : 3,
+      sparks: opts.big ? 18 : 9,
+    });
+    for (let i = 0; i < (opts.big ? 22 : 11); i++) darkLightningSpark(origin.x + rand(-8, 8), origin.y + rand(-8, 8), {
+      color: i % 2 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost,
+      lifeMax: opts.big ? 720 : 460,
+      rMax: opts.big ? 3.1 : 2.2,
     });
     return true;
   }
@@ -2520,14 +2521,29 @@ PUBLIC.start = function (root, api) {
       a.zombieWeak = !!opts.weak;
     }
     allies.push(a);
-    emitSoulWisp(opts.fromX == null ? x : opts.fromX, opts.fromY == null ? groundY - 58 : opts.fromY, x, groundY - 50, {
-      count: 24,
-      color,
-      lifeMin: 360,
-      lifeMax: 900,
-    });
-    emitSpiritAwakeningBurst(x, groundY, color, { count: 30, large: true, lifeMin: 420, lifeMax: 980 });
-    for (let i = 0; i < 12; i++) soulParticle(x + rand(-12, 12), groundY - rand(40, 82), rand(-0.45, 0.45), rand(-1.1, -0.12), { color: spiritParticleColor(color, 0.30), life: rand(300, 720), r: rand(1.1, 2.8) });
+    const fx = opts.fromX == null ? x : opts.fromX;
+    const fy = opts.fromY == null ? groundY - 58 : opts.fromY;
+    if (a.zombie) {
+      spawnDarkLightningArc(fx, fy, x, groundY - 50, {
+        color,
+        mid: SPIRIT_COLORS.curse,
+        life: 260,
+        width: 5.4,
+        shadowWidth: 16,
+        branches: 6,
+        sparks: 18,
+      });
+      for (let i = 0; i < 22; i++) darkLightningSpark(x + rand(-18, 18), groundY - rand(12, 84), { color, lifeMax: 780, rMax: 3.2 });
+    } else {
+      emitSoulWisp(fx, fy, x, groundY - 50, {
+        count: 24,
+        color,
+        lifeMin: 360,
+        lifeMax: 900,
+      });
+      emitSpiritAwakeningBurst(x, groundY, color, { count: 30, large: true, lifeMin: 420, lifeMax: 980 });
+      for (let i = 0; i < 12; i++) soulParticle(x + rand(-12, 12), groundY - rand(40, 82), rand(-0.45, 0.45), rand(-1.1, -0.12), { color: spiritParticleColor(color, 0.30), life: rand(300, 720), r: rand(1.1, 2.8) });
+    }
     syncHud();
     return a;
   }
@@ -2555,7 +2571,7 @@ PUBLIC.start = function (root, api) {
     };
   }
   function isReanimatableCorpse(d) {
-    return !!(d && d.defeated && !d.reanimated && !d.reanimating && d.pts && d.kind !== 'ally');
+    return !!(d && d.defeated && !d.reanimated && !d.reanimating && d.pts && (d.kind !== 'ally' || d.reanimateAllowed));
   }
   function corpseDistanceToSegment(d, ax, ay, bx, by) {
     if (!d || !d.pts) return Infinity;
@@ -2598,30 +2614,45 @@ PUBLIC.start = function (root, api) {
   function emitReanimateTendrils(x, y, groundY, opts) {
     opts = opts || {};
     const color = opts.color || SPIRIT_COLORS.ghost;
-    emitSoulWisp(opts.fromX == null ? x : opts.fromX, opts.fromY == null ? y - 20 : opts.fromY, x, y, {
-      count: opts.big ? 28 : 16,
+    const fromX = opts.fromX == null ? x : opts.fromX;
+    const fromY = opts.fromY == null ? y - 20 : opts.fromY;
+    spawnDarkLightningArc(fromX, fromY, x, y, {
       color,
-      lifeMin: 260,
-      lifeMax: opts.big ? 900 : 620,
+      mid: SPIRIT_COLORS.sick,
+      life: opts.big ? 260 : 180,
+      width: opts.big ? 5.0 : 3.8,
+      shadowWidth: opts.big ? 15 : 11,
+      branches: opts.big ? 5 : 3,
+      sparks: opts.big ? 16 : 9,
+      alpha: opts.big ? 1 : 0.86,
     });
-    for (let i = 0; i < (opts.big ? 26 : 15); i++) {
+    for (let i = 0; i < (opts.big ? 10 : 6); i++) {
       const side = i % 2 ? -1 : 1;
-      const a = -Math.PI / 2 + side * rand(0.18, 1.04);
-      soulParticle(x + Math.cos(a) * rand(8, 30), groundY - rand(4, 34), Math.cos(a) * rand(0.08, 0.46), -rand(0.44, 1.85), {
-        color: spiritParticleColor(color, 0.34),
-        life: rand(320, opts.big ? 980 : 720),
-        r: rand(1.2, opts.big ? 3.8 : 2.8),
-        tail: rand(14, opts.big ? 38 : 26),
+      const footX = x + side * rand(12, 36);
+      spawnDarkLightningArc(footX, groundY - rand(0, 12), x + rand(-12, 12), y + rand(-20, 18), {
+        color: i % 2 ? SPIRIT_COLORS.curse : color,
+        mid: SPIRIT_COLORS.ghost,
+        life: rand(110, opts.big ? 230 : 180),
+        width: rand(2.2, opts.big ? 4.0 : 3.2),
+        shadowWidth: rand(7, opts.big ? 12 : 10),
+        branches: 1,
+        sparks: 2,
+        alpha: 0.64,
       });
     }
-    rememberDebugSegment('ability', x - 26, groundY - 4, x, y, 8, SPIRIT_COLORS.shadow, 320);
-    rememberDebugSegment('ability', x + 26, groundY - 4, x, y, 8, color, 320);
+    for (let i = 0; i < (opts.big ? 22 : 13); i++) {
+      darkLightningSpark(x + rand(-26, 26), groundY - rand(4, 72), {
+        color: i % 3 ? color : SPIRIT_COLORS.curse,
+        lifeMax: opts.big ? 760 : 520,
+        rMax: opts.big ? 3.2 : 2.4,
+      });
+    }
   }
   function beginCorpseReanimation(d, anchor, opts) {
     opts = opts || {};
     if (!d || !anchor || spiritZombieSlotsOpen() <= 0 || !isReanimatableCorpse(d)) return null;
     const color = opts.color || SPIRIT_COLORS.ghost;
-    const life = opts.life || (opts.big ? 1320 : 1040);
+    const life = opts.life || (opts.big ? 1960 : 1560);
     d.reanimating = {
       life,
       max: life,
@@ -2651,11 +2682,11 @@ PUBLIC.start = function (root, api) {
     if (i >= 0) dummies.splice(i, 1);
     const target = spiritCommandTarget(920);
     const z = spawnSpiritAlly(anchor ? anchor.x : d.baseX, anchor ? anchor.groundY : d.baseY, {
-      source: 'knight',
+      source: d.sourceClass || 'knight',
       hp: r.weak ? 3.2 : 7.2,
       life: r.weak ? 14500 : 32000,
-      awake: r.big ? 1120 : 880,
-      rise: r.rise || (r.weak ? 28 : 42),
+      awake: r.big ? 1280 : 980,
+      rise: r.rise || (r.weak ? 30 : 46),
       target,
       color: r.color || SPIRIT_COLORS.ghost,
       zombie: true,
@@ -2753,8 +2784,21 @@ PUBLIC.start = function (root, api) {
     a.spiritCommandCd = Math.max(a.spiritCommandCd || 0, opts.afterCd || 680);
     if (a.brain) { a.brain.alert = 9999; a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
     const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
-    rememberDebugSegment('ability', a.x, a.y - 46, tx, ty, 8, color, 520);
-    emitSoulWisp(a.x, a.y - 48, tx, ty, { count: 10, color, lifeMin: 240, lifeMax: 620 });
+    if (a.zombie) {
+      spawnDarkLightningArc(a.x, a.y - 48, tx, ty, {
+        color,
+        mid: SPIRIT_COLORS.curse,
+        life: 210,
+        width: 3.3,
+        shadowWidth: 10,
+        branches: 3,
+        sparks: 8,
+        alpha: 0.78,
+      });
+    } else {
+      rememberDebugSegment('ability', a.x, a.y - 46, tx, ty, 8, color, 520);
+      emitSoulWisp(a.x, a.y - 48, tx, ty, { count: 10, color, lifeMin: 240, lifeMax: 620 });
+    }
     return true;
   }
   function commandSpiritAllies(opts) {
@@ -2871,7 +2915,7 @@ PUBLIC.start = function (root, api) {
   }
   function activateGhostForm(opts) {
     opts = opts || {};
-    const life = opts.life || 1280;
+    const life = opts.life || 1800;
     player.ghostForm = Math.max(player.ghostForm || 0, life);
     player.ghostFormMax = Math.max(player.ghostFormMax || 0, life);
     player.invuln = Math.max(player.invuln || 0, life + 120);
@@ -2880,17 +2924,21 @@ PUBLIC.start = function (root, api) {
     player.vx += player.facing * 1.4;
     player.grounded = false;
     player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
-    emitSoulWisp(player.x - player.facing * 22, player.y - 42, player.x + player.facing * 54, player.y - 70, {
-      count: 34,
+    spawnDarkLightningArc(player.x - player.facing * 26, player.y - 42, player.x + player.facing * 58, player.y - 70, {
       color: SPIRIT_COLORS.ghost,
-      lifeMin: 260,
-      lifeMax: 900,
+      mid: SPIRIT_COLORS.sick,
+      life: 240,
+      width: 4.2,
+      shadowWidth: 13,
+      branches: 5,
+      sparks: 18,
+      alpha: 0.86,
     });
-    for (let i = 0; i < 28; i++) soulParticle(player.x + rand(-20, 20), player.y - rand(18, 82), rand(-0.48, 0.48), rand(-0.98, -0.02), {
-      color: spiritParticleColor(i % 3 === 0 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost, 0.40),
-      life: rand(340, 920),
-      r: rand(1.4, 4.2),
-      tail: rand(18, 42),
+    for (let i = 0; i < 30; i++) darkLightningSpark(player.x + rand(-22, 22), player.y - rand(18, 88), {
+      color: i % 3 === 0 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost,
+      lifeMax: rand(460, 960),
+      rMax: 3.0,
+      alpha: 0.62,
     });
     addShake(1.8, 90);
     return true;
@@ -2898,7 +2946,7 @@ PUBLIC.start = function (root, api) {
   function unholyCommand() {
     const zombies = activeSpiritZombies();
     if (!zombies.length) {
-      emitSoulWisp(player.x - player.facing * 16, player.y - 56, player.x + player.facing * 120, player.y - 62, { count: 12, color: SPIRIT_COLORS.curse, lifeMin: 220, lifeMax: 520 });
+      spawnDarkLightningArc(player.x, player.y - 62, player.x + player.facing * 130, player.y - 70, { color: SPIRIT_COLORS.curse, life: 140, width: 3.2, shadowWidth: 9, branches: 2, sparks: 6, alpha: 0.60 });
       addShake(1.0, 60);
       return false;
     }
@@ -2916,16 +2964,21 @@ PUBLIC.start = function (root, api) {
       z.vx += face * (z.zombieWeak ? 0.65 : 1.05);
       z.facing = face;
       commandSpiritAlly(z, { target, force: z.zombieWeak ? 14 : 20, dash: 1.6, life: 940, range: 920, afterCd: rand(440, 720) });
-      emitSoulWisp(player.x, player.y - 58, z.x, z.y - 52, { count: 16, color: SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 720 });
-      rememberDebugSegment('ability', player.x, player.y - 60, z.x, z.y - 54, 10, SPIRIT_COLORS.ghost, 840);
+      spawnDarkLightningArc(player.x, player.y - 58, z.x, z.y - 52, {
+        color: z.cls && z.cls.color || SPIRIT_COLORS.ghost,
+        mid: SPIRIT_COLORS.curse,
+        life: 320,
+        width: 4.4,
+        shadowWidth: 13,
+        branches: 4,
+        sparks: 12,
+      });
     }
-    for (let i = 0; i < 18; i++) soulParticle(player.x + rand(-18, 18), player.y - rand(38, 82), rand(-0.42, 0.42), rand(-1.15, -0.08), {
-      color: spiritParticleColor(i % 3 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.sick, 0.38),
-      life: rand(280, 760),
-      r: rand(1.3, 3.8),
-      tail: rand(16, 38),
+    for (let i = 0; i < 24; i++) darkLightningSpark(player.x + rand(-22, 22), player.y - rand(38, 88), {
+      color: i % 3 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.curse,
+      lifeMax: rand(420, 820),
+      rMax: 3.2,
     });
-    burst(player.x, player.y - 58, SPIRIT_COLORS.ghost, 24, 4.0);
     addShake(3.2, 140);
     syncHud();
     return true;
@@ -2940,6 +2993,23 @@ PUBLIC.start = function (root, api) {
     const focus = corpses[0] ? corpses[0].c : { x: player.x + player.facing * 92, y: player.y - 48, groundY: player.y };
     const ang = Math.atan2(focus.y - (player.y - 70), focus.x - player.x);
     if (!beginSpiritSummonCast(focus.x, focus.groundY || focus.y, { big: true })) return false;
+    const castDelay = 680;
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2 + rand(-0.12, 0.12);
+      const r = rand(42, 118);
+      const sx = player.x + Math.cos(a) * r;
+      const sy = player.y - 52 + Math.sin(a) * r * 0.42;
+      spawnDarkLightningArc(sx, sy, player.x + rand(-14, 14), player.y - rand(42, 86), {
+        color: i % 2 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost,
+        mid: SPIRIT_COLORS.sick,
+        life: 260,
+        width: rand(2.4, 4.2),
+        shadowWidth: 11,
+        branches: 2,
+        sparks: 5,
+        alpha: 0.72,
+      });
+    }
     let count = 0;
     for (let i = 0; i < corpses.length; i++) {
       const item = corpses[i];
@@ -2950,17 +3020,19 @@ PUBLIC.start = function (root, api) {
           color: i % 2 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.sick,
           fromX: player.x,
           fromY: player.y - 66,
+          life: 1960,
         });
-      }, i * 170);
+      }, castDelay + i * 230);
       count++;
     }
     if (!count) {
       window.setTimeout(() => {
         if (state === 'playing' && hero) spawnShadowZombie(player.x + player.facing * 92, player.y, { big: true });
-      }, 180);
+      }, castDelay + 160);
       count = 1;
     }
-    emitSoulWisp(player.x, player.y - 64, focus.x, focus.y, { count: 34, color: SPIRIT_COLORS.ghost, lifeMin: 340, lifeMax: 980 });
+    spawnDarkLightningArc(player.x, player.y - 64, focus.x, focus.y, { color: SPIRIT_COLORS.ghost, mid: SPIRIT_COLORS.curse, life: 360, width: 5.4, shadowWidth: 16, branches: 7, sparks: 18 });
+    for (let i = 0; i < 32; i++) darkLightningSpark(player.x + rand(-95, 95), player.y - rand(18, 104), { color: i % 3 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.curse, lifeMax: rand(460, 980), rMax: 3.2 });
     radialActorPulse(player.x, player.y - 42, 132, 7, player.team, SPIRIT_COLORS.curse, { noBurst: true });
     addShake(4.6, 180);
     syncHud();
@@ -2986,25 +3058,37 @@ PUBLIC.start = function (root, api) {
     a.facing = dx >= 0 ? 1 : -1;
     a.vx += (dx / d) * (a.zombie ? 0.20 + fade * 0.15 : 0.34 + fade * 0.24);
     a.vy += a.zombie ? (dy / d) * 0.035 - 0.006 : (dy / d) * 0.12 - 0.03;
-    if (Math.random() < 0.46) soulParticle(
-      lerp(sx, cmd.x, rand(0.16, 0.84)),
-      lerp(sy, cmd.y, rand(0.16, 0.84)) + rand(-8, 8),
-      rand(-0.25, 0.25),
-      rand(-0.65, 0.02),
-      {
-        color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.26),
-        life: rand(180, 380),
-        r: rand(1.0, 2.5),
-      }
-    );
+    if (Math.random() < 0.46) {
+      const px = lerp(sx, cmd.x, rand(0.16, 0.84));
+      const py = lerp(sy, cmd.y, rand(0.16, 0.84)) + rand(-8, 8);
+      if (a.zombie) darkLightningSpark(px, py, { color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMax: 340, rMax: 2.2, alpha: 0.66 });
+      else soulParticle(px, py, rand(-0.25, 0.25), rand(-0.65, 0.02), {
+          color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.26),
+          life: rand(180, 380),
+          r: rand(1.0, 2.5),
+        });
+    }
     if (!cmd.hit && d < 46) {
       const nx = dx / d || a.facing || 1, ny = dy / d || -0.15;
       if (cmd.type === 'fighter' && cmd.target && !cmd.target.dead) hurtFighter(cmd.target, nx, ny - 0.18, cmd.force || 14, cmd.x, cmd.y);
       else if (cmd.type === 'dummy' && cmd.target && !cmd.target.defeated) hurtDummy(cmd.target, nx, ny - 0.18, (cmd.force || 14) * 0.92, cmd.x, cmd.y);
       else radialActorPulse(cmd.x, cmd.y, 62, (cmd.force || 14) * 0.7, a.team || 'hero', a.cls && a.cls.color || SPIRIT_COLORS.ghost);
       pushBoxesRadial(cmd.x, cmd.y, (cmd.force || 14) * 0.55, 82, a.team || 'hero');
-      emitSoulWisp(sx, sy, cmd.x, cmd.y, { count: 18, color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 650 });
-      for (let i = 0; i < 8; i++) soulParticle(cmd.x + rand(-6, 6), cmd.y + rand(-6, 6), nx * rand(0.3, 1.4) + rand(-0.35, 0.35), rand(-1.2, -0.08), { color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.32) });
+      if (a.zombie) {
+        spawnDarkLightningArc(sx, sy, cmd.x, cmd.y, {
+          color: a.cls && a.cls.color || SPIRIT_COLORS.ghost,
+          mid: SPIRIT_COLORS.curse,
+          life: 180,
+          width: 3.8,
+          shadowWidth: 11,
+          branches: 3,
+          sparks: 9,
+        });
+        for (let i = 0; i < 8; i++) darkLightningSpark(cmd.x + rand(-6, 6), cmd.y + rand(-6, 6), { color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMax: 430, rMax: 2.6 });
+      } else {
+        emitSoulWisp(sx, sy, cmd.x, cmd.y, { count: 18, color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 650 });
+        for (let i = 0; i < 8; i++) soulParticle(cmd.x + rand(-6, 6), cmd.y + rand(-6, 6), nx * rand(0.3, 1.4) + rand(-0.35, 0.35), rand(-1.2, -0.08), { color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.32) });
+      }
       cmd.hit = true;
       cmd.life = Math.min(cmd.life, 220);
       addShake(2.2, 100);
@@ -4196,7 +4280,7 @@ PUBLIC.start = function (root, api) {
   api.on(btnSkillQ, 'pointerdown', e => { e.preventDefault(); triggerSlotAbility('q'); });
 
   // ---------- game state ----------
-  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, bladeRecallTrails, projectiles, gravityFields, fireZones, flameBreaths, smokeZones, shockwaves, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
+  let state, li, player, hero, cam, coinsLeft, totalCoins, arenaKills, arenaWave, arenaNextWave, arenaBanner, runTime, deaths, particles, flagWave, slashTrail, bladeRecallTrails, projectiles, gravityFields, fireZones, flameBreaths, smokeZones, shockwaves, darkLightningArcs, spiritRemnants, droppedKnives, boxes, dummies, fighters, allies;
   let loadout = null, runBuild = null, prevState = null, arenaDraftChoices = null, gravityCore = null, anchors = [], portals = [];
   let labMode = false, labBuildId = 'base', labCollapsed = false;
   let debugExposeAt = 0;
@@ -4263,6 +4347,7 @@ PUBLIC.start = function (root, api) {
     flameBreaths = [];
     smokeZones = [];
     shockwaves = [];
+    darkLightningArcs = [];
     spiritRemnants = [];
     gravityCore = null;
     anchors = [];
@@ -5951,11 +6036,11 @@ PUBLIC.start = function (root, api) {
     }
     if (Math.random() < 0.36 + p * 0.38) {
       const c = corpseAnchor(d);
-      if (c) soulParticle(c.x + rand(-24, 24), c.groundY - rand(4, 72), rand(-0.18, 0.18), rand(-1.0, -0.10), {
-        color: spiritParticleColor(color, 0.36),
-        life: rand(260, 760),
-        r: rand(1.0, 3.4),
-        tail: rand(12, 32),
+      if (c) darkLightningSpark(c.x + rand(-24, 24), c.groundY - rand(4, 72), {
+        color,
+        lifeMax: rand(360, 780),
+        rMax: 3.0,
+        alpha: 0.72,
       });
     }
     return r.life <= 0;
@@ -6302,7 +6387,57 @@ PUBLIC.start = function (root, api) {
     }
     if (e.cls.fly) e.intent.jumpHeld = hero.y < e.y - 58 && Math.abs(dx) < 280;
   }
+  function teleportZombieToHero(e, target) {
+    if (!e || !hero || (e.zombieTeleportCd || 0) > 0) return false;
+    const L = levels[li];
+    const idx = Math.max(0, livingAllies().indexOf(e));
+    const behind = -(hero.facing || 1);
+    const tx = clamp(hero.x + behind * (70 + idx * 28) + rand(-18, 18), 36, L.w - 36);
+    const probe = { y: hero.y };
+    const ty = surfaceYFor(probe, tx, 320, 220) || hero.y;
+    const ox = e.x, oy = e.y - 52;
+    e.x = tx; e.y = ty; e.vx = behind * rand(0.2, 0.7); e.vy = -0.7;
+    e.grounded = false; e.coyote = 0; e.airTime = 4;
+    e.zombieTeleportCd = target ? 2500 : 1900;
+    e.zombieStuckT = 0;
+    e.zombieLastX = e.x;
+    e.zombieCommandFx = Math.max(e.zombieCommandFx || 0, 780);
+    if (e.brain) { e.brain.stagger = 0; e.brain.pauseT = 70; e.brain.alert = 9999; }
+    spawnDarkLightningArc(ox, oy, e.x, e.y - 54, {
+      color: e.cls && e.cls.color || SPIRIT_COLORS.ghost,
+      mid: SPIRIT_COLORS.curse,
+      life: 220,
+      width: 4.8,
+      shadowWidth: 14,
+      branches: 5,
+      sparks: 16,
+      alpha: 0.92,
+    });
+    for (let i = 0; i < 12; i++) darkLightningSpark(e.x, e.y - rand(18, 72), { color: e.cls && e.cls.color || SPIRIT_COLORS.ghost, lifeMax: 520 });
+    addShake(1.6, 80);
+    return true;
+  }
+  function maybeZombieTeleport(e, n) {
+    if (!e || !e.zombie || !hero) return false;
+    const dt = n && n.dt || STEP;
+    e.zombieTeleportCd = Math.max(0, (e.zombieTeleportCd || 0) - dt);
+    const progress = Math.abs(e.x - (e.zombieLastX == null ? e.x : e.zombieLastX));
+    e.zombieLastT = (e.zombieLastT || 0) + dt;
+    if (e.zombieLastT > 260) {
+      e.zombieLastX = e.x;
+      e.zombieLastT = 0;
+    }
+    const target = n && n.target || null;
+    const blocked = n && n.nav && (n.nav.blocked || n.nav.ledge || n.nav.gap || n.nav.stepUp && n.nav.cur - n.nav.near > 34);
+    const failingChase = !!target && (n.adx || 0) > 190 && progress < 3.8 && (blocked || Math.abs(n.dy || 0) > 130);
+    if (failingChase) e.zombieStuckT = Math.min(3600, (e.zombieStuckT || 0) + dt);
+    else e.zombieStuckT = Math.max(0, (e.zombieStuckT || 0) - dt * 0.72);
+    const tooFar = Math.hypot(e.x - hero.x, (e.y - 44) - (hero.y - 44)) > 900;
+    if ((tooFar || (e.zombieStuckT || 0) > 2200) && (e.zombieTeleportCd || 0) <= 0) return teleportZombieToHero(e, target);
+    return false;
+  }
   function thinkZombie(e, n) {
+    if (maybeZombieTeleport(e, n)) return;
     const b = e.brain;
     const frenzy = (e.zombieFrenzy || 0) > 0;
     const commanded = (e.zombieCommandFx || 0) > 0 || !!e.spiritCommand;
@@ -6563,7 +6698,10 @@ PUBLIC.start = function (root, api) {
     const target = chooseCombatTarget(e);
     b.target = target;
     if (!target) {
-      if (e.team === 'ally') followHeroAlly(e);
+      if (e.team === 'ally') {
+        followHeroAlly(e);
+        if (e.zombie) maybeZombieTeleport(e, { dt, target: null });
+      }
       else patrolFighter(e);
       return;
     }
@@ -6584,7 +6722,7 @@ PUBLIC.start = function (root, api) {
     }
     const nav = fighterNavProbe(e, face);
     const route = chooseFighterRoute(e, { dx, adx, dy, face, aim: e.anim.aimTarget, nav });
-    const ctxNav = { dx, adx, dy, face, route, aim: e.anim.aimTarget, nav, target };
+    const ctxNav = { dx, adx, dy, face, route, aim: e.anim.aimTarget, nav, target, dt };
     planFighterMobility(e, ctxNav);
     if (e.zombie) { thinkZombie(e, ctxNav); return; }
     (ENEMY_BRAINS[e.cls.id] || ENEMY_BRAINS.knight)(e, ctxNav);
@@ -6666,13 +6804,21 @@ PUBLIC.start = function (root, api) {
     const L = levels[li];
     for (let i = allies.length - 1; i >= 0; i--) {
       const a = allies[i];
-      if (a.dead) { allies.splice(i, 1); syncHud(); continue; }
+      if (a.dead) {
+        if (a.zombie && !a.corpseSpawned) spawnActorCorpse(a, a.facing || 1, -0.18, 10, a.x, a.y - 44, { reanimateAllowed: true, flash: 520 });
+        allies.splice(i, 1); syncHud(); continue;
+      }
       if (a.spiritLife != null) {
         if (!a.spiritMaxLife) a.spiritMaxLife = a.spiritLife || 1;
         a.spiritLife -= dtStep;
         if (a.spiritLife <= 0) {
-          emitSoulWisp(a.x, a.y - 46, hero ? hero.x : a.x + (a.facing || 1) * 44, hero ? hero.y - 58 : a.y - 74, { count: 18, color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 640 });
-          for (let j = 0; j < 7; j++) soulParticle(a.x + rand(-12, 12), a.y - rand(36, 78), rand(-0.34, 0.34), rand(-0.85, -0.06), { color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.35), life: rand(260, 580) });
+          if (a.zombie && !a.corpseSpawned) {
+            spawnActorCorpse(a, -(a.facing || 1), -0.10, 7, a.x, a.y - 42, { reanimateAllowed: true, flash: 480 });
+            spawnDarkLightningArc(a.x, a.y - 52, a.x + rand(-18, 18), a.y - 12, { color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, life: 130, width: 2.8, shadowWidth: 8, branches: 2, sparks: 5, alpha: 0.65 });
+          } else {
+            emitSoulWisp(a.x, a.y - 46, hero ? hero.x : a.x + (a.facing || 1) * 44, hero ? hero.y - 58 : a.y - 74, { count: 18, color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 640 });
+            for (let j = 0; j < 7; j++) soulParticle(a.x + rand(-12, 12), a.y - rand(36, 78), rand(-0.34, 0.34), rand(-0.85, -0.06), { color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.35), life: rand(260, 580) });
+          }
           allies.splice(i, 1);
           syncHud();
           continue;
@@ -6684,15 +6830,23 @@ PUBLIC.start = function (root, api) {
           if (a.brain) { a.brain.pauseT = Math.max(a.brain.pauseT || 0, 220); a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
           if (Math.random() < 0.62) {
             const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
-            soulParticle(a.x + rand(-14, 14), a.y - rand(8, 66), rand(-0.22, 0.22), rand(-1.35, -0.14), {
-              life: rand(260, 620),
-              color: spiritParticleColor(color, 0.34),
-              r: rand(1.2, 3.1),
-              tail: rand(12, 28),
+            if (a.zombie) darkLightningSpark(a.x + rand(-14, 14), a.y - rand(8, 66), {
+              color,
+              lifeMax: 620,
+              rMax: 2.8,
             });
+            else soulParticle(a.x + rand(-14, 14), a.y - rand(8, 66), rand(-0.22, 0.22), rand(-1.35, -0.14), {
+                life: rand(260, 620),
+                color: spiritParticleColor(color, 0.34),
+                r: rand(1.2, 3.1),
+                tail: rand(12, 28),
+              });
           }
           if (a.spiritAwake <= 0) {
-            emitSpiritAwakeningBurst(a.x, a.y, a.cls && a.cls.color || SPIRIT_COLORS.ghost, { count: 18, lifeMin: 260, lifeMax: 620 });
+            if (a.zombie) {
+              spawnDarkLightningArc(a.x - 24, a.y - 8, a.x + 18, a.y - 70, { color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, life: 150, width: 3.6, shadowWidth: 11, branches: 3, sparks: 9 });
+              for (let j = 0; j < 10; j++) darkLightningSpark(a.x + rand(-18, 18), a.y - rand(18, 82), { color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMax: 520 });
+            } else emitSpiritAwakeningBurst(a.x, a.y, a.cls && a.cls.color || SPIRIT_COLORS.ghost, { count: 18, lifeMin: 260, lifeMax: 620 });
             addShake(1.2, 70);
           }
         }
@@ -6700,20 +6854,25 @@ PUBLIC.start = function (root, api) {
           a.zombieFrenzy = Math.max(0, (a.zombieFrenzy || 0) - dtStep);
           a.zombieCommandFx = Math.max(0, (a.zombieCommandFx || 0) - dtStep);
           a.zombieBirthFx = Math.max(0, (a.zombieBirthFx || 0) - dtStep);
-          if ((a.zombieFrenzy > 0 || a.zombieCommandFx > 0) && Math.random() < 0.46) soulParticle(a.x + rand(-18, 18), a.y - rand(22, 78), rand(-0.28, 0.28), rand(-0.92, -0.08), {
-            life: rand(240, 620),
-            color: spiritParticleColor(a.zombieCommandFx > 0 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.sick, 0.36),
-            r: rand(1.3, 3.4),
-            tail: rand(16, 36),
+          if ((a.zombieFrenzy > 0 || a.zombieCommandFx > 0) && Math.random() < 0.46) darkLightningSpark(a.x + rand(-18, 18), a.y - rand(22, 78), {
+            color: a.zombieCommandFx > 0 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.sick,
+            lifeMax: 560,
+            rMax: 2.8,
           });
         }
         if (a.spirit && Math.random() < ((a.spiritAwake || 0) > 0 ? 0.28 : 0.24)) {
           const fade = clamp(a.spiritLife / Math.max(1, a.spiritMaxLife || a.spiritLife), 0, 1);
-          soulParticle(a.x + rand(-16, 16), a.y - rand(38, 86), rand(-0.25, 0.25), rand(-0.90, -0.10), {
-            life: rand(260, 520),
-            color: spiritParticleColor(a.cls.color || SPIRIT_COLORS.ghost, 0.32),
-            r: rand(1.0, 2.5) * (0.75 + fade * 0.45),
+          if (a.zombie) darkLightningSpark(a.x + rand(-16, 16), a.y - rand(38, 86), {
+            color: a.cls.color || SPIRIT_COLORS.ghost,
+            lifeMax: 430,
+            rMax: 2.3 * (0.75 + fade * 0.45),
+            alpha: 0.62,
           });
+          else soulParticle(a.x + rand(-16, 16), a.y - rand(38, 86), rand(-0.25, 0.25), rand(-0.90, -0.10), {
+              life: rand(260, 520),
+              color: spiritParticleColor(a.cls.color || SPIRIT_COLORS.ghost, 0.32),
+              r: rand(1.0, 2.5) * (0.75 + fade * 0.45),
+            });
         }
       }
       if (a.spirit) {
@@ -6862,35 +7021,28 @@ PUBLIC.start = function (root, api) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.18 + fade * 0.30;
-    ctx.strokeStyle = SPIRIT_COLORS.shadow;
-    ctx.lineWidth = 8.5;
-    for (let i = 0; i < 4; i++) {
-      const phase = now * (0.004 + i * 0.0008) + i * 1.7;
-      const sx = hipX - f * (10 + i * 4) + Math.sin(phase) * 8;
-      const sy = hipY + 4 - i * 3;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.quadraticCurveTo(chestX - f * (18 + i * 2), chestY - 10 - i * 4, headCX + Math.sin(phase + 1.2) * 8, headCY - 20 - i * 4);
-      ctx.stroke();
-    }
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 7; i++) {
-      const phase = now * (0.005 + i * 0.0005) + i * 1.21 + hipX * 0.03;
-      const rr = 16 + i * 4;
-      ctx.globalAlpha = (0.10 + fade * 0.26) * (1 - i * 0.08);
-      ctx.strokeStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : i % 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost;
-      ctx.lineWidth = i % 3 === 0 ? 1.0 : 1.9;
-      ctx.beginPath();
-      ctx.moveTo(chestX + Math.sin(phase) * rr, chestY + 18 - i * 4);
-      ctx.quadraticCurveTo(chestX - Math.sin(phase) * 10, chestY - 4 - i * 4, headCX + Math.sin(phase + 0.7) * (8 + i), headCY - 12 - i * 2);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 0.16 + fade * 0.28;
-    ctx.fillStyle = SPIRIT_COLORS.ghost;
-    ctx.beginPath();
-    traceWobblyCirclePath(chestX, chestY - 4, 16 + fade * 8, { phase: now * 0.003 + hipX, rough: 0.22, steps: 18 });
+    ctx.globalAlpha = 0.20 + fade * 0.32;
+    ctx.fillStyle = SPIRIT_COLORS.shadow;
+    traceWobblyCirclePath(chestX, chestY + 1, 19 + fade * 10, { yScale: 1.22, phase: now * 0.002 + hipX, rough: 0.19, steps: 24 });
     ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 10; i++) {
+      const phase = now * (0.0038 + i * 0.00035) + i * 1.37 + hipX * 0.02;
+      const rr = 13 + i * 3.1;
+      ctx.globalAlpha = (0.08 + fade * 0.20) * (1 - i * 0.055);
+      ctx.fillStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : i % 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost;
+      ctx.beginPath();
+      ctx.arc(chestX + Math.sin(phase) * rr * 0.52, chestY - 4 + Math.cos(phase * 1.28) * rr * 0.44, 1.1 + fade * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.16 + fade * 0.22;
+    ctx.strokeStyle = SPIRIT_COLORS.ghost;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(hipX - f * 8, hipY + 2);
+    ctx.quadraticCurveTo(chestX - f * 4, chestY - 8, headCX, headCY - 16);
+    ctx.stroke();
     ctx.restore();
   }
   function actorTeamAccent(act) {
@@ -7060,6 +7212,49 @@ PUBLIC.start = function (root, api) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    if (a.zombie) {
+      const fx = Math.max(commandFade, birthFade);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.22 + fade * 0.20 + fx * 0.22;
+      ctx.fillStyle = SPIRIT_COLORS.shadow;
+      traceWobblyCirclePath(a.x, a.y + 4, 20 + fx * 12 + pulse * 2, { yScale: 0.32, phase: now * 0.002 + a.x, rough: 0.16, steps: 18 });
+      ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 7; i++) {
+        const phase = now * (0.005 + i * 0.00045) + i * 1.7 + a.x * 0.015;
+        const side = i % 2 ? -1 : 1;
+        const sx = a.x + side * (8 + i * 2) + Math.sin(phase) * 4;
+        const sy = chestY + 18 - i * 10;
+        ctx.globalAlpha = (0.12 + fade * 0.15 + fx * 0.18) * (1 - i * 0.08);
+        ctx.fillStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : i % 2 ? SPIRIT_COLORS.curse : color;
+        ctx.beginPath();
+        ctx.arc(sx, sy + Math.sin(phase * 1.4) * 4, 1.2 + pulse * 0.9 + fx * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (a.spiritCommand) {
+        const cmd = a.spiritCommand;
+        const cmdFade = clamp(cmd.life / Math.max(1, cmd.max || cmd.life), 0, 1);
+        ctx.globalAlpha = 0.22 + cmdFade * 0.28;
+        ctx.strokeStyle = SPIRIT_COLORS.shadow;
+        ctx.lineWidth = 7.5;
+        ctx.beginPath();
+        ctx.moveTo(a.x, chestY);
+        ctx.lineTo(cmd.x, cmd.y);
+        ctx.stroke();
+        ctx.globalAlpha = 0.32 + cmdFade * 0.38;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(a.x, chestY);
+        const midX = (a.x + cmd.x) * 0.5 + Math.sin(now * 0.010 + a.x) * 10;
+        const midY = (chestY + cmd.y) * 0.5 - 18;
+        ctx.quadraticCurveTo(midX, midY, cmd.x, cmd.y);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
+      return;
+    }
     if (hero && mageSpiritLoadoutActive()) {
       const hx = hero.x, hy = hero.y - 58;
       const mx = (hx + a.x) * 0.5 + Math.sin(now * 0.004 + a.x) * 12;
@@ -7253,26 +7448,41 @@ PUBLIC.start = function (root, api) {
     for (const p of L.platforms) if (e.x > p.x - 18 && e.x < p.x + p.w + 18 && p.y >= e.y - 80) y = Math.min(y, p.y);
     return y === Infinity ? Math.min(L.h - 8, e.y + 180) : y;
   }
-  function killFighter(e, nx, ny, force, hx, hy) {
-    if (e.dead) return;
-    e.dead = true;
+  function spawnActorCorpse(e, nx, ny, force, hx, hy, opts) {
+    if (!e || e.corpseSpawned) return null;
+    opts = opts || {};
+    e.corpseSpawned = true;
     const groundY = fighterDeathGroundY(e);
-    const d = makeDummy(e.x, e.y, { kind: e.team === 'enemy' ? 'enemy' : 'ally', hp: 0 });
+    const kind = e.team === 'enemy' ? 'enemy' : e.zombie ? 'zombieCorpse' : 'ally';
+    const d = makeDummy(e.x, e.y, { kind, hp: 0 });
     d.baseY = groundY; d.homeY = groundY;
-    d.defeated = true; d.flash = 650; d.attackCd = 9999;
+    d.defeated = true; d.flash = opts.flash == null ? 650 : opts.flash; d.attackCd = 9999;
+    d.reanimateAllowed = !!(e.team === 'enemy' || e.zombie || opts.reanimateAllowed);
+    d.sourceZombie = !!e.zombie;
+    d.sourceClass = e.cls && e.cls.id || 'knight';
     for (const f of ['footL', 'footR']) d.pts[f].pin = false;
+    const k = clamp(force || 10, 4, 44);
     for (const key in d.pts) {
       const p = d.pts[key];
       const spill = key === 'head' || key === 'handL' || key === 'handR' || key === 'footL' || key === 'footR' ? 1 : 0.45;
       p.x += rand(-2.4, 2.4) * spill;
       p.y += rand(-1.6, 1.6) * spill;
-      p.px = p.x - e.vx - nx * rand(0.2, 0.9) * spill;
-      p.py = p.y - e.vy - ny * rand(0.2, 0.9) * spill;
-    }   // inherit momentum and break symmetry so corpses settle into heaps
-    const near = dummyNearest(d, hx, hy), k = clamp(force, 4, 44);
-    if (near.p) { near.p.x += nx * k * 0.7; near.p.y += ny * k * 0.7 - k * 0.2; }
-    d.pts.chest.x += nx * k * 0.45; d.pts.head.x += nx * k * 0.55; d.pts.head.y -= k * 0.25;
+      p.px = p.x - (e.vx || 0) - (nx || 0) * rand(0.2, 0.9) * spill;
+      p.py = p.y - (e.vy || 0) - (ny || 0) * rand(0.2, 0.9) * spill;
+    }
+    const near = dummyNearest(d, hx, hy);
+    if (near.p) { near.p.x += (nx || 0) * k * 0.7; near.p.y += (ny || 0) * k * 0.7 - k * 0.2; }
+    d.pts.chest.x += (nx || 0) * k * 0.45;
+    d.pts.head.x += (nx || 0) * k * 0.55;
+    d.pts.head.y -= k * 0.25;
     dummies.push(d);
+    return { d, groundY };
+  }
+  function killFighter(e, nx, ny, force, hx, hy) {
+    if (e.dead) return;
+    e.dead = true;
+    const corpse = spawnActorCorpse(e, nx, ny, force, hx, hy);
+    const groundY = corpse ? corpse.groundY : fighterDeathGroundY(e);
     const list = e.team === 'ally' ? allies : fighters;
     const i = list ? list.indexOf(e) : -1; if (i >= 0) list.splice(i, 1);
     if (arenaMode && e.team === 'enemy') {
@@ -9056,65 +9266,175 @@ PUBLIC.start = function (root, api) {
     emitSoulWisp(shX - player.facing * 8, shY + 12, mx, my, { count: follower ? 8 : 13, color, lifeMin: 220, lifeMax: 540 });
     for (let i = 0; i < 10; i++) soulParticle(mx + rand(-4, 4), my + rand(-4, 4), Math.cos(ang) * rand(0.55, 1.55) + rand(-0.18, 0.18), Math.sin(ang) * rand(0.38, 1.18) - rand(0.05, 0.34), { color: spiritParticleColor(color, 0.22), life: rand(220, 560), r: rand(0.9, 2.4), tail: rand(14, 32) });
   }
+  function darkLightningTargetPoint(t) {
+    if (!t) return null;
+    if (t.type === 'fighter') return { x: t.obj.x, y: t.obj.y - 44 };
+    if (t.type === 'dummy') {
+      const pts = t.obj && t.obj.pts;
+      const p = pts && (pts.chest || pts.head || pts.hip || Object.values(pts)[0]);
+      return p ? { x: p.x, y: p.y } : null;
+    }
+    if (t.type === 'box') return { x: t.obj.x + t.obj.w / 2, y: t.obj.y + t.obj.h / 2 };
+    return null;
+  }
+  function darkLightningCandidates(team) {
+    const out = [];
+    const hostileActors = (team || 'hero') === 'enemy'
+      ? enemyAttackTargets().filter(actorCanBeHitByEnemy)
+      : (fighters || []);
+    for (const e of hostileActors) if (e && !e.dead && !(e.ghostForm > 0)) out.push({ type: 'fighter', obj: e });
+    if ((team || 'hero') !== 'enemy') for (const d of dummies || []) {
+      if (d && !d.defeated && d.pts) out.push({ type: 'dummy', obj: d });
+    }
+    for (const b of boxes || []) if (b && !b.dead) out.push({ type: 'box', obj: b });
+    return out;
+  }
+  function firstDarkLightningTarget(ax, ay, bx, by, team) {
+    let best = null, bestScore = Infinity;
+    for (const t of darkLightningCandidates(team)) {
+      const p = darkLightningTargetPoint(t);
+      if (!p) continue;
+      const q = closestPointOnSeg(p.x, p.y, ax, ay, bx, by);
+      const along = Math.hypot(q.x - ax, q.y - ay);
+      const perp = Math.hypot(q.x - p.x, q.y - p.y);
+      const reach = t.type === 'box' ? 48 : t.type === 'dummy' ? 42 : 38;
+      if (perp > reach) continue;
+      const score = along + perp * 2.6 + (t.type === 'box' ? 18 : 0);
+      if (score < bestScore) { bestScore = score; best = t; }
+    }
+    return best;
+  }
+  function nearestDarkLightningTarget(x, y, used, team, range) {
+    let best = null, bestScore = Infinity;
+    for (const t of darkLightningCandidates(team)) {
+      if (used && used.has(t.obj)) continue;
+      const p = darkLightningTargetPoint(t);
+      if (!p) continue;
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d > (range || 210)) continue;
+      const score = d + (t.type === 'box' ? 20 : 0) + (t.type === 'dummy' ? 8 : 0);
+      if (score < bestScore) { bestScore = score; best = t; }
+    }
+    return best;
+  }
+  function applyDarkLightningHit(t, fromX, fromY, power, team) {
+    const p = darkLightningTargetPoint(t);
+    if (!t || !p) return false;
+    const dx = p.x - fromX, dy = p.y - fromY, d = Math.hypot(dx, dy) || 1;
+    const nx = dx / d, ny = dy / d;
+    if (t.type === 'fighter') {
+      if ((team || 'hero') === 'enemy') hurtEnemyTarget(t.obj, nx, ny - 0.12, power || 10, p.x, p.y);
+      else hurtFighter(t.obj, nx, ny - 0.12, power || 10, p.x, p.y);
+      if (t.obj && t.obj.brain) t.obj.brain.stagger = Math.max(t.obj.brain.stagger || 0, 110);
+    } else if (t.type === 'dummy') {
+      hurtDummy(t.obj, nx, ny - 0.12, power || 10, p.x, p.y);
+    } else if (t.type === 'box') {
+      const b = t.obj;
+      if (b.kind === 'barrel' && (power || 10) > 11) explodeBox(b, power || 14);
+      else if (b.kind === 'spring') triggerSpringBox(b, null, power || 12);
+      else {
+        pushBox(b, nx, ny - 0.08, (power || 10) * 0.82);
+        b.va += nx * 0.07;
+      }
+    }
+    for (let i = 0; i < 5; i++) darkLightningSpark(p.x, p.y, { color: SPIRIT_COLORS.ghost, lifeMax: 360 });
+    return true;
+  }
   function spawnDarkBolt(ang) {
     const origin = staffTipOrigin(ang, { type: 'cast', t: 0.38, tipPad: 4 });
-    const spd = 22.5;
+    const range = 565;
+    const sx = origin.x, sy = origin.y;
+    const ex = sx + Math.cos(ang) * range, ey = sy + Math.sin(ang) * range;
+    const team = player.team || 'hero';
+    const first = firstDarkLightningTarget(sx, sy, ex, ey, team);
     const color = SPIRIT_COLORS.ghost;
-    projectiles.push({
-      kind: 'darkBolt',
-      team: player.team,
-      x: origin.x,
-      y: origin.y,
-      vx: Math.cos(ang) * spd,
-      vy: Math.sin(ang) * spd,
-      life: 980,
-      color,
-      r: 8.2,
-      hit: 12.5,
-      angle: ang,
-      sparkle: 2,
-    });
-    emitSoulWisp(origin.handX || player.x, origin.handY || player.y - 76, origin.x, origin.y, { count: 12, color, lifeMin: 220, lifeMax: 520 });
-    for (let i = 0; i < 12; i++) soulParticle(origin.x + rand(-4, 4), origin.y + rand(-4, 4), Math.cos(ang) * rand(0.72, 1.90) + rand(-0.18, 0.18), Math.sin(ang) * rand(0.45, 1.32) - rand(0.05, 0.32), {
-      color: spiritParticleColor(color, 0.26),
-      life: rand(220, 560),
-      r: rand(0.9, 2.4),
-      tail: rand(14, 32),
-    });
+    for (let i = 0; i < 7; i++) darkLightningSpark(sx, sy, { color, lifeMax: 360 });
+    if (!first) {
+      spawnDarkLightningArc(sx, sy, sx + Math.cos(ang) * 230, sy + Math.sin(ang) * 230, {
+        color,
+        mid: SPIRIT_COLORS.sick,
+        life: 135,
+        width: 3.2,
+        shadowWidth: 9,
+        alpha: 0.68,
+        branches: 2,
+        sparks: 5,
+      });
+      addShake(0.7, 40);
+      return;
+    }
+    const used = new Set();
+    let fromX = sx, fromY = sy;
+    let cur = first;
+    let power = 13.8;
+    for (let i = 0; cur && i < 4; i++) {
+      const p = darkLightningTargetPoint(cur);
+      if (!p) break;
+      spawnDarkLightningArc(fromX, fromY, p.x, p.y, {
+        color,
+        mid: i % 2 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.sick,
+        life: 160 + i * 22,
+        width: Math.max(2.5, 4.8 - i * 0.45),
+        shadowWidth: Math.max(8, 14 - i),
+        branches: i === 0 ? 4 : 2,
+        sparks: 7,
+      });
+      applyDarkLightningHit(cur, fromX, fromY, power, team);
+      used.add(cur.obj);
+      fromX = p.x; fromY = p.y;
+      cur = nearestDarkLightningTarget(fromX, fromY, used, team, 220 - i * 18);
+      power *= 0.78;
+    }
+    addShake(2.6, 90);
+  }
+  function corpseByLightningAim(ax, ay, ang, range) {
+    const bx = ax + Math.cos(ang) * (range || 760);
+    const by = ay + Math.sin(ang) * (range || 760);
+    let best = null, bestScore = Infinity;
+    for (const item of reanimatableCorpses(ax, ay, range || 760)) {
+      const c = item.c;
+      const q = closestPointOnSeg(c.x, c.y, ax, ay, bx, by);
+      const along = Math.hypot(q.x - ax, q.y - ay);
+      const perp = Math.hypot(q.x - c.x, q.y - c.y);
+      const endpoint = Math.hypot(c.x - bx, c.y - by);
+      const nearCaster = Math.hypot(c.x - ax, c.y - ay);
+      if (perp > 118 && endpoint > 180 && nearCaster > 330) continue;
+      const score = along + perp * 3.0 + endpoint * 0.16;
+      if (score < bestScore) { bestScore = score; best = item; }
+    }
+    return best;
   }
   function spawnReanimateMissile(ang) {
     const origin = staffTipOrigin(ang, { type: 'cast', t: 0.40, tipPad: 5 });
-    const spd = 17.6;
     const color = SPIRIT_COLORS.curse;
-    projectiles.push({
-      kind: 'reanimateMissile',
-      team: player.team,
-      x: origin.x,
-      y: origin.y,
-      vx: Math.cos(ang) * spd,
-      vy: Math.sin(ang) * spd,
-      life: 1220,
-      range: 620,
+    const sx = origin.x, sy = origin.y;
+    const target = corpseByLightningAim(sx, sy, ang, 780);
+    const tx = target ? target.c.x : sx + Math.cos(ang) * 340;
+    const ty = target ? target.c.y : sy + Math.sin(ang) * 340;
+    spawnDarkLightningArc(sx, sy, tx, ty, {
       color,
-      r: 10,
-      hit: 5.0,
-      angle: ang,
-      curse: true,
-      sparkle: 3,
-      reanimateRange: 138,
+      mid: SPIRIT_COLORS.ghost,
+      core: SPIRIT_COLORS.pale,
+      life: target ? 230 : 145,
+      width: target ? 5.2 : 3.5,
+      shadowWidth: target ? 16 : 10,
+      alpha: target ? 1 : 0.62,
+      branches: target ? 5 : 2,
+      sparks: target ? 14 : 6,
+      big: !!target,
     });
-    emitSoulWisp(origin.handX || player.x, origin.handY || player.y - 76, origin.x + Math.cos(ang) * 18, origin.y + Math.sin(ang) * 18, {
-      count: 18,
-      color,
-      lifeMin: 240,
-      lifeMax: 700,
-    });
-    for (let i = 0; i < 16; i++) soulParticle(origin.x + rand(-5, 5), origin.y + rand(-5, 5), Math.cos(ang) * rand(0.45, 1.35) + rand(-0.26, 0.26), Math.sin(ang) * rand(0.30, 0.96) - rand(0.04, 0.24), {
-      color: spiritParticleColor(color, 0.24),
-      life: rand(260, 680),
-      r: rand(1.0, 3.1),
-      tail: rand(18, 42),
-    });
+    if (target) {
+      consumeCorpseForZombie(target.d, target.c, {
+        color,
+        fromX: sx,
+        fromY: sy,
+        life: 1640,
+      });
+      for (let i = 0; i < 14; i++) darkLightningSpark(target.c.x, target.c.y, { color, lifeMax: 620, rMax: 3.1 });
+      addShake(2.4, 110);
+    } else {
+      addShake(0.9, 50);
+    }
   }
   function spawnFireZone(x, y, team, opts) {
     opts = opts || {};
@@ -11370,7 +11690,7 @@ PUBLIC.start = function (root, api) {
     const shFX = shX, shFY = shY, shBX = shX, shBY = shY;
     const hipFX = hipX, hipBX = hipX;
 
-    if (hiddenFade > 0) drawHiddenSilhouette(hipX, hipY, shX, shY, headCX, headCY, hiddenFade, f);
+    if (hiddenFade > 0 && ghostFade <= 0.02) drawHiddenSilhouette(hipX, hipY, shX, shY, headCX, headCY, hiddenFade, f);
     if (ghostFade > 0.02) drawGhostFormAura(hipX, hipY, shX, shY, headCX, headCY, ghostFade, f);
 
     const teamAccent = actorTeamAccent(player);
@@ -12153,6 +12473,58 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawDarkLightningArcs() {
+    if (!darkLightningArcs || !darkLightningArcs.length) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const arc of darkLightningArcs) {
+      const fade = clamp(arc.life / Math.max(1, arc.max || arc.life || 1), 0, 1) * (arc.alpha == null ? 1 : arc.alpha);
+      const pts = arc.points || [];
+      if (pts.length < 2 || fade <= 0.01) continue;
+      const drawPath = () => {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.stroke();
+      };
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.30 * fade;
+      ctx.strokeStyle = SPIRIT_COLORS.shadow;
+      ctx.lineWidth = (arc.shadowWidth || 13) * (0.84 + fade * 0.18);
+      drawPath();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.62 * fade;
+      ctx.strokeStyle = arc.color || SPIRIT_COLORS.ghost;
+      ctx.lineWidth = arc.width || 4.2;
+      drawPath();
+      ctx.globalAlpha = 0.78 * fade;
+      ctx.strokeStyle = arc.mid || SPIRIT_COLORS.sick;
+      ctx.lineWidth = Math.max(1.5, (arc.width || 4.2) * 0.48);
+      drawPath();
+      ctx.globalAlpha = 0.86 * fade;
+      ctx.strokeStyle = arc.core || SPIRIT_COLORS.pale;
+      ctx.lineWidth = Math.max(0.75, (arc.width || 4.2) * 0.22);
+      drawPath();
+      const branches = arc.branches || [];
+      for (const b of branches) {
+        ctx.globalAlpha = 0.22 * fade;
+        ctx.strokeStyle = SPIRIT_COLORS.shadow;
+        ctx.lineWidth = 7;
+        ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+        ctx.globalAlpha = 0.50 * fade;
+        ctx.strokeStyle = arc.color || SPIRIT_COLORS.ghost;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+        ctx.globalAlpha = 0.55 * fade;
+        ctx.strokeStyle = arc.core || SPIRIT_COLORS.pale;
+        ctx.lineWidth = 0.7;
+        ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
   function drawGravityCore() {
     const g = gravityCore;
     if (!g) return;
@@ -12748,6 +13120,7 @@ PUBLIC.start = function (root, api) {
     drawGravityCore();
     drawShockwaves();
     drawAbilityMarkers();
+    drawDarkLightningArcs();
     drawSmokeZones();
     drawFireZones();
     drawFlameBreaths();
@@ -13114,6 +13487,7 @@ PUBLIC.start = function (root, api) {
         for (let i = slashTrail.length - 1; i >= 0; i--) { if ((slashTrail[i].life -= dt) <= 0) slashTrail.splice(i, 1); }
         if (bladeRecallTrails) for (let i = bladeRecallTrails.length - 1; i >= 0; i--) { if ((bladeRecallTrails[i].life -= dt) <= 0) bladeRecallTrails.splice(i, 1); }
         if (shockwaves) for (let i = shockwaves.length - 1; i >= 0; i--) { if ((shockwaves[i].life -= dt) <= 0) shockwaves.splice(i, 1); }
+        if (darkLightningArcs) for (let i = darkLightningArcs.length - 1; i >= 0; i--) { if ((darkLightningArcs[i].life -= dt) <= 0) darkLightningArcs.splice(i, 1); }
         for (let i = debug.segments.length - 1; i >= 0; i--) { if ((debug.segments[i].life -= dt) <= 0) debug.segments.splice(i, 1); }
         const L = levels[li];
         for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -13547,6 +13921,7 @@ PUBLIC.start = function (root, api) {
             (allies ? allies.filter(a => (a.poisoned || 0) > 0).length : 0) +
             (dummies ? dummies.filter(d => (d.poisoned || 0) > 0).length : 0),
           shockwaves: shockwaves ? shockwaves.length : 0,
+          darkLightningArcs: darkLightningArcs ? darkLightningArcs.length : 0,
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
             spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).length : 0,
             spiritZombies: allies ? allies.filter(a => a && a.zombie && !a.dead).length : 0,
@@ -13575,6 +13950,7 @@ PUBLIC.start = function (root, api) {
               (allies ? allies.filter(a => (a.poisoned || 0) > 0).length : 0) +
               (dummies ? dummies.filter(d => (d.poisoned || 0) > 0).length : 0),
             shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
+            darkLightningArcs: darkLightningArcs ? darkLightningArcs.map(a => ({ life: a.life || 0, max: a.max || 0, points: a.points ? a.points.length : 0, branches: a.branches ? a.branches.length : 0 })) : [],
             spiritRemnants: spiritRemnants ? spiritRemnants.map(r => ({ x: r.x, y: r.y, groundY: r.groundY, life: r.life || 0, max: r.max || 0, source: r.source || 'enemy', bindable: r === bindableRemnant })) : [],
             spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).map(a => ({ x: a.x, y: a.y, life: a.spiritLife || 0, max: a.spiritMaxLife || 0, zombie: !!a.zombie, frenzy: a.zombieFrenzy || 0, commanded: !!a.spiritCommand })) : [],
             spiritPendingReanimations: pendingSpiritReanimations().map(d => {
@@ -13630,6 +14006,7 @@ PUBLIC.start = function (root, api) {
           smokeBlinded: effects.smokeBlinded || 0,
           poisonedActors: effects.poisonedActors || 0,
           shockwaves: effects.shockwaves ? effects.shockwaves.length : 0,
+          darkLightningArcs: effects.darkLightningArcs ? effects.darkLightningArcs.length : 0,
           spiritRemnants: effects.spiritRemnants ? effects.spiritRemnants.length : 0,
           spiritAllies: effects.spiritAllies ? effects.spiritAllies.length : 0,
           spiritZombies: effects.spiritAllies ? effects.spiritAllies.filter(a => a.zombie).length : 0,
