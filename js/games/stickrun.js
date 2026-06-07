@@ -10322,6 +10322,9 @@ PUBLIC.start = function (root, api) {
     }
     if (cls.id === 'ranger') drawQuiver(shX - f * 13, shY + 23, f, player.arrowAmmo);
 
+    function isForwardLeg(legSign) {
+      return legSign === (f >= 0 ? -1 : 1);
+    }
     // foot target: blend the ground running gait with an air pose by `air`
     function legFoot(theta, legSign) {
       let c = ((theta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
@@ -10340,12 +10343,12 @@ PUBLIC.start = function (root, api) {
         foot.y = lerp(foot.y, -7 - liftDrive * 5 + legSign * 5 + Math.sin(now * 0.006 + legSign) * 2, fly);
       }
       if (a.atkActive && a.atkType === 'legSweep') {
-        const frontLeg = legSign === -1;
+        const frontLeg = isForwardLeg(legSign);
         const sweep = Math.sin(Math.min(1, a.atkT) * Math.PI);
         foot.x = frontLeg ? f * (24 + 42 * sweep) : -f * (12 + 8 * sweep);
         foot.y = frontLeg ? -1 : -14;
       } else if (moveType === 'slide') {
-        const frontLeg = legSign === -1;
+        const frontLeg = isForwardLeg(legSign);
         const slide = Math.sin(moveT * Math.PI);
         foot.x = frontLeg ? f * (62 + 18 * slide) : -f * (38 + 12 * slide);
         foot.y = frontLeg ? 2 : -9;
@@ -10355,12 +10358,12 @@ PUBLIC.start = function (root, api) {
         foot.x = lerp(foot.x, fp.x, w);
         foot.y = lerp(foot.y, fp.y, w);
       } else if (posture.down > 0) {
-        const frontLeg = legSign === -1;
+        const frontLeg = isForwardLeg(legSign);
         foot.x = lerp(foot.x, frontLeg ? f * 13 : -f * 11, posture.down);
         foot.y = lerp(foot.y, frontLeg ? -1 : -6, posture.down);
       } else if (a._clip) {
         // clip weight-shift: plant the front foot & push off the back heel
-        const c = a._clip, frontLeg = legSign === -1, wt = c.weight;
+        const c = a._clip, frontLeg = isForwardLeg(legSign), wt = c.weight;
         if (frontLeg) { foot.x = lerp(foot.x, f * (12 + c.weightShift * 9), wt * 0.85); foot.y = lerp(foot.y, 0, wt * 0.85); }
         else { foot.x = lerp(foot.x, -f * 10, wt * 0.7); foot.y = lerp(foot.y, lerp(0, -8, c.weightShift), wt * 0.7); }
       }
