@@ -5014,7 +5014,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'arcaneOrb' ? 12 : p.kind === 'gravityDebris' ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 14 : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' ? 9 : p.r || 8;
+    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'arcaneOrb' ? 12 : p.kind === 'gravityDebris' ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 12 : p.kind === 'ignitionGrenade' ? (p.r || 7) : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' ? 9 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -7457,7 +7457,7 @@ PUBLIC.start = function (root, api) {
     const mx = origin.x, my = origin.y;
     projectiles.push({ kind: 'firebolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
       life: 900, color: '#ff6b32', r: 12.5, hit: 16.5 * (power || 1), angle: ang, fire: true,
-      sparkle: 3, scorch: !!opts.scorch });
+      sparkle: 0, scorch: !!opts.scorch });
     pyroStaffFlare(ang, 1.0, origin);
     emitFlameJet(mx, my, ang, 24, { spread: 0.22, speed: 8.2, length: 36, life: 380, r: 5.2, color: '#ff6b32' });
     emitSmokePuff(mx - Math.cos(ang) * 8, my - Math.sin(ang) * 4, ang + Math.PI, 5, { speed: 1.2, life: 760, alpha: 0.22 });
@@ -7498,6 +7498,64 @@ PUBLIC.start = function (root, api) {
     emitSmokePuff(origin.x - Math.cos(throwAng) * 6, origin.y + 2, throwAng + Math.PI, 8, { speed: 1.4, life: 860, alpha: 0.28 });
     addShake(1.8, 85);
   }
+  function spawnIgnitionGrenades(x, y, team, opts) {
+    opts = opts || {};
+    const count = opts.grenades || (hasPassive('mg_pyromancy') ? 7 : 5);
+    const base = rand(0, Math.PI * 2);
+    for (let i = 0; i < count; i++) {
+      const a = base + i * Math.PI * 2 / count + rand(-0.28, 0.28);
+      const sideKick = Math.cos(a) * rand(3.0, 6.4);
+      const rise = rand(7.0, 11.2);
+      projectiles.push({
+        kind: 'ignitionGrenade',
+        team: team || 'hero',
+        x: x + Math.cos(a) * rand(6, 22),
+        y: y + Math.sin(a) * rand(4, 16),
+        vx: sideKick,
+        vy: Math.sin(a) * rand(1.2, 3.4) - rise,
+        life: rand(520, 840),
+        color: Math.random() < 0.42 ? '#ffd45e' : '#ff6b32',
+        r: rand(5.2, 7.8),
+        hit: opts.grenadeHit || 8,
+        angle: a,
+        gravity: rand(0.30, 0.42),
+      });
+    }
+  }
+  function detonateIgnitionGrenade(b) {
+    const x = b.x, y = b.y, team = b.team || 'hero';
+    const gy = terrainYAt(x);
+    for (let i = 0; i < 5; i++) {
+      const a = rand(-Math.PI, 0);
+      emitFlameJet(x + rand(-4, 4), y + rand(-4, 4), a, 5, {
+        spread: 0.30,
+        speed: rand(3.2, 5.4),
+        length: 18,
+        life: rand(260, 430),
+        r: rand(3.4, 5.8),
+        color: Math.random() < 0.48 ? '#ffd45e' : '#ff6b32',
+      });
+      emberParticle(x, y, Math.cos(a) * rand(2.8, 6.8), Math.sin(a) * rand(2.0, 5.6), {
+        life: rand(360, 760),
+        gravity: rand(0.055, 0.090),
+        r: rand(1.0, 2.4),
+      });
+    }
+    emitSmokePuff(x, y, -Math.PI / 2, 5, { spread: 0.82, speed: 1.1, life: 720, alpha: 0.22 });
+    if (Math.abs(gy - y) < 145) {
+      spawnFireZone(x, gy - 4, team, {
+        r: 26,
+        w: 72,
+        life: 620,
+        color: '#ff6b32',
+        ground: true,
+        spread: hasPassive('mg_pyromancy'),
+        quiet: true,
+      });
+      feedPyromancyGroundFire(x, gy, team, { r: 24, w: 78, life: 860, radius: 76, flare: 160 });
+    }
+    radialActorPulse(x, y, 58, b.hit || 8, team, '#ff6b32', { noBurst: true });
+  }
   function spawnIgnitionAfterburnTrail(fromX, fromY, toX, toY, team, opts) {
     opts = opts || {};
     if (fromX == null || fromY == null) return;
@@ -7534,8 +7592,16 @@ PUBLIC.start = function (root, api) {
     const groundish = Math.abs(groundY - y) < 135;
     emitFlameJet(x, y, -Math.PI / 2, 34, { spread: 1.25, speed: 5.8, length: 44, life: 520, r: 7.0, color: '#ff6b32' });
     emitSmokePuff(x, y, -Math.PI / 2, 18, { spread: 1.4, speed: 2.0, life: 1180, alpha: 0.33 });
-    burst(x, y, '#ffd45e', 16, 4.8);
-    burst(x, y, '#ff6b32', 22, 5.4);
+    for (let i = 0; i < 22; i++) {
+      const a = rand(-Math.PI * 0.95, -Math.PI * 0.05);
+      emberParticle(x + rand(-8, 8), y + rand(-5, 5), Math.cos(a) * rand(2.0, 7.0), Math.sin(a) * rand(1.6, 5.8), {
+        life: rand(320, 820),
+        gravity: rand(0.050, 0.082),
+        r: rand(1.0, 2.6),
+        color: Math.random() < 0.46 ? '#ffd45e' : '#ff8a2a',
+      });
+    }
+    spawnIgnitionGrenades(x, y, team, opts);
     spawnIgnitionAfterburnTrail(opts.fromX, opts.fromY, x, y, team, opts);
     if (groundish) spawnFireZone(x, groundY - 4, team, {
       r: r * (hasPassive('mg_pyromancy') ? 0.48 : 0.34),
@@ -7549,7 +7615,7 @@ PUBLIC.start = function (root, api) {
     else spawnFireZone(x, y, team, { r: r * 0.42, life: 720, color: '#ff6b32', quiet: true });
     feedPyromancyGroundFire(x, y, team, { r: 56, w: 160, life: 1850, radius: 170, flare: 430 });
     flareNearbyFireZones(x, y, r + 100, team, '#ff6b32');
-    radialActorPulse(x, y, r, force, team, '#ff6b32');
+    radialActorPulse(x, y, r, force, team, '#ff6b32', { noBurst: true });
     detonateBurningTargets(x, y, r, force + 12, team, '#ff6b32', { link: true, chain: opts.chain });
     pushBoxesRadial(x, y, force, r, team);
     addShake(4.8, 150);
@@ -8291,7 +8357,8 @@ PUBLIC.start = function (root, api) {
     implodeGravityField(g);
     gravityCore = null;
   }
-  function pushDummyRadial(d, x, y, radius, force, color) {
+  function pushDummyRadial(d, x, y, radius, force, color, opts) {
+    opts = opts || {};
     let touched = false;
     for (const k in d.pts) {
       const p = d.pts[k];
@@ -8305,7 +8372,7 @@ PUBLIC.start = function (root, api) {
     }
     if (touched) {
       d.flash = Math.max(d.flash || 0, 180);
-      if (color) burst(x, y, color, 8, 2.4);
+      if (color && !opts.noBurst) burst(x, y, color, 8, 2.4);
     }
     return touched;
   }
@@ -8322,7 +8389,7 @@ PUBLIC.start = function (root, api) {
       if (opts.poison) t.poisoned = Math.max(t.poisoned || 0, opts.poison);
       hitAny = true;
     }
-    if ((team || 'hero') !== 'enemy' && dummies) for (const d of dummies) hitAny = pushDummyRadial(d, x, y, radius, force * 1.35, color) || hitAny;
+    if ((team || 'hero') !== 'enemy' && dummies) for (const d of dummies) hitAny = pushDummyRadial(d, x, y, radius, force * 1.35, color, opts) || hitAny;
     return hitAny;
   }
   function markBurnActor(act, ms, color) {
@@ -10999,18 +11066,64 @@ PUBLIC.start = function (root, api) {
         ctx.restore();
       } else if (b.kind === 'ignitionOrb') {
         const r = b.r || 14;
-        const wob = Math.sin(performance.now() * 0.022 + b.x * 0.01) * 2.2;
+        const ang = b.angle || Math.atan2(b.vy, b.vx);
+        const flicker = Math.sin(performance.now() * 0.030 + b.x * 0.01) * 0.18;
         ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
         ctx.globalCompositeOperation = 'lighter';
-        const grad = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, r * 2.2 + wob);
-        grad.addColorStop(0, 'rgba(255,248,190,0.95)');
-        grad.addColorStop(0.34, 'rgba(255,212,94,0.80)');
-        grad.addColorStop(0.72, 'rgba(255,92,32,0.42)');
-        grad.addColorStop(1, 'rgba(255,92,32,0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.arc(b.x, b.y, r * 2.1 + wob, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#ffd45e'; ctx.lineWidth = 2.1;
-        ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.86 + wob * 0.25, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255,92,32,0.42)';
+        ctx.lineWidth = r * 0.42;
+        ctx.beginPath();
+        ctx.moveTo(-r * 3.2, flicker * r);
+        ctx.quadraticCurveTo(-r * 1.45, -r * 0.42, -r * 0.12, 0);
+        ctx.stroke();
+        ctx.fillStyle = '#ff6b32';
+        ctx.strokeStyle = '#ffd45e';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(r * 1.10, 0);
+        ctx.lineTo(-r * 0.24, -r * 0.78);
+        ctx.lineTo(-r * 1.02, -r * 0.18);
+        ctx.lineTo(-r * 0.76, r * 0.62);
+        ctx.lineTo(r * 0.28, r * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fff0a8';
+        ctx.beginPath();
+        ctx.moveTo(r * 0.72, -r * 0.06);
+        ctx.lineTo(-r * 0.10, -r * 0.32);
+        ctx.lineTo(-r * 0.34, r * 0.20);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else if (b.kind === 'ignitionGrenade') {
+        const r = b.r || 7;
+        const ang = b.angle || Math.atan2(b.vy, b.vx);
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255,92,32,0.34)';
+        ctx.lineWidth = r * 0.48;
+        ctx.beginPath();
+        ctx.moveTo(-r * 2.8, 0);
+        ctx.lineTo(r * 0.7, 0);
+        ctx.stroke();
+        ctx.fillStyle = b.color || '#ff8a2a';
+        ctx.strokeStyle = '#ffd45e';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(r * 0.94, 0);
+        ctx.lineTo(-r * 0.35, -r * 0.52);
+        ctx.lineTo(-r * 0.90, 0);
+        ctx.lineTo(-r * 0.22, r * 0.50);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
         ctx.restore();
       } else if (b.kind === 'smokeBomb') {
         const r = b.r || (b.poison ? 11 : 9);
@@ -11240,6 +11353,32 @@ PUBLIC.start = function (root, api) {
               feedPyromancyGroundFire(b.x, b.y, b.team, { r: 24, w: 68, life: 720, radius: 84, maxDelta: 120, flare: 220 });
             }
           }
+          else if (b.kind === 'ignitionGrenade') {
+            b.vy += b.gravity || 0.36;
+            b.vx *= 0.992;
+            b.angle = Math.atan2(b.vy, b.vx);
+            if (Math.random() < 0.94) flameParticle(
+              b.x - b.vx * rand(0.08, 0.28) + rand(-2.5, 2.5),
+              b.y - b.vy * rand(0.08, 0.28) + rand(-2.5, 2.5),
+              -b.vx * rand(0.018, 0.046) + rand(-0.24, 0.24),
+              -b.vy * rand(0.010, 0.028) - rand(0.10, 0.72), {
+                life: rand(180, 360),
+                r: rand(2.2, 5.6),
+                color: Math.random() < 0.52 ? '#ffd45e' : '#ff6b32',
+                buoy: rand(0.018, 0.040),
+              });
+            if (Math.random() < 0.30) emberParticle(b.x, b.y, -b.vx * rand(0.02, 0.06), -b.vy * rand(0.005, 0.020), {
+              life: rand(260, 620),
+              gravity: rand(0.050, 0.086),
+              r: rand(0.9, 1.9),
+            });
+            if (Math.random() < 0.22) smokeParticle(b.x - b.vx * rand(0.08, 0.24), b.y - b.vy * rand(0.08, 0.24),
+              -b.vx * 0.010 + rand(-0.12, 0.12), rand(-0.44, 0.04), {
+                life: rand(430, 820),
+                r: rand(4.2, 9.6),
+                alpha: 0.18,
+              });
+          }
           else if (b.kind === 'gravityDebris') {
             b.angle = (b.angle || 0) + (b.spin || 0.08);
             b.vy += 0.035;
@@ -11255,7 +11394,8 @@ PUBLIC.start = function (root, api) {
             }
           }
           else if (b.kind === 'bolt' || b.kind === 'firebolt' || b.kind === 'spiritBolt') {
-            for (let s = 0; s < (b.sparkle || 1); s++) if (Math.random() < 0.65) {
+            const sparkleCount = b.sparkle == null ? 1 : b.sparkle;
+            for (let s = 0; s < sparkleCount; s++) if (Math.random() < 0.65) {
               const trail = rand(0.12, 0.45);
               if (b.kind === 'spiritBolt') soulParticle(
                 b.x - b.vx * trail + rand(-2.5, 2.5),
@@ -11299,9 +11439,9 @@ PUBLIC.start = function (root, api) {
                 crate.vx += b.vx / sp * 1.2;
                 crate.va += (b.vx >= 0 ? 1 : -1) * 0.08;
               } else pushBox(crate, b.vx / sp, b.vy / sp, (b.hit || 12) * 0.75);
-            } else if (b.kind === 'ignitionOrb') {
+            } else if (b.kind === 'ignitionOrb' || b.kind === 'ignitionGrenade') {
               heatBoxFromFire(crate, { x: b.x, y: b.y, color: b.color, ultimate: true }, crate.kind === 'barrel' ? 90 : 46);
-              pushBox(crate, b.vx / sp, b.vy / sp - 0.12, 9);
+              pushBox(crate, b.vx / sp, b.vy / sp - 0.12, b.kind === 'ignitionGrenade' ? 6 : 9);
             } else if (b.kind === 'smokeBomb') {
               pushBox(crate, b.vx / sp, b.vy / sp - 0.06, b.poison ? 8 : 6);
             } else if (b.kind === 'gravityDebris') {
@@ -11412,11 +11552,14 @@ PUBLIC.start = function (root, api) {
                 emitFlameJet(b.x, b.y, -Math.PI / 2, 18, { spread: 1.05, speed: 4.0, length: 28, life: 380, r: 5.4, color: b.color });
                 emitSmokePuff(b.x, b.y, -Math.PI / 2, 8, { spread: 1.2, speed: 1.4, life: 780, alpha: 0.25 });
               }
-              radialActorPulse(b.x, b.y, b.scorch ? 112 : 92, b.scorch ? 15 : 12, b.team, b.color);
+              radialActorPulse(b.x, b.y, b.scorch ? 112 : 92, b.scorch ? 15 : 12, b.team, b.color, { noBurst: true });
               detonateBurningTargets(b.x, b.y, b.scorch ? 86 : 64, b.scorch ? 18 : 12, b.team, b.color, { link: false, chain: false });
             }
             else if (b.kind === 'ignitionOrb') {
               detonateIgnitionOrb(b.x, b.y, b.team, Object.assign({}, b.ignition || {}, { fromX: b.originX, fromY: b.originY }));
+            }
+            else if (b.kind === 'ignitionGrenade') {
+              detonateIgnitionGrenade(b);
             }
             else if (b.kind === 'spiritBolt') {
               emitSoulWisp(b.x - b.vx * 0.55, b.y - b.vy * 0.55, b.x, b.y, { count: 14, color: '#b48cff', lifeMin: 220, lifeMax: 560 });
