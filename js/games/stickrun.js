@@ -196,8 +196,8 @@ const ABILITIES = (() => {
   add('rg_bladecall', { cls: 'rogue', branch: 'bladeslinger', tier: 2, slot: 'secondary', name: 'Knife Recall', desc: 'Recall dropped knives toward you, cutting through enemies on the way back.', effect: { kind: 'bladeRecall' }, cd: 2200, tags: ['Projectile', 'Pull'] });
   add('rg_bladecall_q', { cls: 'rogue', branch: 'bladeslinger', tier: 5, slot: 'q', name: 'Bladecall', desc: 'Ultimate: call every loose knife plus spectral blades into orbit, then send them hunting through enemies.', type: 'custom', use: 'bladecallUltimate', cd: 9400, tags: ['Projectile', 'Pull', 'Burst'] });
   add('rg_poisonknife', { cls: 'rogue', branch: 'nightshade', tier: 1, slot: 'secondary', name: 'Poison Knife', desc: 'Throw a quiet knife that poisons targets and leaves a faint toxic trail.', effect: { kind: 'knife', count: 1, poison: 1 }, cd: 760, tags: ['Projectile', 'Poison'] });
-  add('rg_smokebomb', { cls: 'rogue', branch: 'nightshade', tier: 2, slot: 'e', name: 'Smoke Bomb', desc: 'Throw a bomb that bursts into a thick drifting smoke cloud, hiding movement and breaking enemy aim.', effect: { kind: 'smokeBomb', r: 190, life: 2200, range: 540 }, cd: 3200, tags: ['Stealth', 'Control'] });
-  add('rg_venomcloud', { cls: 'rogue', branch: 'nightshade', tier: 3, slot: 'q', name: 'Venom Cloud', desc: 'Throw a heavier poison bomb that rolls out a choking green cloud and weakens enemies inside.', effect: { kind: 'smokeBomb', r: 258, life: 3300, range: 640, poison: 1 }, cd: 8800, tags: ['Stealth', 'Poison', 'Field'] });
+  add('rg_smokebomb', { cls: 'rogue', branch: 'nightshade', tier: 2, slot: 'e', name: 'Smoke Bomb', desc: 'Throw a bomb that bursts into a tall, slow-spreading smoke cloud, hiding movement and breaking enemy aim.', effect: { kind: 'smokeBomb', r: 246, life: 4300, range: 620 }, cd: 3200, tags: ['Stealth', 'Control'] });
+  add('rg_venomcloud', { cls: 'rogue', branch: 'nightshade', tier: 3, slot: 'q', name: 'Venom Cloud', desc: 'Throw a heavier poison bomb that rolls out a broad choking cloud and weakens enemies inside.', effect: { kind: 'smokeBomb', r: 330, life: 5600, range: 720, poison: 1 }, cd: 8800, tags: ['Stealth', 'Poison', 'Field'] });
   add('rg_nightshade', { cls: 'rogue', branch: 'nightshade', tier: 4, slot: 'passive', name: 'Nightshade', desc: 'Keystone: smoke and poison windows make enemies lose target lock for longer.', key: true, tags: ['Stealth', 'Poison'] });
   add('rg_sweep', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'attack', name: 'Low Sweep', desc: 'A low control strike that pairs with crouch and slide play.', type: 'attack', action: 'legSweep', tags: ['Control'] });
   add('rg_wallkick', { cls: 'rogue', branch: 'acrobat', tier: 1, slot: 'shift', name: 'Dash Cut', desc: 'Fast, simple forward dash slash that cuts a whole lane and is useful almost anytime.', effect: { kind: 'acroDash', variant: 'cut', range: 168, force: 20 }, cd: 900, tags: ['Movement', 'Burst'] });
@@ -246,11 +246,12 @@ const ABILITIES = (() => {
   add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, drags an afterburn trail across the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
   add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Dragon Breath', desc: 'Unleash a huge staff-driven fire torrent. Walls cut it off, objects catch heat, and the floor burns where the flame lands.', effect: { kind: 'dragonBreath', range: 760, life: 1350, cone: 0.42, force: 34, heat: 48 }, cd: 9600, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire abilities feed lingering ground flames, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
-  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Staff-shot ghost wisp. Hits rip loose soul fragments toward you and help fuel later bindings.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
-  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Shepherd the nearest haunted remnant from a defeated body into a temporary ally that remembers its old class.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
-  add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Soul Flare', desc: 'Command bound souls and loose remnants toward a target, making them lash out and shove objects on the way.', effect: { kind: 'soulFlare' }, cd: 3600, tags: ['Spirit', 'Allies', 'Push'] });
-  add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Grave Call', desc: 'Call visible remnants first, raising defeated enemies as a short-lived haunted pack before spending stored souls.', effect: { kind: 'graveCall' }, cd: 9800, tags: ['Spirit', 'Allies'] });
-  add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies leave guideable soul remnants and collected souls visibly follow your staff.', key: true, tags: ['Spirit', 'Allies'] });
+  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Dark Bolt', desc: 'Simple staff-fired dark energy bolt. Reliable damage with dark ghost particles, no corpse or soul spending gimmick.', effect: { kind: 'darkBolt' }, cd: 300, tags: ['Spirit', 'Projectile'] });
+  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Reanimate Missile', desc: 'Fire a dark missile. Corpses twitch and rise as zombies; living enemies only take a light curse hit.', effect: { kind: 'reanimateMissile' }, cd: 1600, tags: ['Spirit', 'Projectile', 'Allies'] });
+  add('mg_ghostform', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'shift', name: 'Ghost Form', desc: 'Briefly fade into dark soul smoke with floatier movement and invulnerability. Attacking ends the escape window.', effect: { kind: 'ghostForm', life: 1120 }, cd: 3600, tags: ['Spirit', 'Movement'] });
+  add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Unholy Command', desc: 'Tether dark energy into all active zombies, making them shamble faster and slam harder for a short frenzy.', effect: { kind: 'unholyCommand' }, cd: 4200, tags: ['Spirit', 'Allies'] });
+  add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Mass Reanimate', desc: 'Perform a wide ritual: nearby corpses twitch, tendrils bind their limbs, and they rise one by one. If none exist, call one weak shadow zombie.', effect: { kind: 'massReanimate' }, cd: 10500, tags: ['Spirit', 'Allies', 'AOE'] });
+  add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies become corpse resources for a capped shambling zombie army with visible dark auras.', key: true, tags: ['Spirit', 'Allies'] });
   add('mg_windbolt', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'attack', name: 'Wind Bolt', desc: 'A quick bolt that shoves targets and barrels instead of only damaging them.', effect: { kind: 'bolt', power: 1.15, wind: 1 }, cd: 180, tags: ['Push', 'Projectile'] });
   add('mg_gust', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'shift', name: 'Gust Hover', desc: 'Air dash leaves a wind burst that knocks enemies and crates away.', effect: { kind: 'gustDash' }, cd: 1900, tags: ['Movement', 'Crates'] });
   add('mg_chain', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'e', name: 'Chain Spark', desc: 'Lightning jumps through enemies, metal objects, and crates in a short chain.', effect: { kind: 'chain', jumps: 4 }, cd: 3100, tags: ['Crates', 'Projectile'] });
@@ -516,7 +517,7 @@ const LAB_BUILDS = {
     { id: 'base', name: 'Base Mage', note: 'Neutral starter caster: Arcane Bolt, Arcane Burst orb, Arc Sigil, and Arcane Nova.', loadout: {} },
     { id: 'graviturge', name: 'Graviturge Core', note: 'Persistent orbit rocks: Mass Shard, Shard Volley, passive float, Lift Mass, and slow-forming Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
-    { id: 'spiritbinder', name: 'Spiritbinder', note: 'Dark ghost magic: spirit bolts, wandering bound souls, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
+    { id: 'spiritbinder', name: 'Spiritbinder', note: 'Corpse puppeteer: Dark Bolt, Reanimate Missile, Ghost Form, Unholy Command, and Mass Reanimate zombies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_ghostform', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
   ranger: [
     { id: 'base', name: 'Base Ranger', note: 'Starting kit for draw/release, quiver, trajectory, and reload checks.', loadout: {} },
@@ -622,6 +623,7 @@ function isPyroVisualAttack(type) {
   return type === 'pyroFirebolt' || type === 'pyroIgnite' || type === 'pyroBreath' ||
     type === 'pyroDragon' || type === 'pyroGroundFlow';
 }
+const SPIRIT_ZOMBIE_CAP = 4;
 
 // ---------- levels (world coords, y down) ----------
 const G = 470;
@@ -1331,11 +1333,11 @@ PUBLIC.start = function (root, api) {
     const cfg = rogueFlipConfig(act);
     const dir = act.facing || 1;
     act.rogueAirJump = true;
-    act.vy = JUMP * 0.78;
-    act.vx += dir * cfg.vx;
+    act.vy = JUMP * 0.84;
+    act.vx += dir * Math.min(cfg.vx, 1.46);
     act.flip = {
-      active: true, t: 0, dur: cfg.dur, dir, spinDir: -dir, clip: 'backflip',
-      tuck: cfg.tuck, curl: cfg.curl,
+      active: true, t: 0, dur: 390, dir, spinDir: 0, clip: 'doubleJump',
+      tuck: 0.16, curl: 0.10,
       flowRadius: cfg.flowRadius, flowGain: cfg.flowGain, flowSpark: cfg.flowSpark, flowHit: false,
       lastTrail: -1,
     };
@@ -1460,6 +1462,12 @@ PUBLIC.start = function (root, api) {
   }
   function triggerAttack(type, opts) {
     if (!player || state !== 'playing' || !type) return false;
+    if ((player.ghostForm || 0) > 0) {
+      player.ghostForm = 0;
+      player.hidden = Math.min(player.hidden || 0, 120);
+      emitSoulWisp(player.x, player.y - 54, player.x + player.facing * 34, player.y - 58, { count: 9, color: SPIRIT_COLORS.ghost, lifeMin: 180, lifeMax: 420 });
+      return false;
+    }
     const a = player.anim;
     if (cls.id === 'rogue' && !(opts && opts.queued)) player.queuedAttack = null;
     if (player.draw && player.draw.active && !(opts && opts.fromDraw)) return false;
@@ -2154,7 +2162,7 @@ PUBLIC.start = function (root, api) {
   }
   function mageSpiritLoadoutActive() {
     if (!hero || !hero.cls || hero.cls.id !== 'mage' || !loadout) return false;
-    return loadout.passive === 'mg_spiritbinder' || ['attack', 'secondary', 'e', 'q'].some(slot => {
+    return loadout.passive === 'mg_spiritbinder' || ['attack', 'secondary', 'shift', 'e', 'q'].some(slot => {
       const id = loadout[slot];
       const spec = ability(id);
       return spec && spec.branch === 'spiritbinder';
@@ -2487,6 +2495,22 @@ PUBLIC.start = function (root, api) {
     a.spiritAwakeMax = Math.max(1, a.spiritAwake || 1);
     a.spiritRise = opts.rise == null ? 38 : opts.rise;
     a.spiritCommandCd = opts.commandCd || 260;
+    a.zombie = !!opts.zombie;
+    if (a.zombie) {
+      a.cls = Object.assign({}, a.cls, {
+        color: opts.color || SPIRIT_COLORS.ghost,
+        trail: [87, 215, 200],
+        speedMul: (a.cls.speedMul || 1) * 0.62,
+      });
+      a.maxHp = Math.max(a.maxHp || 0, opts.hp || 4.8);
+      a.hp = Math.min(a.maxHp, Math.max(a.hp || 0, opts.hp || a.maxHp));
+      a.brain.aggroRange = Math.max(a.brain.aggroRange || 0, 920);
+      a.brain.atkCd = rand(420, 780);
+      a.brain.moveCd = rand(140, 360);
+      a.zombieFrenzy = opts.frenzy || 0;
+      a.zombieCommandFx = 0;
+      a.zombieWeak = !!opts.weak;
+    }
     allies.push(a);
     emitSoulWisp(opts.fromX == null ? x : opts.fromX, opts.fromY == null ? groundY - 58 : opts.fromY, x, groundY - 50, {
       count: 24,
@@ -2498,6 +2522,116 @@ PUBLIC.start = function (root, api) {
     for (let i = 0; i < 12; i++) soulParticle(x + rand(-12, 12), groundY - rand(40, 82), rand(-0.45, 0.45), rand(-1.1, -0.12), { color: spiritParticleColor(color, 0.30), life: rand(300, 720), r: rand(1.1, 2.8) });
     syncHud();
     return a;
+  }
+  function activeSpiritZombies() {
+    return livingAllies().filter(a => a && a.zombie && !a.dead);
+  }
+  function spiritZombieSlotsOpen() {
+    return Math.max(0, SPIRIT_ZOMBIE_CAP - activeSpiritZombies().length);
+  }
+  function corpseAnchor(d) {
+    if (!d || !d.pts) return null;
+    const chest = d.pts.chest || d.pts.hip || d.pts.head;
+    const head = d.pts.head || chest;
+    if (!chest) return null;
+    return {
+      x: (chest.x * 0.68 + head.x * 0.32),
+      y: (chest.y * 0.72 + head.y * 0.28),
+      groundY: d.baseY || d.homeY || surfaceYFor(hero || player, chest.x, 360, 220) || chest.y + 48,
+    };
+  }
+  function isReanimatableCorpse(d) {
+    return !!(d && d.defeated && !d.reanimated && d.pts && d.kind !== 'ally');
+  }
+  function reanimatableCorpses(x, y, range) {
+    if (!dummies || !dummies.length) return [];
+    const out = [];
+    for (const d of dummies) {
+      if (!isReanimatableCorpse(d)) continue;
+      const c = corpseAnchor(d);
+      if (!c) continue;
+      const dist = Math.hypot(c.x - x, c.y - y);
+      if (dist <= (range || 360)) out.push({ d, c, dist });
+    }
+    out.sort((a, b) => a.dist - b.dist);
+    return out;
+  }
+  function emitReanimateTendrils(x, y, groundY, opts) {
+    opts = opts || {};
+    const color = opts.color || SPIRIT_COLORS.ghost;
+    emitSoulWisp(opts.fromX == null ? x : opts.fromX, opts.fromY == null ? y - 20 : opts.fromY, x, y, {
+      count: opts.big ? 28 : 16,
+      color,
+      lifeMin: 260,
+      lifeMax: opts.big ? 900 : 620,
+    });
+    for (let i = 0; i < (opts.big ? 26 : 15); i++) {
+      const side = i % 2 ? -1 : 1;
+      const a = -Math.PI / 2 + side * rand(0.18, 1.04);
+      soulParticle(x + Math.cos(a) * rand(8, 30), groundY - rand(4, 34), Math.cos(a) * rand(0.08, 0.46), -rand(0.44, 1.85), {
+        color: spiritParticleColor(color, 0.34),
+        life: rand(320, opts.big ? 980 : 720),
+        r: rand(1.2, opts.big ? 3.8 : 2.8),
+        tail: rand(14, opts.big ? 38 : 26),
+      });
+    }
+    rememberDebugSegment('ability', x - 26, groundY - 4, x, y, 8, SPIRIT_COLORS.shadow, 320);
+    rememberDebugSegment('ability', x + 26, groundY - 4, x, y, 8, color, 320);
+  }
+  function consumeCorpseForZombie(d, anchor, opts) {
+    opts = opts || {};
+    if (!d || !anchor || spiritZombieSlotsOpen() <= 0) return null;
+    d.reanimated = true;
+    const i = dummies ? dummies.indexOf(d) : -1;
+    if (i >= 0) dummies.splice(i, 1);
+    const color = opts.color || SPIRIT_COLORS.ghost;
+    emitReanimateTendrils(anchor.x, anchor.y, anchor.groundY, Object.assign({}, opts, { color }));
+    const target = spiritCommandTarget(820);
+    const z = spawnSpiritAlly(anchor.x, anchor.groundY, {
+      source: 'knight',
+      hp: opts.weak ? 2.35 : 5.4,
+      life: opts.weak ? 12200 : 26000,
+      awake: opts.big ? 1160 : 940,
+      rise: opts.weak ? 26 : 42,
+      target,
+      color,
+      zombie: true,
+      weak: opts.weak,
+      fromX: opts.fromX == null ? player.x : opts.fromX,
+      fromY: opts.fromY == null ? player.y - 66 : opts.fromY,
+    });
+    if (z) {
+      z.facing = spiritSpawnFacing(anchor.x, anchor.groundY, player.facing, target, 820);
+      z.brain.pauseT = Math.max(z.brain.pauseT || 0, 240);
+    }
+    addShake(opts.big ? 3.4 : 2.0, opts.big ? 150 : 95);
+    syncHud();
+    return z;
+  }
+  function reanimateNearestCorpseAt(x, y, range, opts) {
+    const list = reanimatableCorpses(x, y, range || 82);
+    if (!list.length) return null;
+    return consumeCorpseForZombie(list[0].d, list[0].c, opts);
+  }
+  function spawnShadowZombie(x, y, opts) {
+    opts = opts || {};
+    if (spiritZombieSlotsOpen() <= 0) return null;
+    const groundY = surfaceYFor(hero || player, x, 360, 220) || y;
+    emitReanimateTendrils(x, groundY - 48, groundY, { color: SPIRIT_COLORS.curse, big: !!opts.big, fromX: player.x, fromY: player.y - 66 });
+    const z = spawnSpiritAlly(x, groundY, {
+      source: 'knight',
+      hp: 2.2,
+      life: 10500,
+      awake: 780,
+      rise: 28,
+      color: SPIRIT_COLORS.curse,
+      zombie: true,
+      weak: true,
+      fromX: player.x,
+      fromY: player.y - 66,
+    });
+    if (z) z.cls.speedMul *= 0.92;
+    return z;
   }
   function spiritCommandTarget(range) {
     const caster = hero || player;
@@ -2662,6 +2796,90 @@ PUBLIC.start = function (root, api) {
     syncHud();
     return true;
   }
+  function activateGhostForm(opts) {
+    opts = opts || {};
+    const life = opts.life || 1120;
+    player.ghostForm = Math.max(player.ghostForm || 0, life);
+    player.ghostFormMax = Math.max(player.ghostFormMax || 0, life);
+    player.invuln = Math.max(player.invuln || 0, life + 120);
+    player.hidden = Math.max(player.hidden || 0, life);
+    player.vy = Math.min(player.vy, -2.6);
+    player.grounded = false;
+    player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
+    emitSoulWisp(player.x - player.facing * 22, player.y - 42, player.x + player.facing * 54, player.y - 70, {
+      count: 24,
+      color: SPIRIT_COLORS.ghost,
+      lifeMin: 260,
+      lifeMax: 760,
+    });
+    for (let i = 0; i < 18; i++) soulParticle(player.x + rand(-16, 16), player.y - rand(18, 76), rand(-0.45, 0.45), rand(-0.86, -0.05), {
+      color: spiritParticleColor(i % 3 === 0 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost, 0.40),
+      life: rand(300, 780),
+      r: rand(1.3, 3.6),
+      tail: rand(16, 34),
+    });
+    addShake(1.4, 80);
+    return true;
+  }
+  function unholyCommand() {
+    const zombies = activeSpiritZombies();
+    if (!zombies.length) {
+      emitSoulWisp(player.x - player.facing * 16, player.y - 56, player.x + player.facing * 120, player.y - 62, { count: 12, color: SPIRIT_COLORS.curse, lifeMin: 220, lifeMax: 520 });
+      addShake(1.0, 60);
+      return false;
+    }
+    const target = spiritCommandTarget(860);
+    if (!startVisualAttack('spiritSummon', target ? Math.atan2(target.y - (player.y - 70), target.x - player.x) : aimedAngle(), { range: 300, kind: 'spiritCommand' })) return false;
+    for (const z of zombies) {
+      z.zombieFrenzy = Math.max(z.zombieFrenzy || 0, 3600);
+      z.zombieCommandFx = Math.max(z.zombieCommandFx || 0, 760);
+      z.brain.alert = 9999;
+      z.brain.stagger = 0;
+      z.brain.atkCd = Math.min(z.brain.atkCd || 0, 180);
+      commandSpiritAlly(z, { target, force: z.zombieWeak ? 13 : 18, dash: 2.7, life: 780, range: 860, afterCd: rand(620, 980) });
+      emitSoulWisp(player.x, player.y - 58, z.x, z.y - 52, { count: 9, color: SPIRIT_COLORS.ghost, lifeMin: 220, lifeMax: 560 });
+    }
+    burst(player.x, player.y - 58, SPIRIT_COLORS.ghost, 18, 3.4);
+    addShake(2.6, 120);
+    syncHud();
+    return true;
+  }
+  function massReanimate() {
+    const open = spiritZombieSlotsOpen();
+    if (open <= 0) {
+      emitSoulWisp(player.x, player.y - 62, player.x + player.facing * 120, player.y - 66, { count: 10, color: SPIRIT_COLORS.curse, lifeMin: 220, lifeMax: 500 });
+      return false;
+    }
+    const corpses = reanimatableCorpses(player.x, player.y - 50, 620).slice(0, open);
+    const focus = corpses[0] ? corpses[0].c : { x: player.x + player.facing * 92, y: player.y - 48, groundY: player.y };
+    const ang = Math.atan2(focus.y - (player.y - 70), focus.x - player.x);
+    if (!beginSpiritSummonCast(focus.x, focus.groundY || focus.y, { big: true })) return false;
+    let count = 0;
+    for (let i = 0; i < corpses.length; i++) {
+      const item = corpses[i];
+      window.setTimeout(() => {
+        if (state !== 'playing' || !hero) return;
+        consumeCorpseForZombie(item.d, item.c, {
+          big: true,
+          color: i % 2 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.sick,
+          fromX: player.x,
+          fromY: player.y - 66,
+        });
+      }, i * 170);
+      count++;
+    }
+    if (!count) {
+      window.setTimeout(() => {
+        if (state === 'playing' && hero) spawnShadowZombie(player.x + player.facing * 92, player.y, { big: true });
+      }, 180);
+      count = 1;
+    }
+    emitSoulWisp(player.x, player.y - 64, focus.x, focus.y, { count: 34, color: SPIRIT_COLORS.ghost, lifeMin: 340, lifeMax: 980 });
+    radialActorPulse(player.x, player.y - 42, 132, 7, player.team, SPIRIT_COLORS.curse, { noBurst: true });
+    addShake(4.6, 180);
+    syncHud();
+    return true;
+  }
   function updateSpiritCommand(a, dtStep) {
     const cmd = a && a.spiritCommand;
     if (!cmd) return;
@@ -2680,8 +2898,8 @@ PUBLIC.start = function (root, api) {
     const dx = cmd.x - sx, dy = cmd.y - sy, d = Math.hypot(dx, dy) || 1;
     const fade = clamp(cmd.life / Math.max(1, cmd.max || cmd.life), 0, 1);
     a.facing = dx >= 0 ? 1 : -1;
-    a.vx += (dx / d) * (0.34 + fade * 0.24);
-    a.vy += (dy / d) * 0.12 - 0.03;
+    a.vx += (dx / d) * (a.zombie ? 0.20 + fade * 0.15 : 0.34 + fade * 0.24);
+    a.vy += a.zombie ? (dy / d) * 0.035 - 0.006 : (dy / d) * 0.12 - 0.03;
     if (Math.random() < 0.46) soulParticle(
       lerp(sx, cmd.x, rand(0.16, 0.84)),
       lerp(sy, cmd.y, rand(0.16, 0.84)) + rand(-8, 8),
@@ -2764,63 +2982,80 @@ PUBLIC.start = function (root, api) {
   }
   function smokeCloudColor(poison, bright) {
     if (poison) {
-      if (bright) return Math.random() < 0.45 ? '#e0ff87' : '#a7ef5f';
-      return Math.random() < 0.48 ? '#8fcf5a' : Math.random() < 0.58 ? '#526f49' : '#24372e';
+      if (bright) return Math.random() < 0.45 ? '#d7ff7e' : '#9fe86b';
+      return Math.random() < 0.48 ? '#72ad62' : Math.random() < 0.58 ? '#405d49' : '#1d302b';
     }
-    if (bright) return Math.random() < 0.42 ? '#dce5f2' : '#aeb9cb';
-    return Math.random() < 0.36 ? '#8a94a8' : Math.random() < 0.62 ? '#535d70' : '#2f3544';
+    if (bright) return Math.random() < 0.42 ? '#d9e4f0' : '#aeb9ca';
+    return Math.random() < 0.36 ? '#7d8a9d' : Math.random() < 0.62 ? '#465063' : '#252c3a';
   }
   function emitSmokeCloudBurst(x, y, r, poison, opts) {
     opts = opts || {};
-    const count = opts.count || (poison ? 112 : 92);
-    const force = opts.force || (poison ? 1.84 : 1.62);
+    const count = opts.count || (poison ? 118 : 106);
+    const force = opts.force || (poison ? 1.10 : 1.00);
     const baseVx = opts.vx || 0;
     const baseVy = opts.vy || 0;
     for (let i = 0; i < count; i++) {
       const a = rand(0, Math.PI * 2);
       const edge = Math.pow(Math.random(), 0.42);
-      const rr = r * rand(0.02, 0.28);
+      const rr = r * rand(0.02, 0.24);
       const sx = x + Math.cos(a) * rr;
-      const sy = y + Math.sin(a) * rr * 0.42 + rand(-7, 8);
+      const sy = y + Math.sin(a) * rr * 0.64 + rand(-18, 18);
       const s = rand(force * 0.16, force * (0.66 + edge * 0.28));
       smokeParticle(sx, sy,
-        baseVx * 0.38 + Math.cos(a) * s + rand(-0.12, 0.12),
-        baseVy * 0.34 + Math.sin(a) * s * 0.28 - rand(0.02, poison ? 0.28 : 0.38), {
+        baseVx * 0.24 + Math.cos(a) * s * 0.62 + rand(-0.055, 0.055),
+        baseVy * 0.18 + Math.sin(a) * s * 0.24 - rand(-0.02, poison ? 0.14 : 0.18), {
           color: smokeCloudColor(poison, i % 7 === 0),
-          life: rand(poison ? 1320 : 1120, poison ? 2460 : 2100),
-          r: rand(poison ? 8.2 : 9.2, poison ? 23.0 : 25.0),
-          alpha: rand(poison ? 0.34 : 0.28, poison ? 0.62 : 0.54),
-          grow: rand(0.026, 0.064),
-          drag: rand(0.990, 0.996),
-          buoy: poison ? rand(-0.002, 0.006) : rand(0.000, 0.012),
-          swirl: rand(0.002, 0.011),
+          life: rand(poison ? 2500 : 2380, poison ? 4700 : 4300),
+          r: rand(poison ? 11.5 : 12.5, poison ? 29.0 : 31.0),
+          alpha: rand(poison ? 0.38 : 0.32, poison ? 0.68 : 0.60),
+          grow: rand(0.010, 0.034),
+          drag: rand(0.996, 0.999),
+          buoy: poison ? rand(-0.004, 0.004) : rand(-0.002, 0.006),
+          swirl: rand(0.001, 0.006),
           poison,
           groundHug: true,
-          settle: rand(-12, 10),
+          settle: rand(-34, 24),
         });
     }
   }
   function smokeGroundYAt(x, fallbackY, poison) {
-    const gy = terrainYAt(x);
-    return (gy == null ? fallbackY + 28 : gy) - (poison ? 23 : 27);
+    const L = levels && levels[li];
+    const pad = poison ? 35 : 40;
+    const minY = fallbackY - 10;
+    const maxY = fallbackY + 360;
+    let y = Infinity;
+    const consider = (top, left, width, extra) => {
+      if (top == null || left == null || width == null) return;
+      if (x >= left - extra && x <= left + width + extra && top >= minY && top <= maxY) y = Math.min(y, top);
+    };
+    if (L && L.platforms) for (const p of L.platforms) consider(p.y, p.x, p.w, p.oneWay ? 18 : 12);
+    if (boxes) for (const b of boxes) if (!b.dead && b.kind !== 'barrier') consider(b.y, b.x, b.w, 12);
+    if (y === Infinity && L && L.platforms) {
+      for (const p of L.platforms) if (x >= p.x - 14 && x <= p.x + p.w + 14 && p.y >= fallbackY - 4) y = Math.min(y, p.y);
+    }
+    if (y === Infinity) {
+      const gy = terrainYAt(x);
+      y = gy != null && gy >= minY ? gy : fallbackY + 62;
+    }
+    return y - pad;
   }
   function smokeZoneLobes(x, y, targetR, poison, opts) {
     opts = opts || {};
-    const count = opts.lobes || (poison ? 11 : 10);
+    const count = opts.lobes || (poison ? 14 : 13);
     const lobes = [];
     for (let i = 0; i < count; i++) {
       const center = i === 0;
       const side = i % 2 === 0 ? 1 : -1;
       const rank = center ? 0 : Math.ceil(i / 2);
       const spreadT = center ? 0 : rank / Math.ceil((count - 1) / 2);
-      const ox = center ? 0 : side * targetR * rand(0.03 + spreadT * 0.05, 0.11 + spreadT * 0.20);
+      const ox = center ? 0 : side * targetR * rand(0.04 + spreadT * 0.06, 0.16 + spreadT * 0.28);
       const lx = x + ox;
       lobes.push({
         ox,
-        y: y + rand(-7, 9),
-        r: Math.max(20, targetR * rand(center ? 0.14 : 0.08, center ? 0.22 : 0.16)),
-        targetR: targetR * rand(center ? 0.42 : 0.28, center ? 0.60 : 0.50),
-        vx: (center ? rand(-0.02, 0.02) : side * rand(0.08, poison ? 0.24 : 0.20)) + (opts.vx || 0) * 0.26,
+        y: y + rand(-18, 12),
+        r: Math.max(24, targetR * rand(center ? 0.13 : 0.08, center ? 0.23 : 0.17)),
+        targetR: targetR * rand(center ? 0.52 : 0.36, center ? 0.76 : 0.68),
+        vx: (center ? rand(-0.012, 0.012) : side * rand(0.035, poison ? 0.105 : 0.090)) + (opts.vx || 0) * 0.16,
         phase: rand(0, Math.PI * 2),
       });
     }
@@ -2843,7 +3078,7 @@ PUBLIC.start = function (root, api) {
   function spawnSmokeZone(x, y, team, opts) {
     opts = opts || {};
     if (!smokeZones) smokeZones = [];
-    const life = opts.life || 1150;
+    const life = opts.life || (opts.poison ? 5200 : 4100);
     const targetR = opts.r || 128;
     const sourceY = opts.sourceY == null ? y : opts.sourceY;
     smokeZones.push({
@@ -2863,10 +3098,10 @@ PUBLIC.start = function (root, api) {
       vy: opts.vy || 0,
       thickness: opts.thickness || (opts.poison ? 1.18 : 1.0),
       phase: rand(0, Math.PI * 2),
-      settleMs: opts.settleMs || (opts.poison ? 1220 : 1050),
+      settleMs: opts.settleMs || (opts.poison ? 2250 : 1950),
       lobes: smokeZoneLobes(x, sourceY, targetR, !!opts.poison, opts),
     });
-    if (smokeZones.length > 10) smokeZones.shift();
+    if (smokeZones.length > 12) smokeZones.shift();
   }
   function actorInSmokeZone(act, z) {
     if (!act || act.dead) return false;
@@ -2882,24 +3117,24 @@ PUBLIC.start = function (root, api) {
       const driftScale = clamp(dtStep / 16.67, 0.35, 2.4);
       z.age = (z.age || 0) + dtStep;
       const settle = ease(clamp((z.age || 0) / Math.max(1, z.settleMs || 1050), 0, 1));
-      const mature = ease(clamp((z.age || 0) / Math.max(1, (z.max || 1600) * 0.58), 0, 1));
+      const mature = ease(clamp((z.age || 0) / Math.max(1, (z.max || 1600) * 0.68), 0, 1));
       z.r = lerp(z.r || z.targetR, z.targetR || z.r || 120, (1 - Math.pow(0.978, driftScale)) * (0.28 + mature * 0.72));
       z.x += (z.vx || 0) * driftScale;
       const groundY = smokeGroundYAt(z.x, z.y, z.poison);
-      z.y = lerp(z.y + (z.vy || 0) * driftScale, groundY, (1 - Math.pow(0.962, driftScale)) * settle);
-      z.vx = (z.vx || 0) * Math.pow(0.992, driftScale) + Math.sin((runTime || 0) * 0.0013 + z.phase) * 0.004 * driftScale;
-      z.vy = (z.vy || 0) * Math.pow(0.993, driftScale) + (groundY > z.y ? 0.012 : -0.002) * (1 - settle * 0.45) * driftScale;
+      z.y = lerp(z.y + (z.vy || 0) * driftScale, groundY, (1 - Math.pow(0.982, driftScale)) * settle);
+      z.vx = (z.vx || 0) * Math.pow(0.996, driftScale) + Math.sin((runTime || 0) * 0.0010 + z.phase) * 0.0025 * driftScale;
+      z.vy = (z.vy || 0) * Math.pow(0.996, driftScale) + (groundY > z.y ? 0.004 : -0.001) * (1 - settle * 0.35) * driftScale;
       const fade = clamp(z.life / z.max, 0, 1);
       const lobes = z.lobes && z.lobes.length ? z.lobes : [{ ox: 0, y: z.y, r: z.r, targetR: z.r, vx: 0, phase: z.phase }];
       for (const l of lobes) {
         l.ox += (l.vx || 0) * driftScale;
-        l.ox = clamp(l.ox, -(z.targetR || z.r) * 1.22, (z.targetR || z.r) * 1.22);
-        l.vx = (l.vx || 0) * Math.pow(0.994, driftScale) + Math.sin((runTime || 0) * 0.0011 + l.phase) * 0.003 * driftScale;
-        l.r = lerp(l.r || l.targetR, l.targetR || z.r, (1 - Math.pow(0.972, driftScale)) * (0.34 + mature * 0.66));
+        l.ox = clamp(l.ox, -(z.targetR || z.r) * 1.72, (z.targetR || z.r) * 1.72);
+        l.vx = (l.vx || 0) * Math.pow(0.997, driftScale) + Math.sin((runTime || 0) * 0.0009 + l.phase) * 0.0017 * driftScale;
+        l.r = lerp(l.r || l.targetR, l.targetR || z.r, (1 - Math.pow(0.982, driftScale)) * (0.30 + mature * 0.70));
         const lGround = smokeGroundYAt(z.x + l.ox, z.y, z.poison) + Math.sin((runTime || 0) * 0.0012 + l.phase) * 3;
-        l.y = lerp(l.y + (z.vy || 0) * 0.18 * driftScale, lGround, (1 - Math.pow(0.958, driftScale)) * settle);
+        l.y = lerp(l.y + (z.vy || 0) * 0.12 * driftScale, lGround, (1 - Math.pow(0.981, driftScale)) * settle);
       }
-      const density = (z.poison ? 4.7 : 3.9) * (z.thickness || 1) * (0.38 + fade * 0.82) * driftScale;
+      const density = (z.poison ? 4.2 : 3.7) * (z.thickness || 1) * (0.38 + fade * 0.82) * driftScale;
       const puffCount = Math.floor(density) + (Math.random() < density % 1 ? 1 : 0);
       for (let j = 0; j < puffCount; j++) {
         const l = lobes[Math.floor(Math.random() * lobes.length)] || lobes[0];
@@ -2909,20 +3144,20 @@ PUBLIC.start = function (root, api) {
         const edge = rr / Math.max(1, l.r);
         smokeParticle(
           lx + Math.cos(a) * rr,
-          ly + Math.sin(a) * rr * (z.poison ? 0.34 : 0.40) + rand(-3, 3),
-          (z.vx || 0) * 0.22 + (l.vx || 0) * 0.22 + Math.cos(a) * rand(0.02, 0.16) * (0.5 + edge),
-          (z.vy || 0) * 0.14 + rand(z.poison ? -0.10 : -0.16, 0.06), {
+          ly + Math.sin(a) * rr * (z.poison ? 0.54 : 0.62) + rand(-8, 8),
+          (z.vx || 0) * 0.16 + (l.vx || 0) * 0.16 + Math.cos(a) * rand(0.008, 0.070) * (0.5 + edge),
+          (z.vy || 0) * 0.08 + rand(z.poison ? -0.035 : -0.050, 0.035), {
             color: smokeCloudColor(z.poison, Math.random() < 0.22),
-            life: rand(z.poison ? 860 : 760, z.poison ? 1660 : 1440),
-            r: rand(z.poison ? 7.2 : 8.0, z.poison ? 20.0 : 22.0) * (z.thickness || 1),
-            alpha: rand(z.poison ? 0.30 : 0.25, z.poison ? 0.58 : 0.50) * (0.68 + fade * 0.58),
-            grow: rand(0.026, 0.064),
-            drag: rand(0.990, 0.996),
-            buoy: z.poison ? rand(-0.002, 0.006) : rand(0.000, 0.010),
-            swirl: rand(0.002, 0.014),
+            life: rand(z.poison ? 1900 : 1750, z.poison ? 3600 : 3300),
+            r: rand(z.poison ? 9.2 : 10.2, z.poison ? 25.0 : 27.0) * (z.thickness || 1),
+            alpha: rand(z.poison ? 0.32 : 0.28, z.poison ? 0.62 : 0.56) * (0.68 + fade * 0.58),
+            grow: rand(0.012, 0.036),
+            drag: rand(0.996, 0.999),
+            buoy: z.poison ? rand(-0.004, 0.003) : rand(-0.002, 0.006),
+            swirl: rand(0.001, 0.008),
             poison: z.poison,
             groundHug: true,
-            settle: rand(-16, 14),
+            settle: rand(-42, 28),
           });
       }
       if ((z.team || 'hero') === 'hero' && player && actorInSmokeZone(player, z)) {
@@ -3551,6 +3786,19 @@ PUBLIC.start = function (root, api) {
       if (!startVisualAttack('pyroDragon', ang, { range: e.range || 760 })) return false;
       return startPyroBreath(ang, Object.assign({}, e, { dragon: true, spread: true, color: '#ff5a20' }));
     }
+    if (e.kind === 'darkBolt') {
+      if (!startVisualAttack('cast', ang, { range: e.range || 520, kind: 'darkBolt' })) return false;
+      spawnDarkBolt(ang);
+      return true;
+    }
+    if (e.kind === 'reanimateMissile') {
+      if (!startVisualAttack('cast', ang, { range: e.range || 620, kind: 'reanimateMissile' })) return false;
+      spawnReanimateMissile(ang);
+      return true;
+    }
+    if (e.kind === 'ghostForm') return activateGhostForm(e);
+    if (e.kind === 'unholyCommand') return unholyCommand();
+    if (e.kind === 'massReanimate') return massReanimate();
     if (e.kind === 'spiritBolt') {
       if (!startVisualAttack('cast', ang, { range: e.range || 420, kind: 'spiritBolt' })) return false;
       spawnSpiritBolt(ang);
@@ -3877,7 +4125,7 @@ PUBLIC.start = function (root, api) {
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null, queuedFlash: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
-      hidden: 0, poisoned: 0, burned: 0, burnedMax: 0, smokeBlind: 0, smokeBlindMax: 0, spiritCharges: 0, spiritFollowers: [],
+      hidden: 0, poisoned: 0, burned: 0, burnedMax: 0, smokeBlind: 0, smokeBlindMax: 0, ghostForm: 0, ghostFormMax: 0, spiritCharges: 0, spiritFollowers: [],
       gravityDebris: MAGE_DEBRIS_MAX, gravityDebrisRegen: 0, gravityDebrisSpin: 0, gravityDebrisJoins: [],
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
@@ -4245,7 +4493,7 @@ PUBLIC.start = function (root, api) {
     }
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
-    if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.spiritCharges || 0}/6 souls`;
+    if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'secondary' || slot === 'e' || slot === 'q')) return `${activeSpiritZombies().length}/${SPIRIT_ZOMBIE_CAP} zombies`;
     if (cls.id === 'mage' && mageGraviturgeLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.gravityDebris || 0}/${gravityDebrisMax()} debris`;
     if (cls.id === 'mage' && magePyroLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return pyroStatusText();
     if (slot === 'passive') return spec ? 'keystone' : '';
@@ -4339,9 +4587,9 @@ PUBLIC.start = function (root, api) {
       const icon = document.getElementById('sr-ammo-icon');
       const val = document.getElementById('sr-knives');
       const detail = document.getElementById('sr-ammo-detail');
-      if (icon) icon.textContent = 'SO';
-      if (val) val.textContent = `${player.spiritCharges || 0}/6`;
-      if (detail) detail.textContent = 'bound souls';
+      if (icon) icon.textContent = 'ZB';
+      if (val) val.textContent = `${activeSpiritZombies().length}/${SPIRIT_ZOMBIE_CAP}`;
+      if (detail) detail.textContent = 'raised zombies';
     }
     if (ammo && cls.id === 'mage' && player && mageGraviturgeLoadoutActive()) {
       const icon = document.getElementById('sr-ammo-icon');
@@ -4586,6 +4834,8 @@ PUBLIC.start = function (root, api) {
     player.attackCd = player.abilityCd = player.moveCd = 0;
     player.shieldGuard = 0;
     player.invuln = 0;
+    player.ghostForm = 0;
+    player.ghostFormMax = 0;
     player.draw = { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' };
     syncLegacyCooldowns(player);
     syncHud();
@@ -4641,6 +4891,22 @@ PUBLIC.start = function (root, api) {
     const y = terrainYAt(x);
     dummies.push(makeDummy(x, y, { kind: kind === 'enemy' ? 'enemy' : 'dummy', hp: kind === 'enemy' ? 8 : 99, patrolMin: x - 90, patrolMax: x + 90 }));
     burst(x, y - 42, kind === 'enemy' ? '#ff5a5a' : '#8fe6ff', 18, 3.0);
+    syncHud();
+  }
+  function spawnLabCorpse() {
+    if (!player) return;
+    const x = player.x + player.facing * 160;
+    const y = terrainYAt(x);
+    const d = makeDummy(x, y, { kind: 'enemy', hp: 0 });
+    d.defeated = true;
+    d.flash = 320;
+    d.attackCd = 9999;
+    for (const f of ['footL', 'footR']) d.pts[f].pin = false;
+    d.pts.chest.x += player.facing * 10;
+    d.pts.head.x += player.facing * 18;
+    d.pts.head.y += 8;
+    dummies.push(d);
+    emitSpiritAwakeningBurst(x, y, SPIRIT_COLORS.ghost, { count: 12, lifeMin: 240, lifeMax: 520 });
     syncHud();
   }
   function spawnLabBot() {
@@ -4776,7 +5042,7 @@ PUBLIC.start = function (root, api) {
     const testButtons = ['attack', 'secondary', 'shift', 'jump', 'e', 'q'].map(labSlotButton).join('');
     const rogueTools = cls.id === 'rogue' ? `<button data-lab-act="knife">Drop Knife</button>` : '';
     const pyroTools = cls.id === 'mage' && magePyroLoadoutActive() ? `<button data-lab-act="pyrochain">Pyro Setup</button><button data-lab-act="hotbarrel">Hot Barrel</button>` : '';
-    const spiritTools = cls.id === 'mage' && mageSpiritLoadoutActive() ? `<button data-lab-act="spirit">Spirit</button>` : '';
+    const spiritTools = cls.id === 'mage' && mageSpiritLoadoutActive() ? `<button data-lab-act="spirit">Corpse</button>` : '';
     labPanel.innerHTML = `<div class="sr-labhead"><b>Ability Lab</b><button data-lab-act="collapse" class="sr-labcollapse">Hide</button></div>
       <div class="sr-labrow">
         <select data-lab-select="class" aria-label="Class">${classOpts}</select>
@@ -4934,9 +5200,7 @@ PUBLIC.start = function (root, api) {
     else if (act === 'pyrochain') setupLabPyroChain();
     else if (act === 'hotbarrel') spawnLabHotBarrel();
     else if (act === 'spirit') {
-      const source = ['rogue', 'knight', 'lancer', 'ranger'][(Math.floor((runTime || 0) / 900) % 4)];
-      spawnSpiritRemnant(player.x + player.facing * 86, player.y - 56, { groundY: player.y, source });
-      grantSpiritCharge(player.x, player.y - 58, 1);
+      spawnLabCorpse();
     }
     else if (act === 'debug') {
       debug.enabled = !debug.enabled;
@@ -4977,14 +5241,14 @@ PUBLIC.start = function (root, api) {
     addParticle({
       kind: 'smoke',
       x, y, vx, vy,
-      life: opts.life || rand(520, 1180),
-      max: opts.max || opts.life || 1180,
+      life: opts.life || rand(820, 1760),
+      max: opts.max || opts.life || 1760,
       color: opts.color || (Math.random() < 0.55 ? '#6b6470' : '#2b2530'),
-      r: opts.r || rand(5.2, 13.5),
-      grow: opts.grow == null ? rand(0.025, 0.075) : opts.grow,
-      drag: opts.drag || 0.982,
-      buoy: opts.buoy == null ? rand(0.010, 0.034) : opts.buoy,
-      swirl: opts.swirl == null ? rand(0.004, 0.020) : opts.swirl,
+      r: opts.r || rand(6.4, 16.5),
+      grow: opts.grow == null ? rand(0.012, 0.042) : opts.grow,
+      drag: opts.drag || 0.992,
+      buoy: opts.buoy == null ? rand(0.000, 0.012) : opts.buoy,
+      swirl: opts.swirl == null ? rand(0.002, 0.012) : opts.swirl,
       seed: rand(0, Math.PI * 2),
       alpha: opts.alpha || 0.36,
       poison: !!opts.poison,
@@ -5275,7 +5539,7 @@ PUBLIC.start = function (root, api) {
     else hurtFighter(act, nx, ny, force, hx, hy);
   }
   function actorCanBeHitByEnemy(act) {
-    return act && !act.dead && (act !== hero || !(hero.invuln > 0));
+    return act && !act.dead && !(act.ghostForm > 0) && (act !== hero || !(hero.invuln > 0));
   }
   // attacks shove nearby crates
   function hitBoxes(ix, iy, dx, dy, force) {
@@ -5309,7 +5573,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'arcaneOrb' ? 12 : (p.kind === 'gravityDebris' || p.kind === 'gravityDebrisReturn') ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 12 : p.kind === 'ignitionGrenade' ? (p.r || 7) : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' ? 9 : p.r || 8;
+    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'arcaneOrb' ? 12 : (p.kind === 'gravityDebris' || p.kind === 'gravityDebrisReturn') ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 12 : p.kind === 'ignitionGrenade' ? (p.r || 7) : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' || p.kind === 'darkBolt' ? 9 : p.kind === 'reanimateMissile' ? 11 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -5756,7 +6020,7 @@ PUBLIC.start = function (root, api) {
     mage: [
       { id: 'pyromancer', name: 'Pyromancer Bot', pattern: 'pyromancer', caster: 'pyromancer', color: '#ff6b32', trail: [255, 107, 50], hp: 1, fly: false },
       { id: 'graviturge', name: 'Graviturge Bot', pattern: 'graviturge', caster: 'graviturge', color: '#8b5cff', trail: [139, 92, 255], hp: 1, fly: true },
-      { id: 'spiritbinder', name: 'Spiritbinder Bot', pattern: 'spiritbinder', caster: 'spiritbinder', color: '#62d8ff', trail: [98, 216, 255], hp: 1, fly: false },
+      { id: 'spiritbinder', name: 'Spiritbinder Bot', pattern: 'spiritbinder', caster: 'spiritbinder', color: '#57d7c8', trail: [87, 215, 200], hp: 1, fly: false },
     ],
     ranger: [
       { id: 'sharpshooter', name: 'Sharpshooter Bot', pattern: 'sharpshooter', color: '#79e0ff', trail: [121, 224, 255], hp: 1, arrows: 9 },
@@ -5834,6 +6098,18 @@ PUBLIC.start = function (root, api) {
       e.brain.pauseT = 0;
     }
     if (e.cls.fly) e.intent.jumpHeld = hero.y < e.y - 58 && Math.abs(dx) < 280;
+  }
+  function thinkZombie(e, n) {
+    const b = e.brain;
+    const frenzy = (e.zombieFrenzy || 0) > 0;
+    if (n.adx > (frenzy ? 46 : 58)) pressToward(e, n.route);
+    if (n.adx < (frenzy ? 86 : 72) && b.atkCd <= 0) {
+      triggerAttack(frenzy && b.combo++ % 3 === 2 ? 'shieldBash' : 'slash', { aim: n.aim });
+      b.atkCd = frenzy ? rand(430, 680) : rand(820, 1180);
+    } else if (frenzy && n.adx < 132 && b.atkCd < 180) {
+      e.vx += n.face * 0.22;
+    }
+    if (!frenzy && Math.random() < 0.015) e.vx *= 0.78; // shambling hitch, not a smooth sprint
   }
   function surfaceYFor(act, x, maxDrop, maxRise) {
     const L = levels[li], bottom = act.y + (maxDrop == null ? 120 : maxDrop), top = act.y - (maxRise == null ? 8 : maxRise);
@@ -6094,6 +6370,7 @@ PUBLIC.start = function (root, api) {
     const route = chooseFighterRoute(e, { dx, adx, dy, face, aim: e.anim.aimTarget, nav });
     const ctxNav = { dx, adx, dy, face, route, aim: e.anim.aimTarget, nav, target };
     planFighterMobility(e, ctxNav);
+    if (e.zombie) { thinkZombie(e, ctxNav); return; }
     (ENEMY_BRAINS[e.cls.id] || ENEMY_BRAINS.knight)(e, ctxNav);
   }
   // trimmed locomotion/collision for an AI actor (player === e during this call)
@@ -6186,8 +6463,8 @@ PUBLIC.start = function (root, api) {
         }
         if (a.spiritAwake > 0) {
           a.spiritAwake = Math.max(0, a.spiritAwake - dtStep);
-          a.vx *= 0.72;
-          a.vy = Math.min(a.vy, -0.12);
+          a.vx *= a.zombie ? 0.56 : 0.72;
+          a.vy = a.zombie ? Math.min(a.vy + 0.04, 0.34) : Math.min(a.vy, -0.12);
           if (a.brain) { a.brain.pauseT = Math.max(a.brain.pauseT || 0, 220); a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
           if (Math.random() < 0.62) {
             const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
@@ -6203,6 +6480,16 @@ PUBLIC.start = function (root, api) {
             addShake(1.2, 70);
           }
         }
+        if (a.zombie) {
+          a.zombieFrenzy = Math.max(0, (a.zombieFrenzy || 0) - dtStep);
+          a.zombieCommandFx = Math.max(0, (a.zombieCommandFx || 0) - dtStep);
+          if (a.zombieFrenzy > 0 && Math.random() < 0.36) soulParticle(a.x + rand(-17, 17), a.y - rand(26, 74), rand(-0.28, 0.28), rand(-0.92, -0.08), {
+            life: rand(220, 520),
+            color: spiritParticleColor(SPIRIT_COLORS.sick, 0.32),
+            r: rand(1.2, 3.0),
+            tail: rand(14, 30),
+          });
+        }
         if (a.spirit && Math.random() < ((a.spiritAwake || 0) > 0 ? 0.28 : 0.24)) {
           const fade = clamp(a.spiritLife / Math.max(1, a.spiritMaxLife || a.spiritLife), 0, 1);
           soulParticle(a.x + rand(-16, 16), a.y - rand(38, 86), rand(-0.25, 0.25), rand(-0.90, -0.10), {
@@ -6214,7 +6501,7 @@ PUBLIC.start = function (root, api) {
       }
       if (a.spirit) {
         a.spiritCommandCd = Math.max(0, (a.spiritCommandCd || 0) - dtStep);
-        if (!a.spiritCommand && a.spiritCommandCd <= 0 && !(a.spiritAwake > 0)) {
+        if (!a.zombie && !a.spiritCommand && a.spiritCommandCd <= 0 && !(a.spiritAwake > 0)) {
           const target = spiritCommandTarget(760);
           if (target) {
             commandSpiritAlly(a, { target, force: 12.5, dash: 5.4, life: 880, range: 760, afterCd: rand(980, 1480) });
@@ -6325,9 +6612,9 @@ PUBLIC.start = function (root, api) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = 0.16 + fade * 0.30;
+    ctx.globalAlpha = (night ? 0.24 : 0.16) + fade * (night ? 0.44 : 0.30);
     ctx.strokeStyle = tint;
-    ctx.lineWidth = 4.2;
+    ctx.lineWidth = night ? 5.2 : 4.2;
     ctx.setLineDash([7, 9]);
     ctx.lineDashOffset = -now * 0.045;
     ctx.beginPath();
@@ -6338,9 +6625,9 @@ PUBLIC.start = function (root, api) {
     ctx.arc(headCX - f * 7, headCY, 15 + fade * 3, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.globalAlpha = 0.10 + fade * 0.26;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = (night ? 0.16 : 0.10) + fade * (night ? 0.36 : 0.26);
+    ctx.strokeStyle = night ? '#dfffea' : '#ffffff';
+    ctx.lineWidth = night ? 1.9 : 1.5;
     for (let i = 0; i < 3; i++) {
       const a = now * 0.005 + i * Math.PI * 2 / 3;
       const cx = (hipX + shX) * 0.5 + Math.cos(a) * (10 + i * 2);
@@ -6354,6 +6641,7 @@ PUBLIC.start = function (root, api) {
     if (!act) return null;
     if (act.team === 'hero') return { role: 'hero', color: '#35d9ff', glow: '#e9fbff', alpha: 0.84, core: 5.8, ground: 1.0 };
     if (act.team === 'ally') {
+      if (act.zombie) return { role: 'spirit', color: SPIRIT_COLORS.ghost, glow: SPIRIT_COLORS.sick, alpha: 0.82, core: 5.8, ground: 0.88 };
       if (act.spirit) return { role: 'spirit', color: SPIRIT_COLORS.ghost, glow: SPIRIT_COLORS.pale, alpha: 0.76, core: 5.3, ground: 0.82 };
       if (act.decoy) return { role: 'decoy', color: '#9cff5e', glow: '#f1ffe6', alpha: 0.72, core: 5.0, ground: 0.78 };
       return { role: 'ally', color: '#53d4ff', glow: '#eefbff', alpha: 0.70, core: 5.1, ground: 0.76 };
@@ -6933,6 +7221,20 @@ PUBLIC.start = function (root, api) {
     player.shieldFlash = Math.max(0, (player.shieldFlash || 0) - dtStep);
     player.hunterHaste = Math.max(0, (player.hunterHaste || 0) - dtStep);
     player.hidden = Math.max(0, (player.hidden || 0) - dtStep);
+    player.ghostForm = Math.max(0, (player.ghostForm || 0) - dtStep);
+    if (player.ghostForm > 0) {
+      player.invuln = Math.max(player.invuln || 0, player.ghostForm + 90);
+      player.hidden = Math.max(player.hidden || 0, Math.min(player.ghostForm, 520));
+      player.vy = player.vy * 0.88 - 0.06;
+      player.vx *= 0.992;
+      if (Math.random() < 0.46) soulParticle(player.x + rand(-18, 18), player.y - rand(14, 78), rand(-0.34, 0.34), rand(-0.72, 0.04), {
+        color: spiritParticleColor(Math.random() < 0.45 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost, 0.38),
+        life: rand(240, 620),
+        r: rand(1.2, 3.4),
+        tail: rand(16, 34),
+        alpha: 0.70,
+      });
+    } else player.ghostFormMax = 0;
     player.poisoned = Math.max(0, (player.poisoned || 0) - dtStep);
     player.burned = Math.max(0, (player.burned || 0) - dtStep);
     if (player.burned <= 0) player.burnedMax = 0;
@@ -7038,6 +7340,8 @@ PUBLIC.start = function (root, api) {
   function maxV() {
     let m = MAXV * cls.speedMul * mobilityStatMultiplier();
     if (player && player.hunterHaste > 0) m *= 1.22;
+    if (player && player.zombie) m *= (player.zombieFrenzy || 0) > 0 ? 0.88 : 0.58;
+    if (player && (player.ghostForm || 0) > 0) m *= 1.12;
     if (mageHovering()) m *= 0.68;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
     if (activeMove('slide')) m = Math.max(m, 8.0);
@@ -7392,14 +7696,14 @@ PUBLIC.start = function (root, api) {
       const caster = player.botBuild && player.botBuild.caster;
       if (caster === 'pyromancer') { spawnFirebolt(ang, 1.0, { scorch: true }); return; }
       if (caster === 'graviturge') { spawnGravityDebrisShot(ang, { free: true, power: 1.08, range: 560 }); return; }
-      if (caster === 'spiritbinder') { spawnSpiritBolt(ang); return; }
+      if (caster === 'spiritbinder') { spawnDarkBolt(ang); return; }
       spawnBolt(ang, 1.4); return;
     }
     if (type === 'arcaneBloom') {
       const caster = player.botBuild && player.botBuild.caster;
       if (caster === 'pyromancer') { spawnFirebolt(ang, 1.16, { scorch: true }); return; }
       if (caster === 'graviturge') { spawnGravityDebrisShot(ang, { free: true, power: 1.32, range: 620 }); return; }
-      if (caster === 'spiritbinder') { spawnSpiritBolt(ang); spawnSpiritBolt(ang + 0.12 * player.facing); return; }
+      if (caster === 'spiritbinder') { spawnDarkBolt(ang); spawnDarkBolt(ang + 0.12 * player.facing); return; }
       spawnArcaneOrb(ang); return;
     }
     if (type === 'throw') {
@@ -7953,14 +8257,14 @@ PUBLIC.start = function (root, api) {
   function spawnSmokeBombProjectile(ang, effect) {
     effect = effect || {};
     const poison = !!effect.poison;
-    const maxRange = effect.range || (poison ? 640 : 540);
+    const maxRange = effect.range || (poison ? 720 : 620);
     const aim = aimedPoint(maxRange);
     const origin = smokeBombOrigin(ang);
     const dx = aim.x - origin.x, dy = aim.y - origin.y;
     const dist = clamp(Math.hypot(dx, dy) || 1, 86, maxRange);
     const throwAng = Math.atan2(dy, dx);
     if (!startVisualAttack('throw', throwAng, { kind: poison ? 'poisonBomb' : 'smokeBomb', range: dist })) return false;
-    const spd = poison ? 14.4 : 14.9;
+    const spd = poison ? 14.0 : 14.4;
     const lift = clamp(dist / maxRange, 0.18, 1.05);
     projectiles.push({
       kind: 'smokeBomb',
@@ -7969,7 +8273,7 @@ PUBLIC.start = function (root, api) {
       y: origin.y,
       vx: Math.cos(throwAng) * spd,
       vy: Math.sin(throwAng) * spd - (0.76 + lift * 1.12),
-      life: poison ? 1580 : 1420,
+      life: poison ? 1900 : 1740,
       color: poison ? '#a7ef5f' : '#8a94a8',
       r: poison ? 11 : 9,
       hit: 0,
@@ -7977,20 +8281,20 @@ PUBLIC.start = function (root, api) {
       spin: poison ? 0.13 : 0.16,
       range: dist,
       traveled: 0,
-      bounce: 2,
+      bounce: 3,
       poison,
-      smokeRadius: effect.r || (poison ? 218 : 154),
-      smokeLife: (effect.life || (poison ? 3000 : 1900)) + (hasPassive('rg_nightshade') ? 520 : 0),
-      hiddenBoost: poison ? 300 : 210,
+      smokeRadius: effect.r || (poison ? 300 : 236),
+      smokeLife: (effect.life || (poison ? 5600 : 4300)) + (hasPassive('rg_nightshade') ? 900 : 0),
+      hiddenBoost: poison ? 520 : 420,
     });
     player.hidden = Math.max(player.hidden || 0, hasPassive('rg_nightshade') ? 620 : 340);
     emitSmokePuff(origin.x - Math.cos(throwAng) * 6, origin.y + 2, throwAng + Math.PI, poison ? 18 : 14, {
       color: smokeCloudColor(poison, false),
-      speed: poison ? 1.05 : 0.96,
-      life: poison ? 980 : 860,
+      speed: poison ? 0.72 : 0.66,
+      life: poison ? 1500 : 1320,
       r: poison ? 9.4 : 10.2,
-      alpha: poison ? 0.36 : 0.30,
-      spread: 0.56,
+      alpha: poison ? 0.40 : 0.34,
+      spread: 0.68,
     });
     burst(origin.x, origin.y, poison ? '#a7ef5f' : '#aeb9cb', poison ? 6 : 5, 1.45);
     addShake(0.75, 70);
@@ -7998,27 +8302,27 @@ PUBLIC.start = function (root, api) {
   }
   function detonateSmokeBomb(b) {
     const poison = !!b.poison;
-    const r = b.smokeRadius || (poison ? 208 : 148);
-    const life = b.smokeLife || (poison ? 2850 : 1800);
-    const vx = clamp((b.vx || 0) * 0.018, -0.24, 0.24);
-    const vy = clamp((b.vy || 0) * 0.010, -0.20, 0.22);
+    const r = b.smokeRadius || (poison ? 300 : 236);
+    const life = b.smokeLife || (poison ? 5600 : 4300);
+    const vx = clamp((b.vx || 0) * 0.010, -0.14, 0.14);
+    const vy = clamp((b.vy || 0) * 0.004, -0.08, 0.10);
     const cloudY = b.y;
     burst(b.x, b.y, poison ? '#e0ff87' : '#dce5f2', poison ? 11 : 8, poison ? 1.75 : 1.45);
     spawnSmokeZone(b.x, cloudY, b.team, {
       r,
-      startR: r * 0.16,
+      startR: r * 0.11,
       life,
       poison,
-      hiddenBoost: b.hiddenBoost || (poison ? 280 : 190),
+      hiddenBoost: b.hiddenBoost || (poison ? 500 : 380),
       vx,
       vy,
-      thickness: poison ? 1.24 : 1.08,
+      thickness: poison ? 1.38 : 1.26,
       sourceY: cloudY,
-      settleMs: poison ? 1350 : 1180,
+      settleMs: poison ? 2450 : 2150,
     });
     emitSmokeCloudBurst(b.x, cloudY, r, poison, {
-      count: poison ? 126 : 98,
-      force: poison ? 1.95 : 1.68,
+      count: poison ? 116 : 104,
+      force: poison ? 1.08 : 0.98,
       vx,
       vy,
     });
@@ -8380,6 +8684,66 @@ PUBLIC.start = function (root, api) {
       life: 920, color, r: 8.5, hit: 11, angle: ang, spirit: true, sparkle: 2 });
     emitSoulWisp(shX - player.facing * 8, shY + 12, mx, my, { count: follower ? 8 : 13, color, lifeMin: 220, lifeMax: 540 });
     for (let i = 0; i < 10; i++) soulParticle(mx + rand(-4, 4), my + rand(-4, 4), Math.cos(ang) * rand(0.55, 1.55) + rand(-0.18, 0.18), Math.sin(ang) * rand(0.38, 1.18) - rand(0.05, 0.34), { color: spiritParticleColor(color, 0.22), life: rand(220, 560), r: rand(0.9, 2.4), tail: rand(14, 32) });
+  }
+  function spawnDarkBolt(ang) {
+    const origin = staffTipOrigin(ang, { type: 'cast', t: 0.38, tipPad: 4 });
+    const spd = 22.5;
+    const color = SPIRIT_COLORS.ghost;
+    projectiles.push({
+      kind: 'darkBolt',
+      team: player.team,
+      x: origin.x,
+      y: origin.y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      life: 980,
+      color,
+      r: 8.2,
+      hit: 12.5,
+      angle: ang,
+      sparkle: 2,
+    });
+    emitSoulWisp(origin.handX || player.x, origin.handY || player.y - 76, origin.x, origin.y, { count: 12, color, lifeMin: 220, lifeMax: 520 });
+    for (let i = 0; i < 12; i++) soulParticle(origin.x + rand(-4, 4), origin.y + rand(-4, 4), Math.cos(ang) * rand(0.72, 1.90) + rand(-0.18, 0.18), Math.sin(ang) * rand(0.45, 1.32) - rand(0.05, 0.32), {
+      color: spiritParticleColor(color, 0.26),
+      life: rand(220, 560),
+      r: rand(0.9, 2.4),
+      tail: rand(14, 32),
+    });
+  }
+  function spawnReanimateMissile(ang) {
+    const origin = staffTipOrigin(ang, { type: 'cast', t: 0.40, tipPad: 5 });
+    const spd = 17.6;
+    const color = SPIRIT_COLORS.curse;
+    projectiles.push({
+      kind: 'reanimateMissile',
+      team: player.team,
+      x: origin.x,
+      y: origin.y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      life: 1220,
+      range: 620,
+      color,
+      r: 10,
+      hit: 5.0,
+      angle: ang,
+      curse: true,
+      sparkle: 3,
+      reanimateRange: 78,
+    });
+    emitSoulWisp(origin.handX || player.x, origin.handY || player.y - 76, origin.x + Math.cos(ang) * 18, origin.y + Math.sin(ang) * 18, {
+      count: 18,
+      color,
+      lifeMin: 240,
+      lifeMax: 700,
+    });
+    for (let i = 0; i < 16; i++) soulParticle(origin.x + rand(-5, 5), origin.y + rand(-5, 5), Math.cos(ang) * rand(0.45, 1.35) + rand(-0.26, 0.26), Math.sin(ang) * rand(0.30, 0.96) - rand(0.04, 0.24), {
+      color: spiritParticleColor(color, 0.24),
+      life: rand(260, 680),
+      r: rand(1.0, 3.1),
+      tail: rand(18, 42),
+    });
   }
   function spawnFireZone(x, y, team, opts) {
     opts = opts || {};
@@ -10422,6 +10786,39 @@ PUBLIC.start = function (root, api) {
     return { shX: R.cx, shY: R.cy, headCX: R.hx, headCY: R.hy };
   }
   function rogueBackflipPose(flip, t) {
+    if (flip && flip.clip === 'doubleJump') {
+      const travel = flip.dir || 1;
+      const kick = Math.sin(clamp(t, 0, 1) * Math.PI);
+      const open = ease(clamp((t - 0.18) / 0.58, 0, 1));
+      return {
+        spin: 0,
+        travel,
+        curl: 0,
+        tuck: 0,
+        open,
+        lead: 0,
+        bodyLean: travel * (0.05 + kick * 0.08),
+        hipLift: -8 * kick,
+        headX: travel * 2 * kick,
+        headY: -4 * kick,
+        limbWeight: 0.64 + kick * 0.16,
+        foot(legSign) {
+          const side = legSign === -1 ? -1 : 1;
+          const backLeg = side === (travel >= 0 ? 1 : -1);
+          return {
+            x: side * (8 + open * 3) - travel * (backLeg ? 8 + kick * 8 : 2 + kick * 3),
+            y: -7 - kick * (backLeg ? 16 : 10) + side * 2 + open * 5,
+            bend: backLeg ? -travel : travel,
+          };
+        },
+        hand(side, shX, shY) {
+          return {
+            x: shX + travel * (side > 0 ? 18 : -8) + side * (4 + open * 4),
+            y: shY + 17 - kick * 5 + side * 3,
+          };
+        },
+      };
+    }
     const clip = ROGUE_BACKFLIP_CLIP;
     const travel = flip && flip.dir || 1;
     const spin = flip && flip.spinDir || -travel;
@@ -10547,13 +10944,19 @@ PUBLIC.start = function (root, api) {
       else { slashT = t; atkHip = f * bell * (ty === 'dualSlash' ? 4 : 6); atkLean = f * bell * (ty === 'dualSlash' ? 0.11 : 0.16); }   // slash body commit
     }
 
-    const hiddenFade = clamp((player.hidden || 0) / (hasPassive('rg_nightshade') ? 1900 : 1300), 0, 1);
+    const ghostFade = clamp((player.ghostForm || 0) / Math.max(1, player.ghostFormMax || 1120), 0, 1);
+    const hiddenFade = Math.max(clamp((player.hidden || 0) / (hasPassive('rg_nightshade') ? 1900 : 1300), 0, 1), ghostFade * 0.72);
     ctx.save();
     ctx.translate(player.x, player.y - hoverY);         // hoverY floats the whole figure (Mage)
     if (hiddenFade > 0) {
-      ctx.globalAlpha = lerp(1, 0.48, hiddenFade);
-      ctx.shadowColor = `rgba(88, 94, 116, ${0.22 + hiddenFade * 0.28})`;
-      ctx.shadowBlur = 8 + hiddenFade * 10;
+      const rogueStealth = ghostFade <= 0.02 && cls.id === 'rogue';
+      ctx.globalAlpha = ghostFade > 0 ? lerp(1, 0.36, ghostFade) : rogueStealth ? lerp(1, 0.26, hiddenFade) : lerp(1, 0.48, hiddenFade);
+      ctx.shadowColor = ghostFade > 0
+        ? `rgba(87, 215, 200, ${0.26 + ghostFade * 0.32})`
+        : rogueStealth
+          ? `rgba(156, 255, 94, ${0.30 + hiddenFade * 0.38})`
+          : `rgba(88, 94, 116, ${0.22 + hiddenFade * 0.28})`;
+      ctx.shadowBlur = (rogueStealth ? 13 : 8) + hiddenFade * (rogueStealth ? 16 : 10) + ghostFade * 8;
     }
     const runPulse = moveAmt * (1 - air) * Math.cos(2 * p) * 0.04;
     const sy = (1 - a.squash * 0.40 * S.squash) * (1 + runPulse);
@@ -10707,8 +11110,10 @@ PUBLIC.start = function (root, api) {
       h = flipActive
         ? rogueFlipHandTarget(-1)
         : moveType === 'slide'
-          ? { x: shX - f * 28, y: shY + 29 }
-          : { x: shX - f * 9, y: shY + 20 };                       // off dagger held at low guard
+          ? { x: shX - f * 18, y: shY + 28 }
+          : { x: shX - f * 5, y: shY + 24 };                       // off dagger held at low guard
+      offhandStretch = flipActive ? 0.98 : 0.94;
+      offhandBend = -f;
     } else if (cls.offhand === 'shield') {
       const guarding = (player.shieldGuard || 0) > 0 || (a.atkActive && a.atkType === 'shieldGuard');
       const push = guarding ? 0.72 : (a.atkActive && a.atkType === 'shieldBash') || moveType === 'shieldStep' ? Math.sin(Math.min(1, a.atkT || moveT) * Math.PI) : 0;
@@ -11699,11 +12104,11 @@ PUBLIC.start = function (root, api) {
         const wob = Math.sin(t * 0.0011 + seed) * 0.10;
         const lx = z.x + l.ox + Math.sin(t * 0.0013 + seed) * (4 + i % 3 * 2);
         const ly = l.y + Math.cos(t * 0.0011 + seed) * (3 + i % 4);
-        const size = Math.max(20, l.r * (0.80 + (((i * 23) % 100) / 100) * 0.38) * (z.thickness || 1) * (0.96 + wob));
+        const size = Math.max(22, l.r * (0.86 + (((i * 23) % 100) / 100) * 0.42) * (z.thickness || 1) * (0.96 + wob));
         const mix = i % 5 === 0 ? bright : i % 4 === 0 ? dark : main;
-        const alpha = (i % 5 === 0 ? 0.22 : i % 4 === 0 ? 0.28 : 0.38) * fade * (z.poison ? 1.26 : 1.14);
+        const alpha = (i % 5 === 0 ? 0.24 : i % 4 === 0 ? 0.31 : 0.42) * fade * (z.poison ? 1.32 : 1.20);
         const yJitter = 0.5 + Math.sin(seed * 12.9898 + 78.233) * 0.5;
-        const yScale = z.poison ? lerp(0.66, 0.80, yJitter) : lerp(0.72, 0.88, yJitter);
+        const yScale = z.poison ? lerp(0.94, 1.22, yJitter) : lerp(1.04, 1.40, yJitter);
         const shadow = ctx.createRadialGradient(lx, ly, 2, lx, ly, size * 1.08);
         shadow.addColorStop(0, `rgba(${dark[0]},${dark[1]},${dark[2]},${alpha * 0.70})`);
         shadow.addColorStop(0.62, `rgba(${main[0]},${main[1]},${main[2]},${alpha * 0.40})`);
@@ -11717,7 +12122,7 @@ PUBLIC.start = function (root, api) {
         grad.addColorStop(0.46, `rgba(${mix[0]},${mix[1]},${mix[2]},${alpha * 0.54})`);
         grad.addColorStop(1, `rgba(${mix[0]},${mix[1]},${mix[2]},0)`);
         ctx.fillStyle = grad;
-        traceWobblyCirclePath(lx, ly - size * 0.04, size * 0.76, { phase: seed * 1.31 - t * 0.0006, rough: 0.20, yScale: yScale * 0.92, steps: 22 });
+        traceWobblyCirclePath(lx, ly - size * 0.10, size * 0.78, { phase: seed * 1.31 - t * 0.0006, rough: 0.22, yScale: yScale * 0.96, steps: 22 });
         ctx.fill();
       }
     }
@@ -12161,7 +12566,7 @@ PUBLIC.start = function (root, api) {
         ctx.lineTo(r * 0.38, r * 0.18);
         ctx.stroke();
         ctx.restore();
-      } else if (b.kind === 'spiritBolt') {
+      } else if (b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') {
         const r = b.r || 9;
         const ang = Math.atan2(b.vy, b.vx);
         const wob = Math.sin(performance.now() * 0.014 + b.x * 0.02) * r * 0.38;
@@ -12296,11 +12701,11 @@ PUBLIC.start = function (root, api) {
           pt.x += pt.vx; pt.y += pt.vy;
           if (pt.kind === 'smoke' && pt.groundHug) {
             const floorY = smokeGroundYAt(pt.x, pt.y, pt.poison) + (pt.settle || 0);
-            if (pt.y > floorY) {
-              pt.y = lerp(pt.y, floorY, 0.34);
-              pt.vy = Math.min(pt.vy, -0.035);
-            } else if (pt.y < floorY - 82) {
-              pt.vy += 0.018;
+            if (pt.y > floorY + 4) {
+              pt.y = lerp(pt.y, floorY, 0.14);
+              pt.vy = Math.min(pt.vy, -0.012);
+            } else if (pt.y < floorY - 150) {
+              pt.vy += 0.005;
             }
           }
           pt.life -= dt;
@@ -12352,16 +12757,16 @@ PUBLIC.start = function (root, api) {
             for (let sj = 0; sj < trailCount; sj++) smokeParticle(
                 b.x - b.vx * rand(0.08, 0.30) + rand(-2.4, 2.4),
                 b.y - b.vy * rand(0.08, 0.30) + rand(-2.4, 2.4),
-                -b.vx * rand(0.006, 0.018) + rand(-0.07, 0.07),
-                -b.vy * rand(0.002, 0.010) - rand(0.00, b.poison ? 0.12 : 0.18), {
+                -b.vx * rand(0.003, 0.010) + rand(-0.035, 0.035),
+                -b.vy * rand(0.001, 0.006) - rand(0.00, b.poison ? 0.05 : 0.08), {
                   color: smokeCloudColor(!!b.poison, Math.random() < 0.18),
-                  life: rand(b.poison ? 620 : 520, b.poison ? 1120 : 940),
-                  r: rand(b.poison ? 5.6 : 6.2, b.poison ? 13.8 : 15.0),
-                  alpha: b.poison ? 0.32 : 0.26,
-                  grow: rand(0.020, 0.050),
-                  drag: rand(0.990, 0.996),
-                  buoy: b.poison ? rand(-0.002, 0.006) : rand(0.000, 0.010),
-                  swirl: rand(0.002, 0.010),
+                  life: rand(b.poison ? 900 : 780, b.poison ? 1680 : 1480),
+                  r: rand(b.poison ? 6.8 : 7.4, b.poison ? 15.8 : 17.0),
+                  alpha: b.poison ? 0.34 : 0.28,
+                  grow: rand(0.010, 0.032),
+                  drag: rand(0.996, 0.999),
+                  buoy: b.poison ? rand(-0.004, 0.003) : rand(-0.002, 0.006),
+                  swirl: rand(0.001, 0.006),
                   poison: !!b.poison,
                 });
           }
@@ -12444,11 +12849,11 @@ PUBLIC.start = function (root, api) {
                 });
             }
           }
-          else if (b.kind === 'bolt' || b.kind === 'firebolt' || b.kind === 'spiritBolt') {
+          else if (b.kind === 'bolt' || b.kind === 'firebolt' || b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') {
             const sparkleCount = b.sparkle == null ? 1 : b.sparkle;
             for (let s = 0; s < sparkleCount; s++) if (Math.random() < 0.65) {
               const trail = rand(0.12, 0.45);
-              if (b.kind === 'spiritBolt') soulParticle(
+              if (b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') soulParticle(
                 b.x - b.vx * trail + rand(-2.5, 2.5),
                 b.y - b.vy * trail + rand(-2.5, 2.5),
                 -b.vx * rand(0.008, 0.022) + rand(-0.20, 0.20),
@@ -12472,7 +12877,7 @@ PUBLIC.start = function (root, api) {
                   alpha: 0.20,
                 });
             }
-            if (b.kind === 'spiritBolt' && Math.random() < 0.54) soulParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), rand(-0.22, 0.22), rand(-0.56, 0.02), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.18), life: rand(220, 520), r: rand(0.9, 2.3), tail: rand(10, 24), alpha: 0.68 });
+            if ((b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') && Math.random() < 0.54) soulParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), rand(-0.22, 0.22), rand(-0.56, 0.02), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.18), life: rand(220, 520), r: rand(0.9, 2.3), tail: rand(10, 24), alpha: 0.68 });
           } else if (b.kind === 'sigil') {
             b.age += dt;
             b.angle += 0.045;
@@ -12508,6 +12913,7 @@ PUBLIC.start = function (root, api) {
               const h = segHitActor(px, py, b.x, b.y, projectileRadius(b), t);
               if (h) {
                 if (b.kind !== 'gravitySeed' && b.kind !== 'arcaneOrb' && b.kind !== 'ignitionOrb' && b.kind !== 'smokeBomb') hurtEnemyTarget(t, b.vx / sp, b.vy / sp, b.hit || 10, b.x, b.y);
+                if (b.curse) { t.smokeBlind = Math.max(t.smokeBlind || 0, 760); t.smokeBlindMax = Math.max(t.smokeBlindMax || 0, t.smokeBlind); }
                 if (b.poison) t.poisoned = Math.max(t.poisoned || 0, 1600);
                 if (b.fire) markBurnActor(t, b.scorch ? 1850 : 1350, b.color);
                 if (b.kind === 'dagger') {
@@ -12523,14 +12929,23 @@ PUBLIC.start = function (root, api) {
             if (dummies) for (const d of dummies) {
               const h = projectileHitsDummy(b, px, py, d);
               if (h) {
+                if (b.kind === 'reanimateMissile' && d.defeated) {
+                  const z = consumeCorpseForZombie(d, corpseAnchor(d), {
+                    color: b.color || SPIRIT_COLORS.ghost,
+                    fromX: b.x - b.vx * 0.55,
+                    fromY: b.y - b.vy * 0.55,
+                  });
+                  if (z) { struckActor = true; break; }
+                }
                 if (b.kind !== 'gravitySeed' && b.kind !== 'arcaneOrb' && b.kind !== 'ignitionOrb' && b.kind !== 'smokeBomb') hurtDummy(d, b.vx / sp, b.vy / sp, b.hit || 10, h.p.x, h.p.y);
+                if (b.curse) d.flash = Math.max(d.flash || 0, 300);
                 if (b.fire) markBurnDummy(d, b.scorch ? 1850 : 1350, b.color);
                 if (b.spirit) grantSpiritCharge(h.p.x, h.p.y, 0.35);
                 if (b.kind === 'dagger') {
                   burst(h.p.x, h.p.y, b.summoned ? '#ffffff' : b.color, b.summoned ? 8 : 6, b.summoned ? 2.4 : 1.9);
                   d.flash = Math.max(d.flash || 0, b.stagger ? 260 : 160);
                 }
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
             if (!struckActor && fighters) for (const e of fighters.slice()) {
@@ -12538,6 +12953,7 @@ PUBLIC.start = function (root, api) {
               if (h) {
                 if (b.kind !== 'gravitySeed' && b.kind !== 'arcaneOrb' && b.kind !== 'smokeBomb') {
                   if (b.kind !== 'ignitionOrb') hurtFighter(e, b.vx / sp, b.vy / sp, b.hit || 10, h.x, h.y);
+                  if (b.curse) { e.smokeBlind = Math.max(e.smokeBlind || 0, 760); e.smokeBlindMax = Math.max(e.smokeBlindMax || 0, e.smokeBlind); }
                   if (b.pin) { e.vx *= 0.25; e.vy *= 0.25; e.brain.stagger = Math.max(e.brain.stagger || 0, 420); }
                   if (b.kind === 'dagger' && b.stagger) e.brain.stagger = Math.max(e.brain.stagger || 0, b.stagger);
                   if (b.poison) e.poisoned = Math.max(e.poisoned || 0, 1800);
@@ -12545,14 +12961,14 @@ PUBLIC.start = function (root, api) {
                   if (b.spirit) grantSpiritCharge(h.x, h.y, 0.5);
                 }
                 if (b.kind === 'dagger') burst(h.x, h.y, b.summoned ? '#ffffff' : b.color, b.summoned ? 8 : 6, b.summoned ? 2.4 : 1.9);
-                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' ? 2.5 : 1.1, 75); struckActor = true; break;
+                addShake(b.kind === 'bolt' || b.kind === 'sigil' || b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'gravityDebris' || b.kind === 'firebolt' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile' ? 2.5 : 1.1, 75); struckActor = true; break;
               }
             }
           }
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
           if (struckActor && b.pierce > 0) { b.pierce--; struckActor = false; }
           const hitPlatform = L.platforms.some(pl => !isOneWay(pl) && projectileHitsBox(b, px, py, pl));
-          const rangedBurst = (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'gravityDebris') && b.range && b.traveled >= b.range;
+          const rangedBurst = (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'gravityDebris' || b.kind === 'reanimateMissile') && b.range && b.traveled >= b.range;
           if ((crate || hitPlatform) && b.bounce > 0 && !struckActor) {
             b.bounce--;
             if (crate) { b.vx *= -0.66; b.vy *= 0.78; }
@@ -12616,7 +13032,16 @@ PUBLIC.start = function (root, api) {
             else if (b.kind === 'ignitionGrenade') {
               detonateIgnitionGrenade(b);
             }
-            else if (b.kind === 'spiritBolt') {
+            else if (b.kind === 'reanimateMissile') {
+              const z = reanimateNearestCorpseAt(b.x, b.y, b.reanimateRange || 78, {
+                color: b.color || SPIRIT_COLORS.ghost,
+                fromX: b.x - b.vx * 0.6,
+                fromY: b.y - b.vy * 0.6,
+              });
+              emitSoulWisp(b.x - b.vx * 0.62, b.y - b.vy * 0.62, b.x, b.y, { count: z ? 18 : 12, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 680 });
+              for (let j = 0; j < (z ? 16 : 9); j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.42, 0.42), rand(-0.92, 0.04), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.20), life: rand(240, 640), r: rand(0.9, 2.8), tail: rand(12, 32), alpha: 0.74 });
+            }
+            else if (b.kind === 'spiritBolt' || b.kind === 'darkBolt') {
               emitSoulWisp(b.x - b.vx * 0.68, b.y - b.vy * 0.68, b.x, b.y, { count: 16, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 680 });
               for (let j = 0; j < 12; j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.42, 0.42), rand(-0.92, 0.04), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.20), life: rand(240, 640), r: rand(0.9, 2.6), tail: rand(12, 30), alpha: 0.74 });
             }
@@ -12665,7 +13090,7 @@ PUBLIC.start = function (root, api) {
       queuedFlash: act.queuedFlash ? { slot: act.queuedFlash.slot } : null,
       cooldowns: Object.assign({}, act.cooldowns || {}),
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
-      hidden: act.hidden || 0, smokeBlind: act.smokeBlind || 0, poisoned: act.poisoned || 0, burned: act.burned || 0,
+      hidden: act.hidden || 0, ghostForm: act.ghostForm || 0, smokeBlind: act.smokeBlind || 0, poisoned: act.poisoned || 0, burned: act.burned || 0,
       botBuild: act.botBuild ? Object.assign({}, act.botBuild) : null,
       spiritCommand: act.spiritCommand ? { x: act.spiritCommand.x, y: act.spiritCommand.y, life: act.spiritCommand.life || 0, max: act.spiritCommand.max || 0, type: act.spiritCommand.type || 'point' } : null,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
@@ -12713,7 +13138,8 @@ PUBLIC.start = function (root, api) {
             (dummies ? dummies.filter(d => (d.poisoned || 0) > 0).length : 0),
           shockwaves: shockwaves ? shockwaves.length : 0,
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
-          spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).length : 0,
+            spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).length : 0,
+            spiritZombies: allies ? allies.filter(a => a && a.zombie && !a.dead).length : 0,
           spiritCommands: allies ? allies.filter(a => a && a.spiritCommand).length : 0,
           bladeRecallTrails: bladeRecallTrails ? bladeRecallTrails.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0 } : null,
@@ -12739,7 +13165,7 @@ PUBLIC.start = function (root, api) {
               (dummies ? dummies.filter(d => (d.poisoned || 0) > 0).length : 0),
             shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
             spiritRemnants: spiritRemnants ? spiritRemnants.map(r => ({ x: r.x, y: r.y, groundY: r.groundY, life: r.life || 0, max: r.max || 0, source: r.source || 'enemy', bindable: r === bindableRemnant })) : [],
-            spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).map(a => ({ x: a.x, y: a.y, life: a.spiritLife || 0, max: a.spiritMaxLife || 0, commanded: !!a.spiritCommand })) : [],
+            spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).map(a => ({ x: a.x, y: a.y, life: a.spiritLife || 0, max: a.spiritMaxLife || 0, zombie: !!a.zombie, frenzy: a.zombieFrenzy || 0, commanded: !!a.spiritCommand })) : [],
             spiritCommands: allies ? allies.filter(a => a && a.spiritCommand).map(a => ({ x: a.spiritCommand.x, y: a.spiritCommand.y, life: a.spiritCommand.life || 0, max: a.spiritCommand.max || 0, type: a.spiritCommand.type || 'point' })) : [],
             burningActors: (player && (player.burned || 0) > 0 ? 1 : 0) +
               (fighters ? fighters.filter(e => (e.burned || 0) > 0).length : 0) +
@@ -12790,6 +13216,7 @@ PUBLIC.start = function (root, api) {
           shockwaves: effects.shockwaves ? effects.shockwaves.length : 0,
           spiritRemnants: effects.spiritRemnants ? effects.spiritRemnants.length : 0,
           spiritAllies: effects.spiritAllies ? effects.spiritAllies.length : 0,
+          spiritZombies: effects.spiritAllies ? effects.spiritAllies.filter(a => a.zombie).length : 0,
           spiritCommands: effects.spiritCommands ? effects.spiritCommands.length : 0,
           burningActors: effects.burningActors || 0,
           hotBoxes: effects.hotBoxes || 0,
