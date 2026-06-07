@@ -38,6 +38,8 @@ const GRAVITY_COLORS = {
   core: '#201044',
   edge: '#4e34a7',
   violet: '#745bff',
+  horizon: '#b66cff',
+  horizonDim: '#6834d6',
   bright: '#c8b9ff',
   white: '#f2eeff',
 };
@@ -233,7 +235,7 @@ const ABILITIES = (() => {
   add('mg_arcane_nova', { cls: 'mage', branch: 'starter', tier: 0, slot: 'q', name: 'Arcane Nova', desc: 'Release a clean circular blast around the staff, shoving enemies and loose objects away.', effect: { kind: 'arcaneNova', r: 168, force: 26 }, cd: 9000, draft: false, tags: ['AOE', 'Push'] });
   add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Send gravity wisps from the staff into a tiny black point. It tears open, pulls hard, then violently collapses.', effect: { kind: 'blackHole', r: 296, life: 3800, range: 680, force: 1.56 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
-  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Lift Mass', desc: 'Rip the nearest crate, barrel, or spring loose and hurl it as a heavy gravity rock. Object impacts hit harder and then tumble back into the arena.', effect: { kind: 'liftBoxRock', range: 460, force: 32 }, cd: 3000, tags: ['Gravity', 'Damage', 'Crates'] });
+  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Recall Mass', desc: 'Select a nearby crate, barrel, or spring and drag it into your orbit as a heavy purple-bound rock. Your next shard throw fires that object.', effect: { kind: 'recallBoxRock', range: 500, force: 32 }, cd: 2600, tags: ['Gravity', 'Damage', 'Crates'] });
   add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Shard Volley', desc: 'Throw every orbiting rock in a quick fan. Each rock boomerangs back slowly after impact or max range.', effect: { kind: 'gravityVolley', range: 650, power: 1.10 }, cd: 1900, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_gravitycore', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'e', name: 'Archived Gravity Core', desc: 'Archived persistent-core experiment. Hidden from drafts while Graviturge stays focused on Mass Slam and Black Hole.', effect: { kind: 'gravityCore', r: 205, range: 460 }, cd: 2600, draft: false, tags: ['Gravity', 'Crates', 'Field'] });
   add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'Archived Core Collapse', desc: 'Archived persistent-core collapse experiment. Hidden from drafts while Graviturge stays focused on Black Hole.', effect: { kind: 'trueHorizon' }, cd: 10500, draft: false, tags: ['Gravity', 'Pull', 'Crates'] });
@@ -515,7 +517,7 @@ const LAB_BUILDS = {
   ],
   mage: [
     { id: 'base', name: 'Base Mage', note: 'Neutral starter caster: Arcane Bolt, Arcane Burst orb, Arc Sigil, and Arcane Nova.', loadout: {} },
-    { id: 'graviturge', name: 'Graviturge Core', note: 'Persistent orbit rocks: Mass Shard, Shard Volley, passive float, Lift Mass, and slow-forming Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
+    { id: 'graviturge', name: 'Graviturge Core', note: 'Persistent orbit rocks: Mass Shard, Shard Volley, passive float, Recall Mass, and slow-forming Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
     { id: 'spiritbinder', name: 'Spiritbinder', note: 'Corpse puppeteer: Dark Bolt, Reanimate Missile, Ghost Form, Unholy Command, and Mass Reanimate zombies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_ghostform', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
@@ -3488,6 +3490,12 @@ PUBLIC.start = function (root, api) {
       if (!startVisualAttack('cast', ang, { range: e.range || 460, kind: 'gravityDebris' })) return false;
       return useLiftBoxRock(ang, e, boxRock);
     }
+    if (e.kind === 'recallBoxRock') {
+      const boxRock = nearestLiftBoxRock(e.range || 500);
+      if (!boxRock) return false;
+      if (!startVisualAttack('cast', ang, { range: e.range || 500, kind: 'gravityDebris' })) return false;
+      return useRecallBoxRock(ang, e, boxRock);
+    }
     if (e.kind === 'massSlam') {
       if (!startVisualAttack('cast', ang, { range: e.range || 380, kind: 'massSlam' })) return false;
       useMassSlam(e);
@@ -4210,7 +4218,7 @@ PUBLIC.start = function (root, api) {
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
       hidden: 0, poisoned: 0, burned: 0, burnedMax: 0, smokeBlind: 0, smokeBlindMax: 0, ghostForm: 0, ghostFormMax: 0, spiritCharges: 0, spiritFollowers: [],
-      gravityDebris: MAGE_DEBRIS_MAX, gravityDebrisRegen: 0, gravityDebrisSpin: 0, gravityDebrisJoins: [],
+      gravityDebris: MAGE_DEBRIS_MAX, gravityDebrisRegen: 0, gravityDebrisSpin: 0, gravityDebrisJoins: [], gravityDebrisObjects: [],
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
       move: { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION },
@@ -7444,12 +7452,16 @@ PUBLIC.start = function (root, api) {
       if (player.team === 'hero') {
         player.gravityDebris = 0;
         player.gravityDebrisRegen = 0;
+        player.gravityDebrisObjects = [];
       }
       return;
     }
     const max = gravityDebrisMax();
     if (player.gravityDebris == null) player.gravityDebris = max;
     player.gravityDebris = clamp(player.gravityDebris, 0, max);
+    if (!player.gravityDebrisObjects) player.gravityDebrisObjects = [];
+    if (player.gravityDebrisObjects.length > player.gravityDebris) player.gravityDebrisObjects.splice(0, player.gravityDebrisObjects.length - player.gravityDebris);
+    if (player.gravityDebrisObjects.length > max) player.gravityDebrisObjects.splice(0, player.gravityDebrisObjects.length - max);
     player.gravityDebrisSpin = (player.gravityDebrisSpin || 0) + (dtStep || STEP) * 0.00125;
     if (player.gravityDebrisJoins && player.gravityDebrisJoins.length) {
       for (let i = player.gravityDebrisJoins.length - 1; i >= 0; i--) {
@@ -7763,6 +7775,13 @@ PUBLIC.start = function (root, api) {
     else if (input.left && !input.right) { player.vx -= acc; player.facing = -1; }
     else if (input.right && !input.left) { player.vx += acc; player.facing = 1; }
     else if (player.grounded) player.vx *= FRICTION;
+    if (!locked && cls.fly && mageHovering()) {
+      const hoverDir = input.left && !input.right ? -1 : input.right && !input.left ? 1 : 0;
+      if (hoverDir) {
+        player.vx += hoverDir * 0.20;
+        player.vx *= 0.955;
+      } else player.vx *= 0.76;
+    }
     updateCrouchConstraint(player);
     updateDropThrough(player, STEP);
     updateClassMove();
@@ -8240,10 +8259,11 @@ PUBLIC.start = function (root, api) {
   function spendGravityDebris() {
     if (!player || cls.id !== 'mage' || !mageGraviturgeLoadoutActive()) return false;
     if ((player.gravityDebris || 0) <= 0) return false;
+    const carried = player.gravityDebrisObjects && player.gravityDebrisObjects.length ? player.gravityDebrisObjects.shift() : null;
     player.gravityDebris--;
     player.gravityDebrisRegen = 0;
     if (player.team === 'hero') syncHud();
-    return true;
+    return carried || true;
   }
   function gravityStaffOrigin(ang) {
     const activeT = player && player.anim && player.anim.atkActive ? player.anim.atkT : 0;
@@ -8316,6 +8336,70 @@ PUBLIC.start = function (root, api) {
           rand(-0.16, 0.16), rand(-0.18, 0.12), { color: gravityParticleColor(), life: rand(180, 360), r: rand(1.0, 2.8), tail: rand(4, 10) });
       }
     }
+    if (player.team === 'hero') syncHud();
+    return true;
+  }
+  function gravityBoxRockSpecFromBox(b) {
+    if (!b) return null;
+    const mass = clamp((b.w * b.h) / 1600, 0.65, 2.9);
+    return {
+      w: b.w,
+      h: b.h,
+      m: b.m,
+      kind: b.kind || 'crate',
+      color: b.color,
+      heat: b.heat || 0,
+      mass,
+      r: Math.max(15, Math.min(34, Math.max(b.w, b.h) * 0.43)),
+      hit: 31 + mass * 12,
+    };
+  }
+  function captureGravityBoxRock(b, opts) {
+    opts = opts || {};
+    if (!player || cls.id !== 'mage' || !mageGraviturgeLoadoutActive() || !b || !boxes) return false;
+    const idx = boxes.indexOf(b);
+    if (idx < 0) return false;
+    const spec = gravityBoxRockSpecFromBox(b);
+    if (!spec) return false;
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    boxes.splice(idx, 1);
+    if (!player.gravityDebrisObjects) player.gravityDebrisObjects = [];
+    const max = gravityDebrisMax();
+    if ((player.gravityDebris || 0) < max) player.gravityDebris = clamp((player.gravityDebris || 0) + 1, 0, max);
+    else if (player.gravityDebrisObjects.length >= max) player.gravityDebrisObjects.shift();
+    player.gravityDebrisObjects.push(spec);
+    player.gravityDebrisRegen = 0;
+    if (!player.gravityDebrisJoins) player.gravityDebrisJoins = [];
+    player.gravityDebrisJoins.push({
+      slot: clamp((player.gravityDebris || 1) - 1, 0, max - 1),
+      x: cx,
+      y: cy,
+      age: 0,
+      dur: opts.joinDur || 1280,
+      phase: rand(0, Math.PI * 2),
+      boxRock: true,
+    });
+    if (player.gravityDebrisJoins.length > 8) player.gravityDebrisJoins.splice(0, player.gravityDebrisJoins.length - 8);
+    const to = gravityReturnTarget();
+    for (let i = 0; i < 32; i++) {
+      const u = i / 32;
+      const side = Math.sin(u * Math.PI * 2 + rand(-0.4, 0.4)) * rand(5, 22);
+      const dx = to.x - cx, dy = to.y - cy, a = Math.atan2(dy, dx);
+      gravityParticle(
+        lerp(cx, to.x, u) + Math.sin(a) * side + rand(-4, 4),
+        lerp(cy, to.y, u) - Math.cos(a) * side + rand(-4, 4),
+        Math.cos(a) * rand(0.10, 0.52),
+        Math.sin(a) * rand(0.10, 0.52) - rand(0.02, 0.16), {
+          color: Math.random() < 0.28 ? GRAVITY_COLORS.horizon : gravityParticleColor(),
+          life: rand(320, 820),
+          r: rand(1.1, 3.7),
+          tail: rand(10, 24),
+          shard: true,
+        });
+    }
+    burst(cx, cy, GRAVITY_COLORS.horizon, 18, 3.4);
+    burst(to.x, to.y, gravityAccent(), 12, 2.6);
+    addShake(2.4, 115);
     if (player.team === 'hero') syncHud();
     return true;
   }
@@ -8454,10 +8538,17 @@ PUBLIC.start = function (root, api) {
     addShake(3.8, 145);
     return true;
   }
+  function useRecallBoxRock(ang, opts, chosen) {
+    opts = opts || {};
+    const b = chosen || nearestLiftBoxRock(opts.range || 500);
+    if (!b) return false;
+    return captureGravityBoxRock(b, { joinDur: 1320 });
+  }
   function spawnGravityDebrisShot(ang, opts) {
     opts = opts || {};
     const spent = opts.free ? true : spendGravityDebris();
     if (!spent) return false;
+    const carried = spent && spent !== true ? spent : opts.boxRock || null;
     const fromCore = opts.orbit && gravityCore;
     const aim = aimedPoint(opts.range || 560);
     let origin = gravityStaffOrigin(ang);
@@ -8472,8 +8563,8 @@ PUBLIC.start = function (root, api) {
       }
     }
     const power = (opts.power || 1) * (spent ? 1.22 : 0.78);
-    const spd = 17.8 + power * 2.9;
-    const r = 8 + power * 4.2;
+    const spd = carried ? 15.2 + Math.min(3.8, (carried.mass || 1.4) * 1.15) : 17.8 + power * 2.9;
+    const r = carried ? carried.r || 18 : 8 + power * 4.2;
     projectiles.push({
       kind: 'gravityDebris',
       team: player.team,
@@ -8485,24 +8576,26 @@ PUBLIC.start = function (root, api) {
       range: opts.range || 560,
       color: gravityAccent(),
       r,
-      hit: 15 + power * 8,
+      hit: carried ? carried.hit || 38 : 15 + power * 8,
       angle: ang,
-      spin: rand(-0.18, 0.18),
+      spin: carried ? rand(-0.10, 0.10) : rand(-0.18, 0.18),
       gravity: true,
-      heavy: spent,
-      mass: power,
+      heavy: !!carried || !!spent,
+      mass: carried ? 1.8 + (carried.mass || 1) : power,
       sparkle: 2,
+      noReturn: !!carried,
+      boxRock: carried ? { w: carried.w, h: carried.h, m: carried.m, kind: carried.kind, color: carried.color, heat: carried.heat || 0 } : null,
     });
-    for (let i = 0; i < (spent ? 18 : 11); i++) {
+    for (let i = 0; i < (carried ? 28 : spent ? 18 : 11); i++) {
       const a = ang + Math.PI + rand(-0.62, 0.62);
       gravityParticle(origin.x + rand(-4, 4), origin.y + rand(-4, 4), Math.cos(a) * rand(0.45, 1.7), Math.sin(a) * rand(0.45, 1.7), {
-        color: gravityParticleColor(),
-        life: rand(180, 360),
-        r: rand(1.2, spent ? 3.8 : 2.7),
-        tail: rand(7, 13),
+        color: carried && Math.random() < 0.36 ? GRAVITY_COLORS.horizon : gravityParticleColor(),
+        life: rand(180, carried ? 520 : 360),
+        r: rand(1.2, carried ? 4.6 : spent ? 3.8 : 2.7),
+        tail: rand(7, carried ? 18 : 13),
       });
     }
-    burst(origin.x, origin.y, spent ? gravityHighlight() : gravityAccent(), spent ? 13 : 8, spent ? 3.2 : 2.4);
+    burst(origin.x, origin.y, carried ? GRAVITY_COLORS.horizon : spent ? gravityHighlight() : gravityAccent(), carried ? 18 : spent ? 13 : 8, carried ? 3.9 : spent ? 3.2 : 2.4);
     return true;
   }
   function gravityDebrisImpact(x, y, team, color, hit, opts) {
@@ -10790,14 +10883,18 @@ PUBLIC.start = function (root, api) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    const carriedObjects = player.gravityDebrisObjects || [];
+    const carriedStart = Math.max(0, count - carriedObjects.length);
     for (let i = 0; i < count; i++) {
+      const carried = i >= carriedStart ? carriedObjects[i - carriedStart] : null;
       const slot = i / Math.max(1, max || count);
       const idle = Math.sin(t * 0.92 + i * 1.31) * 0.5 + Math.sin(t * 0.43 + i * 2.17) * 0.5;
       const a = t * (0.34 + i * 0.024) + slot * Math.PI * 2 + idle * 0.18;
       const pulse = 0.5 + 0.5 * Math.sin(t * 0.82 + i * 1.7);
       const lane = i % 3;
-      const orbitX = 68 + lane * 20 + pulse * 7 + (active ? 18 : 0) + hover * 7;
-      const orbitY = 48 + lane * 12 + pulse * 5 + (active ? 10 : 0) + hover * 5;
+      const massScale = carried ? clamp((carried.mass || 1.2) / 1.8, 0.8, 1.5) : 1;
+      const orbitX = 68 + lane * 20 + pulse * 7 + (active ? 18 : 0) + hover * 7 + (carried ? 8 * massScale : 0);
+      const orbitY = 48 + lane * 12 + pulse * 5 + (active ? 10 : 0) + hover * 5 + (carried ? 5 * massScale : 0);
       const rawX = cx + Math.cos(a) * orbitX + Math.sin(t * 0.58 + i) * 12;
       const rawY = cy + Math.sin(a) * orbitY + Math.cos(t * 0.49 + i * 2) * 8;
       const staffBias = castPull * (0.52 + pulse * 0.34);
@@ -10816,7 +10913,7 @@ PUBLIC.start = function (root, api) {
         x = lerp(jx, x, jt);
         y = lerp(jy, y, jt);
       }
-      const r = 8.8 + lane * 1.2 + pulse * 2.8 + (active ? 1.8 : 0);
+      const r = carried ? clamp((carried.r || 18) * 0.72, 12, 24) + pulse * 2.2 + (active ? 1.4 : 0) : 8.8 + lane * 1.2 + pulse * 2.8 + (active ? 1.8 : 0);
       if (active) {
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = 0.12 + pulse * 0.10;
@@ -10828,13 +10925,13 @@ PUBLIC.start = function (root, api) {
         ctx.stroke();
       }
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.08 + pulse * 0.08 + (active ? 0.06 : 0);
-      ctx.fillStyle = GRAVITY_COLORS.edge;
+      ctx.globalAlpha = (carried ? 0.15 : 0.08) + pulse * 0.08 + (active ? 0.06 : 0);
+      ctx.fillStyle = carried ? GRAVITY_COLORS.horizonDim : GRAVITY_COLORS.edge;
       ctx.beginPath();
-      ctx.arc(x, y, r * 2.5, 0, Math.PI * 2);
+      ctx.arc(x, y, r * (carried ? 2.9 : 2.5), 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = 0.20 + pulse * 0.18 + (active ? 0.10 : 0);
-      ctx.fillStyle = GRAVITY_COLORS.bright;
+      ctx.globalAlpha = (carried ? 0.28 : 0.20) + pulse * 0.18 + (active ? 0.10 : 0);
+      ctx.fillStyle = carried ? GRAVITY_COLORS.horizon : GRAVITY_COLORS.bright;
       for (let j = 0; j < 2; j++) {
         const moteA = a + j * Math.PI + t * (1.2 + j * 0.18);
         ctx.beginPath();
@@ -10843,14 +10940,14 @@ PUBLIC.start = function (root, api) {
       }
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.90;
-      ctx.fillStyle = i % 2 ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
-      ctx.strokeStyle = i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.bright;
-      ctx.lineWidth = 1.35;
+      ctx.fillStyle = carried ? carried.color || GRAVITY_COLORS.deep : i % 2 ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
+      ctx.strokeStyle = carried ? GRAVITY_COLORS.horizon : i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.bright;
+      ctx.lineWidth = carried ? 1.8 : 1.35;
       ctx.beginPath();
-      const pts = 7;
+      const pts = carried ? 8 : 7;
       for (let k = 0; k < pts; k++) {
         const aa = a * 1.4 + k * Math.PI * 2 / pts;
-        const rr = r * (0.70 + ((k + i) % 4) * 0.13);
+        const rr = r * (carried ? 0.78 + ((k + i) % 3) * 0.12 : 0.70 + ((k + i) % 4) * 0.13);
         const px = x + Math.cos(aa) * rr;
         const py = y + Math.sin(aa) * rr;
         if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
@@ -10859,9 +10956,17 @@ PUBLIC.start = function (root, api) {
       ctx.fill();
       ctx.globalAlpha = 0.80;
       ctx.stroke();
-      ctx.globalAlpha = 0.42 + pulse * 0.20;
-      ctx.strokeStyle = GRAVITY_COLORS.white;
-      ctx.lineWidth = 1.0;
+      if (carried) {
+        ctx.globalAlpha = 0.30 + pulse * 0.20;
+        ctx.strokeStyle = GRAVITY_COLORS.horizon;
+        ctx.lineWidth = 1.15;
+        ctx.beginPath();
+        ctx.arc(x, y, r * (1.24 + pulse * 0.08), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = carried ? 0.36 + pulse * 0.16 : 0.42 + pulse * 0.20;
+      ctx.strokeStyle = carried ? GRAVITY_COLORS.bright : GRAVITY_COLORS.white;
+      ctx.lineWidth = carried ? 1.15 : 1.0;
       ctx.beginPath();
       ctx.moveTo(x - r * 0.25, y - r * 0.35);
       ctx.lineTo(x + r * 0.36, y + r * 0.06);
@@ -12137,6 +12242,47 @@ PUBLIC.start = function (root, api) {
         else ctx.lineTo(x, y);
       }
     }
+    function drawAccretionLines(frontPass) {
+      ctx.save();
+      ctx.translate(g.x, g.y);
+      ctx.rotate(diskRot);
+      const shardCount = 76;
+      for (let i = 0; i < shardCount; i++) {
+        const u = i / shardCount;
+        const a = u * Math.PI * 2 + t * (0.00165 + (i % 5) * 0.00016) + phase;
+        const isFront = Math.sin(a) > -0.05;
+        if (isFront !== frontPass) continue;
+        const lane = i % 4;
+        const rx = diskRx * (0.43 + lane * 0.135 + Math.sin(i * 11.7) * 0.026);
+        const ry = diskRy * (0.62 + lane * 0.18);
+        const x = Math.cos(a) * rx;
+        const y = Math.sin(a) * ry;
+        const tangent = Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx);
+        const len = (10 + lane * 4.4 + expand * 19) * (0.72 + Math.sin(i * 5.13 + t * 0.004) * 0.18);
+        const bright = i % 8 === 0 || i % 13 === 0;
+        ctx.globalAlpha = diskAlpha * (frontPass ? 0.62 : 0.30) * (bright ? 1 : 0.62) * (1 - collapse * 0.13);
+        ctx.strokeStyle = bright
+          ? 'rgba(182,108,255,0.96)'
+          : i % 2 ? 'rgba(116,91,255,0.76)' : 'rgba(104,52,214,0.76)';
+        ctx.lineWidth = bright ? 2.35 : 1.15 + lane * 0.25;
+        ctx.beginPath();
+        ctx.moveTo(x - Math.cos(tangent) * len, y - Math.sin(tangent) * len);
+        ctx.quadraticCurveTo(
+          x + Math.sin(a) * len * 0.26,
+          y - Math.cos(a) * len * 0.26,
+          x + Math.cos(tangent) * len * 0.64,
+          y + Math.sin(tangent) * len * 0.64);
+        ctx.stroke();
+        if (bright && expand > 0.08) {
+          ctx.globalAlpha *= frontPass ? 0.58 : 0.30;
+          ctx.fillStyle = GRAVITY_COLORS.horizon;
+          ctx.beginPath();
+          ctx.arc(x + Math.cos(tangent) * len * 0.76, y + Math.sin(tangent) * len * 0.76, 1.1 + expand * 1.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
 
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
@@ -12168,45 +12314,16 @@ PUBLIC.start = function (root, api) {
       ctx.stroke();
     }
 
-    ctx.save();
-    ctx.translate(g.x, g.y);
-    ctx.rotate(diskRot);
-    const shardCount = 34;
-    for (let i = 0; i < shardCount; i++) {
-      const u = i / shardCount;
-      const a = u * Math.PI * 2 + t * (0.0019 + (i % 4) * 0.00018) + phase;
-      const lane = i % 3;
-      const rx = diskRx * (0.50 + lane * 0.17 + Math.sin(i * 11.7) * 0.025);
-      const ry = diskRy * (0.74 + lane * 0.16);
-      const x = Math.cos(a) * rx;
-      const y = Math.sin(a) * ry;
-      const front = Math.sin(a) > -0.18 ? 1 : 0.42;
-      const tangent = Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx);
-      const len = (8 + lane * 5 + expand * 17) * (0.65 + Math.sin(i * 5.13 + t * 0.004) * 0.18);
-      const bright = i % 7 === 0;
-      ctx.globalAlpha = diskAlpha * front * (bright ? 0.88 : 0.42) * (1 - collapse * 0.16);
-      ctx.strokeStyle = bright ? 'rgba(200,185,255,0.96)' : i % 2 ? 'rgba(116,91,255,0.76)' : 'rgba(78,52,167,0.78)';
-      ctx.lineWidth = bright ? 2.4 : 1.3 + lane * 0.28;
-      ctx.beginPath();
-      ctx.moveTo(x - Math.cos(tangent) * len, y - Math.sin(tangent) * len);
-      ctx.quadraticCurveTo(x + Math.sin(a) * len * 0.22, y - Math.cos(a) * len * 0.22,
-        x + Math.cos(tangent) * len * 0.58, y + Math.sin(tangent) * len * 0.58);
-      ctx.stroke();
-      if (bright && expand > 0.08) {
-        ctx.globalAlpha *= 0.62;
-        ctx.fillStyle = GRAVITY_COLORS.bright;
-        ctx.beginPath();
-        ctx.arc(x + Math.cos(tangent) * len * 0.72, y + Math.sin(tangent) * len * 0.72, 1.2 + expand * 1.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
+    drawAccretionLines(false);
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
-    ctx.fillStyle = GRAVITY_COLORS.void;
-    traceWobblyCirclePath(g.x, g.y, Math.max(2.2, coreR * 1.18), { phase: phase + t * 0.0015, rough: expand > 0.3 ? 0.028 : 0.010, steps: 58 });
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, Math.max(2.2, coreR * 1.18), 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    drawAccretionLines(true);
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 4; i++) {
       const start = phase + t * (0.0012 + i * 0.00022) + i * Math.PI * 0.54;
@@ -13377,7 +13494,7 @@ PUBLIC.start = function (root, api) {
       facing: act.facing, grounded: act.grounded, coyote: act.coyote, airTime: act.airTime,
       jumpHeld: !!(act.intent && act.intent.jumpHeld), jumpHold: act.intent && act.intent.jumpHold || 0,
       rogueAirJump: act.rogueAirJump, knifeAmmo: act.knifeAmmo, arrowAmmo: act.arrowAmmo,
-      gravityDebris: act.gravityDebris || 0,
+      gravityDebris: act.gravityDebris || 0, gravityDebrisObjects: act.gravityDebrisObjects ? act.gravityDebrisObjects.length : 0,
       rogueBurst: act.rogueBurst, attackCd: act.attackCd, abilityCd: act.abilityCd, moveCd: act.moveCd,
       queuedAttack: act.queuedAttack ? { type: act.queuedAttack.type, slot: act.queuedAttack.slot } : null,
       queuedFlash: act.queuedFlash ? { slot: act.queuedFlash.slot } : null,
@@ -13505,6 +13622,7 @@ PUBLIC.start = function (root, api) {
           projectiles: effects.projectiles ? effects.projectiles.length : 0,
           gravityFields: effects.gravityFields ? effects.gravityFields.length : 0,
           gravityCoreResonance: effects.gravityCore ? effects.gravityCore.resonance || 0 : 0,
+          gravityDebrisObjects: snap.player ? snap.player.gravityDebrisObjects || 0 : 0,
           fireZones: effects.fireZones ? effects.fireZones.length : 0,
           flameBreaths: effects.flameBreaths ? effects.flameBreaths.length : 0,
           smokeZones: effects.smokeZones ? effects.smokeZones.length : 0,
