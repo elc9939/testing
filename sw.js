@@ -1,6 +1,6 @@
 /* Service worker: precache the whole arcade so it runs fully offline once
    installed. Bump CACHE when assets change to roll out a fresh copy. */
-const CACHE = 'mini-arcade-v169';
+const CACHE = 'mini-arcade-v170';
 const ASSETS = [
   './',
   './index.html',
@@ -14,7 +14,7 @@ const ASSETS = [
   './js/games/memory.js?v=57',
   './js/games/reaction.js?v=59',
   './js/games/tictactoe.js?v=57',
-  './js/games/stickrun.js?v=148',
+  './js/games/stickrun.js?v=149',
   './js/games/pinball.js?v=59',
   './js/games/orbit.js?v=60',
   './js/games/twenty48.js?v=58',

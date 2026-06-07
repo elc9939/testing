@@ -4205,7 +4205,7 @@ PUBLIC.start = function (root, api) {
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'f2' || k === ';') { debug.enabled = !debug.enabled; exposeDebugApi(); e.preventDefault(); return; }
-    if (k === 'f3') { if (labMode || debug.enabled || poseStudio.active) { togglePoseStudio(); e.preventDefault(); } return; }
+    if (k === '`') { if (labMode || debug.enabled || poseStudio.active) { togglePoseStudio(); e.preventDefault(); } return; }
     if (poseStudio.active && handlePoseStudioKey(k, e.shiftKey)) { e.preventDefault(); return; }
     if (k === 'h' || k === '?' || k === '/') { if (state === 'help') closeHelp(); else openHelp(); e.preventDefault(); return; }
     if (k === 'arrowleft' || k === 'a') { input.left = true; e.preventDefault(); }
@@ -4318,7 +4318,7 @@ PUBLIC.start = function (root, api) {
   //   Division of labour: you have eyes, so you pose the keyframes; the engine
   //   (and Claude) handle the interpolation/cleanup between them.
   //
-  // CONTROLS (only while open; F3 toggles it in lab/debug):
+  // CONTROLS (only while open; the backtick key ` toggles it in lab/debug):
   //   , / .        prev / next attack archetype
   //   [ / ]        scrub time t   (hold Shift = fine 0.005 steps)
   //   - / =        cycle the attack's authored variant (atkVar)
@@ -4449,7 +4449,7 @@ PUBLIC.start = function (root, api) {
     const fin = { sh: base.sh + poseStudio.off.sh, el: base.el + poseStudio.off.el, wr: base.wr + poseStudio.off.wr };
     const deg = r => (r * 180 / Math.PI).toFixed(1) + '°';
     const lines = [
-      'POSE STUDIO  (F3 closes)',
+      'POSE STUDIO  (` closes)',
       `attack  ${poseStudioType()}   var ${poseStudio.var}`,
       `t = ${poseStudio.t.toFixed(3)}    [ ]  scrub  (Shift=fine)`,
       `shoulder ${deg(fin.sh)}   q/a   off ${deg(poseStudio.off.sh)}`,
