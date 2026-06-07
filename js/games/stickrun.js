@@ -39,6 +39,15 @@ const GRAVITY_COLORS = {
   bright: '#c8b9ff',
   white: '#f2eeff',
 };
+const SPIRIT_COLORS = {
+  void: '#06040b',
+  shadow: '#16071f',
+  bruise: '#3a1859',
+  curse: '#6a43b8',
+  ghost: '#65ffd2',
+  sick: '#9dff75',
+  pale: '#e7fff5',
+};
 const ARENA_WAVE_DELAY = 850;
 const ATTACK_COOLDOWN = {
   slash: 110, dualSlash: 80, rogueStab: 95, legSweep: 420,
@@ -130,7 +139,7 @@ const CLASS_TREES = {
     branches: {
       graviturge: { name: 'Graviturge', desc: 'Persistent orbit rocks, lifted objects, passive float, and violent black holes.' },
       pyromancer: { name: 'Pyromancer', desc: 'Big fire AOE, burn zones, ignition, barrel pressure, and explosions.' },
-      spiritbinder: { name: 'Spiritbinder', desc: 'Spirit charges, defeated enemies becoming followers, curses, and ally pressure.' },
+      spiritbinder: { name: 'Spiritbinder', desc: 'Dark soul-binding, haunted followers, curse pressure, and shepherded spirits.' },
     },
   },
   ranger: {
@@ -235,11 +244,11 @@ const ABILITIES = (() => {
   add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, drags an afterburn trail across the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
   add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Dragon Breath', desc: 'Unleash a huge staff-driven fire torrent. Walls cut it off, objects catch heat, and the floor burns where the flame lands.', effect: { kind: 'dragonBreath', range: 760, life: 1350, cone: 0.42, force: 34, heat: 48 }, cd: 9600, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire abilities feed lingering ground flames, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
-  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Staff-shot soul wisp. Hits tug loose essence toward you and help fuel later bindings.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
-  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Guide the nearest remnant from a defeated body into a temporary ally that remembers its old class.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
-  add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Soul Flare', desc: 'Shepherd your bound spirits and loose remnants toward a target, making them lash and shove objects on the way.', effect: { kind: 'soulFlare' }, cd: 3600, tags: ['Spirit', 'Allies', 'Push'] });
-  add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Grave Call', desc: 'Call visible remnants first, raising defeated enemies as a short-lived spirit pack before spending stored charges.', effect: { kind: 'graveCall' }, cd: 9800, tags: ['Spirit', 'Allies'] });
-  add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies leave guideable soul remnants instead of instantly becoming generic summons.', key: true, tags: ['Spirit', 'Allies'] });
+  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Spirit Bolt', desc: 'Staff-shot ghost wisp. Hits rip loose soul fragments toward you and help fuel later bindings.', effect: { kind: 'spiritBolt' }, cd: 320, tags: ['Spirit', 'Projectile'] });
+  add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Bind Spirit', desc: 'Shepherd the nearest haunted remnant from a defeated body into a temporary ally that remembers its old class.', effect: { kind: 'bindSpirit' }, cd: 2800, tags: ['Spirit', 'Allies'] });
+  add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Soul Flare', desc: 'Command bound souls and loose remnants toward a target, making them lash out and shove objects on the way.', effect: { kind: 'soulFlare' }, cd: 3600, tags: ['Spirit', 'Allies', 'Push'] });
+  add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Grave Call', desc: 'Call visible remnants first, raising defeated enemies as a short-lived haunted pack before spending stored souls.', effect: { kind: 'graveCall' }, cd: 9800, tags: ['Spirit', 'Allies'] });
+  add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies leave guideable soul remnants and collected souls visibly follow your staff.', key: true, tags: ['Spirit', 'Allies'] });
   add('mg_windbolt', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'attack', name: 'Wind Bolt', desc: 'A quick bolt that shoves targets and barrels instead of only damaging them.', effect: { kind: 'bolt', power: 1.15, wind: 1 }, cd: 180, tags: ['Push', 'Projectile'] });
   add('mg_gust', { cls: 'mage', branch: 'stormcaller', tier: 1, slot: 'shift', name: 'Gust Hover', desc: 'Air dash leaves a wind burst that knocks enemies and crates away.', effect: { kind: 'gustDash' }, cd: 1900, tags: ['Movement', 'Crates'] });
   add('mg_chain', { cls: 'mage', branch: 'stormcaller', tier: 2, slot: 'e', name: 'Chain Spark', desc: 'Lightning jumps through enemies, metal objects, and crates in a short chain.', effect: { kind: 'chain', jumps: 4 }, cd: 3100, tags: ['Crates', 'Projectile'] });
@@ -505,7 +514,7 @@ const LAB_BUILDS = {
     { id: 'base', name: 'Base Mage', note: 'Neutral starter caster: Arcane Bolt, Arcane Burst orb, Arc Sigil, and Arcane Nova.', loadout: {} },
     { id: 'graviturge', name: 'Graviturge Core', note: 'Persistent orbit rocks: Mass Shard, Shard Volley, passive float, Lift Mass, and slow-forming Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
-    { id: 'spiritbinder', name: 'Spiritbinder', note: 'Necromancer prototype: spirit bolts, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
+    { id: 'spiritbinder', name: 'Spiritbinder', note: 'Dark ghost magic: spirit bolts, wandering bound souls, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
   ranger: [
     { id: 'base', name: 'Base Ranger', note: 'Starting kit for draw/release, quiver, trajectory, and reload checks.', loadout: {} },
@@ -2144,17 +2153,37 @@ PUBLIC.start = function (root, api) {
     return CLASSES.some(c => c.id === id) ? id : 'rogue';
   }
   function spiritColorFromSource(source, fallback) {
-    const c = CLASSES.find(k => k.id === spiritClassFromSource(source));
-    return (c && c.color) || fallback || '#b48cff';
+    const id = source && String(source);
+    const classId = spiritClassFromSource(source);
+    const map = {
+      knight: SPIRIT_COLORS.pale,
+      rogue: SPIRIT_COLORS.ghost,
+      lancer: SPIRIT_COLORS.sick,
+      mage: '#a98bff',
+      ranger: '#baffb2',
+      dummy: SPIRIT_COLORS.pale,
+      enemy: SPIRIT_COLORS.ghost,
+    };
+    return map[id] || map[classId] || fallback || SPIRIT_COLORS.ghost;
+  }
+  function spiritParticleColor(base, paleChance) {
+    const n = Math.random();
+    if (n < (paleChance == null ? 0.30 : paleChance)) return SPIRIT_COLORS.pale;
+    if (n < 0.58) return base || SPIRIT_COLORS.ghost;
+    if (n < 0.82) return SPIRIT_COLORS.curse;
+    return SPIRIT_COLORS.sick;
   }
   function soulParticle(x, y, vx, vy, opts) {
     opts = opts || {};
+    const color = opts.color || spiritParticleColor();
     addParticle({
       kind: 'soul',
       x, y, vx, vy,
       life: opts.life || rand(300, 760),
       max: opts.max || opts.life || 760,
-      color: opts.color || '#b48cff',
+      color,
+      coreColor: opts.coreColor || (color === SPIRIT_COLORS.pale ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.pale),
+      shadowColor: opts.shadowColor || SPIRIT_COLORS.void,
       r: opts.r || rand(1.2, 2.9),
       drag: opts.drag || 0.976,
       lift: opts.lift == null ? rand(0.014, 0.040) : opts.lift,
@@ -2167,7 +2196,7 @@ PUBLIC.start = function (root, api) {
   function emitSoulWisp(ax, ay, bx, by, opts) {
     opts = opts || {};
     const count = opts.count || 10;
-    const color = opts.color || '#b48cff';
+    const color = opts.color || SPIRIT_COLORS.ghost;
     const dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy) || 1;
     const nx = dx / d, ny = dy / d;
     const px = -ny, py = nx;
@@ -2177,7 +2206,7 @@ PUBLIC.start = function (root, api) {
       const x = lerp(ax, bx, t) + px * curl + rand(-3, 3);
       const y = lerp(ay, by, t) + py * curl - Math.sin(t * Math.PI) * rand(8, 24) + rand(-3, 3);
       soulParticle(x, y, nx * rand(0.4, 1.7) + px * rand(-0.28, 0.28), ny * rand(0.35, 1.25) - rand(0.05, 0.65), {
-        color: Math.random() < 0.28 ? '#f5efff' : color,
+        color: spiritParticleColor(color, 0.22),
         life: rand(opts.lifeMin || 260, opts.lifeMax || 720),
         r: rand(opts.rMin || 1.1, opts.rMax || 3.0),
         tail: rand(8, 22),
@@ -2190,8 +2219,8 @@ PUBLIC.start = function (root, api) {
   function grantSpiritCharge(x, y, amount) {
     if (!hero || !mageSpiritLoadoutActive()) return false;
     hero.spiritCharges = clamp((hero.spiritCharges || 0) + Math.max(1, Math.round(amount || 1)), 0, 6);
-    emitSoulWisp(x, y, hero.x, hero.y - 60, { count: 12, color: '#b48cff', lifeMin: 280, lifeMax: 660 });
-    for (let i = 0; i < 5; i++) soulParticle(x + rand(-5, 5), y + rand(-4, 4), rand(-0.45, 0.45), rand(-1.25, -0.20), { color: '#f5efff', life: rand(260, 520), r: rand(1.1, 2.0) });
+    emitSoulWisp(x, y, hero.x, hero.y - 60, { count: 14, color: SPIRIT_COLORS.ghost, lifeMin: 280, lifeMax: 660 });
+    for (let i = 0; i < 6; i++) soulParticle(x + rand(-5, 5), y + rand(-4, 4), rand(-0.45, 0.45), rand(-1.25, -0.20), { color: spiritParticleColor(SPIRIT_COLORS.ghost, 0.46), life: rand(260, 560), r: rand(1.1, 2.2) });
     syncHud();
     return true;
   }
@@ -2201,7 +2230,7 @@ PUBLIC.start = function (root, api) {
     if (!spiritRemnants) spiritRemnants = [];
     const groundY = opts.groundY || surfaceYFor(hero, x, 520, 180) || y + 42;
     const source = spiritClassFromSource(opts.source || opts.cls);
-    const color = opts.color || spiritColorFromSource(source, '#b48cff');
+    const color = opts.color || spiritColorFromSource(source, SPIRIT_COLORS.ghost);
     const remnant = {
       x, y, groundY,
       vx: opts.vx || rand(-0.32, 0.32),
@@ -2236,15 +2265,15 @@ PUBLIC.start = function (root, api) {
     if (!r || !spiritRemnants) return false;
     const i = spiritRemnants.indexOf(r);
     if (i >= 0) spiritRemnants.splice(i, 1);
-    emitSoulWisp(r.x, r.y, player.x, player.y - 58, { count: 18, color: r.color || '#b48cff', lifeMin: 300, lifeMax: 760 });
-    rememberDebugSegment('ability', player.x, player.y - 58, r.x, r.y, 8, r.color || '#b48cff', 420);
+    emitSoulWisp(r.x, r.y, player.x, player.y - 58, { count: 18, color: r.color || SPIRIT_COLORS.ghost, lifeMin: 300, lifeMax: 760 });
+    rememberDebugSegment('ability', player.x, player.y - 58, r.x, r.y, 8, r.color || SPIRIT_COLORS.ghost, 420);
     return true;
   }
   function spawnSpiritAlly(x, y, opts) {
     opts = opts || {};
     if (!allies) allies = [];
     const source = spiritClassFromSource(opts.cls || opts.source);
-    const color = opts.color || spiritColorFromSource(source, '#b48cff');
+    const color = opts.color || spiritColorFromSource(source, SPIRIT_COLORS.ghost);
     const groundY = surfaceYFor(hero || player, x, 300, 180) || y;
     const fallbackFacing = opts.facing == null ? (hero ? hero.facing : player.facing) : opts.facing;
     const a = makeFighter(source, x, groundY, {
@@ -2273,7 +2302,7 @@ PUBLIC.start = function (root, api) {
       lifeMin: 360,
       lifeMax: 900,
     });
-    for (let i = 0; i < 10; i++) soulParticle(x + rand(-12, 12), groundY - rand(40, 82), rand(-0.45, 0.45), rand(-1.1, -0.12), { color: Math.random() < 0.28 ? '#f5efff' : color, life: rand(300, 680) });
+    for (let i = 0; i < 12; i++) soulParticle(x + rand(-12, 12), groundY - rand(40, 82), rand(-0.45, 0.45), rand(-1.1, -0.12), { color: spiritParticleColor(color, 0.30), life: rand(300, 720), r: rand(1.1, 2.8) });
     syncHud();
     return a;
   }
@@ -2321,8 +2350,9 @@ PUBLIC.start = function (root, api) {
     a.vy = Math.min(a.vy, (dy / d) * 2.2 - 2.4);
     a.spiritCommandCd = Math.max(a.spiritCommandCd || 0, opts.afterCd || 680);
     if (a.brain) { a.brain.alert = 9999; a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
-    rememberDebugSegment('ability', a.x, a.y - 46, tx, ty, 8, '#b48cff', 520);
-    emitSoulWisp(a.x, a.y - 48, tx, ty, { count: 9, color: a.cls && a.cls.color || '#b48cff', lifeMin: 240, lifeMax: 620 });
+    const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
+    rememberDebugSegment('ability', a.x, a.y - 46, tx, ty, 8, color, 520);
+    emitSoulWisp(a.x, a.y - 48, tx, ty, { count: 10, color, lifeMin: 240, lifeMax: 620 });
     return true;
   }
   function commandSpiritAllies(opts) {
@@ -2354,7 +2384,7 @@ PUBLIC.start = function (root, api) {
     }
     const charges = player.spiritCharges || 0;
     if (charges <= 0) {
-      emitSoulWisp(player.x - player.facing * 12, player.y - 52, player.x + player.facing * 96, player.y - 58, { count: 8, color: '#b48cff', lifeMin: 240, lifeMax: 480 });
+      emitSoulWisp(player.x - player.facing * 12, player.y - 52, player.x + player.facing * 96, player.y - 58, { count: 8, color: SPIRIT_COLORS.curse, lifeMin: 240, lifeMax: 480 });
       addShake(1.4, 70);
       return false;
     }
@@ -2373,7 +2403,7 @@ PUBLIC.start = function (root, api) {
     const ty = target ? target.y : y - 8;
     if ((player.spiritCharges || 0) > 0) player.spiritCharges--;
     const commanded = commandSpiritAllies({ target, force: 16, dash: 6.8, life: 1050, range: 760 });
-    emitSoulWisp(x, y, tx, ty, { count: 24, color: '#b48cff', lifeMin: 300, lifeMax: 760 });
+    emitSoulWisp(x, y, tx, ty, { count: 28, color: SPIRIT_COLORS.ghost, lifeMin: 300, lifeMax: 800 });
     if (spiritRemnants && spiritRemnants.length) {
       for (const r of spiritRemnants) {
         const d = Math.hypot(r.x - x, r.y - y);
@@ -2382,7 +2412,7 @@ PUBLIC.start = function (root, api) {
         r.commandY = ty;
         r.shepherd = Math.max(r.shepherd || 0, 1200);
         r.lashCd = Math.min(r.lashCd || 0, 120);
-        emitSoulWisp(r.x, r.y, tx, ty, { count: 8, color: r.color || '#b48cff', lifeMin: 260, lifeMax: 620 });
+        emitSoulWisp(r.x, r.y, tx, ty, { count: 9, color: r.color || SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 620 });
       }
     }
     if (!commanded && target) {
@@ -2401,7 +2431,7 @@ PUBLIC.start = function (root, api) {
     const chargeCount = Math.max(0, Math.min(charges, 5 - remnantCount));
     const count = remnantCount + chargeCount;
     if (count <= 0) {
-      emitSoulWisp(player.x - player.facing * 18, player.y - 56, player.x + player.facing * 130, player.y - 66, { count: 12, color: '#b48cff', lifeMin: 260, lifeMax: 540 });
+      emitSoulWisp(player.x - player.facing * 18, player.y - 56, player.x + player.facing * 130, player.y - 66, { count: 12, color: SPIRIT_COLORS.curse, lifeMin: 260, lifeMax: 540 });
       addShake(1.8, 80);
       return false;
     }
@@ -2428,7 +2458,7 @@ PUBLIC.start = function (root, api) {
     }
     for (const a of spawned) commandSpiritAlly(a, { target, force: 17, dash: 6.9, life: 1260, fallback: 250 });
     player.spiritCharges = Math.max(0, charges - chargeCount);
-    emitSoulWisp(player.x, player.y - 62, target ? target.x : player.x + player.facing * 300, target ? target.y : player.y - 76, { count: 30, color: '#b48cff', lifeMin: 360, lifeMax: 900 });
+    emitSoulWisp(player.x, player.y - 62, target ? target.x : player.x + player.facing * 300, target ? target.y : player.y - 76, { count: 36, color: SPIRIT_COLORS.ghost, lifeMin: 360, lifeMax: 940 });
     addShake(5.4, 180);
     syncHud();
     return true;
@@ -2458,7 +2488,7 @@ PUBLIC.start = function (root, api) {
       rand(-0.25, 0.25),
       rand(-0.65, 0.02),
       {
-        color: Math.random() < 0.35 ? '#f5efff' : (a.cls && a.cls.color || '#b48cff'),
+        color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.26),
         life: rand(180, 380),
         r: rand(1.0, 2.5),
       }
@@ -2467,10 +2497,10 @@ PUBLIC.start = function (root, api) {
       const nx = dx / d || a.facing || 1, ny = dy / d || -0.15;
       if (cmd.type === 'fighter' && cmd.target && !cmd.target.dead) hurtFighter(cmd.target, nx, ny - 0.18, cmd.force || 14, cmd.x, cmd.y);
       else if (cmd.type === 'dummy' && cmd.target && !cmd.target.defeated) hurtDummy(cmd.target, nx, ny - 0.18, (cmd.force || 14) * 0.92, cmd.x, cmd.y);
-      else radialActorPulse(cmd.x, cmd.y, 62, (cmd.force || 14) * 0.7, a.team || 'hero', '#b48cff');
+      else radialActorPulse(cmd.x, cmd.y, 62, (cmd.force || 14) * 0.7, a.team || 'hero', a.cls && a.cls.color || SPIRIT_COLORS.ghost);
       pushBoxesRadial(cmd.x, cmd.y, (cmd.force || 14) * 0.55, 82, a.team || 'hero');
-      emitSoulWisp(sx, sy, cmd.x, cmd.y, { count: 16, color: a.cls && a.cls.color || '#b48cff', lifeMin: 240, lifeMax: 650 });
-      for (let i = 0; i < 7; i++) soulParticle(cmd.x + rand(-6, 6), cmd.y + rand(-6, 6), nx * rand(0.3, 1.4) + rand(-0.35, 0.35), rand(-1.2, -0.08), { color: Math.random() < 0.32 ? '#f5efff' : (a.cls && a.cls.color || '#b48cff') });
+      emitSoulWisp(sx, sy, cmd.x, cmd.y, { count: 18, color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 650 });
+      for (let i = 0; i < 8; i++) soulParticle(cmd.x + rand(-6, 6), cmd.y + rand(-6, 6), nx * rand(0.3, 1.4) + rand(-0.35, 0.35), rand(-1.2, -0.08), { color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.32) });
       cmd.hit = true;
       cmd.life = Math.min(cmd.life, 220);
       addShake(2.2, 100);
@@ -2518,14 +2548,14 @@ PUBLIC.start = function (root, api) {
           if (target && target.type === 'fighter' && target.target && !target.target.dead) hurtFighter(target.target, nx || 0, (ny || 0) - 0.16, 7.2, r.commandX, r.commandY);
           else if (target && target.type === 'dummy' && target.target && !target.target.defeated) hurtDummy(target.target, nx || 0, (ny || 0) - 0.16, 6.5, r.commandX, r.commandY);
           pushBoxesRadial(r.commandX, r.commandY, 6.0, 62, hero && hero.team || 'hero');
-          emitSoulWisp(r.x, r.y, r.commandX, r.commandY, { count: 9, color: r.color || '#b48cff', lifeMin: 180, lifeMax: 480 });
+          emitSoulWisp(r.x, r.y, r.commandX, r.commandY, { count: 10, color: r.color || SPIRIT_COLORS.ghost, lifeMin: 180, lifeMax: 480 });
           r.lashCd = 640;
         }
       }
       if (Math.random() < 0.34) {
         const a = rand(0, Math.PI * 2), rr = rand(2, 20);
         soulParticle(r.x + Math.cos(a) * rr * 0.45, r.y + Math.sin(a) * rr * 0.68, Math.cos(a) * rand(-0.10, 0.16), rand(-0.56, 0.02), {
-          color: Math.random() < 0.32 ? '#f5efff' : r.color,
+          color: spiritParticleColor(r.color || SPIRIT_COLORS.ghost, 0.32),
           life: rand(180, 420),
           r: rand(0.9, 2.2),
         });
@@ -2996,12 +3026,12 @@ PUBLIC.start = function (root, api) {
     if (e.kind === 'echoDrift') {
       const ox = player.x, oy = player.y;
       startClassMove('airDash');
-      spawnPressureDecoy(ox, oy, { cls: 'mage', hp: 1, color: '#b48cff', facing: f });
+      spawnPressureDecoy(ox, oy, { cls: 'mage', hp: 1, color: '#a98bff', facing: f });
       return true;
     }
     if (e.kind === 'riftSnare') {
       const p = aimedPoint(390);
-      spawnGravityField(p.x, p.y, player.team, '#b48cff', { r: 132, life: 2100 });
+      spawnGravityField(p.x, p.y, player.team, '#a98bff', { r: 132, life: 2100 });
       pullActorsAndBoxes(ang, { range: 240, all: 1, force: 6.2 });
       return true;
     }
@@ -4000,7 +4030,7 @@ PUBLIC.start = function (root, api) {
     }
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
-    if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.spiritCharges || 0}/6 spirit`;
+    if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.spiritCharges || 0}/6 souls`;
     if (cls.id === 'mage' && mageGraviturgeLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.gravityDebris || 0}/${gravityDebrisMax()} debris`;
     if (cls.id === 'mage' && magePyroLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return pyroStatusText();
     if (slot === 'passive') return spec ? 'keystone' : '';
@@ -4094,9 +4124,9 @@ PUBLIC.start = function (root, api) {
       const icon = document.getElementById('sr-ammo-icon');
       const val = document.getElementById('sr-knives');
       const detail = document.getElementById('sr-ammo-detail');
-      if (icon) icon.textContent = 'SP';
+      if (icon) icon.textContent = 'SO';
       if (val) val.textContent = `${player.spiritCharges || 0}/6`;
-      if (detail) detail.textContent = 'charges from KOs';
+      if (detail) detail.textContent = 'bound souls';
     }
     if (ammo && cls.id === 'mage' && player && mageGraviturgeLoadoutActive()) {
       const icon = document.getElementById('sr-ammo-icon');
@@ -5813,8 +5843,8 @@ PUBLIC.start = function (root, api) {
         if (!a.spiritMaxLife) a.spiritMaxLife = a.spiritLife || 1;
         a.spiritLife -= dtStep;
         if (a.spiritLife <= 0) {
-          emitSoulWisp(a.x, a.y - 46, hero ? hero.x : a.x + (a.facing || 1) * 44, hero ? hero.y - 58 : a.y - 74, { count: 16, color: a.cls && a.cls.color || '#b48cff', lifeMin: 260, lifeMax: 620 });
-          for (let j = 0; j < 6; j++) soulParticle(a.x + rand(-12, 12), a.y - rand(36, 78), rand(-0.34, 0.34), rand(-0.85, -0.06), { color: Math.random() < 0.35 ? '#f5efff' : (a.cls && a.cls.color || '#b48cff'), life: rand(260, 560) });
+          emitSoulWisp(a.x, a.y - 46, hero ? hero.x : a.x + (a.facing || 1) * 44, hero ? hero.y - 58 : a.y - 74, { count: 18, color: a.cls && a.cls.color || SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 640 });
+          for (let j = 0; j < 7; j++) soulParticle(a.x + rand(-12, 12), a.y - rand(36, 78), rand(-0.34, 0.34), rand(-0.85, -0.06), { color: spiritParticleColor(a.cls && a.cls.color || SPIRIT_COLORS.ghost, 0.35), life: rand(260, 580) });
           allies.splice(i, 1);
           syncHud();
           continue;
@@ -5823,7 +5853,7 @@ PUBLIC.start = function (root, api) {
           const fade = clamp(a.spiritLife / Math.max(1, a.spiritMaxLife || a.spiritLife), 0, 1);
           soulParticle(a.x + rand(-16, 16), a.y - rand(38, 86), rand(-0.25, 0.25), rand(-0.90, -0.10), {
             life: rand(260, 520),
-            color: Math.random() < 0.35 ? '#f5efff' : a.cls.color,
+            color: spiritParticleColor(a.cls.color || SPIRIT_COLORS.ghost, 0.32),
             r: rand(1.0, 2.5) * (0.75 + fade * 0.45),
           });
         }
@@ -5970,7 +6000,7 @@ PUBLIC.start = function (root, api) {
     if (!act) return null;
     if (act.team === 'hero') return { role: 'hero', color: '#35d9ff', glow: '#e9fbff', alpha: 0.84, core: 5.8, ground: 1.0 };
     if (act.team === 'ally') {
-      if (act.spirit) return { role: 'spirit', color: '#b48cff', glow: '#f5efff', alpha: 0.76, core: 5.3, ground: 0.82 };
+      if (act.spirit) return { role: 'spirit', color: SPIRIT_COLORS.ghost, glow: SPIRIT_COLORS.pale, alpha: 0.76, core: 5.3, ground: 0.82 };
       if (act.decoy) return { role: 'decoy', color: '#9cff5e', glow: '#f1ffe6', alpha: 0.72, core: 5.0, ground: 0.78 };
       return { role: 'ally', color: '#53d4ff', glow: '#eefbff', alpha: 0.70, core: 5.1, ground: 0.76 };
     }
@@ -6069,7 +6099,7 @@ PUBLIC.start = function (root, api) {
     const fade = clamp((a.spiritLife || 0) / Math.max(1, a.spiritMaxLife || a.spiritLife || 1), 0, 1);
     const pulse = 0.5 + 0.5 * Math.sin(now * 0.007 + a.x * 0.02);
     const chestY = a.y - 62 - ((a.anim && a.anim.fly) || 0) * (a.cls.style.hover || 0);
-    const color = a.cls && a.cls.color || '#b48cff';
+    const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -6077,39 +6107,50 @@ PUBLIC.start = function (root, api) {
       const hx = hero.x, hy = hero.y - 58;
       const mx = (hx + a.x) * 0.5 + Math.sin(now * 0.004 + a.x) * 12;
       const my = (hy + chestY) * 0.5 - 18;
-      ctx.setLineDash([7, 10]);
-      ctx.lineDashOffset = -now * 0.035;
-      ctx.globalAlpha = 0.12 + fade * 0.22;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.0;
+      ctx.globalAlpha = 0.16 + fade * 0.24;
+      ctx.strokeStyle = SPIRIT_COLORS.shadow;
+      ctx.lineWidth = 8.8;
       ctx.beginPath();
       ctx.moveTo(hx, hy);
       ctx.quadraticCurveTo(mx, my, a.x, chestY);
       ctx.stroke();
-      ctx.globalAlpha = 0.20 + fade * 0.22;
-      ctx.strokeStyle = '#f5efff';
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.12 + fade * 0.26;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.quadraticCurveTo(mx, my, a.x, chestY);
+      ctx.stroke();
+      ctx.globalAlpha = 0.18 + fade * 0.24;
+      ctx.strokeStyle = SPIRIT_COLORS.pale;
       ctx.lineWidth = 0.9;
       ctx.beginPath();
       ctx.moveTo(hx, hy);
       ctx.quadraticCurveTo(mx, my, a.x, chestY);
       ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.globalCompositeOperation = 'source-over';
     }
     if (a.spiritCommand) {
       const cmd = a.spiritCommand;
       const cmdFade = clamp(cmd.life / Math.max(1, cmd.max || cmd.life), 0, 1);
       const mx = (a.x + cmd.x) * 0.5 + Math.sin(now * 0.009) * 10;
       const my = (chestY + cmd.y) * 0.5 - 24;
-      ctx.globalAlpha = 0.18 + cmdFade * 0.42;
-      ctx.strokeStyle = '#f5efff';
-      ctx.lineWidth = 1.6 + pulse * 1.0;
-      ctx.setLineDash([4, 7]);
-      ctx.lineDashOffset = -now * 0.06;
+      ctx.globalAlpha = 0.20 + cmdFade * 0.38;
+      ctx.strokeStyle = SPIRIT_COLORS.shadow;
+      ctx.lineWidth = 8.4 + pulse * 1.3;
       ctx.beginPath();
       ctx.moveTo(a.x, chestY);
       ctx.quadraticCurveTo(mx, my, cmd.x, cmd.y);
       ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.22 + cmdFade * 0.44;
+      ctx.strokeStyle = SPIRIT_COLORS.pale;
+      ctx.lineWidth = 1.4 + pulse * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(a.x, chestY);
+      ctx.quadraticCurveTo(mx, my, cmd.x, cmd.y);
+      ctx.stroke();
       const dir = Math.atan2(cmd.y - chestY, cmd.x - a.x);
       const tx = Math.cos(dir), ty = Math.sin(dir), px = -ty, py = tx;
       ctx.globalAlpha = 0.18 + cmdFade * 0.32;
@@ -6121,12 +6162,13 @@ PUBLIC.start = function (root, api) {
       ctx.moveTo(cmd.x - tx * 20 - px * 4, cmd.y - ty * 20 - py * 4);
       ctx.quadraticCurveTo(cmd.x - tx * 8, cmd.y - ty * 8, cmd.x + tx * 10, cmd.y + ty * 10);
       ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
     }
     for (let i = 0; i < 4; i++) {
       const phase = now * (0.0035 + i * 0.0007) + a.x * 0.015 + i * 1.7;
       const ox = Math.sin(phase) * (9 + i * 3);
       ctx.globalAlpha = (0.16 + fade * 0.20) * (1 - i * 0.12);
-      ctx.strokeStyle = i % 2 ? '#f5efff' : color;
+      ctx.strokeStyle = i % 2 ? SPIRIT_COLORS.pale : color;
       ctx.lineWidth = i % 2 ? 1.1 : 1.8;
       ctx.beginPath();
       ctx.moveTo(a.x + ox * 0.4, chestY + 26 - i * 3);
@@ -6841,7 +6883,7 @@ PUBLIC.start = function (root, api) {
         });
       } else if (spiritIdle) {
         soulParticle(player.x + rand(-22, 22), player.y - rand(44, 92), rand(-0.18, 0.18), rand(-0.46, -0.04), {
-          color: Math.random() < 0.42 ? '#f5efff' : '#b48cff',
+          color: spiritParticleColor(SPIRIT_COLORS.ghost, 0.36),
           life: rand(360, 760),
           r: rand(0.9, 2.2),
           tail: rand(8, 18),
@@ -7846,10 +7888,11 @@ PUBLIC.start = function (root, api) {
     const origin = staffTipOrigin(ang, { type: 'cast', t: 0.38, tipPad: 4 });
     const shX = origin.handX || player.x, shY = origin.handY || player.y - 76, spd = 19.5;
     const mx = origin.x, my = origin.y;
+    const color = SPIRIT_COLORS.ghost;
     projectiles.push({ kind: 'spiritBolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
-      life: 920, color: '#b48cff', r: 10, hit: 11, angle: ang, spirit: true });
-    emitSoulWisp(shX - player.facing * 8, shY + 12, mx, my, { count: 12, color: '#b48cff', lifeMin: 220, lifeMax: 520 });
-    for (let i = 0; i < 5; i++) soulParticle(mx + rand(-4, 4), my + rand(-4, 4), Math.cos(ang) * rand(0.4, 1.2) + rand(-0.25, 0.25), Math.sin(ang) * rand(0.3, 1.0) - rand(0.10, 0.45), { color: Math.random() < 0.35 ? '#f5efff' : '#b48cff', life: rand(220, 520), r: rand(1.0, 2.2) });
+      life: 920, color, r: 10, hit: 11, angle: ang, spirit: true });
+    emitSoulWisp(shX - player.facing * 8, shY + 12, mx, my, { count: 14, color, lifeMin: 220, lifeMax: 540 });
+    for (let i = 0; i < 7; i++) soulParticle(mx + rand(-4, 4), my + rand(-4, 4), Math.cos(ang) * rand(0.4, 1.2) + rand(-0.25, 0.25), Math.sin(ang) * rand(0.3, 1.0) - rand(0.10, 0.45), { color: spiritParticleColor(color, 0.34), life: rand(220, 540), r: rand(1.0, 2.5) });
   }
   function spawnFireZone(x, y, team, opts) {
     opts = opts || {};
@@ -9440,29 +9483,58 @@ PUBLIC.start = function (root, api) {
   function drawSpiritOrbit(cx, cy, charges) {
     const count = clamp(Math.floor(charges || 0), 0, 6);
     if (!count) return;
-    const t = performance.now() * 0.0032;
+    const now = performance.now();
+    const t = now * 0.00125;
+    const f = player && player.facing || 1;
+    const speedLag = clamp(Math.abs(player && player.vx || 0) * 1.8, 0, 16);
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (let i = 0; i < count; i++) {
-      const a = t + i * Math.PI * 2 / count;
-      const pulse = 0.5 + 0.5 * Math.sin(t * 2.1 + i);
-      const x = cx + Math.cos(a) * (25 + pulse * 3.5);
-      const y = cy + Math.sin(a) * (22 + pulse * 3.0);
-      const tail = 10 + pulse * 5;
-      ctx.globalAlpha = 0.18 + pulse * 0.18;
-      ctx.strokeStyle = '#b48cff';
-      ctx.lineWidth = 3.0;
+      const seed = i * 2.417 + count * 0.37;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 5.2 + seed);
+      const lane = i - (count - 1) / 2;
+      const wander = t + seed;
+      const x = cx - f * (30 + i * 4 + speedLag) + lane * 5 + Math.sin(wander * 1.7) * 15 + Math.sin(wander * 0.54 + seed) * 9;
+      const y = cy - 28 - i * 1.6 + Math.cos(wander * 1.3) * 14 + Math.sin(wander * 0.72 + seed * 2.0) * 8;
+      const tx = x + f * (11 + pulse * 5) - Math.sin(wander * 1.1) * 5;
+      const ty = y + 9 + Math.cos(wander * 0.9) * 6;
+      const r = 4.8 + pulse * 2.2;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.24 + pulse * 0.14;
+      ctx.strokeStyle = SPIRIT_COLORS.shadow;
+      ctx.lineWidth = 9.0;
       ctx.beginPath();
-      ctx.moveTo(x - Math.cos(a) * tail, y - Math.sin(a) * tail);
-      ctx.quadraticCurveTo(x - Math.sin(a) * 4, y + Math.cos(a) * 4, x, y);
+      ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(x - f * (9 + pulse * 4), y + 4, x, y - 1);
       ctx.stroke();
-      ctx.globalAlpha = 0.78;
-      ctx.fillStyle = '#f5efff';
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.18 + pulse * 0.18;
+      ctx.strokeStyle = i % 3 === 1 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost;
+      ctx.lineWidth = 2.6;
       ctx.beginPath();
-      ctx.moveTo(x + Math.cos(a) * 3.8, y);
-      ctx.quadraticCurveTo(x, y - 3.2, x - Math.cos(a) * 5.2, y);
-      ctx.quadraticCurveTo(x, y + 3.2, x + Math.cos(a) * 3.8, y);
+      ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(x - f * (7 + pulse * 3), y + 2, x, y - 1);
+      ctx.stroke();
+      ctx.globalAlpha = 0.38 + pulse * 0.25;
+      ctx.fillStyle = i % 4 === 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost;
+      ctx.beginPath();
+      ctx.moveTo(x, y - r * 1.55);
+      ctx.quadraticCurveTo(x + f * r * 1.25, y - r * 0.12, x + f * r * 0.24, y + r * 1.65);
+      ctx.quadraticCurveTo(x - f * r * 1.18, y + r * 0.10, x, y - r * 1.55);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.92;
+      ctx.fillStyle = SPIRIT_COLORS.pale;
+      ctx.beginPath();
+      ctx.moveTo(x + f * r * 0.42, y - r * 1.05);
+      ctx.quadraticCurveTo(x + f * r * 0.92, y, x + f * r * 0.16, y + r * 0.95);
+      ctx.quadraticCurveTo(x - f * r * 0.78, y + r * 0.08, x + f * r * 0.42, y - r * 1.05);
+      ctx.fill();
+      ctx.globalAlpha = 0.62;
+      ctx.fillStyle = SPIRIT_COLORS.void;
+      ctx.beginPath();
+      ctx.arc(x - f * r * 0.12, y - r * 0.12, Math.max(1.0, r * 0.20), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -9571,26 +9643,32 @@ PUBLIC.start = function (root, api) {
       if (r === bindTarget) {
         const midX = (mageX + x) * 0.5 + Math.sin(now * 0.005 + r.x) * 10;
         const midY = (mageY + y) * 0.5 - 18 + Math.cos(now * 0.004 + r.y) * 5;
-        ctx.setLineDash([6, 9]);
-        ctx.lineDashOffset = -now * 0.04;
-        ctx.globalAlpha = 0.18 + pulse * 0.20;
-        ctx.strokeStyle = r.color || '#b48cff';
-        ctx.lineWidth = 2.4;
+      ctx.globalAlpha = 0.20 + pulse * 0.15;
+      ctx.strokeStyle = SPIRIT_COLORS.shadow;
+      ctx.lineWidth = 9.2;
         ctx.beginPath();
         ctx.moveTo(mageX, mageY);
         ctx.quadraticCurveTo(midX, midY, x, y);
         ctx.stroke();
-        ctx.globalAlpha = 0.34 + pulse * 0.30;
-        ctx.strokeStyle = '#f5efff';
-        ctx.lineWidth = 1.0;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.20 + pulse * 0.26;
+        ctx.strokeStyle = r.color || SPIRIT_COLORS.ghost;
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
         ctx.moveTo(mageX, mageY);
         ctx.quadraticCurveTo(midX, midY, x, y);
         ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.24 + pulse * 0.26;
+        ctx.strokeStyle = SPIRIT_COLORS.pale;
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(mageX, mageY);
+        ctx.quadraticCurveTo(midX + Math.sin(now * 0.006) * 4, midY - 4, x, y);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
       }
       ctx.globalAlpha = 0.16 * fade;
-      ctx.strokeStyle = r.color || '#b48cff';
+      ctx.strokeStyle = r.color || SPIRIT_COLORS.ghost;
       ctx.lineWidth = 2.6;
       ctx.beginPath();
       ctx.moveTo(x, gy);
@@ -9601,7 +9679,7 @@ PUBLIC.start = function (root, api) {
         const ox = Math.sin(phase) * (9 + i * 3);
         const oy = Math.cos(phase * 0.8) * (3 + i);
         ctx.globalAlpha = (0.20 + pulse * 0.22) * fade * (1 - i * 0.18);
-        ctx.strokeStyle = i === 1 ? '#f5efff' : r.color || '#b48cff';
+        ctx.strokeStyle = i === 1 ? SPIRIT_COLORS.pale : r.color || SPIRIT_COLORS.ghost;
         ctx.lineWidth = i === 1 ? 1.1 : 1.8;
         ctx.beginPath();
         ctx.moveTo(x + ox * 0.45, y + 11 + oy);
@@ -9609,16 +9687,29 @@ PUBLIC.start = function (root, api) {
         ctx.stroke();
       }
       ctx.globalAlpha = 0.86 * fade;
-      ctx.fillStyle = '#f5efff';
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = SPIRIT_COLORS.ghost;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 11 - pulse * 3);
+      ctx.quadraticCurveTo(x + 9 + pulse * 3, y - 1, x + 1.4, y + 12 + pulse * 3);
+      ctx.quadraticCurveTo(x - 9 - pulse * 3, y + 2, x, y - 11 - pulse * 3);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = SPIRIT_COLORS.pale;
       ctx.beginPath();
       ctx.moveTo(x, y - 7 - pulse * 2);
       ctx.quadraticCurveTo(x + 5.0 + pulse * 2, y - 1, x + 1.2, y + 7 + pulse * 2);
       ctx.quadraticCurveTo(x - 5.4 - pulse * 2, y + 1, x, y - 7 - pulse * 2);
       ctx.fill();
       ctx.globalAlpha = 0.50 * fade;
-      ctx.strokeStyle = r.color || '#b48cff';
+      ctx.strokeStyle = r.color || SPIRIT_COLORS.ghost;
       ctx.lineWidth = 1.3;
       ctx.stroke();
+      ctx.globalAlpha = 0.55 * fade;
+      ctx.fillStyle = SPIRIT_COLORS.void;
+      ctx.beginPath();
+      ctx.arc(x - 1.4, y - 0.5, 1.2 + pulse * 0.5, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -11083,21 +11174,42 @@ PUBLIC.start = function (root, api) {
         const rr = pt.r * (0.72 + fade * 0.72);
         const ang = Math.atan2(pt.vy || -1, pt.vx || 0);
         const tail = (pt.tail || 12) * (0.35 + fade * 0.75);
-        ctx.globalCompositeOperation = 'lighter';
         ctx.lineCap = 'round';
-        ctx.globalAlpha = (pt.alpha || 0.8) * fade * 0.58;
-        ctx.strokeStyle = pt.color || '#b48cff';
-        ctx.lineWidth = Math.max(0.8, rr * 1.15);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = (pt.alpha || 0.8) * fade * 0.34;
+        ctx.strokeStyle = pt.shadowColor || SPIRIT_COLORS.void;
+        ctx.lineWidth = Math.max(2.4, rr * 3.2);
         ctx.beginPath();
         ctx.moveTo(sx - Math.cos(ang) * tail, sy - Math.sin(ang) * tail);
         ctx.quadraticCurveTo(sx - Math.sin(ang) * rr * 2.0, sy + Math.cos(ang) * rr * 1.2, sx, sy);
         ctx.stroke();
-        ctx.globalAlpha = (pt.alpha || 0.8) * fade * 0.72;
-        ctx.fillStyle = '#f5efff';
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = (pt.alpha || 0.8) * fade * 0.62;
+        ctx.strokeStyle = pt.color || SPIRIT_COLORS.ghost;
+        ctx.lineWidth = Math.max(0.9, rr * 1.1);
+        ctx.beginPath();
+        ctx.moveTo(sx - Math.cos(ang) * tail * 0.86, sy - Math.sin(ang) * tail * 0.86);
+        ctx.quadraticCurveTo(sx - Math.sin(ang) * rr * 1.8, sy + Math.cos(ang) * rr * 1.1, sx, sy);
+        ctx.stroke();
+        ctx.globalAlpha = (pt.alpha || 0.8) * fade * 0.56;
+        ctx.fillStyle = pt.color || SPIRIT_COLORS.ghost;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - rr * 2.3);
+        ctx.quadraticCurveTo(sx + rr * 1.9, sy - rr * 0.2, sx + rr * 0.25, sy + rr * 2.2);
+        ctx.quadraticCurveTo(sx - rr * 1.8, sy + rr * 0.15, sx, sy - rr * 2.3);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = (pt.alpha || 0.8) * fade * 0.84;
+        ctx.fillStyle = pt.coreColor || SPIRIT_COLORS.pale;
         ctx.beginPath();
         ctx.moveTo(sx, sy - rr * 1.7);
         ctx.quadraticCurveTo(sx + rr * 1.45, sy, sx, sy + rr * 1.8);
         ctx.quadraticCurveTo(sx - rr * 1.45, sy, sx, sy - rr * 1.7);
+        ctx.fill();
+        ctx.globalAlpha = (pt.alpha || 0.8) * fade * 0.58;
+        ctx.fillStyle = SPIRIT_COLORS.void;
+        ctx.beginPath();
+        ctx.arc(sx - Math.cos(ang) * rr * 0.18, sy - Math.sin(ang) * rr * 0.18, Math.max(0.8, rr * 0.22), 0, Math.PI * 2);
         ctx.fill();
       } else if (pt.kind === 'gravity') {
         const rr = pt.r * (0.8 + fade * 0.55);
@@ -11405,23 +11517,40 @@ PUBLIC.start = function (root, api) {
         const r = b.r || 9;
         const ang = Math.atan2(b.vy, b.vx);
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
         ctx.lineCap = 'round';
-        ctx.strokeStyle = b.color || '#b48cff';
-        ctx.globalAlpha = 0.38;
-        ctx.lineWidth = 7;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = SPIRIT_COLORS.shadow;
+        ctx.globalAlpha = 0.44;
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.moveTo(b.x - Math.cos(ang) * 34, b.y - Math.sin(ang) * 34);
+        ctx.quadraticCurveTo(b.x - Math.sin(ang) * 7, b.y + Math.cos(ang) * 7, b.x, b.y);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = b.color || SPIRIT_COLORS.ghost;
+        ctx.globalAlpha = 0.52;
+        ctx.lineWidth = 5.0;
         ctx.beginPath();
         ctx.moveTo(b.x - Math.cos(ang) * 34, b.y - Math.sin(ang) * 34);
         ctx.quadraticCurveTo(b.x - Math.sin(ang) * 7, b.y + Math.cos(ang) * 7, b.x, b.y);
         ctx.stroke();
         ctx.globalAlpha = 0.78;
-        ctx.strokeStyle = '#f5efff';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = SPIRIT_COLORS.pale;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.moveTo(b.x - Math.cos(ang) * 18, b.y - Math.sin(ang) * 18);
         ctx.lineTo(b.x + Math.cos(ang) * 6, b.y + Math.sin(ang) * 6);
         ctx.stroke();
-        ctx.fillStyle = '#f5efff';
+        ctx.globalAlpha = 0.58;
+        ctx.fillStyle = b.color || SPIRIT_COLORS.ghost;
+        ctx.beginPath();
+        ctx.moveTo(b.x + Math.cos(ang) * r * 1.4, b.y + Math.sin(ang) * r * 1.4);
+        ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 1.0, b.y + Math.cos(ang) * r * 1.0, b.x - Math.cos(ang) * r * 1.15, b.y - Math.sin(ang) * r * 1.15);
+        ctx.quadraticCurveTo(b.x + Math.sin(ang) * r * 1.0, b.y - Math.cos(ang) * r * 1.0, b.x + Math.cos(ang) * r * 1.4, b.y + Math.sin(ang) * r * 1.4);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = SPIRIT_COLORS.pale;
         ctx.beginPath();
         ctx.moveTo(b.x + Math.cos(ang) * r, b.y + Math.sin(ang) * r);
         ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 0.6, b.y + Math.cos(ang) * r * 0.6, b.x - Math.cos(ang) * r * 0.9, b.y - Math.sin(ang) * r * 0.9);
@@ -11660,7 +11789,7 @@ PUBLIC.start = function (root, api) {
                 b.y - b.vy * trail + rand(-2.5, 2.5),
                 -b.vx * rand(0.010, 0.028) + rand(-0.28, 0.28),
                 -b.vy * rand(0.010, 0.028) + rand(-0.42, 0.08),
-                { color: Math.random() < 0.35 ? '#f5efff' : b.color, life: rand(190, 420), r: rand(0.9, 2.4), tail: rand(8, 22) }
+                { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.34), life: rand(190, 440), r: rand(0.9, 2.6), tail: rand(9, 24) }
               );
               else particles.push({ x: b.x - b.vx * trail + rand(-2.5, 2.5), y: b.y - b.vy * trail + rand(-2.5, 2.5),
                 vx: -b.vx * rand(0.01, 0.035) + rand(-0.45, 0.45), vy: -b.vy * rand(0.01, 0.035) + rand(-0.45, 0.45),
@@ -11679,7 +11808,7 @@ PUBLIC.start = function (root, api) {
                   alpha: 0.20,
                 });
             }
-            if (b.kind === 'spiritBolt' && Math.random() < 0.70) soulParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), rand(-0.35, 0.35), rand(-0.65, 0.02), { color: Math.random() < 0.45 ? '#f5efff' : '#b48cff', life: rand(200, 420), r: rand(1.0, 2.4) });
+            if (b.kind === 'spiritBolt' && Math.random() < 0.76) soulParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), rand(-0.35, 0.35), rand(-0.65, 0.02), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.42), life: rand(200, 440), r: rand(1.0, 2.5) });
           } else if (b.kind === 'sigil') {
             b.age += dt;
             b.angle += 0.045;
@@ -11824,8 +11953,8 @@ PUBLIC.start = function (root, api) {
               detonateIgnitionGrenade(b);
             }
             else if (b.kind === 'spiritBolt') {
-              emitSoulWisp(b.x - b.vx * 0.55, b.y - b.vy * 0.55, b.x, b.y, { count: 14, color: '#b48cff', lifeMin: 220, lifeMax: 560 });
-              for (let j = 0; j < 7; j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.55, 0.55), rand(-0.95, 0.10), { color: Math.random() < 0.38 ? '#f5efff' : '#b48cff', life: rand(220, 520), r: rand(1.0, 2.2) });
+              emitSoulWisp(b.x - b.vx * 0.55, b.y - b.vy * 0.55, b.x, b.y, { count: 18, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 220, lifeMax: 580 });
+              for (let j = 0; j < 9; j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.55, 0.55), rand(-0.95, 0.10), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.38), life: rand(220, 540), r: rand(1.0, 2.5) });
             }
             else {
               if (b.explosive) pushBoxesRadial(b.x, b.y, 18, 112, b.team);
