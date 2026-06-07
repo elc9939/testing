@@ -742,6 +742,27 @@ const ARENA_LEVEL = lvl({
     { x: 2140, y: G - 18, min: 2010, max: 2390 },
   ],
 });
+const FLAT_ARENA_LEVEL = lvl({
+  id: 'flat',
+  name: 'Flat Arena',
+  theme: { id: 'training', solid: '#d1cdc1', top: '#141414', oneWay: '#8f897b' },
+  spawn: { x: 245, y: G },
+  platforms: [
+    { x: 0, y: G, w: 2200, h: 180 },
+    { x: 0, y: G - 170, w: 42, h: 350 },
+    { x: 2158, y: G - 170, w: 42, h: 350 },
+  ],
+  coins: [],
+  boxes: [],
+  dummies: [],
+  enemySpawns: [
+    { x: 690, y: G, min: 570, max: 810 },
+    { x: 1020, y: G, min: 880, max: 1160 },
+    { x: 1350, y: G, min: 1210, max: 1490 },
+    { x: 1680, y: G, min: 1530, max: 1830 },
+    { x: 1940, y: G, min: 1810, max: 2090 },
+  ],
+});
 const FOREST_ARENA_LEVEL = lvl({
   id: 'forest',
   name: 'Canopy Ruins',
@@ -834,7 +855,7 @@ const SPACE_ARENA_LEVEL = lvl({
     { x: 2390, y: G - 42, min: 2270, max: 2570 },
   ],
 });
-const ARENA_LEVELS = [ARENA_LEVEL, FOREST_ARENA_LEVEL, SPACE_ARENA_LEVEL];
+const ARENA_LEVELS = [ARENA_LEVEL, FLAT_ARENA_LEVEL, FOREST_ARENA_LEVEL, SPACE_ARENA_LEVEL];
 
 PUBLIC.start = function (root, api) {
   const view = api.makeCanvas(root);
@@ -3795,7 +3816,14 @@ PUBLIC.start = function (root, api) {
     for (const p of L.platforms) if (x >= p.x - 10 && x <= p.x + p.w + 10) y = Math.min(y, p.y);
     return y === Infinity ? L.spawn.y : y;
   }
-  function arenaLineup(wave) {
+  function arenaLineup(wave, arena) {
+    if (arena && arena.id === 'flat') {
+      const roster = ['knight', 'rogue', 'lancer', 'mage', 'ranger'];
+      const n = clamp(1 + Math.floor((wave + 1) / 3), 1, 4);
+      const out = [];
+      for (let i = 0; i < n; i++) out.push(roster[(wave * 2 + i * 3) % roster.length]);
+      return out;
+    }
     if (wave <= 1) return ['knight', 'rogue'];
     if (wave === 2) return ['ranger', 'mage'];
     if (wave === 3) return ['lancer', 'rogue', 'ranger'];
@@ -3807,7 +3835,8 @@ PUBLIC.start = function (root, api) {
   }
   function spawnArenaWave(wave) {
     const L = levels[li], slots = L.enemySpawns || [];
-    const lineup = arenaLineup(wave);
+    const flatArena = L.id === 'flat';
+    const lineup = arenaLineup(wave, L);
     fighters = [];
     for (let i = 0; i < lineup.length; i++) {
       const slot = slots[(i * 2 + wave) % Math.max(1, slots.length)] || { x: L.spawn.x + 360 + i * 180 };
@@ -3815,9 +3844,10 @@ PUBLIC.start = function (root, api) {
       const e = makeFighter(lineup[i], slot.x, y, {
         min: slot.min == null ? slot.x - 180 : slot.min,
         max: slot.max == null ? slot.x + 180 : slot.max,
-        hp: enemyDefaultHp(lineup[i]) + Math.floor(Math.max(0, wave - 3) / 3),
+        hp: enemyDefaultHp(lineup[i]) + Math.floor(Math.max(0, wave - 3) / (flatArena ? 4 : 3)),
         facing: slot.x > L.spawn.x ? -1 : 1,
       });
+      if (flatArena) applyArenaBotBuild(e, flatArenaBotBuild(lineup[i], wave, i), wave);
       e.brain.alert = 2400;
       e.brain.pauseT = 0;
       e.brain.wave = wave;
@@ -5562,11 +5592,69 @@ PUBLIC.start = function (root, api) {
   }
   function enemyDefaultHp(id) { return id === 'lancer' ? 6 : id === 'knight' ? 5 : 3; }
   function enemyAggro(id) { return (id === 'mage' || id === 'ranger') ? 340 : id === 'rogue' ? 300 : id === 'lancer' ? 260 : 240; }
+  function cloneClassDef(cdef) {
+    return Object.assign({}, cdef, {
+      trail: cdef.trail ? cdef.trail.slice() : null,
+      dur: Object.assign({}, cdef.dur || {}),
+      moveDur: Object.assign({}, cdef.moveDur || {}),
+      style: Object.assign({}, cdef.style || {}),
+    });
+  }
+  const FLAT_ARENA_BOT_BUILDS = {
+    knight: [
+      { id: 'guardian', name: 'Guardian Bot', pattern: 'guardian', color: '#75aaff', trail: [117, 170, 255], hp: 1 },
+      { id: 'earthbreaker', name: 'Earthbreaker Bot', pattern: 'earthbreaker', color: '#7eb8ff', trail: [126, 184, 255], hp: 2 },
+    ],
+    rogue: [
+      { id: 'bladeslinger', name: 'Bladeslinger Bot', pattern: 'bladeslinger', color: '#b7ff67', trail: [183, 255, 103], hp: 1, knives: 6 },
+      { id: 'acrobat', name: 'Acrobat Bot', pattern: 'acrobat', color: '#9cff5e', trail: [156, 255, 94], hp: 1, knives: 4, speedMul: 1.42 },
+    ],
+    lancer: [
+      { id: 'phalanx', name: 'Phalanx Bot', pattern: 'phalanx', color: '#ffe071', trail: [255, 224, 113], hp: 2 },
+      { id: 'dragoon', name: 'Dragoon Bot', pattern: 'dragoon', color: '#ffc857', trail: [255, 200, 87], hp: 2 },
+    ],
+    mage: [
+      { id: 'pyromancer', name: 'Pyromancer Bot', pattern: 'pyromancer', caster: 'pyromancer', color: '#ff6b32', trail: [255, 107, 50], hp: 1, fly: false },
+      { id: 'graviturge', name: 'Graviturge Bot', pattern: 'graviturge', caster: 'graviturge', color: '#8b5cff', trail: [139, 92, 255], hp: 1, fly: true },
+      { id: 'spiritbinder', name: 'Spiritbinder Bot', pattern: 'spiritbinder', caster: 'spiritbinder', color: '#62d8ff', trail: [98, 216, 255], hp: 1, fly: false },
+    ],
+    ranger: [
+      { id: 'sharpshooter', name: 'Sharpshooter Bot', pattern: 'sharpshooter', color: '#79e0ff', trail: [121, 224, 255], hp: 1, arrows: 9 },
+      { id: 'trapper', name: 'Trapper Bot', pattern: 'trapper', color: '#78e0c8', trail: [120, 224, 200], hp: 1, arrows: 9 },
+    ],
+  };
+  function flatArenaBotBuild(clsId, wave, index) {
+    const list = FLAT_ARENA_BOT_BUILDS[clsId];
+    if (!list || !list.length) return null;
+    return list[(wave + index) % list.length];
+  }
+  function applyArenaBotBuild(e, build, wave) {
+    if (!e || !build) return e;
+    e.botBuild = {
+      id: build.id,
+      name: build.name,
+      pattern: build.pattern,
+      caster: build.caster || null,
+      tier: clamp(2 + Math.floor((wave || 1) / 3), 2, 5),
+    };
+    if (build.color) e.cls.color = build.color;
+    if (build.trail) e.cls.trail = build.trail.slice();
+    if (build.fly != null) e.cls.fly = !!build.fly;
+    if (build.speedMul) e.cls.speedMul = build.speedMul;
+    if (build.knives) e.knifeAmmo = Math.max(e.knifeAmmo || 0, build.knives);
+    if (build.arrows) e.arrowAmmo = Math.max(e.arrowAmmo || 0, build.arrows);
+    e.maxHp += (build.hp || 0) + Math.floor(Math.max(0, (wave || 1) - 4) / 4);
+    e.hp = e.maxHp;
+    e.brain.atkCd *= 0.72;
+    e.brain.moveCd *= 0.82;
+    e.brain.elite = true;
+    return e;
+  }
   function makeFighter(clsId, x, y, opts) {
     opts = opts || {};
     const cdef = CLASSES.find(c => c.id === clsId) || CLASSES[0];
     const e = makePlayer({ x, y });
-    e.cls = cdef; e.team = opts.team || 'enemy';
+    e.cls = cloneClassDef(cdef); e.team = opts.team || 'enemy';
     e.intent = { left: false, right: false, down: false, dropThrough: false, jumpHeld: false, jumpHold: 0, jump: false };
     e.facing = opts.facing || (Math.random() < 0.5 ? -1 : 1);
     e.flash = 0; e.dead = false; e._moveAmt = 0;
@@ -5709,6 +5797,22 @@ PUBLIC.start = function (root, api) {
     knight(e, n) {                               // press in, trade blows, shield up close
       const b = e.brain;
       const target = b.target || hero;
+      const pattern = e.botBuild && e.botBuild.pattern;
+      if (pattern === 'earthbreaker') {
+        if (n.adx > 74) {
+          pressToward(e, n.route);
+          if ((n.adx < 170 || n.nav.blocked || n.nav.stepUp) && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(1150, 1750); }
+        } else if (b.atkCd <= 0) {
+          triggerAttack(b.combo++ % 3 === 1 ? 'shieldBash' : 'crush', { aim: n.aim });
+          b.atkCd = rand(820, 1180);
+        }
+        return;
+      }
+      if (pattern === 'guardian' && target && target.anim && target.anim.atkActive && n.adx < 132 && b.moveCd <= 0) {
+        triggerAttack('shieldGuard', { aim: n.aim });
+        b.moveCd = rand(900, 1350); b.atkCd = Math.max(b.atkCd, 320);
+        return;
+      }
       if (target && target.anim && target.anim.atkActive && n.adx < 112 && b.moveCd <= 0) {
         triggerAttack('shieldGuard', { aim: n.aim });
         b.moveCd = rand(1150, 1700); b.atkCd = Math.max(b.atkCd, 360);
@@ -5725,6 +5829,28 @@ PUBLIC.start = function (root, api) {
     },
     rogue(e, n) {                                // hit-and-run: dart in, combo, dagger poke, peel off
       const b = e.brain;
+      const pattern = e.botBuild && e.botBuild.pattern;
+      if (pattern === 'bladeslinger') {
+        if (b.retreat > 0 || n.adx < 122) { pressToward(e, -n.face); if (b.moveCd <= 0 && n.adx < 150) { triggerMove(); b.moveCd = rand(760, 1120); } }
+        else if (n.adx > 300) pressToward(e, n.route);
+        if (e.knifeAmmo > 0 && b.atkCd <= 0 && n.adx < 470) {
+          triggerAttack('throw', { aim: n.aim });
+          b.combo++; b.atkCd = rand(330, 540);
+          if (b.combo % 4 === 0) b.retreat = rand(260, 520);
+        }
+        return;
+      }
+      if (pattern === 'acrobat') {
+        if (n.adx > 58) pressToward(e, n.route);
+        if (n.adx < 230 && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(500, 840); }
+        if (b.atkCd <= 0 && n.adx < 92 && e.knifeAmmo > 0) {
+          const type = b.combo++ % 3 === 1 ? 'legSweep' : 'dualSlash';
+          e.intent.down = type === 'legSweep';
+          triggerAttack(type, { aim: n.aim });
+          b.atkCd = rand(220, 340);
+        }
+        return;
+      }
       if (b.retreat > 0) { pressToward(e, -n.face); return; }
       if (n.adx > 48) {
         pressToward(e, n.route);
@@ -5743,6 +5869,27 @@ PUBLIC.start = function (root, api) {
     },
     lancer(e, n) {                               // spacing control: hold the hero at spear tip, charge gaps
       const b = e.brain;
+      const pattern = e.botBuild && e.botBuild.pattern;
+      if (pattern === 'dragoon') {
+        if (n.adx > 86) pressToward(e, n.route);
+        if (n.adx < 420 && n.adx > 88 && b.moveCd <= 0) {
+          triggerAttack('lanceCharge', { aim: n.aim });
+          b.atkCd = 980; b.moveCd = rand(1180, 1800);
+        } else if (b.atkCd <= 0 && n.adx < 134) {
+          triggerAttack('braceThrust', { aim: n.aim });
+          b.atkCd = rand(720, 1040);
+        }
+        return;
+      }
+      if (pattern === 'phalanx') {
+        if (n.adx > 150) pressToward(e, n.route);
+        else if (n.adx < 70) pressToward(e, -n.face);
+        if (b.atkCd <= 0 && n.adx < 190) {
+          triggerAttack('braceThrust', { aim: n.aim });
+          b.atkCd = rand(680, 980);
+        }
+        return;
+      }
       if (n.adx > 104) {
         pressToward(e, n.route);
         if (n.adx < 300 && b.moveCd <= 0) { triggerAttack('lanceCharge', { aim: n.aim }); b.atkCd = 1000; b.moveCd = rand(1350, 2200); }
@@ -5752,23 +5899,26 @@ PUBLIC.start = function (root, api) {
     mage(e, n) {                                 // floats and kites, raining bolts; blooms up close
       const b = e.brain;
       const target = b.target || hero;
-      e.intent.jumpHeld = !!target && (e.y > target.y + 64 && n.adx < 340 || !e.grounded && e.airTime < 18 && e.vy < -0.1);
+      const pattern = e.botBuild && e.botBuild.pattern;
+      e.intent.jumpHeld = !!target && e.cls.fly && (e.y > target.y + 64 && n.adx < 340 || !e.grounded && e.airTime < 18 && e.vy < -0.1);
       if (n.adx < 185) { pressToward(e, -n.face); if (n.adx < 135 && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(1050, 1700); } }
       else if (n.adx > 310) pressToward(e, n.route);
       if (b.atkCd <= 0) {
-        const close = n.adx < 165 || Math.abs(n.dy) < 44 && n.adx < 210 && b.combo++ % 3 === 2;
+        const close = n.adx < (pattern ? 190 : 165) || Math.abs(n.dy) < 44 && n.adx < 230 && b.combo++ % 3 === 2;
         triggerAttack(close ? 'arcaneBloom' : 'cast', { aim: n.aim, range: clamp(Math.hypot(n.dx, n.dy), 130, 540) });
-        b.atkCd = close ? 1050 : rand(560, 850);
+        b.atkCd = close ? rand(900, 1180) : rand(pattern ? 470 : 560, pattern ? 720 : 850);
       }
     },
     ranger(e, n) {                               // skirmisher: keep range, arrow/volley, backstep when crowded
       const b = e.brain;
+      const pattern = e.botBuild && e.botBuild.pattern;
       if (n.adx < 170) { pressToward(e, -n.face); if ((n.adx < 140 || n.nav.blocked) && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(680, 1180); } }
       else if (n.adx > 300) pressToward(e, n.route);
       if (b.atkCd <= 0) {
-        const t = (e.arrowAmmo >= 3 && (n.adx < 260 || b.combo++ % 4 === 3)) ? 'volley' : 'arrow';
+        const volleyEvery = pattern === 'trapper' ? 2 : pattern === 'sharpshooter' ? 5 : 4;
+        const t = (e.arrowAmmo >= 3 && (n.adx < 260 || b.combo++ % volleyEvery === volleyEvery - 1)) ? 'volley' : 'arrow';
         triggerAttack(t, { aim: n.aim, drawPower: rand(0.75, 1.15) });
-        b.atkCd = t === 'volley' ? 950 : rand(440, 700);
+        b.atkCd = t === 'volley' ? rand(820, 1080) : rand(pattern === 'sharpshooter' ? 360 : 440, pattern === 'sharpshooter' ? 620 : 700);
       }
     },
   };
@@ -7085,8 +7235,20 @@ PUBLIC.start = function (root, api) {
       if (player.spellCount % 4 === 0) chainLightning(ang, 3);
     }
     if (type === 'shieldGuard') { activateShieldGuard(); return; }
-    if (type === 'cast') { spawnBolt(ang, 1.4); return; }
-    if (type === 'arcaneBloom') { spawnArcaneOrb(ang); return; }
+    if (type === 'cast') {
+      const caster = player.botBuild && player.botBuild.caster;
+      if (caster === 'pyromancer') { spawnFirebolt(ang, 1.0, { scorch: true }); return; }
+      if (caster === 'graviturge') { spawnGravityDebrisShot(ang, { free: true, power: 1.08, range: 560 }); return; }
+      if (caster === 'spiritbinder') { spawnSpiritBolt(ang); return; }
+      spawnBolt(ang, 1.4); return;
+    }
+    if (type === 'arcaneBloom') {
+      const caster = player.botBuild && player.botBuild.caster;
+      if (caster === 'pyromancer') { spawnFirebolt(ang, 1.16, { scorch: true }); return; }
+      if (caster === 'graviturge') { spawnGravityDebrisShot(ang, { free: true, power: 1.32, range: 620 }); return; }
+      if (caster === 'spiritbinder') { spawnSpiritBolt(ang); spawnSpiritBolt(ang + 0.12 * player.facing); return; }
+      spawnArcaneOrb(ang); return;
+    }
     if (type === 'throw') {
       const ricochet = hasPassive('rg_trapmaster') || atkNode && atkNode.id === 'rg_ricochet' || secNode && secNode.id === 'rg_ricochet';
       spawnDagger(ang, { bounce: ricochet ? 1 : 0, hit: ricochet ? 15 : 14 });
@@ -12179,6 +12341,7 @@ PUBLIC.start = function (root, api) {
       cooldowns: Object.assign({}, act.cooldowns || {}),
       shieldGuard: act.shieldGuard, draw: act.draw ? Object.assign({}, act.draw) : null, hp: act.hp, maxHp: act.maxHp,
       hidden: act.hidden || 0, smokeBlind: act.smokeBlind || 0, poisoned: act.poisoned || 0, burned: act.burned || 0,
+      botBuild: act.botBuild ? Object.assign({}, act.botBuild) : null,
       spiritCommand: act.spiritCommand ? { x: act.spiritCommand.x, y: act.spiritCommand.y, life: act.spiritCommand.life || 0, max: act.spiritCommand.max || 0, type: act.spiritCommand.type || 'point' } : null,
       box: actorBox(act), capsules: actorCapsules(act), attack: atk, move,
     };
@@ -12201,7 +12364,7 @@ PUBLIC.start = function (root, api) {
         const bindableRemnant = nearestSpiritRemnant(340);
         return {
           mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
-          arenaMode, labMode, labBuildId, arenaWave, arenaKills, arenaNextWave,
+          arenaMode, labMode, labBuildId, mapId: selectedArenaMap && selectedArenaMap.id || '', arenaWave, arenaKills, arenaNextWave,
           loadout: Object.assign({}, loadout || {}), draftChoices: arenaDraftChoices ? arenaDraftChoices.slice() : null,
           runBuild: runBuild ? { picked: runBuild.picked.slice(), branchPoints: Object.assign({}, runBuild.branchPoints), statBonuses: Object.assign({}, runBuild.statBonuses || {}), softBranch: runBuild.softBranch } : null,
           player: actorSnapshot(player),
