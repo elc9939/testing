@@ -8124,7 +8124,7 @@ PUBLIC.start = function (root, api) {
   }
   function emitBlackHoleBirth(x, y, r, color) {
     const accent = color || gravityAccent();
-    for (let i = 0; i < 118; i++) {
+    for (let i = 0; i < 78; i++) {
       const a = rand(0, Math.PI * 2), rr = rand(r * 0.42, r * 1.18);
       const tangent = a + Math.PI / 2;
       gravityParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr,
@@ -8132,8 +8132,8 @@ PUBLIC.start = function (root, api) {
         Math.sin(tangent) * rand(0.35, 1.85) - Math.sin(a) * rand(0.55, 1.75), {
           color: gravityParticleColor(),
           life: rand(520, 1180),
-          r: rand(1.7, 5.4),
-          tail: rand(12, 28),
+          r: rand(1.8, 5.8),
+          tail: rand(4, 11),
         });
     }
     spawnShockwaveRing(x, y, r * 1.04, accent, { life: 620, width: 8.2, fill: 0.16, rough: 0.10 });
@@ -8645,7 +8645,7 @@ PUBLIC.start = function (root, api) {
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
           vx: Math.cos(tangent) * rand(0.42, 1.65) - Math.cos(a) * rand(0.45, 1.40),
           vy: Math.sin(tangent) * rand(0.42, 1.65) - Math.sin(a) * rand(0.45, 1.40),
-          life: rand(320, 760), max: 760, color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(), r: rand(1.2, 4.2), tail: rand(11, 26), dark: Math.random() < 0.18 });
+          life: rand(320, 760), max: 760, color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(), r: rand(1.4, 4.6), tail: rand(4, 12), dark: Math.random() < 0.18 });
       } else if (Math.random() < 0.75) {
         const a = rand(0, Math.PI * 2), rr = rand(18, g.r);
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
@@ -10465,15 +10465,20 @@ PUBLIC.start = function (root, api) {
     const rr = g.r * (0.24 + birth * 0.76) * (1 - collapse * 0.18) * pulse;
     const coreR = (22 + birth * 18 + Math.sin(t * 0.015 + phase) * 2.2) * (1 - collapse * 0.28);
     const rimR = coreR + 7 + collapse * 14;
+    const diskRot = Math.sin(phase) * 0.13 + Math.sin(t * 0.0009 + phase) * 0.035;
+    const diskRx = rr * (0.70 + collapse * 0.08);
+    const diskRy = rr * (0.155 + birth * 0.035);
     ctx.save();
+
+    // A black-hole read: opaque shadow, photon ring, and a tilted accretion disk.
     ctx.globalCompositeOperation = 'source-over';
-    const grad = ctx.createRadialGradient(g.x, g.y, 2, g.x, g.y, Math.max(20, rr));
+    const grad = ctx.createRadialGradient(g.x, g.y, 2, g.x, g.y, Math.max(28, rr));
     grad.addColorStop(0, 'rgba(0,0,0,0.99)');
     grad.addColorStop(0.16, 'rgba(2,1,7,0.98)');
-    grad.addColorStop(0.32, `rgba(12,6,28,${0.90 - collapse * 0.06})`);
-    grad.addColorStop(0.58, `rgba(50,32,121,${0.50 + birth * 0.12})`);
-    grad.addColorStop(0.82, `rgba(116,91,255,${0.19 + birth * 0.10})`);
-    grad.addColorStop(1, 'rgba(116,91,255,0.02)');
+    grad.addColorStop(0.30, `rgba(9,4,22,${0.94 - collapse * 0.04})`);
+    grad.addColorStop(0.52, `rgba(38,22,92,${0.58 + birth * 0.12})`);
+    grad.addColorStop(0.76, `rgba(116,91,255,${0.23 + birth * 0.12})`);
+    grad.addColorStop(1, 'rgba(116,91,255,0.04)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
 
@@ -10481,78 +10486,49 @@ PUBLIC.start = function (root, api) {
     ctx.lineCap = 'round';
     if (birth < 0.98) {
       const formAlpha = 1 - birth;
-      for (let i = 0; i < 18; i++) {
-        const a = i * Math.PI * 2 / 18 + phase + t * 0.0028;
-        const outer = g.r * (1.02 - birth * 0.22 + Math.sin(i + t * 0.004) * 0.035);
-        const inner = coreR + 10 + i % 3 * 5;
-        ctx.globalAlpha = formAlpha * (0.24 + (i % 3) * 0.06);
-        ctx.strokeStyle = i % 3 === 0 ? GRAVITY_COLORS.white : GRAVITY_COLORS.bright;
-        ctx.lineWidth = 1.4 + (i % 3) * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(g.x + Math.cos(a) * outer, g.y + Math.sin(a) * outer);
-        ctx.quadraticCurveTo(
-          g.x + Math.cos(a + 0.55) * outer * 0.58,
-          g.y + Math.sin(a + 0.55) * outer * 0.58,
-          g.x + Math.cos(a + 1.0) * inner,
-          g.y + Math.sin(a + 1.0) * inner
-        );
-        ctx.stroke();
-      }
-    }
-    for (let band = 0; band < 5; band++) {
-      const baseR = rr * (0.27 + band * 0.125 + Math.sin(t * 0.002 + band) * 0.010);
-      ctx.globalAlpha = (band === 0 ? 0.94 : 0.42) * (0.72 + birth * 0.28) + collapse * 0.12;
-      ctx.strokeStyle = band === 0 ? GRAVITY_COLORS.bright : (band % 2 ? (g.color || gravityAccent()) : GRAVITY_COLORS.white);
-      ctx.lineWidth = band === 0 ? 3.4 + collapse * 1.4 : 1.8 + collapse * 0.8;
+      ctx.globalAlpha = formAlpha * 0.48;
+      ctx.strokeStyle = GRAVITY_COLORS.bright;
+      ctx.lineWidth = 7.5;
       ctx.beginPath();
-      const start = phase + band * 0.86 + t * (0.0036 + band * 0.0007);
-      const arc = Math.PI * (1.28 + band * 0.10 + collapse * 0.35);
-      for (let i = 0; i <= 86; i++) {
-        const u = i / 86;
-        const a = start + u * arc;
-        const swirl = Math.sin(u * Math.PI * 5 + t * 0.006 + band) * (4.8 + band * 1.2);
-        const sink = 1 - u * (0.34 + collapse * 0.20);
-        const x = g.x + Math.cos(a) * (baseR * sink + swirl);
-        const y = g.y + Math.sin(a) * (baseR * sink + swirl);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
+      ctx.arc(g.x, g.y, rr * (1.04 - birth * 0.44), 0, Math.PI * 2);
       ctx.stroke();
     }
-    for (let i = 0; i < 14; i++) {
-      const a = phase + i * Math.PI * 2 / 14 - t * 0.0048;
-      const outer = rr * (0.74 + 0.10 * Math.sin(i * 2.1 + t * 0.005));
-      const inner = coreR + 6 + (i % 2) * 5;
-      ctx.globalAlpha = 0.16 + birth * 0.16 + collapse * 0.16;
-      ctx.strokeStyle = i % 4 === 0 ? GRAVITY_COLORS.white : GRAVITY_COLORS.violet;
-      ctx.lineWidth = i % 4 === 0 ? 2.2 : 1.2;
-      ctx.beginPath();
-      ctx.moveTo(g.x + Math.cos(a) * outer, g.y + Math.sin(a) * outer);
-      ctx.lineTo(g.x + Math.cos(a + 0.55) * inner, g.y + Math.sin(a + 0.55) * inner);
-      ctx.stroke();
-    }
+
+    ctx.save();
+    ctx.translate(g.x, g.y);
+    ctx.rotate(diskRot);
+    ctx.globalAlpha = (0.32 + birth * 0.48) * (1 - collapse * 0.18);
+    ctx.strokeStyle = `rgba(116,91,255,${0.42 + birth * 0.26})`;
+    ctx.lineWidth = Math.max(9, diskRy * 0.62);
+    ctx.beginPath(); ctx.ellipse(0, 0, diskRx, diskRy, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = (0.36 + birth * 0.40) * (1 - collapse * 0.10);
+    ctx.strokeStyle = 'rgba(200,185,255,0.72)';
+    ctx.lineWidth = Math.max(3.2, diskRy * 0.18);
+    ctx.beginPath(); ctx.ellipse(0, 0, diskRx * 0.96, diskRy * 0.86, 0, Math.PI * 0.04, Math.PI * 0.96); ctx.stroke();
+    ctx.globalAlpha = (0.30 + birth * 0.32) * (1 - collapse * 0.12);
+    ctx.strokeStyle = `rgba(78,52,167,${0.66 + collapse * 0.18})`;
+    ctx.lineWidth = Math.max(4.8, diskRy * 0.28);
+    ctx.beginPath(); ctx.ellipse(0, 0, diskRx * 0.78, diskRy * 0.58, 0, Math.PI * 1.02, Math.PI * 1.96); ctx.stroke();
+    ctx.restore();
+
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(10, coreR), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(12, coreR * 1.24), 0, Math.PI * 2); ctx.fill();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.92 + collapse * 0.08;
+    ctx.globalAlpha = 0.95 + collapse * 0.05;
     ctx.strokeStyle = collapse > 0.1 ? GRAVITY_COLORS.white : '#d9d4ff';
-    ctx.lineWidth = 2.4 + collapse * 3.2;
+    ctx.lineWidth = 3.4 + collapse * 3.6;
     ctx.beginPath(); ctx.arc(g.x, g.y, rimR, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 0.42 + collapse * 0.24;
+    ctx.strokeStyle = g.color || gravityAccent();
+    ctx.lineWidth = 8.5 + collapse * 2.5;
+    ctx.beginPath(); ctx.arc(g.x, g.y, rimR + 8 + Math.sin(t * 0.013 + phase) * 1.6, 0, Math.PI * 2); ctx.stroke();
     if (collapse > 0.02) {
       ctx.globalAlpha = collapse * 0.70;
       ctx.strokeStyle = GRAVITY_COLORS.bright;
       ctx.lineWidth = 2.0 + collapse * 2.4;
       ctx.beginPath(); ctx.arc(g.x, g.y, rr * (0.90 - collapse * 0.52), 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = collapse * 0.55;
-      ctx.strokeStyle = GRAVITY_COLORS.white;
-      for (let i = 0; i < 10; i++) {
-        const a = phase + i * Math.PI * 2 / 10 + t * 0.006;
-        ctx.beginPath();
-        ctx.moveTo(g.x + Math.cos(a) * (coreR + 16), g.y + Math.sin(a) * (coreR + 16));
-        ctx.lineTo(g.x + Math.cos(a) * rr * 0.72, g.y + Math.sin(a) * rr * 0.72);
-        ctx.stroke();
-      }
     }
     drawGravityCoreTethers(g, t);
     ctx.restore();
