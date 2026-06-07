@@ -4784,6 +4784,42 @@ PUBLIC.start = function (root, api) {
       smokeParticle(x + rand(-6, 6), y + rand(-5, 5), Math.cos(a) * s + rand(-0.22, 0.22), Math.sin(a) * s * 0.45 + rand(-0.34, 0.16), opts);
     }
   }
+  function pyroParticlePop(x, y, opts) {
+    opts = opts || {};
+    const color = opts.color || '#ff6b32';
+    const power = opts.power || 1;
+    const flames = Math.round((opts.flames || 18) * power);
+    const smoke = Math.round((opts.smoke || 8) * power);
+    const embers = Math.round((opts.embers || 10) * power);
+    for (let i = 0; i < flames; i++) {
+      const a = rand(-Math.PI, 0);
+      emitFlameJet(x + rand(-5, 5), y + rand(-5, 5), a, 1, {
+        spread: 0.34,
+        speed: rand(3.8, 7.2) * power,
+        length: rand(10, 28) * power,
+        life: rand(240, 560),
+        r: rand(3.0, 7.2),
+        color: Math.random() < 0.42 ? '#ffd45e' : color,
+        buoy: rand(0.034, 0.086),
+      });
+    }
+    emitSmokePuff(x, y, -Math.PI / 2, smoke, {
+      spread: 1.25,
+      speed: 1.2 + power * 0.75,
+      life: rand(760, 1380),
+      r: rand(6.0, 15.5),
+      alpha: 0.22 + Math.min(0.12, power * 0.04),
+    });
+    for (let i = 0; i < embers; i++) {
+      const a = rand(-Math.PI * 0.92, -Math.PI * 0.08);
+      emberParticle(x + rand(-6, 6), y + rand(-5, 5), Math.cos(a) * rand(2.0, 7.2) * power, Math.sin(a) * rand(1.8, 6.4) * power, {
+        life: rand(320, 860),
+        gravity: rand(0.052, 0.092),
+        r: rand(0.9, 2.4),
+        color: Math.random() < 0.48 ? '#ffd45e' : '#ff8a2a',
+      });
+    }
+  }
   function burst(x, y, color, n, spd) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = rand(.3, 1) * spd;
@@ -7963,26 +7999,20 @@ PUBLIC.start = function (root, api) {
     for (let i = 0; i < Math.round(2 + scale * 2); i++) emberParticle(sx + rand(-2, 2), sy + rand(-2, 2), Math.cos(ang + rand(-0.7, 0.7)) * rand(1.5, 4.5), Math.sin(ang + rand(-0.7, 0.7)) * rand(0.7, 2.6) - rand(0.4, 1.4), { life: rand(260, 700) });
   }
   function pyroLink(ax, ay, bx, by, color, life) {
-    spawnBladeRecallTrail(ax, ay, bx, by, {
-      color: '#ffd45e',
-      accent: color || '#ff6b32',
-      life: life || 360,
-      phase: rand(0, Math.PI * 2),
-    });
     rememberDebugSegment('ability', ax, ay, bx, by, 8, color || '#ff6b32', life || 360);
     const dx = bx - ax, dy = by - ay;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 12; i++) {
       const t = rand(0.15, 0.90);
-      particles.push({
-        x: ax + dx * t + rand(-4, 4),
-        y: ay + dy * t + rand(-4, 4),
-        vx: rand(-0.35, 0.35),
-        vy: rand(-1.05, -0.18),
-        life: rand(180, 340),
-        max: 340,
-        color: Math.random() < 0.42 ? '#ffd45e' : color || '#ff6b32',
-        r: rand(1.4, 3.4),
+      const a = Math.atan2(dy, dx) + rand(-0.55, 0.55);
+      flameParticle(ax + dx * t + rand(-5, 5), ay + dy * t + rand(-5, 5),
+        Math.cos(a) * rand(0.3, 1.4) + rand(-0.25, 0.25),
+        Math.sin(a) * rand(0.2, 0.9) - rand(0.6, 1.6), {
+          life: rand(180, 420),
+          r: rand(2.0, 5.6),
+          color: Math.random() < 0.44 ? '#ffd45e' : color || '#ff6b32',
+          buoy: rand(0.036, 0.086),
       });
+      if (Math.random() < 0.42) emberParticle(ax + dx * t, ay + dy * t, rand(-1.0, 1.0), rand(-2.4, -0.4), { life: rand(240, 640) });
     }
   }
   function nearestPyroAnchor(x, y, range, team) {
@@ -8663,9 +8693,7 @@ PUBLIC.start = function (root, api) {
       t.burned = 0;
       t.burnedMax = 0;
       if (opts.link) pyroLink(x, y, t.x, t.y - 42, color, 380);
-      burst(t.x, t.y - 44, '#ffd45e', 18, 4.8);
-      burst(t.x, t.y - 44, color, 24, 5.4);
-      spawnShockwaveRing(t.x, t.y - 42, 64, color, { life: 260, width: 3.2, fill: 0.10, rough: 0.080 });
+      pyroParticlePop(t.x, t.y - 44, { color, power: 0.82, flames: 15, smoke: 5, embers: 8 });
       if ((team || 'hero') === 'enemy') hurtEnemyTarget(t, nx, ny - 0.18, force * 0.78 * chainMul, t.x, t.y - 42);
       else hurtFighter(t, nx, ny - 0.18, force * 0.78 * chainMul, t.x, t.y - 42);
       pops++;
@@ -8680,9 +8708,7 @@ PUBLIC.start = function (root, api) {
       d.burnedMax = 0;
       const nx = (p.x - x) / (dist || 1), ny = (p.y - y) / (dist || 1);
       if (opts.link) pyroLink(x, y, p.x, p.y, color, 360);
-      burst(p.x, p.y, '#ffd45e', 16, 4.6);
-      burst(p.x, p.y, color, 22, 5.2);
-      spawnShockwaveRing(p.x, p.y, 58, color, { life: 240, width: 3.0, fill: 0.09, rough: 0.080 });
+      pyroParticlePop(p.x, p.y, { color, power: 0.74, flames: 13, smoke: 5, embers: 7 });
       hurtDummy(d, nx, ny - 0.16, force * 0.90 * chainMul, p.x, p.y);
       pops++;
     }
@@ -8700,7 +8726,7 @@ PUBLIC.start = function (root, api) {
     }
     if (pops > 0) {
       addShake(Math.min(7.5, 3.8 + pops * 0.55), 160);
-      spawnShockwaveRing(x, y, radius + 22, color, { life: 320, width: 4.2, fill: 0.08, rough: 0.090 });
+      pyroParticlePop(x, y, { color, power: Math.min(1.45, 0.78 + pops * 0.10), flames: 20, smoke: 8, embers: 12 });
     }
     return pops;
   }
@@ -11347,107 +11373,12 @@ PUBLIC.start = function (root, api) {
         ctx.stroke();
         ctx.restore();
       } else if (b.kind === 'firebolt') {
-        const r = b.r || 12;
-        const ang = Math.atan2(b.vy, b.vx);
-        const flicker = Math.sin(performance.now() * 0.035 + b.x * 0.02) * 0.18;
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = 'rgba(255,92,32,0.42)';
-        ctx.lineWidth = r * 0.72;
-        ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * r * 3.5, b.y - Math.sin(ang) * r * 3.5);
-        ctx.quadraticCurveTo(
-          b.x - Math.cos(ang) * r * 1.5 - Math.sin(ang) * r * flicker,
-          b.y - Math.sin(ang) * r * 1.5 + Math.cos(ang) * r * flicker,
-          b.x + Math.cos(ang) * r * 0.65,
-          b.y + Math.sin(ang) * r * 0.65
-        );
-        ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,212,94,0.78)';
-        ctx.lineWidth = r * 0.34;
-        ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * r * 2.0, b.y - Math.sin(ang) * r * 2.0);
-        ctx.lineTo(b.x + Math.cos(ang) * r * 1.0, b.y + Math.sin(ang) * r * 1.0);
-        ctx.stroke();
-        ctx.fillStyle = '#fff0a8';
-        ctx.beginPath();
-        ctx.moveTo(b.x + Math.cos(ang) * r * 1.18, b.y + Math.sin(ang) * r * 1.18);
-        ctx.quadraticCurveTo(
-          b.x - Math.cos(ang) * r * 0.18 - Math.sin(ang) * r * 0.60,
-          b.y - Math.sin(ang) * r * 0.18 + Math.cos(ang) * r * 0.60,
-          b.x - Math.cos(ang) * r * 1.16,
-          b.y - Math.sin(ang) * r * 1.16
-        );
-        ctx.quadraticCurveTo(
-          b.x - Math.cos(ang) * r * 0.12 + Math.sin(ang) * r * 0.58,
-          b.y - Math.sin(ang) * r * 0.12 - Math.cos(ang) * r * 0.58,
-          b.x + Math.cos(ang) * r * 1.18,
-          b.y + Math.sin(ang) * r * 1.18
-        );
-        ctx.fill();
-        ctx.restore();
+        // Firebolt visuals are emitted as flame/smoke/ember particles in the
+        // projectile update; no hard projectile lines.
       } else if (b.kind === 'ignitionOrb') {
-        const r = b.r || 14;
-        const ang = b.angle || Math.atan2(b.vy, b.vx);
-        const flicker = Math.sin(performance.now() * 0.030 + b.x * 0.01) * 0.18;
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(ang);
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = 'rgba(255,92,32,0.42)';
-        ctx.lineWidth = r * 0.42;
-        ctx.beginPath();
-        ctx.moveTo(-r * 3.2, flicker * r);
-        ctx.quadraticCurveTo(-r * 1.45, -r * 0.42, -r * 0.12, 0);
-        ctx.stroke();
-        ctx.fillStyle = '#ff6b32';
-        ctx.strokeStyle = '#ffd45e';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(r * 1.10, 0);
-        ctx.lineTo(-r * 0.24, -r * 0.78);
-        ctx.lineTo(-r * 1.02, -r * 0.18);
-        ctx.lineTo(-r * 0.76, r * 0.62);
-        ctx.lineTo(r * 0.28, r * 0.55);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#fff0a8';
-        ctx.beginPath();
-        ctx.moveTo(r * 0.72, -r * 0.06);
-        ctx.lineTo(-r * 0.10, -r * 0.32);
-        ctx.lineTo(-r * 0.34, r * 0.20);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+        // Ignition Burst orb is particle-only for a physical flame read.
       } else if (b.kind === 'ignitionGrenade') {
-        const r = b.r || 7;
-        const ang = b.angle || Math.atan2(b.vy, b.vx);
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(ang);
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = 'rgba(255,92,32,0.34)';
-        ctx.lineWidth = r * 0.48;
-        ctx.beginPath();
-        ctx.moveTo(-r * 2.8, 0);
-        ctx.lineTo(r * 0.7, 0);
-        ctx.stroke();
-        ctx.fillStyle = b.color || '#ff8a2a';
-        ctx.strokeStyle = '#ffd45e';
-        ctx.lineWidth = 1.0;
-        ctx.beginPath();
-        ctx.moveTo(r * 0.94, 0);
-        ctx.lineTo(-r * 0.35, -r * 0.52);
-        ctx.lineTo(-r * 0.90, 0);
-        ctx.lineTo(-r * 0.22, r * 0.50);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
+        // Secondary ignition grenades are also particle-only.
       } else if (b.kind === 'smokeBomb') {
         const r = b.r || (b.poison ? 11 : 9);
         const ang = b.angle || Math.atan2(b.vy, b.vx);
