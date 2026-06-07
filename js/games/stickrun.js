@@ -43,12 +43,12 @@ const GRAVITY_COLORS = {
 };
 const SPIRIT_COLORS = {
   void: '#06040b',
-  shadow: '#16071f',
-  bruise: '#3a1859',
-  curse: '#6a43b8',
-  ghost: '#65ffd2',
-  sick: '#9dff75',
-  pale: '#e7fff5',
+  shadow: '#100616',
+  bruise: '#271145',
+  curse: '#4f2f90',
+  ghost: '#57d7c8',
+  sick: '#82d66f',
+  pale: '#dffcf3',
 };
 const ARENA_WAVE_DELAY = 850;
 const ATTACK_COOLDOWN = {
@@ -2200,6 +2200,128 @@ PUBLIC.start = function (root, api) {
     if (n < 0.82) return SPIRIT_COLORS.curse;
     return SPIRIT_COLORS.sick;
   }
+  function makeSpiritFollower(x, y, opts) {
+    opts = opts || {};
+    return {
+      x, y,
+      vx: 0, vy: 0,
+      color: opts.color || SPIRIT_COLORS.ghost,
+      source: opts.source || 'enemy',
+      phase: rand(0, Math.PI * 2),
+      age: 0,
+      join: 0,
+      trail: [{ x, y }],
+    };
+  }
+  function ensureSpiritFollowers(owner, origin) {
+    if (!owner) return [];
+    if (!owner.spiritFollowers) owner.spiritFollowers = [];
+    const wanted = clamp(Math.floor(owner.spiritCharges || 0), 0, 6);
+    while (owner.spiritFollowers.length > wanted) owner.spiritFollowers.pop();
+    while (owner.spiritFollowers.length < wanted) {
+      const ox = origin && origin.x != null ? origin.x : owner.x - (owner.facing || 1) * rand(18, 52);
+      const oy = origin && origin.y != null ? origin.y : owner.y - rand(54, 94);
+      owner.spiritFollowers.push(makeSpiritFollower(ox, oy, origin || {}));
+    }
+    return owner.spiritFollowers;
+  }
+  function addSpiritFollower(owner, x, y, opts) {
+    if (!owner) return null;
+    opts = opts || {};
+    if (!owner.spiritFollowers) owner.spiritFollowers = [];
+    const wanted = clamp(Math.floor(owner.spiritCharges || 0), 0, 6);
+    if (owner.spiritFollowers.length >= wanted) return owner.spiritFollowers[owner.spiritFollowers.length - 1] || null;
+    const f = makeSpiritFollower(x, y, opts);
+    owner.spiritFollowers.push(f);
+    return f;
+  }
+  function spendSpiritFollower(owner, tx, ty, opts) {
+    if (!owner) return null;
+    opts = opts || {};
+    ensureSpiritFollowers(owner);
+    owner.spiritCharges = Math.max(0, (owner.spiritCharges || 0) - 1);
+    const f = owner.spiritFollowers && owner.spiritFollowers.length ? owner.spiritFollowers.shift() : null;
+    if (f) {
+      emitSoulWisp(f.x, f.y, tx == null ? owner.x : tx, ty == null ? owner.y - 58 : ty, {
+        count: opts.count || 12,
+        color: f.color || opts.color || SPIRIT_COLORS.ghost,
+        lifeMin: opts.lifeMin || 240,
+        lifeMax: opts.lifeMax || 660,
+      });
+      for (let i = 0; i < 4; i++) soulParticle(f.x + rand(-4, 4), f.y + rand(-4, 4), rand(-0.18, 0.18), rand(-0.58, -0.06), {
+        color: spiritParticleColor(f.color || SPIRIT_COLORS.ghost, 0.22),
+        life: rand(180, 420),
+        r: rand(0.9, 2.0),
+        tail: rand(9, 20),
+      });
+    }
+    syncHud();
+    return f;
+  }
+  function spiritFollowerCastSource(owner) {
+    if (!owner || !owner.spiritFollowers || !owner.spiritFollowers.length) return null;
+    let best = owner.spiritFollowers[0], bd = Infinity;
+    for (const f of owner.spiritFollowers) {
+      const d = Math.hypot(f.x - owner.x, f.y - (owner.y - 64));
+      if (d < bd) { bd = d; best = f; }
+    }
+    return best;
+  }
+  function updateSpiritFollowers(dtStep) {
+    const h = hero;
+    if (!h || player !== h) return;
+    if (!mageSpiritLoadoutActive()) {
+      if (h.spiritFollowers && h.spiritFollowers.length) h.spiritFollowers.length = 0;
+      return;
+    }
+    const followers = ensureSpiritFollowers(h);
+    if (!followers.length) return;
+    const ds = clamp((dtStep || STEP) / 16.67, 0.35, 2.4);
+    const now = (runTime || 0) * 0.001;
+    const fwd = h.facing || 1;
+    const speed = clamp(Math.abs(h.vx || 0) / 7, 0, 1);
+    const active = h.anim && h.anim.atkActive && (h.anim.atkType === 'cast' || h.anim.atkType === 'spiritSummon');
+    const aim = h.anim && h.anim.atkAim != null ? h.anim.atkAim : fwd > 0 ? 0 : Math.PI;
+    for (let i = 0; i < followers.length; i++) {
+      const s = followers[i];
+      s.age += dtStep || STEP;
+      const lane = i - (followers.length - 1) / 2;
+      const phase = s.phase + now * (0.62 + i * 0.035);
+      const trailBack = 44 + i * 19 + speed * 24;
+      let tx = h.x - fwd * trailBack + lane * 10 + Math.sin(phase * 1.15) * (18 + speed * 5);
+      let ty = h.y - 72 - i * 2.6 + Math.cos(phase * 0.92) * 15 + Math.sin(phase * 0.43 + i) * 8;
+      if (active) {
+        const pull = 0.28 + 0.18 * Math.sin(clamp(h.anim.atkT || 0, 0, 1) * Math.PI);
+        tx = lerp(tx, h.x + Math.cos(aim) * (46 + i * 5), pull);
+        ty = lerp(ty, h.y - 74 + Math.sin(aim) * (34 + i * 3), pull);
+      }
+      const dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy) || 1;
+      if (d > 420) {
+        s.x = lerp(s.x, tx, 0.018 * ds);
+        s.y = lerp(s.y, ty, 0.018 * ds);
+      }
+      s.vx = (s.vx || 0) * Math.pow(0.91, ds) + dx * 0.0065 * ds;
+      s.vy = (s.vy || 0) * Math.pow(0.91, ds) + dy * 0.0065 * ds - 0.002 * ds;
+      const maxV = 3.4 + speed * 1.2;
+      const v = Math.hypot(s.vx, s.vy);
+      if (v > maxV) { s.vx = s.vx / v * maxV; s.vy = s.vy / v * maxV; }
+      const px = s.x, py = s.y;
+      s.x += s.vx * ds;
+      s.y += s.vy * ds;
+      if (!s.trail) s.trail = [];
+      if (!s.trail.length || Math.hypot(s.x - s.trail[s.trail.length - 1].x, s.y - s.trail[s.trail.length - 1].y) > 6) {
+        s.trail.push({ x: s.x, y: s.y });
+        if (s.trail.length > 7) s.trail.shift();
+      }
+      if (Math.random() < 0.16) soulParticle(lerp(px, s.x, 0.5), lerp(py, s.y, 0.5), -s.vx * 0.08 + rand(-0.10, 0.10), -s.vy * 0.08 + rand(-0.20, 0.02), {
+        color: spiritParticleColor(s.color || SPIRIT_COLORS.ghost, 0.18),
+        life: rand(190, 460),
+        r: rand(0.8, 1.8),
+        alpha: 0.52,
+        tail: rand(7, 18),
+      });
+    }
+  }
   function soulParticle(x, y, vx, vy, opts) {
     opts = opts || {};
     const color = opts.color || spiritParticleColor();
@@ -2245,9 +2367,17 @@ PUBLIC.start = function (root, api) {
   }
   function grantSpiritCharge(x, y, amount) {
     if (!hero || !mageSpiritLoadoutActive()) return false;
-    hero.spiritCharges = clamp((hero.spiritCharges || 0) + Math.max(1, Math.round(amount || 1)), 0, 6);
-    emitSoulWisp(x, y, hero.x, hero.y - 60, { count: 14, color: SPIRIT_COLORS.ghost, lifeMin: 280, lifeMax: 660 });
-    for (let i = 0; i < 6; i++) soulParticle(x + rand(-5, 5), y + rand(-4, 4), rand(-0.45, 0.45), rand(-1.25, -0.20), { color: spiritParticleColor(SPIRIT_COLORS.ghost, 0.46), life: rand(260, 560), r: rand(1.1, 2.2) });
+    const gain = Math.max(1, Math.round(amount || 1));
+    const before = clamp(hero.spiritCharges || 0, 0, 6);
+    const after = clamp(before + gain, 0, 6);
+    const gained = Math.max(0, after - before);
+    hero.spiritCharges = after;
+    const color = spiritColorFromSource('enemy', SPIRIT_COLORS.ghost);
+    if (gained > 0) {
+      for (let i = 0; i < gained; i++) addSpiritFollower(hero, x + rand(-5, 5), y + rand(-4, 4), { color, source: 'enemy' });
+      emitSoulWisp(x, y, hero.x - hero.facing * 34, hero.y - 72, { count: 12 + gained * 4, color, lifeMin: 320, lifeMax: 820 });
+    }
+    for (let i = 0; i < 5 + gained * 2; i++) soulParticle(x + rand(-5, 5), y + rand(-4, 4), rand(-0.32, 0.32), rand(-1.05, -0.12), { color: spiritParticleColor(color, 0.30), life: rand(260, 620), r: rand(1.0, 2.3), tail: rand(10, 26) });
     syncHud();
     return true;
   }
@@ -2457,7 +2587,7 @@ PUBLIC.start = function (root, api) {
     const p = pointAhead(72);
     const target = spiritCommandTarget(620);
     if (!beginSpiritSummonCast(p.x, p.y)) return false;
-    player.spiritCharges--;
+    spendSpiritFollower(player, p.x, p.y - 48, { count: 16 });
     const ally = spawnSpiritAlly(p.x, p.y, { hp: 1.45, life: 6900, facing: spiritSpawnFacing(p.x, p.y, player.facing, target), target, source: 'rogue', fromX: player.x, fromY: player.y - 58 });
     commandSpiritAlly(ally, { target, force: 12, dash: 5.4, life: 820, range: 620 });
     syncHud();
@@ -2468,7 +2598,7 @@ PUBLIC.start = function (root, api) {
     const target = spiritCommandTarget(760);
     const tx = target ? target.x : x + player.facing * 260;
     const ty = target ? target.y : y - 8;
-    if ((player.spiritCharges || 0) > 0) player.spiritCharges--;
+    if ((player.spiritCharges || 0) > 0) spendSpiritFollower(player, tx, ty, { count: 18 });
     const commanded = commandSpiritAllies({ target, force: 16, dash: 6.8, life: 1050, range: 760 });
     emitSoulWisp(x, y, tx, ty, { count: 28, color: SPIRIT_COLORS.ghost, lifeMin: 300, lifeMax: 800 });
     if (spiritRemnants && spiritRemnants.length) {
@@ -2523,10 +2653,10 @@ PUBLIC.start = function (root, api) {
     for (let i = 0; i < chargeCount; i++) {
       const off = (i - (chargeCount - 1) / 2) * 42;
       const p = pointAhead(78 + off);
+      spendSpiritFollower(player, p.x, p.y - 48, { count: 12 });
       spawned.push(spawnSpiritAlly(p.x, p.y, { hp: 1.55, life: 7600, facing: spiritSpawnFacing(p.x, p.y, player.facing, target), target, source: 'rogue', fromX: player.x, fromY: player.y - 62 }));
     }
     for (const a of spawned) commandSpiritAlly(a, { target, force: 17, dash: 6.9, life: 1260, fallback: 250 });
-    player.spiritCharges = Math.max(0, charges - chargeCount);
     emitSoulWisp(player.x, player.y - 62, target ? target.x : player.x + player.facing * 300, target ? target.y : player.y - 76, { count: 36, color: SPIRIT_COLORS.ghost, lifeMin: 360, lifeMax: 940 });
     addShake(5.4, 180);
     syncHud();
@@ -3747,7 +3877,7 @@ PUBLIC.start = function (root, api) {
       rogueBurst: ROGUE_BURST_MAX, rogueBurstRegen: 0, queuedAttack: null, queuedFlash: null,
       cooldowns: {}, attackCd: 0, abilityCd: 0, moveCd: 0,
       shieldGuard: 0, shieldFlash: 0, forceCrouch: false, venge: 0, hunterHaste: 0,
-      hidden: 0, poisoned: 0, burned: 0, burnedMax: 0, smokeBlind: 0, smokeBlindMax: 0, spiritCharges: 0,
+      hidden: 0, poisoned: 0, burned: 0, burnedMax: 0, smokeBlind: 0, smokeBlindMax: 0, spiritCharges: 0, spiritFollowers: [],
       gravityDebris: MAGE_DEBRIS_MAX, gravityDebrisRegen: 0, gravityDebrisSpin: 0, gravityDebrisJoins: [],
       hoverTargetY: null,
       draw: { active: false, type: null, t: 0, aim: 0, reload: 0, lastType: 'arrow' },
@@ -6877,6 +7007,7 @@ PUBLIC.start = function (root, api) {
     updateRogueBurst(dtStep);
     updateRangerAmmo(dtStep);
     updateGravityDebris(dtStep);
+    updateSpiritFollowers(dtStep);
     syncHud();
   }
   function activeMove(type) {
@@ -7189,12 +7320,17 @@ PUBLIC.start = function (root, api) {
           tail: rand(5, 11),
         });
       } else if (spiritIdle) {
-        soulParticle(player.x + rand(-22, 22), player.y - rand(44, 92), rand(-0.18, 0.18), rand(-0.46, -0.04), {
-          color: spiritParticleColor(SPIRIT_COLORS.ghost, 0.36),
-          life: rand(360, 760),
-          r: rand(0.9, 2.2),
-          tail: rand(8, 18),
-        });
+        const followers = player.spiritFollowers || [];
+        if (followers.length) {
+          const s = followers[Math.floor(Math.random() * followers.length)];
+          soulParticle(s.x + rand(-8, 8), s.y + rand(-8, 8), rand(-0.12, 0.12), rand(-0.34, -0.02), {
+            color: spiritParticleColor(s.color || SPIRIT_COLORS.ghost, 0.18),
+            life: rand(300, 680),
+            r: rand(0.8, 1.9),
+            tail: rand(8, 20),
+            alpha: 0.54,
+          });
+        }
       } else {
         particles.push({
           x: player.x + rand(-16, 16),
@@ -8233,11 +8369,17 @@ PUBLIC.start = function (root, api) {
     const origin = staffTipOrigin(ang, { type: 'cast', t: 0.38, tipPad: 4 });
     const shX = origin.handX || player.x, shY = origin.handY || player.y - 76, spd = 19.5;
     const mx = origin.x, my = origin.y;
-    const color = SPIRIT_COLORS.ghost;
+    const follower = spiritFollowerCastSource(player);
+    const color = follower && follower.color || SPIRIT_COLORS.ghost;
+    if (follower) {
+      emitSoulWisp(follower.x, follower.y, mx, my, { count: 10, color, lifeMin: 220, lifeMax: 620, rMin: 0.9, rMax: 2.3 });
+      follower.vx += Math.cos(ang) * 0.42;
+      follower.vy += Math.sin(ang) * 0.28 - 0.18;
+    }
     projectiles.push({ kind: 'spiritBolt', team: player.team, x: mx, y: my, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
-      life: 920, color, r: 10, hit: 11, angle: ang, spirit: true });
-    emitSoulWisp(shX - player.facing * 8, shY + 12, mx, my, { count: 14, color, lifeMin: 220, lifeMax: 540 });
-    for (let i = 0; i < 7; i++) soulParticle(mx + rand(-4, 4), my + rand(-4, 4), Math.cos(ang) * rand(0.4, 1.2) + rand(-0.25, 0.25), Math.sin(ang) * rand(0.3, 1.0) - rand(0.10, 0.45), { color: spiritParticleColor(color, 0.34), life: rand(220, 540), r: rand(1.0, 2.5) });
+      life: 920, color, r: 8.5, hit: 11, angle: ang, spirit: true, sparkle: 2 });
+    emitSoulWisp(shX - player.facing * 8, shY + 12, mx, my, { count: follower ? 8 : 13, color, lifeMin: 220, lifeMax: 540 });
+    for (let i = 0; i < 10; i++) soulParticle(mx + rand(-4, 4), my + rand(-4, 4), Math.cos(ang) * rand(0.55, 1.55) + rand(-0.18, 0.18), Math.sin(ang) * rand(0.38, 1.18) - rand(0.05, 0.34), { color: spiritParticleColor(color, 0.22), life: rand(220, 560), r: rand(0.9, 2.4), tail: rand(14, 32) });
   }
   function spawnFireZone(x, y, team, opts) {
     opts = opts || {};
@@ -9901,61 +10043,94 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
-  function drawSpiritOrbit(cx, cy, charges) {
+  function drawSpiritOrbit(cx, cy, charges, opts) {
+    opts = opts || {};
     const count = clamp(Math.floor(charges || 0), 0, 6);
     if (!count) return;
     const now = performance.now();
-    const t = now * 0.00125;
+    const t = now * 0.001;
     const f = player && player.facing || 1;
-    const speedLag = clamp(Math.abs(player && player.vx || 0) * 1.8, 0, 16);
+    const baseY = opts.worldBaseY == null ? player.y : opts.worldBaseY;
+    const followers = ensureSpiritFollowers(player);
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (let i = 0; i < count; i++) {
-      const seed = i * 2.417 + count * 0.37;
-      const pulse = 0.5 + 0.5 * Math.sin(t * 5.2 + seed);
-      const lane = i - (count - 1) / 2;
-      const wander = t + seed;
-      const x = cx - f * (30 + i * 4 + speedLag) + lane * 5 + Math.sin(wander * 1.7) * 15 + Math.sin(wander * 0.54 + seed) * 9;
-      const y = cy - 28 - i * 1.6 + Math.cos(wander * 1.3) * 14 + Math.sin(wander * 0.72 + seed * 2.0) * 8;
-      const tx = x + f * (11 + pulse * 5) - Math.sin(wander * 1.1) * 5;
-      const ty = y + 9 + Math.cos(wander * 0.9) * 6;
-      const r = 4.8 + pulse * 2.2;
+      const s = followers[i];
+      if (!s) continue;
+      const seed = s.phase || i * 2.417;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 3.1 + seed);
+      const x = s.x - player.x;
+      const y = s.y - baseY;
+      const r = 5.2 + pulse * 1.9;
+      const ang = Math.atan2(s.vy || -0.5, s.vx || -f * 0.5);
+      const tail = s.trail && s.trail.length ? s.trail : [{ x: s.x - f * 18, y: s.y + 5 }, { x: s.x, y: s.y }];
+
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.24 + pulse * 0.14;
+      ctx.globalAlpha = 0.12 + pulse * 0.06;
       ctx.strokeStyle = SPIRIT_COLORS.shadow;
-      ctx.lineWidth = 9.0;
+      ctx.lineWidth = 14;
       ctx.beginPath();
-      ctx.moveTo(tx, ty);
-      ctx.quadraticCurveTo(x - f * (9 + pulse * 4), y + 4, x, y - 1);
+      for (let j = 0; j < tail.length; j++) {
+        const px = tail[j].x - player.x;
+        const py = tail[j].y - baseY;
+        if (j === 0) ctx.moveTo(px, py);
+        else {
+          const prev = tail[j - 1];
+          const mx = (prev.x + tail[j].x) * 0.5 - player.x + Math.sin(seed + j) * 3;
+          const my = (prev.y + tail[j].y) * 0.5 - baseY + Math.cos(seed + j) * 2;
+          ctx.quadraticCurveTo(mx, my, px, py);
+        }
+      }
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.12 + pulse * 0.05;
+      ctx.strokeStyle = SPIRIT_COLORS.void;
+      ctx.lineWidth = 7.0;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.sin(seed) * 2, cy - 9 + Math.cos(seed) * 3);
+      ctx.quadraticCurveTo((cx + x) * 0.5 - f * 16, (cy + y) * 0.5 - 8, x, y);
       ctx.stroke();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.18 + pulse * 0.18;
-      ctx.strokeStyle = i % 3 === 1 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost;
-      ctx.lineWidth = 2.6;
+      ctx.globalAlpha = 0.25 + pulse * 0.18;
+      ctx.strokeStyle = s.color || (i % 3 === 1 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost);
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.moveTo(tx, ty);
-      ctx.quadraticCurveTo(x - f * (7 + pulse * 3), y + 2, x, y - 1);
+      for (let j = Math.max(0, tail.length - 5); j < tail.length; j++) {
+        const px = tail[j].x - player.x;
+        const py = tail[j].y - baseY;
+        if (j === Math.max(0, tail.length - 5)) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
       ctx.stroke();
-      ctx.globalAlpha = 0.38 + pulse * 0.25;
-      ctx.fillStyle = i % 4 === 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.42 + pulse * 0.18;
+      ctx.fillStyle = SPIRIT_COLORS.shadow;
       ctx.beginPath();
-      ctx.moveTo(x, y - r * 1.55);
-      ctx.quadraticCurveTo(x + f * r * 1.25, y - r * 0.12, x + f * r * 0.24, y + r * 1.65);
-      ctx.quadraticCurveTo(x - f * r * 1.18, y + r * 0.10, x, y - r * 1.55);
+      ctx.moveTo(x - Math.cos(ang) * r * 1.8, y - Math.sin(ang) * r * 1.8);
+      ctx.quadraticCurveTo(x - Math.sin(ang) * r * 1.55, y + Math.cos(ang) * r * 1.25, x + Math.cos(ang) * r * 1.40, y + Math.sin(ang) * r * 1.40);
+      ctx.quadraticCurveTo(x + Math.sin(ang) * r * 1.35, y - Math.cos(ang) * r * 1.15, x - Math.cos(ang) * r * 1.8, y - Math.sin(ang) * r * 1.8);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.34 + pulse * 0.24;
+      ctx.fillStyle = s.color || (i % 4 === 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost);
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(ang) * r * 1.48, y - Math.sin(ang) * r * 1.48);
+      ctx.quadraticCurveTo(x - Math.sin(ang) * r * 1.22, y + Math.cos(ang) * r * 1.06, x + Math.cos(ang) * r * 1.16, y + Math.sin(ang) * r * 1.16);
+      ctx.quadraticCurveTo(x + Math.sin(ang) * r * 1.08, y - Math.cos(ang) * r * 0.90, x - Math.cos(ang) * r * 1.48, y - Math.sin(ang) * r * 1.48);
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.92;
+      ctx.globalAlpha = 0.86;
       ctx.fillStyle = SPIRIT_COLORS.pale;
       ctx.beginPath();
-      ctx.moveTo(x + f * r * 0.42, y - r * 1.05);
-      ctx.quadraticCurveTo(x + f * r * 0.92, y, x + f * r * 0.16, y + r * 0.95);
-      ctx.quadraticCurveTo(x - f * r * 0.78, y + r * 0.08, x + f * r * 0.42, y - r * 1.05);
+      ctx.moveTo(x - Math.cos(ang) * r * 0.72, y - Math.sin(ang) * r * 0.72);
+      ctx.quadraticCurveTo(x - Math.sin(ang) * r * 0.76, y + Math.cos(ang) * r * 0.54, x + Math.cos(ang) * r * 0.56, y + Math.sin(ang) * r * 0.56);
+      ctx.quadraticCurveTo(x + Math.sin(ang) * r * 0.62, y - Math.cos(ang) * r * 0.48, x - Math.cos(ang) * r * 0.72, y - Math.sin(ang) * r * 0.72);
       ctx.fill();
       ctx.globalAlpha = 0.62;
       ctx.fillStyle = SPIRIT_COLORS.void;
       ctx.beginPath();
-      ctx.arc(x - f * r * 0.12, y - r * 0.12, Math.max(1.0, r * 0.20), 0, Math.PI * 2);
+      ctx.arc(x - Math.cos(ang) * r * 0.12, y - Math.sin(ang) * r * 0.12, Math.max(0.9, r * 0.20), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -10416,7 +10591,7 @@ PUBLIC.start = function (root, api) {
 
     ctx.strokeStyle = INK; ctx.fillStyle = INK;
     if (cls.id === 'mage' && player.team === 'hero' && mageSpiritLoadoutActive() && (player.spiritCharges || 0) > 0) {
-      drawSpiritOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.spiritCharges);
+      drawSpiritOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.spiritCharges, { worldBaseY: player.y - hoverY });
     }
     if (cls.id === 'mage' && player.team === 'hero' && mageGraviturgeLoadoutActive() && (player.gravityDebris || 0) > 0) {
       const debrisAim = player.anim && player.anim.atkActive && player.anim.visualKind === 'gravityDebris' ? player.anim.atkAim : aimedAngle();
@@ -11989,45 +12164,58 @@ PUBLIC.start = function (root, api) {
       } else if (b.kind === 'spiritBolt') {
         const r = b.r || 9;
         const ang = Math.atan2(b.vy, b.vx);
+        const wob = Math.sin(performance.now() * 0.014 + b.x * 0.02) * r * 0.38;
         ctx.save();
         ctx.lineCap = 'round';
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = SPIRIT_COLORS.shadow;
-        ctx.globalAlpha = 0.44;
-        ctx.lineWidth = 12;
+        ctx.globalAlpha = 0.58;
+        ctx.lineWidth = 13;
         ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * 34, b.y - Math.sin(ang) * 34);
-        ctx.quadraticCurveTo(b.x - Math.sin(ang) * 7, b.y + Math.cos(ang) * 7, b.x, b.y);
+        ctx.moveTo(b.x - Math.cos(ang) * 46 + Math.sin(ang) * wob, b.y - Math.sin(ang) * 46 - Math.cos(ang) * wob);
+        ctx.quadraticCurveTo(b.x - Math.cos(ang) * 22 - Math.sin(ang) * r * 1.5, b.y - Math.sin(ang) * 22 + Math.cos(ang) * r * 1.5, b.x, b.y);
         ctx.stroke();
         ctx.globalCompositeOperation = 'lighter';
         ctx.strokeStyle = b.color || SPIRIT_COLORS.ghost;
-        ctx.globalAlpha = 0.52;
-        ctx.lineWidth = 5.0;
+        ctx.globalAlpha = 0.54;
+        ctx.lineWidth = 3.8;
         ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * 34, b.y - Math.sin(ang) * 34);
-        ctx.quadraticCurveTo(b.x - Math.sin(ang) * 7, b.y + Math.cos(ang) * 7, b.x, b.y);
+        ctx.moveTo(b.x - Math.cos(ang) * 42 + Math.sin(ang) * wob * 0.7, b.y - Math.sin(ang) * 42 - Math.cos(ang) * wob * 0.7);
+        ctx.quadraticCurveTo(b.x - Math.cos(ang) * 18 - Math.sin(ang) * r, b.y - Math.sin(ang) * 18 + Math.cos(ang) * r, b.x + Math.cos(ang) * 3, b.y + Math.sin(ang) * 3);
         ctx.stroke();
-        ctx.globalAlpha = 0.78;
+        ctx.globalAlpha = 0.48;
+        ctx.strokeStyle = SPIRIT_COLORS.curse;
+        ctx.lineWidth = 2.1;
+        ctx.beginPath();
+        ctx.moveTo(b.x - Math.cos(ang) * 33 - Math.sin(ang) * (r * 1.6 + wob * 0.4), b.y - Math.sin(ang) * 33 + Math.cos(ang) * (r * 1.6 + wob * 0.4));
+        ctx.quadraticCurveTo(b.x - Math.cos(ang) * 16 + Math.sin(ang) * r * 0.7, b.y - Math.sin(ang) * 16 - Math.cos(ang) * r * 0.7, b.x - Math.cos(ang) * 2, b.y - Math.sin(ang) * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.84;
         ctx.strokeStyle = SPIRIT_COLORS.pale;
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * 18, b.y - Math.sin(ang) * 18);
-        ctx.lineTo(b.x + Math.cos(ang) * 6, b.y + Math.sin(ang) * 6);
+        ctx.moveTo(b.x - Math.cos(ang) * 14, b.y - Math.sin(ang) * 14);
+        ctx.lineTo(b.x + Math.cos(ang) * 5, b.y + Math.sin(ang) * 5);
         ctx.stroke();
-        ctx.globalAlpha = 0.58;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.42;
+        ctx.fillStyle = SPIRIT_COLORS.shadow;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, r * 1.05, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.52;
         ctx.fillStyle = b.color || SPIRIT_COLORS.ghost;
         ctx.beginPath();
-        ctx.moveTo(b.x + Math.cos(ang) * r * 1.4, b.y + Math.sin(ang) * r * 1.4);
-        ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 1.0, b.y + Math.cos(ang) * r * 1.0, b.x - Math.cos(ang) * r * 1.15, b.y - Math.sin(ang) * r * 1.15);
-        ctx.quadraticCurveTo(b.x + Math.sin(ang) * r * 1.0, b.y - Math.cos(ang) * r * 1.0, b.x + Math.cos(ang) * r * 1.4, b.y + Math.sin(ang) * r * 1.4);
+        ctx.moveTo(b.x + Math.cos(ang) * r * 1.05, b.y + Math.sin(ang) * r * 1.05);
+        ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 0.86, b.y + Math.cos(ang) * r * 0.86, b.x - Math.cos(ang) * r * 0.86, b.y - Math.sin(ang) * r * 0.86);
+        ctx.quadraticCurveTo(b.x + Math.sin(ang) * r * 0.86, b.y - Math.cos(ang) * r * 0.86, b.x + Math.cos(ang) * r * 1.05, b.y + Math.sin(ang) * r * 1.05);
         ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 0.92;
         ctx.fillStyle = SPIRIT_COLORS.pale;
         ctx.beginPath();
-        ctx.moveTo(b.x + Math.cos(ang) * r, b.y + Math.sin(ang) * r);
-        ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 0.6, b.y + Math.cos(ang) * r * 0.6, b.x - Math.cos(ang) * r * 0.9, b.y - Math.sin(ang) * r * 0.9);
-        ctx.quadraticCurveTo(b.x + Math.sin(ang) * r * 0.6, b.y - Math.cos(ang) * r * 0.6, b.x + Math.cos(ang) * r, b.y + Math.sin(ang) * r);
+        ctx.arc(b.x + Math.cos(ang) * r * 0.12, b.y + Math.sin(ang) * r * 0.12, Math.max(1.0, r * 0.24), 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       } else {
@@ -12263,9 +12451,9 @@ PUBLIC.start = function (root, api) {
               if (b.kind === 'spiritBolt') soulParticle(
                 b.x - b.vx * trail + rand(-2.5, 2.5),
                 b.y - b.vy * trail + rand(-2.5, 2.5),
-                -b.vx * rand(0.010, 0.028) + rand(-0.28, 0.28),
-                -b.vy * rand(0.010, 0.028) + rand(-0.42, 0.08),
-                { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.34), life: rand(190, 440), r: rand(0.9, 2.6), tail: rand(9, 24) }
+                -b.vx * rand(0.008, 0.022) + rand(-0.20, 0.20),
+                -b.vy * rand(0.008, 0.022) + rand(-0.34, 0.04),
+                { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.18), life: rand(210, 500), r: rand(0.8, 2.3), tail: rand(13, 32), alpha: 0.74 }
               );
               else particles.push({ x: b.x - b.vx * trail + rand(-2.5, 2.5), y: b.y - b.vy * trail + rand(-2.5, 2.5),
                 vx: -b.vx * rand(0.01, 0.035) + rand(-0.45, 0.45), vy: -b.vy * rand(0.01, 0.035) + rand(-0.45, 0.45),
@@ -12284,7 +12472,7 @@ PUBLIC.start = function (root, api) {
                   alpha: 0.20,
                 });
             }
-            if (b.kind === 'spiritBolt' && Math.random() < 0.76) soulParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), rand(-0.35, 0.35), rand(-0.65, 0.02), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.42), life: rand(200, 440), r: rand(1.0, 2.5) });
+            if (b.kind === 'spiritBolt' && Math.random() < 0.54) soulParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), rand(-0.22, 0.22), rand(-0.56, 0.02), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.18), life: rand(220, 520), r: rand(0.9, 2.3), tail: rand(10, 24), alpha: 0.68 });
           } else if (b.kind === 'sigil') {
             b.age += dt;
             b.angle += 0.045;
@@ -12429,8 +12617,8 @@ PUBLIC.start = function (root, api) {
               detonateIgnitionGrenade(b);
             }
             else if (b.kind === 'spiritBolt') {
-              emitSoulWisp(b.x - b.vx * 0.55, b.y - b.vy * 0.55, b.x, b.y, { count: 18, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 220, lifeMax: 580 });
-              for (let j = 0; j < 9; j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.55, 0.55), rand(-0.95, 0.10), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.38), life: rand(220, 540), r: rand(1.0, 2.5) });
+              emitSoulWisp(b.x - b.vx * 0.68, b.y - b.vy * 0.68, b.x, b.y, { count: 16, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 680 });
+              for (let j = 0; j < 12; j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.42, 0.42), rand(-0.92, 0.04), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.20), life: rand(240, 640), r: rand(0.9, 2.6), tail: rand(12, 30), alpha: 0.74 });
             }
             else {
               if (b.explosive) pushBoxesRadial(b.x, b.y, 18, 112, b.team);
