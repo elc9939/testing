@@ -27,6 +27,7 @@ const MAGE_HOVER_HEIGHT = 42;
 const MAGE_HOVER_STEP = 92;
 const MAGE_HOVER_DELAY = 165;
 const MAGE_DEBRIS_MAX = 3;
+const MAGE_DEBRIS_OBJECT_CAP = 3;
 const MAGE_DEBRIS_REGEN = 3200;
 const MAGE_DEBRIS_RETURN_LIFE = 6400;
 const BLACK_HOLE_FORM_MS = 2150;
@@ -235,7 +236,7 @@ const ABILITIES = (() => {
   add('mg_arcane_nova', { cls: 'mage', branch: 'starter', tier: 0, slot: 'q', name: 'Arcane Nova', desc: 'Release a clean circular blast around the staff, shoving enemies and loose objects away.', effect: { kind: 'arcaneNova', r: 168, force: 26 }, cd: 9000, draft: false, tags: ['AOE', 'Push'] });
   add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Send gravity wisps from the staff into a tiny black point. It tears open, pulls hard, then violently collapses.', effect: { kind: 'blackHole', r: 296, life: 3800, range: 680, force: 1.56 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
-  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Recall Mass', desc: 'Select a nearby crate, barrel, or spring and drag it into your orbit as a heavy purple-bound rock. Your next shard throw fires that object.', effect: { kind: 'recallBoxRock', range: 500, force: 32 }, cd: 2600, tags: ['Gravity', 'Damage', 'Crates'] });
+  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Recall Mass', desc: 'Select a nearby crate, barrel, or spring and drag it into orbit as an extra temporary throwable. Your next shard throw fires the actual object.', effect: { kind: 'recallBoxRock', range: 500, force: 32 }, cd: 2600, tags: ['Gravity', 'Damage', 'Crates'] });
   add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Shard Volley', desc: 'Throw every orbiting rock in a quick fan. Each rock boomerangs back slowly after impact or max range.', effect: { kind: 'gravityVolley', range: 650, power: 1.10 }, cd: 1900, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_gravitycore', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'e', name: 'Archived Gravity Core', desc: 'Archived persistent-core experiment. Hidden from drafts while Graviturge stays focused on Mass Slam and Black Hole.', effect: { kind: 'gravityCore', r: 205, range: 460 }, cd: 2600, draft: false, tags: ['Gravity', 'Crates', 'Field'] });
   add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'Archived Core Collapse', desc: 'Archived persistent-core collapse experiment. Hidden from drafts while Graviturge stays focused on Black Hole.', effect: { kind: 'trueHorizon' }, cd: 10500, draft: false, tags: ['Gravity', 'Pull', 'Crates'] });
@@ -2184,6 +2185,23 @@ PUBLIC.start = function (root, api) {
   }
   function gravityDebrisMax() {
     return MAGE_DEBRIS_MAX;
+  }
+  function gravityDebrisObjectCount() {
+    return player && player.gravityDebrisObjects ? player.gravityDebrisObjects.length : 0;
+  }
+  function gravityDebrisTotalMax() {
+    return gravityDebrisMax() + gravityDebrisObjectCount();
+  }
+  function gravityDebrisBaseCount() {
+    return Math.max(0, (player && player.gravityDebris || 0) - gravityDebrisObjectCount());
+  }
+  function gravityDebrisStatusText() {
+    if (!player) return `0/${gravityDebrisMax()} debris`;
+    const objects = gravityDebrisObjectCount();
+    const total = gravityDebrisTotalMax();
+    return objects > 0
+      ? `${player.gravityDebris || 0}/${total} debris +${objects} object${objects === 1 ? '' : 's'}`
+      : `${player.gravityDebris || 0}/${gravityDebrisMax()} debris`;
   }
   function spiritClassFromSource(source) {
     const id = source && String(source);
@@ -4681,7 +4699,7 @@ PUBLIC.start = function (root, api) {
       const pending = pendingSpiritReanimations().length;
       return pending ? `${active}+${pending}/${SPIRIT_ZOMBIE_CAP} raising` : `${active}/${SPIRIT_ZOMBIE_CAP} zombies`;
     }
-    if (cls.id === 'mage' && mageGraviturgeLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.gravityDebris || 0}/${gravityDebrisMax()} debris`;
+    if (cls.id === 'mage' && mageGraviturgeLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return gravityDebrisStatusText();
     if (cls.id === 'mage' && magePyroLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return pyroStatusText();
     if (slot === 'passive') return spec ? 'keystone' : '';
     return branchShort(spec);
@@ -4785,8 +4803,9 @@ PUBLIC.start = function (root, api) {
       const val = document.getElementById('sr-knives');
       const detail = document.getElementById('sr-ammo-detail');
       if (icon) icon.textContent = 'GR';
-      if (val) val.textContent = `${player.gravityDebris || 0}/${gravityDebrisMax()}`;
-      if (detail) detail.textContent = 'orbiting debris';
+      const objects = gravityDebrisObjectCount();
+      if (val) val.textContent = `${player.gravityDebris || 0}/${gravityDebrisTotalMax()}`;
+      if (detail) detail.textContent = objects ? `${objects} stolen object${objects === 1 ? '' : 's'}` : 'orbiting debris';
     }
     const cool = document.getElementById('sr-cool');
     const coolVal = document.getElementById('sr-cool-val');
@@ -5538,7 +5557,7 @@ PUBLIC.start = function (root, api) {
     return {
       crouch, down, slide, sweep, shoulder,
       drop: Math.max(down * 17, slide * 34, sweep * 22, shoulder * 5),
-      lean: -act.facing * (down * 0.16 + slide * 0.94 + sweep * 0.42) + act.facing * shoulder * 0.16,
+      lean: act.facing * down * 0.10 - act.facing * (slide * 0.94 + sweep * 0.42) + act.facing * shoulder * 0.16,
       w: PW + slide * 36 + sweep * 18 + shoulder * 8,
       h: PH - Math.max(down * 15, slide * 31, sweep * 20),
       ox: act.facing * (slide * 13 + sweep * 7 + shoulder * 4),
@@ -7711,14 +7730,23 @@ PUBLIC.start = function (root, api) {
         player.gravityDebrisRegen = 0;
         player.gravityDebrisObjects = [];
       }
+      player.gravityDebrisWasActive = false;
       return;
     }
     const max = gravityDebrisMax();
-    if (player.gravityDebris == null) player.gravityDebris = max;
-    player.gravityDebris = clamp(player.gravityDebris, 0, max);
     if (!player.gravityDebrisObjects) player.gravityDebrisObjects = [];
-    if (player.gravityDebrisObjects.length > player.gravityDebris) player.gravityDebrisObjects.splice(0, player.gravityDebrisObjects.length - player.gravityDebris);
-    if (player.gravityDebrisObjects.length > max) player.gravityDebrisObjects.splice(0, player.gravityDebrisObjects.length - max);
+    if (player.gravityDebrisObjects.length > MAGE_DEBRIS_OBJECT_CAP) {
+      const removed = player.gravityDebrisObjects.splice(0, player.gravityDebrisObjects.length - MAGE_DEBRIS_OBJECT_CAP).length;
+      player.gravityDebris = Math.max(0, (player.gravityDebris || 0) - removed);
+    }
+    if (!player.gravityDebrisWasActive) {
+      player.gravityDebris = Math.max(player.gravityDebris || 0, max + player.gravityDebrisObjects.length);
+      player.gravityDebrisRegen = 0;
+      player.gravityDebrisWasActive = true;
+    }
+    if (player.gravityDebris == null) player.gravityDebris = max + player.gravityDebrisObjects.length;
+    const totalMax = max + player.gravityDebrisObjects.length;
+    player.gravityDebris = clamp(player.gravityDebris, player.gravityDebrisObjects.length, totalMax);
     player.gravityDebrisSpin = (player.gravityDebrisSpin || 0) + (dtStep || STEP) * 0.00125;
     if (player.gravityDebrisJoins && player.gravityDebrisJoins.length) {
       for (let i = player.gravityDebrisJoins.length - 1; i >= 0; i--) {
@@ -7727,24 +7755,25 @@ PUBLIC.start = function (root, api) {
         if (j.age >= (j.dur || 900) + 120) player.gravityDebrisJoins.splice(i, 1);
       }
     }
-    if (player.gravityDebris >= max) player.gravityDebrisRegen = 0;
+    const baseDebris = gravityDebrisBaseCount();
+    if (baseDebris >= max) player.gravityDebrisRegen = 0;
     else if (gravityDebrisInFlightCount() > 0) player.gravityDebrisRegen = 0;
     else {
       player.gravityDebrisRegen = (player.gravityDebrisRegen || 0) + (dtStep || STEP);
-      while (player.gravityDebrisRegen >= MAGE_DEBRIS_REGEN && player.gravityDebris < max) {
+      while (player.gravityDebrisRegen >= MAGE_DEBRIS_REGEN && gravityDebrisBaseCount() < max) {
         player.gravityDebrisRegen -= MAGE_DEBRIS_REGEN;
         player.gravityDebris++;
         if (player.team !== 'enemy') spawnGravityDebrisReturn();
       }
     }
-    const count = clamp(player.gravityDebris || 0, 0, max);
+    const count = clamp(player.gravityDebris || 0, 0, gravityDebrisTotalMax());
     if (count > 0 && Math.random() < 0.22) gravityParticle(player.x + rand(-42, 42), player.y - rand(48, 108), rand(-0.28, 0.28), rand(-0.44, 0.06), {
       life: rand(240, 480),
       color: gravityParticleColor(),
       r: rand(1.1, 3.1),
       tail: rand(6, 12),
     });
-    if (player.team !== 'enemy' && boxes && (mageHovering() || count >= max)) {
+    if (player.team !== 'enemy' && boxes && (mageHovering() || gravityDebrisBaseCount() >= max)) {
       for (const b of boxes) {
         if (!b || b.dead) continue;
         const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -8539,6 +8568,13 @@ PUBLIC.start = function (root, api) {
     if (n < 0.78) return GRAVITY_COLORS.violet;
     return GRAVITY_COLORS.edge;
   }
+  function gravityBlackHoleParticleColor() {
+    const n = Math.random();
+    if (n < 0.34) return GRAVITY_COLORS.horizon;
+    if (n < 0.68) return GRAVITY_COLORS.violet;
+    if (n < 0.86) return GRAVITY_COLORS.horizonDim;
+    return GRAVITY_COLORS.edge;
+  }
   function gravityParticle(x, y, vx, vy, opts) {
     opts = opts || {};
     particles.push({
@@ -8572,9 +8608,9 @@ PUBLIC.start = function (root, api) {
     opts = opts || {};
     if (!player || cls.id !== 'mage' || !mageGraviturgeLoadoutActive()) return false;
     const max = gravityDebrisMax();
-    if ((player.gravityDebris || 0) >= max) return false;
-    const slot = clamp(player.gravityDebris || 0, 0, max - 1);
-    player.gravityDebris = clamp((player.gravityDebris || 0) + 1, 0, max);
+    if (gravityDebrisBaseCount() >= max) return false;
+    const slot = clamp(player.gravityDebris || 0, 0, gravityDebrisTotalMax());
+    player.gravityDebris = clamp((player.gravityDebris || 0) + 1, 0, gravityDebrisTotalMax());
     player.gravityDebrisRegen = 0;
     if (!player.gravityDebrisJoins) player.gravityDebrisJoins = [];
     player.gravityDebrisJoins.push({
@@ -8606,6 +8642,8 @@ PUBLIC.start = function (root, api) {
       kind: b.kind || 'crate',
       color: b.color,
       heat: b.heat || 0,
+      angle: b.angle || 0,
+      va: b.va || 0,
       mass,
       r: Math.max(15, Math.min(34, Math.max(b.w, b.h) * 0.43)),
       hit: 31 + mass * 12,
@@ -8621,14 +8659,16 @@ PUBLIC.start = function (root, api) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     boxes.splice(idx, 1);
     if (!player.gravityDebrisObjects) player.gravityDebrisObjects = [];
-    const max = gravityDebrisMax();
-    if ((player.gravityDebris || 0) < max) player.gravityDebris = clamp((player.gravityDebris || 0) + 1, 0, max);
-    else if (player.gravityDebrisObjects.length >= max) player.gravityDebrisObjects.shift();
+    if (player.gravityDebrisObjects.length >= MAGE_DEBRIS_OBJECT_CAP) {
+      player.gravityDebrisObjects.shift();
+      player.gravityDebris = Math.max(0, (player.gravityDebris || 0) - 1);
+    }
     player.gravityDebrisObjects.push(spec);
+    player.gravityDebris = clamp((player.gravityDebris || 0) + 1, 1, gravityDebrisTotalMax());
     player.gravityDebrisRegen = 0;
     if (!player.gravityDebrisJoins) player.gravityDebrisJoins = [];
     player.gravityDebrisJoins.push({
-      slot: clamp((player.gravityDebris || 1) - 1, 0, max - 1),
+      slot: clamp((player.gravityDebris || 1) - 1, 0, gravityDebrisTotalMax() - 1),
       x: cx,
       y: cy,
       age: 0,
@@ -8717,10 +8757,10 @@ PUBLIC.start = function (root, api) {
       kind: spec.kind || 'crate',
       color: spec.color,
       heat: spec.heat || 0,
-      vx: b.vx * 0.16,
-      vy: b.vy * 0.16,
+      vx: b.vx * 0.30,
+      vy: b.vy * 0.26,
       angle: b.angle || 0,
-      va: (b.spin || 0) * 0.65,
+      va: (b.spin || spec.va || 0) * 0.82,
     }));
   }
   function nearestLiftBoxRock(range) {
@@ -8740,7 +8780,7 @@ PUBLIC.start = function (root, api) {
   }
   function useGravityDebrisVolley(ang, opts) {
     opts = opts || {};
-    const count = clamp(player.gravityDebris || 0, 0, gravityDebrisMax());
+    const count = clamp(player.gravityDebris || 0, 0, gravityDebrisTotalMax());
     if (count <= 0) return false;
     const spread = count === 1 ? 0 : Math.min(0.42, 0.16 + count * 0.055);
     for (let i = 0; i < count; i++) {
@@ -8783,7 +8823,7 @@ PUBLIC.start = function (root, api) {
       heavy: true,
       mass: 1.7 + mass,
       noReturn: true,
-      boxRock: { w: b.w, h: b.h, m: b.m, kind: b.kind, color: b.color, heat: b.heat || 0 },
+      boxRock: { w: b.w, h: b.h, m: b.m, kind: b.kind, color: b.color, heat: b.heat || 0, angle: b.angle || 0, va: b.va || 0, mass },
     });
     for (let i = 0; i < 22; i++) gravityParticle(cx + rand(-b.w * 0.35, b.w * 0.35), cy + rand(-b.h * 0.35, b.h * 0.35),
       rand(-0.8, 0.8) - Math.cos(a) * rand(0.2, 0.8), rand(-0.8, 0.4) - Math.sin(a) * rand(0.2, 0.8), {
@@ -8835,13 +8875,13 @@ PUBLIC.start = function (root, api) {
       r,
       hit: carried ? carried.hit || 38 : 15 + power * 8,
       angle: ang,
-      spin: carried ? rand(-0.10, 0.10) : rand(-0.18, 0.18),
+      spin: carried ? (carried.va || rand(-0.10, 0.10)) : rand(-0.18, 0.18),
       gravity: true,
       heavy: !!carried || !!spent,
       mass: carried ? 1.8 + (carried.mass || 1) : power,
       sparkle: 2,
       noReturn: !!carried,
-      boxRock: carried ? { w: carried.w, h: carried.h, m: carried.m, kind: carried.kind, color: carried.color, heat: carried.heat || 0 } : null,
+      boxRock: carried ? { w: carried.w, h: carried.h, m: carried.m, kind: carried.kind, color: carried.color, heat: carried.heat || 0, angle: carried.angle || 0, va: carried.va || 0, mass: carried.mass || 1 } : null,
     });
     for (let i = 0; i < (carried ? 28 : spent ? 18 : 11); i++) {
       const a = ang + Math.PI + rand(-0.62, 0.62);
@@ -10011,18 +10051,17 @@ PUBLIC.start = function (root, api) {
     if (player) player.pyroBreath = Math.max(0, (player.pyroBreath || 0) - dtStep);
   }
   function emitBlackHoleBirth(x, y, r, color, source) {
-    const accent = color || gravityAccent();
     if (source) {
       const dx = x - source.x, dy = y - source.y, a = Math.atan2(dy, dx);
-      for (let i = 0; i < 34; i++) {
-        const u = i / 34;
+      for (let i = 0; i < 68; i++) {
+        const u = i / 68;
         const side = Math.sin(u * Math.PI * 2 + rand(-0.25, 0.25)) * rand(8, 24);
         gravityParticle(
           lerp(source.x, x, u) + Math.sin(a) * side + rand(-4, 4),
           lerp(source.y, y, u) - Math.cos(a) * side + rand(-4, 4),
           Math.cos(a) * rand(0.26, 0.82) + rand(-0.10, 0.10),
           Math.sin(a) * rand(0.26, 0.82) + rand(-0.10, 0.10), {
-            color: Math.random() < 0.26 ? GRAVITY_COLORS.bright : accent,
+            color: gravityBlackHoleParticleColor(),
             life: rand(520, 1080),
             r: rand(1.0, 3.0),
             tail: rand(14, 34),
@@ -10031,13 +10070,13 @@ PUBLIC.start = function (root, api) {
           });
       }
     }
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < 128; i++) {
       const a = rand(0, Math.PI * 2), rr = rand(3, r * 0.18);
       const tangent = a + Math.PI / 2;
       gravityParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr,
         Math.cos(tangent) * rand(0.06, 0.42) - Math.cos(a) * rand(0.08, 0.36),
         Math.sin(tangent) * rand(0.06, 0.42) - Math.sin(a) * rand(0.08, 0.36), {
-          color: gravityParticleColor(),
+          color: gravityBlackHoleParticleColor(),
           life: rand(720, 1680),
           r: rand(0.8, 2.8),
           tail: rand(8, 22),
@@ -10047,7 +10086,7 @@ PUBLIC.start = function (root, api) {
         });
     }
     burst(x, y, GRAVITY_COLORS.void, 8, 1.4);
-    burst(x, y, gravityHighlight(), 12, 2.0);
+    burst(x, y, GRAVITY_COLORS.horizon, 18, 2.0);
     addShake(2.2, 120);
   }
   function spawnBlackHole(x, y, team, color, opts) {
@@ -10228,7 +10267,7 @@ PUBLIC.start = function (root, api) {
   function implodeGravityField(g) {
     const blackHole = !!g.blackHole;
     burst(g.x, g.y, blackHole ? GRAVITY_COLORS.void : '#ffffff', blackHole ? 42 : 26, blackHole ? 4.8 : 5.2);
-    burst(g.x, g.y, blackHole ? gravityHighlight() : '#ffffff', blackHole ? 66 : 26, blackHole ? 8.4 : 5.2);
+    burst(g.x, g.y, blackHole ? GRAVITY_COLORS.horizon : '#ffffff', blackHole ? 88 : 26, blackHole ? 8.4 : 5.2);
     burst(g.x, g.y, g.color || gravityAccent(), blackHole ? 118 : 44, blackHole ? 9.0 : 5.8);
     spawnShockwaveRing(g.x, g.y, g.r + (blackHole ? 108 : 70), g.color, {
       life: blackHole ? 720 : g.ultimate ? 560 : 430,
@@ -10237,15 +10276,15 @@ PUBLIC.start = function (root, api) {
       rough: blackHole ? 0.145 : 0.070,
     });
     if (blackHole) {
-      spawnShockwaveRing(g.x, g.y, g.r + 184, GRAVITY_COLORS.bright, { life: 520, width: 5.8, fill: 0.08, rough: 0.18 });
+      spawnShockwaveRing(g.x, g.y, g.r + 184, GRAVITY_COLORS.horizon, { life: 520, width: 5.8, fill: 0.08, rough: 0.18 });
       spawnShockwaveRing(g.x, g.y, Math.max(74, g.r * 0.42), GRAVITY_COLORS.edge, { life: 360, width: 7.4, fill: 0.15, rough: 0.20 });
     }
     addShake(blackHole ? 10.6 : 5.6, blackHole ? 270 : 170);
     if (blackHole) {
-      for (let i = 0; i < 150; i++) {
+      for (let i = 0; i < 300; i++) {
         const a = rand(0, Math.PI * 2), sp = rand(1.4, 7.8);
         gravityParticle(g.x, g.y, Math.cos(a) * sp, Math.sin(a) * sp - rand(0.2, 1.4), {
-          color: Math.random() < 0.24 ? GRAVITY_COLORS.white : gravityParticleColor(),
+          color: gravityBlackHoleParticleColor(),
           life: rand(360, 980),
           r: rand(1.2, 5.4),
           tail: rand(10, 28),
@@ -10589,11 +10628,11 @@ PUBLIC.start = function (root, api) {
         if (!g.expandedBurst && expand > 0.08) {
           g.expandedBurst = true;
           spawnShockwaveRing(g.x, g.y, Math.max(42, g.r * 0.24), g.color || gravityAccent(), { life: 360, width: 5.2, fill: 0.10, rough: 0.14 });
-          for (let k = 0; k < 46; k++) {
+          for (let k = 0; k < 92; k++) {
             const a = rand(0, Math.PI * 2), sp = rand(0.25, 2.4);
             gravityParticle(g.x + Math.cos(a) * rand(2, 20), g.y + Math.sin(a) * rand(2, 20),
               Math.cos(a) * sp, Math.sin(a) * sp - rand(0.10, 0.55), {
-                color: Math.random() < 0.22 ? GRAVITY_COLORS.white : gravityParticleColor(),
+                color: gravityBlackHoleParticleColor(),
                 life: rand(360, 980),
                 r: rand(1.0, 3.5),
                 tail: rand(10, 28),
@@ -10608,7 +10647,7 @@ PUBLIC.start = function (root, api) {
           const u = rand(0.05, 0.88), dx = g.x - g.sourceX, dy = g.y - g.sourceY, a = Math.atan2(dy, dx);
           gravityParticle(lerp(g.sourceX, g.x, u) + rand(-8, 8), lerp(g.sourceY, g.y, u) + rand(-8, 8),
             Math.cos(a) * rand(0.30, 0.80), Math.sin(a) * rand(0.30, 0.80), {
-              color: Math.random() < 0.28 ? GRAVITY_COLORS.bright : g.color || gravityAccent(),
+              color: gravityBlackHoleParticleColor(),
               life: rand(260, 680),
               r: rand(0.9, 2.6),
               tail: rand(18, 42),
@@ -10617,7 +10656,7 @@ PUBLIC.start = function (root, api) {
             });
         }
         const fieldR = Math.max(10, gravityFieldRadius(g));
-        const count = 1 + (expand > 0.18 && Math.random() < 0.78 ? 1 : 0);
+        const count = 2 + (expand > 0.18 && Math.random() < 0.78 ? 2 : 0);
         for (let j = 0; j < count; j++) {
           const a = rand(0, Math.PI * 2), rr = rand(Math.min(18, fieldR * 0.42), fieldR);
           const tangent = a + Math.PI / 2;
@@ -10625,7 +10664,7 @@ PUBLIC.start = function (root, api) {
             vx: Math.cos(tangent) * rand(0.30, 1.45 + birth * 0.75) - Math.cos(a) * rand(0.35, 1.35 + birth * 0.55),
             vy: Math.sin(tangent) * rand(0.30, 1.45 + birth * 0.75) - Math.sin(a) * rand(0.35, 1.35 + birth * 0.55),
             life: rand(260, 720), max: 720,
-            color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(),
+            color: gravityBlackHoleParticleColor(),
             r: rand(0.75, 2.5 + birth * 0.9),
             tail: rand(10, 30),
             seed: rand(0, Math.PI * 2),
@@ -10978,11 +11017,12 @@ PUBLIC.start = function (root, api) {
     } else if (cls.weapon === 'staff') {
       const pyro = cls.id === 'mage' && magePyroLoadoutActive();
       const grav = cls.id === 'mage' && mageGraviturgeLoadoutActive();
-      const backLen = pyro ? 58 : grav ? 62 : 48;
-      const frontLen = pyro ? 74 : grav ? 78 : 64;
-      ctx.strokeStyle = pyro ? '#3f2919' : grav ? '#352c55' : '#62462c';
+      const spirit = cls.id === 'mage' && mageSpiritLoadoutActive();
+      const backLen = pyro ? 58 : grav ? 62 : spirit ? 60 : 48;
+      const frontLen = pyro ? 74 : grav ? 78 : spirit ? 72 : 64;
+      ctx.strokeStyle = pyro ? '#3f2919' : grav ? '#352c55' : spirit ? '#241733' : '#62462c';
       ctx.lineCap = 'round';
-      ctx.lineWidth = pyro ? 4.6 : grav ? 4.7 : 4.2;
+      ctx.lineWidth = pyro ? 4.6 : grav ? 4.7 : spirit ? 4.5 : 4.2;
       ctx.beginPath(); ctx.moveTo(hx - dx * backLen, hy - dy * backLen); ctx.lineTo(hx + dx * frontLen * L, hy + dy * frontLen * L); ctx.stroke();
       if (pyro) {
         const now = performance.now();
@@ -11047,7 +11087,7 @@ PUBLIC.start = function (root, api) {
         }
         ctx.restore();
       } else {
-        ctx.strokeStyle = grav ? '#8f7dff' : '#9aa0aa'; ctx.lineWidth = grav ? 2.7 : 2.4;
+        ctx.strokeStyle = spirit ? SPIRIT_COLORS.ghost : grav ? '#8f7dff' : '#9aa0aa'; ctx.lineWidth = grav || spirit ? 2.7 : 2.4;
         ctx.beginPath(); ctx.moveTo(hx + dx * frontLen * L + nx * 5, hy + dy * frontLen * L + ny * 5); ctx.lineTo(hx + dx * frontLen * L - nx * 5, hy + dy * frontLen * L - ny * 5); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(hx - dx * backLen + nx * 4, hy - dy * backLen + ny * 4); ctx.lineTo(hx - dx * backLen - nx * 4, hy - dy * backLen - ny * 4); ctx.stroke();
         ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
@@ -11057,6 +11097,29 @@ PUBLIC.start = function (root, api) {
           ctx.beginPath(); ctx.arc(tipX, tipY, 5.2, 0, Math.PI * 2); ctx.fill();
           ctx.strokeStyle = '#d9d4ff'; ctx.lineWidth = 1.1;
           ctx.beginPath(); ctx.arc(tipX, tipY, 8.4, -0.85, Math.PI * 1.18); ctx.stroke();
+        } else if (spirit) {
+          const now = performance.now();
+          const tipX = hx + dx * (frontLen + 4) * L, tipY = hy + dy * (frontLen + 4) * L;
+          const pulse = 0.5 + 0.5 * Math.sin(now * 0.018);
+          ctx.fillStyle = SPIRIT_COLORS.shadow;
+          ctx.beginPath(); ctx.arc(tipX, tipY, 5.4 + pulse * 0.7, 0, Math.PI * 2); ctx.fill();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.48 + pulse * 0.20;
+          ctx.strokeStyle = SPIRIT_COLORS.ghost;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(tipX, tipY, 8.8 + pulse * 1.5, -0.9, Math.PI * 1.2); ctx.stroke();
+          for (let i = 0; i < 4; i++) {
+            const a = now * (0.010 + i * 0.0012) + i * 1.7;
+            const ex = tipX + Math.cos(a) * (8 + i * 1.8);
+            const ey = tipY + Math.sin(a) * (6 + i * 1.4);
+            ctx.globalAlpha = 0.26 + pulse * 0.18;
+            ctx.strokeStyle = i % 2 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost;
+            ctx.lineWidth = 0.9 + (i % 2) * 0.35;
+            drawJaggedLine(tipX, tipY, ex, ey, { steps: 3, jitter: 2.4 + pulse * 2.2, phase: now * 0.025 + i });
+            ctx.globalAlpha = 0.38 + pulse * 0.18;
+            ctx.fillStyle = SPIRIT_COLORS.pale;
+            ctx.beginPath(); ctx.arc(ex, ey, 0.9 + pulse * 0.45, 0, Math.PI * 2); ctx.fill();
+          }
         } else {
           ctx.beginPath(); ctx.arc(hx + dx * 69 * L, hy + dy * 69 * L, 5.5, 0.25, Math.PI * 1.75); ctx.stroke();
         }
@@ -11348,23 +11411,40 @@ PUBLIC.start = function (root, api) {
         ctx.fill();
       }
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.90;
-      ctx.fillStyle = carried ? carried.color || GRAVITY_COLORS.deep : i % 2 ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
-      ctx.strokeStyle = carried ? GRAVITY_COLORS.horizon : i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.bright;
-      ctx.lineWidth = carried ? 1.8 : 1.35;
-      ctx.beginPath();
-      const pts = carried ? 8 : 7;
-      for (let k = 0; k < pts; k++) {
-        const aa = a * 1.4 + k * Math.PI * 2 / pts;
-        const rr = r * (carried ? 0.78 + ((k + i) % 3) * 0.12 : 0.70 + ((k + i) % 4) * 0.13);
-        const px = x + Math.cos(aa) * rr;
-        const py = y + Math.sin(aa) * rr;
-        if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      if (carried) {
+        const sc = clamp((r * 1.9) / Math.max(carried.w || 34, carried.h || 34), 0.48, 0.82);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((carried.angle || 0) + a * 0.42);
+        ctx.globalAlpha = 0.92;
+        drawBoxPayload(carried, sc);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.34 + pulse * 0.18;
+        ctx.strokeStyle = GRAVITY_COLORS.horizon;
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * (1.30 + pulse * 0.10), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.globalAlpha = 0.90;
+        ctx.fillStyle = i % 2 ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
+        ctx.strokeStyle = i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.bright;
+        ctx.lineWidth = 1.35;
+        ctx.beginPath();
+        const pts = 7;
+        for (let k = 0; k < pts; k++) {
+          const aa = a * 1.4 + k * Math.PI * 2 / pts;
+          const rr = r * (0.70 + ((k + i) % 4) * 0.13);
+          const px = x + Math.cos(aa) * rr;
+          const py = y + Math.sin(aa) * rr;
+          if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.80;
+        ctx.stroke();
       }
-      ctx.closePath();
-      ctx.fill();
-      ctx.globalAlpha = 0.80;
-      ctx.stroke();
       if (carried) {
         ctx.globalAlpha = 0.30 + pulse * 0.20;
         ctx.strokeStyle = GRAVITY_COLORS.horizon;
@@ -11373,8 +11453,8 @@ PUBLIC.start = function (root, api) {
         ctx.arc(x, y, r * (1.24 + pulse * 0.08), 0, Math.PI * 2);
         ctx.stroke();
       }
-      ctx.globalAlpha = carried ? 0.36 + pulse * 0.16 : 0.42 + pulse * 0.20;
-      ctx.strokeStyle = carried ? GRAVITY_COLORS.bright : GRAVITY_COLORS.white;
+      ctx.globalAlpha = carried ? 0.32 + pulse * 0.14 : 0.42 + pulse * 0.20;
+      ctx.strokeStyle = carried ? GRAVITY_COLORS.horizon : GRAVITY_COLORS.white;
       ctx.lineWidth = carried ? 1.15 : 1.0;
       ctx.beginPath();
       ctx.moveTo(x - r * 0.25, y - r * 0.35);
@@ -11781,7 +11861,7 @@ PUBLIC.start = function (root, api) {
     if (cls.id === 'mage' && player.team === 'hero' && mageGraviturgeLoadoutActive() && (player.gravityDebris || 0) > 0) {
       const debrisAim = player.anim && player.anim.atkActive && player.anim.visualKind === 'gravityDebris' ? player.anim.atkAim : aimedAngle();
       const staffWorld = gravityStaffOrigin(debrisAim);
-      drawGravityDebrisOrbit(lerp(hipX, shX, 0.72) + f * 4, lerp(hipY, shY, 0.72) + 1, player.gravityDebris, gravityDebrisMax(), {
+      drawGravityDebrisOrbit(lerp(hipX, shX, 0.72) + f * 4, lerp(hipY, shY, 0.72) + 1, player.gravityDebris, gravityDebrisTotalMax(), {
         aim: debrisAim,
         worldBaseY: player.y - hoverY,
         staff: { x: staffWorld.x - player.x, y: staffWorld.y - (player.y - hoverY) },
@@ -12236,6 +12316,49 @@ PUBLIC.start = function (root, api) {
       ctx.stroke();
     }
     ctx.restore();
+  }
+  function drawBoxPayload(spec, scale) {
+    spec = spec || {};
+    const sc = scale || 1;
+    const w = Math.max(10, spec.w || 34) * sc;
+    const h = Math.max(10, spec.h || 34) * sc;
+    const hw = w / 2, hh = h / 2;
+    const b = Object.assign({ x: 0, y: 0, w, h, heat: 0, heatFlash: 0, kind: 'crate' }, spec, { w, h });
+    if (b.kind === 'barrel') {
+      ctx.fillStyle = b.color || '#b64628';
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-hw, -hh, w, h, 8 * sc) : ctx.rect(-hw, -hh, w, h);
+      ctx.fill();
+      ctx.fillStyle = '#ffd45e'; ctx.fillRect(-hw + 5 * sc, -4 * sc, w - 10 * sc, 8 * sc);
+      ctx.strokeStyle = INK; ctx.lineWidth = 2.5 * sc; ctx.strokeRect(-hw + 1.5 * sc, -hh + 1.5 * sc, w - 3 * sc, h - 3 * sc);
+      drawBoxHeatOverlay(b, hw, hh);
+      return;
+    }
+    if (b.kind === 'spring') {
+      ctx.fillStyle = '#26384f'; ctx.fillRect(-hw, -hh, w, h);
+      ctx.strokeStyle = '#8fe6ff'; ctx.lineWidth = 2 * sc;
+      for (let x = -hw + 6 * sc; x < hw - 4 * sc; x += 10 * sc) {
+        ctx.beginPath(); ctx.moveTo(x, hh - 3 * sc); ctx.lineTo(x + 5 * sc, -hh + 3 * sc); ctx.lineTo(x + 10 * sc, hh - 3 * sc); ctx.stroke();
+      }
+      ctx.strokeStyle = INK; ctx.lineWidth = 2.5 * sc; ctx.strokeRect(-hw + sc, -hh + sc, w - 2 * sc, h - 2 * sc);
+      drawBoxHeatOverlay(b, hw, hh);
+      return;
+    }
+    if (b.kind === 'barrier') {
+      ctx.globalAlpha *= 0.75;
+      ctx.fillStyle = 'rgba(120,170,255,.42)'; ctx.fillRect(-hw, -hh, w, h);
+      ctx.strokeStyle = '#5ea0ff'; ctx.lineWidth = 3 * sc; ctx.strokeRect(-hw + 1.5 * sc, -hh + 1.5 * sc, w - 3 * sc, h - 3 * sc);
+      drawBoxHeatOverlay(b, hw, hh);
+      return;
+    }
+    ctx.fillStyle = b.color || '#bb8a4e'; ctx.fillRect(-hw, -hh, w, h);
+    ctx.lineWidth = 2.5 * sc; ctx.strokeStyle = INK; ctx.lineJoin = 'miter';
+    ctx.strokeRect(-hw + 1.5 * sc, -hh + 1.5 * sc, w - 3 * sc, h - 3 * sc);
+    ctx.lineWidth = 1.5 * sc;
+    ctx.beginPath();
+    ctx.moveTo(-hw + 3 * sc, -hh + 3 * sc); ctx.lineTo(hw - 3 * sc, hh - 3 * sc);
+    ctx.moveTo(hw - 3 * sc, -hh + 3 * sc); ctx.lineTo(-hw + 3 * sc, hh - 3 * sc);
+    ctx.stroke();
+    drawBoxHeatOverlay(b, hw, hh);
   }
   function drawBox(b) {
     const cx = b.x + b.w / 2 - cam.x, cy = b.y + b.h / 2 - cam.y, hw = b.w / 2, hh = b.h / 2;
@@ -12696,7 +12819,7 @@ PUBLIC.start = function (root, api) {
       ctx.save();
       ctx.translate(g.x, g.y);
       ctx.rotate(diskRot);
-      const shardCount = 76;
+      const shardCount = 152;
       for (let i = 0; i < shardCount; i++) {
         const u = i / shardCount;
         const a = u * Math.PI * 2 + t * (0.00165 + (i % 5) * 0.00016) + phase;
@@ -12709,7 +12832,7 @@ PUBLIC.start = function (root, api) {
         const y = Math.sin(a) * ry;
         const tangent = Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx);
         const len = (10 + lane * 4.4 + expand * 19) * (0.72 + Math.sin(i * 5.13 + t * 0.004) * 0.18);
-        const bright = i % 8 === 0 || i % 13 === 0;
+        const bright = i % 6 === 0 || i % 11 === 0;
         ctx.globalAlpha = diskAlpha * (frontPass ? 0.62 : 0.30) * (bright ? 1 : 0.62) * (1 - collapse * 0.13);
         ctx.strokeStyle = bright
           ? 'rgba(182,108,255,0.96)'
@@ -12743,7 +12866,7 @@ PUBLIC.start = function (root, api) {
       for (let i = 0; i < 3; i++) {
         const off = (i - 1) * (16 + seed * 8);
         ctx.globalAlpha = fade * (0.26 + i * 0.08);
-        ctx.strokeStyle = i === 1 ? GRAVITY_COLORS.bright : g.color || gravityAccent();
+        ctx.strokeStyle = i === 1 ? GRAVITY_COLORS.horizon : g.color || gravityAccent();
         ctx.lineWidth = 1.8 + seed * 1.5;
         ctx.beginPath();
         ctx.moveTo(g.sourceX, g.sourceY);
@@ -12779,7 +12902,7 @@ PUBLIC.start = function (root, api) {
       const start = phase + t * (0.0012 + i * 0.00022) + i * Math.PI * 0.54;
       const span = Math.PI * (0.54 + Math.sin(t * 0.003 + i) * 0.12 + collapse * 0.18);
       ctx.globalAlpha = (0.28 + expand * 0.42 + collapse * 0.22) * (i === 1 ? 1 : 0.72);
-      ctx.strokeStyle = i === 1 ? GRAVITY_COLORS.bright : i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.edge;
+      ctx.strokeStyle = i === 1 ? GRAVITY_COLORS.horizon : i % 2 ? GRAVITY_COLORS.violet : GRAVITY_COLORS.edge;
       ctx.lineWidth = 1.5 + expand * 2.2 + collapse * 2.2 - i * 0.12;
       wobblyArc(g.x, g.y, rimR + i * (3.2 + expand * 1.4), start, span, 0.070 + expand * 0.035, 36);
       ctx.stroke();
@@ -13348,6 +13471,7 @@ PUBLIC.start = function (root, api) {
         const r = b.r || 11;
         const returning = b.kind === 'gravityDebrisReturn';
         const ang = Math.atan2(b.vy, b.vx);
+        const carriedObject = b.boxRock && !returning ? b.boxRock : null;
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = returning ? 0.22 : b.heavy ? 0.42 : 0.28;
@@ -13362,20 +13486,30 @@ PUBLIC.start = function (root, api) {
         ctx.save();
         ctx.translate(b.x, b.y);
         ctx.rotate((b.angle == null ? ang : b.angle) + performance.now() * (returning ? 0.0016 : 0.003));
-        ctx.fillStyle = b.heavy ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
-        ctx.strokeStyle = returning ? GRAVITY_COLORS.white : b.heavy ? GRAVITY_COLORS.bright : GRAVITY_COLORS.violet;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        const pts = 7;
-        for (let i = 0; i < pts; i++) {
-          const a = i * Math.PI * 2 / pts;
-          const rr = r * (0.72 + (i % 3) * 0.14);
-          const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (carriedObject) {
+          const sc = clamp((r * 2.05) / Math.max(carriedObject.w || 34, carriedObject.h || 34), 0.58, 1.0);
+          drawBoxPayload(carriedObject, sc);
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.40;
+          ctx.strokeStyle = GRAVITY_COLORS.horizon;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(0, 0, r * 1.28, 0, Math.PI * 2); ctx.stroke();
+        } else {
+          ctx.fillStyle = b.heavy ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
+          ctx.strokeStyle = returning ? GRAVITY_COLORS.violet : b.heavy ? GRAVITY_COLORS.bright : GRAVITY_COLORS.violet;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          const pts = 7;
+          for (let i = 0; i < pts; i++) {
+            const a = i * Math.PI * 2 / pts;
+            const rr = r * (0.72 + (i % 3) * 0.14);
+            const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.closePath(); ctx.fill(); ctx.stroke();
         }
-        ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.globalAlpha = 0.72;
-        ctx.strokeStyle = GRAVITY_COLORS.white;
+        ctx.strokeStyle = carriedObject ? GRAVITY_COLORS.horizon : GRAVITY_COLORS.violet;
         ctx.lineWidth = 1.0;
         ctx.beginPath();
         ctx.moveTo(-r * 0.20, -r * 0.42);
