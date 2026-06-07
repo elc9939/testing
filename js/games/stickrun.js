@@ -27,7 +27,9 @@ const MAGE_HOVER_HEIGHT = 42;
 const MAGE_HOVER_STEP = 92;
 const MAGE_HOVER_DELAY = 165;
 const MAGE_DEBRIS_MAX = 3;
-const MAGE_DEBRIS_REGEN = 1250;
+const MAGE_DEBRIS_REGEN = 3200;
+const MAGE_DEBRIS_RETURN_LIFE = 5200;
+const BLACK_HOLE_FORM_MS = 1750;
 const GRAVITY_COLORS = {
   void: '#05030d',
   deep: '#110a25',
@@ -126,7 +128,7 @@ const CLASS_TREES = {
   },
   mage: {
     branches: {
-      graviturge: { name: 'Graviturge', desc: 'Gravity cores, resonance pulses, pull/orbit control, and implosions.' },
+      graviturge: { name: 'Graviturge', desc: 'Persistent orbit rocks, lifted objects, passive float, and violent black holes.' },
       pyromancer: { name: 'Pyromancer', desc: 'Big fire AOE, burn zones, ignition, barrel pressure, and explosions.' },
       spiritbinder: { name: 'Spiritbinder', desc: 'Spirit charges, defeated enemies becoming followers, curses, and ally pressure.' },
     },
@@ -218,10 +220,10 @@ const ABILITIES = (() => {
   add('mg_dash', { cls: 'mage', branch: 'starter', tier: 0, slot: 'shift', name: 'Arcane Dash', desc: 'Short staff-led dash. Best for crossing gaps or slipping past pressure without borrowing the gravity hover fantasy.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
   add('mg_sigil', { cls: 'mage', branch: 'starter', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
   add('mg_arcane_nova', { cls: 'mage', branch: 'starter', tier: 0, slot: 'q', name: 'Arcane Nova', desc: 'Release a clean circular blast around the staff, shoving enemies and loose objects away.', effect: { kind: 'arcaneNova', r: 168, force: 26 }, cd: 9000, draft: false, tags: ['AOE', 'Push'] });
-  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Create a violent black hole that drags enemies, debris, crates, and dummies inward, damages them, then collapses hard.', effect: { kind: 'blackHole', r: 286, life: 2500, range: 650, force: 1.42 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
+  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Plant a tiny black point that slowly tears open, drags enemies and debris inward, then collapses hard.', effect: { kind: 'blackHole', r: 296, life: 3800, range: 680, force: 1.56 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
-  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Mass Slam', desc: 'Grab nearby mass at the cursor and slam enemies, crates, barrels, and dummies downward into the arena.', effect: { kind: 'massSlam', force: 28, radius: 154, range: 380 }, cd: 3300, tags: ['Gravity', 'Damage', 'Crates'] });
-  add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Gravity Well', desc: 'A shorter-range bloom that opens faster and pulls crates harder.', effect: { kind: 'field', r: 178, life: 2400, range: 360 }, cd: 1900, tags: ['Gravity', 'Crates'] });
+  add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Lift Mass', desc: 'Rip the nearest crate, barrel, or spring loose and hurl it as a heavy gravity rock. Object impacts hit harder and then tumble back into the arena.', effect: { kind: 'liftBoxRock', range: 460, force: 32 }, cd: 3000, tags: ['Gravity', 'Damage', 'Crates'] });
+  add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Shard Volley', desc: 'Throw every orbiting rock in a quick fan. Each rock boomerangs back slowly after impact or max range.', effect: { kind: 'gravityVolley', range: 650, power: 1.10 }, cd: 1900, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_gravitycore', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'e', name: 'Archived Gravity Core', desc: 'Archived persistent-core experiment. Hidden from drafts while Graviturge stays focused on Mass Slam and Black Hole.', effect: { kind: 'gravityCore', r: 205, range: 460 }, cd: 2600, draft: false, tags: ['Gravity', 'Crates', 'Field'] });
   add('mg_truehorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'q', name: 'Archived Core Collapse', desc: 'Archived persistent-core collapse experiment. Hidden from drafts while Graviturge stays focused on Black Hole.', effect: { kind: 'trueHorizon' }, cd: 10500, draft: false, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_resonance', { cls: 'mage', branch: 'graviturge', tier: 4, slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure near affected enemies.', key: true, tags: ['Gravity', 'Projectile'] });
@@ -365,7 +367,7 @@ const ABILITIES = (() => {
   add('ln_winchstep', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'shift', name: 'Winch Step', desc: 'Pull yourself toward an anchor or pull lighter anchored objects toward you.', effect: { kind: 'wardenPull' }, cd: 1900, prereq: 'ln_warden', tags: ['Pull', 'Movement'] });
   add('ln_dragnet', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'passive', name: 'Dragnet', desc: 'Keystone: two anchors form a slowing line that can yank crossing enemies.', key: true, prereq: ['ln_wardenanchor', 'ln_winchstep'], tags: ['Pull', 'Walls'] });
 
-  add('mg_motes', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'passive', name: 'Gravity Motes', desc: 'Class mechanic: gravity casts create motes that strengthen pull and lift.', key: true, tags: ['Gravity'] });
+  add('mg_motes', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'passive', name: 'Gravity Orbit', desc: 'Class passive: hold jump to float. Orbiting rocks are real ammo, fly out as attacks, then boomerang back to you.', key: true, tags: ['Gravity', 'Movement'] });
   add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Shard', desc: 'Throw a dense lifted shard. It hits harder, tumbles through crates, and keeps the gravity-debris loop active.', effect: { kind: 'gravityDebris', power: 1.28, core: 0.42 }, cd: 240, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_orbitbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Orbit Shard', desc: 'Archived orbit-core shard experiment. Hidden from drafts while Mass Shard remains the main Graviturge attack.', effect: { kind: 'gravityDebris', power: 1.08, orbit: 1, core: 0.52 }, cd: 220, draft: false, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_floatstep', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Float Step', desc: 'Short controlled hover drift that can cross gaps while aiming.', type: 'move', action: 'airDash', cd: 1700, tags: ['Movement', 'Gravity'] });
@@ -501,7 +503,7 @@ const LAB_BUILDS = {
   ],
   mage: [
     { id: 'base', name: 'Base Mage', note: 'Neutral starter caster: Arcane Bolt, Arcane Burst orb, Arc Sigil, and Arcane Nova.', loadout: {} },
-    { id: 'graviturge', name: 'Graviturge Core', note: 'Damage gravity caster: Mass Shards, Gravity Well, hover drift, Mass Slam, and Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
+    { id: 'graviturge', name: 'Graviturge Core', note: 'Persistent orbit rocks: Mass Shard, Shard Volley, passive float, Lift Mass, and slow-forming Black Hole.', loadout: { attack: 'mg_massbolt', secondary: 'mg_gravitywell', shift: 'mg_floatstep', e: 'mg_updraft', q: 'mg_singularity', passive: 'mg_motes' } },
     { id: 'pyromancer', name: 'Pyromancer', note: 'Physical fire: firebolt, flame breath, ignition burst, Dragon Breath, and spreading floor fire.', loadout: { attack: 'mg_firebolt', secondary: 'mg_flamebreath', shift: 'mg_dash', e: 'mg_ignite', q: 'mg_inferno', passive: 'mg_pyromancy' } },
     { id: 'spiritbinder', name: 'Spiritbinder', note: 'Necromancer prototype: spirit bolts, Bind Spirit, Soul Flare, and Grave Call allies.', loadout: { attack: 'mg_spiritbolt', secondary: 'mg_bindspirit', shift: 'mg_dash', e: 'mg_soulflare', q: 'mg_gravecall', passive: 'mg_spiritbinder' } },
   ],
@@ -1863,7 +1865,7 @@ PUBLIC.start = function (root, api) {
   }
   function useMageSingularity() {
     const p = aimedPoint(650);
-    spawnBlackHole(p.x, p.y, player.team, gravityAccent(), { r: 286, life: 2500, pullPower: 1.42 });
+    spawnBlackHole(p.x, p.y, player.team, gravityAccent(), { r: 296, life: 3800, pullPower: 1.56 });
     return true;
   }
   function useRangerPowerShot(ang) {
@@ -2917,9 +2919,20 @@ PUBLIC.start = function (root, api) {
       return true;
     }
     if (e.kind === 'gravityDebris') {
+      if (!gravityDebrisAvailable()) return false;
       if (!startVisualAttack('cast', ang, { range: e.range || 520, kind: 'gravityDebris' })) return false;
-      spawnGravityDebrisShot(ang, e);
-      return true;
+      return spawnGravityDebrisShot(ang, e);
+    }
+    if (e.kind === 'gravityVolley') {
+      if (!gravityDebrisAvailable()) return false;
+      if (!startVisualAttack('cast', ang, { range: e.range || 620, kind: 'gravityDebris' })) return false;
+      return useGravityDebrisVolley(ang, e);
+    }
+    if (e.kind === 'liftBoxRock') {
+      const boxRock = nearestLiftBoxRock(e.range || 460);
+      if (!boxRock) return false;
+      if (!startVisualAttack('cast', ang, { range: e.range || 460, kind: 'gravityDebris' })) return false;
+      return useLiftBoxRock(ang, e, boxRock);
     }
     if (e.kind === 'massSlam') {
       if (!startVisualAttack('cast', ang, { range: e.range || 380, kind: 'massSlam' })) return false;
@@ -3653,7 +3666,8 @@ PUBLIC.start = function (root, api) {
       vx: spec.vx || 0, vy: spec.vy || 0, angle: spec.angle || 0, va: spec.va || 0,
       m: spec.m || 1.6, kind: spec.kind || 'crate', life: spec.life || 0,
       armed: spec.armed == null ? 1 : spec.armed, team: spec.team || 'neutral',
-      heat: spec.heat || 0, heatFlash: 0,
+      color: spec.color || null,
+      heat: spec.heat || 0, heatFlash: spec.heatFlash || 0,
     };
   }
   function loadLevel(i, keepRun) {
@@ -3953,7 +3967,7 @@ PUBLIC.start = function (root, api) {
   }
   function helpCooldownText(slot, spec) {
     if (slot === 'passive') return 'Passive';
-    if (slot === 'jump') return cls && cls.id === 'mage' && mageGraviturgeLoadoutActive() ? 'Tap jump / hold float' : 'Movement';
+    if (slot === 'jump') return cls && cls.id === 'mage' && mageGraviturgeLoadoutActive() ? 'Movement / passive float' : 'Movement';
     if (!spec) return '';
     let ms = spec.cd;
     if (slot === 'attack' && !(spec.type === 'custom' || spec.effect)) {
@@ -4020,7 +4034,7 @@ PUBLIC.start = function (root, api) {
       jump.classList.remove('locked');
       const nm = jump.querySelector('.sr-name'), ex = jump.querySelector('.sr-extra'), fi = jump.querySelector('.sr-cdfill');
       if (nm) nm.textContent = 'Jump';
-      if (ex) ex.textContent = cls.id === 'mage' && mageGraviturgeLoadoutActive() ? 'hold float' : cls.id === 'rogue' ? 'air flip' : '';
+      if (ex) ex.textContent = cls.id === 'mage' && mageGraviturgeLoadoutActive() ? 'passive float' : cls.id === 'rogue' ? 'air flip' : '';
       if (fi) fi.style.transform = 'scaleY(0)';
       jump.style.borderColor = cls && cls.color ? cls.color + '99' : '';
     }
@@ -4414,7 +4428,7 @@ PUBLIC.start = function (root, api) {
   }
   function labSlotButton(slot) {
     const spec = equipped(slot);
-    const name = slot === 'jump' ? (cls.id === 'rogue' ? 'Air Flip' : 'Jump') : spec ? spec.name : actionName(cls[slot] || slot);
+    const name = slot === 'jump' ? (cls.id === 'mage' && mageGraviturgeLoadoutActive() ? 'Jump / Float' : cls.id === 'rogue' ? 'Air Flip' : 'Jump') : spec ? spec.name : actionName(cls[slot] || slot);
     return `<button class="sr-labslot" data-lab-slot="${slot}" title="${html(name)}">
       <span>${SLOT_LABEL[slot]}</span><small>${compactAbilityName(name)}</small>
     </button>`;
@@ -5014,7 +5028,7 @@ PUBLIC.start = function (root, api) {
     return segAabbDist(ax, ay, p.x, p.y, b) <= projectileRadius(p);
   }
   function projectileRadius(p) {
-    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'arcaneOrb' ? 12 : p.kind === 'gravityDebris' ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 12 : p.kind === 'ignitionGrenade' ? (p.r || 7) : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' ? 9 : p.r || 8;
+    return p.kind === 'dagger' ? (p.summoned ? 5.4 : p.fan ? 5.0 : 4.5) : p.kind === 'arrow' ? (p.powerShot ? 6.5 : 4.8) : p.kind === 'gravitySeed' ? 10 : p.kind === 'arcaneOrb' ? 12 : (p.kind === 'gravityDebris' || p.kind === 'gravityDebrisReturn') ? (p.r || 12) : p.kind === 'firebolt' ? 10 : p.kind === 'ignitionOrb' ? 12 : p.kind === 'ignitionGrenade' ? (p.r || 7) : p.kind === 'smokeBomb' ? (p.poison ? 11 : 9) : p.kind === 'spiritBolt' ? 9 : p.r || 8;
   }
   function projectileHitsDummy(p, ax, ay, d) {
     const r = projectileRadius(p) + 13;
@@ -6364,6 +6378,7 @@ PUBLIC.start = function (root, api) {
     player.gravityDebris = clamp(player.gravityDebris, 0, max);
     player.gravityDebrisSpin = (player.gravityDebrisSpin || 0) + (dtStep || STEP) * 0.00245;
     if (player.gravityDebris >= max) player.gravityDebrisRegen = 0;
+    else if (gravityDebrisInFlightCount() > 0) player.gravityDebrisRegen = 0;
     else {
       player.gravityDebrisRegen = (player.gravityDebrisRegen || 0) + (dtStep || STEP);
       while (player.gravityDebrisRegen >= MAGE_DEBRIS_REGEN && player.gravityDebris < max) {
@@ -7133,9 +7148,176 @@ PUBLIC.start = function (root, api) {
       dark: !!opts.dark,
     });
   }
+  function gravityDebrisAvailable() {
+    return !!(player && cls.id === 'mage' && mageGraviturgeLoadoutActive() && (player.gravityDebris || 0) > 0);
+  }
+  function gravityDebrisInFlightCount() {
+    if (!player) return 0;
+    let n = 0;
+    for (const p of projectiles || []) if (p && (p.kind === 'gravityDebris' || p.kind === 'gravityDebrisReturn') && p.team === player.team && !p.boxRock) n++;
+    return n;
+  }
+  function gravityReturnTarget() {
+    const ang = player && player.anim && player.anim.atkActive ? player.anim.atkAim || aimedAngle() : aimedAngle();
+    return gravityStaffOrigin(ang);
+  }
+  function grantGravityDebris(x, y, opts) {
+    opts = opts || {};
+    if (!player || cls.id !== 'mage' || !mageGraviturgeLoadoutActive()) return false;
+    const max = gravityDebrisMax();
+    if ((player.gravityDebris || 0) >= max) return false;
+    player.gravityDebris = clamp((player.gravityDebris || 0) + 1, 0, max);
+    player.gravityDebrisRegen = 0;
+    if (!opts.quiet) {
+      const to = gravityReturnTarget();
+      for (let i = 0; i < 8; i++) {
+        const u = i / 8;
+        gravityParticle(lerp(x, to.x, u) + rand(-5, 5), lerp(y, to.y, u) + rand(-5, 5),
+          rand(-0.16, 0.16), rand(-0.18, 0.12), { color: gravityParticleColor(), life: rand(180, 360), r: rand(1.0, 2.8), tail: rand(4, 10) });
+      }
+    }
+    if (player.team === 'hero') syncHud();
+    return true;
+  }
+  function beginGravityDebrisReturn(b) {
+    if (!b || b.noReturn || b.boxRock || !player || b.team !== player.team || cls.id !== 'mage' || !mageGraviturgeLoadoutActive()) return false;
+    b.kind = 'gravityDebrisReturn';
+    b.life = MAGE_DEBRIS_RETURN_LIFE;
+    b.vx *= 0.18;
+    b.vy *= 0.18;
+    b.returnAge = 0;
+    b.traveled = 0;
+    b.hit = 0;
+    b.pierce = 0;
+    b.bounce = 0;
+    b.range = 0;
+    b.color = b.color || gravityAccent();
+    for (let i = 0; i < 5; i++) gravityParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.35, 0.35), rand(-0.35, 0.18), {
+      color: Math.random() < 0.36 ? GRAVITY_COLORS.white : b.color,
+      life: rand(180, 340),
+      r: rand(1.0, 2.6),
+      tail: rand(4, 9),
+    });
+    return true;
+  }
+  function updateGravityDebrisReturn(b, dtStep) {
+    if (!player) return true;
+    b.returnAge = (b.returnAge || 0) + (dtStep || STEP);
+    const target = gravityReturnTarget();
+    const dx = target.x - b.x, dy = target.y - b.y, d = Math.hypot(dx, dy) || 1;
+    const pull = clamp(b.returnAge / 900, 0.18, 1);
+    b.vx = b.vx * 0.94 + (dx / d) * (0.28 + pull * 0.56);
+    b.vy = b.vy * 0.94 + (dy / d) * (0.28 + pull * 0.56);
+    b.angle = (b.angle || 0) + (b.spin || 0.12);
+    if (Math.random() < 0.88) {
+      const a = Math.atan2(dy, dx) + Math.PI + rand(-0.28, 0.28);
+      gravityParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), Math.cos(a) * rand(0.20, 0.82), Math.sin(a) * rand(0.20, 0.82), {
+        color: Math.random() < 0.28 ? GRAVITY_COLORS.white : b.color,
+        life: rand(160, 320),
+        r: rand(0.8, 2.2),
+        tail: rand(4, 10),
+      });
+    }
+    if (d < 28 || b.life <= 0) {
+      grantGravityDebris(b.x, b.y);
+      return true;
+    }
+    return false;
+  }
+  function settleGravityBoxRock(b) {
+    if (!b || !b.boxRock || !boxes) return;
+    const spec = b.boxRock;
+    const w = spec.w || Math.max(28, (b.r || 18) * 1.4), h = spec.h || w;
+    boxes.push(makeBoxSpec({
+      x: b.x - w / 2,
+      y: b.y - h / 2,
+      w, h,
+      m: spec.m || (b.heavy ? 2.6 : 1.8),
+      kind: spec.kind || 'crate',
+      color: spec.color,
+      heat: spec.heat || 0,
+      vx: b.vx * 0.16,
+      vy: b.vy * 0.16,
+      angle: b.angle || 0,
+      va: (b.spin || 0) * 0.65,
+    }));
+  }
+  function nearestLiftBoxRock(range) {
+    if (!boxes || !boxes.length) return null;
+    const aim = aimedPoint(range || 460);
+    let best = null, bestScore = Infinity;
+    for (const b of boxes) {
+      if (!b || b.dead || b.kind === 'barrier') continue;
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      const playerD = Math.hypot(cx - player.x, cy - (player.y - 48));
+      const aimD = Math.hypot(cx - aim.x, cy - aim.y);
+      if (playerD > (range || 460) + 120 && aimD > 230) continue;
+      const score = aimD * 0.62 + playerD * 0.38;
+      if (score < bestScore) { bestScore = score; best = b; }
+    }
+    return best;
+  }
+  function useGravityDebrisVolley(ang, opts) {
+    opts = opts || {};
+    const count = clamp(player.gravityDebris || 0, 0, gravityDebrisMax());
+    if (count <= 0) return false;
+    const spread = count === 1 ? 0 : Math.min(0.42, 0.16 + count * 0.055);
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0.5 : i / (count - 1);
+      spawnGravityDebrisShot(ang + (t - 0.5) * spread, Object.assign({}, opts, {
+        power: (opts.power || 1.04) + 0.08,
+        range: opts.range || 620,
+        volley: true,
+      }));
+    }
+    addShake(2.8 + count * 0.45, 120);
+    return true;
+  }
+  function useLiftBoxRock(ang, opts, chosen) {
+    opts = opts || {};
+    const b = chosen || nearestLiftBoxRock(opts.range || 460);
+    if (!b) return false;
+    const idx = boxes.indexOf(b);
+    if (idx >= 0) boxes.splice(idx, 1);
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    const aim = aimedPoint(opts.range || 520);
+    const a = Math.atan2(aim.y - cy, aim.x - cx);
+    const mass = clamp((b.w * b.h) / 1600, 0.65, 2.8);
+    const spd = 17.5 + Math.min(5.5, mass * 2.0);
+    projectiles.push({
+      kind: 'gravityDebris',
+      team: player.team,
+      x: cx,
+      y: cy,
+      vx: Math.cos(a) * spd + b.vx * 0.35,
+      vy: Math.sin(a) * spd + b.vy * 0.20 - 1.1,
+      life: 1300,
+      range: opts.range || 620,
+      color: gravityAccent(),
+      r: Math.max(14, Math.min(30, Math.max(b.w, b.h) * 0.42)),
+      hit: 30 + mass * 11,
+      angle: b.angle || a,
+      spin: b.va || rand(-0.22, 0.22),
+      gravity: true,
+      heavy: true,
+      mass: 1.7 + mass,
+      noReturn: true,
+      boxRock: { w: b.w, h: b.h, m: b.m, kind: b.kind, color: b.color, heat: b.heat || 0 },
+    });
+    for (let i = 0; i < 22; i++) gravityParticle(cx + rand(-b.w * 0.35, b.w * 0.35), cy + rand(-b.h * 0.35, b.h * 0.35),
+      rand(-0.8, 0.8) - Math.cos(a) * rand(0.2, 0.8), rand(-0.8, 0.4) - Math.sin(a) * rand(0.2, 0.8), {
+        color: gravityParticleColor(),
+        life: rand(240, 540),
+        r: rand(1.3, 4.4),
+        tail: rand(6, 14),
+      });
+    addShake(3.8, 145);
+    return true;
+  }
   function spawnGravityDebrisShot(ang, opts) {
     opts = opts || {};
-    const spent = spendGravityDebris();
+    const spent = opts.free ? true : spendGravityDebris();
+    if (!spent) return false;
     const fromCore = opts.orbit && gravityCore;
     const aim = aimedPoint(opts.range || 560);
     let origin = gravityStaffOrigin(ang);
@@ -7160,6 +7342,7 @@ PUBLIC.start = function (root, api) {
       vx: Math.cos(ang) * spd,
       vy: Math.sin(ang) * spd,
       life: 1160,
+      range: opts.range || 560,
       color: gravityAccent(),
       r,
       hit: 15 + power * 8,
@@ -7180,6 +7363,7 @@ PUBLIC.start = function (root, api) {
       });
     }
     burst(origin.x, origin.y, spent ? gravityHighlight() : gravityAccent(), spent ? 13 : 8, spent ? 3.2 : 2.4);
+    return true;
   }
   function gravityDebrisImpact(x, y, team, color, hit, opts) {
     opts = opts || {};
@@ -8124,21 +8308,22 @@ PUBLIC.start = function (root, api) {
   }
   function emitBlackHoleBirth(x, y, r, color) {
     const accent = color || gravityAccent();
-    for (let i = 0; i < 78; i++) {
-      const a = rand(0, Math.PI * 2), rr = rand(r * 0.42, r * 1.18);
+    for (let i = 0; i < 42; i++) {
+      const a = rand(0, Math.PI * 2), rr = rand(8, r * 0.46);
       const tangent = a + Math.PI / 2;
       gravityParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr,
-        Math.cos(tangent) * rand(0.35, 1.85) - Math.cos(a) * rand(0.55, 1.75),
-        Math.sin(tangent) * rand(0.35, 1.85) - Math.sin(a) * rand(0.55, 1.75), {
+        Math.cos(tangent) * rand(0.10, 0.74) - Math.cos(a) * rand(0.05, 0.58),
+        Math.sin(tangent) * rand(0.10, 0.74) - Math.sin(a) * rand(0.05, 0.58), {
           color: gravityParticleColor(),
-          life: rand(520, 1180),
-          r: rand(1.8, 5.8),
-          tail: rand(4, 11),
+          life: rand(620, 1450),
+          r: rand(1.0, 3.7),
+          tail: rand(5, 14),
         });
     }
-    spawnShockwaveRing(x, y, r * 1.04, accent, { life: 620, width: 8.2, fill: 0.16, rough: 0.10 });
-    spawnShockwaveRing(x, y, r * 0.48, gravityHighlight(), { life: 420, width: 5.6, fill: 0.10, rough: 0.075 });
-    addShake(8.0, 240);
+    burst(x, y, GRAVITY_COLORS.void, 10, 2.4);
+    burst(x, y, gravityHighlight(), 18, 2.9);
+    spawnShockwaveRing(x, y, Math.max(26, r * 0.16), accent, { life: 520, width: 4.8, fill: 0.07, rough: 0.06 });
+    addShake(3.8, 170);
   }
   function spawnBlackHole(x, y, team, color, opts) {
     opts = Object.assign({}, opts || {}, { blackHole: true, ultimate: true, tether: true });
@@ -8157,7 +8342,7 @@ PUBLIC.start = function (root, api) {
       ultimate: !!opts.ultimate, tether: opts.tether !== false, phase: rand(0, Math.PI * 2), age: 0,
       blackHole,
       pullPower: opts.force || opts.pullPower || (blackHole ? 1.35 : 1),
-      damageTick: blackHole ? 90 : 0,
+      damageTick: blackHole ? BLACK_HOLE_FORM_MS * 0.42 : 0,
     });
     if (blackHole) {
       emitBlackHoleBirth(x, y, r, fieldColor);
@@ -8208,13 +8393,31 @@ PUBLIC.start = function (root, api) {
   function fieldAffectsActor(g, act) {
     return act && !act.dead && ((g.team || 'hero') === 'enemy' ? act.team !== 'enemy' : act.team === 'enemy');
   }
+  function blackHoleBirthAmount(g) {
+    if (!g || !g.blackHole) return 1;
+    return ease(clamp((g.age || 0) / BLACK_HOLE_FORM_MS, 0, 1));
+  }
+  function gravityFieldRadius(g) {
+    if (!g) return 0;
+    if (!g.blackHole) return g.r || 0;
+    const birth = blackHoleBirthAmount(g);
+    return (g.r || 0) * (0.035 + Math.pow(birth, 1.75) * 0.965);
+  }
+  function gravityFieldPower(g) {
+    if (!g) return 1;
+    const base = g.pullPower || 1;
+    if (!g.blackHole) return base;
+    const birth = blackHoleBirthAmount(g);
+    return base * (0.10 + birth * 0.90);
+  }
   function applyGravityFieldToActor(g, act) {
     if (!fieldAffectsActor(g, act)) return;
     const cx = act.x, cy = act.y - 38;
     const dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
-    if (d > g.r) return;
-    const u = 1 - d / g.r;
-    const power = g.pullPower || 1;
+    const radius = gravityFieldRadius(g);
+    if (d > radius) return;
+    const u = 1 - d / radius;
+    const power = gravityFieldPower(g);
     act.vx += (dx / d) * (0.035 + u * 0.11) * power;
     act.vy = act.vy * (0.90 - u * 0.12) + (dy / d) * (0.05 + u * 0.12) * power - GRA * (0.55 + u * (g.blackHole ? 0.15 : 0.55));
     if (g.blackHole && u > 0.45) {
@@ -8230,9 +8433,10 @@ PUBLIC.start = function (root, api) {
       const p = d.pts[k];
       if (p.pin) continue;
       const dx = g.x - p.x, dy = g.y - p.y, dist = Math.hypot(dx, dy) || 1;
-      if (dist > g.r) continue;
-      const u = 1 - dist / g.r;
-      const power = g.pullPower || 1;
+      const radius = gravityFieldRadius(g);
+      if (dist > radius) continue;
+      const u = 1 - dist / radius;
+      const power = gravityFieldPower(g);
       p.x += (dx / dist) * (0.45 + u * 1.2) * power;
       p.y += (dy / dist) * (0.35 + u * 1.0) * power - (g.blackHole ? 0.18 : 0.9 + u * 1.2);
       touched = true;
@@ -8242,9 +8446,10 @@ PUBLIC.start = function (root, api) {
   function applyGravityFieldToBox(g, b) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     const dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
-    if (d > g.r) return;
-    const u = 1 - d / g.r;
-    const power = g.pullPower || 1;
+    const radius = gravityFieldRadius(g);
+    if (d > radius) return;
+    const u = 1 - d / radius;
+    const power = gravityFieldPower(g);
     b.vx += (dx / d) * (0.12 + u * 0.24) * power;
     b.vy = b.vy * (0.86 - u * 0.08) + (dy / d) * (0.08 + u * 0.20) * power - (g.blackHole ? 0.05 : 0.58 * (0.8 + u));
     b.va += (dx / d) * 0.012 * power;
@@ -8589,20 +8794,22 @@ PUBLIC.start = function (root, api) {
   }
   function tickBlackHoleDamage(g, dtStep) {
     if (!g.blackHole) return;
+    const birth = blackHoleBirthAmount(g);
+    if (birth < 0.34) return;
     g.damageTick = (g.damageTick || 0) - dtStep;
     if (g.damageTick > 0) return;
     g.damageTick = 135;
-    const radius = g.r * 0.76;
+    const radius = gravityFieldRadius(g) * 0.76;
     const team = g.team || 'hero';
     const targets = team === 'enemy' ? enemyAttackTargets().filter(actorCanBeHitByEnemy) : targetActorsForPlayer();
     for (const t of targets.slice()) {
       const dx = g.x - t.x, dy = g.y - (t.y - 42), d = Math.hypot(dx, dy) || 1;
       if (d > radius) continue;
       const u = 1 - d / radius;
-      t.vx += (dx / d) * 0.75 * u;
-      t.vy += (dy / d) * 0.55 * u;
-      if (team === 'enemy') hurtEnemyTarget(t, dx / d, dy / d, 5.5 + u * 8.5, g.x, g.y);
-      else hurtFighter(t, dx / d, dy / d, 6.0 + u * 9.0, g.x, g.y);
+      t.vx += (dx / d) * 0.75 * u * birth;
+      t.vy += (dy / d) * 0.55 * u * birth;
+      if (team === 'enemy') hurtEnemyTarget(t, dx / d, dy / d, (5.5 + u * 8.5) * birth, g.x, g.y);
+      else hurtFighter(t, dx / d, dy / d, (6.0 + u * 9.0) * birth, g.x, g.y);
     }
     if (team !== 'enemy' && dummies) for (const d of dummies) {
       let touched = false;
@@ -8612,8 +8819,8 @@ PUBLIC.start = function (root, api) {
         const dx = g.x - p.x, dy = g.y - p.y, dist = Math.hypot(dx, dy) || 1;
         if (dist > radius) continue;
         const u = 1 - dist / radius;
-        p.x += (dx / dist) * (1.8 + u * 3.8);
-        p.y += (dy / dist) * (1.4 + u * 3.0);
+        p.x += (dx / dist) * (1.8 + u * 3.8) * birth;
+        p.y += (dy / dist) * (1.4 + u * 3.0) * birth;
         touched = true;
       }
       if (touched) d.flash = Math.max(d.flash || 0, 120);
@@ -8621,11 +8828,12 @@ PUBLIC.start = function (root, api) {
     for (const b of boxes || []) {
       if (!b || b.dead) continue;
       const cx = b.x + b.w / 2, cy = b.y + b.h / 2, dx = g.x - cx, dy = g.y - cy, d = Math.hypot(dx, dy) || 1;
-      if (d > g.r) continue;
-      const u = 1 - d / g.r;
-      b.vx += (dx / d) * 0.78 * u;
-      b.vy += (dy / d) * 0.58 * u;
-      b.va += (dx / d) * 0.030 * u;
+      const outer = gravityFieldRadius(g);
+      if (d > outer) continue;
+      const u = 1 - d / outer;
+      b.vx += (dx / d) * 0.78 * u * birth;
+      b.vy += (dy / d) * 0.58 * u * birth;
+      b.va += (dx / d) * 0.030 * u * birth;
     }
   }
   function updateGravityFields(dtStep) {
@@ -8639,13 +8847,15 @@ PUBLIC.start = function (root, api) {
       if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(g, t);
       else if (fighters) for (const e of fighters) applyGravityFieldToActor(g, e);
       if (dummies) for (const d of dummies) applyGravityFieldToDummy(g, d);
-      if (g.blackHole && Math.random() < 0.96) {
-        const a = rand(0, Math.PI * 2), rr = rand(26, g.r);
+      if (g.blackHole && Math.random() < 0.44 + blackHoleBirthAmount(g) * 0.52) {
+        const birth = blackHoleBirthAmount(g);
+        const fieldR = Math.max(10, gravityFieldRadius(g));
+        const a = rand(0, Math.PI * 2), rr = rand(Math.min(18, fieldR * 0.42), fieldR);
         const tangent = a + Math.PI / 2;
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
-          vx: Math.cos(tangent) * rand(0.42, 1.65) - Math.cos(a) * rand(0.45, 1.40),
-          vy: Math.sin(tangent) * rand(0.42, 1.65) - Math.sin(a) * rand(0.45, 1.40),
-          life: rand(320, 760), max: 760, color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(), r: rand(1.4, 4.6), tail: rand(4, 12), dark: Math.random() < 0.18 });
+          vx: Math.cos(tangent) * rand(0.22, 1.20 + birth * 0.65) - Math.cos(a) * rand(0.22, 1.05 + birth * 0.50),
+          vy: Math.sin(tangent) * rand(0.22, 1.20 + birth * 0.65) - Math.sin(a) * rand(0.22, 1.05 + birth * 0.50),
+          life: rand(320, 840), max: 840, color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(), r: rand(1.2, 3.6 + birth * 1.4), tail: rand(4, 13), dark: Math.random() < 0.20 });
       } else if (Math.random() < 0.75) {
         const a = rand(0, Math.PI * 2), rr = rand(18, g.r);
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
@@ -10458,16 +10668,18 @@ PUBLIC.start = function (root, api) {
   }
   function drawBlackHoleField(g, t) {
     const max = g.max || 1;
-    const birth = ease(clamp((g.age || (max - g.life)) / 520, 0, 1));
+    const rawAge = g.age || (max - g.life);
+    const birth = ease(clamp(rawAge / BLACK_HOLE_FORM_MS, 0, 1));
+    const diskAlpha = ease(clamp((birth - 0.18) / 0.82, 0, 1));
     const collapse = ease(clamp((420 - g.life) / 420, 0, 1));
     const phase = g.phase || 0;
     const pulse = 1 + Math.sin(t * 0.010 + phase) * 0.020;
-    const rr = g.r * (0.24 + birth * 0.76) * (1 - collapse * 0.18) * pulse;
-    const coreR = (22 + birth * 18 + Math.sin(t * 0.015 + phase) * 2.2) * (1 - collapse * 0.28);
-    const rimR = coreR + 7 + collapse * 14;
+    const rr = g.r * (0.035 + Math.pow(birth, 1.75) * 0.965) * (1 - collapse * 0.18) * pulse;
+    const coreR = (3.8 + Math.pow(birth, 0.85) * 38 + Math.sin(t * 0.015 + phase) * (0.6 + birth * 1.9)) * (1 - collapse * 0.28);
+    const rimR = coreR + 3.5 + birth * 7 + collapse * 14;
     const diskRot = Math.sin(phase) * 0.13 + Math.sin(t * 0.0009 + phase) * 0.035;
-    const diskRx = rr * (0.70 + collapse * 0.08);
-    const diskRy = rr * (0.155 + birth * 0.035);
+    const diskRx = rr * (0.54 + birth * 0.18 + collapse * 0.08);
+    const diskRy = rr * (0.075 + birth * 0.115);
     ctx.save();
 
     // A black-hole read: opaque shadow, photon ring, and a tilted accretion disk.
@@ -10476,9 +10688,9 @@ PUBLIC.start = function (root, api) {
     grad.addColorStop(0, 'rgba(0,0,0,0.99)');
     grad.addColorStop(0.16, 'rgba(2,1,7,0.98)');
     grad.addColorStop(0.30, `rgba(9,4,22,${0.94 - collapse * 0.04})`);
-    grad.addColorStop(0.52, `rgba(38,22,92,${0.58 + birth * 0.12})`);
-    grad.addColorStop(0.76, `rgba(116,91,255,${0.23 + birth * 0.12})`);
-    grad.addColorStop(1, 'rgba(116,91,255,0.04)');
+    grad.addColorStop(0.52, `rgba(38,22,92,${0.22 + birth * 0.48})`);
+    grad.addColorStop(0.76, `rgba(116,91,255,${0.04 + birth * 0.31})`);
+    grad.addColorStop(1, `rgba(116,91,255,${0.01 + birth * 0.03})`);
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
 
@@ -10486,26 +10698,26 @@ PUBLIC.start = function (root, api) {
     ctx.lineCap = 'round';
     if (birth < 0.98) {
       const formAlpha = 1 - birth;
-      ctx.globalAlpha = formAlpha * 0.48;
+      ctx.globalAlpha = formAlpha * 0.52;
       ctx.strokeStyle = GRAVITY_COLORS.bright;
-      ctx.lineWidth = 7.5;
+      ctx.lineWidth = 3.8 + birth * 3.7;
       ctx.beginPath();
-      ctx.arc(g.x, g.y, rr * (1.04 - birth * 0.44), 0, Math.PI * 2);
+      ctx.arc(g.x, g.y, Math.max(4, rr * (1.16 - birth * 0.50)), 0, Math.PI * 2);
       ctx.stroke();
     }
 
     ctx.save();
     ctx.translate(g.x, g.y);
     ctx.rotate(diskRot);
-    ctx.globalAlpha = (0.32 + birth * 0.48) * (1 - collapse * 0.18);
+    ctx.globalAlpha = (0.18 + birth * 0.62) * diskAlpha * (1 - collapse * 0.18);
     ctx.strokeStyle = `rgba(116,91,255,${0.42 + birth * 0.26})`;
     ctx.lineWidth = Math.max(9, diskRy * 0.62);
     ctx.beginPath(); ctx.ellipse(0, 0, diskRx, diskRy, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = (0.36 + birth * 0.40) * (1 - collapse * 0.10);
+    ctx.globalAlpha = (0.32 + birth * 0.44) * diskAlpha * (1 - collapse * 0.10);
     ctx.strokeStyle = 'rgba(200,185,255,0.72)';
     ctx.lineWidth = Math.max(3.2, diskRy * 0.18);
     ctx.beginPath(); ctx.ellipse(0, 0, diskRx * 0.96, diskRy * 0.86, 0, Math.PI * 0.04, Math.PI * 0.96); ctx.stroke();
-    ctx.globalAlpha = (0.30 + birth * 0.32) * (1 - collapse * 0.12);
+    ctx.globalAlpha = (0.25 + birth * 0.37) * diskAlpha * (1 - collapse * 0.12);
     ctx.strokeStyle = `rgba(78,52,167,${0.66 + collapse * 0.18})`;
     ctx.lineWidth = Math.max(4.8, diskRy * 0.28);
     ctx.beginPath(); ctx.ellipse(0, 0, diskRx * 0.78, diskRy * 0.58, 0, Math.PI * 1.02, Math.PI * 1.96); ctx.stroke();
@@ -10514,7 +10726,7 @@ PUBLIC.start = function (root, api) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(12, coreR * 1.24), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(3.5, coreR * 1.24), 0, Math.PI * 2); ctx.fill();
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.95 + collapse * 0.05;
     ctx.strokeStyle = collapse > 0.1 ? GRAVITY_COLORS.white : '#d9d4ff';
@@ -10530,7 +10742,6 @@ PUBLIC.start = function (root, api) {
       ctx.lineWidth = 2.0 + collapse * 2.4;
       ctx.beginPath(); ctx.arc(g.x, g.y, rr * (0.90 - collapse * 0.52), 0, Math.PI * 2); ctx.stroke();
     }
-    drawGravityCoreTethers(g, t);
     ctx.restore();
   }
   function drawAbilityMarkers() {
@@ -11009,25 +11220,26 @@ PUBLIC.start = function (root, api) {
           ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * (r + 8), Math.sin(a) * (r + 8)); ctx.stroke();
         }
         ctx.restore();
-      } else if (b.kind === 'gravityDebris') {
+      } else if (b.kind === 'gravityDebris' || b.kind === 'gravityDebrisReturn') {
         const r = b.r || 11;
+        const returning = b.kind === 'gravityDebrisReturn';
         const ang = Math.atan2(b.vy, b.vx);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = b.heavy ? 0.42 : 0.28;
+        ctx.globalAlpha = returning ? 0.22 : b.heavy ? 0.42 : 0.28;
         ctx.strokeStyle = b.color || '#8f7dff';
         ctx.lineCap = 'round';
-        ctx.lineWidth = b.heavy ? 7 : 4.5;
+        ctx.lineWidth = returning ? 3.2 : b.heavy ? 7 : 4.5;
         ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * (42 + r), b.y - Math.sin(ang) * (42 + r));
+        ctx.moveTo(b.x - Math.cos(ang) * (returning ? 26 + r : 42 + r), b.y - Math.sin(ang) * (returning ? 26 + r : 42 + r));
         ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 0.8, b.y + Math.cos(ang) * r * 0.8, b.x, b.y);
         ctx.stroke();
         ctx.restore();
         ctx.save();
         ctx.translate(b.x, b.y);
-        ctx.rotate((b.angle || 0) + performance.now() * 0.003);
+        ctx.rotate((b.angle == null ? ang : b.angle) + performance.now() * (returning ? 0.0016 : 0.003));
         ctx.fillStyle = b.heavy ? GRAVITY_COLORS.deep : GRAVITY_COLORS.core;
-        ctx.strokeStyle = b.heavy ? GRAVITY_COLORS.bright : GRAVITY_COLORS.violet;
+        ctx.strokeStyle = returning ? GRAVITY_COLORS.white : b.heavy ? GRAVITY_COLORS.bright : GRAVITY_COLORS.violet;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         const pts = 7;
@@ -11327,7 +11539,11 @@ PUBLIC.start = function (root, api) {
           const b = projectiles[i];
           const px = b.x, py = b.y;
           b.x += b.vx; b.y += b.vy; b.life -= dt;
-          if (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb') b.traveled = (b.traveled || 0) + Math.hypot(b.x - px, b.y - py);
+          if (b.kind === 'gravityDebrisReturn') {
+            if (updateGravityDebrisReturn(b, dt)) projectiles.splice(i, 1);
+            continue;
+          }
+          if (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'gravityDebris') b.traveled = (b.traveled || 0) + Math.hypot(b.x - px, b.y - py);
           if (b.kind === 'dagger') {
             if (b.homing) updateHomingDagger(b);
             else {
@@ -11553,7 +11769,7 @@ PUBLIC.start = function (root, api) {
           rememberDebugSegment('projectile', px, py, b.x, b.y, projectileRadius(b), b.color, 120);
           if (struckActor && b.pierce > 0) { b.pierce--; struckActor = false; }
           const hitPlatform = L.platforms.some(pl => !isOneWay(pl) && projectileHitsBox(b, px, py, pl));
-          const rangedBurst = (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb') && b.range && b.traveled >= b.range;
+          const rangedBurst = (b.kind === 'gravitySeed' || b.kind === 'arcaneOrb' || b.kind === 'ignitionOrb' || b.kind === 'smokeBomb' || b.kind === 'gravityDebris') && b.range && b.traveled >= b.range;
           if ((crate || hitPlatform) && b.bounce > 0 && !struckActor) {
             b.bounce--;
             if (crate) { b.vx *= -0.72; b.vy *= 0.82; }
@@ -11584,7 +11800,11 @@ PUBLIC.start = function (root, api) {
             }
             else if (b.kind === 'gravitySeed') spawnGravityField(b.x, b.y, b.team, b.color);
             else if (b.kind === 'arcaneOrb') detonateArcaneOrb(b);
-            else if (b.kind === 'gravityDebris') gravityDebrisImpact(b.x, b.y, b.team, b.color, b.hit || 16, { heavy: b.heavy });
+            else if (b.kind === 'gravityDebris') {
+              gravityDebrisImpact(b.x, b.y, b.team, b.color, b.hit || 16, { heavy: b.heavy, boxRock: b.boxRock });
+              if (b.boxRock) settleGravityBoxRock(b);
+              else if (beginGravityDebrisReturn(b)) continue;
+            }
             else if (b.kind === 'sigil') explodeSigil(b);
             else if (b.kind === 'smokeBomb') detonateSmokeBomb(b);
             else if (b.kind === 'firebolt') {
