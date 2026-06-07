@@ -45,12 +45,12 @@ const GRAVITY_COLORS = {
 };
 const SPIRIT_COLORS = {
   void: '#06040b',
-  shadow: '#100616',
-  bruise: '#271145',
-  curse: '#4f2f90',
-  ghost: '#57d7c8',
-  sick: '#82d66f',
-  pale: '#dffcf3',
+  shadow: '#12051f',
+  bruise: '#25104a',
+  curse: '#7a36ff',
+  ghost: '#a45cff',
+  sick: '#d35dff',
+  pale: '#f0dbff',
 };
 const ARENA_WAVE_DELAY = 850;
 const ATTACK_COOLDOWN = {
@@ -248,7 +248,7 @@ const ABILITIES = (() => {
   add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, drags an afterburn trail across the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
   add('mg_inferno', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'q', name: 'Dragon Breath', desc: 'Unleash a huge staff-driven fire torrent. Walls cut it off, objects catch heat, and the floor burns where the flame lands.', effect: { kind: 'dragonBreath', range: 760, life: 1350, cone: 0.42, force: 34, heat: 48 }, cd: 9600, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire abilities feed lingering ground flames, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
-  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Dark Bolt', desc: 'Staff-fired dark lightning that chains through nearby enemies, crates, and barrels for reliable pressure.', effect: { kind: 'darkBolt' }, cd: 300, tags: ['Spirit', 'Chain', 'Objects'] });
+  add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Dark Bolt', desc: 'Slower staff-fired purple lightning that latches briefly, crackles for repeated hits, and chains through enemies, crates, and barrels.', effect: { kind: 'darkBolt' }, cd: 680, tags: ['Spirit', 'Chain', 'Objects'] });
   add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Reanimate Lash', desc: 'Send a corpse-seeking dark lightning lash through walls. It only wakes corpses into zombies.', effect: { kind: 'reanimateMissile' }, cd: 1600, tags: ['Spirit', 'Chain', 'Allies'] });
   add('mg_ghostform', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'shift', name: 'Ghost Form', desc: 'Fade into dark soul smoke with floatier movement and invulnerability. Attacking ends the escape window.', effect: { kind: 'ghostForm', life: 1800 }, cd: 3600, tags: ['Spirit', 'Movement'] });
   add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Unholy Command', desc: 'Tether dark energy into all active zombies, making them shamble faster and slam harder for a short frenzy.', effect: { kind: 'unholyCommand' }, cd: 4200, tags: ['Spirit', 'Allies'] });
@@ -2305,16 +2305,22 @@ PUBLIC.start = function (root, api) {
   function darkLightningSpark(x, y, opts) {
     opts = opts || {};
     const color = opts.color || SPIRIT_COLORS.ghost;
-    soulParticle(x + rand(-4, 4), y + rand(-4, 4), rand(-0.34, 0.34), rand(-0.72, 0.08), {
-      color: spiritParticleColor(color, 0.18),
+    const life = rand(opts.lifeMin || 170, opts.lifeMax || 560);
+    addParticle({
+      kind: 'darkSpark',
+      x: x + rand(-4, 4),
+      y: y + rand(-4, 4),
+      vx: opts.vx == null ? rand(-0.42, 0.42) : opts.vx,
+      vy: opts.vy == null ? rand(-0.58, 0.10) : opts.vy,
+      life,
+      max: life,
+      color,
       coreColor: opts.core || SPIRIT_COLORS.pale,
-      shadowColor: SPIRIT_COLORS.shadow,
-      life: rand(opts.lifeMin || 150, opts.lifeMax || 420),
-      r: rand(opts.rMin || 0.8, opts.rMax || 2.3),
-      lift: rand(0.000, 0.018),
-      sway: rand(0.002, 0.014),
+      r: rand(opts.rMin || 0.75, opts.rMax || 2.45),
+      drag: opts.drag || 0.925,
+      seed: rand(0, Math.PI * 2),
       alpha: opts.alpha || 0.78,
-      tail: rand(opts.tailMin || 9, opts.tailMax || 26),
+      tail: rand(opts.tailMin || 5, opts.tailMax || 18),
     });
   }
   function spawnDarkLightningArc(ax, ay, bx, by, opts) {
@@ -2322,8 +2328,8 @@ PUBLIC.start = function (root, api) {
     if (!darkLightningArcs) darkLightningArcs = [];
     const dx = bx - ax, dy = by - ay, dist = Math.hypot(dx, dy) || 1;
     const nx = dx / dist, ny = dy / dist, px = -ny, py = nx;
-    const steps = Math.max(3, Math.min(14, opts.steps || Math.round(dist / 38)));
-    const jitter = opts.jitter == null ? Math.min(24, 7 + dist * 0.045) : opts.jitter;
+    const steps = Math.max(4, Math.min(20, opts.steps || Math.round(dist / 28)));
+    const jitter = opts.jitter == null ? Math.min(38, 9 + dist * 0.062) : opts.jitter;
     const points = [];
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
@@ -2338,11 +2344,11 @@ PUBLIC.start = function (root, api) {
     points[0] = { x: ax, y: ay };
     points[points.length - 1] = { x: bx, y: by };
     const branches = [];
-    const branchCount = opts.branches == null ? Math.min(4, Math.floor(dist / 135) + 1) : opts.branches;
+    const branchCount = opts.branches == null ? Math.min(8, Math.floor(dist / 78) + 2) : opts.branches;
     for (let i = 0; i < branchCount; i++) {
       const idx = Math.max(1, Math.min(points.length - 2, Math.floor(rand(1, points.length - 1))));
       const root = points[idx];
-      const len = rand(18, 54) * (opts.branchScale || 1);
+      const len = rand(24, 78) * (opts.branchScale || 1);
       const side = Math.random() < 0.5 ? -1 : 1;
       const bend = side * rand(0.55, 1.25);
       branches.push({
@@ -2355,8 +2361,8 @@ PUBLIC.start = function (root, api) {
     darkLightningArcs.push({
       points,
       branches,
-      life: opts.life || 170,
-      max: opts.life || 170,
+      life: opts.life || 360,
+      max: opts.life || 360,
       color: opts.color || SPIRIT_COLORS.ghost,
       core: opts.core || SPIRIT_COLORS.pale,
       mid: opts.mid || SPIRIT_COLORS.sick,
@@ -2364,8 +2370,8 @@ PUBLIC.start = function (root, api) {
       shadowWidth: opts.shadowWidth || 13,
       alpha: opts.alpha == null ? 1 : opts.alpha,
     });
-    while (darkLightningArcs.length > 42) darkLightningArcs.shift();
-    const sparkCount = opts.sparks == null ? Math.min(12, 4 + Math.floor(dist / 80)) : opts.sparks;
+    while (darkLightningArcs.length > 72) darkLightningArcs.shift();
+    const sparkCount = opts.sparks == null ? Math.min(22, 8 + Math.floor(dist / 55)) : opts.sparks;
     for (let i = 0; i < sparkCount; i++) {
       const t = rand(0.08, 0.96);
       darkLightningSpark(lerp(ax, bx, t) + px * rand(-jitter * 0.28, jitter * 0.28), lerp(ay, by, t) + py * rand(-jitter * 0.28, jitter * 0.28), {
@@ -2619,11 +2625,11 @@ PUBLIC.start = function (root, api) {
     spawnDarkLightningArc(fromX, fromY, x, y, {
       color,
       mid: SPIRIT_COLORS.sick,
-      life: opts.big ? 260 : 180,
+      life: opts.big ? 430 : 320,
       width: opts.big ? 5.0 : 3.8,
       shadowWidth: opts.big ? 15 : 11,
-      branches: opts.big ? 5 : 3,
-      sparks: opts.big ? 16 : 9,
+      branches: opts.big ? 8 : 5,
+      sparks: opts.big ? 22 : 13,
       alpha: opts.big ? 1 : 0.86,
     });
     for (let i = 0; i < (opts.big ? 10 : 6); i++) {
@@ -2632,11 +2638,11 @@ PUBLIC.start = function (root, api) {
       spawnDarkLightningArc(footX, groundY - rand(0, 12), x + rand(-12, 12), y + rand(-20, 18), {
         color: i % 2 ? SPIRIT_COLORS.curse : color,
         mid: SPIRIT_COLORS.ghost,
-        life: rand(110, opts.big ? 230 : 180),
+        life: rand(220, opts.big ? 410 : 330),
         width: rand(2.2, opts.big ? 4.0 : 3.2),
         shadowWidth: rand(7, opts.big ? 12 : 10),
-        branches: 1,
-        sparks: 2,
+        branches: opts.big ? 3 : 2,
+        sparks: opts.big ? 6 : 4,
         alpha: 0.64,
       });
     }
@@ -2927,11 +2933,11 @@ PUBLIC.start = function (root, api) {
     spawnDarkLightningArc(player.x - player.facing * 26, player.y - 42, player.x + player.facing * 58, player.y - 70, {
       color: SPIRIT_COLORS.ghost,
       mid: SPIRIT_COLORS.sick,
-      life: 240,
+      life: 360,
       width: 4.2,
       shadowWidth: 13,
-      branches: 5,
-      sparks: 18,
+      branches: 7,
+      sparks: 22,
       alpha: 0.86,
     });
     for (let i = 0; i < 30; i++) darkLightningSpark(player.x + rand(-22, 22), player.y - rand(18, 88), {
@@ -2946,7 +2952,7 @@ PUBLIC.start = function (root, api) {
   function unholyCommand() {
     const zombies = activeSpiritZombies();
     if (!zombies.length) {
-      spawnDarkLightningArc(player.x, player.y - 62, player.x + player.facing * 130, player.y - 70, { color: SPIRIT_COLORS.curse, life: 140, width: 3.2, shadowWidth: 9, branches: 2, sparks: 6, alpha: 0.60 });
+      spawnDarkLightningArc(player.x, player.y - 62, player.x + player.facing * 130, player.y - 70, { color: SPIRIT_COLORS.curse, life: 300, width: 3.2, shadowWidth: 9, branches: 5, sparks: 11, alpha: 0.60 });
       addShake(1.0, 60);
       return false;
     }
@@ -2986,7 +2992,7 @@ PUBLIC.start = function (root, api) {
   function massReanimate() {
     const open = spiritZombieSlotsOpen();
     if (open <= 0) {
-      emitSoulWisp(player.x, player.y - 62, player.x + player.facing * 120, player.y - 66, { count: 10, color: SPIRIT_COLORS.curse, lifeMin: 220, lifeMax: 500 });
+      spawnDarkLightningArc(player.x, player.y - 62, player.x + player.facing * 120, player.y - 66, { color: SPIRIT_COLORS.curse, mid: SPIRIT_COLORS.ghost, life: 300, width: 3.0, shadowWidth: 9, branches: 4, sparks: 10, alpha: 0.62 });
       return false;
     }
     const corpses = reanimatableCorpses(player.x, player.y - 50, 620).slice(0, open);
@@ -3002,11 +3008,11 @@ PUBLIC.start = function (root, api) {
       spawnDarkLightningArc(sx, sy, player.x + rand(-14, 14), player.y - rand(42, 86), {
         color: i % 2 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost,
         mid: SPIRIT_COLORS.sick,
-        life: 260,
+        life: 360,
         width: rand(2.4, 4.2),
         shadowWidth: 11,
-        branches: 2,
-        sparks: 5,
+        branches: 4,
+        sparks: 9,
         alpha: 0.72,
       });
     }
@@ -6236,11 +6242,11 @@ PUBLIC.start = function (root, api) {
       ctx.lineWidth = 7.0 + pulse * 2.0;
       for (const key of ['head', 'chest', 'hip', 'handL', 'handR', 'kneeL', 'kneeR']) {
         const pt = P(key);
-        const bend = Math.sin(performance.now() * 0.004 + pt.x * 0.05) * (18 + p * 14);
-        ctx.beginPath();
-        ctx.moveTo(gx + (pt.x - gx) * 0.14, gy);
-        ctx.quadraticCurveTo((gx + pt.x) * 0.5 + bend, (gy + pt.y) * 0.5 - 28 * p, pt.x, pt.y);
-        ctx.stroke();
+        drawJaggedLine(gx + (pt.x - gx) * 0.14, gy, pt.x, pt.y, {
+          phase: performance.now() * 0.006 + pt.x * 0.05,
+          steps: 5,
+          jitter: 10 + p * 12,
+        });
       }
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.22 + p * 0.38;
@@ -6248,10 +6254,11 @@ PUBLIC.start = function (root, api) {
       ctx.lineWidth = 1.8 + p * 1.2;
       for (let i = 0; i < 5; i++) {
         const phase = performance.now() * (0.003 + i * 0.0006) + i * 1.4;
-        ctx.beginPath();
-        ctx.moveTo(gx + Math.sin(phase) * 22, gy - 2);
-        ctx.quadraticCurveTo(lerp(gx, chestP.x, 0.55) + Math.sin(phase + 1.1) * 16, lerp(gy, chestP.y, 0.55) - 22, chestP.x + Math.sin(phase + 2) * 5, chestP.y);
-        ctx.stroke();
+        drawJaggedLine(gx + Math.sin(phase) * 22, gy - 2, chestP.x + Math.sin(phase + 2) * 5, chestP.y, {
+          phase,
+          steps: 6,
+          jitter: 12 + p * 9,
+        });
       }
       ctx.globalAlpha = 0.26 + p * 0.42;
       ctx.fillStyle = color;
@@ -6261,8 +6268,17 @@ PUBLIC.start = function (root, api) {
       ctx.globalAlpha = 0.18 + p * 0.28;
       ctx.strokeStyle = SPIRIT_COLORS.pale;
       ctx.lineWidth = 1.2;
-      traceWobblyCirclePath(headP.x, headP.y, 18 + p * 10 + pulse * 2, { phase: performance.now() * 0.002 + d.baseX, rough: 0.18, steps: 20 });
-      ctx.stroke();
+      for (let i = 0; i < 6; i++) {
+        const a = performance.now() * 0.004 + i * Math.PI / 3;
+        const rr = 17 + p * 10 + pulse * 2;
+        drawJaggedLine(
+          headP.x + Math.cos(a) * rr * 0.35,
+          headP.y + Math.sin(a) * rr * 0.35,
+          headP.x + Math.cos(a + 0.7) * rr,
+          headP.y + Math.sin(a + 0.7) * rr,
+          { phase: a, steps: 3, jitter: 4 + p * 3 }
+        );
+      }
       ctx.restore();
     }
     ctx.restore();
@@ -6308,7 +6324,7 @@ PUBLIC.start = function (root, api) {
     mage: [
       { id: 'pyromancer', name: 'Pyromancer Bot', pattern: 'pyromancer', caster: 'pyromancer', color: '#ff6b32', trail: [255, 107, 50], hp: 1, fly: false },
       { id: 'graviturge', name: 'Graviturge Bot', pattern: 'graviturge', caster: 'graviturge', color: '#8b5cff', trail: [139, 92, 255], hp: 1, fly: true },
-      { id: 'spiritbinder', name: 'Spiritbinder Bot', pattern: 'spiritbinder', caster: 'spiritbinder', color: '#57d7c8', trail: [87, 215, 200], hp: 1, fly: false },
+      { id: 'spiritbinder', name: 'Spiritbinder Bot', pattern: 'spiritbinder', caster: 'spiritbinder', color: '#a45cff', trail: [164, 92, 255], hp: 1, fly: false },
     ],
     ranger: [
       { id: 'sharpshooter', name: 'Sharpshooter Bot', pattern: 'sharpshooter', color: '#79e0ff', trail: [121, 224, 255], hp: 1, arrows: 9 },
@@ -7013,6 +7029,26 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawJaggedLine(ax, ay, bx, by, opts) {
+    opts = opts || {};
+    const dx = bx - ax, dy = by - ay;
+    const dist = Math.hypot(dx, dy) || 1;
+    const nx = dx / dist, ny = dy / dist, px = -ny, py = nx;
+    const steps = opts.steps || Math.max(3, Math.min(11, Math.round(dist / 28)));
+    const jitter = opts.jitter == null ? Math.min(18, 4 + dist * 0.045) : opts.jitter;
+    const phase = opts.phase || 0;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const edge = Math.sin(t * Math.PI);
+      const off = (Math.sin(phase + i * 1.87) * 0.62 + Math.sin(phase * 0.7 + i * 3.11) * 0.38) * jitter * edge;
+      const along = Math.sin(phase + i * 2.31) * dist * 0.012 * edge;
+      ctx.lineTo(ax + nx * (dist * t + along) + px * off, ay + ny * (dist * t + along) + py * off);
+    }
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+  }
   function drawGhostFormAura(hipX, hipY, shX, shY, headCX, headCY, fade, f) {
     if (fade <= 0.02) return;
     const now = performance.now();
@@ -7023,26 +7059,31 @@ PUBLIC.start = function (root, api) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 0.20 + fade * 0.32;
     ctx.fillStyle = SPIRIT_COLORS.shadow;
-    traceWobblyCirclePath(chestX, chestY + 1, 19 + fade * 10, { yScale: 1.22, phase: now * 0.002 + hipX, rough: 0.19, steps: 24 });
+    ctx.beginPath();
+    ctx.arc(chestX, chestY + 1, 10 + fade * 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 10; i++) {
-      const phase = now * (0.0038 + i * 0.00035) + i * 1.37 + hipX * 0.02;
-      const rr = 13 + i * 3.1;
-      ctx.globalAlpha = (0.08 + fade * 0.20) * (1 - i * 0.055);
+    for (let i = 0; i < 12; i++) {
+      const phase = now * (0.0044 + i * 0.0005) + i * 1.37 + hipX * 0.02;
+      const rr = 12 + i * 2.7;
+      const x = chestX + Math.sin(phase) * rr * 0.58;
+      const y = chestY - 4 + Math.cos(phase * 1.28) * rr * 0.48;
+      ctx.globalAlpha = (0.10 + fade * 0.24) * (1 - i * 0.052);
       ctx.fillStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : i % 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost;
       ctx.beginPath();
-      ctx.arc(chestX + Math.sin(phase) * rr * 0.52, chestY - 4 + Math.cos(phase * 1.28) * rr * 0.44, 1.1 + fade * 1.2, 0, Math.PI * 2);
+      ctx.arc(x, y, 1.0 + fade * 1.1, 0, Math.PI * 2);
       ctx.fill();
+      if (i % 3 === 1) {
+        ctx.strokeStyle = SPIRIT_COLORS.ghost;
+        ctx.lineWidth = 0.9 + fade * 0.8;
+        drawJaggedLine(chestX, chestY - 5, x, y, { phase, steps: 4, jitter: 4 + fade * 5 });
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.16 + fade * 0.22;
+    ctx.globalAlpha = 0.18 + fade * 0.28;
     ctx.strokeStyle = SPIRIT_COLORS.ghost;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(hipX - f * 8, hipY + 2);
-    ctx.quadraticCurveTo(chestX - f * 4, chestY - 8, headCX, headCY - 16);
-    ctx.stroke();
+    ctx.lineWidth = 1.8;
+    drawJaggedLine(hipX - f * 8, hipY + 2, headCX, headCY - 15, { phase: now * 0.006 + hipX, steps: 6, jitter: 6 + fade * 5 });
     ctx.restore();
   }
   function actorTeamAccent(act) {
@@ -7124,9 +7165,11 @@ PUBLIC.start = function (root, api) {
     } else if (accent.role === 'spirit') {
       const y = headCY - headR - 8;
       ctx.beginPath();
-      ctx.moveTo(headCX, y - 4 - pulse * 2);
-      ctx.quadraticCurveTo(headCX + 5, y + 1, headCX, y + 7);
-      ctx.quadraticCurveTo(headCX - 5, y + 1, headCX, y - 4 - pulse * 2);
+      ctx.moveTo(headCX, y - 6 - pulse * 2);
+      ctx.lineTo(headCX + 5, y);
+      ctx.lineTo(headCX + 1, y + 7);
+      ctx.lineTo(headCX - 5, y + 1);
+      ctx.lineTo(headCX, y - 6 - pulse * 2);
       ctx.stroke();
     } else {
       const y = headCY - headR - 6;
@@ -7172,10 +7215,11 @@ PUBLIC.start = function (root, api) {
       const phase = now * (0.004 + i * 0.0006) + i * 1.7 + a.x * 0.02;
       const footX = x + Math.sin(phase) * (9 + i * 3);
       const topX = x + Math.sin(phase + 1.2) * (5 + i * 2);
-      ctx.beginPath();
-      ctx.moveTo(footX, ground + 2);
-      ctx.quadraticCurveTo(x + Math.sin(phase * 0.7) * 18, lerp(ground, chest, 0.56), topX, chest + i * 3);
-      ctx.stroke();
+      drawJaggedLine(footX, ground + 2, topX, chest + i * 3, {
+        phase,
+        steps: a.zombie ? 7 : 5,
+        jitter: a.zombie ? 15 : 10,
+      });
     }
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < (a.zombie ? 9 : 7); i++) {
@@ -7186,10 +7230,11 @@ PUBLIC.start = function (root, api) {
       ctx.globalAlpha = (0.14 + p * (a.zombie ? 0.24 : 0.16)) * fade * (1 - i * 0.055);
       ctx.strokeStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : i % 2 === 0 && a.zombie ? SPIRIT_COLORS.sick : color;
       ctx.lineWidth = i % 3 === 0 ? 1.1 : a.zombie ? 2.4 : 1.9;
-      ctx.beginPath();
-      ctx.moveTo(x1, y + 12);
-      ctx.quadraticCurveTo(x - Math.sin(phase) * 7, y - 8, x2, y - 22);
-      ctx.stroke();
+      drawJaggedLine(x1, y + 12, x2, y - 22, {
+        phase,
+        steps: 4,
+        jitter: a.zombie ? 9 : 6,
+      });
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = (a.zombie ? 0.46 : 0.34) * fade;
@@ -7217,7 +7262,8 @@ PUBLIC.start = function (root, api) {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.22 + fade * 0.20 + fx * 0.22;
       ctx.fillStyle = SPIRIT_COLORS.shadow;
-      traceWobblyCirclePath(a.x, a.y + 4, 20 + fx * 12 + pulse * 2, { yScale: 0.32, phase: now * 0.002 + a.x, rough: 0.16, steps: 18 });
+      ctx.beginPath();
+      ctx.ellipse(a.x, a.y + 4, 20 + fx * 12 + pulse * 2, 5 + fx * 2.5, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < 7; i++) {
@@ -7244,12 +7290,13 @@ PUBLIC.start = function (root, api) {
         ctx.globalAlpha = 0.32 + cmdFade * 0.38;
         ctx.strokeStyle = color;
         ctx.lineWidth = 2.2;
-        ctx.beginPath();
-        ctx.moveTo(a.x, chestY);
         const midX = (a.x + cmd.x) * 0.5 + Math.sin(now * 0.010 + a.x) * 10;
         const midY = (chestY + cmd.y) * 0.5 - 18;
-        ctx.quadraticCurveTo(midX, midY, cmd.x, cmd.y);
-        ctx.stroke();
+        drawJaggedLine(a.x, chestY, cmd.x, cmd.y, {
+          phase: now * 0.012 + midX + midY,
+          steps: 8,
+          jitter: 8 + cmdFade * 6,
+        });
       }
       ctx.globalCompositeOperation = 'source-over';
       ctx.restore();
@@ -9317,6 +9364,13 @@ PUBLIC.start = function (root, api) {
     }
     return best;
   }
+  function darkLightningTargetAlive(t) {
+    if (!t || !t.obj) return false;
+    if (t.type === 'fighter') return !t.obj.dead && !(t.obj.ghostForm > 0);
+    if (t.type === 'dummy') return !t.obj.defeated && !!t.obj.pts;
+    if (t.type === 'box') return !t.obj.dead;
+    return false;
+  }
   function applyDarkLightningHit(t, fromX, fromY, power, team) {
     const p = darkLightningTargetPoint(t);
     if (!t || !p) return false;
@@ -9340,6 +9394,35 @@ PUBLIC.start = function (root, api) {
     for (let i = 0; i < 5; i++) darkLightningSpark(p.x, p.y, { color: SPIRIT_COLORS.ghost, lifeMax: 360 });
     return true;
   }
+  function pulseDarkLightningLock(chain, sx, sy, team, opts) {
+    opts = opts || {};
+    if (!chain || !chain.length) return;
+    let fromX = sx, fromY = sy;
+    let hitAny = false;
+    for (let i = 0; i < chain.length; i++) {
+      const item = chain[i];
+      if (!item || !darkLightningTargetAlive(item.target)) continue;
+      const p = darkLightningTargetPoint(item.target);
+      if (!p) continue;
+      spawnDarkLightningArc(fromX, fromY, p.x, p.y, {
+        color: opts.color || SPIRIT_COLORS.ghost,
+        mid: i % 2 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.sick,
+        core: SPIRIT_COLORS.pale,
+        life: opts.life || 290,
+        width: Math.max(2.1, (opts.width || 3.6) - i * 0.28),
+        shadowWidth: Math.max(8, (opts.shadowWidth || 13) - i),
+        branches: Math.max(3, (opts.branches || 5) - Math.floor(i * 0.45)),
+        sparks: opts.sparks || 12,
+        alpha: opts.alpha == null ? 0.86 : opts.alpha,
+      });
+      applyDarkLightningHit(item.target, fromX, fromY, Math.max(3.8, (item.power || 7) * (opts.powerScale || 0.46)), team);
+      for (let s = 0; s < 4; s++) darkLightningSpark(p.x, p.y, { color: opts.color || SPIRIT_COLORS.ghost, lifeMax: 520, rMax: 2.7, tailMax: 16 });
+      fromX = p.x;
+      fromY = p.y;
+      hitAny = true;
+    }
+    if (hitAny) addShake(opts.shake || 1.0, opts.shakeTime || 55);
+  }
   function spawnDarkBolt(ang) {
     const origin = staffTipOrigin(ang, { type: 'cast', t: 0.38, tipPad: 4 });
     const range = 565;
@@ -9353,38 +9436,42 @@ PUBLIC.start = function (root, api) {
       spawnDarkLightningArc(sx, sy, sx + Math.cos(ang) * 230, sy + Math.sin(ang) * 230, {
         color,
         mid: SPIRIT_COLORS.sick,
-        life: 135,
+        life: 260,
         width: 3.2,
         shadowWidth: 9,
         alpha: 0.68,
-        branches: 2,
-        sparks: 5,
+        branches: 4,
+        sparks: 10,
       });
       addShake(0.7, 40);
       return;
     }
     const used = new Set();
+    const locked = [];
     let fromX = sx, fromY = sy;
     let cur = first;
-    let power = 13.8;
+    let power = 10.8;
     for (let i = 0; cur && i < 4; i++) {
       const p = darkLightningTargetPoint(cur);
       if (!p) break;
       spawnDarkLightningArc(fromX, fromY, p.x, p.y, {
         color,
         mid: i % 2 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.sick,
-        life: 160 + i * 22,
+        life: 330 + i * 30,
         width: Math.max(2.5, 4.8 - i * 0.45),
         shadowWidth: Math.max(8, 14 - i),
-        branches: i === 0 ? 4 : 2,
-        sparks: 7,
+        branches: i === 0 ? 8 : 5,
+        sparks: 13,
       });
       applyDarkLightningHit(cur, fromX, fromY, power, team);
+      locked.push({ target: cur, power });
       used.add(cur.obj);
       fromX = p.x; fromY = p.y;
       cur = nearestDarkLightningTarget(fromX, fromY, used, team, 220 - i * 18);
       power *= 0.78;
     }
+    window.setTimeout(() => pulseDarkLightningLock(locked, sx, sy, team, { color, life: 300, powerScale: 0.52, width: 3.8, branches: 6, sparks: 12, shake: 0.9 }), 135);
+    window.setTimeout(() => pulseDarkLightningLock(locked, sx, sy, team, { color, life: 260, powerScale: 0.38, width: 3.2, branches: 5, sparks: 10, alpha: 0.76, shake: 0.6 }), 295);
     addShake(2.6, 90);
   }
   function corpseByLightningAim(ax, ay, ang, range) {
@@ -9415,12 +9502,12 @@ PUBLIC.start = function (root, api) {
       color,
       mid: SPIRIT_COLORS.ghost,
       core: SPIRIT_COLORS.pale,
-      life: target ? 230 : 145,
+      life: target ? 420 : 280,
       width: target ? 5.2 : 3.5,
       shadowWidth: target ? 16 : 10,
       alpha: target ? 1 : 0.62,
-      branches: target ? 5 : 2,
-      sparks: target ? 14 : 6,
+      branches: target ? 9 : 4,
+      sparks: target ? 22 : 10,
       big: !!target,
     });
     if (target) {
@@ -11130,22 +11217,18 @@ PUBLIC.start = function (root, api) {
         const px = tail[j].x - player.x;
         const py = tail[j].y - baseY;
         if (j === 0) ctx.moveTo(px, py);
-        else {
-          const prev = tail[j - 1];
-          const mx = (prev.x + tail[j].x) * 0.5 - player.x + Math.sin(seed + j) * 3;
-          const my = (prev.y + tail[j].y) * 0.5 - baseY + Math.cos(seed + j) * 2;
-          ctx.quadraticCurveTo(mx, my, px, py);
-        }
+        else ctx.lineTo(px, py);
       }
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.12 + pulse * 0.05;
       ctx.strokeStyle = SPIRIT_COLORS.void;
       ctx.lineWidth = 7.0;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.sin(seed) * 2, cy - 9 + Math.cos(seed) * 3);
-      ctx.quadraticCurveTo((cx + x) * 0.5 - f * 16, (cy + y) * 0.5 - 8, x, y);
-      ctx.stroke();
+      drawJaggedLine(cx + Math.sin(seed) * 2, cy - 9 + Math.cos(seed) * 3, x, y, {
+        phase: seed + now * 0.006,
+        steps: 5,
+        jitter: 7,
+      });
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.25 + pulse * 0.18;
       ctx.strokeStyle = s.color || (i % 3 === 1 ? SPIRIT_COLORS.curse : SPIRIT_COLORS.ghost);
@@ -11163,24 +11246,30 @@ PUBLIC.start = function (root, api) {
       ctx.fillStyle = SPIRIT_COLORS.shadow;
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(ang) * r * 1.8, y - Math.sin(ang) * r * 1.8);
-      ctx.quadraticCurveTo(x - Math.sin(ang) * r * 1.55, y + Math.cos(ang) * r * 1.25, x + Math.cos(ang) * r * 1.40, y + Math.sin(ang) * r * 1.40);
-      ctx.quadraticCurveTo(x + Math.sin(ang) * r * 1.35, y - Math.cos(ang) * r * 1.15, x - Math.cos(ang) * r * 1.8, y - Math.sin(ang) * r * 1.8);
+      ctx.lineTo(x - Math.sin(ang) * r * 1.20, y + Math.cos(ang) * r * 1.05);
+      ctx.lineTo(x + Math.cos(ang) * r * 1.40, y + Math.sin(ang) * r * 1.40);
+      ctx.lineTo(x + Math.sin(ang) * r * 1.08, y - Math.cos(ang) * r * 0.98);
+      ctx.closePath();
       ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.34 + pulse * 0.24;
       ctx.fillStyle = s.color || (i % 4 === 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost);
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(ang) * r * 1.48, y - Math.sin(ang) * r * 1.48);
-      ctx.quadraticCurveTo(x - Math.sin(ang) * r * 1.22, y + Math.cos(ang) * r * 1.06, x + Math.cos(ang) * r * 1.16, y + Math.sin(ang) * r * 1.16);
-      ctx.quadraticCurveTo(x + Math.sin(ang) * r * 1.08, y - Math.cos(ang) * r * 0.90, x - Math.cos(ang) * r * 1.48, y - Math.sin(ang) * r * 1.48);
+      ctx.lineTo(x - Math.sin(ang) * r * 0.95, y + Math.cos(ang) * r * 0.92);
+      ctx.lineTo(x + Math.cos(ang) * r * 1.16, y + Math.sin(ang) * r * 1.16);
+      ctx.lineTo(x + Math.sin(ang) * r * 0.88, y - Math.cos(ang) * r * 0.78);
+      ctx.closePath();
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.86;
       ctx.fillStyle = SPIRIT_COLORS.pale;
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(ang) * r * 0.72, y - Math.sin(ang) * r * 0.72);
-      ctx.quadraticCurveTo(x - Math.sin(ang) * r * 0.76, y + Math.cos(ang) * r * 0.54, x + Math.cos(ang) * r * 0.56, y + Math.sin(ang) * r * 0.56);
-      ctx.quadraticCurveTo(x + Math.sin(ang) * r * 0.62, y - Math.cos(ang) * r * 0.48, x - Math.cos(ang) * r * 0.72, y - Math.sin(ang) * r * 0.72);
+      ctx.lineTo(x - Math.sin(ang) * r * 0.46, y + Math.cos(ang) * r * 0.42);
+      ctx.lineTo(x + Math.cos(ang) * r * 0.56, y + Math.sin(ang) * r * 0.56);
+      ctx.lineTo(x + Math.sin(ang) * r * 0.42, y - Math.cos(ang) * r * 0.36);
+      ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 0.62;
       ctx.fillStyle = SPIRIT_COLORS.void;
@@ -11316,37 +11405,25 @@ PUBLIC.start = function (root, api) {
       if (r === bindTarget) {
         const midX = (mageX + x) * 0.5 + Math.sin(now * 0.005 + r.x) * 10;
         const midY = (mageY + y) * 0.5 - 18 + Math.cos(now * 0.004 + r.y) * 5;
-      ctx.globalAlpha = 0.20 + pulse * 0.15;
-      ctx.strokeStyle = SPIRIT_COLORS.shadow;
-      ctx.lineWidth = 9.2;
-        ctx.beginPath();
-        ctx.moveTo(mageX, mageY);
-        ctx.quadraticCurveTo(midX, midY, x, y);
-        ctx.stroke();
+        ctx.globalAlpha = 0.20 + pulse * 0.15;
+        ctx.strokeStyle = SPIRIT_COLORS.shadow;
+        ctx.lineWidth = 9.2;
+        drawJaggedLine(mageX, mageY, x, y, { phase: now * 0.008 + midX + midY, steps: 7, jitter: 9 });
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = 0.20 + pulse * 0.26;
         ctx.strokeStyle = r.color || SPIRIT_COLORS.ghost;
         ctx.lineWidth = 2.2;
-        ctx.beginPath();
-        ctx.moveTo(mageX, mageY);
-        ctx.quadraticCurveTo(midX, midY, x, y);
-        ctx.stroke();
+        drawJaggedLine(mageX, mageY, x, y, { phase: now * 0.011 + midX, steps: 7, jitter: 7 });
         ctx.globalAlpha = 0.24 + pulse * 0.26;
         ctx.strokeStyle = SPIRIT_COLORS.pale;
         ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        ctx.moveTo(mageX, mageY);
-        ctx.quadraticCurveTo(midX + Math.sin(now * 0.006) * 4, midY - 4, x, y);
-        ctx.stroke();
+        drawJaggedLine(mageX, mageY, x, y, { phase: now * 0.014 + midY, steps: 6, jitter: 4 });
         ctx.globalCompositeOperation = 'source-over';
       }
       ctx.globalAlpha = 0.16 * fade;
       ctx.strokeStyle = r.color || SPIRIT_COLORS.ghost;
       ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.moveTo(x, gy);
-      ctx.quadraticCurveTo(x + sway, (gy + y) * 0.54, x, y);
-      ctx.stroke();
+      drawJaggedLine(x, gy, x, y, { phase: now * 0.007 + sway, steps: 5, jitter: 7 + pulse * 4 });
       for (let i = 0; i < 3; i++) {
         const phase = now * (0.003 + i * 0.0009) + i * 2.1 + r.x * 0.01;
         const ox = Math.sin(phase) * (9 + i * 3);
@@ -11354,25 +11431,26 @@ PUBLIC.start = function (root, api) {
         ctx.globalAlpha = (0.20 + pulse * 0.22) * fade * (1 - i * 0.18);
         ctx.strokeStyle = i === 1 ? SPIRIT_COLORS.pale : r.color || SPIRIT_COLORS.ghost;
         ctx.lineWidth = i === 1 ? 1.1 : 1.8;
-        ctx.beginPath();
-        ctx.moveTo(x + ox * 0.45, y + 11 + oy);
-        ctx.quadraticCurveTo(x - ox * 0.35, y - 4 - i * 2, x + ox, y - 20 - i * 4);
-        ctx.stroke();
+        drawJaggedLine(x + ox * 0.45, y + 11 + oy, x + ox, y - 20 - i * 4, { phase, steps: 4, jitter: 4 + i });
       }
       ctx.globalAlpha = 0.86 * fade;
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = SPIRIT_COLORS.ghost;
       ctx.beginPath();
       ctx.moveTo(x, y - 11 - pulse * 3);
-      ctx.quadraticCurveTo(x + 9 + pulse * 3, y - 1, x + 1.4, y + 12 + pulse * 3);
-      ctx.quadraticCurveTo(x - 9 - pulse * 3, y + 2, x, y - 11 - pulse * 3);
+      ctx.lineTo(x + 9 + pulse * 3, y - 1);
+      ctx.lineTo(x + 1.4, y + 12 + pulse * 3);
+      ctx.lineTo(x - 9 - pulse * 3, y + 2);
+      ctx.closePath();
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = SPIRIT_COLORS.pale;
       ctx.beginPath();
       ctx.moveTo(x, y - 7 - pulse * 2);
-      ctx.quadraticCurveTo(x + 5.0 + pulse * 2, y - 1, x + 1.2, y + 7 + pulse * 2);
-      ctx.quadraticCurveTo(x - 5.4 - pulse * 2, y + 1, x, y - 7 - pulse * 2);
+      ctx.lineTo(x + 5.0 + pulse * 2, y - 1);
+      ctx.lineTo(x + 1.2, y + 7 + pulse * 2);
+      ctx.lineTo(x - 5.4 - pulse * 2, y + 1);
+      ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 0.50 * fade;
       ctx.strokeStyle = r.color || SPIRIT_COLORS.ghost;
@@ -12991,6 +13069,33 @@ PUBLIC.start = function (root, api) {
         ctx.beginPath();
         ctx.arc(sx, sy, pt.r * (0.8 + fade * 0.8), 0, Math.PI * 2);
         ctx.fill();
+      } else if (pt.kind === 'darkSpark') {
+        const rr = pt.r * (0.72 + fade * 0.68);
+        const ang = Math.atan2(pt.vy || -1, pt.vx || 0);
+        const tail = (pt.tail || 10) * (0.42 + fade * 0.75);
+        const flicker = 0.74 + 0.26 * Math.sin((runTime || 0) * 0.055 + (pt.seed || 0));
+        ctx.lineCap = 'round';
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = (pt.alpha || 0.78) * fade * 0.30;
+        ctx.strokeStyle = SPIRIT_COLORS.shadow;
+        ctx.lineWidth = Math.max(1.8, rr * 2.6);
+        ctx.beginPath();
+        ctx.moveTo(sx - Math.cos(ang) * tail, sy - Math.sin(ang) * tail);
+        ctx.lineTo(sx + Math.cos(ang) * rr * 1.8, sy + Math.sin(ang) * rr * 1.8);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = (pt.alpha || 0.78) * fade * 0.74 * flicker;
+        ctx.strokeStyle = pt.color || SPIRIT_COLORS.ghost;
+        ctx.lineWidth = Math.max(0.8, rr * 0.85);
+        ctx.beginPath();
+        ctx.moveTo(sx - Math.cos(ang) * tail * 0.62, sy - Math.sin(ang) * tail * 0.62);
+        ctx.lineTo(sx + Math.cos(ang) * rr * 1.25, sy + Math.sin(ang) * rr * 1.25);
+        ctx.stroke();
+        ctx.globalAlpha = (pt.alpha || 0.78) * fade * 0.90;
+        ctx.fillStyle = pt.coreColor || SPIRIT_COLORS.pale;
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(0.75, rr * 0.42), 0, Math.PI * 2);
+        ctx.fill();
       } else if (pt.kind === 'soul') {
         const rr = pt.r * (0.72 + fade * 0.72);
         const ang = Math.atan2(pt.vy || -1, pt.vx || 0);
@@ -13338,38 +13443,53 @@ PUBLIC.start = function (root, api) {
       } else if (b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') {
         const r = b.r || 9;
         const ang = Math.atan2(b.vy, b.vx);
-        const wob = Math.sin(performance.now() * 0.014 + b.x * 0.02) * r * 0.38;
+        const now = performance.now();
+        const nx = Math.cos(ang), ny = Math.sin(ang), px = -ny, py = nx;
+        const flicker = 0.72 + 0.28 * Math.sin(now * 0.043 + b.x * 0.02);
         ctx.save();
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = SPIRIT_COLORS.shadow;
-        ctx.globalAlpha = 0.58;
-        ctx.lineWidth = 13;
-        ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * 46 + Math.sin(ang) * wob, b.y - Math.sin(ang) * 46 - Math.cos(ang) * wob);
-        ctx.quadraticCurveTo(b.x - Math.cos(ang) * 22 - Math.sin(ang) * r * 1.5, b.y - Math.sin(ang) * 22 + Math.cos(ang) * r * 1.5, b.x, b.y);
-        ctx.stroke();
+        ctx.globalAlpha = 0.46;
+        ctx.lineWidth = 11;
+        drawJaggedLine(b.x - nx * 44, b.y - ny * 44, b.x + nx * 4, b.y + ny * 4, {
+          phase: now * 0.016 + b.x,
+          steps: 5,
+          jitter: r * 1.15,
+        });
         ctx.globalCompositeOperation = 'lighter';
         ctx.strokeStyle = b.color || SPIRIT_COLORS.ghost;
-        ctx.globalAlpha = 0.54;
-        ctx.lineWidth = 3.8;
-        ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * 42 + Math.sin(ang) * wob * 0.7, b.y - Math.sin(ang) * 42 - Math.cos(ang) * wob * 0.7);
-        ctx.quadraticCurveTo(b.x - Math.cos(ang) * 18 - Math.sin(ang) * r, b.y - Math.sin(ang) * 18 + Math.cos(ang) * r, b.x + Math.cos(ang) * 3, b.y + Math.sin(ang) * 3);
-        ctx.stroke();
-        ctx.globalAlpha = 0.48;
+        ctx.globalAlpha = 0.62 * flicker;
+        ctx.lineWidth = 3.4;
+        drawJaggedLine(b.x - nx * 40 + px * 3, b.y - ny * 40 + py * 3, b.x + nx * 5, b.y + ny * 5, {
+          phase: now * 0.021 + b.y,
+          steps: 6,
+          jitter: r * 0.90,
+        });
+        ctx.globalAlpha = 0.58 * flicker;
         ctx.strokeStyle = SPIRIT_COLORS.curse;
         ctx.lineWidth = 2.1;
+        drawJaggedLine(b.x - nx * 31 - px * 5, b.y - ny * 31 - py * 5, b.x - nx * 2, b.y - ny * 2, {
+          phase: now * 0.025 + b.x * 0.3,
+          steps: 4,
+          jitter: r * 0.75,
+        });
+        ctx.globalAlpha = 0.46;
+        ctx.strokeStyle = SPIRIT_COLORS.pale;
+        ctx.lineWidth = 1.0;
         ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * 33 - Math.sin(ang) * (r * 1.6 + wob * 0.4), b.y - Math.sin(ang) * 33 + Math.cos(ang) * (r * 1.6 + wob * 0.4));
-        ctx.quadraticCurveTo(b.x - Math.cos(ang) * 16 + Math.sin(ang) * r * 0.7, b.y - Math.sin(ang) * 16 - Math.cos(ang) * r * 0.7, b.x - Math.cos(ang) * 2, b.y - Math.sin(ang) * 2);
+        ctx.moveTo(b.x - nx * 23 + px * 9, b.y - ny * 23 + py * 9);
+        ctx.lineTo(b.x - nx * 13 + px * 17, b.y - ny * 13 + py * 17);
+        ctx.moveTo(b.x - nx * 19 - px * 8, b.y - ny * 19 - py * 8);
+        ctx.lineTo(b.x - nx * 9 - px * 15, b.y - ny * 9 - py * 15);
         ctx.stroke();
         ctx.globalAlpha = 0.84;
         ctx.strokeStyle = SPIRIT_COLORS.pale;
         ctx.lineWidth = 1.3;
         ctx.beginPath();
-        ctx.moveTo(b.x - Math.cos(ang) * 14, b.y - Math.sin(ang) * 14);
-        ctx.lineTo(b.x + Math.cos(ang) * 5, b.y + Math.sin(ang) * 5);
+        ctx.moveTo(b.x - nx * 14, b.y - ny * 14);
+        ctx.lineTo(b.x + nx * 5, b.y + ny * 5);
         ctx.stroke();
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 0.42;
@@ -13381,9 +13501,11 @@ PUBLIC.start = function (root, api) {
         ctx.globalAlpha = 0.52;
         ctx.fillStyle = b.color || SPIRIT_COLORS.ghost;
         ctx.beginPath();
-        ctx.moveTo(b.x + Math.cos(ang) * r * 1.05, b.y + Math.sin(ang) * r * 1.05);
-        ctx.quadraticCurveTo(b.x - Math.sin(ang) * r * 0.86, b.y + Math.cos(ang) * r * 0.86, b.x - Math.cos(ang) * r * 0.86, b.y - Math.sin(ang) * r * 0.86);
-        ctx.quadraticCurveTo(b.x + Math.sin(ang) * r * 0.86, b.y - Math.cos(ang) * r * 0.86, b.x + Math.cos(ang) * r * 1.05, b.y + Math.sin(ang) * r * 1.05);
+        ctx.moveTo(b.x + nx * r * 1.18, b.y + ny * r * 1.18);
+        ctx.lineTo(b.x + px * r * 0.80 - nx * r * 0.42, b.y + py * r * 0.80 - ny * r * 0.42);
+        ctx.lineTo(b.x - nx * r * 1.12, b.y - ny * r * 1.12);
+        ctx.lineTo(b.x - px * r * 0.80 - nx * r * 0.28, b.y - py * r * 0.80 - ny * r * 0.28);
+        ctx.closePath();
         ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 0.92;
@@ -13452,6 +13574,10 @@ PUBLIC.start = function (root, api) {
           } else if (pt.kind === 'ember') {
             pt.vx *= pt.drag || 0.988;
             pt.vy += pt.gravity == null ? 0.035 : pt.gravity;
+          } else if (pt.kind === 'darkSpark') {
+            const flicker = Math.sin((runTime || 0) * 0.024 + (pt.seed || 0) + age * 8.5) * 0.030;
+            pt.vx = (pt.vx + flicker) * (pt.drag || 0.925);
+            pt.vy *= pt.drag || 0.925;
           } else if (pt.kind === 'soul') {
             const age = 1 - clamp(pt.life / Math.max(1, pt.max || pt.life || 1), 0, 1);
             pt.vx += Math.sin((runTime || 0) * 0.012 + (pt.seed || 0) + age * 5.2) * (pt.sway || 0.014);
@@ -13623,12 +13749,21 @@ PUBLIC.start = function (root, api) {
             const sparkleCount = b.sparkle == null ? 1 : b.sparkle;
             for (let s = 0; s < sparkleCount; s++) if (Math.random() < 0.65) {
               const trail = rand(0.12, 0.45);
-              if (b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') soulParticle(
+              if (b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') darkLightningSpark(
                 b.x - b.vx * trail + rand(-2.5, 2.5),
                 b.y - b.vy * trail + rand(-2.5, 2.5),
-                -b.vx * rand(0.008, 0.022) + rand(-0.20, 0.20),
-                -b.vy * rand(0.008, 0.022) + rand(-0.34, 0.04),
-                { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.18), life: rand(210, 500), r: rand(0.8, 2.3), tail: rand(13, 32), alpha: 0.74 }
+                {
+                  color: b.color || SPIRIT_COLORS.ghost,
+                  vx: -b.vx * rand(0.006, 0.018) + rand(-0.18, 0.18),
+                  vy: -b.vy * rand(0.006, 0.018) + rand(-0.26, 0.06),
+                  lifeMin: 190,
+                  lifeMax: 480,
+                  rMin: 0.7,
+                  rMax: 2.2,
+                  tailMin: 5,
+                  tailMax: 16,
+                  alpha: 0.74,
+                }
               );
               else particles.push({ x: b.x - b.vx * trail + rand(-2.5, 2.5), y: b.y - b.vy * trail + rand(-2.5, 2.5),
                 vx: -b.vx * rand(0.01, 0.035) + rand(-0.45, 0.45), vy: -b.vy * rand(0.01, 0.035) + rand(-0.45, 0.45),
@@ -13647,7 +13782,7 @@ PUBLIC.start = function (root, api) {
                   alpha: 0.20,
                 });
             }
-            if ((b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') && Math.random() < 0.54) soulParticle(b.x + rand(-3, 3), b.y + rand(-3, 3), rand(-0.22, 0.22), rand(-0.56, 0.02), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.18), life: rand(220, 520), r: rand(0.9, 2.3), tail: rand(10, 24), alpha: 0.68 });
+            if ((b.kind === 'spiritBolt' || b.kind === 'darkBolt' || b.kind === 'reanimateMissile') && Math.random() < 0.54) darkLightningSpark(b.x + rand(-3, 3), b.y + rand(-3, 3), { color: b.color || SPIRIT_COLORS.ghost, lifeMax: 520, rMax: 2.3, tailMax: 15, alpha: 0.68 });
           } else if (b.kind === 'sigil') {
             b.age += dt;
             b.angle += 0.045;
@@ -13822,12 +13957,12 @@ PUBLIC.start = function (root, api) {
                 fromY: b.y - b.vy * 0.6,
                 life: 980,
               });
-              emitSoulWisp(b.x - b.vx * 0.62, b.y - b.vy * 0.62, b.x, b.y, { count: z ? 18 : 12, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 680 });
-              for (let j = 0; j < (z ? 16 : 9); j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.42, 0.42), rand(-0.92, 0.04), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.20), life: rand(240, 640), r: rand(0.9, 2.8), tail: rand(12, 32), alpha: 0.74 });
+              spawnDarkLightningArc(b.x - b.vx * 0.62, b.y - b.vy * 0.62, b.x, b.y, { color: b.color || SPIRIT_COLORS.ghost, mid: SPIRIT_COLORS.curse, life: z ? 340 : 250, width: z ? 4.2 : 3.0, shadowWidth: z ? 13 : 9, branches: z ? 6 : 4, sparks: z ? 16 : 10, alpha: 0.78 });
+              for (let j = 0; j < (z ? 16 : 9); j++) darkLightningSpark(b.x + rand(-5, 5), b.y + rand(-5, 5), { color: b.color || SPIRIT_COLORS.ghost, lifeMax: 640, rMax: 2.8, tailMax: 18, alpha: 0.74 });
             }
             else if (b.kind === 'spiritBolt' || b.kind === 'darkBolt') {
-              emitSoulWisp(b.x - b.vx * 0.68, b.y - b.vy * 0.68, b.x, b.y, { count: 16, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 680 });
-              for (let j = 0; j < 12; j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.42, 0.42), rand(-0.92, 0.04), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.20), life: rand(240, 640), r: rand(0.9, 2.6), tail: rand(12, 30), alpha: 0.74 });
+              spawnDarkLightningArc(b.x - b.vx * 0.68, b.y - b.vy * 0.68, b.x, b.y, { color: b.color || SPIRIT_COLORS.ghost, mid: SPIRIT_COLORS.curse, life: 280, width: 3.3, shadowWidth: 10, branches: 5, sparks: 12, alpha: 0.74 });
+              for (let j = 0; j < 12; j++) darkLightningSpark(b.x + rand(-5, 5), b.y + rand(-5, 5), { color: b.color || SPIRIT_COLORS.ghost, lifeMax: 620, rMax: 2.6, tailMax: 18, alpha: 0.74 });
             }
             else {
               if (b.explosive) pushBoxesRadial(b.x, b.y, 18, 112, b.team);
