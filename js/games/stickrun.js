@@ -578,6 +578,8 @@ const ATTACK_TIMELINES = {
     phases: { anticipation: [0.00, 0.10], active: [0.10, 0.94], recovery: [0.94, 1.00] } },
   pyroGroundFlow: { kind: 'visual', strike: 0.18, hitstop: 0, impulse: 0, dur: 560, durScale: 1, tags: ['fire', 'staff', 'ground'],
     phases: { anticipation: [0.00, 0.22], active: [0.22, 0.76], recovery: [0.76, 1.00] } },
+  spiritSummon: { kind: 'visual', strike: 0.20, hitstop: 0, impulse: 0, dur: 760, durScale: 1, tags: ['spirit', 'staff', 'summon'],
+    phases: { anticipation: [0.00, 0.26], active: [0.26, 0.78], recovery: [0.78, 1.00] } },
   quake: { kind: 'area', strike: 0.48, hitstop: 46, impulse: 0, tags: ['area', 'heavy'] },
 };
 const DEFAULT_MOTION = {
@@ -2269,6 +2271,38 @@ PUBLIC.start = function (root, api) {
     rememberDebugSegment('ability', player.x, player.y - 58, r.x, r.y, 8, r.color || SPIRIT_COLORS.ghost, 420);
     return true;
   }
+  function emitSpiritAwakeningBurst(x, groundY, color, opts) {
+    opts = opts || {};
+    const count = opts.count || 24;
+    for (let i = 0; i < count; i++) {
+      const a = rand(-Math.PI, 0);
+      const spread = rand(2, 26);
+      soulParticle(x + Math.cos(a) * spread * 0.45 + rand(-7, 7), groundY - rand(4, 28), Math.cos(a) * rand(0.08, 0.42), -rand(0.55, 2.35), {
+        color: spiritParticleColor(color || SPIRIT_COLORS.ghost, 0.28),
+        life: rand(opts.lifeMin || 380, opts.lifeMax || 920),
+        r: rand(1.2, opts.large ? 4.2 : 3.1),
+        tail: rand(13, opts.large ? 34 : 24),
+      });
+    }
+  }
+  function beginSpiritSummonCast(targetX, targetY, opts) {
+    opts = opts || {};
+    const sx = player.x, sy = player.y - 70;
+    const tx = targetX == null ? sx + player.facing * 120 : targetX;
+    const ty = targetY == null ? sy - 10 : targetY - 34;
+    const ang = Math.atan2(ty - sy, tx - sx);
+    if (!startVisualAttack('spiritSummon', ang, { range: Math.hypot(tx - sx, ty - sy), kind: 'spiritSummon' })) return false;
+    const origin = staffTipOrigin(ang, { type: 'spiritSummon', t: 0.34, tipPad: 5 });
+    emitSoulWisp(player.x, player.y - 58, origin.x, origin.y, { count: opts.big ? 18 : 12, color: SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 640 });
+    emitSoulWisp(origin.x, origin.y, tx, ty + 20, { count: opts.big ? 24 : 14, color: SPIRIT_COLORS.curse, lifeMin: 320, lifeMax: 860 });
+    for (let i = 0; i < (opts.big ? 16 : 9); i++) soulParticle(origin.x + rand(-8, 8), origin.y + rand(-8, 8), rand(-0.52, 0.52), rand(-1.25, -0.04), {
+      color: spiritParticleColor(SPIRIT_COLORS.ghost, 0.38),
+      life: rand(300, 720),
+      r: rand(1.2, opts.big ? 3.5 : 2.7),
+      tail: rand(10, 26),
+    });
+    return true;
+  }
   function spawnSpiritAlly(x, y, opts) {
     opts = opts || {};
     if (!allies) allies = [];
@@ -2294,6 +2328,9 @@ PUBLIC.start = function (root, api) {
     a.spiritSource = source;
     a.spiritLife = opts.life || 8500;
     a.spiritMaxLife = a.spiritLife;
+    a.spiritAwake = opts.awake == null ? 760 : opts.awake;
+    a.spiritAwakeMax = Math.max(1, a.spiritAwake || 1);
+    a.spiritRise = opts.rise == null ? 38 : opts.rise;
     a.spiritCommandCd = opts.commandCd || 260;
     allies.push(a);
     emitSoulWisp(opts.fromX == null ? x : opts.fromX, opts.fromY == null ? groundY - 58 : opts.fromY, x, groundY - 50, {
@@ -2302,6 +2339,7 @@ PUBLIC.start = function (root, api) {
       lifeMin: 360,
       lifeMax: 900,
     });
+    emitSpiritAwakeningBurst(x, groundY, color, { count: 30, large: true, lifeMin: 420, lifeMax: 980 });
     for (let i = 0; i < 12; i++) soulParticle(x + rand(-12, 12), groundY - rand(40, 82), rand(-0.45, 0.45), rand(-1.1, -0.12), { color: spiritParticleColor(color, 0.30), life: rand(300, 720), r: rand(1.1, 2.8) });
     syncHud();
     return a;
@@ -2346,8 +2384,10 @@ PUBLIC.start = function (root, api) {
       hit: false,
     };
     a.facing = dx >= 0 ? 1 : -1;
-    a.vx += (dx / d) * (opts.dash || 5.6);
-    a.vy = Math.min(a.vy, (dy / d) * 2.2 - 2.4);
+    if (!(a.spiritAwake > 0)) {
+      a.vx += (dx / d) * (opts.dash || 5.6);
+      a.vy = Math.min(a.vy, (dy / d) * 2.2 - 2.4);
+    }
     a.spiritCommandCd = Math.max(a.spiritCommandCd || 0, opts.afterCd || 680);
     if (a.brain) { a.brain.alert = 9999; a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
     const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
@@ -2367,6 +2407,7 @@ PUBLIC.start = function (root, api) {
     const remnant = nearestSpiritRemnant(340);
     if (remnant) {
       const target = spiritCommandTarget(720);
+      if (!beginSpiritSummonCast(remnant.x, remnant.groundY || remnant.y + 42)) return false;
       consumeSpiritRemnant(remnant);
       const ally = spawnSpiritAlly(remnant.x, remnant.groundY || remnant.y + 42, {
         hp: 2.25,
@@ -2390,6 +2431,7 @@ PUBLIC.start = function (root, api) {
     }
     const p = pointAhead(72);
     const target = spiritCommandTarget(620);
+    if (!beginSpiritSummonCast(p.x, p.y)) return false;
     player.spiritCharges--;
     const ally = spawnSpiritAlly(p.x, p.y, { hp: 1.45, life: 6900, facing: spiritSpawnFacing(p.x, p.y, player.facing, target), target, source: 'rogue', fromX: player.x, fromY: player.y - 58 });
     commandSpiritAlly(ally, { target, force: 12, dash: 5.4, life: 820, range: 620 });
@@ -2437,6 +2479,8 @@ PUBLIC.start = function (root, api) {
     }
     const spawned = [];
     const target = spiritCommandTarget(720);
+    const focus = nearby[0] || pointAhead(100);
+    if (!beginSpiritSummonCast(focus.x, focus.groundY || focus.y || player.y, { big: true })) return false;
     for (let i = 0; i < remnantCount; i++) {
       const r = nearby[i];
       consumeSpiritRemnant(r);
@@ -2466,6 +2510,7 @@ PUBLIC.start = function (root, api) {
   function updateSpiritCommand(a, dtStep) {
     const cmd = a && a.spiritCommand;
     if (!cmd) return;
+    if (a.spiritAwake > 0) return;
     cmd.life -= dtStep;
     const targetGone = cmd.type === 'fighter' && (!cmd.target || cmd.target.dead) || cmd.type === 'dummy' && (!cmd.target || cmd.target.defeated);
     if (targetGone || cmd.life <= 0) { a.spiritCommand = null; return; }
@@ -5849,7 +5894,26 @@ PUBLIC.start = function (root, api) {
           syncHud();
           continue;
         }
-        if (a.spirit && Math.random() < 0.18) {
+        if (a.spiritAwake > 0) {
+          a.spiritAwake = Math.max(0, a.spiritAwake - dtStep);
+          a.vx *= 0.72;
+          a.vy = Math.min(a.vy, -0.12);
+          if (a.brain) { a.brain.pauseT = Math.max(a.brain.pauseT || 0, 220); a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
+          if (Math.random() < 0.62) {
+            const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
+            soulParticle(a.x + rand(-14, 14), a.y - rand(8, 66), rand(-0.22, 0.22), rand(-1.35, -0.14), {
+              life: rand(260, 620),
+              color: spiritParticleColor(color, 0.34),
+              r: rand(1.2, 3.1),
+              tail: rand(12, 28),
+            });
+          }
+          if (a.spiritAwake <= 0) {
+            emitSpiritAwakeningBurst(a.x, a.y, a.cls && a.cls.color || SPIRIT_COLORS.ghost, { count: 18, lifeMin: 260, lifeMax: 620 });
+            addShake(1.2, 70);
+          }
+        }
+        if (a.spirit && Math.random() < ((a.spiritAwake || 0) > 0 ? 0.28 : 0.24)) {
           const fade = clamp(a.spiritLife / Math.max(1, a.spiritMaxLife || a.spiritLife), 0, 1);
           soulParticle(a.x + rand(-16, 16), a.y - rand(38, 86), rand(-0.25, 0.25), rand(-0.90, -0.10), {
             life: rand(260, 520),
@@ -5860,7 +5924,7 @@ PUBLIC.start = function (root, api) {
       }
       if (a.spirit) {
         a.spiritCommandCd = Math.max(0, (a.spiritCommandCd || 0) - dtStep);
-        if (!a.spiritCommand && a.spiritCommandCd <= 0) {
+        if (!a.spiritCommand && a.spiritCommandCd <= 0 && !(a.spiritAwake > 0)) {
           const target = spiritCommandTarget(760);
           if (target) {
             commandSpiritAlly(a, { target, force: 12.5, dash: 5.4, life: 880, range: 760, afterCd: rand(980, 1480) });
@@ -5868,7 +5932,7 @@ PUBLIC.start = function (root, api) {
         }
       }
       a.flash = Math.max(0, a.flash - dtStep);
-      withActor(a, () => { thinkFighter(a, dtStep); updateSpiritCommand(a, dtStep); stepActor(dtStep); });
+      withActor(a, () => { if (!(a.spiritAwake > 0)) { thinkFighter(a, dtStep); updateSpiritCommand(a, dtStep); } stepActor(dtStep); });
       if (a.y - PH > L.h + 180) {
         burst(a.x, Math.min(a.y, L.h), a.cls.color, 10, 2.8);
         allies.splice(i, 1);
@@ -6093,10 +6157,65 @@ PUBLIC.start = function (root, api) {
     if (!fighters) return;
     for (const e of fighters) { withActor(e, () => drawStick(e._moveAmt || 0)); drawSmokeDisruptedCue(e); drawActorBurnCue(e); drawFighterHealth(e); }
   }
+  function spiritWakeProgress(a) {
+    if (!a || !(a.spiritAwake > 0)) return 1;
+    return 1 - clamp(a.spiritAwake / Math.max(1, a.spiritAwakeMax || a.spiritAwake), 0, 1);
+  }
+  function spiritVisualYOffset(a) {
+    if (!a || !(a.spiritAwake > 0)) return 0;
+    const p = ease(spiritWakeProgress(a));
+    return (1 - p) * (a.spiritRise || 36);
+  }
+  function drawSpiritAwakening(a, rise) {
+    if (!a || !a.spirit || !(a.spiritAwake > 0)) return;
+    const now = performance.now();
+    const p = spiritWakeProgress(a);
+    const fade = clamp(1 - p * 0.35, 0, 1);
+    const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
+    const x = a.x, ground = a.y, chest = a.y - 54 - rise;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.22 * fade;
+    ctx.strokeStyle = SPIRIT_COLORS.shadow;
+    ctx.lineWidth = 8.5;
+    for (let i = 0; i < 5; i++) {
+      const phase = now * (0.004 + i * 0.0006) + i * 1.7 + a.x * 0.02;
+      const footX = x + Math.sin(phase) * (9 + i * 3);
+      const topX = x + Math.sin(phase + 1.2) * (5 + i * 2);
+      ctx.beginPath();
+      ctx.moveTo(footX, ground + 2);
+      ctx.quadraticCurveTo(x + Math.sin(phase * 0.7) * 18, lerp(ground, chest, 0.56), topX, chest + i * 3);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 7; i++) {
+      const phase = now * (0.0035 + i * 0.00045) + i * 2.1 + a.x * 0.016;
+      const y = lerp(ground - 4, chest - 8, (i + 1) / 8);
+      const x1 = x + Math.sin(phase) * (14 + i * 2.6);
+      const x2 = x + Math.sin(phase + 1.4) * (8 + i * 1.8);
+      ctx.globalAlpha = (0.14 + p * 0.16) * fade * (1 - i * 0.06);
+      ctx.strokeStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : color;
+      ctx.lineWidth = i % 3 === 0 ? 1.1 : 1.9;
+      ctx.beginPath();
+      ctx.moveTo(x1, y + 12);
+      ctx.quadraticCurveTo(x - Math.sin(phase) * 7, y - 8, x2, y - 22);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.34 * fade;
+    ctx.fillStyle = SPIRIT_COLORS.shadow;
+    ctx.beginPath();
+    ctx.ellipse(x, ground + 3, 26 + p * 10, 5 + p * 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   function drawSpiritAllyAura(a) {
     if (!a || !a.spirit) return;
     const now = performance.now();
     const fade = clamp((a.spiritLife || 0) / Math.max(1, a.spiritMaxLife || a.spiritLife || 1), 0, 1);
+    const awake = spiritWakeProgress(a);
     const pulse = 0.5 + 0.5 * Math.sin(now * 0.007 + a.x * 0.02);
     const chestY = a.y - 62 - ((a.anim && a.anim.fly) || 0) * (a.cls.style.hover || 0);
     const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
@@ -6175,6 +6294,17 @@ PUBLIC.start = function (root, api) {
       ctx.quadraticCurveTo(a.x - ox * 0.25, chestY + 4 - pulse * 6, a.x + ox, chestY - 26 - i * 3);
       ctx.stroke();
     }
+    for (let i = 0; i < 5; i++) {
+      const phase = now * (0.0022 + i * 0.00038) + a.x * 0.011 + i * 1.34;
+      const rr = 16 + i * 4 + pulse * 3;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = (0.13 + fade * 0.18) * (0.55 + awake * 0.45);
+      ctx.fillStyle = i % 2 ? SPIRIT_COLORS.pale : color;
+      ctx.beginPath();
+      ctx.arc(a.x + Math.sin(phase) * rr, chestY - 8 + Math.cos(phase * 1.3) * (13 + i * 2), 1.6 + pulse * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
     ctx.globalAlpha = 0.34 + fade * 0.22;
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.6;
@@ -6186,7 +6316,17 @@ PUBLIC.start = function (root, api) {
   }
   function drawAllies() {
     if (!allies) return;
-    for (const a of allies) { drawSpiritAllyAura(a); withActor(a, () => drawStick(a._moveAmt || 0)); drawActorBurnCue(a); drawFighterHealth(a); }
+    for (const a of allies) {
+      const rise = spiritVisualYOffset(a);
+      drawSpiritAwakening(a, rise);
+      ctx.save();
+      if (rise) ctx.translate(0, -rise);
+      drawSpiritAllyAura(a);
+      withActor(a, () => drawStick(a._moveAmt || 0));
+      drawActorBurnCue(a);
+      if (!(a.spirit && a.spiritAwake > 0)) drawFighterHealth(a);
+      ctx.restore();
+    }
   }
   function drawFighterHealth(e) {
     if (e.hp >= e.maxHp) return;
@@ -7005,6 +7145,17 @@ PUBLIC.start = function (root, api) {
     }
     return { x: 0, y: 0, lean: 0 };
   }
+  function spiritSummonBodyOffset(t, f) {
+    const pull = ease(clamp(t / 0.28, 0, 1));
+    const hold = ease(clamp((t - 0.28) / 0.34, 0, 1));
+    const release = ease(clamp((t - 0.72) / 0.28, 0, 1));
+    const lift = Math.sin(clamp(t, 0, 1) * Math.PI);
+    return {
+      x: f * (-4 * pull + 6 * hold - 3 * release),
+      y: -6 * pull - 3 * hold + 5 * release,
+      lean: -f * (0.10 + 0.15 * pull) + f * 0.08 * hold + f * 0.04 * lift,
+    };
+  }
   function attackBodyOffset(type, t, f) {
     const bell = Math.max(0, Math.sin(clamp(t, 0, 1) * Math.PI));
     const clip = actionClip(type, t, f);
@@ -7026,6 +7177,7 @@ PUBLIC.start = function (root, api) {
       return { x: f * l * 20, y: 0, lean: f * l * 0.19 };
     }
     if (type === 'shieldGuard') return { x: -f * bell * 2, y: bell * 2, lean: -f * (0.06 + bell * 0.10) };
+    if (type === 'spiritSummon') return spiritSummonBodyOffset(t, f);
     if (type === 'cast' || type === 'arcaneBloom') return { x: f * bell * 3, y: 0, lean: f * bell * 0.05 };
     if (isPyroVisualAttack(type)) return pyroBodyOffset(type, t, f);
     if (type === 'arrow' || type === 'volley') return { x: -f * bell * 2, y: 0, lean: -f * bell * 0.05 };
@@ -7057,6 +7209,7 @@ PUBLIC.start = function (root, api) {
     if (type === 'pyroDragon') return 0.18;
     if (type === 'pyroGroundFlow') return 0.28;
     if (type === 'arcaneBloom') return 0.42;
+    if (type === 'spiritSummon') return 0.46;
     return 0.38;
   }
   function staffTipOrigin(ang, opts) {
@@ -9050,6 +9203,7 @@ PUBLIC.start = function (root, api) {
     if (type === 'crush') return 'chop';
     if (type === 'stab' || type === 'rogueStab' || type === 'lunge' || type === 'braceThrust' || type === 'lanceCharge') return 'thrust';
     if (type === 'cast' || type === 'arcaneBloom') return 'cast';
+    if (type === 'spiritSummon') return 'spiritSummon';
     if (type === 'pyroFirebolt') return 'pyroBolt';
     if (type === 'pyroIgnite') return 'pyroThrow';
     if (type === 'pyroBreath' || type === 'pyroDragon') return 'pyroBreath';
@@ -9139,6 +9293,17 @@ PUBLIC.start = function (root, api) {
       shAng = aim - s * 0.10 * (1 - bell);
       elBend = s * lerp(-1.00, -0.20, bell);
       wrBend = s * 0.15 * (1 - bell);
+    } else if (arc === 'spiritSummon') {
+      const raise = ease(clamp(t / 0.30, 0, 1));
+      const hold = ease(clamp((t - 0.30) / 0.34, 0, 1));
+      const settle = ease(clamp((t - 0.74) / 0.26, 0, 1));
+      const high = -Math.PI / 2 - s * 0.18;
+      const line = aim - s * 0.20;
+      shAng = lerpAngle(line, high, raise);
+      shAng = lerpAngle(shAng, high + s * 0.14, hold * 0.34);
+      shAng = lerpAngle(shAng, line, settle);
+      elBend = s * kfa(t, [[0, -0.62], [0.22, -1.22], [0.48, -0.44], [0.72, -0.34], [1, -0.58]]);
+      wrBend = s * kfa(t, [[0, 0.16], [0.30, 0.72], [0.56, 0.36], [0.78, 0.10], [1, 0.16]]);
     } else if (arc === 'pyroBolt') {
       const snap = ease(clamp(t / 0.22, 0, 1));
       const settle = ease(clamp((t - 0.22) / 0.54, 0, 1));
@@ -9932,6 +10097,7 @@ PUBLIC.start = function (root, api) {
       else if (ty === 'stab' || ty === 'rogueStab' || ty === 'braceThrust') { stabT = t; const l = Math.max(0, stabReach(t)); atkHip = f * l * (ty === 'braceThrust' ? 19 : ty === 'rogueStab' ? 7 : 13); atkLean = f * l * (ty === 'braceThrust' ? 0.18 : ty === 'rogueStab' ? 0.08 : 0.12); }
       else if (ty === 'lunge' || ty === 'lanceCharge') { lungeT = t; const l = Math.max(0, lungeReach(t)); atkHip = f * l * 20; atkLean = f * l * 0.19; }
       else if (isPyroVisualAttack(ty)) { castT = t; const m = pyroBodyOffset(ty, t, f); atkHip = m.x; clipHipY = m.y; atkLean = m.lean; }
+      else if (ty === 'spiritSummon') { castT = t; const m = spiritSummonBodyOffset(t, f); atkHip = m.x; clipHipY = m.y; atkLean = m.lean; }
       else if (ty === 'cast' || ty === 'arcaneBloom') { castT = t; atkHip = f * bell * 3; atkLean = f * bell * 0.05; }
       else if (ty === 'arrow' || ty === 'volley') { shootT = t; atkHip = -f * bell * 2; atkLean = -f * bell * 0.05; }
       else if (ty === 'throw') { throwT = t; atkHip = f * bell * 5; atkLean = -f * 0.16 + f * bell * 0.24; }
@@ -10115,6 +10281,17 @@ PUBLIC.start = function (root, api) {
           y: wc.hy - Math.sin(wang) * gripBack + Math.cos(wang) * gripSide,
         };
         offhandStretch = breathChannel ? 1.08 : 1;
+        offhandBend = -f;
+      } else if (a.atkActive && a.atkType === 'spiritSummon') {
+        const pose = weaponPose(a.atkType, clamp(a.atkT, 0, 1), a.atkAim, f, a.atkVar);
+        const wc = armChain(shX, shY, pose.shAng, pose.elBend);
+        const wang = wc.foreAng + pose.wrBend;
+        const lift = Math.sin(clamp(a.atkT, 0, 1) * Math.PI);
+        h = {
+          x: wc.hx - Math.cos(wang) * (34 + lift * 8) - Math.sin(wang) * f * 2,
+          y: wc.hy - Math.sin(wang) * (34 + lift * 8) + Math.cos(wang) * f * 2,
+        };
+        offhandStretch = 1.06;
         offhandBend = -f;
       } else if (magePyroLoadoutActive()) {
         h = fly > 0.25
