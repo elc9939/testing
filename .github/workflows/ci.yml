@@ -29,6 +29,9 @@ jobs:
       - name: Check PWA cache manifest
         run: npm run check:pwa
 
+      - name: Stick Arena pose + Pose Studio smoke test
+        run: npm run check:poses
+
   logminer:
     name: LogMiner compile and smoke test
     runs-on: ubuntu-latest
