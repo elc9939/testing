@@ -7146,6 +7146,8 @@ PUBLIC.start = function (root, api) {
       seed: opts.seed || rand(0, Math.PI * 2),
       tail: opts.tail || rand(5.5, 10.5),
       dark: !!opts.dark,
+      shard: !!opts.shard,
+      noCore: !!opts.noCore,
     });
   }
   function gravityDebrisAvailable() {
@@ -8308,7 +8310,7 @@ PUBLIC.start = function (root, api) {
   }
   function emitBlackHoleBirth(x, y, r, color) {
     const accent = color || gravityAccent();
-    for (let i = 0; i < 42; i++) {
+    for (let i = 0; i < 58; i++) {
       const a = rand(0, Math.PI * 2), rr = rand(8, r * 0.46);
       const tangent = a + Math.PI / 2;
       gravityParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr,
@@ -8316,8 +8318,11 @@ PUBLIC.start = function (root, api) {
         Math.sin(tangent) * rand(0.10, 0.74) - Math.sin(a) * rand(0.05, 0.58), {
           color: gravityParticleColor(),
           life: rand(620, 1450),
-          r: rand(1.0, 3.7),
-          tail: rand(5, 14),
+          r: rand(0.9, 3.1),
+          tail: rand(9, 24),
+          shard: true,
+          noCore: true,
+          dark: Math.random() < 0.18,
         });
     }
     burst(x, y, GRAVITY_COLORS.void, 10, 2.4);
@@ -8847,15 +8852,26 @@ PUBLIC.start = function (root, api) {
       if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(g, t);
       else if (fighters) for (const e of fighters) applyGravityFieldToActor(g, e);
       if (dummies) for (const d of dummies) applyGravityFieldToDummy(g, d);
-      if (g.blackHole && Math.random() < 0.44 + blackHoleBirthAmount(g) * 0.52) {
+      if (g.blackHole && Math.random() < 0.62 + blackHoleBirthAmount(g) * 0.34) {
         const birth = blackHoleBirthAmount(g);
         const fieldR = Math.max(10, gravityFieldRadius(g));
-        const a = rand(0, Math.PI * 2), rr = rand(Math.min(18, fieldR * 0.42), fieldR);
-        const tangent = a + Math.PI / 2;
-        particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
-          vx: Math.cos(tangent) * rand(0.22, 1.20 + birth * 0.65) - Math.cos(a) * rand(0.22, 1.05 + birth * 0.50),
-          vy: Math.sin(tangent) * rand(0.22, 1.20 + birth * 0.65) - Math.sin(a) * rand(0.22, 1.05 + birth * 0.50),
-          life: rand(320, 840), max: 840, color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(), r: rand(1.2, 3.6 + birth * 1.4), tail: rand(4, 13), dark: Math.random() < 0.20 });
+        const count = 1 + (birth > 0.45 && Math.random() < 0.70 ? 1 : 0);
+        for (let j = 0; j < count; j++) {
+          const a = rand(0, Math.PI * 2), rr = rand(Math.min(18, fieldR * 0.42), fieldR);
+          const tangent = a + Math.PI / 2;
+          particles.push({ kind: 'gravity', x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
+            vx: Math.cos(tangent) * rand(0.30, 1.45 + birth * 0.75) - Math.cos(a) * rand(0.35, 1.35 + birth * 0.55),
+            vy: Math.sin(tangent) * rand(0.30, 1.45 + birth * 0.75) - Math.sin(a) * rand(0.35, 1.35 + birth * 0.55),
+            life: rand(260, 720), max: 720,
+            color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(),
+            r: rand(0.75, 2.5 + birth * 0.9),
+            tail: rand(10, 30),
+            seed: rand(0, Math.PI * 2),
+            dark: Math.random() < 0.22,
+            shard: true,
+            noCore: true,
+          });
+        }
       } else if (Math.random() < 0.75) {
         const a = rand(0, Math.PI * 2), rr = rand(18, g.r);
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
@@ -10682,17 +10698,14 @@ PUBLIC.start = function (root, api) {
     const diskRy = rr * (0.075 + birth * 0.115);
     ctx.save();
 
-    // A black-hole read: opaque shadow, photon ring, and a tilted accretion disk.
+    // A black-hole read: most of the visible mass is separate orbiting streaks,
+    // not a painted bubble. The disk below is broken into shard arcs.
     ctx.globalCompositeOperation = 'source-over';
-    const grad = ctx.createRadialGradient(g.x, g.y, 2, g.x, g.y, Math.max(28, rr));
-    grad.addColorStop(0, 'rgba(0,0,0,0.99)');
-    grad.addColorStop(0.16, 'rgba(2,1,7,0.98)');
-    grad.addColorStop(0.30, `rgba(9,4,22,${0.94 - collapse * 0.04})`);
-    grad.addColorStop(0.52, `rgba(38,22,92,${0.22 + birth * 0.48})`);
-    grad.addColorStop(0.76, `rgba(116,91,255,${0.04 + birth * 0.31})`);
-    grad.addColorStop(1, `rgba(116,91,255,${0.01 + birth * 0.03})`);
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = (0.10 + birth * 0.16) * (1 - collapse * 0.18);
+    ctx.fillStyle = 'rgba(3,2,9,0.96)';
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, Math.max(8, rr * 0.42), 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
@@ -10709,18 +10722,34 @@ PUBLIC.start = function (root, api) {
     ctx.save();
     ctx.translate(g.x, g.y);
     ctx.rotate(diskRot);
-    ctx.globalAlpha = (0.18 + birth * 0.62) * diskAlpha * (1 - collapse * 0.18);
-    ctx.strokeStyle = `rgba(116,91,255,${0.42 + birth * 0.26})`;
-    ctx.lineWidth = Math.max(9, diskRy * 0.62);
-    ctx.beginPath(); ctx.ellipse(0, 0, diskRx, diskRy, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = (0.32 + birth * 0.44) * diskAlpha * (1 - collapse * 0.10);
-    ctx.strokeStyle = 'rgba(200,185,255,0.72)';
-    ctx.lineWidth = Math.max(3.2, diskRy * 0.18);
-    ctx.beginPath(); ctx.ellipse(0, 0, diskRx * 0.96, diskRy * 0.86, 0, Math.PI * 0.04, Math.PI * 0.96); ctx.stroke();
-    ctx.globalAlpha = (0.25 + birth * 0.37) * diskAlpha * (1 - collapse * 0.12);
-    ctx.strokeStyle = `rgba(78,52,167,${0.66 + collapse * 0.18})`;
-    ctx.lineWidth = Math.max(4.8, diskRy * 0.28);
-    ctx.beginPath(); ctx.ellipse(0, 0, diskRx * 0.78, diskRy * 0.58, 0, Math.PI * 1.02, Math.PI * 1.96); ctx.stroke();
+    const shardCount = 26;
+    for (let i = 0; i < shardCount; i++) {
+      const u = i / shardCount;
+      const a = u * Math.PI * 2 + t * (0.0019 + (i % 4) * 0.00018) + phase;
+      const lane = i % 3;
+      const rx = diskRx * (0.50 + lane * 0.17 + Math.sin(i * 11.7) * 0.025);
+      const ry = diskRy * (0.74 + lane * 0.16);
+      const x = Math.cos(a) * rx;
+      const y = Math.sin(a) * ry;
+      const front = Math.sin(a) > -0.18 ? 1 : 0.42;
+      const tangent = Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx);
+      const len = (10 + lane * 5 + birth * 13) * (0.65 + Math.sin(i * 5.13 + t * 0.004) * 0.18);
+      const bright = i % 7 === 0;
+      ctx.globalAlpha = diskAlpha * front * (bright ? 0.82 : 0.36) * (1 - collapse * 0.16);
+      ctx.strokeStyle = bright ? 'rgba(218,210,255,0.92)' : i % 2 ? 'rgba(116,91,255,0.68)' : 'rgba(78,52,167,0.72)';
+      ctx.lineWidth = bright ? 2.4 : 1.3 + lane * 0.28;
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(tangent) * len, y - Math.sin(tangent) * len);
+      ctx.lineTo(x + Math.cos(tangent) * len * 0.55, y + Math.sin(tangent) * len * 0.55);
+      ctx.stroke();
+      if (bright && birth > 0.30) {
+        ctx.globalAlpha *= 0.62;
+        ctx.fillStyle = '#f4eeff';
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(tangent) * len * 0.72, y + Math.sin(tangent) * len * 0.72, 1.4 + birth * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     ctx.restore();
 
     ctx.globalCompositeOperation = 'source-over';
@@ -10728,14 +10757,18 @@ PUBLIC.start = function (root, api) {
     ctx.fillStyle = '#000000';
     ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(3.5, coreR * 1.24), 0, Math.PI * 2); ctx.fill();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.95 + collapse * 0.05;
+    ctx.globalAlpha = (0.78 + collapse * 0.12) * (0.55 + birth * 0.45);
     ctx.strokeStyle = collapse > 0.1 ? GRAVITY_COLORS.white : '#d9d4ff';
-    ctx.lineWidth = 3.4 + collapse * 3.6;
-    ctx.beginPath(); ctx.arc(g.x, g.y, rimR, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = 0.42 + collapse * 0.24;
+    ctx.lineWidth = 2.0 + birth * 1.2 + collapse * 3.0;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, rimR, Math.PI * 0.04 + phase * 0.05, Math.PI * 1.42 + phase * 0.05);
+    ctx.stroke();
+    ctx.globalAlpha = (0.34 + collapse * 0.20) * birth;
     ctx.strokeStyle = g.color || gravityAccent();
-    ctx.lineWidth = 8.5 + collapse * 2.5;
-    ctx.beginPath(); ctx.arc(g.x, g.y, rimR + 8 + Math.sin(t * 0.013 + phase) * 1.6, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 3.4 + collapse * 2.0;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, rimR + 7 + Math.sin(t * 0.013 + phase) * 1.2, Math.PI * 1.18, Math.PI * 2.07);
+    ctx.stroke();
     if (collapse > 0.02) {
       ctx.globalAlpha = collapse * 0.70;
       ctx.strokeStyle = GRAVITY_COLORS.bright;
@@ -11045,29 +11078,55 @@ PUBLIC.start = function (root, api) {
         const ang = Math.atan2(pt.vy || -1, pt.vx || 0) + (pt.seed || 0) * 0.22;
         ctx.globalCompositeOperation = 'lighter';
         ctx.lineCap = 'round';
-        ctx.globalAlpha = 0.30 * fade;
-        ctx.strokeStyle = pt.color || '#8f7dff';
-        ctx.lineWidth = Math.max(0.9, rr * 0.82);
-        ctx.beginPath();
-        ctx.moveTo(sx - Math.cos(ang) * (pt.tail || 8), sy - Math.sin(ang) * (pt.tail || 8));
-        ctx.lineTo(sx, sy);
-        ctx.stroke();
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = 0.46 * fade;
-        ctx.fillStyle = GRAVITY_COLORS.void;
-        ctx.beginPath();
-        ctx.arc(sx, sy, rr * 1.15, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.76 * fade;
-        ctx.fillStyle = pt.color || '#8f7dff';
-        ctx.beginPath();
-        ctx.moveTo(sx + Math.cos(ang) * rr * 1.8, sy + Math.sin(ang) * rr * 1.8);
-        ctx.lineTo(sx + Math.cos(ang + 2.35) * rr, sy + Math.sin(ang + 2.35) * rr);
-        ctx.lineTo(sx - Math.cos(ang) * rr * 1.2, sy - Math.sin(ang) * rr * 1.2);
-        ctx.lineTo(sx + Math.cos(ang - 2.35) * rr, sy + Math.sin(ang - 2.35) * rr);
-        ctx.closePath();
-        ctx.fill();
+        if (pt.shard || pt.noCore) {
+          const tail = (pt.tail || 14) * (0.45 + fade * 0.70);
+          const side = Math.max(0.7, rr * 0.75);
+          ctx.globalAlpha = (pt.dark ? 0.34 : 0.46) * fade;
+          ctx.strokeStyle = pt.dark ? 'rgba(5,3,13,0.95)' : pt.color || '#8f7dff';
+          ctx.lineWidth = Math.max(0.75, rr * (pt.dark ? 1.25 : 0.72));
+          ctx.beginPath();
+          ctx.moveTo(sx - Math.cos(ang) * tail, sy - Math.sin(ang) * tail);
+          ctx.quadraticCurveTo(
+            sx - Math.cos(ang) * tail * 0.32 - Math.sin(ang) * side,
+            sy - Math.sin(ang) * tail * 0.32 + Math.cos(ang) * side,
+            sx,
+            sy
+          );
+          ctx.stroke();
+          ctx.globalAlpha = (pt.dark ? 0.58 : 0.86) * fade;
+          ctx.fillStyle = pt.dark ? GRAVITY_COLORS.void : pt.color || '#8f7dff';
+          ctx.beginPath();
+          ctx.moveTo(sx + Math.cos(ang) * rr * 2.0, sy + Math.sin(ang) * rr * 2.0);
+          ctx.lineTo(sx + Math.cos(ang + 2.45) * rr * 0.72, sy + Math.sin(ang + 2.45) * rr * 0.72);
+          ctx.lineTo(sx - Math.cos(ang) * rr * 1.8, sy - Math.sin(ang) * rr * 1.8);
+          ctx.lineTo(sx + Math.cos(ang - 2.45) * rr * 0.72, sy + Math.sin(ang - 2.45) * rr * 0.72);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.globalAlpha = 0.30 * fade;
+          ctx.strokeStyle = pt.color || '#8f7dff';
+          ctx.lineWidth = Math.max(0.9, rr * 0.82);
+          ctx.beginPath();
+          ctx.moveTo(sx - Math.cos(ang) * (pt.tail || 8), sy - Math.sin(ang) * (pt.tail || 8));
+          ctx.lineTo(sx, sy);
+          ctx.stroke();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 0.46 * fade;
+          ctx.fillStyle = GRAVITY_COLORS.void;
+          ctx.beginPath();
+          ctx.arc(sx, sy, rr * 1.15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.76 * fade;
+          ctx.fillStyle = pt.color || '#8f7dff';
+          ctx.beginPath();
+          ctx.moveTo(sx + Math.cos(ang) * rr * 1.8, sy + Math.sin(ang) * rr * 1.8);
+          ctx.lineTo(sx + Math.cos(ang + 2.35) * rr, sy + Math.sin(ang + 2.35) * rr);
+          ctx.lineTo(sx - Math.cos(ang) * rr * 1.2, sy - Math.sin(ang) * rr * 1.2);
+          ctx.lineTo(sx + Math.cos(ang - 2.35) * rr, sy + Math.sin(ang - 2.35) * rr);
+          ctx.closePath();
+          ctx.fill();
+        }
       } else {
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = fade;
