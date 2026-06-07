@@ -6,6 +6,9 @@
 _site/
 *.class
 
+# Pose Studio contact sheets (generated dev artifacts)
+pose-*.svg
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

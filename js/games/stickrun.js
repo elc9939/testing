@@ -4205,6 +4205,8 @@ PUBLIC.start = function (root, api) {
   api.on(window, 'keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'f2' || k === ';') { debug.enabled = !debug.enabled; exposeDebugApi(); e.preventDefault(); return; }
+    if (k === 'p') { if (labMode || debug.enabled || poseStudio.active) { togglePoseStudio(); e.preventDefault(); } return; }
+    if (poseStudio.active && handlePoseStudioKey(k, e.shiftKey)) { e.preventDefault(); return; }
     if (k === 'h' || k === '?' || k === '/') { if (state === 'help') closeHelp(); else openHelp(); e.preventDefault(); return; }
     if (k === 'arrowleft' || k === 'a') { input.left = true; e.preventDefault(); }
     else if (k === 'arrowright' || k === 'd') { input.right = true; e.preventDefault(); }
@@ -4290,6 +4292,194 @@ PUBLIC.start = function (root, api) {
     enabled: query.has('debug'),
     segments: [], body: true, weapons: true, projectiles: true, dummies: true, coins: true,
   };
+
+  // ===========================================================================
+  // POSE STUDIO  — a dev-only authoring tool (NOT reachable in normal play; it
+  // only opens from the Ability Lab or with ?debug, and is inert otherwise).
+  // ---------------------------------------------------------------------------
+  // WHY IT EXISTS
+  //   The weapon arm is driven by weaponPose(): three angle channels — shoulder
+  //   (shAng), elbow (elBend), wrist (wrBend) — authored as keyframe stops and
+  //   smooth-stepped across the attack's normalised time t (0 = wind-up start,
+  //   1 = recovery end). Tuning those numbers blind is miserable: change a value,
+  //   replay the whole swing, and try to judge a contact frame that flashes by in
+  //   ~5 frames. This makes the loop SIGHTED.
+  //
+  // WHAT IT DOES
+  //   • Freezes an attack and lets you scrub t by hand — stop dead on the contact
+  //     frame and actually look at the pose.
+  //   • Nudge the three channels live; the real figure updates instantly, so you
+  //     dial a pose you like at a given t.
+  //   • "Capture" the pose at the current t as a keyframe. Collect a few across t
+  //     (wind-up → contact → follow-through) and Export prints them as kfa()-ready
+  //     stops — the exact format weaponPose() already consumes. Paste them back
+  //     (or hand them to Claude) and the in-between frames interpolate for free.
+  //
+  //   Division of labour: you have eyes, so you pose the keyframes; the engine
+  //   (and Claude) handle the interpolation/cleanup between them.
+  //
+  // CONTROLS (only while open; the P key toggles it in lab/debug):
+  //   , / .        prev / next attack archetype
+  //   [ / ]        scrub time t   (hold Shift = fine 0.005 steps)
+  //   - / =        cycle the attack's authored variant (atkVar)
+  //   q/a  w/s  e/d   nudge shoulder / elbow / wrist  (± ~1.7°)
+  //   r            reset the live nudges back to the engine pose
+  //   k            capture a keyframe at the current t
+  //   x            clear captured keyframes
+  //   c            export keyframes → console + root.dataset.stickPose
+  // ===========================================================================
+  const POSE_STUDIO_TYPES = [
+    'slash', 'crush', 'dualSlash', 'rogueStab', 'stab', 'braceThrust', 'lanceCharge',
+    'throw', 'cast', 'arcaneBloom', 'spiritSummon',
+    'pyroFirebolt', 'pyroIgnite', 'pyroBreath', 'pyroDragon', 'pyroGroundFlow',
+    'arrow', 'volley', 'shieldBash',
+  ];
+  const POSE_STEP = 0.02, POSE_STEP_FINE = 0.005, POSE_NUDGE = 0.03;   // t steps / nudge in radians
+  const poseStudio = {
+    active: false,
+    ti: 0,                            // index into POSE_STUDIO_TYPES
+    t: 0.5,                           // scrubbed normalised attack time (0..1)
+    var: 0,                           // which authored variant (a.atkVar)
+    off: { sh: 0, el: 0, wr: 0 },     // live channel nudges, radians
+    live: null,                       // last on-screen final channels (readout only)
+    keys: [],                         // captured keyframes: [{t, sh, el, wr}]
+  };
+  function poseStudioType() { return POSE_STUDIO_TYPES[poseStudio.ti % POSE_STUDIO_TYPES.length]; }
+  function poseStudioReset() { poseStudio.off.sh = poseStudio.off.el = poseStudio.off.wr = 0; }
+  function togglePoseStudio(on) {
+    poseStudio.active = on == null ? !poseStudio.active : !!on;
+    if (poseStudio.active) debug.enabled = true;        // the Studio draws over the hitbox view
+    else if (player && player.anim) {                   // leaving: clear the forced attack frame
+      const a = player.anim; a.atkActive = false; a.atkT = 0; a.atkType = null;
+    }
+    exposeDebugApi();
+  }
+  // Evaluate the engine's weapon-arm channels for an attack at time t (no nudges),
+  // in canonical facing-right space. Pure — safe to call headlessly.
+  function poseStudioChannels(type, t, v) {
+    const p = weaponPose(type, clamp(t, 0, 1), 0, 1, v | 0);
+    return { sh: p.shAng, el: p.elBend, wr: p.wrBend };
+  }
+  function poseStudioCapture() {
+    // the captured pose is what's on screen: engine pose + live nudges
+    const base = poseStudioChannels(poseStudioType(), poseStudio.t, poseStudio.var);
+    const key = {
+      t: +clamp(poseStudio.t, 0, 1).toFixed(3),
+      sh: +(base.sh + poseStudio.off.sh).toFixed(4),
+      el: +(base.el + poseStudio.off.el).toFixed(4),
+      wr: +(base.wr + poseStudio.off.wr).toFixed(4),
+    };
+    const i = poseStudio.keys.findIndex(kk => Math.abs(kk.t - key.t) < 0.012);
+    if (i >= 0) poseStudio.keys[i] = key; else poseStudio.keys.push(key);
+    poseStudio.keys.sort((a, b) => a.t - b.t);
+  }
+  function poseStudioExport() {
+    // kfa()-ready stops per channel: [[t, value], ...] — paste straight into weaponPose()
+    const stops = ch => poseStudio.keys.map(kk => [kk.t, +kk[ch].toFixed(4)]);
+    return {
+      type: poseStudioType(), var: poseStudio.var, keys: poseStudio.keys.slice(),
+      stops: { shAng: stops('sh'), elBend: stops('el'), wrBend: stops('wr') },
+    };
+  }
+  function handlePoseStudioKey(k, shift) {
+    const step = shift ? POSE_STEP_FINE : POSE_STEP;
+    switch (k) {
+      case ',': poseStudio.ti = (poseStudio.ti + POSE_STUDIO_TYPES.length - 1) % POSE_STUDIO_TYPES.length; poseStudioReset(); break;
+      case '.': poseStudio.ti = (poseStudio.ti + 1) % POSE_STUDIO_TYPES.length; poseStudioReset(); break;
+      case '[': poseStudio.t = clamp(poseStudio.t - step, 0, 1); break;
+      case ']': poseStudio.t = clamp(poseStudio.t + step, 0, 1); break;
+      case '-': poseStudio.var = (poseStudio.var + 3) % 4; break;
+      case '=': poseStudio.var = (poseStudio.var + 1) % 4; break;
+      case 'q': poseStudio.off.sh += POSE_NUDGE; break;
+      case 'a': poseStudio.off.sh -= POSE_NUDGE; break;
+      case 'w': poseStudio.off.el += POSE_NUDGE; break;
+      case 's': poseStudio.off.el -= POSE_NUDGE; break;
+      case 'e': poseStudio.off.wr += POSE_NUDGE; break;
+      case 'd': poseStudio.off.wr -= POSE_NUDGE; break;
+      case 'r': poseStudioReset(); break;
+      case 'k': poseStudioCapture(); break;
+      case 'x': poseStudio.keys.length = 0; break;
+      case 'c': {
+        const out = poseStudioExport();
+        console.log('[pose-studio] export', JSON.stringify(out));
+        if (root && root.dataset) root.dataset.stickPose = JSON.stringify(out);
+        break;
+      }
+      default: return false;            // not a Studio key — let normal handling have it
+    }
+    exposeDebugApi();
+    return true;
+  }
+  // Each render frame while the Studio is open: force the player's attack fields
+  // to the frozen, scrubbed pose so the *real* renderer draws it faithfully.
+  function poseStudioStamp() {
+    const a = player && player.anim; if (!a) return;
+    a.atkActive = true;
+    a.atkType = poseStudioType();
+    a.atkT = clamp(poseStudio.t, 0, 1);
+    a.atkAim = player.facing > 0 ? 0 : Math.PI;
+    a.atkVar = poseStudio.var | 0;
+    a.action = null;                    // use attackSpec(type) timing, not a stale action
+  }
+  // Pure skeleton geometry for a posed weapon arm + a reference body, feet at
+  // (0,0). Drives the headless SVG exporter (scripts/pose-shot via the test API),
+  // so poses can be *seen* without a browser. Class-agnostic reference metrics.
+  function poseSkeleton(type, t, opts) {
+    opts = opts || {};
+    const aim = opts.aim == null ? 0 : opts.aim, f = opts.f == null ? 1 : opts.f, v = opts.var | 0;
+    const wlen = opts.wlen || 40;
+    const hipH = 46, torso = 30, neck = 4, headR = 12;
+    const hip = { x: 0, y: -hipH };
+    const sh = { x: hip.x, y: hip.y - torso };
+    const head = { x: sh.x, y: sh.y - (neck + headR) };
+    const pose = weaponPose(type, clamp(t, 0, 1), aim, f, v);
+    const ch = armChain(sh.x, sh.y, pose.shAng, pose.elBend);
+    const blAng = pose.shAng + pose.elBend + pose.wrBend;
+    const tip = { x: ch.hx + Math.cos(blAng) * wlen, y: ch.hy + Math.sin(blAng) * wlen };
+    return {
+      type, t: clamp(t, 0, 1), var: v,
+      channels: { sh: pose.shAng, el: pose.elBend, wr: pose.wrBend },
+      points: { hip, sh, head, elbow: { x: ch.ex, y: ch.ey }, hand: { x: ch.hx, y: ch.hy }, tip },
+      headR,
+    };
+  }
+  // screen-space overlay panel (drawn after the world, in render())
+  function drawPoseStudio() {
+    const base = poseStudioChannels(poseStudioType(), poseStudio.t, poseStudio.var);
+    const fin = { sh: base.sh + poseStudio.off.sh, el: base.el + poseStudio.off.el, wr: base.wr + poseStudio.off.wr };
+    const deg = r => (r * 180 / Math.PI).toFixed(1) + '°';
+    const lines = [
+      'POSE STUDIO  (P closes)',
+      `attack  ${poseStudioType()}   var ${poseStudio.var}`,
+      `t = ${poseStudio.t.toFixed(3)}    [ ]  scrub  (Shift=fine)`,
+      `shoulder ${deg(fin.sh)}   q/a   off ${deg(poseStudio.off.sh)}`,
+      `elbow    ${deg(fin.el)}   w/s   off ${deg(poseStudio.off.el)}`,
+      `wrist    ${deg(fin.wr)}   e/d   off ${deg(poseStudio.off.wr)}`,
+      ', .  type      - =  variant      r  reset',
+      'k  capture     x  clear          c  export',
+      `keyframes: ${poseStudio.keys.length ? poseStudio.keys.map(kk => kk.t.toFixed(2)).join(' ') : '(none)'}`,
+    ];
+    ctx.save();
+    ctx.font = '12px ui-monospace, SFMono-Regular, Consolas, monospace';
+    ctx.textBaseline = 'top';
+    const w = Math.max.apply(null, lines.map(s => ctx.measureText(s).width)) + 16;
+    const h = lines.length * 16 + 16;
+    const x = view.w - w - 12, y = 12;
+    ctx.fillStyle = 'rgba(16,18,26,.86)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(127,208,255,.5)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillStyle = i === 0 ? '#7fd0ff' : i === 1 ? '#ffd45e' : '#dff0ff';
+      ctx.fillText(lines[i], x + 8, y + 7 + i * 16);
+    }
+    // scrub bar: white needle = current t, gold ticks = captured keyframes
+    const bx = x + 8, bw = w - 16, by = y + h - 7;
+    ctx.strokeStyle = 'rgba(255,255,255,.28)';
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
+    for (const kk of poseStudio.keys) { ctx.fillStyle = '#ffd45e'; ctx.fillRect(bx + bw * kk.t - 1, by - 3, 2, 6); }
+    ctx.fillStyle = '#7fd0ff'; ctx.fillRect(bx + bw * poseStudio.t - 1, by - 5, 2, 10);
+    ctx.restore();
+  }
 
   function makePlayer(spawn) {
     return {
@@ -11934,6 +12124,10 @@ PUBLIC.start = function (root, api) {
     if (attacking && !rogueOff) {
       // a full-body clip can author its own arm arc; else use the generic engine
       const pose = (a._clip && a._clip.arm) ? a._clip.arm(a.atkT, a.atkAim, f) : weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
+      if (poseStudio.active && player.team === 'hero') {     // Pose Studio: apply live channel nudges
+        pose.shAng += poseStudio.off.sh; pose.elBend += poseStudio.off.el; pose.wrBend += poseStudio.off.wr;
+        poseStudio.live = { sh: pose.shAng, el: pose.elBend, wr: pose.wrBend };
+      }
       a.shAng = pose.shAng; a.shAngV = 0;
       a.elAng = pose.elBend; a.elAngV = 0;
       a.blAng = pose.shAng + pose.elBend + pose.wrBend; a.blAngV = 0;
@@ -13421,11 +13615,17 @@ PUBLIC.start = function (root, api) {
     cam.x = camBase.x; cam.y = camBase.y;
     drawArenaOverlay();
     drawDebugPanel(moveAmt);
+    if (poseStudio.active) drawPoseStudio();
   }
 
   // ---------- main loop (fixed-step physics + smooth anim/render) ----------
   let acc = 0;
   api.loop(dt => {
+    if (poseStudio.active && player && state === 'playing') {   // Studio: hold the sim, just pose & draw
+      poseStudioStamp();
+      render(lastMoveAmt || 0);
+      return;
+    }
     if (state === 'playing') {
       if (shakeT > 0) {
         shakeT = Math.max(0, shakeT - dt);
@@ -13970,6 +14170,23 @@ PUBLIC.start = function (root, api) {
         };
       },
       startLab, applyLabBuild, refillLabResources,
+      // Pose Studio (dev tool) — drive it headlessly or read poses without a browser
+      poseStudio: {
+        open() { togglePoseStudio(true); }, close() { togglePoseStudio(false); },
+        isOpen() { return poseStudio.active; },
+        types() { return POSE_STUDIO_TYPES.slice(); },
+        setType(type) { const i = POSE_STUDIO_TYPES.indexOf(type); if (i >= 0) poseStudio.ti = i; poseStudioReset(); return i >= 0; },
+        setT(t) { poseStudio.t = clamp(t, 0, 1); },
+        setVar(v) { poseStudio.var = (((v | 0) % 4) + 4) % 4; },
+        nudge(ch, d) { if (ch === 'sh' || ch === 'el' || ch === 'wr') poseStudio.off[ch] += d; },
+        reset() { poseStudioReset(); },
+        channels(type, t, v) { return poseStudioChannels(type || poseStudioType(), t == null ? poseStudio.t : t, v == null ? poseStudio.var : v); },
+        skeleton(type, t, opts) { return poseSkeleton(type, t, opts); },
+        capture() { poseStudioCapture(); return poseStudio.keys.slice(); },
+        clear() { poseStudio.keys.length = 0; },
+        export() { return poseStudioExport(); },
+        state() { return { active: poseStudio.active, type: poseStudioType(), t: poseStudio.t, var: poseStudio.var, off: Object.assign({}, poseStudio.off), keys: poseStudio.keys.slice() }; },
+      },
       debugSegments() { return debug.segments.slice(); },
       get player() { return player; },
       get dummies() { return dummies; },
