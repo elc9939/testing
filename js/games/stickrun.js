@@ -218,7 +218,7 @@ const ABILITIES = (() => {
   add('mg_dash', { cls: 'mage', branch: 'starter', tier: 0, slot: 'shift', name: 'Arcane Dash', desc: 'Short staff-led dash. Best for crossing gaps or slipping past pressure without borrowing the gravity hover fantasy.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
   add('mg_sigil', { cls: 'mage', branch: 'starter', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
   add('mg_arcane_nova', { cls: 'mage', branch: 'starter', tier: 0, slot: 'q', name: 'Arcane Nova', desc: 'Release a clean circular blast around the staff, shoving enemies and loose objects away.', effect: { kind: 'arcaneNova', r: 168, force: 26 }, cd: 9000, draft: false, tags: ['AOE', 'Push'] });
-  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Create a violent black hole that drags enemies, debris, crates, and dummies inward, damages them, then collapses hard.', effect: { kind: 'blackHole', r: 265, life: 2200, range: 620, force: 1.15 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
+  add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Create a violent black hole that drags enemies, debris, crates, and dummies inward, damages them, then collapses hard.', effect: { kind: 'blackHole', r: 286, life: 2500, range: 650, force: 1.42 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
   add('mg_staff', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'attack', name: 'Staff Sweep', desc: 'Close-range staff arc that knocks clustered enemies into your fields.', type: 'attack', action: 'staffSweep', tags: ['Gravity', 'Push'] });
   add('mg_updraft', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'e', name: 'Mass Slam', desc: 'Grab nearby mass at the cursor and slam enemies, crates, barrels, and dummies downward into the arena.', effect: { kind: 'massSlam', force: 28, radius: 154, range: 380 }, cd: 3300, tags: ['Gravity', 'Damage', 'Crates'] });
   add('mg_gravitywell', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'secondary', name: 'Gravity Well', desc: 'A shorter-range bloom that opens faster and pulls crates harder.', effect: { kind: 'field', r: 178, life: 2400, range: 360 }, cd: 1900, tags: ['Gravity', 'Crates'] });
@@ -1862,8 +1862,8 @@ PUBLIC.start = function (root, api) {
     return true;
   }
   function useMageSingularity() {
-    const p = aimedPoint(620);
-    spawnBlackHole(p.x, p.y, player.team, gravityAccent(), { r: 265, life: 2200, pullPower: 1.15 });
+    const p = aimedPoint(650);
+    spawnBlackHole(p.x, p.y, player.team, gravityAccent(), { r: 286, life: 2500, pullPower: 1.42 });
     return true;
   }
   function useRangerPowerShot(ang) {
@@ -8124,22 +8124,21 @@ PUBLIC.start = function (root, api) {
   }
   function emitBlackHoleBirth(x, y, r, color) {
     const accent = color || gravityAccent();
-    burst(x, y, gravityHighlight(), 24, 3.7);
-    burst(x, y, accent, 72, 6.9);
-    for (let i = 0; i < 76; i++) {
-      const a = rand(0, Math.PI * 2), rr = rand(r * 0.34, r * 0.98);
+    for (let i = 0; i < 118; i++) {
+      const a = rand(0, Math.PI * 2), rr = rand(r * 0.42, r * 1.18);
       const tangent = a + Math.PI / 2;
       gravityParticle(x + Math.cos(a) * rr, y + Math.sin(a) * rr,
-        Math.cos(tangent) * rand(0.25, 1.4) - Math.cos(a) * rand(0.10, 0.55),
-        Math.sin(tangent) * rand(0.25, 1.4) - Math.sin(a) * rand(0.10, 0.55), {
+        Math.cos(tangent) * rand(0.35, 1.85) - Math.cos(a) * rand(0.55, 1.75),
+        Math.sin(tangent) * rand(0.35, 1.85) - Math.sin(a) * rand(0.55, 1.75), {
           color: gravityParticleColor(),
-          life: rand(420, 980),
-          r: rand(1.3, 4.1),
-          tail: rand(8, 17),
+          life: rand(520, 1180),
+          r: rand(1.7, 5.4),
+          tail: rand(12, 28),
         });
     }
-    spawnShockwaveRing(x, y, r * 0.88, accent, { life: 520, width: 6.2, fill: 0.12, rough: 0.085 });
-    addShake(6.6, 190);
+    spawnShockwaveRing(x, y, r * 1.04, accent, { life: 620, width: 8.2, fill: 0.16, rough: 0.10 });
+    spawnShockwaveRing(x, y, r * 0.48, gravityHighlight(), { life: 420, width: 5.6, fill: 0.10, rough: 0.075 });
+    addShake(8.0, 240);
   }
   function spawnBlackHole(x, y, team, color, opts) {
     opts = Object.assign({}, opts || {}, { blackHole: true, ultimate: true, tether: true });
@@ -8155,7 +8154,7 @@ PUBLIC.start = function (root, api) {
     const gravityVisual = blackHole || opts.gravityVisual || fieldColor === gravityAccent();
     gravityFields.push({
       x, y, team: team || 'hero', color: fieldColor, life, max: life, r,
-      ultimate: !!opts.ultimate, tether: opts.tether !== false, phase: rand(0, Math.PI * 2),
+      ultimate: !!opts.ultimate, tether: opts.tether !== false, phase: rand(0, Math.PI * 2), age: 0,
       blackHole,
       pullPower: opts.force || opts.pullPower || (blackHole ? 1.35 : 1),
       damageTick: blackHole ? 90 : 0,
@@ -8634,6 +8633,7 @@ PUBLIC.start = function (root, api) {
     for (let i = gravityFields.length - 1; i >= 0; i--) {
       const g = gravityFields[i];
       g.life -= dtStep;
+      g.age = (g.age || 0) + dtStep;
       tickBlackHoleDamage(g, dtStep);
       for (const b of boxes) applyGravityFieldToBox(g, b);
       if ((g.team || 'hero') === 'enemy') for (const t of enemyAttackTargets()) applyGravityFieldToActor(g, t);
@@ -8643,9 +8643,9 @@ PUBLIC.start = function (root, api) {
         const a = rand(0, Math.PI * 2), rr = rand(26, g.r);
         const tangent = a + Math.PI / 2;
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
-          vx: Math.cos(tangent) * rand(0.18, 0.95) - Math.cos(a) * rand(0.10, 0.62),
-          vy: Math.sin(tangent) * rand(0.18, 0.95) - Math.sin(a) * rand(0.10, 0.62),
-          life: rand(260, 620), max: 620, color: Math.random() < 0.24 ? '#ffffff' : g.color, r: rand(1, 2.9) });
+          vx: Math.cos(tangent) * rand(0.42, 1.65) - Math.cos(a) * rand(0.45, 1.40),
+          vy: Math.sin(tangent) * rand(0.42, 1.65) - Math.sin(a) * rand(0.45, 1.40),
+          life: rand(320, 760), max: 760, color: Math.random() < 0.18 ? GRAVITY_COLORS.white : gravityParticleColor(), r: rand(1.2, 4.2), tail: rand(11, 26), dark: Math.random() < 0.18 });
       } else if (Math.random() < 0.75) {
         const a = rand(0, Math.PI * 2), rr = rand(18, g.r);
         particles.push({ x: g.x + Math.cos(a) * rr, y: g.y + Math.sin(a) * rr,
@@ -9215,31 +9215,46 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
-  function drawGravityDebrisOrbit(cx, cy, count, max) {
+  function drawGravityDebrisOrbit(cx, cy, count, max, opts) {
+    opts = opts || {};
     count = clamp(Math.floor(count || 0), 0, max || MAGE_DEBRIS_MAX);
     if (!count) return;
-    const t = (player.gravityDebrisSpin || 0) + performance.now() * 0.00072;
+    const t = (player.gravityDebrisSpin || 0) + performance.now() * 0.00048;
     const active = player.anim && player.anim.atkActive && player.anim.visualKind === 'gravityDebris';
-    const aim = active ? player.anim.atkAim : aimedAngle();
-    const staff = gravityStaffOrigin(aim);
-    const castPull = active ? 0.36 + 0.28 * Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0.16;
+    const aim = opts.aim != null ? opts.aim : active ? player.anim.atkAim : aimedAngle();
+    const staff = opts.staff || { x: cx + Math.cos(aim) * 58, y: cy + Math.sin(aim) * 42 };
+    const castPull = active ? 0.52 + 0.34 * Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0.07;
     const hover = mageHovering ? (mageHovering() ? 1 : 0) : 0;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (let i = 0; i < count; i++) {
       const slot = i / Math.max(1, max || count);
-      const a = t * (0.84 + i * 0.045) + slot * Math.PI * 2 + Math.sin(t * 1.8 + i) * 0.16;
-      const pulse = 0.5 + 0.5 * Math.sin(t * 2.1 + i * 1.7);
+      const a = t * (0.56 + i * 0.035) + slot * Math.PI * 2 + Math.sin(t * 1.25 + i) * 0.20;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 1.55 + i * 1.7);
       const lane = i % 3;
-      const orbitX = 48 + lane * 13 + pulse * 7 + (active ? 16 : 0) + hover * 5;
-      const orbitY = 34 + lane * 7 + pulse * 5 + (active ? 8 : 0) + hover * 4;
-      const rawX = cx + Math.cos(a) * orbitX + Math.sin(t * 1.35 + i) * 8;
-      const rawY = cy + Math.sin(a) * orbitY - 14 + Math.cos(t * 1.05 + i * 2) * 5;
-      const staffBias = castPull * (0.55 + pulse * 0.35);
-      const x = lerp(rawX, staff.x - Math.cos(aim) * (8 + i * 2), staffBias);
-      const y = lerp(rawY, staff.y - Math.sin(aim) * (5 + i * 2), staffBias);
-      const r = 7.0 + lane * 0.9 + pulse * 2.4 + (active ? 1.5 : 0);
+      const orbitX = 60 + lane * 18 + pulse * 8 + (active ? 18 : 0) + hover * 7;
+      const orbitY = 42 + lane * 10 + pulse * 6 + (active ? 10 : 0) + hover * 5;
+      const rawX = cx + Math.cos(a) * orbitX + Math.sin(t * 1.10 + i) * 9;
+      const rawY = cy + Math.sin(a) * orbitY + Math.cos(t * 0.92 + i * 2) * 6;
+      const staffBias = castPull * (0.52 + pulse * 0.34);
+      const staffSlot = {
+        x: staff.x - Math.cos(aim) * (10 + i * 5) + Math.sin(aim) * (i - 1) * 4,
+        y: staff.y - Math.sin(aim) * (8 + i * 4) - Math.cos(aim) * (i - 1) * 4,
+      };
+      const x = lerp(rawX, staffSlot.x, staffBias);
+      const y = lerp(rawY, staffSlot.y, staffBias);
+      const r = 8.8 + lane * 1.2 + pulse * 2.8 + (active ? 1.8 : 0);
+      if (active) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.12 + pulse * 0.10;
+        ctx.strokeStyle = GRAVITY_COLORS.bright;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo((x + staff.x) * 0.5 + Math.sin(a) * 10, (y + staff.y) * 0.5 - Math.cos(a) * 8, staff.x, staff.y);
+        ctx.stroke();
+      }
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.08 + pulse * 0.08 + (active ? 0.06 : 0);
       ctx.fillStyle = GRAVITY_COLORS.edge;
@@ -9627,7 +9642,12 @@ PUBLIC.start = function (root, api) {
       drawSpiritOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.spiritCharges);
     }
     if (cls.id === 'mage' && player.team === 'hero' && mageGraviturgeLoadoutActive() && (player.gravityDebris || 0) > 0) {
-      drawGravityDebrisOrbit((hipX + shX) * 0.5, (hipY + shY) * 0.5, player.gravityDebris, gravityDebrisMax());
+      const debrisAim = player.anim && player.anim.atkActive && player.anim.visualKind === 'gravityDebris' ? player.anim.atkAim : aimedAngle();
+      const staffWorld = gravityStaffOrigin(debrisAim);
+      drawGravityDebrisOrbit(lerp(hipX, shX, 0.72) + f * 4, lerp(hipY, shY, 0.72) + 1, player.gravityDebris, gravityDebrisMax(), {
+        aim: debrisAim,
+        staff: { x: staffWorld.x - player.x, y: staffWorld.y - (player.y - hoverY) },
+      });
     }
     if (cls.id === 'ranger') drawQuiver(shX - f * 13, shY + 23, f, player.arrowAmmo);
 
@@ -10437,47 +10457,103 @@ PUBLIC.start = function (root, api) {
     ctx.restore();
   }
   function drawBlackHoleField(g, t) {
-    const fade = clamp(g.life / (g.max || 1), 0, 1);
-    const age = 1 - fade;
-    const pulse = 1 + Math.sin(t * 0.010 + (g.phase || 0)) * 0.035;
-    const rr = g.r * pulse;
+    const max = g.max || 1;
+    const birth = ease(clamp((g.age || (max - g.life)) / 520, 0, 1));
+    const collapse = ease(clamp((420 - g.life) / 420, 0, 1));
+    const phase = g.phase || 0;
+    const pulse = 1 + Math.sin(t * 0.010 + phase) * 0.020;
+    const rr = g.r * (0.24 + birth * 0.76) * (1 - collapse * 0.18) * pulse;
+    const coreR = (22 + birth * 18 + Math.sin(t * 0.015 + phase) * 2.2) * (1 - collapse * 0.28);
+    const rimR = coreR + 7 + collapse * 14;
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
-    const grad = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, rr);
-    grad.addColorStop(0, `rgba(0,0,0,${0.94 * fade})`);
-    grad.addColorStop(0.15, `rgba(5,3,13,${0.92 * fade})`);
-    grad.addColorStop(0.34, `rgba(32,16,68,${0.52 * fade})`);
-    grad.addColorStop(0.62, `rgba(116,91,255,${0.20 * fade})`);
-    grad.addColorStop(1, 'rgba(116,91,255,0)');
+    const grad = ctx.createRadialGradient(g.x, g.y, 2, g.x, g.y, Math.max(20, rr));
+    grad.addColorStop(0, 'rgba(0,0,0,0.99)');
+    grad.addColorStop(0.16, 'rgba(2,1,7,0.98)');
+    grad.addColorStop(0.32, `rgba(12,6,28,${0.90 - collapse * 0.06})`);
+    grad.addColorStop(0.58, `rgba(50,32,121,${0.50 + birth * 0.12})`);
+    grad.addColorStop(0.82, `rgba(116,91,255,${0.19 + birth * 0.10})`);
+    grad.addColorStop(1, 'rgba(116,91,255,0.02)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, Math.PI * 2); ctx.fill();
 
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
-    for (let ring = 0; ring < 4; ring++) {
-      const baseR = rr * (0.22 + ring * 0.145 + Math.sin(t * 0.002 + ring) * 0.012);
-      ctx.globalAlpha = fade * (ring === 0 ? 0.82 : 0.34);
-      ctx.strokeStyle = ring === 0 ? GRAVITY_COLORS.bright : (ring % 2 ? (g.color || gravityAccent()) : GRAVITY_COLORS.white);
-      ctx.lineWidth = ring === 0 ? 2.8 : 1.5;
+    if (birth < 0.98) {
+      const formAlpha = 1 - birth;
+      for (let i = 0; i < 18; i++) {
+        const a = i * Math.PI * 2 / 18 + phase + t * 0.0028;
+        const outer = g.r * (1.02 - birth * 0.22 + Math.sin(i + t * 0.004) * 0.035);
+        const inner = coreR + 10 + i % 3 * 5;
+        ctx.globalAlpha = formAlpha * (0.24 + (i % 3) * 0.06);
+        ctx.strokeStyle = i % 3 === 0 ? GRAVITY_COLORS.white : GRAVITY_COLORS.bright;
+        ctx.lineWidth = 1.4 + (i % 3) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(g.x + Math.cos(a) * outer, g.y + Math.sin(a) * outer);
+        ctx.quadraticCurveTo(
+          g.x + Math.cos(a + 0.55) * outer * 0.58,
+          g.y + Math.sin(a + 0.55) * outer * 0.58,
+          g.x + Math.cos(a + 1.0) * inner,
+          g.y + Math.sin(a + 1.0) * inner
+        );
+        ctx.stroke();
+      }
+    }
+    for (let band = 0; band < 5; band++) {
+      const baseR = rr * (0.27 + band * 0.125 + Math.sin(t * 0.002 + band) * 0.010);
+      ctx.globalAlpha = (band === 0 ? 0.94 : 0.42) * (0.72 + birth * 0.28) + collapse * 0.12;
+      ctx.strokeStyle = band === 0 ? GRAVITY_COLORS.bright : (band % 2 ? (g.color || gravityAccent()) : GRAVITY_COLORS.white);
+      ctx.lineWidth = band === 0 ? 3.4 + collapse * 1.4 : 1.8 + collapse * 0.8;
       ctx.beginPath();
-      for (let i = 0; i <= 96; i++) {
-        const u = i / 96;
-        const a = u * Math.PI * 2 + t * (0.0032 + ring * 0.0008) + ring * 0.7;
-        const swirl = Math.sin(u * Math.PI * 6 + t * 0.006 + ring) * (3.5 + ring);
-        const x = g.x + Math.cos(a) * (baseR + swirl);
-        const y = g.y + Math.sin(a) * (baseR + swirl);
+      const start = phase + band * 0.86 + t * (0.0036 + band * 0.0007);
+      const arc = Math.PI * (1.28 + band * 0.10 + collapse * 0.35);
+      for (let i = 0; i <= 86; i++) {
+        const u = i / 86;
+        const a = start + u * arc;
+        const swirl = Math.sin(u * Math.PI * 5 + t * 0.006 + band) * (4.8 + band * 1.2);
+        const sink = 1 - u * (0.34 + collapse * 0.20);
+        const x = g.x + Math.cos(a) * (baseR * sink + swirl);
+        const y = g.y + Math.sin(a) * (baseR * sink + swirl);
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       ctx.stroke();
     }
+    for (let i = 0; i < 14; i++) {
+      const a = phase + i * Math.PI * 2 / 14 - t * 0.0048;
+      const outer = rr * (0.74 + 0.10 * Math.sin(i * 2.1 + t * 0.005));
+      const inner = coreR + 6 + (i % 2) * 5;
+      ctx.globalAlpha = 0.16 + birth * 0.16 + collapse * 0.16;
+      ctx.strokeStyle = i % 4 === 0 ? GRAVITY_COLORS.white : GRAVITY_COLORS.violet;
+      ctx.lineWidth = i % 4 === 0 ? 2.2 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(g.x + Math.cos(a) * outer, g.y + Math.sin(a) * outer);
+      ctx.lineTo(g.x + Math.cos(a + 0.55) * inner, g.y + Math.sin(a + 0.55) * inner);
+      ctx.stroke();
+    }
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.96 * fade;
+    ctx.globalAlpha = 1;
     ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(g.x, g.y, 19 + age * 9, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.82 * fade;
-    ctx.strokeStyle = '#d9d4ff';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.arc(g.x, g.y, 25 + Math.sin(t * 0.014) * 2.3, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(10, coreR), 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.92 + collapse * 0.08;
+    ctx.strokeStyle = collapse > 0.1 ? GRAVITY_COLORS.white : '#d9d4ff';
+    ctx.lineWidth = 2.4 + collapse * 3.2;
+    ctx.beginPath(); ctx.arc(g.x, g.y, rimR, 0, Math.PI * 2); ctx.stroke();
+    if (collapse > 0.02) {
+      ctx.globalAlpha = collapse * 0.70;
+      ctx.strokeStyle = GRAVITY_COLORS.bright;
+      ctx.lineWidth = 2.0 + collapse * 2.4;
+      ctx.beginPath(); ctx.arc(g.x, g.y, rr * (0.90 - collapse * 0.52), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = collapse * 0.55;
+      ctx.strokeStyle = GRAVITY_COLORS.white;
+      for (let i = 0; i < 10; i++) {
+        const a = phase + i * Math.PI * 2 / 10 + t * 0.006;
+        ctx.beginPath();
+        ctx.moveTo(g.x + Math.cos(a) * (coreR + 16), g.y + Math.sin(a) * (coreR + 16));
+        ctx.lineTo(g.x + Math.cos(a) * rr * 0.72, g.y + Math.sin(a) * rr * 0.72);
+        ctx.stroke();
+      }
+    }
     drawGravityCoreTethers(g, t);
     ctx.restore();
   }
