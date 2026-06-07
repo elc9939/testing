@@ -467,6 +467,11 @@ const CLASS_LOADOUT = {
   mage: { attack: 'mg_bolt', secondary: 'mg_bloom', shift: 'mg_dash', e: 'mg_sigil', q: 'mg_arcane_nova', passive: null },
   ranger: { attack: 'rn_arrow', secondary: 'rn_volley', shift: 'rn_backstep', e: 'rn_kickshot', q: 'rn_arrowstorm', passive: null },
 };
+const STAT_DRAFTS = {
+  'stat:vitality': { id: 'stat:vitality', slot: 'stat', branch: 'stat', name: 'Vitality Training', desc: 'Gain +1 max HP and heal 1. Late-run fallback once your build is mostly formed.', tags: ['Stat', 'Survival'] },
+  'stat:haste': { id: 'stat:haste', slot: 'stat', branch: 'stat', name: 'Haste Training', desc: 'Reduce attack and ability cooldowns by 6%, stacking up to 28%.', tags: ['Stat', 'Cooldown'] },
+  'stat:mobility': { id: 'stat:mobility', slot: 'stat', branch: 'stat', name: 'Mobility Training', desc: 'Raise normal run speed slightly without changing your chosen branch.', tags: ['Stat', 'Movement'] },
+};
 const LAB_BUILDS = {
   knight: [
     { id: 'base', name: 'Base Knight', note: 'Starting kit for checking sword, shield, and hitbox basics.', loadout: {} },
@@ -956,6 +961,7 @@ PUBLIC.start = function (root, api) {
     .sr-pick .slot,.sr-help-row .slot{float:right;color:#ffcf8a;font-size:10px;font-weight:900;letter-spacing:.08em}
     .sr-pick b,.sr-help-row b{display:block;margin-bottom:3px}.sr-pick small,.sr-help-row small{display:block;opacity:.72;line-height:1.32}
     .sr-tags{display:block;margin-top:5px;color:#8fe6ff;font-style:normal;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .sr-draft-skip{margin-top:10px}
     .sr-help-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
     .sr-help-meta span{font-size:10px;font-weight:900;color:#f7f0d2;border:1px solid rgba(255,255,255,.14);
       border-radius:999px;padding:3px 7px;background:rgba(255,255,255,.06)}
@@ -1083,7 +1089,7 @@ PUBLIC.start = function (root, api) {
     return act.cooldowns;
   }
   function actionCooldown(type) {
-    return ACTION_COOLDOWN[type] || 900;
+    return ((ACTION_COOLDOWN[type] || 900) * cooldownStatMultiplier());
   }
   function cooldownLeft(type) {
     return player ? (cooldownBag(player)[type] || 0) : 0;
@@ -1130,12 +1136,22 @@ PUBLIC.start = function (root, api) {
       loadout: baseLoadout(id),
       picked: [],
       branchPoints: {},
+      statBonuses: {},
       softBranch: null,
       lastDraft: null,
     };
   }
   function ability(id) {
     return id && ABILITIES[id] ? Object.assign({ id }, ABILITIES[id]) : null;
+  }
+  function statDraft(id) {
+    return id && STAT_DRAFTS[id] ? Object.assign({}, STAT_DRAFTS[id]) : null;
+  }
+  function isStatDraft(id) {
+    return !!statDraft(id);
+  }
+  function draftSpec(id) {
+    return statDraft(id) || ability(id);
   }
   function equipped(slot) {
     return ability(loadout && loadout[slot]);
@@ -1153,6 +1169,15 @@ PUBLIC.start = function (root, api) {
   }
   function tagsText(spec) {
     return spec && spec.tags && spec.tags.length ? spec.tags.join(' / ') : '';
+  }
+  function statBonus(kind) {
+    return runBuild && runBuild.statBonuses && runBuild.statBonuses[kind] || 0;
+  }
+  function cooldownStatMultiplier() {
+    return Math.max(0.72, 1 - statBonus('haste') * 0.06);
+  }
+  function mobilityStatMultiplier() {
+    return 1 + statBonus('mobility') * 0.035;
   }
   function currentDraftTier() {
     const w = arenaWave || 1;
@@ -1193,13 +1218,39 @@ PUBLIC.start = function (root, api) {
     return runBuild.softBranch;
   }
   function slotAlreadyOffered(ids, spec) {
-    return ids.some(id => ability(id).slot === spec.slot);
+    if (!spec || spec.slot === 'stat') return false;
+    return ids.some(id => {
+      const other = draftSpec(id);
+      return other && other.slot === spec.slot && other.slot !== 'stat';
+    });
+  }
+  function branchProgressionMet(spec) {
+    if (!spec || spec.cls !== cls.id || !spec.branch || spec.branch === 'starter' || spec.cls === 'neutral') return true;
+    if (spec.prereq || spec.prereqAll || (spec.tier || 1) <= 1) return true;
+    return branchScore(spec.branch) >= Math.min(2, Math.max(1, (spec.tier || 1) - 1));
+  }
+  function excludedByPicked(spec) {
+    if (!spec) return false;
+    const picked = runBuild && runBuild.picked || [];
+    const ex = Array.isArray(spec.excludes) ? spec.excludes : spec.excludes ? [spec.excludes] : [];
+    if (ex.some(id => picked.includes(id))) return true;
+    return picked.some(id => {
+      const p = ability(id);
+      const px = p && (Array.isArray(p.excludes) ? p.excludes : p.excludes ? [p.excludes] : []);
+      return px && px.includes(spec.id);
+    });
+  }
+  function branchLockedAgainst(spec) {
+    if (!runBuild || !runBuild.softBranch || !spec || spec.cls !== cls.id || !spec.branch) return false;
+    if (spec.branch === 'starter' || spec.branch === runBuild.softBranch) return false;
+    return true;
   }
   function canDraftNode(id) {
     const a = ability(id);
     if (!a || !a.draft || !tierUnlocked(a) || !prereqMet(a)) return false;
     if (a.cls !== cls.id && a.cls !== 'neutral') return false;
     if (a.cls === cls.id && a.branch && !branchInfo(a.cls, a.branch)) return false;
+    if (branchLockedAgainst(a) || !branchProgressionMet(a) || excludedByPicked(a)) return false;
     if (nodePicked(id)) return false;
     if (a.slot === 'passive') return loadout.passive !== id;
     return loadout[a.slot] !== id;
@@ -1271,7 +1322,7 @@ PUBLIC.start = function (root, api) {
   }
   function abilityCooldown(slot) {
     const spec = equipped(slot);
-    return (spec && spec.cd) || slotCooldown(slot);
+    return ((spec && spec.cd) || slotCooldown(slot)) * cooldownStatMultiplier();
   }
   function actionName(type) {
     const fallback = {
@@ -4097,6 +4148,22 @@ PUBLIC.start = function (root, api) {
     }
     return null;
   }
+  function statKind(id) {
+    return String(id || '').split(':')[1] || '';
+  }
+  function statDraftPool() {
+    return Object.keys(STAT_DRAFTS).filter(id => {
+      const kind = statKind(id);
+      const cap = kind === 'haste' ? 5 : 4;
+      return statBonus(kind) < cap;
+    });
+  }
+  function addStatFallbacks(out, addPick) {
+    for (const id of shuffledIds(statDraftPool())) {
+      if (out.length >= 3) break;
+      addPick(id);
+    }
+  }
   function draftPool() {
     if (!loadout || !cls || !runBuild) return [];
     recomputeSoftBranch();
@@ -4105,13 +4172,16 @@ PUBLIC.start = function (root, api) {
     const out = [];
     const addPick = id => {
       if (!id || out.includes(id)) return false;
-      const a = ability(id);
+      const a = draftSpec(id);
+      if (!a) return false;
       if (slotAlreadyOffered(out, a)) return false;
-      out.push(id); usedSlots[a.slot] = true; return true;
+      out.push(id);
+      if (a.slot !== 'stat') usedSlots[a.slot] = true;
+      return true;
     };
     if (runBuild.softBranch) {
       const favored = all.filter(id => ability(id).cls === cls.id && ability(id).branch === runBuild.softBranch);
-      const hybrid = all.filter(id => ability(id).cls === 'neutral' || ability(id).branch !== runBuild.softBranch);
+      const hybrid = all.filter(id => ability(id).cls === 'neutral');
       addPick(pickDraftCandidate(favored, usedSlots, runBuild.softBranch));
       addPick(pickDraftCandidate(favored.filter(id => !out.includes(id)), usedSlots, runBuild.softBranch));
       addPick(pickDraftCandidate(hybrid, usedSlots, null));
@@ -4127,7 +4197,16 @@ PUBLIC.start = function (root, api) {
       if (out.length >= 3) break;
       addPick(id);
     }
+    if ((arenaWave || 1) >= 5 || out.length === 0) addStatFallbacks(out, addPick);
     return out.slice(0, 3);
+  }
+  function continueAfterDraft() {
+    arenaDraftChoices = null;
+    ov.classList.add('hidden');
+    setPlayUi(true);
+    state = 'playing';
+    spawnArenaWave((arenaWave || 1) + 1);
+    syncHud();
   }
   function openArenaDraft() {
     if (!arenaMode || state !== 'playing') return false;
@@ -4137,20 +4216,40 @@ PUBLIC.start = function (root, api) {
     setPlayUi(false);
     ov.classList.remove('hidden');
     const cards = arenaDraftChoices.map(id => {
-      const a = ability(id);
+      const a = draftSpec(id);
+      const label = a.slot === 'stat' ? 'TRAINING - LATE RUN' : `${SLOT_LABEL[a.slot]} - ${html(branchName(a))}`;
       return `<button class="sr-pick" data-pick="${id}">
-        <span class="slot">${SLOT_LABEL[a.slot]} - ${html(branchName(a))}</span>
+        <span class="slot">${label}</span>
         <b>${html(a.name)}</b><small>${html(a.desc)}</small>
         <em class="sr-tags">${html(tagsText(a))}</em>
       </button>`;
     }).join('');
     const branch = runBuild && runBuild.softBranch ? branchInfo(cls.id, runBuild.softBranch) : null;
     ov.innerHTML = `<h2>Wave ${arenaWave || 1} cleared</h2>
-      <p class="msg">${branch ? `Soft-locked toward ${html(branch.name)}. Two choices now favor that path, with one hybrid/object option.` : 'Draft one branch. Two picks in a path leans the run toward that subclass.'}</p>
-      <div class="sr-draft">${cards}</div>`;
+      <p class="msg">${branch ? `Committed to ${html(branch.name)}. Drafts now stay on that path, with neutral physics or training when the tree runs dry.` : 'Draft one branch. Two picks in a path commits the run toward that subclass.'}</p>
+      <div class="sr-draft">${cards}</div>
+      <button class="btn alt sr-draft-skip" data-act="skip-draft">SKIP CHOICE</button>`;
+    return true;
+  }
+  function applyStatDraft(id) {
+    const s = statDraft(id);
+    if (!s || state !== 'draft') return false;
+    const kind = statKind(id);
+    if (!runBuild.statBonuses) runBuild.statBonuses = {};
+    runBuild.statBonuses[kind] = (runBuild.statBonuses[kind] || 0) + 1;
+    runBuild.picked.push(id);
+    runBuild.lastDraft = id;
+    if (kind === 'vitality' && player) {
+      player.maxHp = (player.maxHp || 3) + 1;
+      player.hp = Math.min(player.maxHp, (player.hp || player.maxHp) + 1);
+    }
     return true;
   }
   function pickDraft(id) {
+    if (isStatDraft(id)) {
+      if (applyStatDraft(id)) continueAfterDraft();
+      return;
+    }
     const spec = ability(id);
     if (!spec || state !== 'draft') return;
     loadout[spec.slot] = id;
@@ -4163,12 +4262,11 @@ PUBLIC.start = function (root, api) {
       }
       runBuild.lastDraft = id;
     }
-    arenaDraftChoices = null;
-    ov.classList.add('hidden');
-    setPlayUi(true);
-    state = 'playing';
-    spawnArenaWave((arenaWave || 1) + 1);
-    syncHud();
+    continueAfterDraft();
+  }
+  function skipDraft() {
+    if (state !== 'draft') return;
+    continueAfterDraft();
   }
 
   function labBuildsFor(classId) {
@@ -4529,6 +4627,7 @@ PUBLIC.start = function (root, api) {
   ov.addEventListener('click', e => {
     const act = e.target.dataset.act;
     if (act === 'resume') { closeHelp(); return; }
+    if (act === 'skip-draft') { skipDraft(); return; }
     const labCard = e.target.closest && e.target.closest('[data-lab-cls]');
     if (labCard) { startLab(labCard.dataset.labCls); return; }
     const mapCard = e.target.closest && e.target.closest('[data-map]');
@@ -6393,7 +6492,7 @@ PUBLIC.start = function (root, api) {
     it.jumpHold = it.jumpHeld ? (it.jumpHold || 0) + (dtStep || STEP) : 0;
   }
   function maxV() {
-    let m = MAXV * cls.speedMul;
+    let m = MAXV * cls.speedMul * mobilityStatMultiplier();
     if (player && player.hunterHaste > 0) m *= 1.22;
     if (mageHovering()) m *= 0.68;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
@@ -7347,10 +7446,8 @@ PUBLIC.start = function (root, api) {
       life: 900, color: '#ff6b32', r: 12.5, hit: 16.5 * (power || 1), angle: ang, fire: true,
       sparkle: 3, scorch: !!opts.scorch });
     pyroStaffFlare(ang, 1.0, origin);
-    burst(mx, my, '#ffd45e', 22, 4.2);
-    burst(mx, my, '#ff6b32', 24, 4.8);
-    emitFlameJet(mx, my, ang, 18, { spread: 0.26, speed: 7.4, length: 28, life: 360, r: 4.8, color: '#ff6b32' });
-    emitSmokePuff(mx - Math.cos(ang) * 6, my - Math.sin(ang) * 4, ang + Math.PI, 5, { speed: 1.2, life: 760, alpha: 0.24 });
+    emitFlameJet(mx, my, ang, 24, { spread: 0.22, speed: 8.2, length: 36, life: 380, r: 5.2, color: '#ff6b32' });
+    emitSmokePuff(mx - Math.cos(ang) * 8, my - Math.sin(ang) * 4, ang + Math.PI, 5, { speed: 1.2, life: 760, alpha: 0.22 });
   }
   function spawnIgnitionOrb(ang, opts) {
     opts = opts || {};
@@ -7585,8 +7682,6 @@ PUBLIC.start = function (root, api) {
     });
     const sx = origin.x;
     const sy = origin.y;
-    burst(sx, sy, '#ffd45e', Math.round(10 * scale), 2.9 + scale);
-    burst(sx, sy, '#ff6b32', Math.round(15 * scale), 3.3 + scale);
     emitFlameJet(sx, sy, ang, Math.round(12 + scale * 10), { spread: 0.38, speed: 4.9 + scale * 1.7, length: 22 + scale * 12, life: 340 + scale * 100, r: 4.2 + scale * 1.15, color: '#ff6b32' });
     emitSmokePuff(sx, sy, ang + Math.PI, Math.round(2 + scale * 3), { speed: 1.0 + scale * 0.30, life: 720 + scale * 110, alpha: 0.20 });
     for (let i = 0; i < Math.round(3 + scale * 5); i++) {
@@ -9108,39 +9203,7 @@ PUBLIC.start = function (root, api) {
     ctx.restore();
   }
   function drawPyromancerCrest(headCX, headCY, shX, shY, f, power) {
-    if (!(cls.id === 'mage' && magePyroLoadoutActive())) return;
-    const now = performance.now();
-    const cast = player && player.anim && player.anim.atkActive && isPyroVisualAttack(player.anim.atkType)
-      ? Math.sin(clamp(player.anim.atkT || 0, 0, 1) * Math.PI) : 0;
-    const heat = clamp((power || 0) + cast, 0, 1.6);
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.58;
-    ctx.strokeStyle = '#2a1a11';
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(headCX - f * 8, headCY - 8);
-    ctx.quadraticCurveTo(headCX - f * 4, headCY - 13, headCX + f * 5, headCY - 11);
-    ctx.stroke();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 2; i++) {
-      const off = (i - 0.5) * 4.4;
-      const sway = Math.sin(now * (0.011 + i * 0.002) + i * 2.1) * (1.3 + heat * 0.55);
-      const baseX = headCX - f * 2 + off;
-      const baseY = headCY - 12;
-      const tipX = baseX - f * (5.5 + i * 2.0) + sway;
-      const tipY = baseY - (5.5 + i * 1.8 + heat * 2.6);
-      ctx.globalAlpha = 0.22 + heat * 0.16;
-      ctx.strokeStyle = i === 0 ? '#ff6b32' : '#ffd45e';
-      ctx.lineWidth = i === 0 ? 1.45 : 1.15;
-      ctx.beginPath();
-      ctx.moveTo(baseX, baseY);
-      ctx.quadraticCurveTo((baseX + tipX) * 0.5 - sway * 0.30, (baseY + tipY) * 0.5, tipX, tipY);
-      ctx.stroke();
-    }
-    ctx.restore();
+    // Pyromancer identity lives in the staff/flame effects, not head flames.
   }
   function drawSpiritRemnants() {
     if (!spiritRemnants || !spiritRemnants.length) return;
@@ -10846,6 +10909,47 @@ PUBLIC.start = function (root, api) {
         ctx.moveTo(b.x, b.y - r * 1.35); ctx.lineTo(b.x, b.y + r * 1.35);
         ctx.stroke();
         ctx.restore();
+      } else if (b.kind === 'firebolt') {
+        const r = b.r || 12;
+        const ang = Math.atan2(b.vy, b.vx);
+        const flicker = Math.sin(performance.now() * 0.035 + b.x * 0.02) * 0.18;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255,92,32,0.42)';
+        ctx.lineWidth = r * 0.72;
+        ctx.beginPath();
+        ctx.moveTo(b.x - Math.cos(ang) * r * 3.5, b.y - Math.sin(ang) * r * 3.5);
+        ctx.quadraticCurveTo(
+          b.x - Math.cos(ang) * r * 1.5 - Math.sin(ang) * r * flicker,
+          b.y - Math.sin(ang) * r * 1.5 + Math.cos(ang) * r * flicker,
+          b.x + Math.cos(ang) * r * 0.65,
+          b.y + Math.sin(ang) * r * 0.65
+        );
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,212,94,0.78)';
+        ctx.lineWidth = r * 0.34;
+        ctx.beginPath();
+        ctx.moveTo(b.x - Math.cos(ang) * r * 2.0, b.y - Math.sin(ang) * r * 2.0);
+        ctx.lineTo(b.x + Math.cos(ang) * r * 1.0, b.y + Math.sin(ang) * r * 1.0);
+        ctx.stroke();
+        ctx.fillStyle = '#fff0a8';
+        ctx.beginPath();
+        ctx.moveTo(b.x + Math.cos(ang) * r * 1.18, b.y + Math.sin(ang) * r * 1.18);
+        ctx.quadraticCurveTo(
+          b.x - Math.cos(ang) * r * 0.18 - Math.sin(ang) * r * 0.60,
+          b.y - Math.sin(ang) * r * 0.18 + Math.cos(ang) * r * 0.60,
+          b.x - Math.cos(ang) * r * 1.16,
+          b.y - Math.sin(ang) * r * 1.16
+        );
+        ctx.quadraticCurveTo(
+          b.x - Math.cos(ang) * r * 0.12 + Math.sin(ang) * r * 0.58,
+          b.y - Math.sin(ang) * r * 0.12 - Math.cos(ang) * r * 0.58,
+          b.x + Math.cos(ang) * r * 1.18,
+          b.y + Math.sin(ang) * r * 1.18
+        );
+        ctx.fill();
+        ctx.restore();
       } else if (b.kind === 'ignitionOrb') {
         const r = b.r || 14;
         const wob = Math.sin(performance.now() * 0.022 + b.x * 0.01) * 2.2;
@@ -11341,7 +11445,7 @@ PUBLIC.start = function (root, api) {
           mode: state, level: li, debugEnabled: debug.enabled, classId: cls && cls.id,
           arenaMode, labMode, labBuildId, arenaWave, arenaKills, arenaNextWave,
           loadout: Object.assign({}, loadout || {}), draftChoices: arenaDraftChoices ? arenaDraftChoices.slice() : null,
-          runBuild: runBuild ? { picked: runBuild.picked.slice(), branchPoints: Object.assign({}, runBuild.branchPoints), softBranch: runBuild.softBranch } : null,
+          runBuild: runBuild ? { picked: runBuild.picked.slice(), branchPoints: Object.assign({}, runBuild.branchPoints), statBonuses: Object.assign({}, runBuild.statBonuses || {}), softBranch: runBuild.softBranch } : null,
           player: actorSnapshot(player),
           allies: allies ? allies.map(actorSnapshot) : [],
           fighters: fighters ? fighters.map(actorSnapshot) : [],
