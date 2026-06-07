@@ -248,7 +248,7 @@ const ABILITIES = (() => {
   add('mg_pyromancy', { cls: 'mage', branch: 'pyromancer', tier: 4, slot: 'passive', name: 'Pyromancy', desc: 'Keystone: fire abilities feed lingering ground flames, hot objects glow harder, and Ignition chains farther.', key: true, tags: ['Fire', 'Barrels'] });
   add('mg_spiritbolt', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'attack', name: 'Dark Bolt', desc: 'Simple staff-fired dark energy bolt. Reliable damage with dark ghost particles, no corpse or soul spending gimmick.', effect: { kind: 'darkBolt' }, cd: 300, tags: ['Spirit', 'Projectile'] });
   add('mg_bindspirit', { cls: 'mage', branch: 'spiritbinder', tier: 1, slot: 'secondary', name: 'Reanimate Missile', desc: 'Fire a dark missile. Corpses twitch and rise as zombies; living enemies only take a light curse hit.', effect: { kind: 'reanimateMissile' }, cd: 1600, tags: ['Spirit', 'Projectile', 'Allies'] });
-  add('mg_ghostform', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'shift', name: 'Ghost Form', desc: 'Briefly fade into dark soul smoke with floatier movement and invulnerability. Attacking ends the escape window.', effect: { kind: 'ghostForm', life: 1120 }, cd: 3600, tags: ['Spirit', 'Movement'] });
+  add('mg_ghostform', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'shift', name: 'Ghost Form', desc: 'Briefly fade into dark soul smoke with floatier movement and invulnerability. Attacking ends the escape window.', effect: { kind: 'ghostForm', life: 1280 }, cd: 3600, tags: ['Spirit', 'Movement'] });
   add('mg_soulflare', { cls: 'mage', branch: 'spiritbinder', tier: 2, slot: 'e', name: 'Unholy Command', desc: 'Tether dark energy into all active zombies, making them shamble faster and slam harder for a short frenzy.', effect: { kind: 'unholyCommand' }, cd: 4200, tags: ['Spirit', 'Allies'] });
   add('mg_gravecall', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'q', name: 'Mass Reanimate', desc: 'Perform a wide ritual: nearby corpses twitch, tendrils bind their limbs, and they rise one by one. If none exist, call one weak shadow zombie.', effect: { kind: 'massReanimate' }, cd: 10500, tags: ['Spirit', 'Allies', 'AOE'] });
   add('mg_spiritbinder', { cls: 'mage', branch: 'spiritbinder', tier: 4, slot: 'passive', name: 'Spiritbinder', desc: 'Keystone: defeated enemies become corpse resources for a capped shambling zombie army with visible dark auras.', key: true, tags: ['Spirit', 'Allies'] });
@@ -2500,15 +2500,21 @@ PUBLIC.start = function (root, api) {
       a.cls = Object.assign({}, a.cls, {
         color: opts.color || SPIRIT_COLORS.ghost,
         trail: [87, 215, 200],
-        speedMul: (a.cls.speedMul || 1) * 0.62,
+        speedMul: (a.cls.speedMul || 1) * 0.72,
       });
-      a.maxHp = Math.max(a.maxHp || 0, opts.hp || 4.8);
+      const L = levels && levels[li];
+      a.patrolMin = L ? 24 : a.patrolMin;
+      a.patrolMax = L ? L.w - 24 : a.patrolMax;
+      a.maxHp = Math.max(a.maxHp || 0, opts.hp || 7.2);
       a.hp = Math.min(a.maxHp, Math.max(a.hp || 0, opts.hp || a.maxHp));
-      a.brain.aggroRange = Math.max(a.brain.aggroRange || 0, 920);
+      a.brain.aggroRange = Math.max(a.brain.aggroRange || 0, 1180);
       a.brain.atkCd = rand(420, 780);
       a.brain.moveCd = rand(140, 360);
       a.zombieFrenzy = opts.frenzy || 0;
       a.zombieCommandFx = 0;
+      a.zombieBirthFx = opts.birthFx || 680;
+      a.knockResist = opts.weak ? 0.80 : 0.58;
+      a.damageResist = opts.weak ? 0.88 : 0.68;
       a.zombieWeak = !!opts.weak;
     }
     allies.push(a);
@@ -2526,22 +2532,53 @@ PUBLIC.start = function (root, api) {
   function activeSpiritZombies() {
     return livingAllies().filter(a => a && a.zombie && !a.dead);
   }
+  function pendingSpiritReanimations() {
+    return (dummies || []).filter(d => d && d.reanimating && !d.reanimateDone);
+  }
   function spiritZombieSlotsOpen() {
-    return Math.max(0, SPIRIT_ZOMBIE_CAP - activeSpiritZombies().length);
+    return Math.max(0, SPIRIT_ZOMBIE_CAP - activeSpiritZombies().length - pendingSpiritReanimations().length);
   }
   function corpseAnchor(d) {
     if (!d || !d.pts) return null;
     const chest = d.pts.chest || d.pts.hip || d.pts.head;
     const head = d.pts.head || chest;
+    const hip = d.pts.hip || chest;
     if (!chest) return null;
+    const surface = surfaceYFor(hero || player || { y: chest.y + 80 }, chest.x, 520, 260);
+    const groundY = d.baseY || d.homeY || surface || Math.max(chest.y, hip.y) + 48;
     return {
-      x: (chest.x * 0.68 + head.x * 0.32),
-      y: (chest.y * 0.72 + head.y * 0.28),
-      groundY: d.baseY || d.homeY || surfaceYFor(hero || player, chest.x, 360, 220) || chest.y + 48,
+      x: chest.x * 0.58 + head.x * 0.24 + hip.x * 0.18,
+      y: chest.y * 0.60 + head.y * 0.26 + hip.y * 0.14,
+      groundY,
     };
   }
   function isReanimatableCorpse(d) {
-    return !!(d && d.defeated && !d.reanimated && d.pts && d.kind !== 'ally');
+    return !!(d && d.defeated && !d.reanimated && !d.reanimating && d.pts && d.kind !== 'ally');
+  }
+  function corpseDistanceToSegment(d, ax, ay, bx, by) {
+    if (!d || !d.pts) return Infinity;
+    let best = Infinity;
+    for (const k in d.pts) {
+      const pt = d.pts[k];
+      const q = closestPointOnSeg(pt.x, pt.y, ax, ay, bx, by);
+      best = Math.min(best, Math.hypot(q.x - pt.x, q.y - pt.y) - dummyPointRadius(k));
+    }
+    return best;
+  }
+  function corpseByMissilePath(b, ax, ay) {
+    if (!dummies || !dummies.length) return null;
+    const range = b.reanimateRange || 132;
+    let best = null, bd = range;
+    for (const d of dummies) {
+      if (!isReanimatableCorpse(d)) continue;
+      const c = corpseAnchor(d);
+      if (!c) continue;
+      const pathD = corpseDistanceToSegment(d, ax, ay, b.x, b.y);
+      const impactD = Math.hypot(c.x - b.x, c.y - b.y);
+      const score = Math.min(pathD, impactD * 0.72);
+      if (score < bd) { bd = score; best = { d, c, dist: score }; }
+    }
+    return best;
   }
   function reanimatableCorpses(x, y, range) {
     if (!dummies || !dummies.length) return [];
@@ -2578,35 +2615,64 @@ PUBLIC.start = function (root, api) {
     rememberDebugSegment('ability', x - 26, groundY - 4, x, y, 8, SPIRIT_COLORS.shadow, 320);
     rememberDebugSegment('ability', x + 26, groundY - 4, x, y, 8, color, 320);
   }
-  function consumeCorpseForZombie(d, anchor, opts) {
+  function beginCorpseReanimation(d, anchor, opts) {
     opts = opts || {};
-    if (!d || !anchor || spiritZombieSlotsOpen() <= 0) return null;
-    d.reanimated = true;
-    const i = dummies ? dummies.indexOf(d) : -1;
-    if (i >= 0) dummies.splice(i, 1);
+    if (!d || !anchor || spiritZombieSlotsOpen() <= 0 || !isReanimatableCorpse(d)) return null;
     const color = opts.color || SPIRIT_COLORS.ghost;
-    emitReanimateTendrils(anchor.x, anchor.y, anchor.groundY, Object.assign({}, opts, { color }));
-    const target = spiritCommandTarget(820);
-    const z = spawnSpiritAlly(anchor.x, anchor.groundY, {
-      source: 'knight',
-      hp: opts.weak ? 2.35 : 5.4,
-      life: opts.weak ? 12200 : 26000,
-      awake: opts.big ? 1160 : 940,
-      rise: opts.weak ? 26 : 42,
-      target,
+    const life = opts.life || (opts.big ? 1320 : 1040);
+    d.reanimating = {
+      life,
+      max: life,
       color,
-      zombie: true,
-      weak: opts.weak,
+      big: !!opts.big,
+      weak: !!opts.weak,
       fromX: opts.fromX == null ? player.x : opts.fromX,
       fromY: opts.fromY == null ? player.y - 66 : opts.fromY,
+      tick: 0,
+      twitch: 0,
+      rise: opts.weak ? 28 : opts.big ? 48 : 40,
+    };
+    d.reanimated = true;
+    d.flash = Math.max(d.flash || 0, life);
+    d.attackCd = 9999;
+    for (const foot of ['footL', 'footR']) if (d.pts[foot]) d.pts[foot].pin = false;
+    emitReanimateTendrils(anchor.x, anchor.y, anchor.groundY, Object.assign({}, opts, { color }));
+    addShake(opts.big ? 2.4 : 1.5, opts.big ? 120 : 80);
+    syncHud();
+    return d.reanimating;
+  }
+  function finishCorpseReanimation(d) {
+    if (!d || !d.reanimating) return null;
+    const r = d.reanimating;
+    const anchor = corpseAnchor(d);
+    const i = dummies ? dummies.indexOf(d) : -1;
+    if (i >= 0) dummies.splice(i, 1);
+    const target = spiritCommandTarget(920);
+    const z = spawnSpiritAlly(anchor ? anchor.x : d.baseX, anchor ? anchor.groundY : d.baseY, {
+      source: 'knight',
+      hp: r.weak ? 3.2 : 7.2,
+      life: r.weak ? 14500 : 32000,
+      awake: r.big ? 1120 : 880,
+      rise: r.rise || (r.weak ? 28 : 42),
+      target,
+      color: r.color || SPIRIT_COLORS.ghost,
+      zombie: true,
+      weak: r.weak,
+      fromX: r.fromX,
+      fromY: r.fromY,
     });
     if (z) {
-      z.facing = spiritSpawnFacing(anchor.x, anchor.groundY, player.facing, target, 820);
-      z.brain.pauseT = Math.max(z.brain.pauseT || 0, 240);
+      z.facing = spiritSpawnFacing(z.x, z.y, player.facing, target, 920);
+      z.brain.pauseT = Math.max(z.brain.pauseT || 0, 160);
+      z.zombieBirthFx = 760;
+      commandSpiritAlly(z, { target, force: z.zombieWeak ? 11 : 15, dash: 1.4, life: 520, range: 920, afterCd: 520 });
     }
-    addShake(opts.big ? 3.4 : 2.0, opts.big ? 150 : 95);
+    addShake(r.big ? 3.8 : 2.5, r.big ? 160 : 110);
     syncHud();
     return z;
+  }
+  function consumeCorpseForZombie(d, anchor, opts) {
+    return beginCorpseReanimation(d, anchor, opts);
   }
   function reanimateNearestCorpseAt(x, y, range, opts) {
     const list = reanimatableCorpses(x, y, range || 82);
@@ -2674,8 +2740,13 @@ PUBLIC.start = function (root, api) {
     };
     a.facing = dx >= 0 ? 1 : -1;
     if (!(a.spiritAwake > 0)) {
-      a.vx += (dx / d) * (opts.dash || 5.6);
-      a.vy = Math.min(a.vy, (dy / d) * 2.2 - 2.4);
+      if (a.zombie) {
+        a.vx += (dx / d) * (opts.dash || 1.6);
+        a.vy = Math.min(a.vy, -0.55);
+      } else {
+        a.vx += (dx / d) * (opts.dash || 5.6);
+        a.vy = Math.min(a.vy, (dy / d) * 2.2 - 2.4);
+      }
     }
     a.spiritCommandCd = Math.max(a.spiritCommandCd || 0, opts.afterCd || 680);
     if (a.brain) { a.brain.alert = 9999; a.brain.stagger = Math.max(a.brain.stagger || 0, 90); }
@@ -2798,27 +2869,28 @@ PUBLIC.start = function (root, api) {
   }
   function activateGhostForm(opts) {
     opts = opts || {};
-    const life = opts.life || 1120;
+    const life = opts.life || 1280;
     player.ghostForm = Math.max(player.ghostForm || 0, life);
     player.ghostFormMax = Math.max(player.ghostFormMax || 0, life);
     player.invuln = Math.max(player.invuln || 0, life + 120);
     player.hidden = Math.max(player.hidden || 0, life);
-    player.vy = Math.min(player.vy, -2.6);
+    player.vy = Math.min(player.vy, -3.2);
+    player.vx += player.facing * 1.4;
     player.grounded = false;
     player.move = { active: false, type: null, t: 0, dur: 0, struck: false, phase: 'idle', spec: DEFAULT_MOTION };
     emitSoulWisp(player.x - player.facing * 22, player.y - 42, player.x + player.facing * 54, player.y - 70, {
-      count: 24,
+      count: 34,
       color: SPIRIT_COLORS.ghost,
       lifeMin: 260,
-      lifeMax: 760,
+      lifeMax: 900,
     });
-    for (let i = 0; i < 18; i++) soulParticle(player.x + rand(-16, 16), player.y - rand(18, 76), rand(-0.45, 0.45), rand(-0.86, -0.05), {
+    for (let i = 0; i < 28; i++) soulParticle(player.x + rand(-20, 20), player.y - rand(18, 82), rand(-0.48, 0.48), rand(-0.98, -0.02), {
       color: spiritParticleColor(i % 3 === 0 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost, 0.40),
-      life: rand(300, 780),
-      r: rand(1.3, 3.6),
-      tail: rand(16, 34),
+      life: rand(340, 920),
+      r: rand(1.4, 4.2),
+      tail: rand(18, 42),
     });
-    addShake(1.4, 80);
+    addShake(1.8, 90);
     return true;
   }
   function unholyCommand() {
@@ -2831,16 +2903,28 @@ PUBLIC.start = function (root, api) {
     const target = spiritCommandTarget(860);
     if (!startVisualAttack('spiritSummon', target ? Math.atan2(target.y - (player.y - 70), target.x - player.x) : aimedAngle(), { range: 300, kind: 'spiritCommand' })) return false;
     for (const z of zombies) {
-      z.zombieFrenzy = Math.max(z.zombieFrenzy || 0, 3600);
-      z.zombieCommandFx = Math.max(z.zombieCommandFx || 0, 760);
+      z.zombieFrenzy = Math.max(z.zombieFrenzy || 0, 4400);
+      z.zombieCommandFx = Math.max(z.zombieCommandFx || 0, 1300);
+      z.hp = Math.min(z.maxHp || z.hp || 1, (z.hp || 0) + (z.zombieWeak ? 0.25 : 0.65));
       z.brain.alert = 9999;
       z.brain.stagger = 0;
-      z.brain.atkCd = Math.min(z.brain.atkCd || 0, 180);
-      commandSpiritAlly(z, { target, force: z.zombieWeak ? 13 : 18, dash: 2.7, life: 780, range: 860, afterCd: rand(620, 980) });
-      emitSoulWisp(player.x, player.y - 58, z.x, z.y - 52, { count: 9, color: SPIRIT_COLORS.ghost, lifeMin: 220, lifeMax: 560 });
+      z.brain.target = target && target.target || z.brain.target;
+      z.brain.atkCd = Math.min(z.brain.atkCd || 0, 90);
+      const face = target ? Math.sign(target.x - z.x) || z.facing || 1 : z.facing || player.facing || 1;
+      z.vx += face * (z.zombieWeak ? 0.65 : 1.05);
+      z.facing = face;
+      commandSpiritAlly(z, { target, force: z.zombieWeak ? 14 : 20, dash: 1.6, life: 940, range: 920, afterCd: rand(440, 720) });
+      emitSoulWisp(player.x, player.y - 58, z.x, z.y - 52, { count: 16, color: SPIRIT_COLORS.ghost, lifeMin: 260, lifeMax: 720 });
+      rememberDebugSegment('ability', player.x, player.y - 60, z.x, z.y - 54, 10, SPIRIT_COLORS.ghost, 840);
     }
-    burst(player.x, player.y - 58, SPIRIT_COLORS.ghost, 18, 3.4);
-    addShake(2.6, 120);
+    for (let i = 0; i < 18; i++) soulParticle(player.x + rand(-18, 18), player.y - rand(38, 82), rand(-0.42, 0.42), rand(-1.15, -0.08), {
+      color: spiritParticleColor(i % 3 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.sick, 0.38),
+      life: rand(280, 760),
+      r: rand(1.3, 3.8),
+      tail: rand(16, 38),
+    });
+    burst(player.x, player.y - 58, SPIRIT_COLORS.ghost, 24, 4.0);
+    addShake(3.2, 140);
     syncHud();
     return true;
   }
@@ -4493,7 +4577,11 @@ PUBLIC.start = function (root, api) {
     }
     if ((slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'ranger') return `${player.arrowAmmo}/${RANGER_MAX_ARROWS} arrows`;
     if ((slot === 'secondary' || slot === 'e' || slot === 'q') && cls.id === 'rogue') return `${player.knifeAmmo}/${ROGUE_MAX_KNIVES} knives`;
-    if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'secondary' || slot === 'e' || slot === 'q')) return `${activeSpiritZombies().length}/${SPIRIT_ZOMBIE_CAP} zombies`;
+    if (cls.id === 'mage' && mageSpiritLoadoutActive() && (slot === 'secondary' || slot === 'e' || slot === 'q')) {
+      const active = activeSpiritZombies().length;
+      const pending = pendingSpiritReanimations().length;
+      return pending ? `${active}+${pending}/${SPIRIT_ZOMBIE_CAP} raising` : `${active}/${SPIRIT_ZOMBIE_CAP} zombies`;
+    }
     if (cls.id === 'mage' && mageGraviturgeLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return `${player.gravityDebris || 0}/${gravityDebrisMax()} debris`;
     if (cls.id === 'mage' && magePyroLoadoutActive() && (slot === 'attack' || slot === 'secondary' || slot === 'e' || slot === 'q')) return pyroStatusText();
     if (slot === 'passive') return spec ? 'keystone' : '';
@@ -4588,8 +4676,10 @@ PUBLIC.start = function (root, api) {
       const val = document.getElementById('sr-knives');
       const detail = document.getElementById('sr-ammo-detail');
       if (icon) icon.textContent = 'ZB';
-      if (val) val.textContent = `${activeSpiritZombies().length}/${SPIRIT_ZOMBIE_CAP}`;
-      if (detail) detail.textContent = 'raised zombies';
+      const active = activeSpiritZombies().length;
+      const pending = pendingSpiritReanimations().length;
+      if (val) val.textContent = pending ? `${active}+${pending}/${SPIRIT_ZOMBIE_CAP}` : `${active}/${SPIRIT_ZOMBIE_CAP}`;
+      if (detail) detail.textContent = pending ? 'raising corpse' : 'raised zombies';
     }
     if (ammo && cls.id === 'mage' && player && mageGraviturgeLoadoutActive()) {
       const icon = document.getElementById('sr-ammo-icon');
@@ -5778,6 +5868,7 @@ PUBLIC.start = function (root, api) {
   function updateDummies(dt) {
     if (!dummies) return;
     const steps = Math.max(1, Math.round(dt / 16.7));    // keep verlet stable if dt is large
+    const finishedReanimations = [];
     for (const d of dummies) {
       d.flash = Math.max(0, d.flash - dt);
       d.burned = Math.max(0, (d.burned || 0) - dt);
@@ -5800,9 +5891,66 @@ PUBLIC.start = function (root, api) {
           hurtDummy(d, 0, -0.12, 4.2, p.x, p.y);
         }
       }
+      if (updateCorpseReanimation(d, dt)) finishedReanimations.push(d);
       updateEnemyAI(d, dt);
       for (let s = 0; s < steps; s++) dummyStep(d);
     }
+    for (const d of finishedReanimations) finishCorpseReanimation(d);
+  }
+  function updateCorpseReanimation(d, dt) {
+    const r = d && d.reanimating;
+    if (!r) return false;
+    r.life = Math.max(0, r.life - dt);
+    r.tick = Math.max(0, (r.tick || 0) - dt);
+    r.twitch = Math.max(0, (r.twitch || 0) - dt);
+    const p = 1 - clamp(r.life / Math.max(1, r.max || r.life || 1), 0, 1);
+    const color = r.color || SPIRIT_COLORS.ghost;
+    d.flash = Math.max(d.flash || 0, 120);
+    d.attackCd = 9999;
+    if (r.tick <= 0) {
+      r.tick = p < 0.45 ? 110 : 62;
+      const c = corpseAnchor(d);
+      if (c) emitReanimateTendrils(c.x + rand(-10, 10), c.y + rand(-6, 8), c.groundY, {
+        color,
+        big: r.big,
+        fromX: r.fromX,
+        fromY: r.fromY,
+      });
+    }
+    if (r.twitch <= 0 && p > 0.10) {
+      r.twitch = rand(70, 145);
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      const chest = d.pts.chest, head = d.pts.head, hip = d.pts.hip;
+      if (chest) { chest.x += dir * rand(2, 7); chest.y -= rand(2, 9) * (0.5 + p); chest.px += dir * rand(-2, 2); }
+      if (head) { head.x += -dir * rand(2, 8); head.y -= rand(1, 8) * (0.4 + p); head.py += rand(1, 5); }
+      if (hip) hip.x += dir * rand(1, 4);
+    }
+    if (p > 0.28) {
+      const lift = ease(clamp((p - 0.28) / 0.72, 0, 1));
+      const anchor = corpseAnchor(d);
+      const ax = anchor ? anchor.x : d.baseX;
+      const ay = anchor ? anchor.groundY : d.baseY;
+      const pull = 0.010 + lift * 0.026;
+      for (const k of ['hip', 'chest', 'head', 'elbowL', 'elbowR', 'handL', 'handR']) {
+        const pt = d.pts[k];
+        if (!pt) continue;
+        const rest = DUMMY_REST[k] || [0, -48];
+        const targetX = ax + rest[0] * (0.45 + lift * 0.55);
+        const targetY = ay + rest[1] - (r.rise || 40) * lift * (k === 'head' ? 0.34 : k === 'chest' ? 0.24 : 0.10);
+        pt.x += (targetX - pt.x) * pull;
+        pt.y += (targetY - pt.y) * pull;
+      }
+    }
+    if (Math.random() < 0.36 + p * 0.38) {
+      const c = corpseAnchor(d);
+      if (c) soulParticle(c.x + rand(-24, 24), c.groundY - rand(4, 72), rand(-0.18, 0.18), rand(-1.0, -0.10), {
+        color: spiritParticleColor(color, 0.36),
+        life: rand(260, 760),
+        r: rand(1.0, 3.4),
+        tail: rand(12, 32),
+      });
+    }
+    return r.life <= 0;
   }
   function updateEnemyAI(d, dt) {
     if (!player || state !== 'playing' || d.kind !== 'enemy' || d.defeated) return;
@@ -5977,6 +6125,53 @@ PUBLIC.start = function (root, api) {
     ctx.beginPath(); ctx.arc(tx, ty, 7, 0, Math.PI * 2); ctx.fillStyle = '#e7e0d2'; ctx.fill();
     ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI * 2); ctx.fillStyle = enemy ? '#ff5a5a' : hot > 0.02 ? '#ff5436' : '#c2452f'; ctx.fill();
     if (burnFade > 0.02) drawBurnCue(tx, ty - 8, burnFade, enemy ? 1.08 : 0.96);
+    if (d.reanimating) {
+      const r = d.reanimating;
+      const p = 1 - clamp(r.life / Math.max(1, r.max || r.life || 1), 0, 1);
+      const color = r.color || SPIRIT_COLORS.ghost;
+      const chestP = P('chest'), headP = P('head'), hipP = P('hip');
+      const anchor = corpseAnchor(d);
+      const gx = (anchor ? anchor.x : d.baseX) - cam.x;
+      const gy = (anchor ? anchor.groundY : d.baseY) - cam.y + 4;
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.014 + d.baseX * 0.03);
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.28 + p * 0.20;
+      ctx.strokeStyle = SPIRIT_COLORS.shadow;
+      ctx.lineWidth = 7.0 + pulse * 2.0;
+      for (const key of ['head', 'chest', 'hip', 'handL', 'handR', 'kneeL', 'kneeR']) {
+        const pt = P(key);
+        const bend = Math.sin(performance.now() * 0.004 + pt.x * 0.05) * (18 + p * 14);
+        ctx.beginPath();
+        ctx.moveTo(gx + (pt.x - gx) * 0.14, gy);
+        ctx.quadraticCurveTo((gx + pt.x) * 0.5 + bend, (gy + pt.y) * 0.5 - 28 * p, pt.x, pt.y);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.22 + p * 0.38;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8 + p * 1.2;
+      for (let i = 0; i < 5; i++) {
+        const phase = performance.now() * (0.003 + i * 0.0006) + i * 1.4;
+        ctx.beginPath();
+        ctx.moveTo(gx + Math.sin(phase) * 22, gy - 2);
+        ctx.quadraticCurveTo(lerp(gx, chestP.x, 0.55) + Math.sin(phase + 1.1) * 16, lerp(gy, chestP.y, 0.55) - 22, chestP.x + Math.sin(phase + 2) * 5, chestP.y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.26 + p * 0.42;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(lerp(hipP.x, chestP.x, 0.64), lerp(hipP.y, chestP.y, 0.64), 5 + p * 8 + pulse * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.18 + p * 0.28;
+      ctx.strokeStyle = SPIRIT_COLORS.pale;
+      ctx.lineWidth = 1.2;
+      traceWobblyCirclePath(headP.x, headP.y, 18 + p * 10 + pulse * 2, { phase: performance.now() * 0.002 + d.baseX, rough: 0.18, steps: 20 });
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.restore();
   }
 
@@ -6102,14 +6297,27 @@ PUBLIC.start = function (root, api) {
   function thinkZombie(e, n) {
     const b = e.brain;
     const frenzy = (e.zombieFrenzy || 0) > 0;
-    if (n.adx > (frenzy ? 46 : 58)) pressToward(e, n.route);
-    if (n.adx < (frenzy ? 86 : 72) && b.atkCd <= 0) {
-      triggerAttack(frenzy && b.combo++ % 3 === 2 ? 'shieldBash' : 'slash', { aim: n.aim });
-      b.atkCd = frenzy ? rand(430, 680) : rand(820, 1180);
-    } else if (frenzy && n.adx < 132 && b.atkCd < 180) {
-      e.vx += n.face * 0.22;
+    const commanded = (e.zombieCommandFx || 0) > 0 || !!e.spiritCommand;
+    if (n.adx > (frenzy ? 38 : 48)) {
+      pressToward(e, n.route);
+      if (commanded || frenzy) e.vx += n.face * (frenzy ? 0.085 : 0.045);
     }
-    if (!frenzy && Math.random() < 0.015) e.vx *= 0.78; // shambling hitch, not a smooth sprint
+    if (n.adx < (frenzy ? 92 : 78) && b.atkCd <= 0) {
+      const heavy = frenzy && b.combo % 2 === 1 || commanded && b.combo % 3 === 2;
+      triggerAttack(heavy ? 'shieldBash' : 'slash', { aim: n.aim });
+      b.combo++;
+      b.atkCd = frenzy ? rand(520, 760) : rand(920, 1280);
+      if (heavy) {
+        e.zombieCommandFx = Math.max(e.zombieCommandFx || 0, 420);
+        burst(e.x + n.face * 34, e.y - 42, e.cls.color, 7, 1.9);
+      }
+    } else if ((frenzy || commanded) && n.adx < 150 && b.atkCd < 220) {
+      e.vx += n.face * 0.18;
+    }
+    if (!frenzy && !commanded && Math.random() < 0.012) e.vx *= 0.70; // shambling hitch, not a smooth sprint
+    if (n.nav && e.grounded && (n.nav.blocked || n.nav.stepUp && n.nav.cur - n.nav.near > 26) && (b.jumpCd || 0) <= 0) {
+      queueAiJump(e, 1000, 1500);
+    }
   }
   function surfaceYFor(act, x, maxDrop, maxRise) {
     const L = levels[li], bottom = act.y + (maxDrop == null ? 120 : maxDrop), top = act.y - (maxRise == null ? 8 : maxRise);
@@ -6483,11 +6691,12 @@ PUBLIC.start = function (root, api) {
         if (a.zombie) {
           a.zombieFrenzy = Math.max(0, (a.zombieFrenzy || 0) - dtStep);
           a.zombieCommandFx = Math.max(0, (a.zombieCommandFx || 0) - dtStep);
-          if (a.zombieFrenzy > 0 && Math.random() < 0.36) soulParticle(a.x + rand(-17, 17), a.y - rand(26, 74), rand(-0.28, 0.28), rand(-0.92, -0.08), {
-            life: rand(220, 520),
-            color: spiritParticleColor(SPIRIT_COLORS.sick, 0.32),
-            r: rand(1.2, 3.0),
-            tail: rand(14, 30),
+          a.zombieBirthFx = Math.max(0, (a.zombieBirthFx || 0) - dtStep);
+          if ((a.zombieFrenzy > 0 || a.zombieCommandFx > 0) && Math.random() < 0.46) soulParticle(a.x + rand(-18, 18), a.y - rand(22, 78), rand(-0.28, 0.28), rand(-0.92, -0.08), {
+            life: rand(240, 620),
+            color: spiritParticleColor(a.zombieCommandFx > 0 ? SPIRIT_COLORS.ghost : SPIRIT_COLORS.sick, 0.36),
+            r: rand(1.3, 3.4),
+            tail: rand(16, 36),
           });
         }
         if (a.spirit && Math.random() < ((a.spiritAwake || 0) > 0 ? 0.28 : 0.24)) {
@@ -6637,6 +6846,45 @@ PUBLIC.start = function (root, api) {
     }
     ctx.restore();
   }
+  function drawGhostFormAura(hipX, hipY, shX, shY, headCX, headCY, fade, f) {
+    if (fade <= 0.02) return;
+    const now = performance.now();
+    const chestX = lerp(hipX, shX, 0.66), chestY = lerp(hipY, shY, 0.66);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.18 + fade * 0.30;
+    ctx.strokeStyle = SPIRIT_COLORS.shadow;
+    ctx.lineWidth = 8.5;
+    for (let i = 0; i < 4; i++) {
+      const phase = now * (0.004 + i * 0.0008) + i * 1.7;
+      const sx = hipX - f * (10 + i * 4) + Math.sin(phase) * 8;
+      const sy = hipY + 4 - i * 3;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(chestX - f * (18 + i * 2), chestY - 10 - i * 4, headCX + Math.sin(phase + 1.2) * 8, headCY - 20 - i * 4);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 7; i++) {
+      const phase = now * (0.005 + i * 0.0005) + i * 1.21 + hipX * 0.03;
+      const rr = 16 + i * 4;
+      ctx.globalAlpha = (0.10 + fade * 0.26) * (1 - i * 0.08);
+      ctx.strokeStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : i % 2 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost;
+      ctx.lineWidth = i % 3 === 0 ? 1.0 : 1.9;
+      ctx.beginPath();
+      ctx.moveTo(chestX + Math.sin(phase) * rr, chestY + 18 - i * 4);
+      ctx.quadraticCurveTo(chestX - Math.sin(phase) * 10, chestY - 4 - i * 4, headCX + Math.sin(phase + 0.7) * (8 + i), headCY - 12 - i * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.16 + fade * 0.28;
+    ctx.fillStyle = SPIRIT_COLORS.ghost;
+    ctx.beginPath();
+    traceWobblyCirclePath(chestX, chestY - 4, 16 + fade * 8, { phase: now * 0.003 + hipX, rough: 0.22, steps: 18 });
+    ctx.fill();
+    ctx.restore();
+  }
   function actorTeamAccent(act) {
     if (!act) return null;
     if (act.team === 'hero') return { role: 'hero', color: '#35d9ff', glow: '#e9fbff', alpha: 0.84, core: 5.8, ground: 1.0 };
@@ -6741,8 +6989,10 @@ PUBLIC.start = function (root, api) {
   }
   function spiritVisualYOffset(a) {
     if (!a || !(a.spiritAwake > 0)) return 0;
-    const p = ease(spiritWakeProgress(a));
-    return (1 - p) * (a.spiritRise || 36);
+    const raw = spiritWakeProgress(a);
+    const p = ease(raw);
+    const jerk = a.zombie ? Math.sin(raw * Math.PI * 6) * (1 - raw) * 4.5 : 0;
+    return (1 - p) * (a.spiritRise || 36) + jerk;
   }
   function drawSpiritAwakening(a, rise) {
     if (!a || !a.spirit || !(a.spiritAwake > 0)) return;
@@ -6755,10 +7005,10 @@ PUBLIC.start = function (root, api) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.22 * fade;
+    ctx.globalAlpha = (a.zombie ? 0.32 : 0.22) * fade;
     ctx.strokeStyle = SPIRIT_COLORS.shadow;
-    ctx.lineWidth = 8.5;
-    for (let i = 0; i < 5; i++) {
+    ctx.lineWidth = a.zombie ? 10.5 : 8.5;
+    for (let i = 0; i < (a.zombie ? 7 : 5); i++) {
       const phase = now * (0.004 + i * 0.0006) + i * 1.7 + a.x * 0.02;
       const footX = x + Math.sin(phase) * (9 + i * 3);
       const topX = x + Math.sin(phase + 1.2) * (5 + i * 2);
@@ -6768,24 +7018,24 @@ PUBLIC.start = function (root, api) {
       ctx.stroke();
     }
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < (a.zombie ? 9 : 7); i++) {
       const phase = now * (0.0035 + i * 0.00045) + i * 2.1 + a.x * 0.016;
       const y = lerp(ground - 4, chest - 8, (i + 1) / 8);
       const x1 = x + Math.sin(phase) * (14 + i * 2.6);
       const x2 = x + Math.sin(phase + 1.4) * (8 + i * 1.8);
-      ctx.globalAlpha = (0.14 + p * 0.16) * fade * (1 - i * 0.06);
-      ctx.strokeStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : color;
-      ctx.lineWidth = i % 3 === 0 ? 1.1 : 1.9;
+      ctx.globalAlpha = (0.14 + p * (a.zombie ? 0.24 : 0.16)) * fade * (1 - i * 0.055);
+      ctx.strokeStyle = i % 3 === 0 ? SPIRIT_COLORS.pale : i % 2 === 0 && a.zombie ? SPIRIT_COLORS.sick : color;
+      ctx.lineWidth = i % 3 === 0 ? 1.1 : a.zombie ? 2.4 : 1.9;
       ctx.beginPath();
       ctx.moveTo(x1, y + 12);
       ctx.quadraticCurveTo(x - Math.sin(phase) * 7, y - 8, x2, y - 22);
       ctx.stroke();
     }
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.34 * fade;
+    ctx.globalAlpha = (a.zombie ? 0.46 : 0.34) * fade;
     ctx.fillStyle = SPIRIT_COLORS.shadow;
     ctx.beginPath();
-    ctx.ellipse(x, ground + 3, 26 + p * 10, 5 + p * 2, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, ground + 3, (a.zombie ? 32 : 26) + p * 12, (a.zombie ? 7 : 5) + p * 2, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -6797,6 +7047,8 @@ PUBLIC.start = function (root, api) {
     const pulse = 0.5 + 0.5 * Math.sin(now * 0.007 + a.x * 0.02);
     const chestY = a.y - 62 - ((a.anim && a.anim.fly) || 0) * (a.cls.style.hover || 0);
     const color = a.cls && a.cls.color || SPIRIT_COLORS.ghost;
+    const commandFade = a.zombie ? clamp((a.zombieCommandFx || 0) / 1300, 0, 1) : 0;
+    const birthFade = a.zombie ? clamp((a.zombieBirthFx || 0) / 760, 0, 1) : 0;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -6859,6 +7111,30 @@ PUBLIC.start = function (root, api) {
       ctx.moveTo(cmd.x - tx * 20 - px * 4, cmd.y - ty * 20 - py * 4);
       ctx.quadraticCurveTo(cmd.x - tx * 8, cmd.y - ty * 8, cmd.x + tx * 10, cmd.y + ty * 10);
       ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (a.zombie && (commandFade > 0.02 || birthFade > 0.02)) {
+      const fx = Math.max(commandFade, birthFade);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.18 + fx * 0.34;
+      ctx.strokeStyle = SPIRIT_COLORS.shadow;
+      ctx.lineWidth = 8 + fx * 4;
+      ctx.beginPath();
+      ctx.ellipse(a.x, a.y + 2, 24 + fx * 14 + pulse * 3, 7 + fx * 3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 5; i++) {
+        const phase = now * (0.006 + i * 0.0007) + i * 1.35 + a.x * 0.02;
+        const sx = a.x + Math.sin(phase) * (13 + i * 3);
+        const sy = a.y - 8 - i * 9;
+        ctx.globalAlpha = (0.14 + fx * 0.26) * (1 - i * 0.12);
+        ctx.strokeStyle = i % 2 ? SPIRIT_COLORS.pale : commandFade > 0.02 ? SPIRIT_COLORS.ghost : color;
+        ctx.lineWidth = i % 2 ? 1.1 : 2.0;
+        ctx.beginPath();
+        ctx.moveTo(sx, a.y + 1);
+        ctx.quadraticCurveTo(a.x - Math.sin(phase) * 9, sy - 16, a.x + Math.sin(phase + 1.2) * (10 + i * 2), chestY - 24 - i * 2);
+        ctx.stroke();
+      }
       ctx.globalCompositeOperation = 'source-over';
     }
     for (let i = 0; i < 4; i++) {
@@ -6948,13 +7224,15 @@ PUBLIC.start = function (root, api) {
       }
       if (hasPassive('ln_ironstance') && player.grounded && Math.abs(player.vx) < 0.35) tunedForce *= 1.32;
     }
+    if (e.zombie) tunedForce *= e.knockResist || 0.62;
     const k = clamp(tunedForce * (blocked ? 0.32 : 1), 4, 44);
     if (blocked) { e.shieldFlash = 180; burst(hx, hy, e.cls.color, 10, 2.2); addShake(1.4, 70); }
     e.vx += (nx || 0) * k * 0.55;
     e.vy = Math.min(e.vy + (ny || 0) * k * 0.25, -1.0 - k * 0.05);
     e.grounded = false; e.anim.squash = -0.3; e.flash = 180;
-    e.brain.stagger = Math.max(e.brain.stagger, 200); e.brain.alert = 2200; e.brain.retreat = 0;
-    e.hp -= blocked ? Math.max(0.15, k / 34) : Math.max(0.6, k / 14);
+    e.brain.stagger = Math.max(e.brain.stagger, e.zombie ? 105 : 200); e.brain.alert = 2200; e.brain.retreat = 0;
+    const dmg = blocked ? Math.max(0.15, k / 34) : Math.max(0.6, k / 14);
+    e.hp -= dmg * (e.zombie ? (e.damageResist || 0.72) : 1);
     burst(hx, hy, '#ffd089', Math.min(16, 6 + (k | 0)), 4); burst(hx, hy, '#d9534f', 7, 3);
     freeze = Math.max(freeze, Math.min(14, 5 + k * 0.22));
     if (e.hp <= 0) killFighter(e, nx || 0, ny || 0, k, hx, hy);
@@ -7224,15 +7502,15 @@ PUBLIC.start = function (root, api) {
     player.ghostForm = Math.max(0, (player.ghostForm || 0) - dtStep);
     if (player.ghostForm > 0) {
       player.invuln = Math.max(player.invuln || 0, player.ghostForm + 90);
-      player.hidden = Math.max(player.hidden || 0, Math.min(player.ghostForm, 520));
-      player.vy = player.vy * 0.88 - 0.06;
-      player.vx *= 0.992;
-      if (Math.random() < 0.46) soulParticle(player.x + rand(-18, 18), player.y - rand(14, 78), rand(-0.34, 0.34), rand(-0.72, 0.04), {
+      player.hidden = Math.max(player.hidden || 0, Math.min(player.ghostForm, 760));
+      player.vy = player.vy * 0.86 - 0.075;
+      player.vx *= 0.996;
+      if (Math.random() < 0.62) soulParticle(player.x + rand(-22, 22), player.y - rand(12, 84), rand(-0.42, 0.42), rand(-0.80, 0.02), {
         color: spiritParticleColor(Math.random() < 0.45 ? SPIRIT_COLORS.sick : SPIRIT_COLORS.ghost, 0.38),
-        life: rand(240, 620),
-        r: rand(1.2, 3.4),
-        tail: rand(16, 34),
-        alpha: 0.70,
+        life: rand(280, 760),
+        r: rand(1.3, 3.8),
+        tail: rand(18, 40),
+        alpha: 0.78,
       });
     } else player.ghostFormMax = 0;
     player.poisoned = Math.max(0, (player.poisoned || 0) - dtStep);
@@ -7340,7 +7618,7 @@ PUBLIC.start = function (root, api) {
   function maxV() {
     let m = MAXV * cls.speedMul * mobilityStatMultiplier();
     if (player && player.hunterHaste > 0) m *= 1.22;
-    if (player && player.zombie) m *= (player.zombieFrenzy || 0) > 0 ? 0.88 : 0.58;
+    if (player && player.zombie) m *= (player.zombieFrenzy || 0) > 0 ? 0.84 : 0.52;
     if (player && (player.ghostForm || 0) > 0) m *= 1.12;
     if (mageHovering()) m *= 0.68;
     if (activeMove('airDash')) m = Math.max(m, 8.6);
@@ -8730,7 +9008,7 @@ PUBLIC.start = function (root, api) {
       angle: ang,
       curse: true,
       sparkle: 3,
-      reanimateRange: 78,
+      reanimateRange: 138,
     });
     emitSoulWisp(origin.handX || player.x, origin.handY || player.y - 76, origin.x + Math.cos(ang) * 18, origin.y + Math.sin(ang) * 18, {
       count: 18,
@@ -10950,7 +11228,7 @@ PUBLIC.start = function (root, api) {
     ctx.translate(player.x, player.y - hoverY);         // hoverY floats the whole figure (Mage)
     if (hiddenFade > 0) {
       const rogueStealth = ghostFade <= 0.02 && cls.id === 'rogue';
-      ctx.globalAlpha = ghostFade > 0 ? lerp(1, 0.36, ghostFade) : rogueStealth ? lerp(1, 0.26, hiddenFade) : lerp(1, 0.48, hiddenFade);
+      ctx.globalAlpha = ghostFade > 0 ? lerp(1, 0.22, ghostFade) : rogueStealth ? lerp(1, 0.26, hiddenFade) : lerp(1, 0.48, hiddenFade);
       ctx.shadowColor = ghostFade > 0
         ? `rgba(87, 215, 200, ${0.26 + ghostFade * 0.32})`
         : rogueStealth
@@ -10988,6 +11266,7 @@ PUBLIC.start = function (root, api) {
     const hipFX = hipX, hipBX = hipX;
 
     if (hiddenFade > 0) drawHiddenSilhouette(hipX, hipY, shX, shY, headCX, headCY, hiddenFade, f);
+    if (ghostFade > 0.02) drawGhostFormAura(hipX, hipY, shX, shY, headCX, headCY, ghostFade, f);
 
     const teamAccent = actorTeamAccent(player);
     drawTeamGroundMarker(teamAccent, f);
@@ -12926,7 +13205,19 @@ PUBLIC.start = function (root, api) {
             }
           } else {
             // hero fire hits training dummies + enemy fighters
-            if (dummies) for (const d of dummies) {
+            if (b.kind === 'reanimateMissile') {
+              const corpse = corpseByMissilePath(b, px, py);
+              if (corpse) {
+                const pending = consumeCorpseForZombie(corpse.d, corpse.c, {
+                  color: b.color || SPIRIT_COLORS.ghost,
+                  fromX: b.x - b.vx * 0.55,
+                  fromY: b.y - b.vy * 0.55,
+                  life: 980,
+                });
+                if (pending) struckActor = true;
+              }
+            }
+            if (!struckActor && dummies) for (const d of dummies) {
               const h = projectileHitsDummy(b, px, py, d);
               if (h) {
                 if (b.kind === 'reanimateMissile' && d.defeated) {
@@ -12934,6 +13225,7 @@ PUBLIC.start = function (root, api) {
                     color: b.color || SPIRIT_COLORS.ghost,
                     fromX: b.x - b.vx * 0.55,
                     fromY: b.y - b.vy * 0.55,
+                    life: 980,
                   });
                   if (z) { struckActor = true; break; }
                 }
@@ -13033,10 +13325,11 @@ PUBLIC.start = function (root, api) {
               detonateIgnitionGrenade(b);
             }
             else if (b.kind === 'reanimateMissile') {
-              const z = reanimateNearestCorpseAt(b.x, b.y, b.reanimateRange || 78, {
+              const z = reanimateNearestCorpseAt(b.x, b.y, b.reanimateRange || 132, {
                 color: b.color || SPIRIT_COLORS.ghost,
                 fromX: b.x - b.vx * 0.6,
                 fromY: b.y - b.vy * 0.6,
+                life: 980,
               });
               emitSoulWisp(b.x - b.vx * 0.62, b.y - b.vy * 0.62, b.x, b.y, { count: z ? 18 : 12, color: b.color || SPIRIT_COLORS.ghost, lifeMin: 240, lifeMax: 680 });
               for (let j = 0; j < (z ? 16 : 9); j++) soulParticle(b.x + rand(-5, 5), b.y + rand(-5, 5), rand(-0.42, 0.42), rand(-0.92, 0.04), { color: spiritParticleColor(b.color || SPIRIT_COLORS.ghost, 0.20), life: rand(240, 640), r: rand(0.9, 2.8), tail: rand(12, 32), alpha: 0.74 });
@@ -13140,6 +13433,7 @@ PUBLIC.start = function (root, api) {
           spiritRemnants: spiritRemnants ? spiritRemnants.length : 0,
             spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).length : 0,
             spiritZombies: allies ? allies.filter(a => a && a.zombie && !a.dead).length : 0,
+          spiritPendingReanimations: pendingSpiritReanimations().length,
           spiritCommands: allies ? allies.filter(a => a && a.spiritCommand).length : 0,
           bladeRecallTrails: bladeRecallTrails ? bladeRecallTrails.length : 0,
           gravityCore: gravityCore ? { x: gravityCore.x, y: gravityCore.y, r: gravityCore.r, age: gravityCore.age || 0, resonance: gravityCore.resonance || 0, resonanceMax: gravityCore.resonanceMax || 0 } : null,
@@ -13166,6 +13460,10 @@ PUBLIC.start = function (root, api) {
             shockwaves: shockwaves ? shockwaves.map(w => ({ x: w.x, y: w.y, r: w.r, life: w.life || 0, max: w.max || 0 })) : [],
             spiritRemnants: spiritRemnants ? spiritRemnants.map(r => ({ x: r.x, y: r.y, groundY: r.groundY, life: r.life || 0, max: r.max || 0, source: r.source || 'enemy', bindable: r === bindableRemnant })) : [],
             spiritAllies: allies ? allies.filter(a => a && a.spirit && !a.dead).map(a => ({ x: a.x, y: a.y, life: a.spiritLife || 0, max: a.spiritMaxLife || 0, zombie: !!a.zombie, frenzy: a.zombieFrenzy || 0, commanded: !!a.spiritCommand })) : [],
+            spiritPendingReanimations: pendingSpiritReanimations().map(d => {
+              const c = corpseAnchor(d);
+              return { x: c ? c.x : d.baseX, y: c ? c.y : d.baseY, life: d.reanimating && d.reanimating.life || 0, max: d.reanimating && d.reanimating.max || 0 };
+            }),
             spiritCommands: allies ? allies.filter(a => a && a.spiritCommand).map(a => ({ x: a.spiritCommand.x, y: a.spiritCommand.y, life: a.spiritCommand.life || 0, max: a.spiritCommand.max || 0, type: a.spiritCommand.type || 'point' })) : [],
             burningActors: (player && (player.burned || 0) > 0 ? 1 : 0) +
               (fighters ? fighters.filter(e => (e.burned || 0) > 0).length : 0) +
@@ -13217,6 +13515,7 @@ PUBLIC.start = function (root, api) {
           spiritRemnants: effects.spiritRemnants ? effects.spiritRemnants.length : 0,
           spiritAllies: effects.spiritAllies ? effects.spiritAllies.length : 0,
           spiritZombies: effects.spiritAllies ? effects.spiritAllies.filter(a => a.zombie).length : 0,
+          spiritPendingReanimations: effects.spiritPendingReanimations ? effects.spiritPendingReanimations.length : 0,
           spiritCommands: effects.spiritCommands ? effects.spiritCommands.length : 0,
           burningActors: effects.burningActors || 0,
           hotBoxes: effects.hotBoxes || 0,
