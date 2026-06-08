@@ -8,12 +8,13 @@ const root = path.resolve(__dirname, '..');
 const checks = [
   ['JavaScript syntax', 'scripts/check-js-syntax.js'],
   ['PWA cache', 'scripts/check-pwa-cache.js'],
+  ['Stick Arena poses', 'scripts/pose-shot.js', ['--check']],
   ['LogMiner', 'scripts/check-logminer.js'],
 ];
 
-for (const [label, script] of checks) {
+for (const [label, script, args] of checks) {
   console.log(`\n== ${label} ==`);
-  const result = spawnSync(process.execPath, [script], { cwd: root, stdio: 'inherit' });
+  const result = spawnSync(process.execPath, [script, ...(args || [])], { cwd: root, stdio: 'inherit' });
 
   if (result.error) {
     console.error(result.error.message);
