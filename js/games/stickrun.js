@@ -4217,13 +4217,41 @@ PUBLIC.start = function (root, api) {
     if (cls.id === 'ranger') return releaseRangerDraw();
     return false;
   }
-  api.on(view.canvas, 'mousemove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
+  api.on(view.canvas, 'mousemove', e => {
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
+    if (poseStudioPointerMove(e)) e.preventDefault();
+  });
   api.on(view.canvas, 'mousedown', e => {
     pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; e.preventDefault();
+    if (poseStudioPointerDown(e)) return;
     if (e.button === 2) altAttack(); else mainAttack();
   });
+  api.on(view.canvas, 'pointerdown', e => {
+    if (!poseStudio.active) return;
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
+    if (poseStudioPointerDown(e)) {
+      e.preventDefault();
+      if (view.canvas.setPointerCapture && e.pointerId != null) {
+        try { view.canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+  });
+  api.on(view.canvas, 'pointermove', e => {
+    if (!poseStudio.active) return;
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
+    if (poseStudioPointerMove(e)) e.preventDefault();
+  });
   api.on(window, 'mouseup', e => {
+    if (poseStudioPointerUp()) { e.preventDefault(); return; }
     if (e.button === 2) releaseAltAttack(); else releaseMainAttack();
+  });
+  api.on(window, 'pointerup', e => {
+    if (poseStudioPointerUp()) {
+      e.preventDefault();
+      if (view.canvas.releasePointerCapture && e.pointerId != null) {
+        try { view.canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
   });
   api.on(view.canvas, 'contextmenu', e => e.preventDefault());
 
@@ -4360,6 +4388,9 @@ PUBLIC.start = function (root, api) {
     'arrow', 'volley', 'shieldBash',
   ];
   const POSE_STEP = 0.02, POSE_STEP_FINE = 0.005, POSE_NUDGE = 0.03;   // t steps / nudge in radians
+  const POSE_DEFAULT_FRAMES = [0.18, 0.50, 0.82];
+  const POSE_FRAME_LABELS = ['wind-up', 'contact', 'recover'];
+  const POSE_KEY_EPS = 0.012;
   const poseStudio = {
     active: false,
     ti: 0,                            // index into POSE_STUDIO_TYPES
@@ -4368,6 +4399,11 @@ PUBLIC.start = function (root, api) {
     off: { sh: 0, el: 0, wr: 0 },     // live channel nudges, radians
     live: null,                       // last on-screen final channels (readout only)
     keys: [],                         // captured keyframes: [{t, sh, el, wr}]
+    frames: POSE_DEFAULT_FRAMES.slice(),
+    selectedFrame: 1,
+    drag: null,
+    hit: [],
+    panel: null,
   };
   function poseStudioType() { return POSE_STUDIO_TYPES[poseStudio.ti % POSE_STUDIO_TYPES.length]; }
   function poseStudioReset() { poseStudio.off.sh = poseStudio.off.el = poseStudio.off.wr = 0; }
@@ -4385,18 +4421,85 @@ PUBLIC.start = function (root, api) {
     const p = weaponPose(type, clamp(t, 0, 1), 0, 1, v | 0);
     return { sh: p.shAng, el: p.elBend, wr: p.wrBend };
   }
-  function poseStudioCapture() {
-    // the captured pose is what's on screen: engine pose + live nudges
-    const base = poseStudioChannels(poseStudioType(), poseStudio.t, poseStudio.var);
-    const key = {
-      t: +clamp(poseStudio.t, 0, 1).toFixed(3),
-      sh: +(base.sh + poseStudio.off.sh).toFixed(4),
-      el: +(base.el + poseStudio.off.el).toFixed(4),
-      wr: +(base.wr + poseStudio.off.wr).toFixed(4),
+  function poseStudioRoundKey(t, ch) {
+    return {
+      t: +clamp(t, 0, 1).toFixed(3),
+      sh: +ch.sh.toFixed(4),
+      el: +ch.el.toFixed(4),
+      wr: +ch.wr.toFixed(4),
     };
-    const i = poseStudio.keys.findIndex(kk => Math.abs(kk.t - key.t) < 0.012);
+  }
+  function poseStudioFrameT(i) {
+    const idx = clamp(i | 0, 0, poseStudio.frames.length - 1);
+    return clamp(poseStudio.frames[idx], 0, 1);
+  }
+  function poseStudioKeyAt(t) {
+    const tt = clamp(t, 0, 1);
+    return poseStudio.keys.find(kk => Math.abs(kk.t - tt) < POSE_KEY_EPS) || null;
+  }
+  function poseStudioSetKey(t, ch) {
+    const key = poseStudioRoundKey(t, ch);
+    const i = poseStudio.keys.findIndex(kk => Math.abs(kk.t - key.t) < POSE_KEY_EPS);
     if (i >= 0) poseStudio.keys[i] = key; else poseStudio.keys.push(key);
     poseStudio.keys.sort((a, b) => a.t - b.t);
+    poseStudioReset();
+    return key;
+  }
+  function poseStudioDisplayChannels(type, t, v) {
+    const tt = clamp(t, 0, 1);
+    const keys = poseStudio.keys.slice().sort((a, b) => a.t - b.t);
+    const exact = keys.find(kk => Math.abs(kk.t - tt) < POSE_KEY_EPS);
+    if (exact) return { sh: exact.sh, el: exact.el, wr: exact.wr };
+    if (keys.length >= 2) {
+      if (tt <= keys[0].t) return { sh: keys[0].sh, el: keys[0].el, wr: keys[0].wr };
+      const last = keys[keys.length - 1];
+      if (tt >= last.t) return { sh: last.sh, el: last.el, wr: last.wr };
+      for (let i = 1; i < keys.length; i++) {
+        const a = keys[i - 1], b = keys[i];
+        if (tt <= b.t) {
+          const u = ease(clamp((tt - a.t) / Math.max(0.001, b.t - a.t), 0, 1));
+          return {
+            sh: lerpAngle(a.sh, b.sh, u),
+            el: lerp(a.el, b.el, u),
+            wr: lerpAngle(a.wr, b.wr, u),
+          };
+        }
+      }
+    }
+    const base = poseStudioChannels(type, tt, v);
+    return { sh: base.sh + poseStudio.off.sh, el: base.el + poseStudio.off.el, wr: base.wr + poseStudio.off.wr };
+  }
+  function poseStudioEnsureFrameKey(i) {
+    poseStudio.selectedFrame = clamp(i | 0, 0, poseStudio.frames.length - 1);
+    poseStudio.t = poseStudioFrameT(poseStudio.selectedFrame);
+    let key = poseStudioKeyAt(poseStudio.t);
+    if (!key) key = poseStudioSetKey(poseStudio.t, poseStudioDisplayChannels(poseStudioType(), poseStudio.t, poseStudio.var));
+    return key;
+  }
+  function poseStudioSelectFrame(i) {
+    poseStudioEnsureFrameKey(i);
+    exposeDebugApi();
+  }
+  function poseStudioNudge(ch, d) {
+    const key = poseStudioKeyAt(poseStudio.t);
+    if (key && (ch === 'sh' || ch === 'el' || ch === 'wr')) {
+      key[ch] = +(key[ch] + d).toFixed(4);
+      poseStudioReset();
+      return;
+    }
+    if (ch === 'sh' || ch === 'el' || ch === 'wr') poseStudio.off[ch] += d;
+  }
+  function poseStudioResetCurrentPose() {
+    const key = poseStudioKeyAt(poseStudio.t);
+    if (key) {
+      const base = poseStudioChannels(poseStudioType(), poseStudio.t, poseStudio.var);
+      key.sh = +base.sh.toFixed(4); key.el = +base.el.toFixed(4); key.wr = +base.wr.toFixed(4);
+    }
+    poseStudioReset();
+  }
+  function poseStudioCapture() {
+    // the captured pose is what's on screen: engine pose + live nudges
+    poseStudioSetKey(poseStudio.t, poseStudioDisplayChannels(poseStudioType(), poseStudio.t, poseStudio.var));
   }
   function poseStudioExport() {
     // kfa()-ready stops per channel: [[t, value], ...] — paste straight into weaponPose()
@@ -4411,19 +4514,22 @@ PUBLIC.start = function (root, api) {
     switch (k) {
       case ',': poseStudio.ti = (poseStudio.ti + POSE_STUDIO_TYPES.length - 1) % POSE_STUDIO_TYPES.length; poseStudioReset(); break;
       case '.': poseStudio.ti = (poseStudio.ti + 1) % POSE_STUDIO_TYPES.length; poseStudioReset(); break;
+      case '1': poseStudioSelectFrame(0); break;
+      case '2': poseStudioSelectFrame(1); break;
+      case '3': poseStudioSelectFrame(2); break;
       case '[': poseStudio.t = clamp(poseStudio.t - step, 0, 1); break;
       case ']': poseStudio.t = clamp(poseStudio.t + step, 0, 1); break;
       case '-': poseStudio.var = (poseStudio.var + 3) % 4; break;
       case '=': poseStudio.var = (poseStudio.var + 1) % 4; break;
-      case 'q': poseStudio.off.sh += POSE_NUDGE; break;
-      case 'a': poseStudio.off.sh -= POSE_NUDGE; break;
-      case 'w': poseStudio.off.el += POSE_NUDGE; break;
-      case 's': poseStudio.off.el -= POSE_NUDGE; break;
-      case 'e': poseStudio.off.wr += POSE_NUDGE; break;
-      case 'd': poseStudio.off.wr -= POSE_NUDGE; break;
-      case 'r': poseStudioReset(); break;
+      case 'q': poseStudioNudge('sh', POSE_NUDGE); break;
+      case 'a': poseStudioNudge('sh', -POSE_NUDGE); break;
+      case 'w': poseStudioNudge('el', POSE_NUDGE); break;
+      case 's': poseStudioNudge('el', -POSE_NUDGE); break;
+      case 'e': poseStudioNudge('wr', POSE_NUDGE); break;
+      case 'd': poseStudioNudge('wr', -POSE_NUDGE); break;
+      case 'r': poseStudioResetCurrentPose(); break;
       case 'k': poseStudioCapture(); break;
-      case 'x': poseStudio.keys.length = 0; break;
+      case 'x': poseStudio.keys.length = 0; poseStudioReset(); break;
       case 'c': {
         const out = poseStudioExport();
         console.log('[pose-studio] export', JSON.stringify(out));
@@ -4457,7 +4563,10 @@ PUBLIC.start = function (root, api) {
     const hip = { x: 0, y: -hipH };
     const sh = { x: hip.x, y: hip.y - torso };
     const head = { x: sh.x, y: sh.y - (neck + headR) };
-    const pose = weaponPose(type, clamp(t, 0, 1), aim, f, v);
+    const custom = opts.channels || null;
+    const pose = custom
+      ? { shAng: custom.sh, elBend: custom.el, wrBend: custom.wr }
+      : weaponPose(type, clamp(t, 0, 1), aim, f, v);
     const ch = armChain(sh.x, sh.y, pose.shAng, pose.elBend);
     const blAng = pose.shAng + pose.elBend + pose.wrBend;
     const tip = { x: ch.hx + Math.cos(blAng) * wlen, y: ch.hy + Math.sin(blAng) * wlen };
@@ -4468,8 +4577,215 @@ PUBLIC.start = function (root, api) {
       headR,
     };
   }
+  function poseStudioCanvasPoint(e) {
+    const r = view.canvas.getBoundingClientRect();
+    const sx = r.width ? (e.clientX - r.left) * view.w / r.width : e.clientX;
+    const sy = r.height ? (e.clientY - r.top) * view.h / r.height : e.clientY;
+    return { x: sx, y: sy };
+  }
+  function poseStudioPanelToScreen(pt) {
+    const p = poseStudio.panel;
+    return p ? { x: p.ox + pt.x * p.scale, y: p.oy + pt.y * p.scale } : { x: pt.x, y: pt.y };
+  }
+  function poseStudioScreenToPanel(x, y) {
+    const p = poseStudio.panel;
+    return p ? { x: (x - p.ox) / p.scale, y: (y - p.oy) / p.scale } : { x, y };
+  }
+  function poseStudioPointInRect(pt, r) {
+    return pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h;
+  }
+  function poseStudioIKHand(target, current) {
+    const sh = { x: 0, y: -76 };
+    const dx = target.x - sh.x, dy = target.y - sh.y;
+    let d = Math.hypot(dx, dy) || 0.001;
+    d = clamp(d, Math.abs(UARM - FARM) + 0.001, UARM + FARM - 0.001);
+    const base = Math.atan2(dy, dx);
+    const cosRel = clamp((d * d - UARM * UARM - FARM * FARM) / (2 * UARM * FARM), -1, 1);
+    const relA = Math.acos(cosRel), relB = -relA;
+    const distA = Math.abs(Math.atan2(Math.sin(relA - current.el), Math.cos(relA - current.el)));
+    const distB = Math.abs(Math.atan2(Math.sin(relB - current.el), Math.cos(relB - current.el)));
+    const rel = distA <= distB ? relA : relB;
+    const shAng = base - Math.atan2(FARM * Math.sin(rel), UARM + FARM * Math.cos(rel));
+    return { sh: shAng, el: rel, wr: current.wr };
+  }
+  function poseStudioDragChannels(joint, local) {
+    const key = poseStudioEnsureFrameKey(poseStudio.selectedFrame);
+    const current = { sh: key.sh, el: key.el, wr: key.wr };
+    const sh = { x: 0, y: -76 };
+    if (joint === 'elbow') return { sh: Math.atan2(local.y - sh.y, local.x - sh.x), el: current.el, wr: current.wr };
+    if (joint === 'hand') return poseStudioIKHand(local, current);
+    const sk = poseSkeleton(poseStudioType(), poseStudio.t, { var: poseStudio.var, channels: current });
+    if (joint === 'tip') {
+      const h = sk.points.hand;
+      return { sh: current.sh, el: current.el, wr: Math.atan2(local.y - h.y, local.x - h.x) - current.sh - current.el };
+    }
+    return current;
+  }
+  function poseStudioPointerDown(e) {
+    if (!poseStudio.active) return false;
+    const pt = poseStudioCanvasPoint(e);
+    for (let i = poseStudio.hit.length - 1; i >= 0; i--) {
+      const h = poseStudio.hit[i];
+      if (h.kind === 'frame' && poseStudioPointInRect(pt, h)) {
+        poseStudioSelectFrame(h.i);
+        return true;
+      }
+      if (h.kind === 'joint') {
+        const d = Math.hypot(pt.x - h.x, pt.y - h.y);
+        if (d <= h.r) {
+          poseStudioEnsureFrameKey(poseStudio.selectedFrame);
+          poseStudio.drag = { joint: h.joint };
+          poseStudioPointerMove(e);
+          return true;
+        }
+      }
+    }
+    return !!(poseStudio.panel && poseStudioPointInRect(pt, poseStudio.panel));
+  }
+  function poseStudioPointerMove(e) {
+    if (!poseStudio.active || !poseStudio.drag || !poseStudio.panel) return false;
+    const pt = poseStudioCanvasPoint(e);
+    const local = poseStudioScreenToPanel(pt.x, pt.y);
+    const ch = poseStudioDragChannels(poseStudio.drag.joint, local);
+    poseStudioSetKey(poseStudio.t, ch);
+    exposeDebugApi();
+    return true;
+  }
+  function poseStudioPointerUp() {
+    if (!poseStudio.drag) return false;
+    poseStudio.drag = null;
+    exposeDebugApi();
+    return true;
+  }
+  function drawPoseStudioEditor() {
+    const fin = poseStudioDisplayChannels(poseStudioType(), poseStudio.t, poseStudio.var);
+    const deg = r => (r * 180 / Math.PI).toFixed(1) + ' deg';
+    poseStudio.hit.length = 0;
+    ctx.save();
+    const dockX = view.w > 820 ? 356 : 12;
+    const panelW = Math.min(460, Math.max(300, view.w - dockX - 24));
+    const panelH = Math.min(430, Math.max(300, view.h - 96));
+    const x = dockX, y = view.h > 540 ? 74 : 48;
+    const ox = x + panelW * 0.50, oy = y + panelH * 0.84;
+    const scale = Math.min(4.25, Math.max(2.55, Math.min((panelW - 90) / 118, (panelH - 124) / 112)));
+    poseStudio.panel = { x, y, w: panelW, h: panelH, ox, oy, scale };
+
+    ctx.fillStyle = 'rgba(10,13,23,.91)';
+    ctx.fillRect(x, y, panelW, panelH);
+    ctx.strokeStyle = 'rgba(127,208,255,.62)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, panelW, panelH);
+    ctx.font = '12px ui-monospace, SFMono-Regular, Consolas, monospace';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#7fd0ff';
+    ctx.fillText('POSE STUDIO - drag joints, 1/2/3 select frames, P closes', x + 12, y + 10);
+    ctx.fillStyle = '#ffd45e';
+    ctx.fillText(`${poseStudioType()}  var ${poseStudio.var}  t ${poseStudio.t.toFixed(3)}`, x + 12, y + 27);
+
+    const chipY = y + 50, chipGap = 7, chipW = (panelW - 24 - chipGap * 2) / 3;
+    for (let i = 0; i < 3; i++) {
+      const cx = x + 12 + i * (chipW + chipGap), ct = poseStudioFrameT(i);
+      const hasKey = !!poseStudioKeyAt(ct), sel = i === poseStudio.selectedFrame;
+      ctx.fillStyle = sel ? 'rgba(94,242,255,.24)' : hasKey ? 'rgba(255,212,94,.15)' : 'rgba(255,255,255,.07)';
+      ctx.fillRect(cx, chipY, chipW, 36);
+      ctx.strokeStyle = sel ? '#5ef2ff' : hasKey ? '#ffd45e' : 'rgba(255,255,255,.22)';
+      ctx.strokeRect(cx + 0.5, chipY + 0.5, chipW, 36);
+      ctx.fillStyle = sel ? '#ffffff' : hasKey ? '#ffe49a' : '#cfe5ff';
+      ctx.fillText(`${i + 1} ${POSE_FRAME_LABELS[i]}`, cx + 8, chipY + 5);
+      ctx.fillStyle = '#9fb3c8';
+      ctx.fillText(ct.toFixed(2), cx + 8, chipY + 20);
+      poseStudio.hit.push({ kind: 'frame', i, x: cx, y: chipY, w: chipW, h: 36 });
+    }
+
+    const drawLine = (a, b, w, color, alpha) => {
+      const aa = poseStudioPanelToScreen(a), bb = poseStudioPanelToScreen(b);
+      ctx.globalAlpha = alpha == null ? 1 : alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(aa.x, aa.y); ctx.lineTo(bb.x, bb.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+    };
+    const drawSk = (sk, alpha, active) => {
+      const p = sk.points;
+      const footA = { x: -13, y: 0 }, footB = { x: 13, y: 0 };
+      const kneeA = { x: -9, y: -24 }, kneeB = { x: 11, y: -24 };
+      const color = active ? '#f5fbff' : '#7fd0ff';
+      drawLine(footA, kneeA, active ? 7 : 4, color, alpha * 0.76);
+      drawLine(kneeA, p.hip, active ? 7 : 4, color, alpha * 0.76);
+      drawLine(footB, kneeB, active ? 7 : 4, color, alpha * 0.58);
+      drawLine(kneeB, p.hip, active ? 7 : 4, color, alpha * 0.58);
+      drawLine(p.hip, p.sh, active ? 8 : 4, color, alpha);
+      const head = poseStudioPanelToScreen(p.head);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(head.x, head.y, sk.headR * poseStudio.panel.scale, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      drawLine(p.sh, p.elbow, active ? 9 : 4, active ? '#ffffff' : '#ffd45e', alpha);
+      drawLine(p.elbow, p.hand, active ? 9 : 4, active ? '#ffffff' : '#ffd45e', alpha);
+      drawLine(p.hand, p.tip, active ? 6 : 3, active ? '#ffd45e' : '#ffefb5', alpha);
+    };
+
+    for (const kk of poseStudio.keys) {
+      if (Math.abs(kk.t - poseStudio.t) < POSE_KEY_EPS) continue;
+      drawSk(poseSkeleton(poseStudioType(), kk.t, { var: poseStudio.var, channels: kk }), 0.30, false);
+    }
+    const sk = poseSkeleton(poseStudioType(), poseStudio.t, { var: poseStudio.var, channels: fin });
+    drawSk(sk, 1, true);
+    for (const joint of ['elbow', 'hand', 'tip']) {
+      const s = poseStudioPanelToScreen(sk.points[joint]);
+      const r = joint === 'tip' ? 8 : 11;
+      ctx.fillStyle = joint === 'tip' ? '#ffd45e' : '#5ef2ff';
+      ctx.strokeStyle = '#08111e';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      poseStudio.hit.push({ kind: 'joint', joint, x: s.x, y: s.y, r: r + 8 });
+    }
+
+    const bx = x + 18, bw = panelW - 36, by = y + panelH - 42;
+    ctx.strokeStyle = 'rgba(255,255,255,.28)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
+    for (let i = 0; i < poseStudio.frames.length; i++) {
+      const ct = poseStudioFrameT(i), xx = bx + bw * ct;
+      ctx.fillStyle = i === poseStudio.selectedFrame ? '#5ef2ff' : '#ffd45e';
+      ctx.fillRect(xx - 2, by - 11, 4, 22);
+    }
+    for (const kk of poseStudio.keys) {
+      const xx = bx + bw * kk.t;
+      ctx.fillStyle = '#ffe49a';
+      ctx.beginPath(); ctx.arc(xx, by, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx + bw * poseStudio.t - 1, by - 15, 2, 30);
+    ctx.fillStyle = '#cfe5ff';
+    ctx.fillText(`shoulder ${deg(fin.sh)}   elbow ${deg(fin.el)}   wrist ${deg(fin.wr)}`, x + 18, y + panelH - 25);
+
+    const info = [
+      ', . type    - = variant    [ ] scrub',
+      'k capture   r reset selected   x clear   c export',
+      `keys: ${poseStudio.keys.length ? poseStudio.keys.map(kk => kk.t.toFixed(2)).join(' ') : '(none)'}`,
+    ];
+    const iw = Math.max.apply(null, info.map(s => ctx.measureText(s).width)) + 16;
+    const ih = info.length * 16 + 16;
+    const ix = Math.max(x + panelW + 12, view.w - iw - 12), iy = 12;
+    if (ix + iw <= view.w + 1) {
+      ctx.fillStyle = 'rgba(16,18,26,.86)';
+      ctx.fillRect(ix, iy, iw, ih);
+      ctx.strokeStyle = 'rgba(127,208,255,.45)';
+      ctx.strokeRect(ix + 0.5, iy + 0.5, iw, ih);
+      for (let i = 0; i < info.length; i++) {
+        ctx.fillStyle = i === 0 ? '#dff0ff' : '#9fb3c8';
+        ctx.fillText(info[i], ix + 8, iy + 7 + i * 16);
+      }
+    }
+    ctx.restore();
+  }
   // screen-space overlay panel (drawn after the world, in render())
-  function drawPoseStudio() {
+  function drawPoseStudioLegacy() {
+    drawPoseStudioEditor();
+    return;
     const base = poseStudioChannels(poseStudioType(), poseStudio.t, poseStudio.var);
     const fin = { sh: base.sh + poseStudio.off.sh, el: base.el + poseStudio.off.el, wr: base.wr + poseStudio.off.wr };
     const deg = r => (r * 180 / Math.PI).toFixed(1) + '°';
@@ -4504,6 +4820,10 @@ PUBLIC.start = function (root, api) {
     for (const kk of poseStudio.keys) { ctx.fillStyle = '#ffd45e'; ctx.fillRect(bx + bw * kk.t - 1, by - 3, 2, 6); }
     ctx.fillStyle = '#7fd0ff'; ctx.fillRect(bx + bw * poseStudio.t - 1, by - 5, 2, 10);
     ctx.restore();
+  }
+
+  function drawPoseStudio() {
+    drawPoseStudioEditor();
   }
 
   function makePlayer(spawn) {
@@ -12302,8 +12622,9 @@ PUBLIC.start = function (root, api) {
     if (attacking && !rogueOff) {
       // a full-body clip can author its own arm arc; else use the generic engine
       const pose = (a._clip && a._clip.arm) ? a._clip.arm(a.atkT, a.atkAim, f) : weaponPose(a.atkType, a.atkT, a.atkAim, f, a.atkVar);
-      if (poseStudio.active && player.team === 'hero') {     // Pose Studio: apply live channel nudges
-        pose.shAng += poseStudio.off.sh; pose.elBend += poseStudio.off.el; pose.wrBend += poseStudio.off.wr;
+      if (poseStudio.active && player.team === 'hero') {
+        const ch = poseStudioDisplayChannels(a.atkType || poseStudioType(), clamp(a.atkT, 0, 1), a.atkVar);
+        pose.shAng = ch.sh; pose.elBend = ch.el; pose.wrBend = ch.wr;
         poseStudio.live = { sh: pose.shAng, el: pose.elBend, wr: pose.wrBend };
       }
       a.shAng = pose.shAng; a.shAngV = 0;
@@ -14467,14 +14788,22 @@ PUBLIC.start = function (root, api) {
         setType(type) { const i = POSE_STUDIO_TYPES.indexOf(type); if (i >= 0) poseStudio.ti = i; poseStudioReset(); return i >= 0; },
         setT(t) { poseStudio.t = clamp(t, 0, 1); },
         setVar(v) { poseStudio.var = (((v | 0) % 4) + 4) % 4; },
-        nudge(ch, d) { if (ch === 'sh' || ch === 'el' || ch === 'wr') poseStudio.off[ch] += d; },
+        selectFrame(i) { poseStudioSelectFrame(i); return poseStudio.selectedFrame; },
+        nudge(ch, d) { poseStudioNudge(ch, d); },
         reset() { poseStudioReset(); },
         channels(type, t, v) { return poseStudioChannels(type || poseStudioType(), t == null ? poseStudio.t : t, v == null ? poseStudio.var : v); },
+        displayChannels(type, t, v) { return poseStudioDisplayChannels(type || poseStudioType(), t == null ? poseStudio.t : t, v == null ? poseStudio.var : v); },
         skeleton(type, t, opts) { return poseSkeleton(type, t, opts); },
         capture() { poseStudioCapture(); return poseStudio.keys.slice(); },
-        clear() { poseStudio.keys.length = 0; },
+        clear() { poseStudio.keys.length = 0; poseStudioReset(); },
         export() { return poseStudioExport(); },
-        state() { return { active: poseStudio.active, type: poseStudioType(), t: poseStudio.t, var: poseStudio.var, off: Object.assign({}, poseStudio.off), keys: poseStudio.keys.slice() }; },
+        state() {
+          return {
+            active: poseStudio.active, type: poseStudioType(), t: poseStudio.t, var: poseStudio.var,
+            off: Object.assign({}, poseStudio.off), keys: poseStudio.keys.slice(),
+            frames: poseStudio.frames.slice(), selectedFrame: poseStudio.selectedFrame,
+          };
+        },
       },
       debugSegments() { return debug.segments.slice(); },
       get player() { return player; },
