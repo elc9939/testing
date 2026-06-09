@@ -64,6 +64,16 @@ Arcade.define([
     src: 'js/games/tictactoe.js?v=57',
   },
   {
+    id: 'jobtracker',
+    name: 'Career Desk',
+    emoji: 'JOB',
+    desc: 'Track job leads, applications, follow-ups, contacts, materials, and next actions in one clean workspace.',
+    color: '#4fb477',
+    kind: 'tool',
+    scoreKey: false,
+    src: 'js/games/jobtracker.js?v=2',
+  },
+  {
     id: 'stickrun',
     name: 'Stick Arena',
     emoji: '⚔️',
