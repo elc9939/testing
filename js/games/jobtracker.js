@@ -10,8 +10,8 @@ Arcade.register({
 
   start(root, api) {
     const STORE_KEY = 'careerDesk.jobs.v1';
-    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v2';
-    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=3';
+    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v3';
+    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=4';
     const STAGES = [
       { id: 'saved', name: 'Saved', tone: '#64748b' },
       { id: 'applied', name: 'Applied', tone: '#2f80ed' },
@@ -332,9 +332,20 @@ Arcade.register({
       return state.jobs.filter(job => (job.source || '').toLowerCase() === 'email import' || job.tags.includes('email-import')).length;
     }
 
+    function isPassiveUpdateCheck(job) {
+      const text = String(job && job.nextAction || '').toLowerCase();
+      return /\b(check|watch|wait|monitor)\b.*\b(email|portal|reply|status|update)\b/.test(text) ||
+        /\b(email|portal)\b.*\b(status|update)\b/.test(text);
+    }
+
+    function hasActionableNextStep(job) {
+      return !!(job && job.nextAction && !isPassiveUpdateCheck(job));
+    }
+
     function isTodoJob(job) {
       if (!job || job.stage === 'rejected' || job.stage === 'archived') return false;
-      return job.stage === 'saved' || dueStatus(job).due || isStale(job) || job.stage === 'interviewing' || job.stage === 'offer';
+      return job.stage === 'saved' || job.stage === 'interviewing' || job.stage === 'offer' ||
+        (dueStatus(job).due && hasActionableNextStep(job));
     }
 
     function todoGroups(jobs) {
@@ -354,9 +365,9 @@ Arcade.register({
         },
         {
           id: 'updates',
-          name: 'Check updates',
-          hint: 'Active applications that are due, stale, or need an email/portal status check.',
-          jobs: take(job => dueStatus(job).due || isStale(job)),
+          name: 'Due follow-ups',
+          hint: 'Concrete dated actions only: assessments, recruiter replies, scheduling, or application materials.',
+          jobs: take(job => dueStatus(job).due && hasActionableNextStep(job)),
         },
         {
           id: 'active',
@@ -365,15 +376,6 @@ Arcade.register({
           jobs: take(job => job.stage === 'interviewing' || job.stage === 'offer'),
         },
       ];
-      const remaining = visible.filter(job => !byId.has(job.id));
-      if (remaining.length) {
-        groups.push({
-          id: 'watch',
-          name: 'Watch list',
-          hint: 'Applied roles that are current but still worth keeping in view.',
-          jobs: remaining,
-        });
-      }
       return groups.filter(group => group.jobs.length);
     }
 
@@ -467,7 +469,7 @@ Arcade.register({
 
     function todoHTML(jobs) {
       const groups = todoGroups(jobs);
-      if (!groups.length) return '<div class="jt-empty">No current tasks. New scout leads, saved roles, stale applications, and interview follow-ups will show here.</div>';
+      if (!groups.length) return '<div class="jt-empty">No current tasks. New scout leads, applications to submit, dated follow-ups, and interview actions will show here.</div>';
       return `<div class="jt-todo">${groups.map(group => `<section class="jt-task-section">
         <div class="jt-task-head">
           <div><h3>${esc(group.name)}</h3><p>${esc(group.hint)}</p></div>
@@ -498,7 +500,7 @@ Arcade.register({
       const due = dueStatus(job);
       const isSaved = job.stage === 'saved';
       const status = due.text || (isStale(job) ? 'stale 14d+' : stageById(job.stage).name);
-      const actionText = job.nextAction || (isSaved ? 'Review the role and decide whether to apply.' : 'Check email or portal for the latest status.');
+      const actionText = job.nextAction || (isSaved ? 'Review the role and decide whether to apply.' : 'Review the next concrete action.');
       return `<div class="jt-task">
         <button class="jt-task-main" data-act="select" data-id="${esc(job.id)}">
           <div class="jt-card-top">
@@ -517,7 +519,6 @@ Arcade.register({
         <div class="jt-task-actions">
           ${job.link ? `<a class="jt-link-btn" href="${esc(job.link)}" target="_blank" rel="noreferrer">Open</a>` : ''}
           ${isSaved ? `<button class="jt-btn slim primary" data-act="mark-applied" data-id="${esc(job.id)}">Applied</button>` : ''}
-          ${!isSaved && ACTIVE_STAGES.has(job.stage) ? `<button class="jt-btn slim" data-act="checked-email" data-id="${esc(job.id)}">Checked email</button>` : ''}
           ${groupId === 'apply' ? `<button class="jt-btn slim" data-act="archive" data-id="${esc(job.id)}">Skip</button>` : ''}
           ${!ACTIVE_STAGES.has(job.stage) ? `<button class="jt-btn slim" data-act="archive" data-id="${esc(job.id)}">Archive</button>` : ''}
         </div>
@@ -739,16 +740,9 @@ Arcade.register({
       quickUpdateJob(id, {
         stage: 'applied',
         dateApplied: job.dateApplied || todayISO(),
-        nextAction: 'Check email and portal for confirmation/status updates.',
+        nextAction: '',
         nextActionDate: '',
       }, 'Marked as applied from To-do.');
-    }
-
-    function checkedEmail(id) {
-      quickUpdateJob(id, {
-        nextAction: 'Wait for reply; check email/portal again if no update.',
-        nextActionDate: '',
-      }, 'Checked email/portal for application updates.');
     }
 
     function archiveJob(id, text) {
@@ -850,7 +844,6 @@ Arcade.register({
       else if (act === 'new') { state.draft = blankJob(); state.selectedId = state.draft.id; }
       else if (act === 'close-detail') { state.selectedId = null; state.draft = null; }
       else if (act === 'mark-applied') { markApplied(btn.dataset.id); return; }
-      else if (act === 'checked-email') { checkedEmail(btn.dataset.id); return; }
       else if (act === 'archive') { archiveJob(btn.dataset.id, 'Skipped/archived from To-do.'); return; }
       else if (act === 'delete') {
         if (btn.dataset.confirm !== '1') {

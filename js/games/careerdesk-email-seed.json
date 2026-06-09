@@ -774,6 +774,284 @@
       "history": [
         { "at": "2025-08-04T17:05:24.000Z", "text": "Application received for Campus Full Time 2026 - Quantitative Trader." }
       ]
+    },
+    {
+      "id": "scout_aquatic_quantitative_researcher_early_career",
+      "title": "Quantitative Researcher, Early Career",
+      "company": "Aquatic Capital Management",
+      "stage": "saved",
+      "priority": "High",
+      "location": "Chicago, IL; New York, NY",
+      "workMode": "On-site",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://job-boards.greenhouse.io/aquaticcapitalmanagement/jobs/8489150002",
+      "deadline": "2026-08-22",
+      "nextAction": "Apply or decide; tailor quant research resume around Python, statistics, and research projects.",
+      "nextActionDate": "2026-06-10",
+      "tags": ["career-scout", "quant", "research", "early-career", "finance", "greenhouse"],
+      "notes": "Scout found Jun 9, 2026. Strong fit: BS/MS 2026 or 2027 accepted, Python/statistical research focus.",
+      "createdAt": "2026-06-09T08:00:00.000Z",
+      "updatedAt": "2026-06-09T08:00:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:00:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_jane_street_quantitative_researcher_new_york",
+      "title": "Quantitative Researcher",
+      "company": "Jane Street",
+      "stage": "saved",
+      "priority": "High",
+      "location": "New York, NY",
+      "workMode": "On-site",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://www.janestreet.com/join-jane-street/position/8069351002/",
+      "nextAction": "Apply or decide; prep probability/statistics story and strongest research/project examples.",
+      "nextActionDate": "2026-06-11",
+      "tags": ["career-scout", "quant", "research", "trading", "new-york"],
+      "notes": "Scout found Jun 9, 2026. Reach role, but directly aligned with quant research.",
+      "createdAt": "2026-06-09T08:01:00.000Z",
+      "updatedAt": "2026-06-09T08:01:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:01:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_two_sigma_quantitative_researcher_full_time_campus_hire",
+      "title": "Quantitative Researcher - Full-Time Campus Hire",
+      "company": "Two Sigma",
+      "stage": "saved",
+      "priority": "High",
+      "location": "New York, NY",
+      "workMode": "Hybrid",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://careers.twosigma.com/careers/JobDetail/New-York-New-York-United-States-Quantitative-Researcher-Full-Time-Campus-Hire/13258",
+      "nextAction": "Apply or decide; emphasize technical degree, real-world data research, and Python/C++/Java strength.",
+      "nextActionDate": "2026-06-11",
+      "tags": ["career-scout", "quant", "research", "data-science", "new-york"],
+      "notes": "Scout found Jun 9, 2026. Early-careers quant research/data-science role.",
+      "createdAt": "2026-06-09T08:02:00.000Z",
+      "updatedAt": "2026-06-09T08:02:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:02:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_citadel_quantitative_research_analyst_university_graduate_us",
+      "title": "Quantitative Research Analyst - University Graduate",
+      "company": "Citadel",
+      "stage": "saved",
+      "priority": "High",
+      "location": "New York, NY; Miami, FL",
+      "workMode": "On-site",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://www.citadel.com/careers/details/quantitative-research-analyst-university-graduate-us/",
+      "nextAction": "Apply or decide; tailor around statistical modeling, Python/R/C++, and independent research.",
+      "nextActionDate": "2026-06-12",
+      "tags": ["career-scout", "quant", "research", "finance", "new-grad"],
+      "notes": "Scout found Jun 9, 2026. Separate exact university-graduate role from the older generic Citadel saved lead.",
+      "createdAt": "2026-06-09T08:03:00.000Z",
+      "updatedAt": "2026-06-09T08:03:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:03:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_sentilink_data_scientist_new_grad",
+      "title": "Data Scientist, New Grad",
+      "company": "SentiLink",
+      "stage": "saved",
+      "priority": "High",
+      "location": "Remote US; San Francisco, CA; New York, NY; Los Angeles, CA; Chicago, IL",
+      "workMode": "Remote",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://jobs.ashbyhq.com/sentilink/3cb2885e-7a58-4a14-94d5-b7b851053408/",
+      "nextAction": "Apply or decide; angle resume toward fraud/risk modeling, Python, statistics, and production ML.",
+      "nextActionDate": "2026-06-10",
+      "tags": ["career-scout", "data-science", "new-grad", "risk", "fintech", "remote"],
+      "notes": "Scout found Jun 9, 2026. Strong broader fit: new-grad data science in fraud and financial risk.",
+      "createdAt": "2026-06-09T08:04:00.000Z",
+      "updatedAt": "2026-06-09T08:04:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:04:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_de_shaw_quantitative_analyst_intern_new_york_summer_2027",
+      "title": "Quantitative Analyst Intern - New York - Summer 2027",
+      "company": "D. E. Shaw",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "New York, NY",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://www.deshaw.com/careers/quantitative-analyst-intern-new-york-summer-2027-5890",
+      "nextAction": "Check graduation eligibility, then apply if the 2027 internship timing works.",
+      "nextActionDate": "2026-06-13",
+      "tags": ["career-scout", "quant", "research", "internship", "new-york"],
+      "notes": "Scout found Jun 9, 2026. High-quality quant internship, but timing may depend on student status.",
+      "createdAt": "2026-06-09T08:05:00.000Z",
+      "updatedAt": "2026-06-09T08:05:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:05:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_walleye_investment_data_science_intern_summer_2027",
+      "title": "Investment Data Science Intern - Summer 2027",
+      "company": "Walleye Capital",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "New York, NY",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://job-boards.greenhouse.io/walleyecapital-external-students/jobs/4676587006",
+      "deadline": "2026-07-31",
+      "nextAction": "Check eligibility, then apply if Summer 2027 internship timing works.",
+      "nextActionDate": "2026-06-13",
+      "tags": ["career-scout", "data-science", "investment", "internship", "new-york", "greenhouse"],
+      "notes": "Scout found Jun 9, 2026. Alternative-data and investment analytics role; deadline listed July 31, 2026.",
+      "createdAt": "2026-06-09T08:06:00.000Z",
+      "updatedAt": "2026-06-09T08:06:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:06:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_walleye_quantic_quantitative_researcher_intern_summer_2027",
+      "title": "Quantic - Quantitative Researcher Intern - Summer 2027",
+      "company": "Walleye Capital",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "Boston, MA",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://job-boards.greenhouse.io/walleyecapital-external-students/jobs/4679173006",
+      "deadline": "2026-07-31",
+      "nextAction": "Check eligibility and choose between Walleye quant paths before applying.",
+      "nextActionDate": "2026-06-14",
+      "tags": ["career-scout", "quant", "research", "internship", "boston", "greenhouse"],
+      "notes": "Scout found Jun 9, 2026. Walleye asks Quantic candidates to apply to only one of the QR/QD/PhD QR paths.",
+      "createdAt": "2026-06-09T08:07:00.000Z",
+      "updatedAt": "2026-06-09T08:07:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:07:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_jpmc_cib_risk_management_summer_analyst_2027",
+      "title": "2027 Commercial & Investment Bank Risk Management Summer Analyst Program",
+      "company": "JPMorganChase",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "New York, NY; Los Angeles, CA; Chicago, IL; Dallas/Plano/Houston, TX",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210690781/",
+      "deadline": "2026-10-01",
+      "nextAction": "Check graduation/work-authorization eligibility, then apply if it fits.",
+      "nextActionDate": "2026-06-15",
+      "tags": ["career-scout", "risk", "finance", "internship", "analyst"],
+      "notes": "Scout found Jun 9, 2026. Useful broader risk/finance analyst option; deadline listed Oct 1, 2026.",
+      "createdAt": "2026-06-09T08:08:00.000Z",
+      "updatedAt": "2026-06-09T08:08:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:08:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_jpmc_asset_management_product_summer_analyst_2027",
+      "title": "2027 Asset Management Product Summer Analyst Program",
+      "company": "JPMorganChase",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "New York, NY; Los Angeles, CA; San Francisco, CA; Columbus, OH; Indianapolis, IN",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/210691737",
+      "deadline": "2026-10-01",
+      "nextAction": "Check graduation/work-authorization eligibility, then apply if it fits.",
+      "nextActionDate": "2026-06-15",
+      "tags": ["career-scout", "asset-management", "finance", "internship", "analyst"],
+      "notes": "Scout found Jun 9, 2026. Broader investment/product analyst path with NY and California locations.",
+      "createdAt": "2026-06-09T08:09:00.000Z",
+      "updatedAt": "2026-06-09T08:09:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:09:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_llnl_data_science_engineer_entry_level",
+      "title": "Data Science Engineer",
+      "company": "Lawrence Livermore National Laboratory",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "Livermore, CA",
+      "workMode": "Hybrid",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://www.llnl.gov/join-our-team/careers/find-your-job/b59400b5-c96b-49a5-bc59-ed7aa7ec0b5a_12624d48-88de-4f46-abd0-5ea1249b75e3_256d75fa-59c2-4424-9ea5-c43b305006ea_bc31c154-33c7-4402-aa7a-76029c076f7b_0421aa4c-5010-445c-bb6a-44c722f577a1/nuclear/3743990013362116",
+      "nextAction": "Apply or decide; check citizenship/clearance fit and tailor AI/data-science resume.",
+      "nextActionDate": "2026-06-16",
+      "tags": ["career-scout", "data-science", "ai", "entry-level", "california", "national-lab"],
+      "notes": "Scout found Jun 9, 2026. Entry-level role using ML, LLM pipelines, knowledge graphs, and AI agents; requires U.S. citizenship for clearance.",
+      "createdAt": "2026-06-09T08:10:00.000Z",
+      "updatedAt": "2026-06-09T08:10:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:10:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_loandepot_quantitative_analyst_irvine_remote",
+      "title": "Quantitative Analyst",
+      "company": "loanDepot",
+      "stage": "saved",
+      "priority": "Low",
+      "location": "Irvine, CA; Plano, TX; Remote",
+      "workMode": "Remote",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://jobs.jvistg2.com/loandepot/job/oq6mzfwb",
+      "nextAction": "Review experience fit, then apply if the capital-markets analytics requirements are realistic.",
+      "nextActionDate": "2026-06-17",
+      "tags": ["career-scout", "quant", "analytics", "irvine", "remote", "capital-markets"],
+      "notes": "Scout found Jun 9, 2026. Location is unusually good, but requirements may be less entry-level.",
+      "createdAt": "2026-06-09T08:11:00.000Z",
+      "updatedAt": "2026-06-09T08:11:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:11:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_rivian_durability_data_analytics_engineer_irvine",
+      "title": "Durability Data Analytics Engineer",
+      "company": "Rivian",
+      "stage": "saved",
+      "priority": "Low",
+      "location": "Irvine, CA",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://careers.rivian.com/careers-home/jobs/30306?lang=en-us",
+      "nextAction": "Review experience fit, then apply if vehicle/test-data analytics sounds realistic.",
+      "nextActionDate": "2026-06-17",
+      "tags": ["career-scout", "data-analytics", "irvine", "engineering", "california"],
+      "notes": "Scout found Jun 9, 2026. Broader Irvine data/analytics lead; likely more engineering-domain specific.",
+      "createdAt": "2026-06-09T08:12:00.000Z",
+      "updatedAt": "2026-06-09T08:12:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:12:00.000Z", "text": "Career scout added saved lead." }
+      ]
     }
   ]
 }

@@ -71,7 +71,7 @@ Arcade.define([
     color: '#4fb477',
     kind: 'tool',
     scoreKey: false,
-    src: 'js/games/jobtracker.js?v=8',
+    src: 'js/games/jobtracker.js?v=10',
   },
   {
     id: 'stickrun',
