@@ -1,0 +1,286 @@
+{
+  "version": 1,
+  "exportedAt": "2026-06-08T00:00:00.000Z",
+  "jobs": [
+    {
+      "id": "email_old_mission_quantitative_researcher_systematic_equities",
+      "title": "Quantitative Researcher (Systematic Equities)",
+      "company": "Old Mission",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2026-04-11",
+      "nextAction": "Archive; revisit future Old Mission openings later.",
+      "tags": ["email-import", "quant", "trading", "greenhouse"],
+      "notes": "Application confirmation found Apr 11, 2026; rejection/update found May 18, 2026.",
+      "createdAt": "2026-04-11T18:21:05.000Z",
+      "updatedAt": "2026-05-18T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-11T18:21:05.000Z", "text": "Application received by Old Mission." },
+        { "at": "2026-05-18T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_firemon_software_engineering_intern",
+      "title": "Software Engineering Intern",
+      "company": "FireMon",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; watch for future software internships.",
+      "tags": ["email-import", "software", "internship", "greenhouse"],
+      "notes": "Application confirmation found Apr 12, 2026; rejection/update found May 18, 2026.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-05-18T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application received for Software Engineering Intern." },
+        { "at": "2026-05-18T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_dv_trading_futures_options_trading_analyst_intern",
+      "title": "Futures & Options Trading Analyst Intern",
+      "company": "DV Trading",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; use as a reference for future trading-intern applications.",
+      "tags": ["email-import", "quant", "trading", "internship"],
+      "notes": "Duplicate Apr 12 confirmations were deduped into one row. Rejection/update found May 12, 2026.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-05-12T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application received by DV Trading." },
+        { "at": "2026-05-12T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_toshiba_global_commerce_agentic_software_engineering_intern",
+      "title": "Agentic Software Engineering Intern",
+      "company": "Toshiba Global Commerce Solutions",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; revisit if a stronger AI/software internship opens.",
+      "tags": ["email-import", "software", "ai", "internship", "greenhouse"],
+      "notes": "Application confirmation found Apr 12, 2026; rejection/update found Apr 28, 2026.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-04-28T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application received by Toshiba Global Commerce Solutions." },
+        { "at": "2026-04-28T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_anduril_software_engineer_intern",
+      "title": "Software Engineer Intern",
+      "company": "Anduril Industries",
+      "stage": "rejected",
+      "priority": "Medium",
+      "location": "Reston, VA",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; consider later Anduril roles if profile fit improves.",
+      "tags": ["email-import", "software", "internship", "defense", "greenhouse"],
+      "notes": "Application confirmation found Apr 12, 2026; rejection/update found Apr 25, 2026.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-04-25T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application received by Anduril." },
+        { "at": "2026-04-25T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_bhg_financial_quantitative_analyst_intern_summer_2026",
+      "title": "Quantitative Analyst Intern - Summer 2026",
+      "company": "BHG Financial",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; revisit quant analyst internships later.",
+      "tags": ["email-import", "quant", "finance", "internship"],
+      "notes": "Application confirmation found Apr 12, 2026; rejection/update found Apr 17, 2026.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-04-17T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application received by BHG Financial." },
+        { "at": "2026-04-17T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_squarepoint_junior_quant_researcher",
+      "title": "Junior Quant Researcher",
+      "company": "Squarepoint",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2026-04-11",
+      "nextAction": "Archive; keep Squarepoint quant roles on watch list.",
+      "tags": ["email-import", "quant", "trading", "greenhouse"],
+      "notes": "Application confirmation found Apr 11, 2026 for Junior Quant Researcher. Later status email said current hiring needs were not a match.",
+      "createdAt": "2026-04-11T18:18:03.000Z",
+      "updatedAt": "2026-04-16T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-11T18:18:03.000Z", "text": "Application received for Junior Quant Researcher." },
+        { "at": "2026-04-16T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_maven_trader_summer_internship_chicago_2026",
+      "title": "Trader Summer Internship Chicago 2026",
+      "company": "Maven",
+      "stage": "rejected",
+      "priority": "Medium",
+      "location": "Chicago",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; note eligibility/timing before future Maven applications.",
+      "tags": ["email-import", "trading", "internship"],
+      "notes": "Application confirmation found Apr 12, 2026; status/update found Apr 15, 2026.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-04-15T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application received by Maven." },
+        { "at": "2026-04-15T12:00:00.000Z", "text": "Status email: not moving forward / eligibility mismatch." }
+      ]
+    },
+    {
+      "id": "email_akuna_capital_quantitative_researcher",
+      "title": "Quantitative Researcher",
+      "company": "Akuna Capital",
+      "stage": "rejected",
+      "priority": "Medium",
+      "location": "Chicago",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2026-04-11",
+      "nextAction": "Archive; revisit Akuna opportunities later.",
+      "tags": ["email-import", "quant", "trading"],
+      "notes": "Application confirmation found Apr 11, 2026; rejection/update found Apr 13, 2026.",
+      "createdAt": "2026-04-11T12:00:00.000Z",
+      "updatedAt": "2026-04-13T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-11T12:00:00.000Z", "text": "Application received by Akuna Capital." },
+        { "at": "2026-04-13T12:00:00.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_rocket_lawyer_aiml_intern",
+      "title": "AI/ML Intern",
+      "company": "Rocket Lawyer",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; watch future AI/ML internships.",
+      "tags": ["email-import", "software", "ai", "internship", "greenhouse"],
+      "notes": "Application/security flow found Apr 12, 2026; status email on May 26, 2026 said the AI/ML Intern opening was filled quickly.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-05-26T15:19:04.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application flow found in email." },
+        { "at": "2026-05-26T15:19:04.000Z", "text": "Status email: AI/ML Intern role filled / not moving forward." }
+      ]
+    },
+    {
+      "id": "email_point72_cubist_summer_2026_quantitative_developer_internship",
+      "title": "Summer 2026 Quantitative Developer Internship",
+      "company": "Point72 / Cubist Systematic",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-12",
+      "nextAction": "Archive; keep Point72/Cubist on quant-dev watch list.",
+      "tags": ["email-import", "quant", "software", "internship"],
+      "notes": "Application confirmation found Apr 12, 2026; Point72/Cubist status email found Apr 17, 2026.",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-04-17T15:04:08.000Z",
+      "history": [
+        { "at": "2026-04-12T12:00:00.000Z", "text": "Application received for Summer 2026 Quantitative Developer Internship." },
+        { "at": "2026-04-17T15:04:08.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_five_rings_summer_intern_2026_quantitative_researcher",
+      "title": "Summer Intern 2026 - Quantitative Researcher",
+      "company": "Five Rings",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2026-04-11",
+      "nextAction": "Check portal or email for any later status update.",
+      "tags": ["email-import", "quant", "trading", "internship"],
+      "notes": "Application confirmation found Apr 11, 2026. No matching rejection/status email found in this sweep.",
+      "createdAt": "2026-04-11T12:00:00.000Z",
+      "updatedAt": "2026-04-11T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-11T12:00:00.000Z", "text": "Application received by Five Rings." }
+      ]
+    },
+    {
+      "id": "email_radix_trading_application",
+      "title": "Trading / Quant Application",
+      "company": "Radix Trading",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2026-04-11",
+      "nextAction": "Check portal or email for the exact role and latest status.",
+      "tags": ["email-import", "quant", "trading", "greenhouse"],
+      "notes": "Application confirmation found Apr 11, 2026, but the exact role was not visible in the email body found.",
+      "createdAt": "2026-04-11T12:00:00.000Z",
+      "updatedAt": "2026-04-11T12:00:00.000Z",
+      "history": [
+        { "at": "2026-04-11T12:00:00.000Z", "text": "Application received by Radix Trading." }
+      ]
+    },
+    {
+      "id": "email_citadel_citadel_securities_2026_opportunities_lead",
+      "title": "2026 Internship and Full-time Opportunities",
+      "company": "Citadel / Citadel Securities",
+      "stage": "saved",
+      "priority": "High",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "",
+      "nextAction": "Review open roles and decide whether to apply.",
+      "tags": ["email-import", "lead", "quant", "trading", "internship"],
+      "notes": "Career lead email from MAA on Sep 2, 2025. This was not an application confirmation, so dateApplied is intentionally blank.",
+      "createdAt": "2025-09-02T12:00:29.000Z",
+      "updatedAt": "2025-09-02T12:00:29.000Z",
+      "history": [
+        { "at": "2025-09-02T12:00:29.000Z", "text": "Career lead email received for 2026 Citadel/Citadel Securities opportunities." }
+      ]
+    }
+  ]
+}

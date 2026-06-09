@@ -10,6 +10,8 @@ Arcade.register({
 
   start(root, api) {
     const STORE_KEY = 'careerDesk.jobs.v1';
+    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v1';
+    const EMAIL_SEED_URL = 'data/careerdesk-email-seed.json?v=1';
     const STAGES = [
       { id: 'saved', name: 'Saved', tone: '#64748b' },
       { id: 'applied', name: 'Applied', tone: '#2f80ed' },
@@ -595,11 +597,14 @@ Arcade.register({
       download(`career-desk-${todayISO()}.csv`, csv, 'text/csv');
     }
 
-    function importRecords(payload) {
+    function importRecords(payload, options) {
+      const overwrite = !options || options.overwrite !== false;
       const incoming = Array.isArray(payload) ? payload : payload && payload.jobs;
       if (!Array.isArray(incoming)) throw new Error('Missing jobs array');
       const byId = new Map(state.jobs.map(j => [j.id, j]));
-      incoming.map(normalizeJob).filter(Boolean).forEach(job => byId.set(job.id, job));
+      incoming.map(normalizeJob).filter(Boolean).forEach(job => {
+        if (overwrite || !byId.has(job.id)) byId.set(job.id, job);
+      });
       state.jobs = Array.from(byId.values()).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
       saveJobs();
       render();
@@ -635,6 +640,20 @@ Arcade.register({
           history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash);
         })
         .catch(err => console.warn('Career Desk import skipped:', err.message));
+    }
+
+    function importSeededEmailJobs() {
+      if (localStorage.getItem(EMAIL_SEED_KEY) === '1') return;
+      fetch(EMAIL_SEED_URL, { cache: 'no-store' })
+        .then(res => {
+          if (!res.ok) throw new Error('Seed file not found');
+          return res.json();
+        })
+        .then(payload => {
+          importRecords(payload, { overwrite: false });
+          localStorage.setItem(EMAIL_SEED_KEY, '1');
+        })
+        .catch(err => console.warn('Career Desk email seed skipped:', err.message));
     }
 
     api.on(wrap, 'click', e => {
@@ -686,5 +705,6 @@ Arcade.register({
 
     render();
     importFromURL();
+    importSeededEmailJobs();
   },
 });
