@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-06-08T00:00:00.000Z",
+  "exportedAt": "2026-06-09T00:00:00.000Z",
   "jobs": [
     {
       "id": "email_old_mission_quantitative_researcher_systematic_equities",
@@ -280,6 +280,499 @@
       "updatedAt": "2025-09-02T12:00:29.000Z",
       "history": [
         { "at": "2025-09-02T12:00:29.000Z", "text": "Career lead email received for 2026 Citadel/Citadel Securities opportunities." }
+      ]
+    },
+    {
+      "id": "email_citadel_campus_26_quantitative_research_analyst_full_time",
+      "title": "Campus 26 - Quantitative Research Analyst | Full Time",
+      "company": "Citadel / Citadel Securities",
+      "stage": "rejected",
+      "priority": "High",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-08-04",
+      "nextAction": "Archive; strong target - reapply in the next campus cycle.",
+      "tags": ["email-import", "quant", "trading", "full-time"],
+      "notes": "Application received Aug 4, 2025; status email Aug 12, 2025 said they had to choose between high-caliber candidates (not moving forward). Distinct from the saved 2026 opportunities lead.",
+      "createdAt": "2025-08-04T17:23:23.000Z",
+      "updatedAt": "2025-08-12T01:09:46.000Z",
+      "history": [
+        { "at": "2025-08-04T17:23:23.000Z", "text": "Application received for Campus 26 Quantitative Research Analyst (Full Time)." },
+        { "at": "2025-08-12T01:09:46.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_hudson_river_trading_software_engineer",
+      "title": "Software Engineer",
+      "company": "Hudson River Trading",
+      "stage": "rejected",
+      "priority": "High",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2026-04-11",
+      "nextAction": "Archive; revisit HRT software roles next cycle.",
+      "tags": ["email-import", "software", "trading", "greenhouse"],
+      "notes": "Applied Apr 11, 2026 (low-level software engineering track); status email Apr 15, 2026 said not moving forward.",
+      "createdAt": "2026-04-11T18:20:05.000Z",
+      "updatedAt": "2026-04-15T18:52:09.000Z",
+      "history": [
+        { "at": "2026-04-11T18:20:05.000Z", "text": "Application received for Software Engineer." },
+        { "at": "2026-04-15T18:52:09.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_imc_trading_graduate_broker_trader",
+      "title": "Graduate Broker Trader",
+      "company": "IMC Trading",
+      "stage": "rejected",
+      "priority": "Medium",
+      "location": "Chicago",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2026-03-20",
+      "nextAction": "Archive; consider other IMC trading roles later.",
+      "tags": ["email-import", "trading", "full-time"],
+      "notes": "Applied Mar 20, 2026; status email Jun 2, 2026 said business needs were met and they were no longer considering applicants.",
+      "createdAt": "2026-03-20T23:34:06.000Z",
+      "updatedAt": "2026-06-02T18:00:16.000Z",
+      "history": [
+        { "at": "2026-03-20T23:34:06.000Z", "text": "Application received for Graduate Broker Trader." },
+        { "at": "2026-06-02T18:00:16.000Z", "text": "Status email: position needs met, not moving forward." }
+      ]
+    },
+    {
+      "id": "email_vevo_data_analyst",
+      "title": "Data Analyst",
+      "company": "Vevo",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2026-03-20",
+      "nextAction": "Archive; watch future data analyst roles.",
+      "tags": ["email-import", "data", "analyst", "lever"],
+      "notes": "Applied Mar 20, 2026; status email Apr 10, 2026 cited a high volume of applications (not moving forward).",
+      "createdAt": "2026-03-20T23:54:15.000Z",
+      "updatedAt": "2026-04-10T14:29:12.000Z",
+      "history": [
+        { "at": "2026-03-20T23:54:15.000Z", "text": "Application received for Data Analyst." },
+        { "at": "2026-04-10T14:29:12.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_prizeout_data_analyst",
+      "title": "Data Analyst",
+      "company": "Prizeout",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2026-03-20",
+      "nextAction": "Archive; watch future data analyst roles.",
+      "tags": ["email-import", "data", "analyst", "lever"],
+      "notes": "Applied Mar 20, 2026; status email May 14, 2026 said not moving forward after careful consideration.",
+      "createdAt": "2026-03-20T23:49:57.000Z",
+      "updatedAt": "2026-05-14T18:40:30.000Z",
+      "history": [
+        { "at": "2026-03-20T23:49:57.000Z", "text": "Application received for Data Analyst." },
+        { "at": "2026-05-14T18:40:30.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_terracotta_group_analyst_data_science",
+      "title": "Analyst, Data Science",
+      "company": "TerraCotta Group",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2025-10-09",
+      "nextAction": "Archive; reference for future data science roles.",
+      "tags": ["email-import", "data", "analyst"],
+      "notes": "Application/assessment invite Oct 9, 2025; status email Oct 16, 2025 said not continuing to the next round.",
+      "createdAt": "2025-10-09T19:21:29.000Z",
+      "updatedAt": "2025-10-16T23:49:57.000Z",
+      "history": [
+        { "at": "2025-10-09T19:21:29.000Z", "text": "Application / data science assessment invite received." },
+        { "at": "2025-10-16T23:49:57.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_epic_software_developer",
+      "title": "Software Developer",
+      "company": "Epic",
+      "stage": "rejected",
+      "priority": "Medium",
+      "location": "Madison, WI",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-10-09",
+      "nextAction": "Archive; reached a Role Introduction - reapply with that in mind.",
+      "tags": ["email-import", "software"],
+      "notes": "Applied Oct 9, 2025; advanced to a Role Introduction Oct 11, 2025; final decision Nov 24, 2025 (moved forward with other candidates).",
+      "createdAt": "2025-10-09T17:23:20.000Z",
+      "updatedAt": "2025-11-24T19:18:27.000Z",
+      "history": [
+        { "at": "2025-10-09T17:23:20.000Z", "text": "Application received." },
+        { "at": "2025-10-11T17:03:28.000Z", "text": "Advanced to a Role Introduction (next step)." },
+        { "at": "2025-11-24T19:18:27.000Z", "text": "Decision: moved forward with other candidates." }
+      ]
+    },
+    {
+      "id": "email_belvedere_trading_quantitative_trader_entry_level_2026",
+      "title": "Quantitative Trader - Entry Level 2026",
+      "company": "Belvedere Trading",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-09-25",
+      "nextAction": "Archive; revisit Belvedere trading roles later.",
+      "tags": ["email-import", "quant", "trading", "lever"],
+      "notes": "Applied Sep 25, 2025; status email Jan 5, 2026 said the position was filled (regret to inform).",
+      "createdAt": "2025-09-25T21:17:41.000Z",
+      "updatedAt": "2026-01-05T16:02:10.000Z",
+      "history": [
+        { "at": "2025-09-25T21:17:41.000Z", "text": "Application received for Quantitative Trader - Entry Level 2026." },
+        { "at": "2026-01-05T16:02:10.000Z", "text": "Status email: position filled, not moving forward." }
+      ]
+    },
+    {
+      "id": "email_deutsche_bank_graduate_programme_tdi_new_york_2026",
+      "title": "Graduate Programme - Technology, Data and Innovation (TDI) - New York 2026",
+      "company": "Deutsche Bank",
+      "stage": "rejected",
+      "priority": "Medium",
+      "location": "New York",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-09-25",
+      "nextAction": "Archive; revisit DB early-careers roles next cycle.",
+      "tags": ["email-import", "software", "data", "finance"],
+      "notes": "Applied Sep 25, 2025; status email Nov 21, 2025 said not selected for interview.",
+      "createdAt": "2025-09-25T21:15:54.000Z",
+      "updatedAt": "2025-11-21T17:08:39.000Z",
+      "history": [
+        { "at": "2025-09-25T21:15:54.000Z", "text": "Application received for the TDI Graduate Programme." },
+        { "at": "2025-11-21T17:08:39.000Z", "text": "Status email: not selected for interview." }
+      ]
+    },
+    {
+      "id": "email_aquatic_capital_quantitative_researcher_early_career",
+      "title": "Quantitative Researcher, Early Career",
+      "company": "Aquatic Capital Management",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2025-09-25",
+      "nextAction": "Archive; revisit Aquatic quant roles later.",
+      "tags": ["email-import", "quant", "greenhouse"],
+      "notes": "Applied Sep 25, 2025; status email Sep 26, 2025 (not moving forward).",
+      "createdAt": "2025-09-25T21:06:10.000Z",
+      "updatedAt": "2025-09-26T21:48:21.000Z",
+      "history": [
+        { "at": "2025-09-25T21:06:10.000Z", "text": "Application received for Quantitative Researcher, Early Career." },
+        { "at": "2025-09-26T21:48:21.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_intersystems_quality_development_program",
+      "title": "Quality Development Program",
+      "company": "InterSystems",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-09-24",
+      "nextAction": "Archive; revisit InterSystems roles later.",
+      "tags": ["email-import", "software"],
+      "notes": "Applied Sep 24, 2025; status email Oct 15, 2025 (strong candidate pool, not moving forward).",
+      "createdAt": "2025-09-24T17:13:09.000Z",
+      "updatedAt": "2025-10-15T15:42:34.000Z",
+      "history": [
+        { "at": "2025-09-24T17:13:09.000Z", "text": "Application received for the Quality Development Program." },
+        { "at": "2025-10-15T15:42:34.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_american_credit_acceptance_data_scientist_2026_start",
+      "title": "Data Scientist | 2026 Start",
+      "company": "American Credit Acceptance",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-08-04",
+      "nextAction": "Archive; reached interview - reference for future data roles.",
+      "tags": ["email-import", "data", "jobvite"],
+      "notes": "Applied Aug 4, 2025; invited to a next-step assessment; interviewed; decision Sep 5, 2025 (moved forward with other candidates).",
+      "createdAt": "2025-08-04T17:37:26.000Z",
+      "updatedAt": "2025-09-05T12:57:10.000Z",
+      "history": [
+        { "at": "2025-08-04T17:37:26.000Z", "text": "Application received for Data Scientist | 2026 Start." },
+        { "at": "2025-08-04T23:45:34.000Z", "text": "Invited to complete a next-step assessment." },
+        { "at": "2025-09-05T12:57:10.000Z", "text": "Interviewed; decision: moved forward with other candidates." }
+      ]
+    },
+    {
+      "id": "email_jpmorganchase_2026_data_science_analyst_summer",
+      "title": "2026 Data Science Analyst Program - Summer Analyst",
+      "company": "JPMorganChase",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "",
+      "nextAction": "Archive; application confirmation not in this sweep.",
+      "tags": ["email-import", "data", "finance"],
+      "notes": "Status email Sep 15, 2025 said not moving forward (Job 210648373). The original application confirmation was not found in this email sweep, so dateApplied is blank.",
+      "createdAt": "2025-09-15T07:01:25.000Z",
+      "updatedAt": "2025-09-15T07:01:25.000Z",
+      "history": [
+        { "at": "2025-09-15T07:01:25.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_glencore_summer_intern_oil_analytics",
+      "title": "Summer Intern - Oil Analytics",
+      "company": "Glencore",
+      "stage": "rejected",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "",
+      "nextAction": "Archive; application confirmation predates this sweep.",
+      "tags": ["email-import", "data", "analytics"],
+      "notes": "Status email Jun 23, 2025 (not selected). The application confirmation predates this email sweep, so dateApplied is blank.",
+      "createdAt": "2025-06-23T18:14:43.000Z",
+      "updatedAt": "2025-06-23T18:14:43.000Z",
+      "history": [
+        { "at": "2025-06-23T18:14:43.000Z", "text": "Status email: not selected." }
+      ]
+    },
+    {
+      "id": "email_platinum_capital_aeronerve_summer_research_intern_neuromorphic_uav",
+      "title": "Summer Research Intern - Neuromorphic UAV Systems (AERONERVE)",
+      "company": "Platinum Capital Partners",
+      "stage": "rejected",
+      "priority": "Low",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "",
+      "nextAction": "Archive; application confirmation predates this sweep.",
+      "tags": ["email-import", "research", "internship"],
+      "notes": "Status email Jun 29, 2025 (not moving forward). The application predates this email sweep, so dateApplied is blank.",
+      "createdAt": "2025-06-29T13:16:36.000Z",
+      "updatedAt": "2025-06-29T13:16:36.000Z",
+      "history": [
+        { "at": "2025-06-29T13:16:36.000Z", "text": "Status email: not moving forward." }
+      ]
+    },
+    {
+      "id": "email_point72_quantitative_portfolio_analyst_2026_grad",
+      "title": "Quantitative Portfolio Analyst - 2026 Grad",
+      "company": "Point72",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2026-03-20",
+      "nextAction": "Check portal/email for a status update.",
+      "tags": ["email-import", "quant", "greenhouse"],
+      "notes": "Applied Mar 20, 2026. No decision email found in this sweep. Distinct from the Point72/Cubist quant-developer internship row.",
+      "createdAt": "2026-03-20T23:42:06.000Z",
+      "updatedAt": "2026-03-20T23:42:06.000Z",
+      "history": [
+        { "at": "2026-03-20T23:42:06.000Z", "text": "Application received for Quantitative Portfolio Analyst - 2026 Grad." }
+      ]
+    },
+    {
+      "id": "email_imc_trading_graduate_floor_trader",
+      "title": "Graduate Floor Trader",
+      "company": "IMC Trading",
+      "stage": "applied",
+      "priority": "Medium",
+      "location": "Chicago",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2026-03-20",
+      "nextAction": "Check portal/email for a status update.",
+      "tags": ["email-import", "trading", "full-time"],
+      "notes": "Applied Mar 20, 2026. No separate decision email found for the Floor Trader role in this sweep.",
+      "createdAt": "2026-03-20T23:35:06.000Z",
+      "updatedAt": "2026-03-20T23:35:06.000Z",
+      "history": [
+        { "at": "2026-03-20T23:35:06.000Z", "text": "Application received for Graduate Floor Trader." }
+      ]
+    },
+    {
+      "id": "email_oppenheimer_research_associate_consumer_growth_ecommerce",
+      "title": "Research Associate - Consumer Growth & E-Commerce",
+      "company": "Oppenheimer & Co.",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-10-09",
+      "nextAction": "Check portal/email for a status update.",
+      "tags": ["email-import", "research", "finance"],
+      "notes": "Applied Oct 9, 2025. No decision email found in this sweep.",
+      "createdAt": "2025-10-09T20:39:12.000Z",
+      "updatedAt": "2025-10-09T20:39:12.000Z",
+      "history": [
+        { "at": "2025-10-09T20:39:12.000Z", "text": "Application received for Research Associate - Consumer Growth & E-Commerce." }
+      ]
+    },
+    {
+      "id": "email_fanatics_trading_data_analyst_i",
+      "title": "Trading, Data Analyst I",
+      "company": "Fanatics",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-10-09",
+      "nextAction": "Check portal/email for a status update.",
+      "tags": ["email-import", "data", "trading"],
+      "notes": "Applied Oct 9, 2025 (req 24798). No decision email found in this sweep.",
+      "createdAt": "2025-10-09T20:13:41.000Z",
+      "updatedAt": "2025-10-09T20:13:41.000Z",
+      "history": [
+        { "at": "2025-10-09T20:13:41.000Z", "text": "Application received for Trading, Data Analyst I." }
+      ]
+    },
+    {
+      "id": "email_classical_charter_schools_application",
+      "title": "Application (role unspecified)",
+      "company": "Classical Charter Schools",
+      "stage": "applied",
+      "priority": "Low",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2025-10-08",
+      "nextAction": "Confirm the exact role applied for; check for a status update.",
+      "tags": ["email-import", "greenhouse"],
+      "notes": "Application received Oct 8, 2025; the specific role was not visible in the confirmation email.",
+      "createdAt": "2025-10-08T18:48:10.000Z",
+      "updatedAt": "2025-10-08T18:48:10.000Z",
+      "history": [
+        { "at": "2025-10-08T18:48:10.000Z", "text": "Application received by Classical Charter Schools." }
+      ]
+    },
+    {
+      "id": "email_chicago_trading_company_quant_trading_internship_summer_2026",
+      "title": "Quant Trading Internship - Summer 2026",
+      "company": "Chicago Trading Company (CTC)",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2025-09-29",
+      "nextAction": "Rolling review; check portal/email for a status update.",
+      "tags": ["email-import", "quant", "trading", "internship"],
+      "notes": "Applied Sep 29, 2025; CTC noted a rolling application process. No decision email found in this sweep.",
+      "createdAt": "2025-09-29T23:52:06.000Z",
+      "updatedAt": "2025-09-29T23:52:06.000Z",
+      "history": [
+        { "at": "2025-09-29T23:52:06.000Z", "text": "Application received for Quant Trading Internship - Summer 2026." }
+      ]
+    },
+    {
+      "id": "email_aqr_2026_research_summer_intern",
+      "title": "2026 Research Summer (Research Intern)",
+      "company": "AQR",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2025-09-29",
+      "nextAction": "Check portal/email for a status update.",
+      "tags": ["email-import", "quant", "research", "greenhouse"],
+      "notes": "Applied Sep 29, 2025. No decision email found in this sweep.",
+      "createdAt": "2025-09-29T23:52:06.000Z",
+      "updatedAt": "2025-09-29T23:52:06.000Z",
+      "history": [
+        { "at": "2025-09-29T23:52:06.000Z", "text": "Application received for the 2026 Research Summer internship." }
+      ]
+    },
+    {
+      "id": "email_qvest_us_application",
+      "title": "Application (role unspecified)",
+      "company": "Qvest US",
+      "stage": "applied",
+      "priority": "Low",
+      "workMode": "Unknown",
+      "jobType": "Unknown",
+      "source": "Email import",
+      "dateApplied": "2025-09-25",
+      "nextAction": "Confirm the exact role; check for a status update.",
+      "tags": ["email-import", "lever"],
+      "notes": "Application received Sep 25, 2025; the specific role was not visible in the confirmation email.",
+      "createdAt": "2025-09-25T21:28:35.000Z",
+      "updatedAt": "2025-09-25T21:28:35.000Z",
+      "history": [
+        { "at": "2025-09-25T21:28:35.000Z", "text": "Application received by Qvest US." }
+      ]
+    },
+    {
+      "id": "email_brookfield_intern_analytics_modelling",
+      "title": "Intern, Analytics Modelling",
+      "company": "Brookfield",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Internship",
+      "source": "Email import",
+      "dateApplied": "2025-09-25",
+      "nextAction": "Check portal/email for a status update.",
+      "tags": ["email-import", "data", "analytics"],
+      "notes": "Applied Sep 25, 2025 (req R2045298). No decision email found in this sweep.",
+      "createdAt": "2025-09-25T02:27:37.000Z",
+      "updatedAt": "2025-09-25T02:27:37.000Z",
+      "history": [
+        { "at": "2025-09-25T02:27:37.000Z", "text": "Application received for Intern, Analytics Modelling." }
+      ]
+    },
+    {
+      "id": "email_five_rings_campus_full_time_2026_quantitative_trader",
+      "title": "Campus Full Time 2026 - Quantitative Trader",
+      "company": "Five Rings",
+      "stage": "applied",
+      "priority": "Medium",
+      "workMode": "Unknown",
+      "jobType": "Full-time",
+      "source": "Email import",
+      "dateApplied": "2025-08-04",
+      "nextAction": "Check portal/email for a status update.",
+      "tags": ["email-import", "quant", "trading", "full-time", "greenhouse"],
+      "notes": "Applied Aug 4, 2025. No decision email found in this sweep. Distinct from the Five Rings summer-intern QR application.",
+      "createdAt": "2025-08-04T17:05:24.000Z",
+      "updatedAt": "2025-08-04T17:05:24.000Z",
+      "history": [
+        { "at": "2025-08-04T17:05:24.000Z", "text": "Application received for Campus Full Time 2026 - Quantitative Trader." }
       ]
     }
   ]
