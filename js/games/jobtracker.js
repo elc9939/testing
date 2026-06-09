@@ -10,8 +10,8 @@ Arcade.register({
 
   start(root, api) {
     const STORE_KEY = 'careerDesk.jobs.v1';
-    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v1';
-    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=2';
+    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v2';
+    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=3';
     const STAGES = [
       { id: 'saved', name: 'Saved', tone: '#64748b' },
       { id: 'applied', name: 'Applied', tone: '#2f80ed' },
