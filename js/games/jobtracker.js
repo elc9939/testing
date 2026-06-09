@@ -10,8 +10,8 @@ Arcade.register({
 
   start(root, api) {
     const STORE_KEY = 'careerDesk.jobs.v1';
-    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v3';
-    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=4';
+    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v5';
+    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=6';
     const STAGES = [
       { id: 'saved', name: 'Saved', tone: '#64748b' },
       { id: 'applied', name: 'Applied', tone: '#2f80ed' },
@@ -143,6 +143,7 @@ Arcade.register({
       .jt-next{margin-top:9px;border-top:1px solid #edf1ec;padding-top:8px}
       .jt-next b{display:block;font-size:11px;color:#68756d;text-transform:uppercase;letter-spacing:.04em}
       .jt-next span{display:block;font-size:13px;color:#223028;line-height:1.25;margin-top:2px}
+      .jt-prior-note{margin-top:7px;border-left:3px solid #e56b42;background:#fff7f2;color:#863717;padding:6px 8px;border-radius:0 8px 8px 0;font-size:12px;font-weight:800;line-height:1.3}
       .jt-alert{color:#a13a18!important}
       .jt-empty{padding:22px;text-align:center;color:#718078;font-weight:800}
       .jt-table{width:100%;border-collapse:separate;border-spacing:0 8px}
@@ -294,6 +295,33 @@ Arcade.register({
       ));
     }
 
+    function normalizeForMatch(value) {
+      return String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+
+    function priorApplicationFor(job) {
+      if (!job || (!job.title && !job.company)) return null;
+      const title = normalizeForMatch(job.title);
+      const company = normalizeForMatch(job.company);
+      if (!title || !company) return null;
+      const priorStages = new Set(['applied', 'interviewing', 'offer', 'rejected', 'archived']);
+      return state.jobs.find(other => {
+        if (!other || other.id === job.id || !priorStages.has(other.stage)) return false;
+        return normalizeForMatch(other.title) === title && normalizeForMatch(other.company) === company;
+      }) || null;
+    }
+
+    function formatDateFull(value) {
+      return value ? new Date(value + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    }
+
+    function priorApplicationText(prior) {
+      if (!prior) return '';
+      const stage = stageById(prior.stage).name.toLowerCase();
+      const when = prior.dateApplied ? ' after applying ' + formatDateFull(prior.dateApplied) : '';
+      return 'Prior ' + stage + when;
+    }
+
     function sameValue(a, b) {
       const clean = value => Array.isArray(value) ? value.join('|') : String(value == null ? '' : value);
       return clean(a) === clean(b);
@@ -332,6 +360,12 @@ Arcade.register({
       return state.jobs.filter(job => (job.source || '').toLowerCase() === 'email import' || job.tags.includes('email-import')).length;
     }
 
+    function isSeedRecord(job) {
+      const source = String(job && job.source || '').toLowerCase();
+      return source === 'email import' || source === 'career scout' ||
+        (Array.isArray(job && job.tags) && (job.tags.includes('email-import') || job.tags.includes('career-scout')));
+    }
+
     function isPassiveUpdateCheck(job) {
       const text = String(job && job.nextAction || '').toLowerCase();
       return /\b(check|watch|wait|monitor)\b.*\b(email|portal|reply|status|update)\b/.test(text) ||
@@ -348,8 +382,21 @@ Arcade.register({
         (dueStatus(job).due && hasActionableNextStep(job));
     }
 
+    function todoPriorityRank(job) {
+      const index = PRIORITIES.indexOf(job && job.priority);
+      return index >= 0 ? index : PRIORITIES.length;
+    }
+
+    function todoSort(a, b) {
+      const byPriority = todoPriorityRank(a) - todoPriorityRank(b);
+      if (byPriority) return byPriority;
+      const byDate = (a.nextActionDate || a.deadline || '9999-99-99').localeCompare(b.nextActionDate || b.deadline || '9999-99-99');
+      if (byDate) return byDate;
+      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+    }
+
     function todoGroups(jobs) {
-      const visible = jobs.filter(isTodoJob);
+      const visible = jobs.filter(isTodoJob).slice().sort(todoSort);
       const byId = new Set();
       const take = predicate => visible.filter(job => {
         if (byId.has(job.id) || !predicate(job)) return false;
@@ -501,6 +548,8 @@ Arcade.register({
       const isSaved = job.stage === 'saved';
       const status = due.text || (isStale(job) ? 'stale 14d+' : stageById(job.stage).name);
       const actionText = job.nextAction || (isSaved ? 'Review the role and decide whether to apply.' : 'Review the next concrete action.');
+      const prior = priorApplicationFor(job);
+      const priorText = priorApplicationText(prior);
       return `<div class="jt-task">
         <button class="jt-task-main" data-act="select" data-id="${esc(job.id)}">
           <div class="jt-card-top">
@@ -512,9 +561,11 @@ Arcade.register({
             ${job.location ? `<span class="jt-chip">${esc(job.location)}</span>` : ''}
             ${job.dateApplied ? `<span class="jt-chip">Applied ${esc(formatDate(job.dateApplied))}</span>` : ''}
             ${sourceChip(job)}
+            ${priorText ? `<span class="jt-chip high">${esc(priorText)}</span>` : ''}
             ${status ? `<span class="jt-chip ${due.due || isStale(job) ? 'high' : ''}">${esc(status)}</span>` : ''}
           </div>
           <div class="jt-task-text">${esc(actionText)}</div>
+          ${priorText ? `<div class="jt-prior-note">${esc(priorText)}. Check whether this is a new cycle and whether the portal allows another application.</div>` : ''}
         </button>
         <div class="jt-task-actions">
           ${job.link ? `<a class="jt-link-btn" href="${esc(job.link)}" target="_blank" rel="noreferrer">Open</a>` : ''}
@@ -541,6 +592,7 @@ Arcade.register({
       const due = dueStatus(job);
       const salary = job.salaryMin || job.salaryMax ? `${dollars(job.salaryMin)}${job.salaryMin && job.salaryMax ? '-' : ''}${dollars(job.salaryMax)}` : '';
       const active = job.id === state.selectedId ? 'active' : '';
+      const priorText = priorApplicationText(priorApplicationFor(job));
       return `<button class="jt-card ${active}" data-act="select" data-id="${job.id}">
         <div class="jt-card-top">
           <div><div class="jt-role">${esc(job.title || 'Untitled role')}</div><div class="jt-company">${esc(job.company || 'Unknown company')}</div></div>
@@ -552,6 +604,7 @@ Arcade.register({
           ${job.dateApplied ? `<span class="jt-chip">Applied ${esc(formatDate(job.dateApplied))}</span>` : ''}
           ${sourceChip(job)}
           ${salary ? `<span class="jt-chip">${esc(salary)}</span>` : ''}
+          ${priorText ? `<span class="jt-chip high">${esc(priorText)}</span>` : ''}
           ${isStale(job) ? '<span class="jt-chip high">Stale</span>' : ''}
         </div>
         <div class="jt-next">
@@ -591,13 +644,15 @@ Arcade.register({
         </div>`;
       }
       const dupe = duplicateFor(job);
+      const prior = priorApplicationFor(job);
+      const priorText = priorApplicationText(prior);
       return `<div class="jt-detail-head">
         <h3>${esc(job.title || 'New job')}</h3>
         <p>${esc(job.company || 'Company not set')} ${job.stage ? '- ' + esc(stageById(job.stage).name) : ''}</p>
       </div>
       <form class="jt-detail-body" data-form="job">
         <input type="hidden" name="id" value="${esc(job.id)}">
-        ${dupe ? `<div class="jt-dupe">Possible duplicate: ${esc(dupe.company)} - ${esc(dupe.title)}</div>` : ''}
+        ${prior ? `<div class="jt-dupe">Prior application warning: ${esc(priorText)} for ${esc(prior.company)} - ${esc(prior.title)}. Reapply only if this posting is a new cycle or the portal allows it.</div>` : dupe ? `<div class="jt-dupe">Possible duplicate: ${esc(dupe.company)} - ${esc(dupe.title)}</div>` : ''}
         <section class="jt-section">
           <h4>Core</h4>
           <div class="jt-form-grid">
@@ -774,13 +829,27 @@ Arcade.register({
       download(`career-desk-${todayISO()}.csv`, csv, 'text/csv');
     }
 
+    function mergeSeedRecord(existing, incoming) {
+      if (!existing) return incoming;
+      if (!isSeedRecord(existing)) return existing;
+      const userMoved = existing.stage !== incoming.stage && existing.stage !== 'saved';
+      if (userMoved || existing.dateApplied) return existing;
+      return normalizeJob(Object.assign({}, existing, incoming, {
+        id: existing.id,
+        createdAt: existing.createdAt || incoming.createdAt,
+        history: Array.isArray(existing.history) && existing.history.length ? existing.history : incoming.history,
+      }));
+    }
+
     function importRecords(payload, options) {
       const overwrite = !options || options.overwrite !== false;
+      const seedMerge = options && options.seedMerge;
       const incoming = Array.isArray(payload) ? payload : payload && payload.jobs;
       if (!Array.isArray(incoming)) throw new Error('Missing jobs array');
       const byId = new Map(state.jobs.map(j => [j.id, j]));
       incoming.map(normalizeJob).filter(Boolean).forEach(job => {
-        if (overwrite || !byId.has(job.id)) byId.set(job.id, job);
+        if (seedMerge && byId.has(job.id)) byId.set(job.id, mergeSeedRecord(byId.get(job.id), job));
+        else if (overwrite || !byId.has(job.id)) byId.set(job.id, job);
       });
       state.jobs = Array.from(byId.values()).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
       saveJobs();
@@ -828,7 +897,7 @@ Arcade.register({
           return res.json();
         })
         .then(payload => {
-          importRecords(payload, { overwrite: false });
+          importRecords(payload, { overwrite: false, seedMerge: true });
           localStorage.setItem(EMAIL_SEED_KEY, '1');
         })
         .catch(err => console.warn('Career Desk email seed skipped:', err.message));
