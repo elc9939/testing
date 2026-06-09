@@ -25,6 +25,11 @@ Arcade.register({
     const WORK_MODES = ['Remote', 'Hybrid', 'On-site', 'Flexible', 'Unknown'];
     const JOB_TYPES = ['Full-time', 'Part-time', 'Internship', 'Contract', 'Temporary', 'Unknown'];
     const COVER_STATUSES = ['Not needed', 'Not started', 'Drafted', 'Tailored', 'Submitted'];
+    const VIEWS = [
+      { id: 'todo', name: 'To-do' },
+      { id: 'jobs', name: 'Jobs' },
+      { id: 'table', name: 'Table' },
+    ];
 
     const todayISO = () => new Date().toISOString().slice(0, 10);
     const nowISO = () => new Date().toISOString();
@@ -63,7 +68,7 @@ Arcade.register({
       jobs: loadJobs(),
       selectedId: null,
       draft: null,
-      view: 'board',
+      view: 'todo',
       query: '',
       stage: 'all',
       priority: 'all',
@@ -96,11 +101,28 @@ Arcade.register({
       .jt input,.jt select,.jt textarea{width:100%;border:1px solid #ccd5cd;border-radius:8px;background:#fff;color:#15211c;padding:9px 10px;outline:none}
       .jt input:focus,.jt select:focus,.jt textarea:focus{border-color:#4fb477;box-shadow:0 0 0 3px rgba(79,180,119,.14)}
       .jt textarea{resize:vertical;min-height:74px;line-height:1.35}
-      .jt-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid #e5e9e3;background:#f9faf8}
+      .jt-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid #e5e9e3;background:#f9faf8}
       .jt-stat{border:1px solid #e0e5df;border-radius:8px;background:#fff;padding:10px}
       .jt-stat b{display:block;font-size:22px;line-height:1;color:#18231d}
       .jt-stat span{display:block;margin-top:5px;font-size:12px;color:#637067;font-weight:800}
       .jt-content{min-height:0;overflow:auto;padding:14px;background:linear-gradient(180deg,#f5f7f4,#eef3ee)}
+      .jt-todo,.jt-jobs{display:grid;gap:12px;align-content:start}
+      .jt-task-section,.jt-list-section{border:1px solid #dce3dc;background:#fbfcfa;border-radius:8px;overflow:hidden}
+      .jt-task-head,.jt-list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid #e6ebe5;background:#fff}
+      .jt-task-head h3,.jt-list-head h3{margin:0;font-size:15px;color:#1b2a21}
+      .jt-task-head p{margin:2px 0 0;font-size:12px;color:#68756d;line-height:1.3}
+      .jt-task-count{font-size:12px;font-weight:900;color:#607067;border:1px solid #dfe6df;background:#f7f9f7;border-radius:999px;padding:3px 8px;white-space:nowrap}
+      .jt-task-list,.jt-list-items{display:grid;gap:8px;padding:9px}
+      .jt-task{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #dce4dd;background:#fff;border-radius:8px;padding:10px;box-shadow:0 4px 10px rgba(24,36,31,.04)}
+      .jt-task-main{min-width:0;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer}
+      .jt-task-main:hover .jt-role{text-decoration:underline}
+      .jt-task-text{margin-top:7px;font-size:13px;color:#394a40;line-height:1.3}
+      .jt-task-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+      .jt-link-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid #cdd6cd;background:#fff;color:#24312a;border-radius:8px;padding:6px 9px;font-weight:900;font-size:12px;min-height:30px}
+      .jt-link-btn:hover{border-color:#4fb477;background:#f3fbf6}
+      .jt-stage-strip{display:flex;gap:7px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid #e5e9e3;background:#fbfcfa}
+      .jt-stage-pill{border:1px solid #d8e0d8;background:#fff;color:#24312a;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;cursor:pointer}
+      .jt-stage-pill.active{background:#256b48;color:#fff;border-color:#256b48}
       .jt-board{display:grid;grid-template-columns:repeat(6,minmax(220px,1fr));gap:10px;min-height:100%}
       .jt-col{min-height:260px;border:1px solid #dce3dc;background:#fbfcfa;border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
       .jt-col-head{display:flex;align-items:center;justify-content:space-between;padding:10px 11px;border-bottom:1px solid #e6ebe5;background:#fff}
@@ -159,6 +181,8 @@ Arcade.register({
         .jt-toolbar .jt-field:first-child{grid-column:1/-1}
         .jt-summary{grid-template-columns:1fr 1fr;padding:10px}
         .jt-content{padding:9px}
+        .jt-task{grid-template-columns:1fr}
+        .jt-task-actions{justify-content:flex-start}
         .jt-board{display:flex;overflow-x:auto;min-height:0}
         .jt-col{min-width:245px}
         .jt-form-grid{grid-template-columns:1fr}
@@ -304,15 +328,63 @@ Arcade.register({
       return jobs;
     }
 
+    function emailImportCount() {
+      return state.jobs.filter(job => (job.source || '').toLowerCase() === 'email import' || job.tags.includes('email-import')).length;
+    }
+
+    function isTodoJob(job) {
+      if (!job || job.stage === 'rejected' || job.stage === 'archived') return false;
+      return job.stage === 'saved' || dueStatus(job).due || isStale(job) || job.stage === 'interviewing' || job.stage === 'offer';
+    }
+
+    function todoGroups(jobs) {
+      const visible = jobs.filter(isTodoJob);
+      const byId = new Set();
+      const take = predicate => visible.filter(job => {
+        if (byId.has(job.id) || !predicate(job)) return false;
+        byId.add(job.id);
+        return true;
+      });
+      const groups = [
+        {
+          id: 'apply',
+          name: 'Apply / decide',
+          hint: 'Saved leads that still need a yes/no and an application pass.',
+          jobs: take(job => job.stage === 'saved'),
+        },
+        {
+          id: 'updates',
+          name: 'Check updates',
+          hint: 'Active applications that are due, stale, or need an email/portal status check.',
+          jobs: take(job => dueStatus(job).due || isStale(job)),
+        },
+        {
+          id: 'active',
+          name: 'Interview / offer track',
+          hint: 'Items where the next action matters most.',
+          jobs: take(job => job.stage === 'interviewing' || job.stage === 'offer'),
+        },
+      ];
+      const remaining = visible.filter(job => !byId.has(job.id));
+      if (remaining.length) {
+        groups.push({
+          id: 'watch',
+          name: 'Watch list',
+          hint: 'Applied roles that are current but still worth keeping in view.',
+          jobs: remaining,
+        });
+      }
+      return groups.filter(group => group.jobs.length);
+    }
+
     function summary() {
       const active = activeJobs();
       const due = active.filter(j => dueStatus(j).due).length;
       const interviews = state.jobs.filter(j => j.stage === 'interviewing').length;
       const stale = active.filter(isStale).length;
-      const since = new Date();
-      since.setDate(since.getDate() - 7);
-      const weekly = state.jobs.filter(j => j.dateApplied && new Date(j.dateApplied + 'T00:00:00') >= since).length;
-      return { active: active.length, due, interviews, stale, weekly };
+      const todo = state.jobs.filter(isTodoJob).length;
+      const email = emailImportCount();
+      return { active: active.length, todo, due, interviews, stale, email };
     }
 
     function render() {
@@ -326,8 +398,7 @@ Arcade.register({
                 <p>Job tracker centered on stages, follow-ups, application materials, and the next concrete action.</p>
               </div>
               <div class="jt-actions">
-                <button class="jt-btn ${state.view === 'board' ? 'primary' : ''}" data-act="view" data-view="board">Board</button>
-                <button class="jt-btn ${state.view === 'table' ? 'primary' : ''}" data-act="view" data-view="table">Table</button>
+                ${VIEWS.map(view => `<button class="jt-btn ${state.view === view.id ? 'primary' : ''}" data-act="view" data-view="${view.id}">${view.name}</button>`).join('')}
                 <button class="jt-btn primary" data-act="new">New Job</button>
                 <button class="jt-btn" data-act="export-json">Export JSON</button>
                 <button class="jt-btn" data-act="export-csv">Export CSV</button>
@@ -337,7 +408,7 @@ Arcade.register({
             </div>
             <div class="jt-toolbar">
               <label class="jt-field"><span>Search</span><input data-filter="query" value="${esc(state.query)}" placeholder="Company, role, tag, contact"></label>
-              <label class="jt-field"><span>Stage</span>${selectHTML('stage', [{ id: 'all', name: 'All stages' }].concat(STAGES), state.stage)}</label>
+              <label class="jt-field"><span>Section</span>${selectHTML('stage', [{ id: 'all', name: 'All sections' }].concat(STAGES), state.stage)}</label>
               <label class="jt-field"><span>Priority</span>${selectHTML('priority', [{ id: 'all', name: 'All priorities' }].concat(PRIORITIES.map(p => ({ id: p, name: p }))), state.priority)}</label>
               <label class="jt-field"><span>Sort</span>${selectHTML('sort', [
                 { id: 'updated', name: 'Last touched' },
@@ -349,12 +420,14 @@ Arcade.register({
               <label class="jt-field"><span>Reset</span><button class="jt-btn" data-act="clear-filters">Clear filters</button></label>
             </div>
             <div class="jt-summary">
+              <div class="jt-stat"><b>${stats.todo}</b><span>To-do items</span></div>
               <div class="jt-stat"><b>${stats.active}</b><span>Active jobs</span></div>
-              <div class="jt-stat"><b>${stats.due}</b><span>Follow-ups due</span></div>
+              <div class="jt-stat"><b>${stats.due}</b><span>Due now</span></div>
               <div class="jt-stat"><b>${stats.interviews}</b><span>Interviewing</span></div>
-              <div class="jt-stat"><b>${stats.stale}</b><span>Stale 14d+</span></div>
+              <div class="jt-stat"><b>${stats.email}</b><span>Email imports</span></div>
             </div>
-            <div class="jt-content">${state.view === 'table' ? tableHTML(filteredJobs()) : boardHTML(filteredJobs())}</div>
+            ${stageStripHTML()}
+            <div class="jt-content">${contentHTML(filteredJobs())}</div>
           </section>
           <aside class="jt-detail ${selectedJob() ? 'open' : ''}">${detailHTML(selectedJob())}</aside>
         </div>
@@ -378,6 +451,77 @@ Arcade.register({
 
     function chipClass(priority) {
       return String(priority || '').toLowerCase();
+    }
+
+    function contentHTML(jobs) {
+      if (state.view === 'table') return tableHTML(jobs);
+      if (state.view === 'jobs') return listHTML(jobs);
+      return todoHTML(jobs);
+    }
+
+    function stageStripHTML() {
+      if (state.view !== 'jobs') return '';
+      const options = [{ id: 'all', name: 'All' }].concat(STAGES);
+      return `<div class="jt-stage-strip">${options.map(stage => `<button class="jt-stage-pill ${state.stage === stage.id ? 'active' : ''}" data-act="stage-filter" data-stage="${stage.id}">${esc(stage.name)}</button>`).join('')}</div>`;
+    }
+
+    function todoHTML(jobs) {
+      const groups = todoGroups(jobs);
+      if (!groups.length) return '<div class="jt-empty">No current tasks. New scout leads, saved roles, stale applications, and interview follow-ups will show here.</div>';
+      return `<div class="jt-todo">${groups.map(group => `<section class="jt-task-section">
+        <div class="jt-task-head">
+          <div><h3>${esc(group.name)}</h3><p>${esc(group.hint)}</p></div>
+          <span class="jt-task-count">${group.jobs.length}</span>
+        </div>
+        <div class="jt-task-list">${group.jobs.map(job => taskHTML(job, group.id)).join('')}</div>
+      </section>`).join('')}</div>`;
+    }
+
+    function listHTML(jobs) {
+      if (!jobs.length) return '<div class="jt-empty">No jobs match the current filters.</div>';
+      const sections = state.stage === 'all'
+        ? STAGES.map(stage => ({ stage, jobs: jobs.filter(job => job.stage === stage.id) })).filter(section => section.jobs.length)
+        : [{ stage: stageById(state.stage), jobs }];
+      return `<div class="jt-jobs">${sections.map(section => `<section class="jt-list-section" style="--stage:${section.stage.tone}">
+        <div class="jt-list-head"><div class="jt-col-name"><span class="jt-dot"></span>${esc(section.stage.name)}</div><span class="jt-task-count">${section.jobs.length}</span></div>
+        <div class="jt-list-items">${section.jobs.map(cardHTML).join('')}</div>
+      </section>`).join('')}</div>`;
+    }
+
+    function sourceChip(job) {
+      if ((job.source || '').toLowerCase() === 'email import' || job.tags.includes('email-import')) return '<span class="jt-chip">Email import</span>';
+      if (job.source) return `<span class="jt-chip">${esc(job.source)}</span>`;
+      return '';
+    }
+
+    function taskHTML(job, groupId) {
+      const due = dueStatus(job);
+      const isSaved = job.stage === 'saved';
+      const status = due.text || (isStale(job) ? 'stale 14d+' : stageById(job.stage).name);
+      const actionText = job.nextAction || (isSaved ? 'Review the role and decide whether to apply.' : 'Check email or portal for the latest status.');
+      return `<div class="jt-task">
+        <button class="jt-task-main" data-act="select" data-id="${esc(job.id)}">
+          <div class="jt-card-top">
+            <div><div class="jt-role">${esc(job.title || 'Untitled role')}</div><div class="jt-company">${esc(job.company || 'Unknown company')}</div></div>
+            <span class="jt-chip ${chipClass(job.priority)}">${esc(job.priority)}</span>
+          </div>
+          <div class="jt-meta">
+            <span class="jt-chip">${esc(stageById(job.stage).name)}</span>
+            ${job.location ? `<span class="jt-chip">${esc(job.location)}</span>` : ''}
+            ${job.dateApplied ? `<span class="jt-chip">Applied ${esc(formatDate(job.dateApplied))}</span>` : ''}
+            ${sourceChip(job)}
+            ${status ? `<span class="jt-chip ${due.due || isStale(job) ? 'high' : ''}">${esc(status)}</span>` : ''}
+          </div>
+          <div class="jt-task-text">${esc(actionText)}</div>
+        </button>
+        <div class="jt-task-actions">
+          ${job.link ? `<a class="jt-link-btn" href="${esc(job.link)}" target="_blank" rel="noreferrer">Open</a>` : ''}
+          ${isSaved ? `<button class="jt-btn slim primary" data-act="mark-applied" data-id="${esc(job.id)}">Applied</button>` : ''}
+          ${!isSaved && ACTIVE_STAGES.has(job.stage) ? `<button class="jt-btn slim" data-act="checked-email" data-id="${esc(job.id)}">Checked email</button>` : ''}
+          ${groupId === 'apply' ? `<button class="jt-btn slim" data-act="archive" data-id="${esc(job.id)}">Skip</button>` : ''}
+          ${!ACTIVE_STAGES.has(job.stage) ? `<button class="jt-btn slim" data-act="archive" data-id="${esc(job.id)}">Archive</button>` : ''}
+        </div>
+      </div>`;
     }
 
     function boardHTML(jobs) {
@@ -405,6 +549,7 @@ Arcade.register({
           ${job.location ? `<span class="jt-chip">${esc(job.location)}</span>` : ''}
           ${job.workMode && job.workMode !== 'Unknown' ? `<span class="jt-chip">${esc(job.workMode)}</span>` : ''}
           ${job.dateApplied ? `<span class="jt-chip">Applied ${esc(formatDate(job.dateApplied))}</span>` : ''}
+          ${sourceChip(job)}
           ${salary ? `<span class="jt-chip">${esc(salary)}</span>` : ''}
           ${isStale(job) ? '<span class="jt-chip high">Stale</span>' : ''}
         </div>
@@ -576,6 +721,44 @@ Arcade.register({
       render();
     }
 
+    function quickUpdateJob(id, patch, text) {
+      const i = state.jobs.findIndex(j => j.id === id);
+      if (i < 0) return;
+      const stamp = nowISO();
+      const history = (state.jobs[i].history || []).concat({ at: stamp, text });
+      state.jobs[i] = normalizeJob(Object.assign({}, state.jobs[i], patch, { updatedAt: stamp, history }));
+      state.selectedId = state.jobs[i].id;
+      state.draft = null;
+      saveJobs();
+      render();
+    }
+
+    function markApplied(id) {
+      const job = state.jobs.find(j => j.id === id);
+      if (!job) return;
+      quickUpdateJob(id, {
+        stage: 'applied',
+        dateApplied: job.dateApplied || todayISO(),
+        nextAction: 'Check email and portal for confirmation/status updates.',
+        nextActionDate: '',
+      }, 'Marked as applied from To-do.');
+    }
+
+    function checkedEmail(id) {
+      quickUpdateJob(id, {
+        nextAction: 'Wait for reply; check email/portal again if no update.',
+        nextActionDate: '',
+      }, 'Checked email/portal for application updates.');
+    }
+
+    function archiveJob(id, text) {
+      quickUpdateJob(id, {
+        stage: 'archived',
+        nextAction: '',
+        nextActionDate: '',
+      }, text || 'Archived from To-do.');
+    }
+
     function download(name, text, type) {
       const blob = new Blob([text], { type });
       const a = document.createElement('a');
@@ -661,10 +844,14 @@ Arcade.register({
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
       const act = btn.dataset.act;
-      if (act === 'view') state.view = btn.dataset.view || 'board';
+      if (act === 'view') state.view = btn.dataset.view || 'todo';
+      else if (act === 'stage-filter') { state.stage = btn.dataset.stage || 'all'; }
       else if (act === 'select') { state.selectedId = btn.dataset.id; state.draft = null; }
       else if (act === 'new') { state.draft = blankJob(); state.selectedId = state.draft.id; }
       else if (act === 'close-detail') { state.selectedId = null; state.draft = null; }
+      else if (act === 'mark-applied') { markApplied(btn.dataset.id); return; }
+      else if (act === 'checked-email') { checkedEmail(btn.dataset.id); return; }
+      else if (act === 'archive') { archiveJob(btn.dataset.id, 'Skipped/archived from To-do.'); return; }
       else if (act === 'delete') {
         if (btn.dataset.confirm !== '1') {
           btn.dataset.confirm = '1';
