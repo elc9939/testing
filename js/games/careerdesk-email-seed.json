@@ -1379,6 +1379,159 @@
       "history": [
         { "at": "2026-06-09T08:27:00.000Z", "text": "Career scout added saved lead." }
       ]
+    },
+    {
+      "id": "scout_point72_academy_investment_analyst_program_2027_us",
+      "title": "Point72 Academy Investment Analyst Program for Upcoming Graduates (US) 2027",
+      "company": "Point72",
+      "stage": "saved",
+      "priority": "High",
+      "location": "New York, NY; San Francisco, CA; Chicago, IL; West Palm Beach / Miami, FL",
+      "workMode": "On-site",
+      "jobType": "Full-time",
+      "source": "Career scout",
+      "link": "https://careers.point72.com/CSJobDetail?jobCode=CPA-0014871&jobName=point72-academy-investment-analyst-program-for-upcoming-graduates-us-&locale=English&location=New+York+%7C+San+Francisco+%7C+Chicago+%7C+West+Palm+Beach+%2F+Miami&retURL=%2FCSCareerSearch",
+      "nextAction": "Fit-check, then apply or decide; matches Dec 2026-Jul 2027 graduation window and research/modeling-heavy finance path.",
+      "nextActionDate": "2026-06-10",
+      "tags": ["career-scout", "needs-fit-check", "new-grad", "finance", "research", "modeling", "new-york", "bay-area", "point72"],
+      "notes": "Scout found Jun 9, 2026. Strong May 2027 fit: upcoming-graduate program accepts Dec 2026-Jul 2027 graduates; trains investment analysts with statistics, financial modeling, data analysis, and coding. Application notes prohibit GenAI use in application materials.",
+      "createdAt": "2026-06-09T08:28:00.000Z",
+      "updatedAt": "2026-06-09T08:28:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:28:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_point72_quantitative_research_intern_nlp_new_york",
+      "title": "Quantitative Research Intern (NLP)",
+      "company": "Point72",
+      "stage": "saved",
+      "priority": "High",
+      "location": "New York, NY",
+      "workMode": "On-site",
+      "salaryMin": 125000,
+      "salaryMax": 200000,
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://job-boards.greenhouse.io/point72/jobs/8018862002",
+      "nextAction": "Fit-check internship timing, then apply or decide; tailor around Python, statistics, ML/NLP curiosity, and research experience.",
+      "nextActionDate": "2026-06-11",
+      "tags": ["career-scout", "needs-fit-check", "quant", "research", "nlp", "machine-learning", "new-york", "point72"],
+      "notes": "Scout found Jun 9, 2026. Strong role-content fit: BS/MS/PhD quantitative-discipline candidates; NLP features, alpha hypotheses, trading-signal testing, Python, ML/statistics.",
+      "createdAt": "2026-06-09T08:29:00.000Z",
+      "updatedAt": "2026-06-09T08:29:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:29:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_de_shaw_proprietary_trading_intern_new_york_summer_2027",
+      "title": "Proprietary Trading Intern (New York) - Summer 2027",
+      "company": "D. E. Shaw",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "New York, NY",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://www.deshaw.com/careers/proprietary-trading-intern-new-york-summer-2027-5731",
+      "nextAction": "Fit-check student-status timing, then apply or decide; strong trading/math match but may expect students approaching final year.",
+      "nextActionDate": "2026-06-12",
+      "tags": ["career-scout", "needs-fit-check", "quant", "trading", "internship", "new-york", "de-shaw"],
+      "notes": "Scout found Jun 9, 2026. Very strong trading/reasoning fit; source says New York June-Aug 2027 and applicants should support arguments with data and quantitative analysis. Confirm whether May 2027 master's graduation timing is eligible.",
+      "createdAt": "2026-06-09T08:30:00.000Z",
+      "updatedAt": "2026-06-09T08:30:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:30:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_transmarket_quantitative_trader_intern_chicago",
+      "title": "Quantitative Trader Intern",
+      "company": "TransMarket Group",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "Chicago, IL",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://job-boards.greenhouse.io/transmarketgroup/jobs/4749915007?gh_jid=4749915007",
+      "nextAction": "Fit-check location and timing, then apply or decide; graduation window includes Dec 2026-Spring 2027.",
+      "nextActionDate": "2026-06-12",
+      "tags": ["career-scout", "needs-fit-check", "quant", "trading", "internship", "chicago", "greenhouse"],
+      "notes": "Scout found Jun 9, 2026. Fit-check lead: technical degree such as mathematics/statistics/financial engineering and graduation date between Dec 2026 and Spring 2027; Chicago is outside top locations but role is directly quant trading.",
+      "createdAt": "2026-06-09T08:31:00.000Z",
+      "updatedAt": "2026-06-09T08:31:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:31:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_bnp_paribas_global_markets_quantitative_research_trading_summer_2027",
+      "title": "2027 Summer Associate Internship - Global Markets, Quantitative Research & Trading",
+      "company": "BNP Paribas",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "New York, NY",
+      "workMode": "On-site",
+      "salaryMin": 150000,
+      "salaryMax": 150000,
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://usa.bnpparibas/en/jobs/2027-summer-associate-global-markets-quantitative-research-trading/",
+      "nextAction": "Fit-check graduation-year eligibility, then apply or decide; advanced-degree quant markets internship in NYC.",
+      "nextActionDate": "2026-06-13",
+      "tags": ["career-scout", "needs-fit-check", "quant", "global-markets", "trading", "research", "new-york", "bank"],
+      "notes": "Scout found Jun 9, 2026. Strong advanced-degree quant markets role, but source lists graduation year Winter 2027-Spring 2028; confirm whether May 2027 MS is eligible before applying.",
+      "createdAt": "2026-06-09T08:32:00.000Z",
+      "updatedAt": "2026-06-09T08:32:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:32:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_point72_summer_2027_quantitative_developer_internship",
+      "title": "Summer 2027 Quantitative Developer Internship",
+      "company": "Point72 / Cubist",
+      "stage": "saved",
+      "priority": "Medium",
+      "location": "New York, NY",
+      "workMode": "On-site",
+      "salaryMin": 240000,
+      "salaryMax": 300000,
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://job-boards.greenhouse.io/point72/jobs/7297613002",
+      "nextAction": "Fit-check internship timing and quant-dev appetite, then apply or decide; strong math/C++/Python trading-infrastructure fit.",
+      "nextActionDate": "2026-06-14",
+      "tags": ["career-scout", "needs-fit-check", "quant", "developer", "trading", "internship", "new-york", "point72", "cubist"],
+      "notes": "Scout found Jun 9, 2026. Quant-dev rather than pure QR, but source emphasizes math/CS candidates, rigorous problem solving, trading models, and potential full-time offers after internship.",
+      "createdAt": "2026-06-09T08:33:00.000Z",
+      "updatedAt": "2026-06-09T08:33:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:33:00.000Z", "text": "Career scout added saved lead." }
+      ]
+    },
+    {
+      "id": "scout_radix_quantitative_technologist_cpp_intern",
+      "title": "Quantitative Technologist (C++ Intern)",
+      "company": "Radix Trading",
+      "stage": "saved",
+      "priority": "Low",
+      "location": "Chicago, IL",
+      "workMode": "On-site",
+      "jobType": "Internship",
+      "source": "Career scout",
+      "link": "https://job-boards.greenhouse.io/radixuniversity/jobs/8500265002",
+      "nextAction": "Fit-check C++ depth, Chicago interest, and one-application-only rule before deciding.",
+      "nextActionDate": "2026-06-16",
+      "tags": ["career-scout", "needs-fit-check", "quant", "c++", "trading", "internship", "chicago", "radix"],
+      "notes": "Scout found Jun 9, 2026. Quant trading infrastructure role with C++ focus; lower priority because it is more systems-heavy and Chicago-based. Radix asks candidates to apply to only one posting.",
+      "createdAt": "2026-06-09T08:34:00.000Z",
+      "updatedAt": "2026-06-09T08:34:00.000Z",
+      "history": [
+        { "at": "2026-06-09T08:34:00.000Z", "text": "Career scout added saved lead." }
+      ]
     }
   ]
 }

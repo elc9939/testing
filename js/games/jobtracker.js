@@ -10,8 +10,8 @@ Arcade.register({
 
   start(root, api) {
     const STORE_KEY = 'careerDesk.jobs.v1';
-    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v5';
-    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=6';
+    const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v6';
+    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=7';
     const STAGES = [
       { id: 'saved', name: 'Saved', tone: '#64748b' },
       { id: 'applied', name: 'Applied', tone: '#2f80ed' },
@@ -30,6 +30,11 @@ Arcade.register({
       { id: 'jobs', name: 'Jobs' },
       { id: 'table', name: 'Table' },
     ];
+    const CANDIDATE_PROFILE = {
+      headline: 'NYU Math BS May 2026 -> MS Math May 2027',
+      summary: 'Authorized to work in the US, no sponsorship needed. Prioritize Summer 2027 entry-level/new-grad quant, data science, research, risk/fraud, fintech, and applied math roles.',
+      fitChecks: ['May 2027 timing', 'Entry-level / new grad', 'No sponsorship issue', 'Math/data/research fit', 'Location priority', 'No duplicate risk'],
+    };
 
     const todayISO = () => new Date().toISOString().slice(0, 10);
     const nowISO = () => new Date().toISOString();
@@ -107,6 +112,12 @@ Arcade.register({
       .jt-stat span{display:block;margin-top:5px;font-size:12px;color:#637067;font-weight:800}
       .jt-content{min-height:0;overflow:auto;padding:14px;background:linear-gradient(180deg,#f5f7f4,#eef3ee)}
       .jt-todo,.jt-jobs{display:grid;gap:12px;align-content:start}
+      .jt-profile{border:1px solid #cfe2d3;background:#f7fbf7;border-radius:8px;padding:11px 12px;display:grid;gap:8px}
+      .jt-profile-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+      .jt-profile b{display:block;color:#193325;font-size:13px}
+      .jt-profile p{margin:3px 0 0;color:#4d6256;font-size:12px;line-height:1.35}
+      .jt-fit-tags{display:flex;flex-wrap:wrap;gap:5px}
+      .jt-fit-tags span{border:1px solid #dbe8de;background:#fff;color:#405448;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800}
       .jt-task-section,.jt-list-section{border:1px solid #dce3dc;background:#fbfcfa;border-radius:8px;overflow:hidden}
       .jt-task-head,.jt-list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid #e6ebe5;background:#fff}
       .jt-task-head h3,.jt-list-head h3{margin:0;font-size:15px;color:#1b2a21}
@@ -117,6 +128,8 @@ Arcade.register({
       .jt-task-main{min-width:0;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer}
       .jt-task-main:hover .jt-role{text-decoration:underline}
       .jt-task-text{margin-top:7px;font-size:13px;color:#394a40;line-height:1.3}
+      .jt-fit-check{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+      .jt-fit-check span{border:1px solid #dce7dd;background:#f8fbf8;color:#4b6253;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800}
       .jt-task-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
       .jt-link-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid #cdd6cd;background:#fff;color:#24312a;border-radius:8px;padding:6px 9px;font-weight:900;font-size:12px;min-height:30px}
       .jt-link-btn:hover{border-color:#4fb477;background:#f3fbf6}
@@ -366,6 +379,10 @@ Arcade.register({
         (Array.isArray(job && job.tags) && (job.tags.includes('email-import') || job.tags.includes('career-scout')));
     }
 
+    function hasTag(job, tag) {
+      return Array.isArray(job && job.tags) && job.tags.includes(tag);
+    }
+
     function isPassiveUpdateCheck(job) {
       const text = String(job && job.nextAction || '').toLowerCase();
       return /\b(check|watch|wait|monitor)\b.*\b(email|portal|reply|status|update)\b/.test(text) ||
@@ -380,6 +397,12 @@ Arcade.register({
       if (!job || job.stage === 'rejected' || job.stage === 'archived') return false;
       return job.stage === 'saved' || job.stage === 'interviewing' || job.stage === 'offer' ||
         (dueStatus(job).due && hasActionableNextStep(job));
+    }
+
+    function needsFitCheck(job) {
+      if (!job || job.stage !== 'saved' || hasTag(job, 'fit-checked')) return false;
+      const source = String(job.source || '').toLowerCase();
+      return source === 'career scout' || hasTag(job, 'career-scout') || hasTag(job, 'needs-fit-check');
     }
 
     function todoPriorityRank(job) {
@@ -404,6 +427,12 @@ Arcade.register({
         return true;
       });
       const groups = [
+        {
+          id: 'fit',
+          name: 'Fit check',
+          hint: 'Confirm timing, level, work authorization, role fit, location, and duplicate risk before applying.',
+          jobs: take(needsFitCheck),
+        },
         {
           id: 'apply',
           name: 'Apply / decide',
@@ -516,14 +545,25 @@ Arcade.register({
 
     function todoHTML(jobs) {
       const groups = todoGroups(jobs);
-      if (!groups.length) return '<div class="jt-empty">No current tasks. New scout leads, applications to submit, dated follow-ups, and interview actions will show here.</div>';
-      return `<div class="jt-todo">${groups.map(group => `<section class="jt-task-section">
+      const profile = profileHTML();
+      if (!groups.length) return `<div class="jt-todo">${profile}<div class="jt-empty">No current tasks. New scout leads, applications to submit, dated follow-ups, and interview actions will show here.</div></div>`;
+      return `<div class="jt-todo">${profile}${groups.map(group => `<section class="jt-task-section">
         <div class="jt-task-head">
           <div><h3>${esc(group.name)}</h3><p>${esc(group.hint)}</p></div>
           <span class="jt-task-count">${group.jobs.length}</span>
         </div>
         <div class="jt-task-list">${group.jobs.map(job => taskHTML(job, group.id)).join('')}</div>
       </section>`).join('')}</div>`;
+    }
+
+    function profileHTML() {
+      return `<section class="jt-profile">
+        <div class="jt-profile-top">
+          <div><b>${esc(CANDIDATE_PROFILE.headline)}</b><p>${esc(CANDIDATE_PROFILE.summary)}</p></div>
+          <span class="jt-chip low">No sponsorship</span>
+        </div>
+        <div class="jt-fit-tags">${CANDIDATE_PROFILE.fitChecks.map(item => `<span>${esc(item)}</span>`).join('')}</div>
+      </section>`;
     }
 
     function listHTML(jobs) {
@@ -547,7 +587,9 @@ Arcade.register({
       const due = dueStatus(job);
       const isSaved = job.stage === 'saved';
       const status = due.text || (isStale(job) ? 'stale 14d+' : stageById(job.stage).name);
-      const actionText = job.nextAction || (isSaved ? 'Review the role and decide whether to apply.' : 'Review the next concrete action.');
+      const actionText = groupId === 'fit'
+        ? 'Fit-check this lead against your May 2027 MS timeline, entry-level/new-grad target, no-sponsorship status, role fit, location, and duplicate history.'
+        : job.nextAction || (isSaved ? 'Review the role and decide whether to apply.' : 'Review the next concrete action.');
       const prior = priorApplicationFor(job);
       const priorText = priorApplicationText(prior);
       return `<div class="jt-task">
@@ -565,12 +607,14 @@ Arcade.register({
             ${status ? `<span class="jt-chip ${due.due || isStale(job) ? 'high' : ''}">${esc(status)}</span>` : ''}
           </div>
           <div class="jt-task-text">${esc(actionText)}</div>
+          ${groupId === 'fit' ? `<div class="jt-fit-check">${CANDIDATE_PROFILE.fitChecks.map(item => `<span>${esc(item)}</span>`).join('')}</div>` : ''}
           ${priorText ? `<div class="jt-prior-note">${esc(priorText)}. Check whether this is a new cycle and whether the portal allows another application.</div>` : ''}
         </button>
         <div class="jt-task-actions">
           ${job.link ? `<a class="jt-link-btn" href="${esc(job.link)}" target="_blank" rel="noreferrer">Open</a>` : ''}
+          ${groupId === 'fit' ? `<button class="jt-btn slim" data-act="fit-ok" data-id="${esc(job.id)}">Fit OK</button>` : ''}
           ${isSaved ? `<button class="jt-btn slim primary" data-act="mark-applied" data-id="${esc(job.id)}">Applied</button>` : ''}
-          ${groupId === 'apply' ? `<button class="jt-btn slim" data-act="archive" data-id="${esc(job.id)}">Skip</button>` : ''}
+          ${groupId === 'apply' || groupId === 'fit' ? `<button class="jt-btn slim" data-act="archive" data-id="${esc(job.id)}">Skip</button>` : ''}
           ${!ACTIVE_STAGES.has(job.stage) ? `<button class="jt-btn slim" data-act="archive" data-id="${esc(job.id)}">Archive</button>` : ''}
         </div>
       </div>`;
@@ -653,6 +697,7 @@ Arcade.register({
       <form class="jt-detail-body" data-form="job">
         <input type="hidden" name="id" value="${esc(job.id)}">
         ${prior ? `<div class="jt-dupe">Prior application warning: ${esc(priorText)} for ${esc(prior.company)} - ${esc(prior.title)}. Reapply only if this posting is a new cycle or the portal allows it.</div>` : dupe ? `<div class="jt-dupe">Possible duplicate: ${esc(dupe.company)} - ${esc(dupe.title)}</div>` : ''}
+        ${needsFitCheck(job) ? `<section class="jt-section"><h4>Fit check</h4><div class="jt-fit-tags">${CANDIDATE_PROFILE.fitChecks.map(item => `<span>${esc(item)}</span>`).join('')}</div><p style="margin:9px 0 0;color:#4d6256;font-size:12px;line-height:1.35">${esc(CANDIDATE_PROFILE.summary)}</p></section>` : ''}
         <section class="jt-section">
           <h4>Core</h4>
           <div class="jt-form-grid">
@@ -808,6 +853,14 @@ Arcade.register({
       }, text || 'Archived from To-do.');
     }
 
+    function markFitChecked(id) {
+      const job = state.jobs.find(j => j.id === id);
+      if (!job) return;
+      const tags = (job.tags || []).filter(tag => tag !== 'needs-fit-check');
+      if (!tags.includes('fit-checked')) tags.push('fit-checked');
+      quickUpdateJob(id, { tags }, 'Marked as fit-checked against May 2027 profile.');
+    }
+
     function download(name, text, type) {
       const blob = new Blob([text], { type });
       const a = document.createElement('a');
@@ -913,6 +966,7 @@ Arcade.register({
       else if (act === 'new') { state.draft = blankJob(); state.selectedId = state.draft.id; }
       else if (act === 'close-detail') { state.selectedId = null; state.draft = null; }
       else if (act === 'mark-applied') { markApplied(btn.dataset.id); return; }
+      else if (act === 'fit-ok') { markFitChecked(btn.dataset.id); return; }
       else if (act === 'archive') { archiveJob(btn.dataset.id, 'Skipped/archived from To-do.'); return; }
       else if (act === 'delete') {
         if (btn.dataset.confirm !== '1') {
