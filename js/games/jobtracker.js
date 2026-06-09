@@ -33,6 +33,29 @@ Arcade.register({
     const daysBetween = (a, b) => Math.floor((new Date(b).setHours(0, 0, 0, 0) - new Date(a).setHours(0, 0, 0, 0)) / 86400000);
     const formatDate = value => value ? new Date(value + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
     const dollars = n => n ? '$' + Number(n).toLocaleString() : '';
+    const HISTORY_FIELDS = [
+      ['title', 'role'],
+      ['company', 'company'],
+      ['priority', 'priority'],
+      ['location', 'location'],
+      ['workMode', 'work mode'],
+      ['salaryMin', 'salary minimum'],
+      ['salaryMax', 'salary maximum'],
+      ['jobType', 'job type'],
+      ['source', 'source'],
+      ['link', 'link'],
+      ['deadline', 'deadline'],
+      ['dateApplied', 'date applied'],
+      ['nextAction', 'next action'],
+      ['nextActionDate', 'next action date'],
+      ['contactName', 'contact name'],
+      ['contactInfo', 'contact info'],
+      ['resumeVersion', 'resume version'],
+      ['coverStatus', 'cover letter'],
+      ['tags', 'tags'],
+      ['notes', 'notes'],
+      ['description', 'job description'],
+    ];
 
     const state = {
       jobs: loadJobs(),
@@ -245,6 +268,17 @@ Arcade.register({
       ));
     }
 
+    function sameValue(a, b) {
+      const clean = value => Array.isArray(value) ? value.join('|') : String(value == null ? '' : value);
+      return clean(a) === clean(b);
+    }
+
+    function listLabels(labels) {
+      if (labels.length <= 1) return labels.join('');
+      if (labels.length === 2) return labels.join(' and ');
+      return labels.slice(0, -1).join(', ') + ', and ' + labels[labels.length - 1];
+    }
+
     function filteredJobs() {
       const q = state.query.trim().toLowerCase();
       let jobs = state.jobs.filter(job => {
@@ -368,6 +402,7 @@ Arcade.register({
         <div class="jt-meta">
           ${job.location ? `<span class="jt-chip">${esc(job.location)}</span>` : ''}
           ${job.workMode && job.workMode !== 'Unknown' ? `<span class="jt-chip">${esc(job.workMode)}</span>` : ''}
+          ${job.dateApplied ? `<span class="jt-chip">Applied ${esc(formatDate(job.dateApplied))}</span>` : ''}
           ${salary ? `<span class="jt-chip">${esc(salary)}</span>` : ''}
           ${isStale(job) ? '<span class="jt-chip high">Stale</span>' : ''}
         </div>
@@ -381,13 +416,14 @@ Arcade.register({
     function tableHTML(jobs) {
       if (!jobs.length) return '<div class="jt-empty">No jobs match the current filters.</div>';
       return `<div class="jt-table-wrap"><table class="jt-table">
-        <thead><tr><th>Role</th><th>Stage</th><th>Priority</th><th>Next action</th><th>Date</th><th>Location</th><th>Contact</th></tr></thead>
+        <thead><tr><th>Role</th><th>Stage</th><th>Priority</th><th>Applied</th><th>Next action</th><th>Due</th><th>Location</th><th>Contact</th></tr></thead>
         <tbody>${jobs.map(job => {
           const due = dueStatus(job);
           return `<tr class="jt-row" data-act="select" data-id="${job.id}">
             <td><b>${esc(job.title || 'Untitled role')}</b><br><span>${esc(job.company || 'Unknown company')}</span></td>
             <td><span class="jt-chip">${esc(stageById(job.stage).name)}</span></td>
             <td><span class="jt-chip ${chipClass(job.priority)}">${esc(job.priority)}</span></td>
+            <td>${esc(formatDate(job.dateApplied) || '')}</td>
             <td>${esc(job.nextAction || 'Decide the next move')}</td>
             <td class="${due.due ? 'jt-alert' : ''}">${esc(formatDate(job.nextActionDate) || formatDate(job.deadline) || '')}</td>
             <td>${esc([job.location, job.workMode !== 'Unknown' ? job.workMode : ''].filter(Boolean).join(' - '))}</td>
@@ -503,12 +539,18 @@ Arcade.register({
         notes: data.get('notes'),
         description: data.get('description'),
       }));
+      const exists = state.jobs.some(j => j.id === next.id);
       const changed = [];
+      if (!exists) changed.push('Created entry');
       if (old.stage !== next.stage) changed.push('Moved to ' + stageById(next.stage).name);
-      if (old.nextAction !== next.nextAction || old.nextActionDate !== next.nextActionDate) changed.push('Updated next action');
+      const changedFields = HISTORY_FIELDS
+        .filter(([key]) => !sameValue(old[key], next[key]))
+        .filter(([key]) => key !== 'stage')
+        .map(([, label]) => label);
+      if (changedFields.length) changed.push('Updated ' + listLabels(changedFields));
       next.updatedAt = nowISO();
       if (changed.length) next.history = (next.history || []).concat(changed.map(text => ({ at: next.updatedAt, text })));
-      else if (!state.jobs.some(j => j.id === next.id)) next.history = (next.history || []).concat({ at: next.updatedAt, text: 'Saved' });
+      else next.history = (next.history || []).concat({ at: next.updatedAt, text: 'Saved without field changes' });
       return next;
     }
 
@@ -553,24 +595,46 @@ Arcade.register({
       download(`career-desk-${todayISO()}.csv`, csv, 'text/csv');
     }
 
+    function importRecords(payload) {
+      const incoming = Array.isArray(payload) ? payload : payload && payload.jobs;
+      if (!Array.isArray(incoming)) throw new Error('Missing jobs array');
+      const byId = new Map(state.jobs.map(j => [j.id, j]));
+      incoming.map(normalizeJob).filter(Boolean).forEach(job => byId.set(job.id, job));
+      state.jobs = Array.from(byId.values()).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      saveJobs();
+      render();
+    }
+
     function importJSON(file) {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const parsed = JSON.parse(reader.result);
-          const incoming = Array.isArray(parsed) ? parsed : parsed.jobs;
-          if (!Array.isArray(incoming)) throw new Error('Missing jobs array');
-          const byId = new Map(state.jobs.map(j => [j.id, j]));
-          incoming.map(normalizeJob).filter(Boolean).forEach(job => byId.set(job.id, job));
-          state.jobs = Array.from(byId.values()).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-          saveJobs();
-          render();
+          importRecords(JSON.parse(reader.result));
         } catch (err) {
           alert('Could not import that file. Use a Career Desk JSON export.');
         }
       };
       reader.readAsText(file);
+    }
+
+    function importFromURL() {
+      const params = new URLSearchParams(location.search);
+      const importPath = params.get('careerDeskImport');
+      if (!importPath) return;
+      const importUrl = new URL(importPath, location.href);
+      if (importUrl.origin !== location.origin) return;
+      fetch(importUrl.href, { cache: 'no-store' })
+        .then(res => {
+          if (!res.ok) throw new Error('Import file not found');
+          return res.json();
+        })
+        .then(importRecords)
+        .then(() => {
+          params.delete('careerDeskImport');
+          history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash);
+        })
+        .catch(err => console.warn('Career Desk import skipped:', err.message));
     }
 
     api.on(wrap, 'click', e => {
@@ -621,5 +685,6 @@ Arcade.register({
     });
 
     render();
+    importFromURL();
   },
 });
