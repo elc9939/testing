@@ -11,7 +11,7 @@ Arcade.register({
   start(root, api) {
     const STORE_KEY = 'careerDesk.jobs.v1';
     const EMAIL_SEED_KEY = 'careerDesk.emailSeed.v1';
-    const EMAIL_SEED_URL = 'data/careerdesk-email-seed.json?v=1';
+    const EMAIL_SEED_URL = 'js/games/careerdesk-email-seed.json?v=2';
     const STAGES = [
       { id: 'saved', name: 'Saved', tone: '#64748b' },
       { id: 'applied', name: 'Applied', tone: '#2f80ed' },
@@ -643,7 +643,8 @@ Arcade.register({
     }
 
     function importSeededEmailJobs() {
-      if (localStorage.getItem(EMAIL_SEED_KEY) === '1') return;
+      const alreadyHasEmailSeed = state.jobs.some(job => job && job.id && String(job.id).indexOf('email_') === 0);
+      if (localStorage.getItem(EMAIL_SEED_KEY) === '1' && alreadyHasEmailSeed) return;
       fetch(EMAIL_SEED_URL, { cache: 'no-store' })
         .then(res => {
           if (!res.ok) throw new Error('Seed file not found');
