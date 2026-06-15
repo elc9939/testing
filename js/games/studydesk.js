@@ -62,6 +62,8 @@ Arcade.register({
         { id: 'systems-clean-code', title: 'Writing cleaner code and explaining tradeoffs' },
       ],
     };
+    const CAREER_ACTIONS = ['Apply', 'Follow up', 'Interview prep', 'Job search', 'Resume/materials', 'Networking', 'Other'];
+    const CAREER_STORE_KEY = 'careerDesk.jobs.v1';
 
     const trackById = id => TRACKS.find(t => t.id === id) || TRACKS[0];
     const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -102,6 +104,18 @@ Arcade.register({
       .sd-field span{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--sd-muted)}
       .sd input,.sd select,.sd textarea{width:100%;border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-panel);color:var(--sd-text);padding:8px 9px;outline:none}
       .sd input:focus,.sd select:focus,.sd textarea:focus{border-color:var(--track,#7aa36f);box-shadow:0 0 0 3px color-mix(in srgb,var(--track,#7aa36f) 16%,transparent)}
+      .sd-daily{border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-panel);padding:12px;display:grid;gap:11px}
+      .sd-daily-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+      .sd-daily-head h3{margin:0;color:var(--sd-text);font-size:17px}
+      .sd-daily-head p{margin:4px 0 0;color:var(--sd-muted);font-size:12px;line-height:1.35}
+      .sd-score-ring{display:grid;place-items:center;align-content:center;width:72px;height:72px;flex:0 0 auto;border-radius:50%;background:conic-gradient(var(--sd-good) var(--score),var(--sd-chip) 0);border:1px solid var(--sd-line2);box-shadow:inset 0 0 0 8px var(--sd-panel)}
+      .sd-score-ring b{font-size:20px;line-height:1;color:var(--sd-text)}
+      .sd-score-ring span{font-size:10px;color:var(--sd-muted);font-weight:900}
+      .sd-career-log{display:grid;grid-template-columns:150px minmax(180px,1fr) auto;gap:8px;align-items:end}
+      .sd-day-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:5px;align-items:end;min-height:84px;border:1px solid var(--sd-line2);border-radius:8px;background:var(--sd-surface);padding:9px}
+      .sd-day{display:grid;gap:5px;align-content:end;min-width:0;color:var(--sd-muted);font-size:10px;text-align:center}
+      .sd-day-bar{height:var(--h);min-height:5px;border-radius:999px;background:linear-gradient(180deg,var(--sd-good),color-mix(in srgb,var(--sd-good) 45%,var(--sd-panel)));border:1px solid color-mix(in srgb,var(--sd-good) 40%,var(--sd-line));opacity:.92}
+      .sd-day.empty .sd-day-bar{background:var(--sd-chip);border-color:var(--sd-line2);opacity:.65}
       .sd-lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
       .sd-card{--track:#7aa36f;overflow:hidden}
       .sd-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px;border-bottom:1px solid var(--sd-line2);background:linear-gradient(90deg,color-mix(in srgb,var(--track) 12%,var(--sd-surface)),var(--sd-surface))}
@@ -135,8 +149,8 @@ Arcade.register({
       .sd-settings{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
       .sd-toast{border:1px solid color-mix(in srgb,var(--sd-warn) 40%,var(--sd-line));background:color-mix(in srgb,var(--sd-warn) 13%,var(--sd-panel));color:var(--sd-warn);border-radius:8px;padding:8px;margin-top:8px;font-size:12px;line-height:1.35}
       .sd-empty{padding:12px;text-align:center;color:var(--sd-muted);font-weight:800;border:1px dashed var(--sd-line);border-radius:8px;background:var(--sd-surface)}
-      @media(max-width:1080px){.sd-shell{grid-template-columns:1fr}.sd-side{grid-template-columns:1fr 1fr}.sd-lanes{grid-template-columns:1fr}.sd-log-grid{grid-template-columns:1fr 1fr}.sd-log-grid .wide{grid-column:1/-1}}
-      @media(max-width:720px){.sd{padding:58px 8px 8px}.sd-head{flex-direction:column;padding:12px}.sd-actions{justify-content:flex-start}.sd-content{padding:9px}.sd-stats{grid-template-columns:1fr 1fr}.sd-side{grid-template-columns:1fr}.sd-log-grid,.sd-settings{grid-template-columns:1fr}.sd-log-grid .wide{grid-column:auto}}
+      @media(max-width:1080px){.sd-shell{grid-template-columns:1fr}.sd-side{grid-template-columns:1fr 1fr}.sd-lanes{grid-template-columns:1fr}.sd-log-grid,.sd-career-log{grid-template-columns:1fr 1fr}.sd-log-grid .wide,.sd-career-log .wide{grid-column:1/-1}}
+      @media(max-width:720px){.sd{padding:58px 8px 8px}.sd-head{flex-direction:column;padding:12px}.sd-actions{justify-content:flex-start}.sd-content{padding:9px}.sd-stats{grid-template-columns:1fr 1fr}.sd-side{grid-template-columns:1fr}.sd-log-grid,.sd-career-log,.sd-settings{grid-template-columns:1fr}.sd-log-grid .wide,.sd-career-log .wide{grid-column:auto}.sd-daily-head{align-items:stretch;flex-direction:column}.sd-score-ring{width:64px;height:64px}.sd-day-bars{grid-template-columns:repeat(7,minmax(0,1fr))}}
     `;
     root.appendChild(style);
 
@@ -152,6 +166,7 @@ Arcade.register({
           topics.map(topic => ({ ...topic, done: false, updatedAt: '' })),
         ])),
         sessions: [],
+        daily: {},
         github: {
           repo: REPO,
           lastSync: '',
@@ -172,6 +187,7 @@ Arcade.register({
       if (!loaded || typeof loaded !== 'object') return base;
       base.settings = { ...base.settings, ...(loaded.settings || {}) };
       base.sessions = Array.isArray(loaded.sessions) ? loaded.sessions.map(normalizeSession).filter(Boolean).slice(-500) : [];
+      base.daily = normalizeDailyMap(loaded.daily);
       base.github = { ...base.github, ...(loaded.github || {}) };
       if (!Array.isArray(base.github.files)) base.github.files = [];
       if (!Array.isArray(base.github.problems)) base.github.problems = [];
@@ -187,6 +203,35 @@ Arcade.register({
         }));
       }
       return base;
+    }
+
+    function normalizeDailyMap(value) {
+      const next = {};
+      if (!value || typeof value !== 'object') return next;
+      for (const [date, record] of Object.entries(value)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !record || typeof record !== 'object') continue;
+        next[date] = {
+          date,
+          careerActions: Array.isArray(record.careerActions) ? record.careerActions.map(normalizeCareerAction).filter(Boolean).slice(-80) : [],
+          neetcodeNew: Math.max(0, Math.round(Number(record.neetcodeNew) || 0)),
+          neetcodeSubmissions: Math.max(0, Math.round(Number(record.neetcodeSubmissions) || 0)),
+          neetcodeProblems: Math.max(0, Math.round(Number(record.neetcodeProblems) || 0)),
+          syncs: Array.isArray(record.syncs) ? record.syncs.slice(-12) : [],
+          note: record.note || '',
+        };
+      }
+      return next;
+    }
+
+    function normalizeCareerAction(action) {
+      if (!action || typeof action !== 'object') return null;
+      const kind = CAREER_ACTIONS.includes(action.kind) ? action.kind : 'Other';
+      return {
+        id: action.id || uid(),
+        kind,
+        notes: action.notes || '',
+        at: action.at || nowISO(),
+      };
     }
 
     function normalizeSession(session) {
@@ -250,6 +295,77 @@ Arcade.register({
       return Math.ceil((exam - today) / 86400000);
     }
 
+    function ensureDaily(date = todayISO()) {
+      if (!state.daily || typeof state.daily !== 'object') state.daily = {};
+      if (!state.daily[date]) {
+        state.daily[date] = {
+          date,
+          careerActions: [],
+          neetcodeNew: 0,
+          neetcodeSubmissions: state.github.submissions || 0,
+          neetcodeProblems: (state.github.problems || []).length,
+          syncs: [],
+          note: '',
+        };
+      }
+      return state.daily[date];
+    }
+
+    function sessionsOn(date) {
+      return state.sessions.filter(session => session.date === date);
+    }
+
+    function trackMinutesOn(trackId, date) {
+      return sessionsOn(date).filter(session => session.track === trackId).reduce((sum, session) => sum + session.minutes, 0);
+    }
+
+    function readCareerDeskDaily(date) {
+      let jobs = [];
+      try { jobs = JSON.parse(localStorage.getItem(CAREER_STORE_KEY) || '[]'); } catch (e) { jobs = []; }
+      if (!Array.isArray(jobs)) jobs = [];
+      const dayStart = date + 'T00:00:00';
+      const dayEnd = date + 'T23:59:59';
+      const historyToday = jobs.reduce((count, job) => {
+        const history = Array.isArray(job && job.history) ? job.history : [];
+        return count + history.filter(item => item && item.at >= dayStart && item.at <= dayEnd).length;
+      }, 0);
+      const appliedToday = jobs.filter(job => job && job.dateApplied === date).length;
+      const dueToday = jobs.filter(job => job && (job.nextActionDate === date || job.deadline === date)).length;
+      const todos = jobs.filter(job => job && job.nextAction && ['saved', 'applied', 'interviewing', 'offer'].includes(job.stage || 'saved')).length;
+      return { appliedToday, historyToday, dueToday, todos };
+    }
+
+    function dailyStats(date = todayISO()) {
+      const record = date === todayISO()
+        ? ensureDaily(date)
+        : ((state.daily && state.daily[date]) || { date, careerActions: [], neetcodeNew: 0, neetcodeSubmissions: 0, neetcodeProblems: 0, syncs: [], note: '' });
+      const exam = trackMinutesOn('examP', date);
+      const quant = trackMinutesOn('quant', date);
+      const coding = trackMinutesOn('coding', date);
+      const total = exam + quant + coding;
+      const careerDesk = readCareerDeskDaily(date);
+      const manualCareer = record.careerActions.length;
+      const neetcodeNew = record.neetcodeNew || 0;
+      const studyScore = Math.min(44, Math.round(total / 150 * 44));
+      const balanceScore = [exam, quant, coding].filter(v => v >= 25).length * 5;
+      const careerScore = Math.min(26, manualCareer * 8 + careerDesk.appliedToday * 10 + Math.min(8, careerDesk.historyToday * 2));
+      const codingScore = Math.min(18, neetcodeNew * 12 + (coding >= 30 ? 6 : 0));
+      const score = Math.min(100, studyScore + balanceScore + careerScore + codingScore);
+      const label = score >= 75 ? 'Very productive' : score >= 50 ? 'Solid day' : score >= 25 ? 'Some progress' : 'Light day';
+      return { date, record, exam, quant, coding, total, manualCareer, careerDesk, neetcodeNew, score, label };
+    }
+
+    function recentDates(days = 14) {
+      const out = [];
+      const base = new Date(todayISO() + 'T00:00:00');
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date(base);
+        date.setDate(base.getDate() - i);
+        out.push(date.toISOString().slice(0, 10));
+      }
+      return out;
+    }
+
     function planItems() {
       const items = [];
       const examNext = (state.topics.examP || []).find(t => !t.done);
@@ -269,6 +385,7 @@ Arcade.register({
       const due = daysUntilExam();
       const github = state.github || {};
       const syncing = github.status === 'syncing';
+      const todayStats = dailyStats();
       wrap.innerHTML = `
         <div class="sd-shell">
           <section class="sd-main">
@@ -279,16 +396,33 @@ Arcade.register({
               </div>
               <div class="sd-actions">
                 <button class="sd-btn" type="button" data-action="sync-code" ${syncing ? 'disabled' : ''}>${syncing ? 'Syncing...' : 'Sync NeetCode'}</button>
+                <button class="sd-btn" type="button" data-action="quick-log" data-track="quant" data-minutes="30">Log Quant 30m</button>
                 <button class="sd-btn primary" type="button" data-action="quick-log" data-track="examP" data-minutes="45">Log Exam P 45m</button>
               </div>
             </header>
 
             <div class="sd-content">
               <section class="sd-stats" aria-label="Study summary">
+                <div class="sd-stat"><b>${esc(todayStats.score)}</b><span>${esc(todayStats.label)}</span></div>
                 <div class="sd-stat"><b>${esc(formatMinutes(today))}</b><span>Logged today</span></div>
                 <div class="sd-stat"><b>${esc(formatMinutes(week))}</b><span>This week / ${esc(formatMinutes(weekGoal))} goal</span></div>
-                <div class="sd-stat"><b>${esc(topicPercent('examP'))}%</b><span>Exam P checklist</span></div>
                 <div class="sd-stat"><b>${esc(github.problems.length || 0)}</b><span>Synced coding problems</span></div>
+              </section>
+
+              <section class="sd-daily">
+                <div class="sd-daily-head">
+                  <div>
+                    <h3>Daily career tracker</h3>
+                    <p>Exam P ${esc(formatMinutes(todayStats.exam))} - Quant ${esc(formatMinutes(todayStats.quant))} - Coding ${esc(formatMinutes(todayStats.coding))} - Career actions ${todayStats.manualCareer + todayStats.careerDesk.appliedToday + todayStats.careerDesk.historyToday}</p>
+                  </div>
+                  <div class="sd-score-ring" style="--score:${todayStats.score}%"><b>${todayStats.score}</b><span>/100</span></div>
+                </div>
+                <form class="sd-career-log" data-form="career-action">
+                  <label class="sd-field"><span>Career action</span><select name="kind">${CAREER_ACTIONS.map(kind => `<option value="${esc(kind)}">${esc(kind)}</option>`).join('')}</select></label>
+                  <label class="sd-field wide"><span>Note</span><input name="notes" type="text" placeholder="Applied, did a fit check, sent a follow-up, prepped, etc."></label>
+                  <button class="sd-btn" type="submit">Log action</button>
+                </form>
+                <div class="sd-day-bars" aria-label="Daily productivity history">${dailyHistoryHTML()}</div>
               </section>
 
               <section class="sd-log">
@@ -317,6 +451,7 @@ Arcade.register({
                 <div class="sd-mini-stat"><b>${esc(github.problems.length || 0)}</b><span>Problems</span></div>
                 <div class="sd-mini-stat"><b>${esc(github.submissions || 0)}</b><span>Submissions</span></div>
               </div>
+              <div class="sd-repo-line"><span>New today</span><b>${esc(todayStats.neetcodeNew)}</b></div>
               <div class="sd-repo-line"><span>Last sync</span><b>${esc(formatDateTime(github.lastSync))}</b></div>
               ${github.error ? `<div class="sd-toast">${esc(github.error)}</div>` : ''}
               <div class="sd-problem-list">
@@ -344,6 +479,11 @@ Arcade.register({
             <section class="sd-panel">
               <h3>Recent sessions</h3>
               <div class="sd-session-list">${recentSessionsHTML()}</div>
+            </section>
+
+            <section class="sd-panel">
+              <h3>Career actions today</h3>
+              <div class="sd-session-list">${careerActionsHTML()}</div>
             </section>
           </aside>
         </div>`;
@@ -393,6 +533,19 @@ Arcade.register({
       }).join('');
     }
 
+    function dailyHistoryHTML() {
+      return recentDates(14).map(date => {
+        const stats = dailyStats(date);
+        const label = date.slice(5).replace('-', '/');
+        const height = Math.max(5, Math.round(stats.score * 0.68));
+        const isEmpty = stats.score <= 0;
+        return `<div class="sd-day ${isEmpty ? 'empty' : ''}" title="${esc(date)}: ${esc(stats.score)} productivity, ${esc(formatMinutes(stats.total))} study">
+          <span class="sd-day-bar" style="--h:${height}px"></span>
+          <span>${esc(label)}</span>
+        </div>`;
+      }).join('');
+    }
+
     function recentSessionsHTML() {
       const recent = state.sessions.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 8);
       if (!recent.length) return '<div class="sd-empty">No sessions logged yet.</div>';
@@ -405,11 +558,35 @@ Arcade.register({
       }).join('');
     }
 
+    function careerActionsHTML() {
+      const record = ensureDaily();
+      const actions = (record.careerActions || []).slice().reverse().slice(0, 8);
+      const careerDesk = readCareerDeskDaily(todayISO());
+      const deskLines = [];
+      if (careerDesk.appliedToday) deskLines.push(`<article class="sd-session"><b>Career Desk</b><small>${careerDesk.appliedToday} application${careerDesk.appliedToday === 1 ? '' : 's'} marked applied today</small></article>`);
+      if (careerDesk.historyToday) deskLines.push(`<article class="sd-session"><b>Career Desk</b><small>${careerDesk.historyToday} saved update${careerDesk.historyToday === 1 ? '' : 's'} today</small></article>`);
+      const manual = actions.map(action => `<article class="sd-session">
+        <b>${esc(action.kind)}</b>
+        <small>${esc(new Date(action.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}${action.notes ? ' - ' + esc(action.notes) : ''}</small>
+      </article>`);
+      const html = deskLines.concat(manual).join('');
+      return html || '<div class="sd-empty">No career actions logged today.</div>';
+    }
+
     function addSession(track, mins, notes) {
       const amount = minutes(mins);
       if (!amount) return;
       state.sessions.push({ id: uid(), track: trackById(track).id, minutes: amount, notes: notes || '', date: todayISO(), createdAt: nowISO() });
       state.sessions = state.sessions.slice(-500);
+      ensureDaily();
+      save();
+      render();
+    }
+
+    function addCareerAction(kind, notes) {
+      const record = ensureDaily();
+      record.careerActions.push({ id: uid(), kind: CAREER_ACTIONS.includes(kind) ? kind : 'Other', notes: notes || '', at: nowISO() });
+      record.careerActions = record.careerActions.slice(-80);
       save();
       render();
     }
@@ -475,6 +652,7 @@ Arcade.register({
           files: entry.files.sort(),
         })).sort((a, b) => a.topic.localeCompare(b.topic) || a.problem.localeCompare(b.problem));
         const paths = files.map(file => file.path).sort();
+        const newPaths = paths.filter(path => !previous.has(path)).slice(0, 20);
         state.github = {
           repo: REPO,
           lastSync: nowISO(),
@@ -483,8 +661,13 @@ Arcade.register({
           files: paths,
           problems,
           submissions: paths.length,
-          newPaths: paths.filter(path => !previous.has(path)).slice(0, 20),
+          newPaths,
         };
+        const record = ensureDaily();
+        record.neetcodeNew += newPaths.length;
+        record.neetcodeSubmissions = paths.length;
+        record.neetcodeProblems = problems.length;
+        record.syncs = (record.syncs || []).concat({ at: state.github.lastSync, newCount: newPaths.length, submissions: paths.length }).slice(-12);
       } catch (err) {
         state.github.status = 'idle';
         state.github.error = `Could not sync ${REPO}: ${err.message || err}`;
@@ -510,6 +693,8 @@ Arcade.register({
         addSession(form.track.value, form.minutes.value, form.notes.value.trim());
       } else if (form.dataset.form === 'settings') {
         updateSettings(form);
+      } else if (form.dataset.form === 'career-action') {
+        addCareerAction(form.kind.value, form.notes.value.trim());
       }
     });
 

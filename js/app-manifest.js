@@ -45,7 +45,7 @@ Arcade.define([
     priority: 3,
     scoreKey: false,
     cover: 'assets/hub/study-desk.svg',
-    src: 'js/games/studydesk.js?v=1',
+    src: 'js/games/studydesk.js?v=2',
   },
   {
     id: 'deckbound',
