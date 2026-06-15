@@ -56,37 +56,37 @@ Arcade.register({
     // ---------- scoped styles ----------
     const style = document.createElement('style');
     style.textContent = `
-      .gx{position:absolute;inset:0;display:flex;flex-direction:column;color:#eaf2ff;font-family:inherit;overflow:hidden}
-      .gx-top{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-size:13px;opacity:.85;letter-spacing:1px}
+      .gx{position:absolute;inset:0;display:flex;flex-direction:column;color:var(--text);font-family:inherit;overflow:hidden;background:var(--bg);padding-top:var(--topbar-h,58px)}
+      .gx-top{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-size:13px;color:var(--muted);letter-spacing:.04em}
       .gx-arena{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:6px 14px;min-height:0}
       .gx-enemy,.gx-hero{display:flex;align-items:center;gap:12px}
       .gx-hero{justify-content:flex-start}
       .gx-enemy{justify-content:flex-end;text-align:right;flex-direction:row-reverse}
-      .gx-ava{font-size:42px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.4))}
+      .gx-ava{font-size:42px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.28))}
       .gx-info{min-width:180px}
       .gx-name{font-weight:800;font-size:15px}
-      .gx-bar{position:relative;height:16px;border-radius:8px;background:#26122a;overflow:hidden;margin-top:3px}
+      .gx-bar{position:relative;height:16px;border-radius:8px;background:var(--surface-2);overflow:hidden;margin-top:3px;border:1px solid var(--line)}
       .gx-bar>span{position:absolute;inset:0;width:100%;transform-origin:left;background:linear-gradient(90deg,#ff5a6e,#ff9a6e);transition:transform .25s}
       .gx-bar.hero>span{background:linear-gradient(90deg,#5ef2ff,#5e8bff)}
       .gx-bar b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;text-shadow:0 1px 2px #000}
       .gx-badges{display:flex;gap:5px;margin-top:4px;font-size:11px;flex-wrap:wrap}
       .gx-enemy .gx-badges{justify-content:flex-end}
-      .gx-badge{background:rgba(255,255,255,.12);border-radius:6px;padding:1px 6px;font-weight:700}
+      .gx-badge{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-weight:700}
       .gx-block{color:#bfe3ff}.gx-vuln{color:#ff9a6e}.gx-weak{color:#c7a3ff}.gx-poison{color:#9cff7a}.gx-str{color:#ffd45e}
       .gx-intent{font-size:14px;font-weight:800;margin-bottom:2px}
       .gx-hand{display:flex;gap:8px;justify-content:center;align-items:flex-end;padding:8px;flex-wrap:wrap;min-height:128px}
-      .gx-card{width:96px;min-height:120px;border-radius:12px;background:linear-gradient(160deg,#2a2140,#171029);
-        border:2px solid var(--cc,#5ef2ff);padding:8px 7px;cursor:pointer;display:flex;flex-direction:column;gap:4px;
-        transition:transform .12s,box-shadow .12s;user-select:none;position:relative}
-      .gx-card:hover{transform:translateY(-10px);box-shadow:0 10px 26px rgba(0,0,0,.5),0 0 18px var(--cc,#5ef2ff)}
+      .gx-card{width:96px;min-height:120px;border-radius:8px;background:var(--panel);
+        border:1px solid color-mix(in srgb,var(--cc,#8ab4f8) 34%,var(--line));padding:8px 7px;cursor:pointer;display:flex;flex-direction:column;gap:4px;
+        transition:transform .12s,box-shadow .12s,border-color .12s,background .12s;user-select:none;position:relative}
+      .gx-card:hover{transform:translateY(-6px);box-shadow:var(--soft-shadow);background:color-mix(in srgb,var(--cc,#8ab4f8) 10%,var(--panel))}
       .gx-card.dis{opacity:.4;cursor:not-allowed}.gx-card.dis:hover{transform:none;box-shadow:none}
-      .gx-cost{position:absolute;top:-8px;left:-8px;width:24px;height:24px;border-radius:50%;background:#ffd45e;color:#241a00;
-        font-weight:900;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #fff}
-      .gx-cn{font-weight:800;font-size:12.5px}.gx-ct{font-size:10.5px;opacity:.82;line-height:1.25}
+      .gx-cost{position:absolute;top:-8px;left:-8px;width:24px;height:24px;border-radius:50%;background:var(--accent-3);color:#241a00;
+        font-weight:900;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid var(--panel)}
+      .gx-cn{font-weight:800;font-size:12.5px}.gx-ct{font-size:10.5px;color:var(--muted);line-height:1.25}
       .gx-cardtype{margin-top:auto;font-size:9px;letter-spacing:1px;opacity:.6;text-transform:uppercase}
       .gx-foot{display:flex;justify-content:space-between;align-items:center;padding:6px 14px 12px}
-      .gx-energy{font-size:15px;font-weight:800;color:#ffd45e}
-      .gx-end{background:#ff7a9c;color:#2a0a14;border:none;border-radius:10px;padding:10px 20px;font-weight:900;
+      .gx-energy{font-size:15px;font-weight:800;color:var(--accent-3)}
+      .gx-end{background:color-mix(in srgb,#ff7a9c 18%,var(--panel));color:var(--text);border:1px solid color-mix(in srgb,#ff7a9c 34%,var(--line));border-radius:8px;padding:10px 20px;font-weight:900;
         font-size:15px;cursor:pointer;letter-spacing:1px}
       .gx-end:hover{filter:brightness(1.1)}
       .gx-pop{position:absolute;font-weight:900;font-size:20px;pointer-events:none;animation:gxpop 1s ease-out forwards;text-shadow:0 2px 4px #000;z-index:5}

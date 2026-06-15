@@ -1,13 +1,13 @@
 {
-  "name": "Mini Arcade",
-  "short_name": "Arcade",
-  "description": "A pocketful of fun browser minigames — no downloads, no dependencies.",
+  "name": "Mini Hub",
+  "short_name": "Mini Hub",
+  "description": "A lightweight hub for games, tools, learning apps, and experiments.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#05060f",
-  "theme_color": "#05060f",
+  "background_color": "#080b13",
+  "theme_color": "#080b13",
   "icons": [
     { "src": "icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
     { "src": "icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },

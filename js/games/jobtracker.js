@@ -34,6 +34,7 @@ Arcade.register({
       headline: 'NYU Math BS May 2026 -> MS Math May 2027',
       summary: 'Authorized to work in the US, no sponsorship needed. Prioritize Summer 2027 entry-level/new-grad quant, data science, research, risk/fraud, fintech, and applied math roles.',
       fitChecks: ['May 2027 timing', 'Entry-level / new grad', 'No sponsorship issue', 'Math/data/research fit', 'Location priority', 'No duplicate risk'],
+      watchlist: ['Point72', 'D.E. Shaw', 'Two Sigma', 'Jane Street', 'IMC', 'SIG', 'DRW', 'Radix', 'Citadel', 'Five Rings', 'HRT', 'AQR'],
     };
 
     const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -82,103 +83,119 @@ Arcade.register({
 
     const style = document.createElement('style');
     style.textContent = `
-      .jt{position:absolute;inset:0;padding:64px 16px 16px;background:#f5f7f4;color:#15211c;font-family:Inter,"Segoe UI",system-ui,sans-serif;overflow:hidden}
+      .jt{--jt-bg:#f5f6f4;--jt-bg2:#ecefeb;--jt-panel:#ffffff;--jt-surface:#fbfcfb;--jt-line:#d8ded7;--jt-line2:#e5e9e3;--jt-text:#18211d;--jt-muted:#647067;--jt-chip:#f7f9f7;--jt-accent:#2f7d55;--jt-accent-soft:#edf8f1;--jt-warn:#9d5f12;--jt-warn-soft:#fff7e6;--jt-bad:#9d3416;--jt-bad-soft:#fff3ef;position:absolute;inset:0;padding:calc(var(--topbar-h,58px) + 12px) 16px 16px;background:var(--jt-bg);color:var(--jt-text);font-family:Inter,"Segoe UI",system-ui,sans-serif;overflow:hidden}
+      :root[data-theme="dark"] .jt{--jt-bg:#0d1219;--jt-bg2:#111821;--jt-panel:#141b24;--jt-surface:#101720;--jt-line:#2a3441;--jt-line2:#222c38;--jt-text:#edf2f7;--jt-muted:#a9b4c0;--jt-chip:#18212c;--jt-accent:#5fb77f;--jt-accent-soft:#173324;--jt-warn:#e0b75f;--jt-warn-soft:#342815;--jt-bad:#f28b72;--jt-bad-soft:#351d18}
       .jt *{box-sizing:border-box}
       .jt button,.jt input,.jt select,.jt textarea{font:inherit}
       .jt-shell{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:14px;min-height:0}
-      .jt-main,.jt-detail{min-width:0;min-height:0;border:1px solid #d8ded7;background:#ffffff;border-radius:8px;box-shadow:0 12px 30px rgba(24,36,31,.08)}
+      .jt-main,.jt-detail{min-width:0;min-height:0;border:1px solid var(--jt-line);background:var(--jt-panel);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.16)}
       .jt-main{display:flex;flex-direction:column;overflow:hidden}
       .jt-detail{overflow:auto}
-      .jt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid #e5e9e3;background:#fbfcfa}
-      .jt-title h2{font-size:22px;line-height:1.1;margin:0 0 4px;color:#15211c}
-      .jt-title p{font-size:13px;line-height:1.35;color:#647067;margin:0;max-width:620px}
+      .jt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid var(--jt-line2);background:var(--jt-surface)}
+      .jt-title h2{font-size:22px;line-height:1.1;margin:0 0 4px;color:var(--jt-text)}
+      .jt-title p{font-size:13px;line-height:1.35;color:var(--jt-muted);margin:0;max-width:620px}
       .jt-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-      .jt-btn{border:1px solid #cdd6cd;background:#ffffff;color:#24312a;border-radius:8px;padding:9px 12px;font-weight:800;cursor:pointer}
-      .jt-btn:hover{border-color:#4fb477;background:#f3fbf6}
-      .jt-btn.primary{background:#256b48;color:#fff;border-color:#256b48}
-      .jt-btn.primary:hover{background:#1f5c3e}
-      .jt-btn.danger{border-color:#f1b4a1;color:#9d3313;background:#fff7f4}
-      .jt-btn.danger[data-confirm="1"]{background:#b93616;color:#fff;border-color:#b93616}
+      .jt-btn{border:1px solid var(--jt-line);background:var(--jt-panel);color:var(--jt-text);border-radius:8px;padding:9px 12px;font-weight:800;cursor:pointer}
+      .jt-btn:hover{border-color:var(--jt-accent);background:var(--jt-accent-soft)}
+      .jt-btn.primary{background:var(--jt-accent);color:#fff;border-color:var(--jt-accent)}
+      .jt-btn.primary:hover{background:color-mix(in srgb,var(--jt-accent) 84%,#000)}
+      .jt-btn.danger{border-color:color-mix(in srgb,var(--jt-bad) 38%,var(--jt-line));color:var(--jt-bad);background:var(--jt-bad-soft)}
+      .jt-btn.danger[data-confirm="1"]{background:var(--jt-bad);color:#fff;border-color:var(--jt-bad)}
       .jt-btn.slim{padding:6px 9px;font-size:12px}
-      .jt-toolbar{display:grid;grid-template-columns:minmax(170px,1.4fr) repeat(4,minmax(120px,.7fr));gap:8px;padding:12px 16px;border-bottom:1px solid #e5e9e3;background:#fff}
+      .jt-toolbar{display:grid;grid-template-columns:minmax(170px,1.4fr) repeat(4,minmax(120px,.7fr));gap:8px;padding:12px 16px;border-bottom:1px solid var(--jt-line2);background:var(--jt-panel)}
       .jt-field{display:flex;flex-direction:column;gap:4px}
-      .jt-field span{font-size:11px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#65736b}
-      .jt input,.jt select,.jt textarea{width:100%;border:1px solid #ccd5cd;border-radius:8px;background:#fff;color:#15211c;padding:9px 10px;outline:none}
-      .jt input:focus,.jt select:focus,.jt textarea:focus{border-color:#4fb477;box-shadow:0 0 0 3px rgba(79,180,119,.14)}
+      .jt-field span{font-size:11px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--jt-muted)}
+      .jt input,.jt select,.jt textarea{width:100%;border:1px solid var(--jt-line);border-radius:8px;background:var(--jt-panel);color:var(--jt-text);padding:9px 10px;outline:none}
+      .jt input:focus,.jt select:focus,.jt textarea:focus{border-color:var(--jt-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--jt-accent) 16%,transparent)}
       .jt textarea{resize:vertical;min-height:74px;line-height:1.35}
-      .jt-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid #e5e9e3;background:#f9faf8}
-      .jt-stat{border:1px solid #e0e5df;border-radius:8px;background:#fff;padding:10px}
-      .jt-stat b{display:block;font-size:22px;line-height:1;color:#18231d}
-      .jt-stat span{display:block;margin-top:5px;font-size:12px;color:#637067;font-weight:800}
-      .jt-content{min-height:0;overflow:auto;padding:14px;background:linear-gradient(180deg,#f5f7f4,#eef3ee)}
+      .jt-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid var(--jt-line2);background:var(--jt-surface)}
+      .jt-stat{border:1px solid var(--jt-line2);border-radius:8px;background:var(--jt-panel);padding:10px}
+      .jt-stat b{display:block;font-size:22px;line-height:1;color:var(--jt-text)}
+      .jt-stat span{display:block;margin-top:5px;font-size:12px;color:var(--jt-muted);font-weight:800}
+      .jt-content{min-height:0;overflow:auto;padding:14px;background:linear-gradient(180deg,var(--jt-bg),var(--jt-bg2))}
       .jt-todo,.jt-jobs{display:grid;gap:12px;align-content:start}
-      .jt-profile{border:1px solid #cfe2d3;background:#f7fbf7;border-radius:8px;padding:11px 12px;display:grid;gap:8px}
+      .jt-profile{border:1px solid var(--jt-line);background:var(--jt-surface);border-radius:8px;padding:11px 12px;display:grid;gap:8px}
       .jt-profile-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-      .jt-profile b{display:block;color:#193325;font-size:13px}
-      .jt-profile p{margin:3px 0 0;color:#4d6256;font-size:12px;line-height:1.35}
+      .jt-profile b{display:block;color:var(--jt-text);font-size:13px}
+      .jt-profile p{margin:3px 0 0;color:var(--jt-muted);font-size:12px;line-height:1.35}
       .jt-fit-tags{display:flex;flex-wrap:wrap;gap:5px}
-      .jt-fit-tags span{border:1px solid #dbe8de;background:#fff;color:#405448;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800}
-      .jt-task-section,.jt-list-section{border:1px solid #dce3dc;background:#fbfcfa;border-radius:8px;overflow:hidden}
-      .jt-task-head,.jt-list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid #e6ebe5;background:#fff}
-      .jt-task-head h3,.jt-list-head h3{margin:0;font-size:15px;color:#1b2a21}
-      .jt-task-head p{margin:2px 0 0;font-size:12px;color:#68756d;line-height:1.3}
-      .jt-task-count{font-size:12px;font-weight:900;color:#607067;border:1px solid #dfe6df;background:#f7f9f7;border-radius:999px;padding:3px 8px;white-space:nowrap}
+      .jt-fit-tags span{border:1px solid var(--jt-line2);background:var(--jt-panel);color:var(--jt-muted);border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800}
+      .jt-insights{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+      .jt-insight{border:1px solid var(--jt-line2);background:var(--jt-panel);border-radius:8px;padding:7px 8px;min-width:0}
+      .jt-insight b{font-size:16px;line-height:1;color:var(--jt-text)}
+      .jt-insight span{display:block;margin-top:3px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--jt-muted);font-weight:900}
+      .jt-score{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:900;border:1px solid var(--jt-line2);background:var(--jt-chip);color:var(--jt-muted);white-space:nowrap}
+      .jt-score.good{border-color:color-mix(in srgb,var(--jt-accent) 36%,var(--jt-line));background:var(--jt-accent-soft);color:var(--jt-accent)}
+      .jt-score.ok{border-color:color-mix(in srgb,var(--jt-warn) 36%,var(--jt-line));background:var(--jt-warn-soft);color:var(--jt-warn)}
+      .jt-score.bad{border-color:color-mix(in srgb,var(--jt-bad) 36%,var(--jt-line));background:var(--jt-bad-soft);color:var(--jt-bad)}
+      .jt-analysis{display:grid;gap:8px}
+      .jt-analysis-row{display:flex;gap:8px;align-items:flex-start;color:var(--jt-muted);font-size:12px;line-height:1.35}
+      .jt-analysis-row b{min-width:86px;color:var(--jt-text);font-size:12px}
+      .jt-angle{margin:0;padding-left:18px;color:var(--jt-muted);font-size:12px;line-height:1.35}
+      .jt-angle li{margin:3px 0}
+      .jt-task-section,.jt-list-section{border:1px solid var(--jt-line);background:var(--jt-surface);border-radius:8px;overflow:hidden}
+      .jt-task-head,.jt-list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid var(--jt-line2);background:var(--jt-panel)}
+      .jt-task-head h3,.jt-list-head h3{margin:0;font-size:15px;color:var(--jt-text)}
+      .jt-task-head p{margin:2px 0 0;font-size:12px;color:var(--jt-muted);line-height:1.3}
+      .jt-task-count{font-size:12px;font-weight:900;color:var(--jt-muted);border:1px solid var(--jt-line2);background:var(--jt-chip);border-radius:999px;padding:3px 8px;white-space:nowrap}
       .jt-task-list,.jt-list-items{display:grid;gap:8px;padding:9px}
-      .jt-task{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #dce4dd;background:#fff;border-radius:8px;padding:10px;box-shadow:0 4px 10px rgba(24,36,31,.04)}
+      .jt-task{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--jt-line2);background:var(--jt-panel);border-radius:8px;padding:10px;box-shadow:0 4px 10px rgba(0,0,0,.08)}
       .jt-task-main{min-width:0;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer}
       .jt-task-main:hover .jt-role{text-decoration:underline}
-      .jt-task-text{margin-top:7px;font-size:13px;color:#394a40;line-height:1.3}
+      .jt-task-text{margin-top:7px;font-size:13px;color:var(--jt-muted);line-height:1.3}
       .jt-fit-check{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
-      .jt-fit-check span{border:1px solid #dce7dd;background:#f8fbf8;color:#4b6253;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800}
+      .jt-fit-check span{border:1px solid var(--jt-line2);background:var(--jt-panel);color:var(--jt-muted);border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800}
       .jt-task-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
-      .jt-link-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid #cdd6cd;background:#fff;color:#24312a;border-radius:8px;padding:6px 9px;font-weight:900;font-size:12px;min-height:30px}
-      .jt-link-btn:hover{border-color:#4fb477;background:#f3fbf6}
-      .jt-stage-strip{display:flex;gap:7px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid #e5e9e3;background:#fbfcfa}
-      .jt-stage-pill{border:1px solid #d8e0d8;background:#fff;color:#24312a;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;cursor:pointer}
-      .jt-stage-pill.active{background:#256b48;color:#fff;border-color:#256b48}
+      .jt-link-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid var(--jt-line);background:var(--jt-panel);color:var(--jt-text);border-radius:8px;padding:6px 9px;font-weight:900;font-size:12px;min-height:30px}
+      .jt-link-btn:hover{border-color:var(--jt-accent);background:var(--jt-accent-soft)}
+      .jt-stage-strip{display:flex;gap:7px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--jt-line2);background:var(--jt-surface)}
+      .jt-stage-pill{border:1px solid var(--jt-line);background:var(--jt-panel);color:var(--jt-text);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;cursor:pointer}
+      .jt-stage-pill.active{background:var(--jt-accent);color:#fff;border-color:var(--jt-accent)}
       .jt-board{display:grid;grid-template-columns:repeat(6,minmax(220px,1fr));gap:10px;min-height:100%}
-      .jt-col{min-height:260px;border:1px solid #dce3dc;background:#fbfcfa;border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
-      .jt-col-head{display:flex;align-items:center;justify-content:space-between;padding:10px 11px;border-bottom:1px solid #e6ebe5;background:#fff}
-      .jt-col-name{display:flex;align-items:center;gap:7px;font-weight:900;color:#1d2b22}
+      .jt-col{min-height:260px;border:1px solid var(--jt-line);background:var(--jt-surface);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+      .jt-col-head{display:flex;align-items:center;justify-content:space-between;padding:10px 11px;border-bottom:1px solid var(--jt-line2);background:var(--jt-panel)}
+      .jt-col-name{display:flex;align-items:center;gap:7px;font-weight:900;color:var(--jt-text)}
       .jt-dot{width:9px;height:9px;border-radius:50%;background:var(--stage)}
-      .jt-count{font-size:12px;color:#667269;font-weight:900}
+      .jt-count{font-size:12px;color:var(--jt-muted);font-weight:900}
       .jt-cards{display:grid;gap:8px;padding:9px;align-content:start}
-      .jt-card{border:1px solid #dce4dd;background:#fff;border-radius:8px;padding:10px;text-align:left;color:inherit;cursor:pointer;box-shadow:0 4px 10px rgba(24,36,31,.04)}
-      .jt-card:hover,.jt-card.active{border-color:#4fb477;box-shadow:0 8px 18px rgba(24,36,31,.10)}
+      .jt-card{border:1px solid var(--jt-line2);background:var(--jt-panel);border-radius:8px;padding:10px;text-align:left;color:inherit;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,.06)}
+      .jt-card:hover,.jt-card.active{border-color:var(--jt-accent);box-shadow:0 8px 18px rgba(0,0,0,.12)}
       .jt-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-      .jt-role{font-weight:900;font-size:14px;color:#142119;line-height:1.2}
-      .jt-company{font-size:13px;color:#4f5f55;margin-top:2px;font-weight:700}
+      .jt-role{font-weight:900;font-size:14px;color:var(--jt-text);line-height:1.2}
+      .jt-company{font-size:13px;color:var(--jt-muted);margin-top:2px;font-weight:700}
       .jt-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-      .jt-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid #dbe2db;background:#f7f9f7;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800;color:#526258;white-space:nowrap}
-      .jt-chip.high{border-color:#ffc9bc;background:#fff3ef;color:#9d3416}
-      .jt-chip.medium{border-color:#f2dda0;background:#fffaf0;color:#785e12}
-      .jt-chip.low{border-color:#c9decf;background:#f1faf3;color:#2f6b44}
-      .jt-next{margin-top:9px;border-top:1px solid #edf1ec;padding-top:8px}
-      .jt-next b{display:block;font-size:11px;color:#68756d;text-transform:uppercase;letter-spacing:.04em}
-      .jt-next span{display:block;font-size:13px;color:#223028;line-height:1.25;margin-top:2px}
-      .jt-prior-note{margin-top:7px;border-left:3px solid #e56b42;background:#fff7f2;color:#863717;padding:6px 8px;border-radius:0 8px 8px 0;font-size:12px;font-weight:800;line-height:1.3}
-      .jt-alert{color:#a13a18!important}
-      .jt-empty{padding:22px;text-align:center;color:#718078;font-weight:800}
+      .jt-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--jt-line2);background:var(--jt-chip);border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800;color:var(--jt-muted);white-space:nowrap}
+      .jt-chip.high{border-color:color-mix(in srgb,var(--jt-bad) 40%,var(--jt-line));background:var(--jt-bad-soft);color:var(--jt-bad)}
+      .jt-chip.medium{border-color:color-mix(in srgb,var(--jt-warn) 40%,var(--jt-line));background:var(--jt-warn-soft);color:var(--jt-warn)}
+      .jt-chip.low{border-color:color-mix(in srgb,var(--jt-accent) 36%,var(--jt-line));background:var(--jt-accent-soft);color:var(--jt-accent)}
+      .jt-next{margin-top:9px;border-top:1px solid var(--jt-line2);padding-top:8px}
+      .jt-next b{display:block;font-size:11px;color:var(--jt-muted);text-transform:uppercase;letter-spacing:.04em}
+      .jt-next span{display:block;font-size:13px;color:var(--jt-text);line-height:1.25;margin-top:2px}
+      .jt-prior-note{margin-top:7px;border-left:3px solid var(--jt-bad);background:var(--jt-bad-soft);color:var(--jt-bad);padding:6px 8px;border-radius:0 8px 8px 0;font-size:12px;font-weight:800;line-height:1.3}
+      .jt-alert{color:var(--jt-bad)!important}
+      .jt-empty{padding:22px;text-align:center;color:var(--jt-muted);font-weight:800}
       .jt-table{width:100%;border-collapse:separate;border-spacing:0 8px}
-      .jt-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#667269;padding:0 10px}
-      .jt-table td{background:#fff;border-top:1px solid #dce4dd;border-bottom:1px solid #dce4dd;padding:11px 10px;font-size:13px}
-      .jt-table td:first-child{border-left:1px solid #dce4dd;border-radius:8px 0 0 8px}
-      .jt-table td:last-child{border-right:1px solid #dce4dd;border-radius:0 8px 8px 0}
+      .jt-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--jt-muted);padding:0 10px}
+      .jt-table td{background:var(--jt-panel);border-top:1px solid var(--jt-line2);border-bottom:1px solid var(--jt-line2);padding:11px 10px;font-size:13px}
+      .jt-table td:first-child{border-left:1px solid var(--jt-line2);border-radius:8px 0 0 8px}
+      .jt-table td:last-child{border-right:1px solid var(--jt-line2);border-radius:0 8px 8px 0}
       .jt-row{cursor:pointer}
-      .jt-row:hover td{border-color:#4fb477}
-      .jt-detail-head{position:sticky;top:0;z-index:2;background:#fbfcfa;border-bottom:1px solid #e5e9e3;padding:15px}
-      .jt-detail-head h3{margin:0;font-size:18px;color:#16221a}
-      .jt-detail-head p{margin:4px 0 0;color:#657269;font-size:13px}
+      .jt-row:hover td{border-color:var(--jt-accent)}
+      .jt-detail-head{position:sticky;top:0;z-index:2;background:var(--jt-surface);border-bottom:1px solid var(--jt-line2);padding:15px}
+      .jt-detail-head h3{margin:0;font-size:18px;color:var(--jt-text)}
+      .jt-detail-head p{margin:4px 0 0;color:var(--jt-muted);font-size:13px}
       .jt-detail-body{padding:14px;display:grid;gap:13px}
       .jt-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
       .jt-form-grid .wide{grid-column:1/-1}
-      .jt-section{border:1px solid #e0e6df;border-radius:8px;padding:12px;background:#fff}
-      .jt-section h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#607166}
-      .jt-dupe{border:1px solid #f1c7b4;background:#fff7f2;color:#873718;border-radius:8px;padding:9px;font-size:12px;font-weight:800}
+      .jt-section{border:1px solid var(--jt-line2);border-radius:8px;padding:12px;background:var(--jt-panel)}
+      .jt-section h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--jt-muted)}
+      .jt-dupe{border:1px solid color-mix(in srgb,var(--jt-bad) 36%,var(--jt-line));background:var(--jt-bad-soft);color:var(--jt-bad);border-radius:8px;padding:9px;font-size:12px;font-weight:800}
       .jt-history{display:grid;gap:7px}
-      .jt-history-row{font-size:12px;color:#5f6d65;border-left:3px solid #d5ddd5;padding-left:8px}
-      .jt-history-row b{color:#203127}
-      .jt-detail-empty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:#708078;padding:30px;font-weight:800}
+      .jt-history-row{font-size:12px;color:var(--jt-muted);border-left:3px solid var(--jt-line2);padding-left:8px}
+      .jt-history-row b{color:var(--jt-text)}
+      .jt-detail-empty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--jt-muted);padding:30px;font-weight:800}
+      .jt-detail-empty-title{font-size:22px;margin-bottom:8px;color:var(--jt-text)}
+      .jt-section-note{margin:9px 0 0;color:var(--jt-muted);font-size:12px;line-height:1.35}
       .jt-footer-actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
       .jt-file{display:none}
       @media (max-width:1120px){
@@ -194,6 +211,7 @@ Arcade.register({
         .jt-toolbar{grid-template-columns:1fr 1fr;padding:10px}
         .jt-toolbar .jt-field:first-child{grid-column:1/-1}
         .jt-summary{grid-template-columns:1fr 1fr;padding:10px}
+        .jt-insights{grid-template-columns:1fr 1fr}
         .jt-content{padding:9px}
         .jt-task{grid-template-columns:1fr}
         .jt-task-actions{justify-content:flex-start}
@@ -201,7 +219,7 @@ Arcade.register({
         .jt-col{min-width:245px}
         .jt-form-grid{grid-template-columns:1fr}
         .jt-table-wrap{overflow:auto}
-        .jt-table{min-width:760px}
+        .jt-table{min-width:920px}
       }
     `;
     root.appendChild(style);
@@ -335,6 +353,202 @@ Arcade.register({
       return 'Prior ' + stage + when;
     }
 
+    function jobText(job) {
+      return [
+        job && job.title,
+        job && job.company,
+        job && job.location,
+        job && job.jobType,
+        job && job.source,
+        job && job.nextAction,
+        job && Array.isArray(job.tags) ? job.tags.join(' ') : '',
+        job && job.notes,
+        job && job.description,
+      ].join(' ').toLowerCase();
+    }
+
+    function hasAny(text, terms) {
+      return terms.some(term => text.indexOf(term) >= 0);
+    }
+
+    function clampScore(score) {
+      return Math.max(0, Math.min(100, Math.round(score)));
+    }
+
+    function overlapCount(a, b) {
+      const ignore = new Set(['the', 'and', 'for', 'with', 'intern', 'internship', 'analyst', 'associate', 'program', 'summer', 'new', 'grad']);
+      const words = value => normalizeForMatch(value).split(' ').filter(word => word.length > 2 && !ignore.has(word));
+      const aw = new Set(words(a));
+      return words(b).filter(word => aw.has(word)).length;
+    }
+
+    function possibleDuplicateFor(job) {
+      if (!job || !job.company || !job.title) return null;
+      const company = normalizeForMatch(job.company);
+      return state.jobs.find(other => {
+        if (!other || other.id === job.id || !other.company || !other.title) return false;
+        if (normalizeForMatch(other.company) !== company) return false;
+        return overlapCount(other.title, job.title) >= 2;
+      }) || null;
+    }
+
+    function sourceQualityFor(job) {
+      const source = String(job && job.source || '').toLowerCase();
+      const link = String(job && job.link || '').toLowerCase();
+      const text = source + ' ' + link + ' ' + jobText(job);
+      if (source === 'email import' || hasTag(job, 'email-import')) {
+        return { label: 'Email history', tone: 'ok', score: 2, detail: 'Imported from application email history.' };
+      }
+      if (hasAny(link, ['greenhouse.io', 'lever.co', 'ashbyhq.com', 'myworkdayjobs.com', 'icims.com', 'workdayjobs.com']) ||
+        hasAny(link, ['careers.', '/careers/', '/jobs/'])) {
+        return { label: 'Direct source', tone: 'good', score: 8, detail: 'Likely company or ATS posting.' };
+      }
+      if (hasAny(text, ['lensa', 'indeed', 'linkedin', 'glassdoor', 'ziprecruiter', 'simplify', 'jobright', 'wellfound'])) {
+        return { label: 'Mirror source', tone: 'ok', score: 1, detail: 'Useful lead, but verify against the company career page.' };
+      }
+      if (source === 'career scout' || hasTag(job, 'career-scout')) {
+        return { label: 'Scout lead', tone: 'ok', score: 4, detail: 'Found by scout; verify source quality before applying.' };
+      }
+      return { label: 'Source unclear', tone: 'bad', score: -2, detail: 'Source needs verification before applying.' };
+    }
+
+    function leadStatusFor(job) {
+      const prior = priorApplicationFor(job);
+      if (prior) {
+        const text = jobText(job);
+        const oldEnough = prior.dateApplied ? daysBetween(prior.dateApplied, todayISO()) >= 150 : false;
+        if (oldEnough && hasAny(text, ['2027', 'upcoming graduate', 'new grad', 'campus', 'summer 2027'])) {
+          return { label: 'Possible new cycle', tone: 'ok', detail: priorApplicationText(prior) + '; verify this is a fresh posting.' };
+        }
+        return { label: 'Prior application', tone: 'bad', detail: priorApplicationText(prior) + '; avoid reapplying unless the cycle changed.' };
+      }
+      const dupe = duplicateFor(job);
+      if (dupe) return { label: 'Exact duplicate', tone: 'bad', detail: 'Matches another tracked role by link or company/title.' };
+      const possible = possibleDuplicateFor(job);
+      if (possible) return { label: 'Possible duplicate', tone: 'ok', detail: 'Same company and similar title already exists in Career Desk.' };
+      if (job && isSeedRecord(job)) return { label: 'New scout lead', tone: 'good', detail: 'No matching prior lead found locally.' };
+      return { label: 'Manual lead', tone: 'ok', detail: 'No matching prior lead found locally.' };
+    }
+
+    function timingFitFor(job) {
+      const text = jobText(job);
+      let score = 0;
+      const reasons = [];
+      if (hasAny(text, ['2027', 'may 2027', 'summer 2027', 'class of 2027', 'upcoming graduate'])) {
+        score += 22;
+        reasons.push('2027 timing');
+      } else if (hasAny(text, ['new grad', 'new-grad', 'campus', 'graduate', 'entry level', 'entry-level', 'junior', 'early career', '0-2'])) {
+        score += 16;
+        reasons.push('early-career timing');
+      } else if (hasAny(text, ['intern'])) {
+        score += 8;
+        reasons.push('internship timing needs check');
+      }
+      if (hasAny(text, ['summer 2026', '2026 internship'])) {
+        score -= 10;
+        reasons.push('likely too early');
+      }
+      if (hasAny(text, ['3+ years', 'three years', '5+ years', 'senior', 'staff ', 'principal', 'phd required', 'ph.d. required'])) {
+        score -= 18;
+        reasons.push('seniority risk');
+      }
+      return { score, reasons };
+    }
+
+    function roleFitFor(job) {
+      const text = jobText(job);
+      let score = 0;
+      const reasons = [];
+      if (hasAny(text, ['quant', 'quantitative', 'trading', 'alpha', 'portfolio', 'market making'])) {
+        score += 24;
+        reasons.push('quant/finance core');
+      }
+      if (hasAny(text, ['research', 'model', 'statistic', 'probability', 'optimization', 'mathematics', 'machine learning', 'data science', 'risk', 'fraud'])) {
+        score += 16;
+        reasons.push('math/modeling fit');
+      }
+      if (hasAny(text, ['python', 'pandas', 'numpy', 'c++', 'data analysis', 'analytics'])) {
+        score += 9;
+        reasons.push('technical skill fit');
+      }
+      if (hasAny(text, ['generic sql', 'sales', 'wealth management', 'investment banking', 'consulting', 'frontend', 'backend', 'full-stack', 'devops', 'sre'])) {
+        score -= 14;
+        reasons.push('lower-priority lane');
+      }
+      return { score, reasons };
+    }
+
+    function locationFitFor(job) {
+      const text = String(job && job.location || '').toLowerCase();
+      if (hasAny(text, ['irvine', 'orange county', 'costa mesa', 'newport beach', 'anaheim', 'santa ana'])) return { score: 15, label: 'Top location' };
+      if (hasAny(text, ['new york', 'nyc', 'manhattan'])) return { score: 13, label: 'NYC priority' };
+      if (hasAny(text, ['california', 'los angeles', 'san diego', 'santa monica', 'pasadena'])) return { score: 11, label: 'California fit' };
+      if (hasAny(text, ['san francisco', 'bay area', 'san jose', 'menlo park', 'palo alto', 'mountain view', 'redwood city'])) return { score: 10, label: 'Bay Area fit' };
+      if (hasAny(text, ['remote', 'united states', 'usa', 'us '])) return { score: 7, label: 'US/remote fit' };
+      if (!text || text === 'unknown') return { score: 2, label: 'Location unclear' };
+      if (hasAny(text, ['london', 'hong kong', 'singapore', 'europe', 'international'])) return { score: -7, label: 'International low priority' };
+      return { score: 4, label: 'US selective' };
+    }
+
+    function fitScoreFor(job) {
+      const timing = timingFitFor(job);
+      const role = roleFitFor(job);
+      const location = locationFitFor(job);
+      const source = sourceQualityFor(job);
+      const lead = leadStatusFor(job);
+      const text = jobText(job);
+      let score = 28 + timing.score + role.score + location.score + source.score;
+      if (job && job.priority === 'High') score += 6;
+      if (job && job.priority === 'Low') score -= 5;
+      if (hasAny(text, CANDIDATE_PROFILE.watchlist.map(v => v.toLowerCase()))) score += 3;
+      if (lead.tone === 'bad') score -= 24;
+      else if (lead.label === 'Possible new cycle') score -= 8;
+      else if (lead.label === 'Possible duplicate') score -= 6;
+      const finalScore = clampScore(score);
+      const label = finalScore >= 82 ? 'Excellent' : finalScore >= 68 ? 'Strong' : finalScore >= 52 ? 'Check' : 'Weak';
+      const tone = finalScore >= 68 ? 'good' : finalScore >= 52 ? 'ok' : 'bad';
+      const reasons = []
+        .concat(timing.reasons, role.reasons)
+        .concat(location.label, source.label, lead.label)
+        .filter(Boolean);
+      return { score: finalScore, label, tone, reasons, source, lead, location };
+    }
+
+    function urgencyFor(job) {
+      const due = dueStatus(job);
+      if (due.due) return { label: due.text || 'Due now', tone: 'bad', rank: 0 };
+      if (job && job.deadline) {
+        const d = daysBetween(todayISO(), job.deadline);
+        if (d < 0) return { label: 'Deadline passed', tone: 'bad', rank: 1 };
+        if (d <= 3) return { label: 'Deadline soon', tone: 'bad', rank: 2 };
+        if (d <= 10) return { label: 'Deadline ' + d + 'd', tone: 'ok', rank: 4 };
+      }
+      if (job && job.stage === 'saved' && fitScoreFor(job).score >= 76) return { label: 'Apply soon', tone: 'good', rank: 5 };
+      if (isStale(job)) return { label: 'Stale active', tone: 'ok', rank: 6 };
+      return { label: '', tone: 'ok', rank: 9 };
+    }
+
+    function resumeAnglesFor(job) {
+      const text = jobText(job);
+      const angles = [];
+      if (hasAny(text, ['quant', 'trading', 'market', 'portfolio', 'alpha'])) {
+        angles.push('Lead with probability, statistics, mathematical modeling, and contest-style problem solving.');
+      }
+      if (hasAny(text, ['data science', 'machine learning', 'model', 'analytics', 'risk', 'fraud'])) {
+        angles.push('Emphasize Python, NumPy/Pandas, statistical modeling, and the Wordle ML/statistics project.');
+      }
+      if (hasAny(text, ['research', 'physics', 'simulation', 'optimization', 'numerical'])) {
+        angles.push('Use the neutrino physics numerical modeling and visualization research as the strongest research signal.');
+      }
+      if (hasAny(text, ['c++', 'developer', 'technology', 'systems'])) {
+        angles.push('Mention C/C++, Java, and EOSpace automation/tooling without framing yourself as pure SWE.');
+      }
+      if (hasAny(text, ['intern', 'campus', 'new grad', 'graduate', '2027'])) {
+        angles.push('Make the May 2027 M.S. graduation timing and no-sponsorship status easy to find.');
+      }
+      return angles.slice(0, 3);
+    }
+
     function sameValue(a, b) {
       const clean = value => Array.isArray(value) ? value.join('|') : String(value == null ? '' : value);
       return clean(a) === clean(b);
@@ -396,7 +610,8 @@ Arcade.register({
     function isTodoJob(job) {
       if (!job || job.stage === 'rejected' || job.stage === 'archived') return false;
       return job.stage === 'saved' || job.stage === 'interviewing' || job.stage === 'offer' ||
-        (dueStatus(job).due && hasActionableNextStep(job));
+        (dueStatus(job).due && hasActionableNextStep(job)) ||
+        (ACTIVE_STAGES.has(job.stage) && isStale(job));
     }
 
     function needsFitCheck(job) {
@@ -411,8 +626,12 @@ Arcade.register({
     }
 
     function todoSort(a, b) {
+      const byUrgency = urgencyFor(a).rank - urgencyFor(b).rank;
+      if (byUrgency) return byUrgency;
       const byPriority = todoPriorityRank(a) - todoPriorityRank(b);
       if (byPriority) return byPriority;
+      const byFit = fitScoreFor(b).score - fitScoreFor(a).score;
+      if (byFit) return byFit;
       const byDate = (a.nextActionDate || a.deadline || '9999-99-99').localeCompare(b.nextActionDate || b.deadline || '9999-99-99');
       if (byDate) return byDate;
       return (b.updatedAt || '').localeCompare(a.updatedAt || '');
@@ -428,28 +647,34 @@ Arcade.register({
       });
       const groups = [
         {
+          id: 'urgent',
+          name: 'Apply / act today',
+          hint: 'Assessments, recruiter replies, scheduling, materials, or deadlines that need a real action.',
+          jobs: take(job => dueStatus(job).due && hasActionableNextStep(job)),
+        },
+        {
           id: 'fit',
-          name: 'Fit check',
-          hint: 'Confirm timing, level, work authorization, role fit, location, and duplicate risk before applying.',
+          name: 'Need fit check',
+          hint: 'Confirm timing, level, role fit, location, source quality, and duplicate risk before applying.',
           jobs: take(needsFitCheck),
         },
         {
           id: 'apply',
-          name: 'Apply / decide',
-          hint: 'Saved leads that still need a yes/no and an application pass.',
+          name: 'Apply queue',
+          hint: 'Saved leads that passed fit check or were entered manually and need a yes/no decision.',
           jobs: take(job => job.stage === 'saved'),
         },
         {
-          id: 'updates',
-          name: 'Due follow-ups',
-          hint: 'Concrete dated actions only: assessments, recruiter replies, scheduling, or application materials.',
-          jobs: take(job => dueStatus(job).due && hasActionableNextStep(job)),
+          id: 'active',
+          name: 'Interview / offer prep',
+          hint: 'Active processes where preparation, scheduling, or decision work matters most.',
+          jobs: take(job => job.stage === 'interviewing' || job.stage === 'offer'),
         },
         {
-          id: 'active',
-          name: 'Interview / offer track',
-          hint: 'Items where the next action matters most.',
-          jobs: take(job => job.stage === 'interviewing' || job.stage === 'offer'),
+          id: 'stale',
+          name: 'Stale / ghosted cleanup',
+          hint: 'Decide whether to follow up, archive, or leave these active. No passive email/portal chores.',
+          jobs: take(job => ACTIVE_STAGES.has(job.stage) && isStale(job)),
         },
       ];
       return groups.filter(group => group.jobs.length);
@@ -462,7 +687,19 @@ Arcade.register({
       const stale = active.filter(isStale).length;
       const todo = state.jobs.filter(isTodoJob).length;
       const email = emailImportCount();
-      return { active: active.length, todo, due, interviews, stale, email };
+      const highFit = state.jobs.filter(job => ACTIVE_STAGES.has(job.stage) && fitScoreFor(job).score >= 76 && leadStatusFor(job).tone !== 'bad').length;
+      const duplicateRisk = state.jobs.filter(job => ACTIVE_STAGES.has(job.stage) && leadStatusFor(job).tone === 'bad').length;
+      return { active: active.length, todo, due, interviews, stale, email, highFit, duplicateRisk };
+    }
+
+    function scoutStats() {
+      const active = state.jobs.filter(job => ACTIVE_STAGES.has(job.stage));
+      return {
+        highFit: active.filter(job => fitScoreFor(job).score >= 76 && leadStatusFor(job).tone !== 'bad').length,
+        duplicateRisk: active.filter(job => leadStatusFor(job).tone === 'bad').length,
+        urgent: active.filter(job => urgencyFor(job).rank <= 4).length,
+        stale: active.filter(isStale).length,
+      };
     }
 
     function render() {
@@ -499,10 +736,10 @@ Arcade.register({
             </div>
             <div class="jt-summary">
               <div class="jt-stat"><b>${stats.todo}</b><span>To-do items</span></div>
-              <div class="jt-stat"><b>${stats.active}</b><span>Active jobs</span></div>
+              <div class="jt-stat"><b>${stats.highFit}</b><span>High-fit leads</span></div>
               <div class="jt-stat"><b>${stats.due}</b><span>Due now</span></div>
-              <div class="jt-stat"><b>${stats.interviews}</b><span>Interviewing</span></div>
-              <div class="jt-stat"><b>${stats.email}</b><span>Email imports</span></div>
+              <div class="jt-stat"><b>${stats.duplicateRisk}</b><span>Duplicate risk</span></div>
+              <div class="jt-stat"><b>${stats.stale}</b><span>Stale active</span></div>
             </div>
             ${stageStripHTML()}
             <div class="jt-content">${contentHTML(filteredJobs())}</div>
@@ -557,12 +794,19 @@ Arcade.register({
     }
 
     function profileHTML() {
+      const stats = scoutStats();
       return `<section class="jt-profile">
         <div class="jt-profile-top">
           <div><b>${esc(CANDIDATE_PROFILE.headline)}</b><p>${esc(CANDIDATE_PROFILE.summary)}</p></div>
           <span class="jt-chip low">No sponsorship</span>
         </div>
         <div class="jt-fit-tags">${CANDIDATE_PROFILE.fitChecks.map(item => `<span>${esc(item)}</span>`).join('')}</div>
+        <div class="jt-insights">
+          <div class="jt-insight"><b>${stats.highFit}</b><span>High fit</span></div>
+          <div class="jt-insight"><b>${stats.duplicateRisk}</b><span>Dup risk</span></div>
+          <div class="jt-insight"><b>${stats.urgent}</b><span>Urgent</span></div>
+          <div class="jt-insight"><b>${stats.stale}</b><span>Stale</span></div>
+        </div>
       </section>`;
     }
 
@@ -587,8 +831,13 @@ Arcade.register({
       const due = dueStatus(job);
       const isSaved = job.stage === 'saved';
       const status = due.text || (isStale(job) ? 'stale 14d+' : stageById(job.stage).name);
+      const fit = fitScoreFor(job);
+      const lead = fit.lead;
+      const urgency = urgencyFor(job);
       const actionText = groupId === 'fit'
         ? 'Fit-check this lead against your May 2027 MS timeline, entry-level/new-grad target, no-sponsorship status, role fit, location, and duplicate history.'
+        : groupId === 'stale'
+          ? 'Decide whether this should get a real follow-up, stay active, or be archived as ghosted.'
         : job.nextAction || (isSaved ? 'Review the role and decide whether to apply.' : 'Review the next concrete action.');
       const prior = priorApplicationFor(job);
       const priorText = priorApplicationText(prior);
@@ -599,10 +848,14 @@ Arcade.register({
             <span class="jt-chip ${chipClass(job.priority)}">${esc(job.priority)}</span>
           </div>
           <div class="jt-meta">
+            <span class="jt-score ${fit.tone}">Fit ${fit.score}</span>
             <span class="jt-chip">${esc(stageById(job.stage).name)}</span>
             ${job.location ? `<span class="jt-chip">${esc(job.location)}</span>` : ''}
             ${job.dateApplied ? `<span class="jt-chip">Applied ${esc(formatDate(job.dateApplied))}</span>` : ''}
             ${sourceChip(job)}
+            <span class="jt-chip ${lead.tone === 'bad' ? 'high' : lead.tone === 'good' ? 'low' : 'medium'}">${esc(lead.label)}</span>
+            <span class="jt-chip ${fit.source.tone === 'bad' ? 'high' : fit.source.tone === 'good' ? 'low' : 'medium'}">${esc(fit.source.label)}</span>
+            ${urgency.label ? `<span class="jt-chip ${urgency.tone === 'bad' ? 'high' : urgency.tone === 'good' ? 'low' : 'medium'}">${esc(urgency.label)}</span>` : ''}
             ${priorText ? `<span class="jt-chip high">${esc(priorText)}</span>` : ''}
             ${status ? `<span class="jt-chip ${due.due || isStale(job) ? 'high' : ''}">${esc(status)}</span>` : ''}
           </div>
@@ -637,18 +890,24 @@ Arcade.register({
       const salary = job.salaryMin || job.salaryMax ? `${dollars(job.salaryMin)}${job.salaryMin && job.salaryMax ? '-' : ''}${dollars(job.salaryMax)}` : '';
       const active = job.id === state.selectedId ? 'active' : '';
       const priorText = priorApplicationText(priorApplicationFor(job));
+      const fit = fitScoreFor(job);
+      const urgency = urgencyFor(job);
       return `<button class="jt-card ${active}" data-act="select" data-id="${job.id}">
         <div class="jt-card-top">
           <div><div class="jt-role">${esc(job.title || 'Untitled role')}</div><div class="jt-company">${esc(job.company || 'Unknown company')}</div></div>
           <span class="jt-chip ${chipClass(job.priority)}">${esc(job.priority)}</span>
         </div>
         <div class="jt-meta">
+          <span class="jt-score ${fit.tone}">Fit ${fit.score}</span>
           ${job.location ? `<span class="jt-chip">${esc(job.location)}</span>` : ''}
           ${job.workMode && job.workMode !== 'Unknown' ? `<span class="jt-chip">${esc(job.workMode)}</span>` : ''}
           ${job.dateApplied ? `<span class="jt-chip">Applied ${esc(formatDate(job.dateApplied))}</span>` : ''}
           ${sourceChip(job)}
+          <span class="jt-chip ${fit.lead.tone === 'bad' ? 'high' : fit.lead.tone === 'good' ? 'low' : 'medium'}">${esc(fit.lead.label)}</span>
+          <span class="jt-chip ${fit.source.tone === 'bad' ? 'high' : fit.source.tone === 'good' ? 'low' : 'medium'}">${esc(fit.source.label)}</span>
           ${salary ? `<span class="jt-chip">${esc(salary)}</span>` : ''}
           ${priorText ? `<span class="jt-chip high">${esc(priorText)}</span>` : ''}
+          ${urgency.label ? `<span class="jt-chip ${urgency.tone === 'bad' ? 'high' : urgency.tone === 'good' ? 'low' : 'medium'}">${esc(urgency.label)}</span>` : ''}
           ${isStale(job) ? '<span class="jt-chip high">Stale</span>' : ''}
         </div>
         <div class="jt-next">
@@ -661,11 +920,14 @@ Arcade.register({
     function tableHTML(jobs) {
       if (!jobs.length) return '<div class="jt-empty">No jobs match the current filters.</div>';
       return `<div class="jt-table-wrap"><table class="jt-table">
-        <thead><tr><th>Role</th><th>Stage</th><th>Priority</th><th>Applied</th><th>Next action</th><th>Due</th><th>Location</th><th>Contact</th></tr></thead>
+        <thead><tr><th>Role</th><th>Fit</th><th>Seen</th><th>Stage</th><th>Priority</th><th>Applied</th><th>Next action</th><th>Due</th><th>Location</th><th>Contact</th></tr></thead>
         <tbody>${jobs.map(job => {
           const due = dueStatus(job);
+          const fit = fitScoreFor(job);
           return `<tr class="jt-row" data-act="select" data-id="${job.id}">
             <td><b>${esc(job.title || 'Untitled role')}</b><br><span>${esc(job.company || 'Unknown company')}</span></td>
+            <td><span class="jt-score ${fit.tone}">${fit.score}</span></td>
+            <td><span class="jt-chip ${fit.lead.tone === 'bad' ? 'high' : fit.lead.tone === 'good' ? 'low' : 'medium'}">${esc(fit.lead.label)}</span></td>
             <td><span class="jt-chip">${esc(stageById(job.stage).name)}</span></td>
             <td><span class="jt-chip ${chipClass(job.priority)}">${esc(job.priority)}</span></td>
             <td>${esc(formatDate(job.dateApplied) || '')}</td>
@@ -682,7 +944,7 @@ Arcade.register({
       if (!job) {
         return `<div class="jt-detail-empty">
           <div>
-            <div style="font-size:22px;margin-bottom:8px;color:#1d2b22">No job selected</div>
+            <div class="jt-detail-empty-title">No job selected</div>
             <button class="jt-btn primary" data-act="new">New Job</button>
           </div>
         </div>`;
@@ -690,6 +952,9 @@ Arcade.register({
       const dupe = duplicateFor(job);
       const prior = priorApplicationFor(job);
       const priorText = priorApplicationText(prior);
+      const fit = fitScoreFor(job);
+      const urgency = urgencyFor(job);
+      const angles = resumeAnglesFor(job);
       return `<div class="jt-detail-head">
         <h3>${esc(job.title || 'New job')}</h3>
         <p>${esc(job.company || 'Company not set')} ${job.stage ? '- ' + esc(stageById(job.stage).name) : ''}</p>
@@ -697,7 +962,18 @@ Arcade.register({
       <form class="jt-detail-body" data-form="job">
         <input type="hidden" name="id" value="${esc(job.id)}">
         ${prior ? `<div class="jt-dupe">Prior application warning: ${esc(priorText)} for ${esc(prior.company)} - ${esc(prior.title)}. Reapply only if this posting is a new cycle or the portal allows it.</div>` : dupe ? `<div class="jt-dupe">Possible duplicate: ${esc(dupe.company)} - ${esc(dupe.title)}</div>` : ''}
-        ${needsFitCheck(job) ? `<section class="jt-section"><h4>Fit check</h4><div class="jt-fit-tags">${CANDIDATE_PROFILE.fitChecks.map(item => `<span>${esc(item)}</span>`).join('')}</div><p style="margin:9px 0 0;color:#4d6256;font-size:12px;line-height:1.35">${esc(CANDIDATE_PROFILE.summary)}</p></section>` : ''}
+        ${needsFitCheck(job) ? `<section class="jt-section"><h4>Fit check</h4><div class="jt-fit-tags">${CANDIDATE_PROFILE.fitChecks.map(item => `<span>${esc(item)}</span>`).join('')}</div><p class="jt-section-note">${esc(CANDIDATE_PROFILE.summary)}</p></section>` : ''}
+        <section class="jt-section">
+          <h4>Scout intelligence</h4>
+          <div class="jt-analysis">
+            <div class="jt-analysis-row"><b>Fit score</b><span><span class="jt-score ${fit.tone}">${fit.score} ${esc(fit.label)}</span> ${esc(fit.reasons.slice(0, 5).join(' / '))}</span></div>
+            <div class="jt-analysis-row"><b>Lead status</b><span>${esc(fit.lead.label)} - ${esc(fit.lead.detail)}</span></div>
+            <div class="jt-analysis-row"><b>Source</b><span>${esc(fit.source.label)} - ${esc(fit.source.detail)}</span></div>
+            <div class="jt-analysis-row"><b>Location</b><span>${esc(fit.location.label)}${job.location ? ' - ' + esc(job.location) : ''}</span></div>
+            ${urgency.label ? `<div class="jt-analysis-row"><b>Urgency</b><span>${esc(urgency.label)}</span></div>` : ''}
+            ${angles.length ? `<div><div class="jt-analysis-row"><b>Resume angle</b><span>Use these notes when tailoring.</span></div><ul class="jt-angle">${angles.map(angle => `<li>${esc(angle)}</li>`).join('')}</ul></div>` : ''}
+          </div>
+        </section>
         <section class="jt-section">
           <h4>Core</h4>
           <div class="jt-form-grid">

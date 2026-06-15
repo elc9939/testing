@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Hub Design Preview</title>
+  <link rel="stylesheet" href="css/design-preview.css">
+</head>
+<body data-preview-theme="dark">
+  <div class="desktop-shell">
+    <aside class="left-rail" aria-label="Mini Hub preview navigation">
+      <div class="rail-menu">
+        <button class="menu-glyph" type="button" aria-label="Menu"></button>
+        <div class="brand-lockup">
+          <span class="brand-mark">MH</span>
+          <span>Mini Hub</span>
+        </div>
+      </div>
+
+      <nav class="rail-nav">
+        <a class="active" href="#dashboard"><span class="line-icon home"></span>Home</a>
+        <a href="#apps"><span class="line-icon search"></span>Search</a>
+        <a href="#focus"><span class="line-icon stack"></span>Apps</a>
+        <a href="#career"><span class="line-icon briefcase"></span>Career</a>
+        <a href="#mobile"><span class="line-icon phone"></span>Mobile</a>
+      </nav>
+
+      <section class="rail-section">
+        <h2>Pinned</h2>
+        <a class="project-link active" href="#focus">
+          <span class="line-icon sword"></span>
+          <span>Stick Arena</span>
+          <time>Now</time>
+        </a>
+        <a class="project-link" href="#career">
+          <span class="line-icon briefcase"></span>
+          <span>Career Desk</span>
+          <time>2h</time>
+        </a>
+      </section>
+
+      <section class="rail-section">
+        <h2>Collections</h2>
+        <a class="project-link" href="#apps">
+          <span class="line-icon grid"></span>
+          <span>Games</span>
+          <time>8</time>
+        </a>
+        <a class="project-link" href="#strategy">
+          <span class="line-icon cards"></span>
+          <span>Strategy</span>
+          <time>3</time>
+        </a>
+      </section>
+
+      <button class="settings-button" type="button">
+        <span class="line-icon settings"></span>
+        <span>Settings</span>
+      </button>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="topbar-title">
+          <span class="line-icon pin"></span>
+          <strong>Mini Hub Design Preview</strong>
+          <span class="topbar-muted">Static sandbox</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="tool-button" type="button"><span class="line-icon filter"></span>Filters</button>
+          <button class="theme-switch" id="theme-toggle" type="button" aria-label="Toggle preview theme">
+            <span class="switch-track"><span class="switch-dot"></span></span>
+            <span id="theme-label">Dark</span>
+          </button>
+          <button class="tool-button" type="button">Open in</button>
+        </div>
+      </header>
+
+      <div class="content-scroll">
+        <section class="workspace-heading" id="dashboard">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h1>Mini Hub</h1>
+            <p>Games, job tracking, learning tools, and experiments inside a quiet desktop-style workspace.</p>
+          </div>
+          <div class="status-strip" aria-label="Preview status">
+            <span><b>Preview</b> No production app code changed</span>
+            <span><b>Style</b> Quiet OS / modern shell</span>
+          </div>
+        </section>
+
+        <section class="command-panel">
+          <div class="search-box"><span class="line-icon search"></span>Search apps, tools, jobs, notes...</div>
+          <button class="soft-chip active" type="button">All</button>
+          <button class="soft-chip" type="button">Games</button>
+          <button class="soft-chip" type="button">Tools</button>
+          <button class="soft-chip" type="button">Learning</button>
+        </section>
+
+        <section class="app-grid-section" id="apps">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Recently opened</p>
+              <h2>Continue</h2>
+            </div>
+            <button class="text-button" type="button">View all</button>
+          </div>
+
+          <div class="app-card-grid">
+            <article class="app-card featured" style="--accent:#c9855a">
+              <img src="assets/hub/stick-arena.png" alt="">
+              <div>
+                <span class="app-status">Active game</span>
+                <h3>Stick Arena</h3>
+                <p>Ability labs, arena waves, and class feel testing.</p>
+              </div>
+              <button type="button" aria-label="Open Stick Arena"><span class="line-icon chevron"></span></button>
+            </article>
+
+            <article class="app-card featured" style="--accent:#6a9f78">
+              <img src="assets/hub/career-desk.png" alt="">
+              <div>
+                <span class="app-status">Tool</span>
+                <h3>Career Desk</h3>
+                <p>Applications, fit checks, apply-now tasks, and dated updates.</p>
+              </div>
+              <button type="button" aria-label="Open Career Desk"><span class="line-icon chevron"></span></button>
+            </article>
+          </div>
+        </section>
+
+        <section class="two-column">
+          <article class="panel">
+            <div class="section-header compact">
+              <div>
+                <p class="eyebrow">Games</p>
+                <h2>App drawer</h2>
+              </div>
+            </div>
+            <div class="drawer-list">
+              <article style="--accent:#8d80cf">
+                <img src="assets/hub/deckbound.png" alt="">
+                <div><h3>Deckbound</h3><p>Card tactics board combat</p></div>
+                <span class="line-icon cards"></span>
+              </article>
+              <article style="--accent:#5c9aac">
+                <img src="assets/hub/connect4.png" alt="">
+                <div><h3>Four in a Row</h3><p>Coach mode and pattern practice</p></div>
+                <span class="line-icon grid"></span>
+              </article>
+              <article style="--accent:#c37284">
+                <img src="assets/hub/gambit.png" alt="">
+                <div><h3>Gambit</h3><p>Small roguelike card combat</p></div>
+                <span class="line-icon cards"></span>
+              </article>
+              <article style="--accent:#8aa65e">
+                <img src="assets/hub/orbit.png" alt="">
+                <div><h3>Orbit</h3><p>Physics arcade experiment</p></div>
+                <span class="line-icon orbit"></span>
+              </article>
+            </div>
+          </article>
+
+          <article class="panel" id="career">
+            <div class="section-header compact">
+              <div>
+                <p class="eyebrow">Career Desk</p>
+                <h2>To-do first</h2>
+              </div>
+              <button class="text-button" type="button">New lead</button>
+            </div>
+            <div class="metric-row">
+              <span><b>12</b>Apply tasks</span>
+              <span><b>5</b>High fit</span>
+              <span><b>2</b>Due soon</span>
+            </div>
+            <div class="task-list">
+              <article>
+                <span class="line-icon briefcase"></span>
+                <div><h3>Quant Researcher</h3><p>NYC - new grad cycle fit check</p></div>
+                <strong>Fit 91</strong>
+              </article>
+              <article>
+                <span class="line-icon briefcase"></span>
+                <div><h3>Risk Data Scientist</h3><p>Irvine - Python/statistics fit</p></div>
+                <strong>Fit 84</strong>
+              </article>
+              <article>
+                <span class="line-icon briefcase"></span>
+                <div><h3>Research Analyst</h3><p>California - modeling-heavy role</p></div>
+                <strong>Fit 78</strong>
+              </article>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel focus-panel" id="focus">
+          <div class="section-header compact">
+            <div>
+              <p class="eyebrow">App focus</p>
+              <h2>Stick Arena inside the same shell</h2>
+            </div>
+            <div class="focus-actions">
+              <button class="soft-chip active" type="button">Ability Lab</button>
+              <button class="soft-chip" type="button">Arena</button>
+              <button class="soft-chip" type="button">Builds</button>
+            </div>
+          </div>
+
+          <div class="arena-layout">
+            <aside class="loadout-panel">
+              <h3>Pyromancer</h3>
+              <p>Readable controls, compact ability descriptions, no oversized header treatment.</p>
+              <div class="ability-line"><span>Attack</span><strong>Firebolt</strong></div>
+              <div class="ability-line"><span>E</span><strong>Ignition Burst</strong></div>
+              <div class="ability-line"><span>Q</span><strong>Dragon Breath</strong></div>
+            </aside>
+
+            <div class="arena-window">
+              <div class="fighter hero"></div>
+              <div class="fighter enemy"></div>
+              <div class="arena-floor"></div>
+              <div class="cooldown-bar">
+                <button type="button">A<span>Ready</span></button>
+                <button type="button">Alt<span>1.2</span></button>
+                <button type="button">E<span>Ready</span></button>
+                <button type="button">Q<span>6.8</span></button>
+              </div>
+            </div>
+
+            <aside class="loadout-panel">
+              <h3>Lab tools</h3>
+              <p>Spawn dummies, crates, barrels, platforms, and hitbox overlays without visual clutter.</p>
+              <div class="lab-tags">
+                <span>Dummy</span>
+                <span>Crate</span>
+                <span>Barrel</span>
+                <span>Hitboxes</span>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="two-column" id="strategy">
+          <article class="panel strategy-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="eyebrow">Strategy / Learning</p>
+                <h2>Dense panels</h2>
+              </div>
+            </div>
+            <div class="board-sample">
+              <span></span><span></span><span class="unit"></span><span></span>
+              <span></span><span class="danger"></span><span></span><span></span>
+              <span class="hero"></span><span></span><span></span><span class="unit"></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="hand-row">
+              <article><h3>King Step</h3><p>Move 1 tile.</p></article>
+              <article><h3>Fork Bolt</h3><p>Chain damage.</p></article>
+              <article><h3>Guard</h3><p>Gain block.</p></article>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-header compact">
+              <div>
+                <p class="eyebrow">Small games</p>
+                <h2>Simple framing</h2>
+              </div>
+            </div>
+            <div class="mini-game-list">
+              <span>Snake</span>
+              <span>Breakout</span>
+              <span>Memory</span>
+              <span>Pinball</span>
+              <span>2048</span>
+              <span>Tic Tac Toe</span>
+            </div>
+          </article>
+        </section>
+
+        <section class="mobile-strip" id="mobile">
+          <article class="phone-preview">
+            <div class="phone-screen">
+              <div class="mobile-top"><span class="brand-mark">MH</span><strong>Mini Hub</strong></div>
+              <div class="mobile-search">Search...</div>
+              <article class="mobile-card"><img src="assets/hub/stick-arena.png" alt=""><div><b>Stick Arena</b><span>Active game</span></div></article>
+              <article class="mobile-card"><img src="assets/hub/career-desk.png" alt=""><div><b>Career Desk</b><span>Apply tasks</span></div></article>
+              <article class="mobile-card"><img src="assets/hub/connect4.png" alt=""><div><b>Four in a Row</b><span>Learning</span></div></article>
+            </div>
+          </article>
+
+          <article class="phone-preview">
+            <div class="phone-screen">
+              <div class="mobile-top"><button type="button">Back</button><strong>Stick Arena</strong></div>
+              <div class="mobile-arena">
+                <div class="fighter hero"></div>
+                <div class="fighter enemy"></div>
+                <div class="arena-floor"></div>
+              </div>
+              <div class="mobile-controls">
+                <button type="button">A</button>
+                <button type="button">Alt</button>
+                <button type="button">E</button>
+                <button type="button">Q</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="phone-preview">
+            <div class="phone-screen">
+              <div class="mobile-top"><button type="button">Back</button><strong>To-do</strong></div>
+              <div class="mobile-task"><b>Apply</b><span>Quant role - fit checked</span></div>
+              <div class="mobile-task"><b>Draft</b><span>Cover note for research role</span></div>
+              <div class="mobile-task"><b>Prepare</b><span>Probability review set</span></div>
+            </div>
+          </article>
+        </section>
+      </div>
+    </main>
+
+    <aside class="right-rail" aria-label="Preview activity">
+      <section class="right-card">
+        <h2>Preview notes</h2>
+        <div class="note-line"><span class="line-icon stack"></span><p>Compact shell replaces big hero headings.</p></div>
+        <div class="note-line"><span class="line-icon settings"></span><p>Theme toggle changes the whole preview.</p></div>
+        <div class="note-line"><span class="line-icon grid"></span><p>Cover art becomes thumbnails, not posters.</p></div>
+      </section>
+
+      <section class="right-card">
+        <h2>Recent apps</h2>
+        <a href="#focus">Stick Arena <span>Ability Lab</span></a>
+        <a href="#career">Career Desk <span>Apply now</span></a>
+        <a href="#strategy">Deckbound <span>Strategy</span></a>
+      </section>
+
+      <section class="right-card">
+        <h2>Design rules</h2>
+        <ul>
+          <li>Small headers</li>
+          <li>Muted panels</li>
+          <li>Line icons</li>
+          <li>App color as detail</li>
+          <li>No glow-heavy chrome</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    (() => {
+      const key = 'miniHub.designPreview.theme';
+      const root = document.body;
+      const toggle = document.getElementById('theme-toggle');
+      const label = document.getElementById('theme-label');
+      const setTheme = theme => {
+        const next = theme === 'light' ? 'light' : 'dark';
+        root.dataset.previewTheme = next;
+        if (label) label.textContent = next === 'dark' ? 'Dark' : 'Light';
+        try { localStorage.setItem(key, next); } catch (error) {}
+      };
+      let saved = 'dark';
+      try { saved = localStorage.getItem(key) || saved; } catch (error) {}
+      setTheme(saved);
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          setTheme(root.dataset.previewTheme === 'dark' ? 'light' : 'dark');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -52,39 +52,39 @@ Arcade.register({
 
     const style = document.createElement('style');
     style.textContent = `
-      .db-wrap{position:absolute;inset:0;padding:70px 16px 16px;display:grid;grid-template-columns:minmax(320px,1fr) minmax(280px,340px);gap:16px;background:radial-gradient(circle at 35% 12%,rgba(167,139,250,.18),transparent 38%)}
-      .db-board-shell{min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);background:rgba(5,6,15,.28);border-radius:8px;overflow:hidden}
+      .db-wrap{position:absolute;inset:0;padding:calc(var(--topbar-h,58px) + 14px) 16px 16px;display:grid;grid-template-columns:minmax(320px,1fr) minmax(280px,340px);gap:16px;background:var(--bg)}
+      .db-board-shell{min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel);border-radius:8px;overflow:hidden;box-shadow:var(--soft-shadow)}
       .db-board{position:relative;width:100%;height:100%;min-height:420px}
       .db-panel{min-height:0;display:flex;flex-direction:column;gap:10px}
       .db-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;font-weight:900}
-      .db-pill{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);border-radius:8px;padding:9px 10px;font-size:13px}
-      .db-pill b{color:#ffd45e}
-      .db-log{min-height:48px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.18);border-radius:8px;padding:10px;font-size:13px;line-height:1.35;color:rgba(234,242,255,.86)}
-      .db-info{border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.14);border-radius:8px;padding:10px;font-size:12px;line-height:1.35;color:rgba(234,242,255,.78)}
-      .db-info h4{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#ffd45e;margin:0 0 6px}
+      .db-pill{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 10px;font-size:13px}
+      .db-pill b{color:var(--accent-3)}
+      .db-log{min-height:48px;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:10px;font-size:13px;line-height:1.35;color:var(--muted)}
+      .db-info{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:10px;font-size:12px;line-height:1.35;color:var(--muted)}
+      .db-info h4{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--accent-3);margin:0 0 6px}
       .db-info .legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-      .db-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 7px;background:rgba(255,255,255,.06)}
+      .db-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:4px 7px;background:var(--surface-2)}
       .db-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
       .db-enemies{display:grid;gap:5px}
       .db-enemy-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
       .db-relics{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-      .db-relic{border:1px solid rgba(167,139,250,.4);background:rgba(167,139,250,.12);border-radius:7px;padding:4px 6px;color:#e9ddff}
+      .db-relic{border:1px solid color-mix(in srgb,#a78bfa 34%,var(--line));background:color-mix(in srgb,#a78bfa 12%,var(--surface-2));border-radius:7px;padding:4px 6px;color:var(--text)}
       .db-hand{min-height:0;overflow:auto;display:grid;grid-template-columns:1fr;gap:8px;padding-right:2px}
-      .db-card{width:100%;text-align:left;color:var(--text);background:linear-gradient(160deg,rgba(22,28,60,.95),rgba(8,10,24,.95));border:1px solid rgba(255,255,255,.13);border-radius:8px;padding:10px;cursor:pointer;font:inherit;transition:transform .1s,border-color .15s,background .15s}
-      .db-card:hover:not(:disabled),.db-card.active{transform:translateY(-1px);border-color:#a78bfa;background:linear-gradient(160deg,rgba(57,43,102,.95),rgba(12,15,34,.95))}
+      .db-card{width:100%;text-align:left;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;cursor:pointer;font:inherit;transition:transform .1s,border-color .15s,background .15s,box-shadow .15s}
+      .db-card:hover:not(:disabled),.db-card.active{transform:translateY(-1px);border-color:#a78bfa;background:color-mix(in srgb,#a78bfa 10%,var(--panel));box-shadow:var(--soft-shadow)}
       .db-card:disabled{opacity:.42;cursor:default}
       .db-card .top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;font-weight:900}
-      .db-card .cost{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;border-radius:50%;background:#ffd45e;color:#05060f;font-weight:900}
-      .db-card .txt{font-size:12px;line-height:1.35;color:rgba(234,242,255,.75)}
+      .db-card .cost{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;border-radius:50%;background:var(--accent-3);color:#17120a;font-weight:900}
+      .db-card .txt{font-size:12px;line-height:1.35;color:var(--muted)}
       .db-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-      .db-btn{border:0;border-radius:8px;padding:11px 12px;font-weight:900;cursor:pointer;color:#05060f;background:#5ef2ff}
-      .db-btn.alt{background:#ffd45e}
+      .db-btn{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:8px;padding:11px 12px;font-weight:900;cursor:pointer;color:var(--text);background:color-mix(in srgb,var(--accent) 14%,var(--panel))}
+      .db-btn.alt{border-color:color-mix(in srgb,var(--accent-3) 38%,var(--line));background:color-mix(in srgb,var(--accent-3) 14%,var(--panel))}
       .db-btn:disabled{opacity:.4;cursor:default}
       .db-draft{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-width:760px}
       .db-draft .db-card{min-height:136px}
       .db-reward-skip{margin-top:10px}
       @media (max-width:780px){
-        .db-wrap{grid-template-columns:1fr;grid-template-rows:minmax(300px,48vh) minmax(230px,1fr);padding:58px 10px 10px;gap:10px}
+        .db-wrap{grid-template-columns:1fr;grid-template-rows:minmax(300px,48vh) minmax(230px,1fr);padding:calc(var(--topbar-h,58px) + 8px) 10px 10px;gap:10px}
         .db-board{min-height:300px}
         .db-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
         .db-pill{padding:7px 6px;font-size:12px;text-align:center}

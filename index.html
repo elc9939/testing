@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<title>Mini Arcade — A pocketful of games</title>
-<link rel="stylesheet" href="css/style.css?v=61">
+<title>Mini Hub - Games, tools, and experiments</title>
+<link rel="stylesheet" href="css/style.css?v=63">
 
 <!-- PWA: installable, full-screen, offline -->
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#05060f">
+<meta name="theme-color" content="#080b13">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mini Arcade">
+<meta name="apple-mobile-web-app-title" content="Mini Hub">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 </head>
@@ -21,17 +21,19 @@
 
   <!-- MENU -->
   <div id="menu">
-    <div class="title">MINI ARCADE</div>
-    <div class="subtitle">Pick a game or experiment. The launcher stays light; each app loads when opened.</div>
+    <div class="title">MINI HUB</div>
+    <div class="subtitle">Games, tools, learning apps, and experiments in one lightweight place.</div>
     <div class="grid" id="game-grid"><!-- cards injected by arcade.js --></div>
-    <div class="footer">Use ⎋ Esc or the Menu button to return here · Built with vanilla JS</div>
+    <div class="footer">Use Esc or the Menu button to return here. Built with vanilla JS.</div>
   </div>
 
   <!-- GAME STAGE -->
   <div id="stage">
     <div id="topbar">
-      <button class="back-btn" id="back-btn">‹ Menu</button>
+      <button class="back-btn" id="back-btn" type="button">Menu</button>
       <span id="game-name"></span>
+      <span class="topbar-spacer"></span>
+      <button class="theme-btn" id="stage-theme-btn" type="button" aria-label="Change theme">Theme</button>
     </div>
     <div id="game-root"><!-- active game mounts here --></div>
   </div>
@@ -39,8 +41,8 @@
 </div>
 
 <!-- Framework first, then the lightweight app catalog. Apps lazy-load on open. -->
-<script src="js/arcade.js?v=60"></script>
-<script src="js/app-manifest.js?v=185"></script>
+<script src="js/arcade.js?v=62"></script>
+<script src="js/app-manifest.js?v=189"></script>
 
 <!-- Register the service worker for offline / installable play -->
 <script>
