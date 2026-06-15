@@ -27,7 +27,7 @@ Arcade.define([
     status: 'tool',
     priority: 2,
     scoreKey: false,
-    src: 'js/games/jobtracker.js?v=16',
+    src: 'js/games/jobtracker.js?v=17',
   },
   {
     id: 'studydesk',
