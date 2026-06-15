@@ -334,11 +334,14 @@
 
   function cardHTML(app, featured) {
     const best = bestFor(app);
-    const cover = app.cover ? `<img src="${esc(app.cover)}" alt="" loading="lazy">` : '';
     const kind = statusLabel(app);
     const group = GROUPS.find(g => g.id === (app.group || 'games'));
+    const mark = esc(app.emoji || app.name.slice(0, 2).toUpperCase());
     return `<button class="app-card${featured ? ' is-featured' : ''}" type="button" data-launch="${esc(app.id)}" style="--app-accent:${esc(appAccent(app))}" aria-label="Open ${esc(app.name)}. ${esc(app.desc)}">
-      <div class="app-cover">${cover || `<span>${esc(app.emoji || app.name.slice(0, 2).toUpperCase())}</span>`}</div>
+      <div class="app-logo" aria-hidden="true">
+        <span>${mark}</span>
+        <i></i><b></b>
+      </div>
       <div class="app-body">
         <div class="app-card-top">
           <div>

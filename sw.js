@@ -1,12 +1,12 @@
 /* Service worker: precache the whole arcade so it runs fully offline once
    installed. Bump CACHE when assets change to roll out a fresh copy. */
-const CACHE = 'mini-hub-v195';
+const CACHE = 'mini-hub-v196';
 const ASSETS = [
   './',
   './index.html',
-  './css/style.css?v=64',
-  './js/arcade.js?v=63',
-  './js/app-manifest.js?v=190',
+  './css/style.css?v=65',
+  './js/arcade.js?v=64',
+  './js/app-manifest.js?v=191',
   './js/games/deckbound.js?v=63',
   './js/games/stardrifter.js?v=59',
   './js/games/snake.js?v=58',
@@ -26,21 +26,6 @@ const ASSETS = [
   './js/games/connect4-weights.json',
   './js/games/gambit.js?v=2',
   './manifest.webmanifest',
-  './assets/hub/breakout.png',
-  './assets/hub/career-desk.png',
-  './assets/hub/connect4.png',
-  './assets/hub/deckbound.png',
-  './assets/hub/gambit.png',
-  './assets/hub/memory.png',
-  './assets/hub/orbit.png',
-  './assets/hub/pinball.png',
-  './assets/hub/reaction.png',
-  './assets/hub/snake.png',
-  './assets/hub/stardrifter.png',
-  './assets/hub/stick-arena.png',
-  './assets/hub/study-desk.svg',
-  './assets/hub/tictactoe.png',
-  './assets/hub/twenty48.png',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png',

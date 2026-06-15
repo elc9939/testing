@@ -12,7 +12,6 @@ Arcade.define([
     featured: true,
     status: 'active',
     priority: 1,
-    cover: 'assets/hub/stick-arena.png',
     src: 'js/games/stickrun.js?v=155',
   },
   {
@@ -28,7 +27,6 @@ Arcade.define([
     status: 'tool',
     priority: 2,
     scoreKey: false,
-    cover: 'assets/hub/career-desk.png',
     src: 'js/games/jobtracker.js?v=16',
   },
   {
@@ -44,7 +42,6 @@ Arcade.define([
     status: 'tool',
     priority: 3,
     scoreKey: false,
-    cover: 'assets/hub/study-desk.svg',
     src: 'js/games/studydesk.js?v=2',
   },
   {
@@ -58,7 +55,6 @@ Arcade.define([
     group: 'strategy',
     status: 'prototype',
     priority: 1,
-    cover: 'assets/hub/deckbound.png',
     src: 'js/games/deckbound.js?v=63',
   },
   {
@@ -72,7 +68,6 @@ Arcade.define([
     group: 'strategy',
     status: 'learning',
     priority: 2,
-    cover: 'assets/hub/connect4.png',
     src: 'js/games/connect4.js?v=68',
   },
   {
@@ -86,7 +81,6 @@ Arcade.define([
     group: 'strategy',
     status: 'active',
     priority: 3,
-    cover: 'assets/hub/gambit.png',
     src: 'js/games/gambit.js?v=2',
   },
   {
@@ -100,7 +94,6 @@ Arcade.define([
     group: 'experiments',
     status: 'active',
     priority: 1,
-    cover: 'assets/hub/orbit.png',
     src: 'js/games/orbit.js?v=60',
   },
   {
@@ -114,7 +107,6 @@ Arcade.define([
     group: 'games',
     status: 'active',
     priority: 1,
-    cover: 'assets/hub/stardrifter.png',
     src: 'js/games/stardrifter.js?v=59',
   },
   {
@@ -128,7 +120,6 @@ Arcade.define([
     group: 'games',
     status: 'active',
     priority: 2,
-    cover: 'assets/hub/snake.png',
     src: 'js/games/snake.js?v=58',
   },
   {
@@ -142,7 +133,6 @@ Arcade.define([
     group: 'games',
     status: 'active',
     priority: 3,
-    cover: 'assets/hub/breakout.png',
     src: 'js/games/breakout.js?v=59',
   },
   {
@@ -156,7 +146,6 @@ Arcade.define([
     group: 'games',
     status: 'active',
     priority: 4,
-    cover: 'assets/hub/pinball.png',
     src: 'js/games/pinball.js?v=59',
   },
   {
@@ -170,7 +159,6 @@ Arcade.define([
     group: 'games',
     status: 'active',
     priority: 5,
-    cover: 'assets/hub/twenty48.png',
     src: 'js/games/twenty48.js?v=58',
   },
   {
@@ -184,7 +172,6 @@ Arcade.define([
     group: 'learning',
     status: 'learning',
     priority: 1,
-    cover: 'assets/hub/memory.png',
     src: 'js/games/memory.js?v=57',
   },
   {
@@ -198,7 +185,6 @@ Arcade.define([
     group: 'learning',
     status: 'active',
     priority: 2,
-    cover: 'assets/hub/reaction.png',
     src: 'js/games/reaction.js?v=59',
   },
   {
@@ -212,7 +198,6 @@ Arcade.define([
     group: 'learning',
     status: 'learning',
     priority: 3,
-    cover: 'assets/hub/tictactoe.png',
     src: 'js/games/tictactoe.js?v=57',
   },
 ]);

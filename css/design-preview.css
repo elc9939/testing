@@ -472,12 +472,44 @@ body[data-preview-theme="light"] .switch-dot {
 
 .app-card img,
 .drawer-list img,
-.mobile-card img {
+.mobile-card img,
+.preview-logo {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  filter: saturate(.76) contrast(.96);
+}
+
+.preview-logo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: #10100f;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.preview-logo::before,
+.preview-logo::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.preview-logo::before {
+  left: 9px;
+  top: 9px;
+}
+
+.preview-logo::after {
+  right: 9px;
+  bottom: 9px;
 }
 
 .app-card img {
@@ -485,6 +517,11 @@ body[data-preview-theme="light"] .switch-dot {
   height: 78px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
+}
+
+.app-card > .preview-logo {
+  width: 104px;
+  height: 78px;
 }
 
 .app-card p {
@@ -535,7 +572,8 @@ body[data-preview-theme="light"] .switch-dot {
   padding: 8px 10px;
 }
 
-.drawer-list img {
+.drawer-list img,
+.drawer-list .preview-logo {
   width: 62px;
   height: 46px;
   border-radius: 7px;
@@ -842,7 +880,8 @@ body[data-preview-theme="light"] .switch-dot {
   margin-bottom: 8px;
 }
 
-.mobile-card img {
+.mobile-card img,
+.mobile-card .preview-logo {
   width: 60px;
   height: 46px;
   border-radius: 7px;
