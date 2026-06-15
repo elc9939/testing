@@ -8,7 +8,7 @@ Arcade.register({
   kind: 'tool',
   scoreKey: false,
 
-  start(root) {
+  start(root, api = {}) {
     const STORE_KEY = 'studyDesk.state.v1';
     const REPO = 'elc9939/neetcode-submissions';
     const REPO_TREE_URL = `https://api.github.com/repos/${REPO}/git/trees/main?recursive=1`;
@@ -72,39 +72,55 @@ Arcade.register({
     const uid = () => 'study_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     const minutes = value => Math.max(0, Math.min(720, Math.round(Number(value) || 0)));
 
+    let disposed = false;
+    const bind = typeof api.on === 'function'
+      ? (target, type, fn, opts) => api.on(target, type, fn, opts)
+      : (target, type, fn, opts) => target.addEventListener(type, fn, opts);
+    if (typeof api.onCleanup === 'function') api.onCleanup(() => { disposed = true; });
+
     const state = loadState();
 
     const style = document.createElement('style');
     style.textContent = `
-      .sd{--sd-bg:#f4f5f1;--sd-bg2:#eceee8;--sd-panel:#fff;--sd-surface:#fbfcf8;--sd-line:#d9ded4;--sd-line2:#e7ebe2;--sd-text:#182019;--sd-muted:#657064;--sd-chip:#f3f6ef;--sd-good:#3d8b5b;--sd-warn:#9a6a2d;--sd-bad:#a64731;position:absolute;inset:0;padding:calc(var(--topbar-h,58px) + 12px) 16px 16px;background:linear-gradient(180deg,var(--sd-bg),var(--sd-bg2));color:var(--sd-text);font-family:Inter,"Segoe UI",system-ui,sans-serif;overflow:hidden}
-      :root[data-theme="dark"] .sd{--sd-bg:#101411;--sd-bg2:#141a16;--sd-panel:#182019;--sd-surface:#131914;--sd-line:#2e3a31;--sd-line2:#253029;--sd-text:#edf3ea;--sd-muted:#a9b5a7;--sd-chip:#1f2a22;--sd-good:#80c994;--sd-warn:#d7ab6b;--sd-bad:#e08372}
+      .sd{--sd-bg:var(--bg);--sd-bg2:var(--bg-2);--sd-panel:var(--panel);--sd-surface:var(--surface);--sd-surface-2:var(--surface-2);--sd-strong:var(--surface-strong);--sd-line:var(--line);--sd-line2:var(--line);--sd-text:var(--text);--sd-muted:var(--muted);--sd-faint:var(--faint);--sd-chip:var(--surface-2);--sd-good:#7aa36f;--sd-warn:#d7a86e;--sd-bad:var(--danger);position:relative;height:100%;min-height:0;background:transparent;color:var(--sd-text);font-family:var(--font,Inter,"Segoe UI",system-ui,sans-serif);overflow:hidden}
       .sd *{box-sizing:border-box}
       .sd button,.sd input,.sd select,.sd textarea{font:inherit}
       .sd button{cursor:pointer}
       .sd-shell{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:14px;min-height:0}
-      .sd-main,.sd-side-panel,.sd-card,.sd-panel{border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-panel);box-shadow:0 12px 28px rgba(0,0,0,.12)}
+      .sd-main,.sd-side-panel,.sd-card,.sd-panel{border:1px solid var(--sd-line);border-radius:var(--radius-lg,10px);background:var(--sd-panel);box-shadow:none}
       .sd-main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-      .sd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border-bottom:1px solid var(--sd-line2);background:var(--sd-surface)}
-      .sd-title h2{margin:0 0 4px;font-size:22px;line-height:1.1;color:var(--sd-text)}
-      .sd-title p{margin:0;max-width:720px;color:var(--sd-muted);font-size:13px;line-height:1.4}
+      .sd-head{display:flex;justify-content:space-between;align-items:center;gap:14px;min-height:66px;padding:12px 14px;border-bottom:1px solid var(--sd-line);background:var(--sd-panel)}
+      .sd-brand{display:flex;align-items:center;gap:10px;min-width:0}
+      .sd-app-logo{display:grid;place-items:center;width:42px;height:42px;min-width:42px;border:1px solid var(--sd-line);border-radius:var(--radius,8px);background:#0f0f0f;overflow:hidden;position:relative}
+      .sd-app-logo span{position:relative;z-index:2;color:var(--sd-text);font-size:11px;font-weight:760;letter-spacing:.01em}
+      .sd-app-logo::before,.sd-app-logo::after,.sd-app-logo i,.sd-app-logo b{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:var(--sd-good)}
+      .sd-app-logo::before{left:9px;top:9px;background:color-mix(in srgb,var(--sd-good) 80%,#7dd3fc)}
+      .sd-app-logo::after{right:9px;top:10px;background:color-mix(in srgb,var(--sd-good) 70%,#f0abfc)}
+      .sd-app-logo i{left:10px;bottom:9px;background:color-mix(in srgb,var(--sd-good) 72%,#fbbf24)}
+      .sd-app-logo b{right:10px;bottom:9px;background:color-mix(in srgb,var(--sd-good) 80%,#86efac)}
+      .sd-title{min-width:0}
+      .sd-title h2{margin:0;font-size:14px;line-height:1.15;color:var(--sd-text);font-weight:720}
+      .sd-title p{margin:3px 0 0;max-width:760px;color:var(--sd-muted);font-size:12px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .sd-kicker{display:inline-flex;align-items:center;gap:6px;margin-bottom:3px;color:var(--sd-faint);font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}
+      .sd-kicker::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--sd-good)}
       .sd-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-      .sd-btn{border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-panel);color:var(--sd-text);padding:8px 11px;font-weight:800}
-      .sd-btn:hover{border-color:var(--track,#7aa36f);background:color-mix(in srgb,var(--track,#7aa36f) 12%,var(--sd-panel))}
-      .sd-btn.primary{border-color:var(--sd-good);background:var(--sd-good);color:#fff}
+      .sd-btn{min-height:38px;border:1px solid var(--sd-line);border-radius:var(--radius,8px);background:var(--sd-surface);color:var(--sd-text);padding:8px 11px;font-weight:820;box-shadow:none}
+      .sd-btn:hover{border-color:var(--sd-line2);background:var(--sd-strong)}
+      .sd-btn.primary{border-color:color-mix(in srgb,var(--sd-good) 28%,var(--sd-line));background:color-mix(in srgb,var(--sd-good) 18%,var(--sd-surface));color:var(--sd-text)}
       .sd-btn.slim{min-height:28px;padding:5px 8px;font-size:12px}
-      .sd-content{min-height:0;overflow:auto;padding:14px;display:grid;gap:14px}
+      .sd-content{min-height:0;overflow:auto;padding:12px;display:grid;gap:12px;background:var(--sd-bg)}
       .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-      .sd-stat{border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-surface);padding:11px}
-      .sd-stat b{display:block;font-size:22px;line-height:1;color:var(--sd-text)}
-      .sd-stat span{display:block;margin-top:5px;color:var(--sd-muted);font-size:12px;font-weight:800}
-      .sd-log{border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-panel);padding:12px}
+      .sd-stat{border:1px solid var(--sd-line);border-radius:var(--radius,8px);background:var(--sd-surface);padding:10px}
+      .sd-stat b{display:block;font-size:20px;line-height:1;color:var(--sd-text);font-weight:760}
+      .sd-stat span{display:block;margin-top:5px;color:var(--sd-muted);font-size:11px;font-weight:780}
+      .sd-log{border:1px solid var(--sd-line);border-radius:var(--radius-lg,10px);background:var(--sd-panel);padding:12px}
       .sd-log h3,.sd-panel h3,.sd-card h3{margin:0;color:var(--sd-text)}
       .sd-log-grid{display:grid;grid-template-columns:150px 120px minmax(180px,1fr) auto;gap:8px;align-items:end;margin-top:10px}
       .sd-field{display:grid;gap:4px}
-      .sd-field span{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--sd-muted)}
-      .sd input,.sd select,.sd textarea{width:100%;border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-panel);color:var(--sd-text);padding:8px 9px;outline:none}
+      .sd-field span{font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.075em;color:var(--sd-faint)}
+      .sd input,.sd select,.sd textarea{width:100%;border:1px solid var(--sd-line);border-radius:var(--radius,8px);background:var(--sd-surface-2);color:var(--sd-text);padding:8px 9px;outline:none}
       .sd input:focus,.sd select:focus,.sd textarea:focus{border-color:var(--track,#7aa36f);box-shadow:0 0 0 3px color-mix(in srgb,var(--track,#7aa36f) 16%,transparent)}
-      .sd-daily{border:1px solid var(--sd-line);border-radius:8px;background:var(--sd-panel);padding:12px;display:grid;gap:11px}
+      .sd-daily{border:1px solid var(--sd-line);border-radius:var(--radius-lg,10px);background:var(--sd-panel);padding:12px;display:grid;gap:11px}
       .sd-daily-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
       .sd-daily-head h3{margin:0;color:var(--sd-text);font-size:17px}
       .sd-daily-head p{margin:4px 0 0;color:var(--sd-muted);font-size:12px;line-height:1.35}
@@ -112,37 +128,37 @@ Arcade.register({
       .sd-score-ring b{font-size:20px;line-height:1;color:var(--sd-text)}
       .sd-score-ring span{font-size:10px;color:var(--sd-muted);font-weight:900}
       .sd-career-log{display:grid;grid-template-columns:150px minmax(180px,1fr) auto;gap:8px;align-items:end}
-      .sd-day-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:5px;align-items:end;min-height:84px;border:1px solid var(--sd-line2);border-radius:8px;background:var(--sd-surface);padding:9px}
+      .sd-day-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:5px;align-items:end;min-height:84px;border:1px solid var(--sd-line2);border-radius:var(--radius,8px);background:var(--sd-surface);padding:9px}
       .sd-day{display:grid;gap:5px;align-content:end;min-width:0;color:var(--sd-muted);font-size:10px;text-align:center}
       .sd-day-bar{height:var(--h);min-height:5px;border-radius:999px;background:linear-gradient(180deg,var(--sd-good),color-mix(in srgb,var(--sd-good) 45%,var(--sd-panel)));border:1px solid color-mix(in srgb,var(--sd-good) 40%,var(--sd-line));opacity:.92}
       .sd-day.empty .sd-day-bar{background:var(--sd-chip);border-color:var(--sd-line2);opacity:.65}
       .sd-lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-      .sd-card{--track:#7aa36f;overflow:hidden}
-      .sd-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px;border-bottom:1px solid var(--sd-line2);background:linear-gradient(90deg,color-mix(in srgb,var(--track) 12%,var(--sd-surface)),var(--sd-surface))}
-      .sd-track-mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid color-mix(in srgb,var(--track) 45%,var(--sd-line));border-radius:8px;background:color-mix(in srgb,var(--track) 12%,var(--sd-panel));color:var(--track);font-weight:950}
+      .sd-card{--track:#7aa36f;overflow:hidden;background:var(--sd-panel)}
+      .sd-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px;border-bottom:1px solid var(--sd-line);background:var(--sd-panel)}
+      .sd-track-mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid color-mix(in srgb,var(--track) 42%,var(--sd-line));border-radius:var(--radius,8px);background:color-mix(in srgb,var(--track) 12%,var(--sd-surface));color:color-mix(in srgb,var(--track) 80%,var(--sd-text));font-weight:800}
       .sd-card-head p{margin:4px 0 0;color:var(--sd-muted);font-size:12px;line-height:1.35}
       .sd-progress{padding:10px 12px;border-bottom:1px solid var(--sd-line2)}
       .sd-progress-top{display:flex;justify-content:space-between;gap:8px;color:var(--sd-muted);font-size:12px;font-weight:800}
       .sd-bar{height:8px;margin-top:7px;border:1px solid var(--sd-line2);border-radius:999px;background:var(--sd-chip);overflow:hidden}
       .sd-bar span{display:block;height:100%;border-radius:inherit;background:var(--track);width:var(--pct)}
       .sd-topics{display:grid;gap:7px;padding:10px 12px}
-      .sd-topic{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;border:1px solid var(--sd-line2);border-radius:8px;background:var(--sd-surface);padding:8px;text-align:left;color:var(--sd-text)}
+      .sd-topic{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;border:1px solid var(--sd-line2);border-radius:var(--radius,8px);background:var(--sd-surface);padding:8px;text-align:left;color:var(--sd-text)}
       .sd-topic:hover{border-color:var(--track)}
       .sd-check{display:grid;place-items:center;width:18px;height:18px;border:1px solid var(--sd-line);border-radius:5px;color:#fff;background:var(--sd-panel);font-size:12px;font-weight:900}
       .sd-topic.done .sd-check{border-color:var(--track);background:var(--track)}
       .sd-topic.done span{text-decoration:line-through;color:var(--sd-muted)}
       .sd-quick{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px}
       .sd-side{min-width:0;min-height:0;overflow:auto;display:grid;gap:12px;align-content:start}
-      .sd-panel{padding:12px}
+      .sd-panel{padding:12px;background:var(--sd-panel)}
       .sd-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px}
       .sd-panel p{margin:4px 0 0;color:var(--sd-muted);font-size:12px;line-height:1.35}
       .sd-github-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
-      .sd-mini-stat{border:1px solid var(--sd-line2);border-radius:8px;background:var(--sd-surface);padding:9px}
+      .sd-mini-stat{border:1px solid var(--sd-line2);border-radius:var(--radius,8px);background:var(--sd-surface);padding:9px}
       .sd-mini-stat b{display:block;color:var(--sd-text);font-size:18px}
       .sd-mini-stat span{display:block;margin-top:2px;color:var(--sd-muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
-      .sd-repo-line{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--sd-line2);border-radius:8px;background:var(--sd-chip);padding:8px;margin-top:8px;color:var(--sd-muted);font-size:12px}
+      .sd-repo-line{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--sd-line2);border-radius:var(--radius,8px);background:var(--sd-chip);padding:8px;margin-top:8px;color:var(--sd-muted);font-size:12px}
       .sd-problem-list,.sd-session-list,.sd-plan{display:grid;gap:7px}
-      .sd-problem,.sd-session,.sd-plan li{border:1px solid var(--sd-line2);border-radius:8px;background:var(--sd-surface);padding:8px;color:var(--sd-muted);font-size:12px;line-height:1.35}
+      .sd-problem,.sd-session,.sd-plan li{border:1px solid var(--sd-line2);border-radius:var(--radius,8px);background:var(--sd-surface);padding:8px;color:var(--sd-muted);font-size:12px;line-height:1.35}
       .sd-problem b,.sd-session b{display:block;color:var(--sd-text);font-size:13px}
       .sd-problem small,.sd-session small{display:block;margin-top:2px;color:var(--sd-muted)}
       .sd-plan{margin:0;padding:0;list-style:none}
@@ -150,7 +166,7 @@ Arcade.register({
       .sd-toast{border:1px solid color-mix(in srgb,var(--sd-warn) 40%,var(--sd-line));background:color-mix(in srgb,var(--sd-warn) 13%,var(--sd-panel));color:var(--sd-warn);border-radius:8px;padding:8px;margin-top:8px;font-size:12px;line-height:1.35}
       .sd-empty{padding:12px;text-align:center;color:var(--sd-muted);font-weight:800;border:1px dashed var(--sd-line);border-radius:8px;background:var(--sd-surface)}
       @media(max-width:1080px){.sd-shell{grid-template-columns:1fr}.sd-side{grid-template-columns:1fr 1fr}.sd-lanes{grid-template-columns:1fr}.sd-log-grid,.sd-career-log{grid-template-columns:1fr 1fr}.sd-log-grid .wide,.sd-career-log .wide{grid-column:1/-1}}
-      @media(max-width:720px){.sd{padding:58px 8px 8px}.sd-head{flex-direction:column;padding:12px}.sd-actions{justify-content:flex-start}.sd-content{padding:9px}.sd-stats{grid-template-columns:1fr 1fr}.sd-side{grid-template-columns:1fr}.sd-log-grid,.sd-career-log,.sd-settings{grid-template-columns:1fr}.sd-log-grid .wide,.sd-career-log .wide{grid-column:auto}.sd-daily-head{align-items:stretch;flex-direction:column}.sd-score-ring{width:64px;height:64px}.sd-day-bars{grid-template-columns:repeat(7,minmax(0,1fr))}}
+      @media(max-width:720px){.sd{height:auto;min-height:720px;overflow:visible}.sd-head{flex-direction:column;align-items:stretch;padding:12px}.sd-actions{justify-content:flex-start}.sd-content{padding:9px}.sd-stats{grid-template-columns:1fr 1fr}.sd-side{grid-template-columns:1fr}.sd-log-grid,.sd-career-log,.sd-settings{grid-template-columns:1fr}.sd-log-grid .wide,.sd-career-log .wide{grid-column:auto}.sd-daily-head{align-items:stretch;flex-direction:column}.sd-score-ring{width:64px;height:64px}.sd-day-bars{grid-template-columns:repeat(7,minmax(0,1fr))}}
     `;
     root.appendChild(style);
 
@@ -379,6 +395,7 @@ Arcade.register({
     }
 
     function render() {
+      if (disposed) return;
       const today = totalMinutes(null, 1);
       const week = totalMinutes(null, 7);
       const weekGoal = Math.max(60, minutes(state.settings.weeklyGoal) || 600);
@@ -390,9 +407,13 @@ Arcade.register({
         <div class="sd-shell">
           <section class="sd-main">
             <header class="sd-head">
-              <div class="sd-title">
-                <h2>Study Desk</h2>
-                <p>Plan and log Exam P, quant prep, and coding practice. Coding progress syncs from <b>${esc(REPO)}</b> when the app opens and the saved sync is stale.</p>
+              <div class="sd-brand">
+                <div class="sd-app-logo" aria-hidden="true"><span>ST</span><i></i><b></b></div>
+                <div class="sd-title">
+                  <span class="sd-kicker">Tool</span>
+                  <h2>Study Desk</h2>
+                  <p>Log Exam P, quant prep, coding practice, and NeetCode progress from <b>${esc(REPO)}</b>.</p>
+                </div>
               </div>
               <div class="sd-actions">
                 <button class="sd-btn" type="button" data-action="sync-code" ${syncing ? 'disabled' : ''}>${syncing ? 'Syncing...' : 'Sync NeetCode'}</button>
@@ -624,6 +645,7 @@ Arcade.register({
     }
 
     async function syncGithub() {
+      if (disposed) return;
       state.github.status = 'syncing';
       state.github.error = '';
       render();
@@ -633,6 +655,7 @@ Arcade.register({
         const type = res.headers.get('content-type') || '';
         if (!type.includes('json')) throw new Error('GitHub sync unavailable');
         const data = await res.json();
+        if (disposed) return;
         const files = Array.isArray(data.tree) ? data.tree.filter(item => item.type === 'blob').map(item => parseProblemFromPath(item.path)).filter(Boolean) : [];
         const previous = new Set(state.github.files || []);
         const grouped = new Map();
@@ -669,14 +692,16 @@ Arcade.register({
         record.neetcodeProblems = problems.length;
         record.syncs = (record.syncs || []).concat({ at: state.github.lastSync, newCount: newPaths.length, submissions: paths.length }).slice(-12);
       } catch (err) {
+        if (disposed) return;
         state.github.status = 'idle';
         state.github.error = `Could not sync ${REPO}: ${err.message || err}`;
       }
+      if (disposed) return;
       save();
       render();
     }
 
-    wrap.addEventListener('click', e => {
+    bind(wrap, 'click', e => {
       const button = e.target.closest('[data-action]');
       if (!button) return;
       const action = button.dataset.action;
@@ -685,7 +710,7 @@ Arcade.register({
       if (action === 'sync-code') syncGithub();
     });
 
-    wrap.addEventListener('submit', e => {
+    bind(wrap, 'submit', e => {
       const form = e.target;
       if (!(form instanceof HTMLFormElement)) return;
       e.preventDefault();
@@ -702,7 +727,9 @@ Arcade.register({
 
     const lastSync = state.github.lastSync ? Date.parse(state.github.lastSync) : 0;
     if (!lastSync || Date.now() - lastSync > AUTO_SYNC_MS) {
-      setTimeout(syncGithub, 300);
+      setTimeout(() => {
+        if (!disposed) syncGithub();
+      }, 300);
     }
   },
 });

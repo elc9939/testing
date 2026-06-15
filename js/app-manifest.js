@@ -27,7 +27,9 @@ Arcade.define([
     status: 'tool',
     priority: 2,
     scoreKey: false,
-    src: 'js/games/jobtracker.js?v=17',
+    openMode: 'desk',
+    deskTab: 'career',
+    src: 'js/games/jobtracker.js?v=18',
   },
   {
     id: 'studydesk',
@@ -42,7 +44,9 @@ Arcade.define([
     status: 'tool',
     priority: 3,
     scoreKey: false,
-    src: 'js/games/studydesk.js?v=2',
+    openMode: 'desk',
+    deskTab: 'study',
+    src: 'js/games/studydesk.js?v=3',
   },
   {
     id: 'deckbound',

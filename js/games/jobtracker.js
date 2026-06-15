@@ -83,7 +83,7 @@ Arcade.register({
 
     const style = document.createElement('style');
     style.textContent = `
-      .jt{--jt-bg:var(--bg);--jt-bg2:var(--bg-2);--jt-panel:var(--panel);--jt-panel-solid:var(--panel-solid);--jt-surface:var(--surface);--jt-surface-2:var(--surface-2);--jt-strong:var(--surface-strong);--jt-line:var(--line);--jt-line2:var(--line);--jt-text:var(--text);--jt-muted:var(--muted);--jt-faint:var(--faint);--jt-chip:var(--surface-2);--jt-accent:#4fb477;--jt-accent-soft:color-mix(in srgb,var(--jt-accent) 16%,var(--jt-surface));--jt-warn:#d7a86e;--jt-warn-soft:color-mix(in srgb,var(--jt-warn) 15%,var(--jt-surface));--jt-bad:var(--danger);--jt-bad-soft:color-mix(in srgb,var(--jt-bad) 13%,var(--jt-surface));position:absolute;inset:0;padding:calc(var(--topbar-h,58px) + 12px) 16px 16px;background:linear-gradient(180deg,var(--jt-bg),var(--jt-bg2));color:var(--jt-text);font-family:var(--font,Inter,"Segoe UI",system-ui,sans-serif);overflow:hidden}
+      .jt{--jt-bg:var(--bg);--jt-bg2:var(--bg-2);--jt-panel:var(--panel);--jt-panel-solid:var(--panel-solid);--jt-surface:var(--surface);--jt-surface-2:var(--surface-2);--jt-strong:var(--surface-strong);--jt-line:var(--line);--jt-line2:var(--line);--jt-text:var(--text);--jt-muted:var(--muted);--jt-faint:var(--faint);--jt-chip:var(--surface-2);--jt-accent:#4fb477;--jt-accent-soft:color-mix(in srgb,var(--jt-accent) 16%,var(--jt-surface));--jt-warn:#d7a86e;--jt-warn-soft:color-mix(in srgb,var(--jt-warn) 15%,var(--jt-surface));--jt-bad:var(--danger);--jt-bad-soft:color-mix(in srgb,var(--jt-bad) 13%,var(--jt-surface));position:relative;height:100%;min-height:0;background:transparent;color:var(--jt-text);font-family:var(--font,Inter,"Segoe UI",system-ui,sans-serif);overflow:hidden}
       .jt *{box-sizing:border-box}
       .jt button,.jt input,.jt select,.jt textarea{font:inherit}
       .jt-shell{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:14px;min-height:0}
@@ -213,12 +213,12 @@ Arcade.register({
       .jt-file{display:none}
       @media (max-width:1120px){
         .jt-shell{grid-template-columns:1fr}
-        .jt-detail{position:absolute;right:16px;top:76px;bottom:16px;width:min(430px,calc(100vw - 32px));z-index:6;display:none}
+        .jt-detail{position:absolute;right:0;top:0;bottom:0;width:min(430px,100%);z-index:6;display:none}
         .jt-detail.open{display:block}
         .jt-board{grid-template-columns:repeat(3,minmax(220px,1fr))}
       }
       @media (max-width:760px){
-        .jt{padding:58px 8px 8px}
+        .jt{height:auto;min-height:720px;overflow:visible}
         .jt-head{align-items:stretch;flex-direction:column;padding:12px}
         .jt-actions{justify-content:flex-start}
         .jt-toolbar{grid-template-columns:1fr 1fr;padding:10px}

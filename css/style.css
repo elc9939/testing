@@ -1144,6 +1144,118 @@ body::before {
   background: color-mix(in srgb, var(--app-accent, var(--accent)) 72%, var(--surface-2));
 }
 
+.desk-shell-mode .hub-workspace {
+  overflow: hidden;
+}
+
+.desk-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: calc(100vh - 58px);
+  min-height: 0;
+  padding: 12px;
+  background: var(--bg-2);
+}
+
+.desk-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 62px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.desk-title-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.desk-title-block h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+.desk-title-block p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.desk-title-block > div:last-child {
+  min-width: 0;
+}
+
+.desk-tabbar {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.desk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted);
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.desk-tab:hover,
+.desk-tab.active {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.desk-app-root {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desk-loading {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  height: 100%;
+  min-height: 260px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  color: var(--muted);
+  text-align: center;
+}
+
+.desk-loading b {
+  color: var(--text);
+}
+
+.desk-loading.error {
+  color: var(--danger);
+}
+
 .hub-icon {
   position: relative;
   display: inline-block;
@@ -1222,6 +1334,21 @@ body::before {
     width: min(100% - 20px, 720px);
   }
 
+  .desk-topline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .desk-tabbar {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .desk-tab {
+    flex: 1 0 max-content;
+    justify-content: center;
+  }
+
   .hub-intro-card {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -1273,6 +1400,17 @@ body::before {
 
   .hub-commandbar {
     top: 49px;
+  }
+
+  .desk-workspace {
+    height: auto;
+    min-height: calc(100vh - 107px);
+    padding: 8px;
+  }
+
+  .desk-app-root {
+    min-height: 720px;
+    overflow: visible;
   }
 
   .hub-toolbar {

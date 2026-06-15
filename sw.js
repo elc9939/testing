@@ -1,12 +1,12 @@
 /* Service worker: precache the whole arcade so it runs fully offline once
    installed. Bump CACHE when assets change to roll out a fresh copy. */
-const CACHE = 'mini-hub-v198';
+const CACHE = 'mini-hub-v199';
 const ASSETS = [
   './',
   './index.html',
-  './css/style.css?v=65',
-  './js/arcade.js?v=64',
-  './js/app-manifest.js?v=192',
+  './css/style.css?v=66',
+  './js/arcade.js?v=65',
+  './js/app-manifest.js?v=193',
   './js/games/deckbound.js?v=63',
   './js/games/stardrifter.js?v=59',
   './js/games/snake.js?v=58',
@@ -14,8 +14,8 @@ const ASSETS = [
   './js/games/memory.js?v=57',
   './js/games/reaction.js?v=59',
   './js/games/tictactoe.js?v=57',
-  './js/games/jobtracker.js?v=17',
-  './js/games/studydesk.js?v=2',
+  './js/games/jobtracker.js?v=18',
+  './js/games/studydesk.js?v=3',
   './js/games/careerdesk-email-seed.json?v=7',
   './js/games/stickrun.js?v=155',
   './js/games/pinball.js?v=59',

@@ -5,6 +5,7 @@
   const scriptLoads = new Map();
 
   let current = null;
+  let currentRoot = null;
   let raf = 0;
   let activeLoadId = 0;
   const listeners = [];
@@ -25,6 +26,8 @@
   try { savedTheme = localStorage.getItem(THEME_KEY) || 'system'; } catch (e) {}
   let themeMode = THEME_MODES.includes(savedTheme) ? savedTheme : 'system';
   let homeQuery = '';
+  let shellMode = params.has('desk') ? 'desk' : 'home';
+  let activeDeskTab = ['career', 'study'].includes(params.get('desk')) ? params.get('desk') : 'career';
   const isMobileLike = matchMedia('(pointer: coarse)').matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   const qualityTiers = [
     { name: 'low', level: 0, dprCap: 1, particles: 0.45, particleLimit: 0.45, stars: 0.55, trail: 0.5, ai: 0.45, effects: false },
@@ -312,6 +315,18 @@
     return (app.status || app.kind || 'app').replace(/-/g, ' ').toUpperCase();
   }
 
+  function deskApps() {
+    const order = { career: 1, study: 2 };
+    return apps
+      .filter(app => app.openMode === 'desk' && app.deskTab)
+      .sort((a, b) => (order[a.deskTab] || 99) - (order[b.deskTab] || 99));
+  }
+
+  function deskAppFor(tab) {
+    const list = deskApps();
+    return list.find(app => app.deskTab === tab) || list[0] || null;
+  }
+
   function recentIds() {
     const list = readJSON(RECENTS_KEY, []);
     return Array.isArray(list) ? list.filter(id => appById.has(id)).slice(0, 6) : [];
@@ -367,6 +382,11 @@
   }
 
   function buildMenu() {
+    if (shellMode === 'desk') {
+      buildDeskWorkspace();
+      return;
+    }
+
     const q = homeQuery.trim().toLowerCase();
     const visible = sortApps(apps.filter(app => {
       if (!q) return true;
@@ -514,7 +534,7 @@
     menu.querySelectorAll('[data-launch]').forEach(btn => {
       btn.addEventListener('click', () => {
         const app = appById.get(btn.dataset.launch);
-        if (app) launch(app);
+        if (app) openApp(app);
       });
     });
     menu.querySelectorAll('[data-focus-search]').forEach(btn => {
@@ -532,6 +552,170 @@
     });
     menu.querySelectorAll('[data-theme-toggle]').forEach(btn => btn.addEventListener('click', cycleTheme));
     syncThemeButtons();
+  }
+
+  function deskTabButtonHTML(app) {
+    const active = app.deskTab === activeDeskTab;
+    const icon = app.deskTab === 'study' ? 'book' : 'briefcase';
+    return `<button class="desk-tab${active ? ' active' : ''}" type="button" data-desk-tab="${esc(app.deskTab)}">
+      <span class="hub-icon ${icon}"></span>
+      <span>${esc(app.name)}</span>
+    </button>`;
+  }
+
+  function buildDeskWorkspace() {
+    const tabs = deskApps();
+    const activeApp = deskAppFor(activeDeskTab);
+    if (!tabs.length || !activeApp) {
+      shellMode = 'home';
+      buildMenu();
+      return;
+    }
+    activeDeskTab = activeApp.deskTab;
+    const openTarget = (apps.find(a => a.id === 'stickrun') || apps[0] || {}).id || '';
+    const careerApp = deskAppFor('career') || activeApp;
+    const studyApp = deskAppFor('study') || activeApp;
+
+    menu.innerHTML = `<div class="hub-shell desk-shell-mode">
+      <aside class="hub-left" aria-label="Mini Hub navigation">
+        <div class="hub-window-row" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="hub-brand">
+          <span class="hub-brand-mark">MH</span>
+          <strong>Mini Hub</strong>
+        </div>
+        <nav class="hub-nav">
+          ${railItemHTML('Home', 'home', false, ' data-home="1"')}
+          ${railItemHTML('Desk', 'tool', true)}
+          ${railItemHTML('Career Desk', 'briefcase', activeDeskTab === 'career', ' data-desk-tab="career"')}
+          ${railItemHTML('Study Desk', 'book', activeDeskTab === 'study', ' data-desk-tab="study"')}
+        </nav>
+        <div class="hub-rail-section">
+          <h2>Pinned</h2>
+          ${railItemHTML('Stick Arena', 'pin', false, ` data-launch="${esc(openTarget)}"`)}
+          ${railItemHTML('Career Desk', 'briefcase', activeDeskTab === 'career', ' data-desk-tab="career"')}
+          ${railItemHTML('Study Desk', 'book', activeDeskTab === 'study', ' data-desk-tab="study"')}
+        </div>
+        <button class="hub-settings" type="button" data-theme-toggle><span class="hub-icon settings"></span><span>Theme</span></button>
+      </aside>
+
+      <main class="hub-workspace">
+        <header class="hub-commandbar">
+          <div class="hub-command-title">
+            <span class="hub-icon tool"></span>
+            <strong>Desk Workspace</strong>
+            <span>${esc(activeApp.name)}</span>
+          </div>
+          <div class="hub-command-actions">
+            <button class="hub-icon-btn" type="button" data-home="1" aria-label="Back to home"><span class="hub-icon home"></span></button>
+            <button class="hub-icon-btn" type="button" data-theme-toggle aria-label="Change theme"><span class="hub-icon settings"></span></button>
+          </div>
+        </header>
+
+        <section class="desk-workspace" aria-label="Career and Study workspace">
+          <div class="desk-topline">
+            <div class="desk-title-block">
+              <div class="app-logo" style="--app-accent:${esc(appAccent(activeApp))}" aria-hidden="true"><span>${esc(activeApp.emoji || activeApp.name.slice(0, 2).toUpperCase())}</span><i></i><b></b></div>
+              <div>
+                <p class="hub-kicker">Workspace tab</p>
+                <h1>${esc(activeApp.name)}</h1>
+                <p>${esc(activeApp.desc || '')}</p>
+              </div>
+            </div>
+            <div class="desk-tabbar" role="tablist" aria-label="Desk tabs">
+              ${tabs.map(deskTabButtonHTML).join('')}
+            </div>
+          </div>
+          <div class="desk-app-root" data-desk-root>
+            <div class="desk-loading"><b>${esc(activeApp.name)}</b><span>Opening workspace...</span></div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="hub-right" aria-label="Desk shortcuts">
+        <section class="hub-side-card">
+          <h2>Desk Tabs</h2>
+          <button class="hub-side-link" type="button" data-desk-tab="career">${esc(careerApp.name)} <span>Applications and leads</span></button>
+          <button class="hub-side-link" type="button" data-desk-tab="study">${esc(studyApp.name)} <span>Exam P / quant / coding</span></button>
+        </section>
+        <section class="hub-side-card">
+          <h2>Quick Actions</h2>
+          <button class="hub-side-link" type="button" data-desk-tab="career">Review applications <span>Follow-ups and fit checks</span></button>
+          <button class="hub-side-link" type="button" data-desk-tab="study">Log study <span>Sessions and NeetCode sync</span></button>
+        </section>
+        <section class="hub-side-card">
+          <h2>Other</h2>
+          <button class="hub-side-link" type="button" data-launch="${esc(openTarget)}">Stick Arena <span>Full-screen game mode</span></button>
+          <button class="hub-side-link" type="button" data-home="1">Mini Hub <span>Return to app launcher</span></button>
+        </section>
+      </aside>
+    </div>`;
+
+    menu.querySelectorAll('[data-desk-tab]').forEach(btn => {
+      btn.addEventListener('click', () => openDesk(btn.dataset.deskTab));
+    });
+    menu.querySelectorAll('[data-home]').forEach(btn => btn.addEventListener('click', showMenu));
+    menu.querySelectorAll('[data-launch]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const app = appById.get(btn.dataset.launch);
+        if (app) openApp(app);
+      });
+    });
+    menu.querySelectorAll('[data-theme-toggle]').forEach(btn => btn.addEventListener('click', cycleTheme));
+    syncThemeButtons();
+    mountDeskApp(activeApp);
+  }
+
+  function updateDeskURL() {
+    try {
+      const url = new URL(location.href);
+      if (shellMode === 'desk') url.searchParams.set('desk', activeDeskTab);
+      else url.searchParams.delete('desk');
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    } catch (e) {}
+  }
+
+  function openApp(app) {
+    if (app.openMode === 'desk') {
+      openDesk(app.deskTab || 'career');
+      return;
+    }
+    launch(app);
+  }
+
+  function openDesk(tab) {
+    const app = deskAppFor(tab || activeDeskTab);
+    if (!app) return;
+    shellMode = 'desk';
+    activeDeskTab = app.deskTab;
+    cleanupCurrent();
+    stage.classList.remove('active');
+    menu.classList.remove('hidden');
+    updateDeskURL();
+    buildMenu();
+  }
+
+  async function mountDeskApp(app) {
+    const root = menu.querySelector('[data-desk-root]');
+    if (!root || !app) return;
+    cleanupCurrent();
+    const loadId = ++activeLoadId;
+    currentRoot = root;
+    recordRecent(app);
+    root.innerHTML = `<div class="desk-loading"><b>${esc(app.name)}</b><span>Opening workspace...</span></div>`;
+    try {
+      const loaded = await loadApp(app);
+      if (loadId !== activeLoadId || shellMode !== 'desk' || !document.body.contains(root)) return;
+      root.innerHTML = '';
+      currentRoot = root;
+      current = loaded;
+      loaded.start(root, api);
+    } catch (e) {
+      if (loadId !== activeLoadId || !document.body.contains(root)) return;
+      console.error('Desk failed to start:', e);
+      root.innerHTML = `<div class="desk-loading error"><b>Could not start ${esc(app.name)}</b><span>Return home and try again.</span></div>`;
+    }
   }
 
   function loadScript(src) {
@@ -588,11 +772,15 @@
     if (current && current.stop) { try { current.stop(); } catch (e) {} }
     current = null;
     canvasFits.clear();
-    gameRoot.innerHTML = '';
+    if (currentRoot) currentRoot.innerHTML = '';
+    else gameRoot.innerHTML = '';
+    currentRoot = null;
   }
 
   async function launch(app) {
     cleanupCurrent();
+    shellMode = 'home';
+    updateDeskURL();
     recordRecent(app);
     const loadId = ++activeLoadId;
     gameName.textContent = app.name;
@@ -604,6 +792,7 @@
       const loaded = await loadApp(app);
       if (loadId !== activeLoadId) return;
       gameRoot.innerHTML = '';
+      currentRoot = gameRoot;
       current = loaded;
       loaded.start(gameRoot, api);
     } catch (e) {
@@ -619,7 +808,9 @@
 
   function showMenu() {
     activeLoadId++;
+    shellMode = 'home';
     cleanupCurrent();
+    updateDeskURL();
     stage.classList.remove('active');
     menu.classList.remove('hidden');
     buildMenu();
@@ -638,7 +829,7 @@
       e.preventDefault();
       return;
     }
-    if (e.key === 'Escape' && (current || stage.classList.contains('active'))) showMenu();
+    if (e.key === 'Escape' && (current || stage.classList.contains('active') || shellMode === 'desk')) showMenu();
   });
 
   window.addEventListener('load', buildMenu);
