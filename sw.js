@@ -1,11 +1,11 @@
 /* Service worker: precache the whole arcade so it runs fully offline once
    installed. Bump CACHE when assets change to roll out a fresh copy. */
-const CACHE = 'mini-hub-v193';
+const CACHE = 'mini-hub-v194';
 const ASSETS = [
   './',
   './index.html',
-  './css/style.css?v=63',
-  './js/arcade.js?v=62',
+  './css/style.css?v=64',
+  './js/arcade.js?v=63',
   './js/app-manifest.js?v=189',
   './js/games/deckbound.js?v=63',
   './js/games/stardrifter.js?v=59',

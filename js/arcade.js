@@ -338,7 +338,7 @@
     const kind = statusLabel(app);
     const group = GROUPS.find(g => g.id === (app.group || 'games'));
     return `<button class="app-card${featured ? ' is-featured' : ''}" type="button" data-launch="${esc(app.id)}" style="--app-accent:${esc(appAccent(app))}" aria-label="Open ${esc(app.name)}. ${esc(app.desc)}">
-      <div class="app-cover">${cover}</div>
+      <div class="app-cover">${cover || `<span>${esc(app.emoji || app.name.slice(0, 2).toUpperCase())}</span>`}</div>
       <div class="app-body">
         <div class="app-card-top">
           <div>
@@ -356,6 +356,13 @@
     </button>`;
   }
 
+  function railItemHTML(label, icon, active, extra = '') {
+    return `<button class="hub-rail-item${active ? ' active' : ''}" type="button"${extra}>
+      <span class="hub-icon ${esc(icon)}"></span>
+      <span>${esc(label)}</span>
+    </button>`;
+  }
+
   function buildMenu() {
     const q = homeQuery.trim().toLowerCase();
     const visible = sortApps(apps.filter(app => {
@@ -364,10 +371,17 @@
     }));
     const recent = recentIds().map(id => appById.get(id)).filter(Boolean);
     const featured = visible.filter(app => app.featured);
+    const openTarget = (apps.find(a => a.id === 'stickrun') || apps[0] || {}).id || '';
+    const careerTarget = (apps.find(a => a.id === 'jobtracker') || apps[0] || {}).id || '';
+    const studyTarget = (apps.find(a => a.id === 'studydesk') || apps[0] || {}).id || '';
+    const groupedCounts = GROUPS.map(group => ({
+      group,
+      count: apps.filter(app => (app.group || 'games') === group.id).length,
+    })).filter(item => item.count);
     const featuredHTML = featured.length ? `<section class="hub-section">
       <div class="hub-section-head">
-        <div><h2>Featured</h2><p>The things you are building and using most right now.</p></div>
-        <span class="hub-chip">${featured.length} app${featured.length === 1 ? '' : 's'}</span>
+        <div><h2>Featured</h2><p>Keep the main tools close without making the launcher loud.</p></div>
+        <span class="hub-chip">${featured.length}</span>
       </div>
       <div class="hub-grid featured">${featured.map(app => cardHTML(app, true)).join('')}</div>
     </section>` : '';
@@ -384,31 +398,102 @@
     }).join('');
 
     menu.innerHTML = `<div class="hub-shell">
-      <section class="hub-hero">
-        <div>
-          <div class="hub-kicker">Personal app space</div>
-          <div class="hub-title">Mini Hub</div>
-          <p class="hub-subtitle">Games, strategy toys, job-search tools, and experiments in one fast local-first web app.</p>
+      <aside class="hub-left" aria-label="Mini Hub navigation">
+        <div class="hub-window-row" aria-hidden="true">
+          <span></span><span></span><span></span>
         </div>
-        <div class="hub-actions">
-          <button class="hub-btn primary" type="button" data-launch="${esc((apps.find(a => a.id === 'stickrun') || apps[0] || {}).id || '')}">Play Stick Arena</button>
-          <button class="hub-btn" type="button" data-launch="${esc((apps.find(a => a.id === 'jobtracker') || apps[0] || {}).id || '')}">Open Career Desk</button>
-          <button class="theme-btn" type="button" data-theme-toggle>Theme</button>
+        <div class="hub-brand">
+          <span class="hub-brand-mark">MH</span>
+          <strong>Mini Hub</strong>
         </div>
-      </section>
-      <section class="hub-toolbar" aria-label="Mini Hub search and filters">
-        <input class="hub-search" type="search" value="${esc(homeQuery)}" placeholder="Search apps, tools, experiments..." aria-label="Search Mini Hub apps">
-        <div class="hub-quick">
-          <span class="hub-chip">${apps.length} apps</span>
-          <span class="hub-chip">${effectiveTheme()} theme</span>
+        <nav class="hub-nav">
+          ${railItemHTML('Home', 'home', true)}
+          ${railItemHTML('Search', 'search', false, ' data-focus-search="1"')}
+          ${railItemHTML('Games', 'grid', false)}
+          ${railItemHTML('Tools', 'tool', false)}
+          ${railItemHTML('Study', 'book', false, ` data-launch="${esc(studyTarget)}"`)}
+        </nav>
+        <div class="hub-rail-section">
+          <h2>Pinned</h2>
+          ${railItemHTML('Stick Arena', 'pin', true, ` data-launch="${esc(openTarget)}"`)}
+          ${railItemHTML('Career Desk', 'briefcase', false, ` data-launch="${esc(careerTarget)}"`)}
+          ${railItemHTML('Study Desk', 'book', false, ` data-launch="${esc(studyTarget)}"`)}
         </div>
-      </section>
-      ${recent.length && !q ? `<section class="hub-section">
-        <div class="hub-section-head"><div><h2>Recently opened</h2><p>Jump back into what you used last.</p></div></div>
-        <div class="hub-grid">${recent.map(app => cardHTML(app, false)).join('')}</div>
-      </section>` : ''}
-      ${featuredHTML}${groupHTML || '<div class="hub-empty">No apps match that search.</div>'}
-      <div class="footer">Press Esc or use the Menu button to return here. Theme follows your setting across the hub.</div>
+        <div class="hub-rail-section">
+          <h2>Collections</h2>
+          ${groupedCounts.map(item => `<button class="hub-rail-item" type="button" data-filter="${esc(item.group.id)}"><span class="hub-icon folder"></span><span>${esc(item.group.name)}</span><time>${item.count}</time></button>`).join('')}
+        </div>
+        <button class="hub-settings" type="button" data-theme-toggle><span class="hub-icon settings"></span><span>Theme</span></button>
+      </aside>
+
+      <main class="hub-workspace">
+        <header class="hub-commandbar">
+          <div class="hub-command-title">
+            <span class="hub-icon pin"></span>
+            <strong>Mini Hub</strong>
+            <span>Personal workspace</span>
+          </div>
+          <div class="hub-command-actions">
+            <button class="hub-icon-btn" type="button" data-focus-search="1" aria-label="Search"><span class="hub-icon search"></span></button>
+            <button class="hub-icon-btn" type="button" data-theme-toggle aria-label="Change theme"><span class="hub-icon settings"></span></button>
+          </div>
+        </header>
+
+        <div class="hub-feed">
+          <section class="hub-intro-card">
+            <div class="hub-app-avatar"><span>MH</span></div>
+            <div>
+              <p class="hub-kicker">Website</p>
+              <h1>Mini Hub - games, tools, and experiments</h1>
+              <p class="hub-subtitle">A compact desktop-style launcher for the projects you are actually using.</p>
+            </div>
+            <button class="hub-open-btn" type="button" data-launch="${esc(openTarget)}">Open in</button>
+          </section>
+
+          <section class="hub-edit-card">
+            <div class="hub-edit-head">
+              <span class="hub-square-icon"><span class="hub-icon stack"></span></span>
+              <div><strong>Workspace</strong><span>${visible.length} visible apps</span></div>
+              <button class="hub-review-btn" type="button" data-launch="${esc(studyTarget)}">Study</button>
+            </div>
+            <div class="hub-toolbar" aria-label="Mini Hub search and filters">
+              <input class="hub-search" type="search" value="${esc(homeQuery)}" placeholder="Search apps, tools, experiments..." aria-label="Search Mini Hub apps">
+              <div class="hub-quick">
+                <span class="hub-chip">${apps.length} apps</span>
+                <span class="hub-chip">${themeLabel()}</span>
+              </div>
+            </div>
+          </section>
+
+          ${recent.length && !q ? `<section class="hub-section">
+            <div class="hub-section-head"><div><h2>Recently opened</h2><p>Jump back into what you used last.</p></div></div>
+            <div class="hub-grid">${recent.map(app => cardHTML(app, false)).join('')}</div>
+          </section>` : ''}
+          ${featuredHTML}${groupHTML || '<div class="hub-empty">No apps match that search.</div>'}
+          <div class="footer">Press Esc or use the Menu button to return here. Theme follows your setting across the hub.</div>
+        </div>
+      </main>
+
+      <aside class="hub-right" aria-label="Mini Hub activity">
+        <section class="hub-side-card">
+          <h2>Automations</h2>
+          <div class="hub-side-line"><span class="hub-icon clock"></span><b>Daily career scout</b><time>9:00 AM</time></div>
+          <div class="hub-side-line"><span class="hub-icon clock"></span><b>Study sync</b><time>6h</time></div>
+        </section>
+        <section class="hub-side-card">
+          <h2>Progress</h2>
+          <button class="hub-side-link" type="button" data-launch="${esc(studyTarget)}">Study Desk <span>Exam P / quant / coding</span></button>
+          <button class="hub-side-link" type="button" data-launch="${esc(careerTarget)}">Career Desk <span>Applications and leads</span></button>
+        </section>
+        <section class="hub-side-card">
+          <h2>Outputs</h2>
+          ${(recent.length ? recent : featured.slice(0, 4)).map(app => `<button class="hub-side-link" type="button" data-launch="${esc(app.id)}">${esc(app.name)} <span>${esc(statusLabel(app))}</span></button>`).join('')}
+        </section>
+        <section class="hub-side-card">
+          <h2>Sources</h2>
+          <div class="hub-source-dots">${apps.slice(0, 18).map(app => `<span style="--app-accent:${esc(appAccent(app))}"></span>`).join('')}</div>
+        </section>
+      </aside>
     </div>`;
 
     const input = menu.querySelector('.hub-search');
@@ -427,6 +512,19 @@
       btn.addEventListener('click', () => {
         const app = appById.get(btn.dataset.launch);
         if (app) launch(app);
+      });
+    });
+    menu.querySelectorAll('[data-focus-search]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const search = menu.querySelector('.hub-search');
+        if (search) search.focus();
+      });
+    });
+    menu.querySelectorAll('[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const group = GROUPS.find(g => g.id === btn.dataset.filter);
+        homeQuery = group ? group.name.split('/')[0].trim() : '';
+        buildMenu();
       });
     });
     menu.querySelectorAll('[data-theme-toggle]').forEach(btn => btn.addEventListener('click', cycleTheme));
