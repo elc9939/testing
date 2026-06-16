@@ -6,9 +6,17 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .models import UsageLogEntry, new_id, now_iso
+from .models import (
+    BenchmarkRunRecord,
+    DesignPatchRecord,
+    GenerationAssetRecord,
+    ToolCallLogEntry,
+    UsageLogEntry,
+    new_id,
+    now_iso,
+)
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 class AppStorage:
@@ -38,6 +46,8 @@ class AppStorage:
             current = self.schema_version()
             if current < 1:
                 self._apply_0001_initial()
+            if current < 2:
+                self._apply_0002_ai_layer()
 
     def _apply_0001_initial(self) -> None:
         self._conn.executescript(
@@ -103,6 +113,78 @@ class AppStorage:
             (1, "0001_initial_ai_os_schema", now_iso(), 0, "builtin:0001_initial_ai_os_schema"),
         )
 
+    def _apply_0002_ai_layer(self) -> None:
+        self._conn.executescript(
+            """
+            create table if not exists tool_call_log (
+              id text primary key,
+              created_at text not null,
+              tool_id text not null,
+              ok integer not null,
+              safety text not null,
+              requires_confirmation integer not null,
+              arguments text not null,
+              result text not null,
+              error text,
+              latency_ms real not null,
+              run_id text
+            );
+            create index if not exists idx_tool_call_log_created_at on tool_call_log(created_at);
+            create index if not exists idx_tool_call_log_tool_id on tool_call_log(tool_id);
+
+            create table if not exists design_patches (
+              id text primary key,
+              created_at text not null,
+              instruction text not null,
+              target_files text not null,
+              patch text not null,
+              status text not null,
+              applied_at text,
+              reverted_at text,
+              error text,
+              metadata text not null
+            );
+            create index if not exists idx_design_patches_created_at on design_patches(created_at);
+
+            create table if not exists generation_assets (
+              id text primary key,
+              created_at text not null,
+              kind text not null,
+              provider text not null,
+              model text,
+              prompt text,
+              content_type text,
+              asset_path text,
+              metadata text not null
+            );
+            create index if not exists idx_generation_assets_created_at on generation_assets(created_at);
+
+            create table if not exists benchmark_runs (
+              id text primary key,
+              created_at text not null,
+              kind text not null,
+              provider text,
+              model text,
+              prompt text not null,
+              latency_ms real not null,
+              tokens_per_second real,
+              hardware_before text not null,
+              hardware_after text not null,
+              result text not null,
+              ok integer not null,
+              error text
+            );
+            create index if not exists idx_benchmark_runs_created_at on benchmark_runs(created_at);
+            """
+        )
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (2, "0002_ai_layer_capability_records", now_iso(), 0, "builtin:0002_ai_layer_capability_records"),
+        )
+
     def schema_version(self) -> int:
         with self._lock:
             row = self._conn.execute("select max(version) as version from schema_migrations").fetchone()
@@ -125,7 +207,17 @@ class AppStorage:
                 backup_conn.close()
 
     def data_counts(self) -> dict[str, int]:
-        tables = ["usage_log", "memory_documents", "memory_chunks", "job_events", "schema_migrations"]
+        tables = [
+            "usage_log",
+            "memory_documents",
+            "memory_chunks",
+            "job_events",
+            "tool_call_log",
+            "design_patches",
+            "generation_assets",
+            "benchmark_runs",
+            "schema_migrations",
+        ]
         counts: dict[str, int] = {}
         with self._lock:
             for table in tables:
@@ -164,6 +256,14 @@ class AppStorage:
             ("memory_chunks", "metadata"),
             ("memory_chunks", "embedding"),
             ("job_events", "payload"),
+            ("tool_call_log", "arguments"),
+            ("tool_call_log", "result"),
+            ("design_patches", "target_files"),
+            ("design_patches", "metadata"),
+            ("generation_assets", "metadata"),
+            ("benchmark_runs", "hardware_before"),
+            ("benchmark_runs", "hardware_after"),
+            ("benchmark_runs", "result"),
         ]
         errors: list[dict[str, Any]] = []
         for table, column in checks:
@@ -357,6 +457,305 @@ class AppStorage:
                 "insert into job_events (id, job_id, created_at, level, message, payload) values (?, ?, ?, ?, ?, ?)",
                 (new_id("jobevt"), job_id, now_iso(), level, message, json.dumps(payload or {})),
             )
+
+    def log_tool_call(
+        self,
+        *,
+        tool_id: str,
+        ok: bool,
+        safety: str,
+        requires_confirmation: bool,
+        arguments: dict[str, Any],
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
+        latency_ms: float = 0.0,
+        run_id: str | None = None,
+    ) -> ToolCallLogEntry:
+        entry = ToolCallLogEntry(
+            id=new_id("tool"),
+            created_at=now_iso(),
+            tool_id=tool_id,
+            ok=ok,
+            safety=safety if safety in {"read", "write", "destructive"} else "read",
+            requires_confirmation=requires_confirmation,
+            arguments=arguments,
+            result=result or {},
+            error=error,
+            latency_ms=latency_ms,
+            run_id=run_id,
+        )
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert into tool_call_log (
+                  id, created_at, tool_id, ok, safety, requires_confirmation,
+                  arguments, result, error, latency_ms, run_id
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    entry.id,
+                    entry.created_at,
+                    entry.tool_id,
+                    1 if entry.ok else 0,
+                    entry.safety,
+                    1 if entry.requires_confirmation else 0,
+                    json.dumps(entry.arguments),
+                    json.dumps(entry.result),
+                    entry.error,
+                    entry.latency_ms,
+                    entry.run_id,
+                ),
+            )
+        return entry
+
+    def list_tool_calls(self, limit: int = 50) -> list[ToolCallLogEntry]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from tool_call_log order by created_at desc limit ?",
+                (max(1, min(limit, 500)),),
+            ).fetchall()
+        return [
+            ToolCallLogEntry(
+                id=row["id"],
+                created_at=row["created_at"],
+                tool_id=row["tool_id"],
+                ok=bool(row["ok"]),
+                safety=row["safety"],
+                requires_confirmation=bool(row["requires_confirmation"]),
+                arguments=json.loads(row["arguments"]),
+                result=json.loads(row["result"]),
+                error=row["error"],
+                latency_ms=row["latency_ms"],
+                run_id=row["run_id"],
+            )
+            for row in rows
+        ]
+
+    def create_design_patch(
+        self,
+        *,
+        instruction: str,
+        target_files: list[str],
+        patch: str,
+        status: str = "proposed",
+        metadata: dict[str, Any] | None = None,
+    ) -> DesignPatchRecord:
+        record = DesignPatchRecord(
+            id=new_id("patch"),
+            created_at=now_iso(),
+            instruction=instruction,
+            target_files=target_files,
+            patch=patch,
+            status=status if status in {"proposed", "applied", "reverted", "failed"} else "proposed",
+            metadata=metadata or {},
+        )
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert into design_patches (
+                  id, created_at, instruction, target_files, patch, status,
+                  applied_at, reverted_at, error, metadata
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.created_at,
+                    record.instruction,
+                    json.dumps(record.target_files),
+                    record.patch,
+                    record.status,
+                    record.applied_at,
+                    record.reverted_at,
+                    record.error,
+                    json.dumps(record.metadata),
+                ),
+            )
+        return record
+
+    def get_design_patch(self, patch_id: str) -> DesignPatchRecord | None:
+        with self._lock:
+            row = self._conn.execute("select * from design_patches where id = ?", (patch_id,)).fetchone()
+        if not row:
+            return None
+        return DesignPatchRecord(
+            id=row["id"],
+            created_at=row["created_at"],
+            instruction=row["instruction"],
+            target_files=json.loads(row["target_files"]),
+            patch=row["patch"],
+            status=row["status"],
+            applied_at=row["applied_at"],
+            reverted_at=row["reverted_at"],
+            error=row["error"],
+            metadata=json.loads(row["metadata"]),
+        )
+
+    def list_design_patches(self, limit: int = 25) -> list[DesignPatchRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from design_patches order by created_at desc limit ?",
+                (max(1, min(limit, 200)),),
+            ).fetchall()
+        return [
+            DesignPatchRecord(
+                id=row["id"],
+                created_at=row["created_at"],
+                instruction=row["instruction"],
+                target_files=json.loads(row["target_files"]),
+                patch=row["patch"],
+                status=row["status"],
+                applied_at=row["applied_at"],
+                reverted_at=row["reverted_at"],
+                error=row["error"],
+                metadata=json.loads(row["metadata"]),
+            )
+            for row in rows
+        ]
+
+    def update_design_patch_status(
+        self,
+        patch_id: str,
+        *,
+        status: str,
+        error: str | None = None,
+        applied_at: str | None = None,
+        reverted_at: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> DesignPatchRecord:
+        existing = self.get_design_patch(patch_id)
+        if not existing:
+            raise KeyError(patch_id)
+        next_metadata = existing.metadata if metadata is None else metadata
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                update design_patches
+                set status = ?, error = ?, applied_at = coalesce(?, applied_at),
+                    reverted_at = coalesce(?, reverted_at), metadata = ?
+                where id = ?
+                """,
+                (status, error, applied_at, reverted_at, json.dumps(next_metadata), patch_id),
+            )
+        updated = self.get_design_patch(patch_id)
+        if not updated:
+            raise KeyError(patch_id)
+        return updated
+
+    def log_generation_asset(
+        self,
+        *,
+        kind: str,
+        provider: str,
+        model: str | None = None,
+        prompt: str | None = None,
+        content_type: str | None = None,
+        asset_path: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> GenerationAssetRecord:
+        record = GenerationAssetRecord(
+            id=new_id("asset"),
+            created_at=now_iso(),
+            kind=kind,
+            provider=provider,
+            model=model,
+            prompt=prompt,
+            content_type=content_type,
+            asset_path=asset_path,
+            metadata=metadata or {},
+        )
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert into generation_assets (
+                  id, created_at, kind, provider, model, prompt, content_type, asset_path, metadata
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.created_at,
+                    record.kind,
+                    record.provider,
+                    record.model,
+                    record.prompt,
+                    record.content_type,
+                    record.asset_path,
+                    json.dumps(record.metadata),
+                ),
+            )
+        return record
+
+    def list_generation_assets(self, limit: int = 50) -> list[GenerationAssetRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from generation_assets order by created_at desc limit ?",
+                (max(1, min(limit, 500)),),
+            ).fetchall()
+        return [
+            GenerationAssetRecord(
+                id=row["id"],
+                created_at=row["created_at"],
+                kind=row["kind"],
+                provider=row["provider"],
+                model=row["model"],
+                prompt=row["prompt"],
+                content_type=row["content_type"],
+                asset_path=row["asset_path"],
+                metadata=json.loads(row["metadata"]),
+            )
+            for row in rows
+        ]
+
+    def log_benchmark(self, record: BenchmarkRunRecord) -> BenchmarkRunRecord:
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert into benchmark_runs (
+                  id, created_at, kind, provider, model, prompt, latency_ms, tokens_per_second,
+                  hardware_before, hardware_after, result, ok, error
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.created_at,
+                    record.kind,
+                    record.provider,
+                    record.model,
+                    record.prompt,
+                    record.latency_ms,
+                    record.tokens_per_second,
+                    json.dumps(record.hardware_before),
+                    json.dumps(record.hardware_after),
+                    json.dumps(record.result),
+                    1 if record.ok else 0,
+                    record.error,
+                ),
+            )
+        return record
+
+    def list_benchmarks(self, limit: int = 25) -> list[BenchmarkRunRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from benchmark_runs order by created_at desc limit ?",
+                (max(1, min(limit, 200)),),
+            ).fetchall()
+        return [
+            BenchmarkRunRecord(
+                id=row["id"],
+                created_at=row["created_at"],
+                kind=row["kind"],
+                provider=row["provider"],
+                model=row["model"],
+                prompt=row["prompt"],
+                latency_ms=row["latency_ms"],
+                tokens_per_second=row["tokens_per_second"],
+                hardware_before=json.loads(row["hardware_before"]),
+                hardware_after=json.loads(row["hardware_after"]),
+                result=json.loads(row["result"]),
+                ok=bool(row["ok"]),
+                error=row["error"],
+            )
+            for row in rows
+        ]
 
     def usage_metrics(self) -> dict[str, Any]:
         with self._lock:

@@ -50,6 +50,53 @@ AI_OS_PROVIDER_COSTS_JSON={"ollama":{"input_per_1m":0,"output_per_1m":0},"openai
 
 Those values are your configurable estimates, not authoritative billing records.
 
+Optional app-control endpoints:
+
+```bash
+AI_OS_HUB_API_URL=http://127.0.0.1:8787
+AI_OS_HUB_WORKSPACE_ID=personal
+MINI_HUB_SYNC_KEY=replace-with-a-private-personal-sync-key
+AI_OS_MACRO_LAB_API_URL=http://127.0.0.1:8792
+```
+
+The command bar uses those URLs for real tool calls. `MINI_HUB_SYNC_KEY` is required before
+Study Desk or Career Desk write tools can mutate the Hub API. Macro execution talks to the
+local Macro Lab daemon and still requires confirmation from the command request.
+
+Optional design patch sandbox:
+
+```bash
+AI_OS_DESIGN_WORKSPACE_ROOT=../..
+AI_OS_DESIGN_PATCHES_DIR=.ai-os-data/design-patches
+AI_OS_DESIGN_APPLY_ENABLED=true
+AI_OS_DESIGN_ALLOWED_EXTENSIONS=.svelte,.ts,.js,.css,.md,.py,.json,.html,.toml,.yml,.yaml
+```
+
+Design patch apply/revert requires `confirm=true` on the API request and uses `git apply`
+inside `AI_OS_DESIGN_WORKSPACE_ROOT`. The model proposes a diff; the service stores it and
+applies it through git so the change can be inspected and reversed.
+
+Optional local multimodal engines:
+
+```bash
+COMFYUI_BASE_URL=http://127.0.0.1:8188
+COMFYUI_WORKFLOW_PATH=C:\path\to\workflow.json
+COMFYUI_TIMEOUT_S=600
+
+PIPER_EXECUTABLE=C:\path\to\piper.exe
+PIPER_VOICE_PATH=C:\path\to\voice.onnx
+PIPER_TIMEOUT_S=180
+
+WHISPER_EXECUTABLE=whisper
+WHISPER_MODEL=base
+WHISPER_TIMEOUT_S=600
+```
+
+ComfyUI expects a workflow JSON. If the workflow contains `{{prompt}}` strings they are
+replaced; common `CLIPTextEncode.inputs.text` nodes are also set from the prompt. Piper and
+Whisper are invoked as local CLI tools and return base64 audio or transcript text through the
+same multimodal endpoint as API providers.
+
 Optional specialist provider:
 
 ```bash
@@ -231,10 +278,20 @@ Background, agents, memory, multimodal:
 GET  /api/ai/background/units
 POST /api/ai/background/units/{unit_id}/toggle
 POST /api/ai/background/units/{unit_id}/run
+GET  /api/ai/tools
+GET  /api/ai/tool-calls
+POST /api/ai/command
 POST /api/ai/agents/run
 POST /api/ai/memory/ingest
 POST /api/ai/memory/query
 POST /api/ai/multimodal/{kind}/invoke
+GET  /api/ai/generation-assets
+GET  /api/ai/design/patches
+POST /api/ai/design/patches
+POST /api/ai/design/patches/{patch_id}/apply
+POST /api/ai/design/patches/{patch_id}/revert
+GET  /api/ai/benchmarks
+POST /api/ai/benchmarks
 ```
 
 ## Adding A Provider
@@ -259,8 +316,23 @@ POST /api/ai/multimodal/{kind}/invoke
 ## Adding An Agent Tool
 
 1. Add a `ToolSpec` and async handler in `build_tool_registry()`.
-2. Keep destructive app actions out until they have confirmation and permission checks.
-3. Pass the tool ID in the agent request's `tools` list.
+2. Set `safety` to `read`, `write`, or `destructive`.
+3. Set `requires_confirmation=true` for anything that writes data, sends input, runs macros,
+   touches files, or starts OS-level work.
+4. Pass the tool ID in the agent request's `tools` list.
+
+## Adding A Multimodal Adapter
+
+1. Add a provider branch in `MultimodalRegistry.invoke()`.
+2. Return a plain JSON result with `provider`, optional `model`, and either `image_base64`,
+   `audio_base64`, `text`, or provider metadata.
+3. Let `_record_asset()` persist generated image/audio outputs into `AI_OS_ASSETS_DIR`.
+
+## Adding A Benchmark
+
+1. Add a `kind` branch in `run_benchmark()`.
+2. Capture `hardware_status()` before and after the run.
+3. Store a `BenchmarkRunRecord` so the dashboard can compare runs over time.
 
 ## Adding An Ingestion Source
 
@@ -367,8 +439,8 @@ checking for upstream updates; do not hide the audit failure with a blanket igno
   or a Tauri desktop worker without changing the dashboard API.
 - In-process jobs are bounded and observable, but valuable long-running jobs should eventually
   persist checkpoints to SQLite because active tasks do not survive a process crash.
-- Local image/TTS/STT adapters are interfaces plus provider hooks. Concrete local engines such
-  as Stable Diffusion, Whisper, or Piper can be added behind the same multimodal registry.
+- ComfyUI/Piper/Whisper are CLI/API adapters, not installers. They degrade cleanly when the
+  corresponding executable, workflow, or service URL is missing.
 - The FastAPI service is local-first and rejects non-loopback clients by default. Add auth before
   intentionally exposing it beyond the local machine.
 - The broader Hono personal sync API still needs its durable Postgres store wired end-to-end

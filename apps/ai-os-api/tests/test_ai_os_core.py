@@ -62,6 +62,21 @@ class EchoProvider(ProviderAdapter):
         return [[float(len(text)), 1.0] for text in texts]
 
 
+class JsonToolPlanProvider(EchoProvider):
+    async def complete(self, request: InferenceRequest) -> InferenceResult:
+        return InferenceResult(
+            provider=self.provider_id,
+            model=request.model or "json-tool-plan",
+            text=(
+                '{"plan":"Use the study tool.","tool_calls":['
+                '{"tool_id":"study.add_session","arguments":{"subject":"Linear algebra","minutes":25}}'
+                '],"done":true,"output":"Prepared a study session."}'
+            ),
+            usage=ProviderUsage(input_tokens=5, output_tokens=5, total_tokens=10),
+            latency_ms=1,
+        )
+
+
 def make_router(tmp_path) -> tuple[InferenceRouter, AppStorage, ProviderRegistry]:
     settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["ollama", "openai"])
     storage = AppStorage(settings.database_path())
@@ -140,7 +155,66 @@ def test_storage_migration_and_integrity_report(tmp_path):
 
     assert report["ok"] is True
     assert report["schema_version"] == report["expected_schema_version"]
-    assert report["counts"]["schema_migrations"] == 1
+    assert report["counts"]["schema_migrations"] == 2
+
+
+def test_command_endpoint_blocks_write_tools_without_confirmation(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([JsonToolPlanProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/command", json={"objective": "Add a study session", "confirm_actions": False})
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["tool_calls"][0]["tool_id"] == "study.add_session"
+    assert body["tool_calls"][0]["requires_confirmation"] is True
+    assert body["tool_calls"][0]["ok"] is False
+
+
+def test_design_patch_endpoint_stores_unified_diff(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+    patch = "\n".join(
+        [
+            "diff --git a/apps/hub/src/lib/demo.ts b/apps/hub/src/lib/demo.ts",
+            "--- a/apps/hub/src/lib/demo.ts",
+            "+++ b/apps/hub/src/lib/demo.ts",
+            "@@ -1 +1 @@",
+            "-export const demo = false;",
+            "+export const demo = true;",
+        ]
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/ai/design/patches",
+            json={"instruction": "Flip demo flag.", "target_files": ["apps/hub/src/lib/demo.ts"], "patch": patch},
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["patch"]["status"] == "proposed"
+    assert body["patch"]["target_files"] == ["apps/hub/src/lib/demo.ts"]
+
+
+def test_benchmark_endpoint_logs_run(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/benchmarks", json={"kind": "text", "prompt": "bench"})
+        listed = client.get("/api/ai/benchmarks")
+
+    assert response.status_code == 200
+    assert response.json()["benchmark"]["ok"] is True
+    assert listed.json()["benchmarks"][0]["prompt"] == "bench"
 
 
 def test_backup_verify_and_restore_to_target(tmp_path):

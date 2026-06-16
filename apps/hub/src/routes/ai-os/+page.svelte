@@ -18,6 +18,7 @@
     ToggleLeft,
     ToggleRight,
     Volume2,
+    WandSparkles,
     Wrench,
     Workflow,
     Zap
@@ -31,24 +32,41 @@
     getAiUsage,
     ingestMemory,
     invokeMultimodal,
+    applyDesignPatch,
+    listBenchmarks,
+    listDesignPatches,
+    listGenerationAssets,
+    listToolCalls,
     listAiJobs,
+    proposeDesignPatch,
     queryMemory,
+    revertDesignPatch,
     runAgent,
     runBackgroundUnit,
+    runBenchmark,
+    runCommand,
     runInference,
     restoreTestAiBackup,
     streamInference,
     toggleBackgroundUnit,
     verifyAiBackup,
     type AiBackgroundUnit,
+    type AiBenchmarkRun,
+    type AiDesignPatch,
+    type AiGenerationAsset,
     type AiJobSnapshot,
     type AiStatus,
+    type AiToolCallEntry,
     type AiUsageEntry
   } from '$lib/ai-os-api';
 
   let status: AiStatus | null = null;
   let usage: AiUsageEntry[] = [];
   let jobs: AiJobSnapshot[] = [];
+  let toolCalls: AiToolCallEntry[] = [];
+  let generationAssets: AiGenerationAsset[] = [];
+  let designPatches: AiDesignPatch[] = [];
+  let benchmarkRuns: AiBenchmarkRun[] = [];
   let loading = false;
   let actionError = '';
   let actionMessage = '';
@@ -76,6 +94,17 @@
   let agentResult = '';
   let agentBusy = false;
 
+  let commandObjective = 'Add a 25 minute study session for linear algebra.';
+  let commandConfirm = false;
+  let commandResult = '';
+  let commandBusy = false;
+
+  let designInstruction = 'Make the AI OS dashboard denser while preserving the current layout system.';
+  let designTargets = 'apps/hub/src/routes/ai-os/+page.svelte';
+  let designConfirm = false;
+  let designResult = '';
+  let designBusy = false;
+
   let multimodalKind = 'image';
   let multimodalProvider = '';
   let multimodalPrompt = 'A clean technical diagram of modular local AI infrastructure';
@@ -84,6 +113,11 @@
   let audioBase64 = '';
   let multimodalResult = '';
   let multimodalBusy = false;
+
+  let benchmarkKind = 'text';
+  let benchmarkPrompt = 'Run a compact local benchmark and describe the AI stack capability in one paragraph.';
+  let benchmarkResult = '';
+  let benchmarkBusy = false;
 
   $: providers = status?.providers ?? [];
   $: availableProviders = providers.filter((provider) => provider.available);
@@ -126,8 +160,20 @@
     loading = true;
     actionError = '';
     try {
-      status = await getAiStatus();
-      usage = await getAiUsage(30);
+      const [nextStatus, nextUsage, nextToolCalls, nextAssets, nextPatches, nextBenchmarks] = await Promise.all([
+        getAiStatus(),
+        getAiUsage(30),
+        listToolCalls(30),
+        listGenerationAssets(24),
+        listDesignPatches(12),
+        listBenchmarks(12)
+      ]);
+      status = nextStatus;
+      usage = nextUsage;
+      toolCalls = nextToolCalls;
+      generationAssets = nextAssets;
+      designPatches = nextPatches;
+      benchmarkRuns = nextBenchmarks;
       jobs = status.jobs;
       actionMessage = 'AI OS status refreshed.';
     } catch (error) {
@@ -332,6 +378,77 @@
     }
   }
 
+  async function runCommandBar(): Promise<void> {
+    commandBusy = true;
+    actionError = '';
+    try {
+      const result = await runCommand({
+        objective: commandObjective,
+        confirm_actions: commandConfirm,
+        provider: inferProvider || undefined,
+        model: inferModel || undefined,
+        max_steps: 4,
+        context: { source: 'ai-os-dashboard' }
+      });
+      commandResult = stringify(result);
+      toolCalls = await listToolCalls(30);
+    } catch (error) {
+      setError(error, 'Command failed.');
+    } finally {
+      commandBusy = false;
+    }
+  }
+
+  async function proposePatch(): Promise<void> {
+    designBusy = true;
+    actionError = '';
+    try {
+      const patch = await proposeDesignPatch({
+        instruction: designInstruction,
+        target_files: designTargets
+          .split('\n')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        provider: inferProvider || undefined,
+        model: inferModel || undefined
+      });
+      designPatches = [patch, ...designPatches.filter((item) => item.id !== patch.id)].slice(0, 12);
+      designResult = patch.patch;
+    } catch (error) {
+      setError(error, 'Design patch proposal failed.');
+    } finally {
+      designBusy = false;
+    }
+  }
+
+  async function applyPatchRecord(patch: AiDesignPatch): Promise<void> {
+    designBusy = true;
+    actionError = '';
+    try {
+      const updated = await applyDesignPatch(patch.id, designConfirm);
+      designPatches = designPatches.map((item) => (item.id === updated.id ? updated : item));
+      designResult = stringify(updated);
+    } catch (error) {
+      setError(error, 'Design patch apply failed.');
+    } finally {
+      designBusy = false;
+    }
+  }
+
+  async function revertPatchRecord(patch: AiDesignPatch): Promise<void> {
+    designBusy = true;
+    actionError = '';
+    try {
+      const updated = await revertDesignPatch(patch.id, designConfirm);
+      designPatches = designPatches.map((item) => (item.id === updated.id ? updated : item));
+      designResult = stringify(updated);
+    } catch (error) {
+      setError(error, 'Design patch revert failed.');
+    } finally {
+      designBusy = false;
+    }
+  }
+
   async function invokeMedia(): Promise<void> {
     multimodalBusy = true;
     actionError = '';
@@ -345,10 +462,32 @@
         audio_base64: audioBase64 || undefined
       });
       multimodalResult = stringify(result);
+      generationAssets = await listGenerationAssets(24);
     } catch (error) {
       setError(error, 'Multimodal invocation failed.');
     } finally {
       multimodalBusy = false;
+    }
+  }
+
+  async function runCapabilityBenchmark(): Promise<void> {
+    benchmarkBusy = true;
+    actionError = '';
+    try {
+      const run = await runBenchmark({
+        kind: benchmarkKind,
+        prompt: benchmarkPrompt,
+        provider: inferProvider || undefined,
+        model: inferModel || undefined,
+        local_first: true
+      });
+      benchmarkRuns = [run, ...benchmarkRuns.filter((item) => item.id !== run.id)].slice(0, 12);
+      benchmarkResult = stringify(run);
+      await refresh();
+    } catch (error) {
+      setError(error, 'Benchmark failed.');
+    } finally {
+      benchmarkBusy = false;
     }
   }
 
@@ -454,6 +593,164 @@
         </div>
       {/each}
     </div>
+  </div>
+</section>
+
+<section class="grid two work-grid">
+  <div class="card card-pad panel command-panel">
+    <div class="section-title">
+      <Zap size={18} />
+      <strong>Command Bar</strong>
+    </div>
+    <div class="field">
+      <label for="command-objective">Objective</label>
+      <textarea id="command-objective" bind:value={commandObjective} rows="4"></textarea>
+    </div>
+    <label class="checkline" for="command-confirm">
+      <input id="command-confirm" type="checkbox" bind:checked={commandConfirm} />
+      <span>Confirm write/system tools</span>
+    </label>
+    <div class="action-row">
+      <button class="button primary" type="button" disabled={commandBusy} on:click={runCommandBar}>
+        <Play size={17} />
+        <span>Execute</span>
+      </button>
+      <button class="button" type="button" on:click={refresh}>
+        <RefreshCw size={17} />
+        <span>Refresh</span>
+      </button>
+    </div>
+    <pre>{commandResult}</pre>
+  </div>
+
+  <div class="card card-pad panel">
+    <div class="section-title">
+      <Wrench size={18} />
+      <strong>App Tools</strong>
+    </div>
+    <div class="tool-list">
+      {#each status?.tools ?? [] as tool}
+        <article class:armed={tool.requires_confirmation} class="tool-row">
+          <div>
+            <strong>{tool.id}</strong>
+            <span>{tool.safety}</span>
+          </div>
+          <small>{tool.label}{tool.requires_confirmation ? ' · confirmation required' : ''}</small>
+        </article>
+      {:else}
+        <p class="muted">No tools registered.</p>
+      {/each}
+    </div>
+    <div class="call-list">
+      {#each toolCalls.slice(0, 6) as call}
+        <article class:failed={!call.ok} class="call-row">
+          <strong>{call.tool_id}</strong>
+          <span>{call.ok ? 'OK' : call.error ?? 'blocked'}</span>
+          <small>{call.latency_ms.toFixed(0)} ms · {new Date(call.created_at).toLocaleTimeString()}</small>
+        </article>
+      {:else}
+        <p class="muted">No tool calls yet.</p>
+      {/each}
+    </div>
+  </div>
+</section>
+
+<section class="grid two work-grid">
+  <div class="card card-pad panel">
+    <div class="section-title">
+      <WandSparkles size={18} />
+      <strong>Design Patch Lab</strong>
+    </div>
+    <div class="control-grid">
+      <div class="field wide">
+        <label for="design-instruction">Instruction</label>
+        <textarea id="design-instruction" bind:value={designInstruction} rows="3"></textarea>
+      </div>
+      <div class="field wide">
+        <label for="design-targets">Target files</label>
+        <textarea id="design-targets" bind:value={designTargets} rows="2"></textarea>
+      </div>
+    </div>
+    <label class="checkline" for="design-confirm">
+      <input id="design-confirm" type="checkbox" bind:checked={designConfirm} />
+      <span>Arm apply/revert</span>
+    </label>
+    <div class="action-row">
+      <button class="button primary" type="button" disabled={designBusy} on:click={proposePatch}>
+        <Play size={17} />
+        <span>Propose</span>
+      </button>
+    </div>
+    <pre>{designResult}</pre>
+  </div>
+
+  <div class="card card-pad panel">
+    <div class="section-title">
+      <Activity size={18} />
+      <strong>Benchmarks</strong>
+    </div>
+    <div class="control-grid">
+      <div class="field">
+        <label for="benchmark-kind">Kind</label>
+        <select id="benchmark-kind" bind:value={benchmarkKind}>
+          <option value="text">text</option>
+          <option value="image">image</option>
+        </select>
+      </div>
+      <div class="field wide">
+        <label for="benchmark-prompt">Prompt</label>
+        <textarea id="benchmark-prompt" bind:value={benchmarkPrompt} rows="3"></textarea>
+      </div>
+    </div>
+    <button class="button primary" type="button" disabled={benchmarkBusy} on:click={runCapabilityBenchmark}>
+      <Zap size={17} />
+      <span>Run Benchmark</span>
+    </button>
+    <div class="benchmark-list">
+      {#each benchmarkRuns.slice(0, 5) as run}
+        <article class:failed={!run.ok} class="benchmark-row">
+          <div>
+            <strong>{run.kind}</strong>
+            <span>{run.provider ?? 'auto'}</span>
+          </div>
+          <small>{run.latency_ms.toFixed(0)} ms · {run.tokens_per_second ? `${run.tokens_per_second.toFixed(1)} tok/s` : 'n/a tok/s'}</small>
+        </article>
+      {:else}
+        <p class="muted">No benchmark runs yet.</p>
+      {/each}
+    </div>
+    <pre>{benchmarkResult}</pre>
+  </div>
+</section>
+
+<section class="card card-pad panel patch-history">
+  <div class="section-title">
+    <Wrench size={18} />
+    <strong>Patch History</strong>
+  </div>
+  <div class="patch-list">
+    {#each designPatches as patch}
+      <article class:failed={patch.status === 'failed'} class="patch-row">
+        <div>
+          <strong>{patch.status}</strong>
+          <span>{new Date(patch.created_at).toLocaleString()}</span>
+        </div>
+        <small>{patch.target_files.join(', ')}</small>
+        <p>{patch.instruction}</p>
+        <div class="action-row tight">
+          <button class="button" type="button" disabled={designBusy || patch.status === 'applied'} on:click={() => applyPatchRecord(patch)}>
+            <Play size={16} />
+            <span>Apply</span>
+          </button>
+          <button class="button" type="button" disabled={designBusy || patch.status !== 'applied'} on:click={() => revertPatchRecord(patch)}>
+            <Square size={16} />
+            <span>Revert</span>
+          </button>
+        </div>
+      </article>
+    {:else}
+      <p class="muted">No design patches yet.</p>
+    {/each}
   </div>
 </section>
 
@@ -736,6 +1033,19 @@
       <span>Invoke</span>
     </button>
     <pre>{multimodalResult}</pre>
+    <div class="asset-list">
+      {#each generationAssets.slice(0, 6) as asset}
+        <article class="asset-row">
+          <div>
+            <strong>{asset.kind}</strong>
+            <span>{asset.provider}</span>
+          </div>
+          <small>{asset.asset_path ?? asset.content_type ?? 'metadata only'}</small>
+        </article>
+      {:else}
+        <p class="muted">No generation assets yet.</p>
+      {/each}
+    </div>
   </div>
 
   <div class="card card-pad panel">
@@ -874,7 +1184,12 @@
   .provider-list,
   .capability-groups,
   .job-list,
-  .ambient-list {
+  .ambient-list,
+  .tool-list,
+  .call-list,
+  .benchmark-list,
+  .asset-list,
+  .patch-list {
     display: grid;
     gap: 10px;
   }
@@ -883,6 +1198,11 @@
   .capability-row,
   .job-row,
   .ambient-row,
+  .tool-row,
+  .call-row,
+  .benchmark-row,
+  .asset-row,
+  .patch-row,
   .foundation-tile {
     display: grid;
     gap: 6px;
@@ -922,7 +1242,11 @@
 
   .provider-row div,
   .job-row div,
-  .ambient-row div:first-child {
+  .ambient-row div:first-child,
+  .tool-row div,
+  .benchmark-row div,
+  .asset-row div,
+  .patch-row div:first-child {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -932,6 +1256,11 @@
   .provider-row span,
   .job-row span,
   .ambient-row span,
+  .tool-row span,
+  .call-row span,
+  .benchmark-row span,
+  .asset-row span,
+  .patch-row span,
   .capability-group > span {
     color: #64748b;
     font-size: 12px;
@@ -942,16 +1271,30 @@
 
   .provider-row p,
   .provider-row small,
-  .capability-row small {
+  .capability-row small,
+  .tool-row small,
+  .call-row small,
+  .benchmark-row small,
+  .asset-row small,
+  .patch-row small,
+  .patch-row p {
     margin: 0;
     color: #64748b;
     overflow-wrap: anywhere;
   }
 
   .provider-row.offline,
-  .capability-row.off {
+  .capability-row.off,
+  .call-row.failed,
+  .benchmark-row.failed,
+  .patch-row.failed {
     border-color: #f1c6b1;
     background: #fff8f3;
+  }
+
+  .tool-row.armed {
+    border-color: #f4d58d;
+    background: #fffaf0;
   }
 
   .capability-group {
@@ -967,6 +1310,20 @@
 
   .wide {
     grid-column: 1 / -1;
+  }
+
+  .checkline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .checkline input {
+    width: 16px;
+    height: 16px;
   }
 
   pre {
@@ -985,6 +1342,26 @@
   .job-row {
     grid-template-columns: minmax(0, 1fr) minmax(120px, 220px) auto;
     align-items: center;
+  }
+
+  .call-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .patch-history {
+    margin-bottom: 14px;
+  }
+
+  .patch-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .patch-row {
+    align-content: start;
+  }
+
+  .action-row.tight {
+    margin-top: 4px;
   }
 
   progress {
@@ -1035,7 +1412,8 @@
   @media (max-width: 1100px) {
     .metric-grid,
     .foundation-grid,
-    :global(.grid.two) {
+    :global(.grid.two),
+    .patch-list {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
@@ -1045,6 +1423,7 @@
     .foundation-grid,
     :global(.grid.two),
     .control-grid,
+    .patch-list,
     .job-row,
     .ambient-row {
       grid-template-columns: 1fr;

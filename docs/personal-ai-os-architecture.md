@@ -6,8 +6,8 @@ Date: 2026-06-16
 
 This layer is capability infrastructure, not a set of pre-selected AI features. It gives the
 hub a local-first inference plane, queueable high-volume jobs, background triggers, agent
-execution, semantic memory, and multimodal adapters that can be toggled or invoked later by
-specific workflows.
+execution, semantic memory, app-control tools, reversible app design patches, multimodal
+adapters, and hardware benchmarks that can be toggled or invoked later by specific workflows.
 
 The implementation is a sibling FastAPI service at `apps/ai-os-api`. It is intentionally
 separate from the existing Hono sync API because model IO, file ingestion, long-running jobs,
@@ -44,6 +44,9 @@ flowchart LR
   Agents --> Tools["Tool Registry"]
   API --> Ambient["Background Registry"]
   API --> Media["Multimodal Registry"]
+  API --> AppTools["Hub + Macro Lab Tool Adapters"]
+  API --> Design["Design Patch Sandbox"]
+  API --> Bench["Benchmark Runner"]
   API --> Telemetry["Usage + Hardware Telemetry"]
 ```
 
@@ -52,6 +55,10 @@ The service keeps local state in `AI_OS_DATA_DIR` using SQLite:
 - `usage_log`: per-call provider, model, task, token estimate, cost estimate, latency, fallback chain.
 - `memory_documents`, `memory_chunks`: text chunks, metadata, embedding vectors, source IDs.
 - `job_events`: append-only job status/progress events for debugability.
+- `tool_call_log`: every app tool invocation, confirmation block, result, error, and latency.
+- `design_patches`: proposed/applied/reverted git patches with target files and safety metadata.
+- `generation_assets`: prompt history and persisted local image/audio outputs when available.
+- `benchmark_runs`: hardware snapshots, latency, provider/model, and result payloads for capability tests.
 
 This database is not the personal cloud sync source of truth. It is the local AI operating
 state and can be rebuilt or moved independently.
@@ -124,8 +131,31 @@ The agent engine is a generic plan-act-check-retry loop:
 3. Check the result with another provider call.
 4. Retry or hand off to a named agent until budget is exhausted.
 
-Tools are real functions exposed by the AI OS service, such as inference, memory search, and
-job creation. App-specific tools can later be registered beside them.
+Tools are real functions exposed by the AI OS service. Current tools include routed inference,
+semantic memory search, Hub status, Study Desk session creation, Career Desk job creation,
+Macro Lab macro listing, and Macro Lab macro execution. Tools declare `read`, `write`, or
+`destructive` safety. Write/destructive tools require `confirm_actions=true`; otherwise the
+tool call is logged as blocked and the model receives a confirmation-needed observation.
+
+The command bar at `POST /api/ai/command` is a thin natural-language wrapper around this
+agent runtime. It does not get special privileges. It uses the same registry, confirmation
+rules, and logs as `POST /api/ai/agents/run`.
+
+### Design Patch
+
+AI-assisted app modification is intentionally patch-based:
+
+- `POST /api/ai/design/patches` creates a stored unified diff from either supplied patch text
+  or a provider-generated proposal.
+- `POST /api/ai/design/patches/{id}/apply` runs `git apply --check` and then `git apply`.
+- `POST /api/ai/design/patches/{id}/revert` runs `git apply -R`.
+- Both apply and revert require `confirm=true`.
+- Patch paths must be relative, stay inside `AI_OS_DESIGN_WORKSPACE_ROOT`, and match allowed
+  extensions.
+
+This keeps self-modification reversible and inspectable. The model proposes changes; the system
+stores and applies patches through git mechanics rather than letting the model directly write
+arbitrary files.
 
 ### Ingestion Source
 
@@ -149,9 +179,23 @@ Multimodal providers share a simple request/response envelope:
 - `audio.stt`
 - `vision.describe`
 
-Local adapters can be added for Stable Diffusion, Whisper, Piper, or vision-capable Ollama
-models. API adapters can be added for OpenAI or specialist services. Missing dependencies are
-reported as unavailable rather than faked.
+Implemented adapters:
+
+- OpenAI image, TTS, STT, and text/vision-compatible request path when API keys are configured.
+- Ollama vision through `/api/generate` with image payloads.
+- ComfyUI image generation when `COMFYUI_BASE_URL` plus a workflow are configured.
+- Piper local TTS when `PIPER_EXECUTABLE` and `PIPER_VOICE_PATH` are configured.
+- Whisper CLI local STT when `WHISPER_EXECUTABLE` is configured.
+
+Outputs are recorded in `generation_assets`; binary image/audio results are copied under
+`AI_OS_ASSETS_DIR/generations`.
+
+### Benchmark
+
+Benchmarks are first-class records, not just UI timers. `POST /api/ai/benchmarks` captures
+hardware before/after, provider/model, latency, tokens/sec when available, and the raw result.
+Text benchmarks route through the inference router; image benchmarks route through the
+multimodal image adapter.
 
 ## Queueing, Streaming, And Long-Running Work
 
@@ -184,6 +228,8 @@ rates so cost controls can exist without hardcoding pricing claims.
 - `GET /api/ai/status`
 - `GET /api/ai/capabilities`
 - `GET /api/ai/providers`
+- `GET /api/ai/tool-calls`
+- `POST /api/ai/command`
 - `POST /api/ai/infer`
 - `POST /api/ai/infer/stream`
 - `GET /api/ai/usage`
@@ -199,13 +245,21 @@ rates so cost controls can exist without hardcoding pricing claims.
 - `POST /api/ai/memory/ingest`
 - `POST /api/ai/memory/query`
 - `POST /api/ai/multimodal/{kind}/invoke`
+- `GET /api/ai/generation-assets`
+- `GET /api/ai/design/patches`
+- `POST /api/ai/design/patches`
+- `POST /api/ai/design/patches/{patch_id}/apply`
+- `POST /api/ai/design/patches/{patch_id}/revert`
+- `GET /api/ai/benchmarks`
+- `POST /api/ai/benchmarks`
 
 ## UI Surface
 
 The Svelte route `/ai-os` is a capability dashboard. It shows provider reachability, hardware
-utilization, capabilities, usage logs, queue state, background units, semantic memory, agents,
-and multimodal test fire controls. It is not a feature chooser. It is a cockpit for seeing what
-the AI substrate can do before deciding what to build with it.
+utilization, capabilities, usage logs, queue state, command/tool execution, patch history,
+background units, semantic memory, agents, multimodal test fire controls, generation history,
+and benchmark runs. It is not a feature chooser. It is a cockpit for seeing what the AI
+substrate can do before deciding what to build with it.
 
 ## Assumptions
 

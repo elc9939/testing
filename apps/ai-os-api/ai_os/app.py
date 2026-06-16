@@ -13,8 +13,10 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from .agents.engine import AgentEngine, build_tool_registry
 from .background.registry import BackgroundRegistry, build_background_registry
+from .benchmarks import run_benchmark
 from .capabilities import build_capabilities
 from .config import Settings, get_settings
+from .design import apply_stored_patch, propose_design_patch
 from .health import full_health
 from .inference import InferenceRouter, sse
 from .jobs.primitives import JobPrimitives
@@ -25,11 +27,16 @@ from .memory.store import SemanticMemory
 from .models import (
     AgentRunRequest,
     BackgroundToggleRequest,
+    BenchmarkRequest,
+    CommandRequest,
+    DesignPatchApplyRequest,
+    DesignPatchRequest,
     InferenceRequest,
     JobCreateRequest,
     MemoryIngestRequest,
     MemoryQueryRequest,
     MultimodalInvokeRequest,
+    new_id,
 )
 from .multimodal.registry import MultimodalRegistry
 from .providers.registry import ProviderRegistry, build_provider_registry
@@ -55,9 +62,9 @@ class Services:
         JobPrimitives(self.router).register(self.jobs)
         self.memory = SemanticMemory(storage, providers)
         self.background = build_background_registry()
-        self.tools = build_tool_registry(self.router, self.memory)
+        self.tools = build_tool_registry(self.router, self.memory, settings, storage)
         self.agents = AgentEngine(self.router, self.tools)
-        self.multimodal = MultimodalRegistry(providers)
+        self.multimodal = MultimodalRegistry(settings, providers, storage)
         self.backups = BackupManager(settings, storage)
         self.maintenance = MaintenanceScheduler(settings, self.backups)
 
@@ -176,6 +183,9 @@ def create_app(
             "jobs": [job.model_dump(mode="json") for job in services.jobs.list()],
             "background": [unit.model_dump(mode="json") for unit in services.background.list()],
             "tools": [tool.model_dump(mode="json") for tool in services.tools.specs()],
+            "tool_calls": [entry.model_dump(mode="json") for entry in services.storage.list_tool_calls(20)],
+            "generation_assets": [asset.model_dump(mode="json") for asset in services.storage.list_generation_assets(12)],
+            "benchmark_runs": [run.model_dump(mode="json") for run in services.storage.list_benchmarks(12)],
             "integrity": services.storage.integrity_report(),
             "backups": [backup.as_dict() for backup in services.backups.list_backups()[:5]],
             "metrics": {
@@ -336,6 +346,41 @@ def create_app(
     async def tools() -> dict[str, Any]:
         return {"tools": [tool.model_dump(mode="json") for tool in services.tools.specs()]}
 
+    @app.get("/api/ai/tool-calls")
+    async def tool_calls(limit: int = 50) -> dict[str, Any]:
+        return {"tool_calls": [entry.model_dump(mode="json") for entry in services.storage.list_tool_calls(limit)]}
+
+    @app.post("/api/ai/command")
+    async def command(request: CommandRequest) -> dict[str, Any]:
+        try:
+            run_id = new_id("cmd")
+            agent_request = AgentRunRequest(
+                objective=request.objective,
+                agent_id="command-bar",
+                max_steps=request.max_steps,
+                provider=request.provider,
+                model=request.model,
+                tools=request.tools,
+                context={
+                    **request.context,
+                    "confirmed": request.confirm_actions,
+                    "confirm_actions": request.confirm_actions,
+                    "run_id": run_id,
+                },
+            )
+            result = await services.agents.run(agent_request)
+            return {
+                "result": result.model_dump(mode="json"),
+                "tool_calls": [
+                    entry.model_dump(mode="json")
+                    for entry in services.storage.list_tool_calls(25)
+                    if entry.run_id == run_id
+                ],
+            }
+        except Exception as error:
+            logger.exception("Command run failed")
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
     @app.post("/api/ai/agents/run")
     async def run_agent(request: AgentRunRequest) -> dict[str, Any]:
         try:
@@ -375,6 +420,71 @@ def create_app(
             return {"result": await services.multimodal.invoke(kind, request)}
         except Exception as error:
             logger.exception("Multimodal invocation failed")
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.get("/api/ai/generation-assets")
+    async def generation_assets(limit: int = 50) -> dict[str, Any]:
+        return {"assets": [asset.model_dump(mode="json") for asset in services.storage.list_generation_assets(limit)]}
+
+    @app.get("/api/ai/design/patches")
+    async def design_patches(limit: int = 25) -> dict[str, Any]:
+        return {"patches": [patch.model_dump(mode="json") for patch in services.storage.list_design_patches(limit)]}
+
+    @app.post("/api/ai/design/patches")
+    async def create_design_patch(request: DesignPatchRequest) -> dict[str, Any]:
+        try:
+            patch = await propose_design_patch(services.settings, services.router, services.storage, request)
+            if request.apply:
+                patch = apply_stored_patch(services.settings, services.storage, patch.id, confirm=request.confirm)
+            return {"patch": patch.model_dump(mode="json")}
+        except PermissionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except Exception as error:
+            logger.exception("Design patch proposal failed")
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post("/api/ai/design/patches/{patch_id}/apply")
+    async def apply_design_patch_endpoint(patch_id: str, request: DesignPatchApplyRequest) -> dict[str, Any]:
+        try:
+            patch = apply_stored_patch(services.settings, services.storage, patch_id, confirm=request.confirm)
+            return {"patch": patch.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Design patch not found.") from error
+        except PermissionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except Exception as error:
+            logger.exception("Design patch apply failed")
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post("/api/ai/design/patches/{patch_id}/revert")
+    async def revert_design_patch_endpoint(patch_id: str, request: DesignPatchApplyRequest) -> dict[str, Any]:
+        try:
+            patch = apply_stored_patch(services.settings, services.storage, patch_id, confirm=request.confirm, reverse=True)
+            return {"patch": patch.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Design patch not found.") from error
+        except PermissionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except Exception as error:
+            logger.exception("Design patch revert failed")
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.get("/api/ai/benchmarks")
+    async def benchmarks(limit: int = 25) -> dict[str, Any]:
+        return {"benchmarks": [run.model_dump(mode="json") for run in services.storage.list_benchmarks(limit)]}
+
+    @app.post("/api/ai/benchmarks")
+    async def benchmark(request: BenchmarkRequest) -> dict[str, Any]:
+        try:
+            record = await run_benchmark(
+                services.router,
+                services.storage,
+                request,
+                image_invoker=lambda media_request: services.multimodal.invoke("image", media_request),
+            )
+            return {"benchmark": record.model_dump(mode="json")}
+        except Exception as error:
+            logger.exception("Benchmark failed")
             raise HTTPException(status_code=400, detail=str(error)) from error
 
     return app

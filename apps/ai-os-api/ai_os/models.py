@@ -216,6 +216,30 @@ class AgentRunResult(BaseModel):
     output: str = ""
 
 
+class CommandRequest(BaseModel):
+    objective: str = Field(min_length=1, max_length=50_000)
+    confirm_actions: bool = False
+    max_steps: int = Field(default=4, ge=1, le=20)
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
+    tools: list[str] = Field(default_factory=list, max_length=50)
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolCallLogEntry(BaseModel):
+    id: str
+    created_at: str
+    tool_id: str
+    ok: bool
+    safety: Literal["read", "write", "destructive"] = "read"
+    requires_confirmation: bool = False
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    latency_ms: float
+    run_id: str | None = None
+
+
 class BackgroundToggleRequest(BaseModel):
     enabled: bool
 
@@ -229,3 +253,69 @@ class MultimodalInvokeRequest(BaseModel):
     provider: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=160)
     options: dict[str, Any] = Field(default_factory=dict)
+    save_to_gallery: bool = True
+
+
+class GenerationAssetRecord(BaseModel):
+    id: str
+    created_at: str
+    kind: str
+    provider: str
+    model: str | None = None
+    prompt: str | None = None
+    content_type: str | None = None
+    asset_path: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DesignPatchRequest(BaseModel):
+    instruction: str = Field(min_length=1, max_length=50_000)
+    target_files: list[str] = Field(default_factory=list, max_length=20)
+    patch: str | None = Field(default=None, max_length=2_000_000)
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
+    apply: bool = False
+    confirm: bool = False
+
+
+class DesignPatchApplyRequest(BaseModel):
+    confirm: bool = False
+
+
+class DesignPatchRecord(BaseModel):
+    id: str
+    created_at: str
+    instruction: str
+    target_files: list[str] = Field(default_factory=list)
+    patch: str
+    status: Literal["proposed", "applied", "reverted", "failed"]
+    applied_at: str | None = None
+    reverted_at: str | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class BenchmarkRequest(BaseModel):
+    kind: Literal["text", "image"] = "text"
+    prompt: str = Field(default="Explain what this local AI stack can do in one tight paragraph.", max_length=50_000)
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
+    iterations: int = Field(default=1, ge=1, le=5)
+    max_tokens: int = Field(default=256, ge=1, le=4096)
+    local_first: bool = True
+
+
+class BenchmarkRunRecord(BaseModel):
+    id: str
+    created_at: str
+    kind: str
+    provider: str | None = None
+    model: str | None = None
+    prompt: str
+    latency_ms: float
+    tokens_per_second: float | None = None
+    hardware_before: dict[str, Any] = Field(default_factory=dict)
+    hardware_after: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
+    ok: bool = True
+    error: str | None = None

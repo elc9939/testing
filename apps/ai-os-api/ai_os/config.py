@@ -93,6 +93,33 @@ class Settings(BaseSettings):
         default_factory=lambda: _json_env("AI_OS_SPECIALIST_PROVIDERS_JSON", [])
     )
 
+    hub_api_url: str = Field(default="http://127.0.0.1:8787", validation_alias="AI_OS_HUB_API_URL")
+    hub_workspace_id: str = Field(default="personal", validation_alias="AI_OS_HUB_WORKSPACE_ID")
+    mini_hub_sync_key: str | None = Field(default=None, validation_alias="MINI_HUB_SYNC_KEY")
+    macro_lab_api_url: str = Field(default="http://127.0.0.1:8792", validation_alias="AI_OS_MACRO_LAB_API_URL")
+
+    design_workspace_root: Path = Field(default=Path("../.."), validation_alias="AI_OS_DESIGN_WORKSPACE_ROOT")
+    design_patches_dir: Path | None = Field(default=None, validation_alias="AI_OS_DESIGN_PATCHES_DIR")
+    design_apply_enabled: bool = Field(default=True, validation_alias="AI_OS_DESIGN_APPLY_ENABLED")
+    design_allowed_extensions: list[str] = Field(
+        default_factory=lambda: _csv_env(
+            "AI_OS_DESIGN_ALLOWED_EXTENSIONS",
+            [".svelte", ".ts", ".js", ".css", ".md", ".py", ".json", ".html", ".toml", ".yml", ".yaml"],
+        )
+    )
+
+    comfyui_base_url: str | None = Field(default=None, validation_alias="COMFYUI_BASE_URL")
+    comfyui_workflow_path: Path | None = Field(default=None, validation_alias="COMFYUI_WORKFLOW_PATH")
+    comfyui_timeout_s: float = Field(default=600.0, validation_alias="COMFYUI_TIMEOUT_S")
+
+    piper_executable: str | None = Field(default=None, validation_alias="PIPER_EXECUTABLE")
+    piper_voice_path: Path | None = Field(default=None, validation_alias="PIPER_VOICE_PATH")
+    piper_timeout_s: float = Field(default=180.0, validation_alias="PIPER_TIMEOUT_S")
+
+    whisper_executable: str | None = Field(default=None, validation_alias="WHISPER_EXECUTABLE")
+    whisper_model: str = Field(default="base", validation_alias="WHISPER_MODEL")
+    whisper_timeout_s: float = Field(default=600.0, validation_alias="WHISPER_TIMEOUT_S")
+
     def database_path(self) -> Path:
         return self.data_dir / "ai-os.sqlite3"
 
@@ -107,6 +134,12 @@ class Settings(BaseSettings):
 
     def resolved_assets_dir(self) -> Path:
         return self.assets_dir or self.data_dir / "assets"
+
+    def resolved_design_workspace_root(self) -> Path:
+        return self.design_workspace_root.resolve()
+
+    def resolved_design_patches_dir(self) -> Path:
+        return self.design_patches_dir or self.data_dir / "design-patches"
 
 
 @lru_cache

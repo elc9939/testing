@@ -69,6 +69,8 @@ export interface AiToolSpec {
   label: string;
   description: string;
   input_schema: Record<string, unknown>;
+  safety: 'read' | 'write' | 'destructive';
+  requires_confirmation: boolean;
 }
 
 export interface AiUsageEntry {
@@ -115,6 +117,61 @@ export interface AiMetrics {
   hardware?: AiHardwareStatus;
 }
 
+export interface AiToolCallEntry {
+  id: string;
+  created_at: string;
+  tool_id: string;
+  ok: boolean;
+  safety: 'read' | 'write' | 'destructive';
+  requires_confirmation: boolean;
+  arguments: Record<string, unknown>;
+  result: Record<string, unknown>;
+  error?: string;
+  latency_ms: number;
+  run_id?: string;
+}
+
+export interface AiGenerationAsset {
+  id: string;
+  created_at: string;
+  kind: string;
+  provider: string;
+  model?: string;
+  prompt?: string;
+  content_type?: string;
+  asset_path?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface AiDesignPatch {
+  id: string;
+  created_at: string;
+  instruction: string;
+  target_files: string[];
+  patch: string;
+  status: 'proposed' | 'applied' | 'reverted' | 'failed';
+  applied_at?: string;
+  reverted_at?: string;
+  error?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface AiBenchmarkRun {
+  id: string;
+  created_at: string;
+  kind: string;
+  provider?: string;
+  model?: string;
+  prompt: string;
+  latency_ms: number;
+  tokens_per_second?: number;
+  hardware_before: Record<string, unknown>;
+  hardware_after: Record<string, unknown>;
+  result: Record<string, unknown>;
+  ok: boolean;
+  error?: string;
+}
+
 export interface AiStatus {
   providers: AiProviderStatus[];
   capabilities: AiCapabilityStatus[];
@@ -122,6 +179,9 @@ export interface AiStatus {
   jobs: AiJobSnapshot[];
   background: AiBackgroundUnit[];
   tools: AiToolSpec[];
+  tool_calls?: AiToolCallEntry[];
+  generation_assets?: AiGenerationAsset[];
+  benchmark_runs?: AiBenchmarkRun[];
   integrity?: AiIntegrityStatus;
   backups?: AiBackupSummary[];
   metrics?: AiMetrics;
@@ -291,12 +351,77 @@ export async function runAgent(input: Record<string, unknown>): Promise<Record<s
   return result.result;
 }
 
+export async function runCommand(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/ai/command', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+}
+
+export async function listToolCalls(limit = 50): Promise<AiToolCallEntry[]> {
+  const result = await requestJson<{ tool_calls: AiToolCallEntry[] }>(`/api/ai/tool-calls?limit=${limit}`);
+  return result.tool_calls;
+}
+
 export async function invokeMultimodal(kind: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   const result = await requestJson<{ result: Record<string, unknown> }>(`/api/ai/multimodal/${kind}/invoke`, {
     method: 'POST',
     body: JSON.stringify(input)
   });
   return result.result;
+}
+
+export async function listGenerationAssets(limit = 50): Promise<AiGenerationAsset[]> {
+  const result = await requestJson<{ assets: AiGenerationAsset[] }>(`/api/ai/generation-assets?limit=${limit}`);
+  return result.assets;
+}
+
+export async function listDesignPatches(limit = 25): Promise<AiDesignPatch[]> {
+  const result = await requestJson<{ patches: AiDesignPatch[] }>(`/api/ai/design/patches?limit=${limit}`);
+  return result.patches;
+}
+
+export async function proposeDesignPatch(input: Record<string, unknown>): Promise<AiDesignPatch> {
+  const result = await requestJson<{ patch: AiDesignPatch }>('/api/ai/design/patches', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+  return result.patch;
+}
+
+export async function applyDesignPatch(patchId: string, confirm: boolean): Promise<AiDesignPatch> {
+  const result = await requestJson<{ patch: AiDesignPatch }>(
+    `/api/ai/design/patches/${encodeURIComponent(patchId)}/apply`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ confirm })
+    }
+  );
+  return result.patch;
+}
+
+export async function revertDesignPatch(patchId: string, confirm: boolean): Promise<AiDesignPatch> {
+  const result = await requestJson<{ patch: AiDesignPatch }>(
+    `/api/ai/design/patches/${encodeURIComponent(patchId)}/revert`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ confirm })
+    }
+  );
+  return result.patch;
+}
+
+export async function runBenchmark(input: Record<string, unknown>): Promise<AiBenchmarkRun> {
+  const result = await requestJson<{ benchmark: AiBenchmarkRun }>('/api/ai/benchmarks', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+  return result.benchmark;
+}
+
+export async function listBenchmarks(limit = 25): Promise<AiBenchmarkRun[]> {
+  const result = await requestJson<{ benchmarks: AiBenchmarkRun[] }>(`/api/ai/benchmarks?limit=${limit}`);
+  return result.benchmarks;
 }
 
 export async function toggleBackgroundUnit(unitId: string, enabled: boolean): Promise<AiBackgroundUnit> {

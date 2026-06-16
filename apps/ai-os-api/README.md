@@ -1,7 +1,8 @@
 # Mini Hub AI OS API
 
 FastAPI capability substrate for local-first inference, queues, ambient triggers, agents,
-semantic memory, and multimodal adapters.
+semantic memory, app-control tools, reversible design patches, multimodal adapters, and
+hardware benchmarks.
 
 See:
 
