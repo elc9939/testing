@@ -1,0 +1,21 @@
+{
+  "name": "@mini-hub/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "node -e \"console.log('desktop shell scaffold ok; run pnpm build:tauri on a Rust-ready machine')\"",
+    "build:tauri": "tauri build",
+    "typecheck": "node -e \"console.log('desktop config scaffold ok')\"",
+    "lint": "node -e \"console.log('desktop config scaffold ok')\"",
+    "test": "node -e \"console.log('desktop shell scaffold ok')\""
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-fs": "^2.5.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2"
+  }
+}

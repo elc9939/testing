@@ -1,11 +1,21 @@
 {
-  "name": "mini-arcade",
+  "name": "mini-hub-workspace",
   "version": "1.0.0",
   "private": true,
-  "description": "Dependency-free browser arcade and supporting validation scripts.",
+  "description": "Legacy static Mini Hub plus the staged hybrid SvelteKit, Hono, Tauri rewrite.",
+  "packageManager": "pnpm@11.0.7",
   "scripts": {
+    "legacy:check": "node scripts/check-all.js",
+    "legacy:test": "node scripts/check-all.js",
     "check": "node scripts/check-all.js",
     "test": "node scripts/check-all.js",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "build": "pnpm -r --if-present build",
+    "test:workspaces": "pnpm -r --if-present test",
+    "dev:hub": "pnpm --filter @mini-hub/hub dev",
+    "dev:api": "pnpm --filter @mini-hub/api dev",
+    "dev:desktop": "pnpm --filter @mini-hub/desktop dev",
     "check:js": "node scripts/check-js-syntax.js",
     "check:pwa": "node scripts/check-pwa-cache.js",
     "check:poses": "node scripts/pose-shot.js --check",
@@ -15,5 +25,8 @@
     "task": "node scripts/task.js",
     "ai:connect4:train": "node scripts/train-connect4.js",
     "ai:connect4:eval": "node scripts/eval-connect4.js"
+  },
+  "devDependencies": {
+    "pnpm": "11.0.7"
   }
 }

@@ -1,9 +1,18 @@
 # Secrets — never commit
 .env
 .env.*
+!.env.example
 
 # Build output
 _site/
+node_modules/
+dist/
+build/
+.svelte-kit/
+apps/*/.svelte-kit/
+apps/*/build/
+apps/*/dist/
+apps/desktop/src-tauri/target/
 *.class
 
 # Pose Studio contact sheets (generated dev artifacts)
@@ -12,3 +21,4 @@ pose-*.svg
 # OS / editor cruft
 .DS_Store
 Thumbs.db
+*.log

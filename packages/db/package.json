@@ -1,0 +1,35 @@
+{
+  "name": "@mini-hub/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./analytics": "./src/analytics.ts",
+    "./local": "./src/local.ts",
+    "./migration": "./src/migration.ts",
+    "./schema": "./src/schema.ts",
+    "./sync": "./src/sync.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.33.1-dev45.0",
+    "@electric-sql/pglite": "^0.5.2",
+    "@mini-hub/core": "workspace:*",
+    "@observablehq/plot": "^0.6.17",
+    "d3": "^7.9.0",
+    "drizzle-orm": "^0.45.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
+

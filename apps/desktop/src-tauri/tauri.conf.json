@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mini Hub",
+  "version": "0.1.0",
+  "identifier": "com.elc9939.minihub",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @mini-hub/hub dev",
+    "beforeBuildCommand": "pnpm --filter @mini-hub/hub build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../../hub/build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Mini Hub",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 640,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["../../icons/icon-192.png", "../../icons/icon-512.png"]
+  }
+}
+
