@@ -8,6 +8,7 @@ import type { AppBindings, SessionUser } from './context';
 import { env } from './env';
 import { gameRunRoutes } from './routes/game-runs';
 import { gameStateRoutes } from './routes/game-state';
+import { integrationRoutes, productivityRoutes } from './routes/integrations';
 import { jobRoutes } from './routes/jobs';
 import { settingsRoutes } from './routes/settings';
 import { studyRoutes } from './routes/study';
@@ -65,7 +66,8 @@ export function createApp(options: CreateAppOptions = {}) {
   );
 
   app.use('*', async (c, next) => {
-    if (syncMode === 'personal' && c.req.path.startsWith('/api/') && c.req.path !== '/api/health' && !c.req.path.startsWith('/api/auth/')) {
+    const oauthCallbackPath = c.req.path === '/api/integrations/google/oauth/callback';
+    if (syncMode === 'personal' && c.req.path.startsWith('/api/') && c.req.path !== '/api/health' && !c.req.path.startsWith('/api/auth/') && !oauthCallbackPath) {
       const suppliedKey = c.req.header('X-Mini-Hub-Sync-Key') ?? '';
       const accepted = Boolean(personalSyncKey) && suppliedKey === personalSyncKey;
       c.set('syncKeyAccepted', accepted);
@@ -107,6 +109,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route('/api/workspaces', workspaceRoutes(store));
   app.route('/api/sync', syncRoutes(store));
   app.route('/api/settings', settingsRoutes(store));
+  app.route('/api/integrations', integrationRoutes(store));
+  app.route('/api/productivity', productivityRoutes(store));
   app.route('/api/jobs', jobRoutes(store));
   app.route('/api/study', studyRoutes(store));
   app.route('/api/game-runs', gameRunRoutes(store));

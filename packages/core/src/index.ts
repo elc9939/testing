@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const routeMap = {
   today: '/',
+  productivity: '/productivity',
   games: '/games',
   stickArenaLab: '/games/stick-arena-lab',
   careerDesk: '/desk/career',
@@ -25,6 +26,14 @@ export const personalWorkspaceId = 'personal';
 export const personalUserId = 'personal-user';
 
 export const launcherEntries = [
+  {
+    id: 'productivity-hub',
+    name: 'Productivity Hub',
+    route: routeMap.productivity,
+    group: 'command',
+    status: 'google-calendar',
+    accent: '#2f7dd1'
+  },
   {
     id: 'stick-arena-lab',
     name: 'Stick Arena Lab',
@@ -72,6 +81,8 @@ export const roleSchema = z.enum(['owner', 'admin', 'member', 'viewer']);
 export const entityTypeSchema = z.enum([
   'workspace',
   'settings',
+  'integration_connection',
+  'timeline_item',
   'job',
   'study_session',
   'career_action',
@@ -81,6 +92,68 @@ export const entityTypeSchema = z.enum([
   'note',
   'asset'
 ]);
+
+export const connectorKindSchema = z.enum(['google', 'brightspace', 'manual']);
+
+export const connectorCapabilitySchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  access: z.enum(['read', 'write', 'action']),
+  status: z.enum(['implemented', 'planned', 'read-only', 'blocked']),
+  reason: z.string().optional()
+});
+
+export const integrationConnectionSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: z.string().min(1),
+  provider: connectorKindSchema,
+  accountLabel: z.string().min(1),
+  scopes: z.array(z.string()).default([]),
+  encryptedTokenSet: z.string().default(''),
+  status: z.enum(['connected', 'needs_reauth', 'revoked', 'error']),
+  lastSyncAt: z.string().optional(),
+  error: z.string().optional(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1)
+});
+
+export const calendarEventSchema = z.object({
+  id: z.string().min(1),
+  calendarId: z.string().min(1),
+  provider: connectorKindSchema,
+  title: z.string().min(1),
+  description: z.string().default(''),
+  location: z.string().default(''),
+  start: z.string().min(1),
+  end: z.string().min(1),
+  timeZone: z.string().default('UTC'),
+  status: z.string().default('confirmed'),
+  htmlLink: z.string().optional(),
+  recurringEventId: z.string().optional(),
+  recurrence: z.array(z.string()).default([]),
+  reminders: z
+    .object({
+      useDefault: z.boolean().default(true),
+      overrides: z.array(z.object({ method: z.string().min(1), minutes: z.number().int().nonnegative() })).default([])
+    })
+    .default({ useDefault: true, overrides: [] }),
+  raw: z.record(z.string(), z.unknown()).default({})
+});
+
+export const timelineItemSchema = z.object({
+  id: z.string().min(1),
+  source: z.enum(['google_calendar', 'brightspace', 'gmail', 'manual']),
+  sourceId: z.string().min(1),
+  kind: z.enum(['event', 'deadline', 'email_action', 'task']),
+  title: z.string().min(1),
+  when: z.string().min(1),
+  end: z.string().optional(),
+  timeZone: z.string().default('UTC'),
+  actionUrl: z.string().optional(),
+  canEdit: z.boolean().default(false),
+  canComplete: z.boolean().default(false),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
 
 export const syncEventSchema = z.object({
   id: z.string().min(1),
@@ -178,6 +251,11 @@ export const noteSchema = z.object({
 
 export type Role = z.infer<typeof roleSchema>;
 export type EntityType = z.infer<typeof entityTypeSchema>;
+export type ConnectorKind = z.infer<typeof connectorKindSchema>;
+export type ConnectorCapability = z.infer<typeof connectorCapabilitySchema>;
+export type IntegrationConnection = z.infer<typeof integrationConnectionSchema>;
+export type CalendarEvent = z.infer<typeof calendarEventSchema>;
+export type TimelineItem = z.infer<typeof timelineItemSchema>;
 export type SyncEvent = z.infer<typeof syncEventSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type JobRecord = z.infer<typeof jobSchema>;

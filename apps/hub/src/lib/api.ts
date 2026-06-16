@@ -1,4 +1,6 @@
-export const apiUrl = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8787';
+import { env as publicEnv } from '$env/dynamic/public';
+
+export const apiUrl = publicEnv.PUBLIC_API_URL || import.meta.env.VITE_PUBLIC_API_URL || 'http://127.0.0.1:8787';
 
 export async function getHealth(): Promise<{ ok: boolean; service: string }> {
   const response = await fetch(`${apiUrl}/api/health`, { credentials: 'include' });

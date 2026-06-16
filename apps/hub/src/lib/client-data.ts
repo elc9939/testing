@@ -12,6 +12,10 @@ import {
 import { apiUrl } from './api';
 
 type PGliteDatabase = Awaited<ReturnType<typeof import('@mini-hub/db/local').createMiniHubPglite>>;
+type JobPatchInput = Partial<Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'>> & {
+  nextActionAt?: string | null;
+};
+type StudySessionPatchInput = Partial<Pick<StudySession, 'subject' | 'minutes' | 'source'>>;
 
 const syncKeyStorageKey = 'miniHub.personalSyncKey.v1';
 const deviceIdStorageKey = 'miniHub.deviceId.v1';
@@ -187,6 +191,16 @@ export function createClientDataStore() {
         session.updatedAt
       ]
     );
+  }
+
+  async function deleteLocalJob(id: string): Promise<void> {
+    const local = await getDb();
+    await local.query('delete from jobs where id = $1', [id]);
+  }
+
+  async function deleteLocalStudySession(id: string): Promise<void> {
+    const local = await getDb();
+    await local.query('delete from study_sessions where id = $1', [id]);
   }
 
   async function upsertGameRun(run: GameRun): Promise<void> {
@@ -367,13 +381,11 @@ export function createClientDataStore() {
 
   async function applyEvent(event: SyncEvent): Promise<void> {
     if (event.operation === 'delete' && event.entityType === 'job') {
-      const local = await getDb();
-      await local.query('delete from jobs where id = $1', [event.entityId]);
+      await deleteLocalJob(event.entityId);
       return;
     }
     if (event.operation === 'delete' && event.entityType === 'study_session') {
-      const local = await getDb();
-      await local.query('delete from study_sessions where id = $1', [event.entityId]);
+      await deleteLocalStudySession(event.entityId);
       return;
     }
 
@@ -468,7 +480,7 @@ export function createClientDataStore() {
     setPartial({ syncKey: '', cursor: '', status: 'missing-key' });
   }
 
-  async function saveJob(input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'>): Promise<JobRecord> {
+  async function saveJob(input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'> & { nextActionAt?: string | null }): Promise<JobRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
     const result = await requestJson<{ job: JobRecord }>('/api/jobs', state.syncKey, {
@@ -478,6 +490,28 @@ export function createClientDataStore() {
     await upsertJob(result.job);
     await loadCache();
     return result.job;
+  }
+
+  async function updateJob(id: string, input: JobPatchInput): Promise<JobRecord> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+    const result = await requestJson<{ job: JobRecord }>(`/api/jobs/${encodeURIComponent(id)}`, state.syncKey, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+    await upsertJob(result.job);
+    await loadCache();
+    return result.job;
+  }
+
+  async function deleteJob(id: string): Promise<void> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+    await requestJson<{ ok: true }>(`/api/jobs/${encodeURIComponent(id)}`, state.syncKey, {
+      method: 'DELETE'
+    });
+    await deleteLocalJob(id);
+    await loadCache();
   }
 
   async function saveStudySession(input: Pick<StudySession, 'subject' | 'minutes' | 'source'>): Promise<StudySession> {
@@ -490,6 +524,28 @@ export function createClientDataStore() {
     await upsertStudySession(result.session);
     await loadCache();
     return result.session;
+  }
+
+  async function updateStudySession(id: string, input: StudySessionPatchInput): Promise<StudySession> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+    const result = await requestJson<{ session: StudySession }>(`/api/study/${encodeURIComponent(id)}`, state.syncKey, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+    await upsertStudySession(result.session);
+    await loadCache();
+    return result.session;
+  }
+
+  async function deleteStudySession(id: string): Promise<void> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+    await requestJson<{ ok: true }>(`/api/study/${encodeURIComponent(id)}`, state.syncKey, {
+      method: 'DELETE'
+    });
+    await deleteLocalStudySession(id);
+    await loadCache();
   }
 
   async function saveGameRun(input: Pick<GameRun, 'gameId' | 'score' | 'durationMs' | 'metadata'>): Promise<GameRun> {
@@ -558,7 +614,11 @@ export function createClientDataStore() {
     setSyncKey,
     clearSyncKey,
     saveJob,
+    updateJob,
+    deleteJob,
     saveStudySession,
+    updateStudySession,
+    deleteStudySession,
     saveGameRun,
     saveGameState,
     saveSettings,
@@ -568,4 +628,3 @@ export function createClientDataStore() {
 }
 
 export const clientData = createClientDataStore();
-

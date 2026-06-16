@@ -10,7 +10,8 @@ const jobBody = z.object({
   company: z.string().min(1),
   role: z.string().min(1),
   status: z.string().min(1).default('lead'),
-  notes: z.string().default('')
+  notes: z.string().default(''),
+  nextActionAt: z.string().nullable().optional()
 });
 
 const jobPatchBody = jobBody.partial().extend({
@@ -47,6 +48,7 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       role: parsed.data.role,
       status: parsed.data.status,
       notes: parsed.data.notes,
+      nextActionAt: parsed.data.nextActionAt ?? undefined,
       deviceId: 'api',
       updatedAt: now
     });
@@ -77,13 +79,17 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       return c.json({ error: 'Workspace not found' }, 404);
     }
 
-    const job = jobSchema.parse({
+    const nextJob = {
       ...existing,
       ...parsed.data,
       workspaceId: existing.workspaceId,
       deviceId: 'api',
       updatedAt: new Date().toISOString()
-    });
+    };
+    if ('nextActionAt' in parsed.data) {
+      nextJob.nextActionAt = parsed.data.nextActionAt ?? undefined;
+    }
+    const job = jobSchema.parse(nextJob);
     store.jobs[index] = job;
     appendSyncEvent(store, {
       workspaceId: job.workspaceId,

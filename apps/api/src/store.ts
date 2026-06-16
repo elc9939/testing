@@ -4,6 +4,7 @@ import {
   type Achievement,
   type GameRun,
   type GameState,
+  type IntegrationConnection,
   type JobRecord,
   type NoteRecord,
   type PersonalSettings,
@@ -29,6 +30,7 @@ export interface MemoryStore {
   gameStates: Map<string, GameState>;
   achievements: Achievement[];
   notes: NoteRecord[];
+  integrationConnections: Map<string, IntegrationConnection>;
   syncEvents: SyncEvent[];
 }
 
@@ -43,6 +45,7 @@ export function createMemoryStore(): MemoryStore {
     gameStates: new Map(),
     achievements: [],
     notes: [],
+    integrationConnections: new Map(),
     syncEvents: []
   };
 }

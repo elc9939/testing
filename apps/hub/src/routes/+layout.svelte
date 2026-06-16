@@ -5,6 +5,7 @@
     BarChart3,
     BrainCircuit,
     BriefcaseBusiness,
+    CalendarClock,
     Gamepad2,
     GraduationCap,
     Home,
@@ -15,6 +16,7 @@
 
   const nav = [
     { href: routeMap.today, label: 'Today', icon: Home },
+    { href: routeMap.productivity, label: 'Hub', icon: CalendarClock },
     { href: routeMap.games, label: 'Games', icon: Gamepad2 },
     { href: routeMap.careerDesk, label: 'Career', icon: BriefcaseBusiness },
     { href: routeMap.studyDesk, label: 'Study', icon: GraduationCap },

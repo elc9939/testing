@@ -28,6 +28,31 @@ export const personalSettings = pgTable('personal_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 });
 
+export const integrationConnections = pgTable('integration_connections', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  provider: text('provider').notNull(),
+  accountLabel: text('account_label').notNull(),
+  scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+  encryptedTokenSet: text('encrypted_token_set').notNull(),
+  status: text('status').notNull(),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const integrationLogs = pgTable('integration_logs', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  provider: text('provider').notNull(),
+  action: text('action').notNull(),
+  status: text('status').notNull(),
+  message: text('message'),
+  requestId: text('request_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});
+
 export const workspaceMembers = pgTable('workspace_members', {
   id: text('id').primaryKey(),
   workspaceId: text('workspace_id').notNull(),

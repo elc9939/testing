@@ -52,3 +52,12 @@ The current sync mode is personal, not public multi-user. The hub stores a per-d
 - Offline: cached data stays visible, but edit/save controls are disabled.
 - Sync: the hub pulls `/api/sync/pull?since=<cursor>` on startup, focus, reconnect, and a 30-second interval.
 - Legacy import: Settings can import current root-app `localStorage` keys into the synced workspace.
+
+## Personal Productivity Hub
+
+The private productivity command center lives at `/productivity`. See:
+
+- `docs/personal-productivity-hub-architecture.md` for the architecture, auth strategy, connector model, data model, and integration capability map.
+- `docs/personal-productivity-hub-setup.md` for Google OAuth setup, env vars, local run steps, and Brightspace API/iCal notes.
+
+The first production-grade integration slice is Google Calendar: OAuth, token refresh, list/view/create/update/delete/move, reminders, recurrence pass-through, and unified timeline projection.
