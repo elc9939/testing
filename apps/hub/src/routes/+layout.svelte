@@ -10,6 +10,7 @@
     Gamepad2,
     GraduationCap,
     Home,
+    Keyboard,
     Settings
   } from 'lucide-svelte';
   import { routeMap } from '@mini-hub/core';
@@ -24,6 +25,7 @@
     { href: routeMap.analytics, label: 'Analytics', icon: BarChart3 },
     { href: routeMap.aiLab, label: 'AI Lab', icon: BrainCircuit },
     { href: routeMap.aiOs, label: 'AI OS', icon: Cpu },
+    { href: routeMap.macroLab, label: 'Macros', icon: Keyboard },
     { href: routeMap.settings, label: 'Settings', icon: Settings }
   ];
 

@@ -10,6 +10,7 @@ export const routeMap = {
   analytics: '/analytics',
   aiLab: '/ai-lab',
   aiOs: '/ai-os',
+  macroLab: '/macro-lab',
   settings: '/settings'
 } as const;
 
@@ -82,6 +83,14 @@ export const launcherEntries = [
     group: 'intelligence',
     status: 'capability-substrate',
     accent: '#4f8a8b'
+  },
+  {
+    id: 'macro-lab',
+    name: 'Macro Lab',
+    route: routeMap.macroLab,
+    group: 'automation',
+    status: 'local-control',
+    accent: '#7c8c3a'
   }
 ] as const;
 

@@ -1,0 +1,503 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import {
+    AlertTriangle,
+    Clipboard,
+    Keyboard,
+    Play,
+    Power,
+    RefreshCw,
+    Save,
+    Shield,
+    Square,
+    ToggleLeft,
+    ToggleRight,
+    Wrench
+  } from 'lucide-svelte';
+  import {
+    createMacro,
+    getMacroStatus,
+    listMacroActions,
+    listMacroRuns,
+    listMacros,
+    panicMacroLab,
+    patchMacro,
+    reloadMacroTriggers,
+    resetMacroPanic,
+    runMacro,
+    saveMacro,
+    startRecording,
+    stopRecording,
+    type ActionSpec,
+    type MacroDefinition,
+    type MacroRun,
+    type MacroStatus
+  } from '$lib/macro-lab-api';
+
+  let status: MacroStatus | null = null;
+  let actions: ActionSpec[] = [];
+  let macros: MacroDefinition[] = [];
+  let runs: MacroRun[] = [];
+  let selectedId = '';
+  let editor = '';
+  let result = '';
+  let error = '';
+  let loading = false;
+  let busy = false;
+
+  $: selectedMacro = macros.find((macro) => macro.id === selectedId) ?? macros[0];
+  $: capabilityReady = status?.capabilities.filter((capability) => capability.available).length ?? 0;
+
+  onMount(() => {
+    void refresh();
+  });
+
+  function stringify(value: unknown): string {
+    return JSON.stringify(value, null, 2);
+  }
+
+  function selectMacro(macro: MacroDefinition): void {
+    selectedId = macro.id;
+    editor = stringify(macro);
+  }
+
+  async function refresh(): Promise<void> {
+    loading = true;
+    error = '';
+    try {
+      [status, actions, macros, runs] = await Promise.all([getMacroStatus(), listMacroActions(), listMacros(), listMacroRuns(30)]);
+      if (!selectedId && macros[0]) selectMacro(macros[0]);
+      else if (selectedMacro) editor = stringify(selectedMacro);
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : 'Failed to load Macro Lab.';
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function saveSelected(): Promise<void> {
+    busy = true;
+    error = '';
+    try {
+      const parsed = JSON.parse(editor) as MacroDefinition;
+      const saved = await saveMacro(parsed);
+      result = stringify({ saved: saved.id, updated_at: saved.updated_at });
+      await refresh();
+      selectMacro(saved);
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : 'Save failed.';
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function newMacro(): Promise<void> {
+    busy = true;
+    error = '';
+    try {
+      const id = `macro_${Date.now().toString(36)}`;
+      const macro: MacroDefinition = {
+        id,
+        name: 'New Macro',
+        group: 'Scratch',
+        enabled: true,
+        armed: false,
+        dry_run_default: true,
+        variables: {},
+        actions: [{ id: `action_${Date.now().toString(36)}`, type: 'shell.run', label: 'Echo', enabled: true, config: { command: 'echo hello' } }],
+        triggers: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const created = await createMacro(macro);
+      result = stringify({ created: created.id });
+      await refresh();
+      selectMacro(created);
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : 'Create failed.';
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function toggleSelected(field: 'enabled' | 'armed'): Promise<void> {
+    if (!selectedMacro) return;
+    busy = true;
+    error = '';
+    try {
+      const saved = await patchMacro(selectedMacro.id, { [field]: !selectedMacro[field] } as Partial<MacroDefinition>);
+      result = stringify({ [field]: saved[field] });
+      await refresh();
+      selectMacro(saved);
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : 'Toggle failed.';
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function runSelected(dryRun: boolean, confirm = false): Promise<void> {
+    if (!selectedMacro) return;
+    busy = true;
+    error = '';
+    try {
+      const run = await runMacro(selectedMacro.id, dryRun, confirm);
+      result = stringify(run);
+      runs = await listMacroRuns(30);
+      status = await getMacroStatus();
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : 'Run failed.';
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function callControl(kind: 'panic' | 'reset' | 'reload' | 'record' | 'stop-record'): Promise<void> {
+    busy = true;
+    error = '';
+    try {
+      const value =
+        kind === 'panic'
+          ? await panicMacroLab()
+          : kind === 'reset'
+            ? await resetMacroPanic()
+            : kind === 'reload'
+              ? await reloadMacroTriggers()
+              : kind === 'record'
+                ? await startRecording()
+                : await stopRecording();
+      result = stringify(value);
+      await refresh();
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : `${kind} failed.`;
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<svelte:head>
+  <title>Macro Lab - Mini Hub</title>
+</svelte:head>
+
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Local desktop automation</p>
+    <h1>Macro Lab</h1>
+  </div>
+  <div class="action-row">
+    <button class="button" disabled={loading || busy} on:click={refresh}><RefreshCw size={16} />Refresh</button>
+    <button class="button danger" disabled={busy} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
+    <button class="button" disabled={busy} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
+  </div>
+</div>
+
+{#if error}
+  <div class="notice error">{error}</div>
+{/if}
+
+<section class="status-strip">
+  <div class="metric">
+    <span>Engine</span>
+    <strong class:bad={status?.engine.panic}>{status?.engine.panic ? 'panic' : 'ready'}</strong>
+  </div>
+  <div class="metric">
+    <span>Capabilities</span>
+    <strong>{capabilityReady}/{status?.capabilities.length ?? 0}</strong>
+  </div>
+  <div class="metric">
+    <span>Triggers</span>
+    <strong>{status?.triggers.enabled ? 'on' : 'off'}</strong>
+  </div>
+  <div class="metric">
+    <span>Database</span>
+    <strong>{status?.integrity.ok ? 'ok' : 'check'}</strong>
+  </div>
+</section>
+
+<section class="workspace">
+  <aside class="macro-list card">
+    <div class="panel-head">
+      <strong>Macros</strong>
+      <button class="icon-button" disabled={busy} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
+    </div>
+    {#each macros as macro}
+      <button class:active={selectedMacro?.id === macro.id} class="macro-row" on:click={() => selectMacro(macro)}>
+        <span>
+          <strong>{macro.name}</strong>
+          <small>{macro.group}</small>
+        </span>
+        {#if macro.armed}<Shield size={15} />{/if}
+      </button>
+    {/each}
+  </aside>
+
+  <main class="editor card">
+    {#if selectedMacro}
+      <div class="panel-head">
+        <div>
+          <strong>{selectedMacro.name}</strong>
+          <span class="muted"> {selectedMacro.id}</span>
+        </div>
+        <div class="action-row compact">
+          <button class="button" disabled={busy} on:click={() => toggleSelected('enabled')}>
+            {#if selectedMacro.enabled}<ToggleRight size={16} />Enabled{:else}<ToggleLeft size={16} />Disabled{/if}
+          </button>
+          <button class:selected={selectedMacro.armed} class="button" disabled={busy} on:click={() => toggleSelected('armed')}>
+            <Shield size={16} />{selectedMacro.armed ? 'Armed' : 'Safe'}
+          </button>
+        </div>
+      </div>
+      <textarea bind:value={editor} spellcheck="false"></textarea>
+      <div class="action-row">
+        <button class="button primary" disabled={busy} on:click={saveSelected}><Save size={16} />Save</button>
+        <button class="button" disabled={busy} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
+        <button class="button danger" disabled={busy} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
+        <button class="button" disabled={busy} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
+      </div>
+    {/if}
+  </main>
+</section>
+
+<section class="grid two lower">
+  <div class="card card-pad">
+    <div class="panel-head">
+      <strong>Action Catalog</strong>
+      <Keyboard size={17} />
+    </div>
+    <div class="catalog">
+      {#each actions as action}
+        <div>
+          <strong>{action.type}</strong>
+          <span class:safe={action.safety === 'safe'} class:warn={action.safety !== 'safe'}>{action.safety}</span>
+          <small>{action.description}</small>
+        </div>
+      {/each}
+    </div>
+  </div>
+
+  <div class="card card-pad">
+    <div class="panel-head">
+      <strong>Recorder</strong>
+      <Clipboard size={17} />
+    </div>
+    <div class="action-row">
+      <button class="button" disabled={busy} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
+      <button class="button" disabled={busy} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
+    </div>
+    {#if result}
+      <pre>{result}</pre>
+    {/if}
+  </div>
+</section>
+
+<section class="card card-pad runs">
+  <div class="panel-head">
+    <strong>Run History</strong>
+    <span>{runs.length}</span>
+  </div>
+  <div class="run-table">
+    {#each runs as run}
+      <div>
+        <strong>{run.macro_name}</strong>
+        <span class:ok={run.status === 'succeeded' || run.status === 'dry_run'} class:bad={run.status === 'failed'}>{run.status}</span>
+        <small>{run.started_at}</small>
+      </div>
+    {/each}
+  </div>
+</section>
+
+<style>
+  .status-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .metric {
+    display: grid;
+    gap: 5px;
+    padding: 14px;
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .metric span {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .metric strong {
+    font-size: 22px;
+  }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid #e5ebf2;
+  }
+
+  .macro-list {
+    overflow: hidden;
+  }
+
+  .macro-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 0;
+    border-bottom: 1px solid #eef2f7;
+    color: #18202f;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .macro-row.active,
+  .macro-row:hover {
+    background: #edf3f8;
+  }
+
+  .macro-row span {
+    display: grid;
+    gap: 3px;
+  }
+
+  small {
+    color: #64748b;
+  }
+
+  .editor {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 430px;
+    padding: 14px;
+    border: 0;
+    border-bottom: 1px solid #e5ebf2;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .editor > .action-row {
+    padding: 14px;
+  }
+
+  .compact {
+    gap: 6px;
+  }
+
+  .button.selected {
+    border-color: #f2c14e;
+    color: #6f4d00;
+    background: #fff8df;
+  }
+
+  .button.danger {
+    border-color: #ef4444;
+    color: #991b1b;
+    background: #fff5f5;
+  }
+
+  .notice {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+  }
+
+  .notice.error {
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    background: #fff5f5;
+  }
+
+  .lower {
+    margin-top: 14px;
+  }
+
+  .catalog,
+  .run-table {
+    display: grid;
+    gap: 8px;
+  }
+
+  .catalog div,
+  .run-table div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #eef2f7;
+  }
+
+  .catalog small,
+  .run-table small {
+    grid-column: 1 / -1;
+  }
+
+  .safe,
+  .ok {
+    color: #13795b;
+  }
+
+  .warn {
+    color: #986600;
+  }
+
+  .bad {
+    color: #b91c1c;
+  }
+
+  pre {
+    max-height: 250px;
+    overflow: auto;
+    padding: 12px;
+    border-radius: 7px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 12px;
+  }
+
+  .icon-button {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  @media (max-width: 900px) {
+    .status-strip,
+    .workspace,
+    .grid.two {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

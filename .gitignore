@@ -14,9 +14,12 @@ apps/*/build/
 apps/*/dist/
 apps/desktop/src-tauri/target/
 .ai-os-data/
+.macro-lab-data/
 apps/ai-os-api/.venv/
 apps/ai-os-api/.ai-os.pid
 apps/ai-os-api/.ai-os-supervisor.stop
+apps/macro-lab-api/.venv/
+apps/macro-lab-api/.macro-lab.pid
 __pycache__/
 *.pyc
 *.egg-info/

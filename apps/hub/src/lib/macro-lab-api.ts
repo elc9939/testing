@@ -1,0 +1,156 @@
+import { env as publicEnv } from '$env/dynamic/public';
+
+export const macroLabApiUrl =
+  publicEnv.PUBLIC_MACRO_LAB_API_URL || import.meta.env.VITE_PUBLIC_MACRO_LAB_API_URL || 'http://127.0.0.1:8792';
+
+export interface MacroAction {
+  id: string;
+  type: string;
+  label: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+}
+
+export interface MacroTrigger {
+  id: string;
+  type: string;
+  label: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+}
+
+export interface MacroDefinition {
+  id: string;
+  name: string;
+  group: string;
+  enabled: boolean;
+  armed: boolean;
+  dry_run_default: boolean;
+  variables: Record<string, unknown>;
+  actions: MacroAction[];
+  triggers: MacroTrigger[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MacroRun {
+  id: string;
+  macro_id: string;
+  macro_name: string;
+  status: string;
+  dry_run: boolean;
+  started_at: string;
+  finished_at?: string;
+  error?: string;
+  steps: Array<Record<string, unknown>>;
+}
+
+export interface MacroStatus {
+  ok: boolean;
+  version: string;
+  engine: { panic: boolean; running: number; action_count: number };
+  triggers: Record<string, unknown>;
+  capabilities: Array<{ id: string; available: boolean; detail: string }>;
+  integrity: Record<string, unknown>;
+}
+
+export interface ActionSpec {
+  type: string;
+  label: string;
+  safety: string;
+  description: string;
+  config_example: Record<string, unknown>;
+}
+
+async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${macroLabApiUrl}${path}`, {
+    ...init,
+    headers: {
+      'content-type': 'application/json',
+      ...(init.headers ?? {})
+    }
+  });
+  if (!response.ok) {
+    let message = `Macro Lab request failed with ${response.status}`;
+    try {
+      const body = (await response.json()) as { detail?: unknown; error?: unknown };
+      if (typeof body.detail === 'string') message = body.detail;
+      else if (typeof body.error === 'string') message = body.error;
+    } catch {
+      // Keep status fallback.
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as T;
+}
+
+export async function getMacroStatus(): Promise<MacroStatus> {
+  return requestJson<MacroStatus>('/api/macro-lab/status');
+}
+
+export async function listMacroActions(): Promise<ActionSpec[]> {
+  const result = await requestJson<{ actions: ActionSpec[] }>('/api/macro-lab/actions');
+  return result.actions;
+}
+
+export async function listMacros(): Promise<MacroDefinition[]> {
+  const result = await requestJson<{ macros: MacroDefinition[] }>('/api/macro-lab/macros');
+  return result.macros;
+}
+
+export async function saveMacro(macro: MacroDefinition): Promise<MacroDefinition> {
+  const result = await requestJson<{ macro: MacroDefinition }>(`/api/macro-lab/macros/${encodeURIComponent(macro.id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(macro)
+  });
+  return result.macro;
+}
+
+export async function patchMacro(macroId: string, patch: Partial<MacroDefinition>): Promise<MacroDefinition> {
+  const result = await requestJson<{ macro: MacroDefinition }>(`/api/macro-lab/macros/${encodeURIComponent(macroId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch)
+  });
+  return result.macro;
+}
+
+export async function createMacro(macro: MacroDefinition): Promise<MacroDefinition> {
+  const result = await requestJson<{ macro: MacroDefinition }>('/api/macro-lab/macros', {
+    method: 'POST',
+    body: JSON.stringify(macro)
+  });
+  return result.macro;
+}
+
+export async function runMacro(macroId: string, dryRun: boolean, confirm = false): Promise<MacroRun> {
+  const result = await requestJson<{ run: MacroRun }>(`/api/macro-lab/macros/${encodeURIComponent(macroId)}/run`, {
+    method: 'POST',
+    body: JSON.stringify({ dry_run: dryRun, confirm })
+  });
+  return result.run;
+}
+
+export async function listMacroRuns(limit = 30): Promise<MacroRun[]> {
+  const result = await requestJson<{ runs: MacroRun[] }>(`/api/macro-lab/runs?limit=${limit}`);
+  return result.runs;
+}
+
+export async function panicMacroLab(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/macro-lab/panic', { method: 'POST' });
+}
+
+export async function resetMacroPanic(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/macro-lab/panic/reset', { method: 'POST' });
+}
+
+export async function reloadMacroTriggers(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/macro-lab/triggers/reload', { method: 'POST' });
+}
+
+export async function startRecording(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/macro-lab/recording/start', { method: 'POST', body: JSON.stringify({ keyboard: true, mouse: true }) });
+}
+
+export async function stopRecording(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/macro-lab/recording/stop', { method: 'POST' });
+}
