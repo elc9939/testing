@@ -20,7 +20,7 @@ const FRICTION = 0.80, JUMP = -12.4, TERMINAL = 15;
 const COYOTE = 7, BUFFER = 7, CUT = 0.42;
 const PW = 20, PH = 58;          // player collision box (w, h); y = feet (bottom)
 const ROGUE_MAX_KNIVES = 6, ROGUE_REGEN = 1150, ROGUE_BURST_MAX = 3, ROGUE_BURST_REGEN = 900, ROGUE_QUEUE_MS = 540, ROGUE_QUEUE_FLASH_MS = 420;
-const RANGER_MAX_ARROWS = 7, RANGER_REGEN = 1350, RANGER_DRAW_MAX = 900;
+const RANGER_MAX_ARROWS = 7, RANGER_REGEN = 1500, RANGER_DRAW_MAX = 900;
 const RANGER_NOCK_TIME = 190, RANGER_RELOAD_TIME = 360, ARROW_GRAVITY = 0.13;
 const KNIGHT_SHIELD_TIME = 1250;
 const MAGE_HOVER_HEIGHT = 42;
@@ -56,13 +56,13 @@ const SPIRIT_COLORS = {
 const ARENA_WAVE_DELAY = 850;
 const ATTACK_COOLDOWN = {
   slash: 110, dualSlash: 80, rogueStab: 95, legSweep: 420,
-  shieldBash: 560, braceThrust: 260, cast: 150, arrow: 100,
+  shieldBash: 560, braceThrust: 260, cast: 190, arrow: 155,
 };
 const ABILITY_COOLDOWN = {
-  shieldGuard: 1750, throw: 260, lanceCharge: 2300, arcaneBloom: 1650, volley: 1200,
+  shieldGuard: 1750, throw: 260, lanceCharge: 2300, arcaneBloom: 1850, volley: 1450,
 };
 const MOVE_COOLDOWN = {
-  slide: 520, airDash: 900, brace: 800, shieldStep: 760, backstep: 620,
+  slide: 520, airDash: 1080, brace: 800, shieldStep: 760, backstep: 820,
 };
 const ACTION_COOLDOWN = Object.assign({}, ATTACK_COOLDOWN, ABILITY_COOLDOWN, MOVE_COOLDOWN);
 const SLOT_UNLOCK_WAVE = { e: 1, shift: 2, q: 3 };
@@ -73,8 +73,8 @@ const SLOT_COOLDOWN = {
   knight: { e: 2600, shift: 1700, q: 9000 },
   rogue: { e: 3000, shift: 1400, q: 8200 },
   lancer: { e: 2800, shift: 2100, q: 9800 },
-  mage: { e: 3400, shift: 1800, q: 9600 },
-  ranger: { e: 2800, shift: 1600, q: 8800 },
+  mage: { e: 3600, shift: 2200, q: 9800 },
+  ranger: { e: 3000, shift: 2100, q: 9000 },
 };
 
 // ---------- RPG classes ----------
@@ -102,13 +102,13 @@ const CLASSES = [
       breatheAmp: 0.75, breatheSpd: 0.0013, hover: 0, idle: 'lance', spring: { lean: [85, 24], head: [75, 24], aim: [110, 25] } } },
   { id: 'mage', name: 'Mage', emoji: '🪄', color: '#ff77d2', blurb: 'Neutral staff caster.',
     weapon: 'staff', main: 'cast', alt: 'arcaneBloom', move: 'airDash',
-    reach: 0.96, speedMul: 0.96, trail: [255, 140, 220], dur: { cast: 210, arcaneBloom: 420 }, moveDur: { airDash: 260 }, ranged: true, gravityMul: 1, fly: true,
+    reach: 0.96, speedMul: 0.92, trail: [255, 140, 220], dur: { cast: 210, arcaneBloom: 420 }, moveDur: { airDash: 260 }, ranged: true, gravityMul: 1, fly: true,
     // Base Mage stays grounded; Graviturge uses held hover and a stronger flying pose.
     style: { hipH: 49, stanceW: 5, strideH: 8, lift: 5, bounceAmp: 1.0, cadence: 0.72, armStride: 5, baseLean: -0.03, squash: 0.75,
       breatheAmp: 1.5, breatheSpd: 0.0017, hover: 3, idle: 'mystic', spring: { lean: [62, 11], head: [55, 12], aim: [90, 12] } } },
   { id: 'ranger', name: 'Ranger', emoji: '🏹', color: '#53d4ff', blurb: 'Mobile bow shots.',
     weapon: 'bow', main: 'arrow', alt: 'volley', move: 'backstep',
-    reach: 0.92, speedMul: 1.08, trail: [83, 212, 255], dur: { arrow: 230, volley: 330 }, moveDur: { backstep: 260 }, ranged: true,
+    reach: 0.92, speedMul: 1.04, trail: [83, 212, 255], dur: { arrow: 230, volley: 330 }, moveDur: { backstep: 260 }, ranged: true,
     style: { hipH: 46, stanceW: 8, strideH: 14, lift: 7, bounceAmp: 1.3, cadence: 0.98, armStride: 8, baseLean: 0.04, squash: 0.8,
       breatheAmp: 1.0, breatheSpd: 0.0021, hover: 0, idle: 'archer', spring: { lean: [115, 14], head: [96, 15], aim: [145, 16] } } },
 ];
@@ -229,9 +229,9 @@ const ABILITIES = (() => {
   add('ln_tethermaster', { cls: 'lancer', branch: 'harpooner', tier: 4, slot: 'passive', name: 'Tether Master', desc: 'Keystone: pulls also tug crates/barrels and briefly slow enemies after the yank.', key: true, tags: ['Pull', 'Crates'] });
 
   // Mage base + branches
-  add('mg_bolt', { cls: 'mage', branch: 'starter', tier: 0, slot: 'attack', name: 'Arcane Bolt', desc: 'Simple staff shot for direct damage without pulling from any branch fantasy.', type: 'attack', action: 'cast', cd: 260, draft: false, tags: ['Projectile'] });
+  add('mg_bolt', { cls: 'mage', branch: 'starter', tier: 0, slot: 'attack', name: 'Arcane Bolt', desc: 'Simple staff shot for direct damage without pulling from any branch fantasy.', type: 'attack', action: 'cast', cd: 300, draft: false, tags: ['Projectile'] });
   add('mg_bloom', { cls: 'mage', branch: 'starter', tier: 0, slot: 'secondary', name: 'Arcane Burst', desc: 'Shoot a bright orb that travels to the target, then pops into a straightforward AOE blast.', type: 'attack', action: 'arcaneBloom', draft: false, tags: ['Projectile', 'AOE'] });
-  add('mg_dash', { cls: 'mage', branch: 'starter', tier: 0, slot: 'shift', name: 'Arcane Dash', desc: 'Short staff-led dash. Best for crossing gaps or slipping past pressure without borrowing the gravity hover fantasy.', type: 'move', action: 'airDash', cd: 1800, draft: false, tags: ['Movement'] });
+  add('mg_dash', { cls: 'mage', branch: 'starter', tier: 0, slot: 'shift', name: 'Arcane Dash', desc: 'Short staff-led dash. Best for crossing gaps or slipping past pressure without borrowing the gravity hover fantasy.', type: 'move', action: 'airDash', cd: 2200, draft: false, tags: ['Movement'] });
   add('mg_sigil', { cls: 'mage', branch: 'starter', tier: 0, slot: 'e', name: 'Arc Sigil', desc: 'Launch a sigil that pops into a burst of small bolts.', type: 'custom', use: 'mageSigil', cd: 3400, draft: false, tags: ['Projectile'] });
   add('mg_arcane_nova', { cls: 'mage', branch: 'starter', tier: 0, slot: 'q', name: 'Arcane Nova', desc: 'Release a clean circular blast around the staff, shoving enemies and loose objects away.', effect: { kind: 'arcaneNova', r: 168, force: 26 }, cd: 9000, draft: false, tags: ['AOE', 'Push'] });
   add('mg_singularity', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Black Hole', desc: 'Send gravity wisps from the staff into a tiny black point. It tears open, pulls hard, then violently collapses.', effect: { kind: 'blackHole', r: 296, life: 3800, range: 680, force: 1.56 }, cd: 9800, tags: ['Gravity', 'Pull', 'Crates'] });
@@ -243,7 +243,7 @@ const ABILITIES = (() => {
   add('mg_resonance', { cls: 'mage', branch: 'graviturge', tier: 4, slot: 'passive', name: 'Resonance', desc: 'Keystone: repeated spellcasting adds extra echo pressure near affected enemies.', key: true, tags: ['Gravity', 'Projectile'] });
   add('mg_eventhorizon', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'passive', name: 'Archived Core Keystone', desc: 'Archived persistent-core keystone. Hidden from drafts while Graviturge stays as one focused class.', key: true, draft: false, tags: ['Gravity', 'Field'] });
   add('mg_resonancepulse', { cls: 'mage', branch: 'graviturge', tier: 3, slot: 'q', name: 'Resonance Pulse', desc: 'Staff-slam a local gravity shockwave that shoves enemies and loose objects.', effect: { kind: 'resonancePulse' }, cd: 7200, tags: ['Gravity', 'Shockwave', 'Crates'] });
-  add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast staff-led fire shot. It scorches a small pocket, burns targets, and starts the heat chain.', effect: { kind: 'firebolt', power: 1.18, scorch: 1 }, cd: 240, tags: ['Fire', 'Projectile', 'Burn'] });
+  add('mg_firebolt', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'attack', name: 'Firebolt', desc: 'Fast staff-led fire shot. It scorches a small pocket, burns targets, and starts the heat chain.', effect: { kind: 'firebolt', power: 1.18, scorch: 1 }, cd: 300, tags: ['Fire', 'Projectile', 'Burn'] });
   add('mg_flamepool', { cls: 'mage', branch: 'pyromancer', tier: 1, slot: 'secondary', name: 'Flame Flow', desc: 'Pour fire from the staff so it crawls across nearby ground, crates, and barrels instead of appearing from nowhere.', effect: { kind: 'groundFireFlow', range: 320, life: 1550, lanes: 5 }, cd: 2200, tags: ['Fire', 'Field', 'Barrels'] });
   add('mg_flamebreath', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'secondary', name: 'Flame Breath', desc: 'Channel a dense stream of fire and smoke from the staff, pushing bodies and heating barrels in its path.', effect: { kind: 'flameBreath', range: 286, life: 760, cone: 0.56, force: 15, heat: 20 }, cd: 1750, tags: ['Fire', 'Burn', 'Barrels', 'Push'] });
   add('mg_ignite', { cls: 'mage', branch: 'pyromancer', tier: 2, slot: 'e', name: 'Ignition Burst', desc: 'Throw a small fire orb from the staff. It bursts on impact, drags an afterburn trail across the floor, and detonates burning targets or hot barrels.', effect: { kind: 'fireBurst', r: 164, range: 520, force: 31, snap: 190, chain: 1 }, cd: 3200, tags: ['Fire', 'Barrels', 'Push'] });
@@ -269,10 +269,10 @@ const ABILITIES = (() => {
   // Ranger base + branches
   add('rn_arrow', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'attack', name: 'Draw Shot', desc: 'Hold and release a gravity-affected arrow.', type: 'attack', action: 'arrow', draft: false, tags: ['Projectile'] });
   add('rn_volley', { cls: 'ranger', branch: 'beastwarden', tier: 0, slot: 'secondary', name: 'Volley Draw', desc: 'Hold and release a three-arrow shot from the quiver.', type: 'attack', action: 'volley', draft: false, tags: ['Projectile'] });
-  add('rn_backstep', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'shift', name: 'Backstep', desc: 'Quick retreat that resets bow spacing.', type: 'move', action: 'backstep', cd: 1600, draft: false, tags: ['Movement'] });
+  add('rn_backstep', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'shift', name: 'Backstep', desc: 'Quick retreat that resets bow spacing.', type: 'move', action: 'backstep', cd: 2100, draft: false, tags: ['Movement'] });
   add('rn_kickshot', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'e', name: 'Power Shot', desc: 'Instant heavy arrow that pierces and pushes.', type: 'custom', use: 'rangerPower', cd: 2800, draft: false, tags: ['Ledges', 'Projectile'] });
   add('rn_arrowstorm', { cls: 'ranger', branch: 'sharpshooter', tier: 0, slot: 'q', name: 'Arrow Storm', desc: 'Fan of arrows for covering a lane or finishing a clump.', type: 'custom', use: 'rangerStorm', cd: 8800, draft: false, tags: ['Projectile'] });
-  add('rn_power', { cls: 'ranger', branch: 'sharpshooter', tier: 1, slot: 'attack', name: 'Power Draw', desc: 'Heavier draw shot for knocking bots toward hazards.', type: 'custom', use: 'rangerPower', cd: 650, tags: ['Ledges', 'Projectile'] });
+  add('rn_power', { cls: 'ranger', branch: 'sharpshooter', tier: 1, slot: 'attack', name: 'Power Draw', desc: 'Heavier draw shot for knocking bots toward hazards.', type: 'custom', use: 'rangerPower', cd: 780, tags: ['Ledges', 'Projectile'] });
   add('rn_wallpin', { cls: 'ranger', branch: 'sharpshooter', tier: 1, slot: 'e', name: 'Wall Pin', desc: 'Pin an enemy or crate against a wall, briefly freezing its momentum.', effect: { kind: 'wallPin' }, cd: 3100, tags: ['Walls', 'Crates'] });
   add('rn_pierce', { cls: 'ranger', branch: 'sharpshooter', tier: 2, slot: 'secondary', name: 'Piercing Arrow', desc: 'A narrow shot that pierces enemies and crates in a line.', effect: { kind: 'arrow', power: 1.35, pierce: 2 }, cd: 1200, tags: ['Crates', 'Projectile'] });
   add('rn_hunter', { cls: 'ranger', branch: 'sharpshooter', tier: 4, slot: 'passive', name: "Hunter's Mark", desc: 'Keystone: after a KO, your next shots and movement become snappier.', key: true, tags: ['Ledges'] });
@@ -383,9 +383,9 @@ const ABILITIES = (() => {
   add('ln_dragnet', { cls: 'lancer', branch: 'harpooner', tier: 5, slot: 'passive', name: 'Dragnet', desc: 'Keystone: two anchors form a slowing line that can yank crossing enemies.', key: true, prereq: ['ln_wardenanchor', 'ln_winchstep'], tags: ['Pull', 'Walls'] });
 
   add('mg_motes', { cls: 'mage', branch: 'graviturge', tier: 1, slot: 'passive', name: 'Gravity Orbit', desc: 'Class passive: hold jump to float. Orbiting rocks are real ammo, fly out as attacks, then boomerang back to you.', key: true, tags: ['Gravity', 'Movement'] });
-  add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Shard', desc: 'Throw a dense lifted shard. It hits harder, tumbles through crates, and keeps the gravity-debris loop active.', effect: { kind: 'gravityDebris', power: 1.28, core: 0.42 }, cd: 240, tags: ['Gravity', 'Projectile', 'Crates'] });
+  add('mg_massbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Mass Shard', desc: 'Throw a dense lifted shard. It hits harder, tumbles through crates, and keeps the gravity-debris loop active.', effect: { kind: 'gravityDebris', power: 1.28, core: 0.42 }, cd: 300, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_orbitbolt', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'attack', name: 'Orbit Shard', desc: 'Archived orbit-core shard experiment. Hidden from drafts while Mass Shard remains the main Graviturge attack.', effect: { kind: 'gravityDebris', power: 1.08, orbit: 1, core: 0.52 }, cd: 220, draft: false, tags: ['Gravity', 'Projectile', 'Crates'] });
-  add('mg_floatstep', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Float Step', desc: 'Short controlled hover drift that can cross gaps while aiming.', type: 'move', action: 'airDash', cd: 1700, tags: ['Movement', 'Gravity'] });
+  add('mg_floatstep', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Float Step', desc: 'Short controlled hover drift that can cross gaps while aiming.', type: 'move', action: 'airDash', cd: 2200, tags: ['Movement', 'Gravity'] });
   add('mg_brake', { cls: 'mage', branch: 'graviturge', tier: 2, slot: 'shift', name: 'Gravity Brake', desc: 'Brake your own momentum while enemies and objects continue sliding past.', effect: { kind: 'gravityBrake' }, cd: 1500, tags: ['Gravity', 'Movement'] });
   add('mg_orbitalcast', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'attack', name: 'Archived Orbital Debris', desc: 'Archived orbit-core attack experiment. Hidden from drafts.', effect: { kind: 'gravityDebris', power: 1.18, orbit: 1, shoveCore: 1, core: 0.72 }, cd: 205, prereq: 'mg_eventhorizon', draft: false, tags: ['Gravity', 'Projectile', 'Crates'] });
   add('mg_corestep', { cls: 'mage', branch: 'graviturge', tier: 5, slot: 'shift', name: 'Archived Core Step', desc: 'Archived orbit-core movement experiment. Hidden from drafts.', effect: { kind: 'coreStep' }, cd: 1600, prereq: 'mg_eventhorizon', draft: false, tags: ['Gravity', 'Movement'] });
@@ -1133,7 +1133,18 @@ PUBLIC.start = function (root, api) {
     return ease(clamp((d.t - RANGER_NOCK_TIME) / Math.max(1, RANGER_DRAW_MAX - RANGER_NOCK_TIME), 0, 1));
   }
   function rangerDrawPower(act) {
-    return rangerDrawPull(act);
+    const pull = rangerDrawPull(act);
+    if (!pull) return 0;
+    const movePenalty = clamp(Math.abs((act && act.vx) || 0) / 5.2, 0, 1) * 0.22;
+    const airPenalty = act && !act.grounded ? 0.12 : 0;
+    return pull * clamp(1 - movePenalty - airPenalty, 0.68, 1);
+  }
+  function rangerDrawMobility(act) {
+    const pull = rangerDrawPull(act);
+    if (!pull) return 1;
+    const moving = clamp(Math.abs((act && act.vx) || 0) / 4.2, 0, 1);
+    const airPenalty = act && !act.grounded ? 0.10 : 0;
+    return clamp(1 - pull * (0.34 + moving * 0.18 + airPenalty), 0.46, 1);
   }
   function rangerReloadAmount(act) {
     const d = act && act.draw;
@@ -7233,24 +7244,24 @@ PUBLIC.start = function (root, api) {
       const target = b.target || hero;
       const pattern = e.botBuild && e.botBuild.pattern;
       e.intent.jumpHeld = !!target && e.cls.fly && (e.y > target.y + 64 && n.adx < 340 || !e.grounded && e.airTime < 18 && e.vy < -0.1);
-      if (n.adx < 185) { pressToward(e, -n.face); if (n.adx < 135 && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(1050, 1700); } }
+      if (n.adx < 185) { pressToward(e, -n.face); if (n.adx < 125 && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(1350, 2100); } }
       else if (n.adx > 310) pressToward(e, n.route);
       if (b.atkCd <= 0) {
         const close = n.adx < (pattern ? 190 : 165) || Math.abs(n.dy) < 44 && n.adx < 230 && b.combo++ % 3 === 2;
         triggerAttack(close ? 'arcaneBloom' : 'cast', { aim: n.aim, range: clamp(Math.hypot(n.dx, n.dy), 130, 540) });
-        b.atkCd = close ? rand(900, 1180) : rand(pattern ? 470 : 560, pattern ? 720 : 850);
+        b.atkCd = close ? rand(1050, 1380) : rand(pattern ? 620 : 680, pattern ? 900 : 980);
       }
     },
     ranger(e, n) {                               // skirmisher: keep range, arrow/volley, backstep when crowded
       const b = e.brain;
       const pattern = e.botBuild && e.botBuild.pattern;
-      if (n.adx < 170) { pressToward(e, -n.face); if ((n.adx < 140 || n.nav.blocked) && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(680, 1180); } }
+      if (n.adx < 160) { pressToward(e, -n.face); if ((n.adx < 125 || n.nav.blocked) && b.moveCd <= 0) { triggerMove(); b.moveCd = rand(980, 1480); } }
       else if (n.adx > 300) pressToward(e, n.route);
       if (b.atkCd <= 0) {
         const volleyEvery = pattern === 'trapper' ? 2 : pattern === 'sharpshooter' ? 5 : 4;
         const t = (e.arrowAmmo >= 3 && (n.adx < 260 || b.combo++ % volleyEvery === volleyEvery - 1)) ? 'volley' : 'arrow';
         triggerAttack(t, { aim: n.aim, drawPower: rand(0.75, 1.15) });
-        b.atkCd = t === 'volley' ? rand(820, 1080) : rand(pattern === 'sharpshooter' ? 360 : 440, pattern === 'sharpshooter' ? 620 : 700);
+        b.atkCd = t === 'volley' ? rand(1040, 1320) : rand(pattern === 'sharpshooter' ? 540 : 620, pattern === 'sharpshooter' ? 760 : 840);
       }
     },
   };
@@ -8455,6 +8466,7 @@ PUBLIC.start = function (root, api) {
     if (activeMove('risingDash')) m = Math.max(m, 11.2);
     if (activeMove('shoulder')) m = Math.max(m, 7.2);
     if (activeMove('backstep')) m = Math.max(m, 6.8);
+    if (player && cls.id === 'ranger' && player.draw && player.draw.active) m *= rangerDrawMobility(player);
     if (player && actorPosture(player).down > 0) m *= 0.45;
     if (lancerAttackLocked()) m = player.anim.atkType === 'lanceCharge' ? Math.max(m, 10.8) : Math.min(m, 1.15);
     return m;

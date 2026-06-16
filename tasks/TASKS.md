@@ -49,8 +49,6 @@ interval is 1 hour). Pause it anytime from the routine's detail page.
 _Add tasks here. The examples below are real candidates from our chats — keep,
 edit, reprioritize, or delete them freely._
 
-- [ ] [p2] [area:stickrun] Playtest-tune Stick Arena: class balance, cooldown
-      lengths, and whether ranged classes (Mage/Ranger) feel too safe.
 - [ ] [p3] [area:stickrun] Delete the retired `js/games/arenatactics.js` file
       once you're sure nothing from it is still wanted (it's already disabled).
 - [ ] [p3] [area:pwa] PWA app polish: iOS splash/launch images + verify install
@@ -58,7 +56,8 @@ edit, reprioritize, or delete them freely._
 
 ## 🏗️ In progress
 
-_(nothing yet)_
+- [ ] [p2] [area:stickrun] Playtest-tune Stick Arena: class balance, cooldown
+      lengths, and whether ranged classes (Mage/Ranger) feel too safe.
 
 ## ✅ Done
 
