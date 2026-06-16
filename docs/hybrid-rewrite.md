@@ -60,4 +60,4 @@ The private productivity command center lives at `/productivity`. See:
 - `docs/personal-productivity-hub-architecture.md` for the architecture, auth strategy, connector model, data model, and integration capability map.
 - `docs/personal-productivity-hub-setup.md` for Google OAuth setup, env vars, local run steps, and Brightspace API/iCal notes.
 
-The first production-grade integration slice is Google Calendar: OAuth, token refresh, list/view/create/update/delete/move, reminders, recurrence pass-through, and unified timeline projection.
+The first production-grade integration slices are Google Calendar and Gmail: OAuth, token refresh, Calendar list/view/create/update/delete/move with reminders and recurrence pass-through, Gmail thread search/read/compose/draft/send/reply/label/archive/read-state actions, and unified timeline projection.

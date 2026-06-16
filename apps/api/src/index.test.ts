@@ -1,9 +1,76 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp, createMemoryStore } from './index';
-import { decryptTokenSet, encryptTokenSet } from './integrations/token-vault';
+import { GoogleGmailConnector } from './integrations/google';
+import { decryptTokenSet, encryptTokenSet, upsertConnection } from './integrations/token-vault';
 
 describe('mini hub api', () => {
   const syncKey = 'test-sync-key';
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' }
+    });
+  }
+
+  function connectedGoogleStore() {
+    const store = createMemoryStore();
+    upsertConnection(store, {
+      workspaceId: 'personal',
+      provider: 'google',
+      accountLabel: 'tester@example.com',
+      scopes: ['https://www.googleapis.com/auth/gmail.modify'],
+      encryptedTokenSet: encryptTokenSet({
+        accessToken: 'fresh-access-token',
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        tokenType: 'Bearer'
+      }),
+      status: 'connected'
+    });
+    return store;
+  }
+
+  function gmailThreadResponse(labelIds = ['INBOX', 'UNREAD']) {
+    return {
+      id: 'thread-1',
+      historyId: 'history-1',
+      messages: [
+        {
+          id: 'message-1',
+          threadId: 'thread-1',
+          labelIds,
+          snippet: 'Project deadline',
+          internalDate: '1781572800000',
+          payload: {
+            mimeType: 'multipart/alternative',
+            headers: [
+              { name: 'Subject', value: 'Project deadline' },
+              { name: 'From', value: 'Ada <ada@example.com>' },
+              { name: 'To', value: 'me@example.com' },
+              { name: 'Date', value: 'Tue, 16 Jun 2026 12:00:00 +0000' },
+              { name: 'Message-ID', value: '<message-1@example.com>' }
+            ],
+            parts: [
+              {
+                mimeType: 'text/plain',
+                body: {
+                  data: Buffer.from('Please reply before the deadline.', 'utf8')
+                    .toString('base64')
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=+$/u, '')
+                }
+              }
+            ]
+          }
+        }
+      ]
+    };
+  }
 
   it('serves health checks', async () => {
     const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
@@ -169,7 +236,7 @@ describe('mini hub api', () => {
     expect(body.connectors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'google', status: 'implemented' }),
-        expect.objectContaining({ id: 'gmail', status: 'planned' })
+        expect.objectContaining({ id: 'gmail', status: 'implemented' })
       ])
     );
   });
@@ -182,6 +249,96 @@ describe('mini hub api', () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({ error: 'Google is not connected' });
+  });
+
+  it('returns a clean Gmail auth error before Google is connected', async () => {
+    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
+    const response = await app.request('/api/productivity/gmail/threads', {
+      headers: { 'x-mini-hub-sync-key': syncKey }
+    });
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ error: 'Google is not connected' });
+  });
+
+  it('lists and normalizes Gmail labels and threads through the connector', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes('/gmail/v1/users/me/labels')) {
+        return jsonResponse({ labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }] });
+      }
+      if (href.includes('/gmail/v1/users/me/threads?')) {
+        return jsonResponse({ threads: [{ id: 'thread-1' }], resultSizeEstimate: 1 });
+      }
+      if (href.includes('/gmail/v1/users/me/threads/thread-1?')) {
+        return jsonResponse(gmailThreadResponse());
+      }
+      return jsonResponse({ error: { message: `Unexpected URL ${href}` } }, 500);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const connector = new GoogleGmailConnector(connectedGoogleStore());
+    const labels = await connector.listLabels();
+    const threads = await connector.listThreads({ q: 'from:ada@example.com', maxResults: 1 });
+
+    expect(labels[0]).toMatchObject({ id: 'INBOX', name: 'INBOX' });
+    expect(threads.threads[0]).toMatchObject({
+      id: 'thread-1',
+      subject: 'Project deadline',
+      unread: true
+    });
+    expect(threads.threads[0]?.messages[0]?.bodyText).toContain('Please reply');
+  });
+
+  it('sends Gmail MIME messages and performs thread label actions', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url);
+      if (href.includes('/gmail/v1/users/me/messages/send')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { raw?: string };
+        const raw = Buffer.from((body.raw ?? '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+        expect(raw).toContain('To: ada@example.com');
+        expect(raw).toContain('Subject: Test send');
+        expect(raw).toContain('Body from Mini Hub');
+        return jsonResponse({ id: 'sent-1', threadId: 'thread-1' });
+      }
+      if (href.includes('/gmail/v1/users/me/messages/sent-1?')) {
+        return jsonResponse({
+          ...gmailThreadResponse(['SENT']).messages[0],
+          id: 'sent-1',
+          labelIds: ['SENT'],
+          snippet: 'Body from Mini Hub'
+        });
+      }
+      if (href.includes('/gmail/v1/users/me/threads/thread-1/modify')) {
+        return jsonResponse({ id: 'thread-1' });
+      }
+      if (href.includes('/gmail/v1/users/me/threads/thread-1?')) {
+        return jsonResponse(gmailThreadResponse(['UNREAD']));
+      }
+      return jsonResponse({ error: { message: `Unexpected URL ${href}` } }, 500);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const connector = new GoogleGmailConnector(connectedGoogleStore());
+    const sent = await connector.sendMessage({
+      to: ['ada@example.com'],
+      subject: 'Test send',
+      bodyText: 'Body from Mini Hub'
+    });
+    await connector.archiveThread('thread-1');
+    await connector.markThreadRead('thread-1');
+
+    const modifyBodies = fetchMock.mock.calls
+      .filter(([url]) => String(url).includes('/threads/thread-1/modify'))
+      .map(([, init]) => JSON.parse(String((init as RequestInit | undefined)?.body ?? '{}')));
+
+    expect(sent.id).toBe('sent-1');
+    expect(modifyBodies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ removeLabelIds: ['INBOX'] }),
+        expect.objectContaining({ removeLabelIds: ['UNREAD'] })
+      ])
+    );
   });
 
   it('encrypts OAuth token sets before storage', () => {

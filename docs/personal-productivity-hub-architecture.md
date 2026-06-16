@@ -1,6 +1,6 @@
 # Personal Productivity Hub Architecture
 
-Status: Google Calendar vertical slice implemented; Gmail, Drive/Docs/Sheets, and Brightspace are adapter-ready next integrations.
+Status: Google Calendar and Gmail vertical slices implemented; Drive/Docs/Sheets and Brightspace are adapter-ready next integrations.
 
 Date: 2026-06-16
 
@@ -90,9 +90,10 @@ Every integration should live behind an adapter with a common shape:
 - action methods: send/archive/label/move/complete/etc.
 - timeline projection: provider-specific records mapped to `TimelineItem`
 
-Current implemented adapter:
+Current implemented adapters:
 
 - `GoogleCalendarConnector`
+- `GoogleGmailConnector`
 
 Next adapters should follow the same directory structure under `apps/api/src/integrations`.
 
@@ -101,7 +102,7 @@ Next adapters should follow the same directory structure under `apps/api/src/int
 | Provider | View | Edit | Actions | Current status |
 | --- | --- | --- | --- | --- |
 | Google Calendar | calendars, events, event detail, recurring-event metadata | create, patch, delete events | move event, set reminders, pass recurrence rules/timezones | Implemented |
-| Gmail | threads, search, full messages, labels | create/update drafts, replies | send, archive, label, mark read/unread | Planned next |
+| Gmail | threads, search, full messages, labels | create drafts, replies | send, archive, label, mark read/unread | Implemented |
 | Google Drive | browse, search, metadata, open file info | create and rename files/folders where API permits | move/update metadata | Planned |
 | Google Docs | read document structure/content | batchUpdate document content | create/open via Drive/Docs APIs | Planned |
 | Google Sheets | read spreadsheets/ranges | update/append values | create/open via Drive/Sheets APIs | Planned |
@@ -123,6 +124,7 @@ The `Productivity Hub` route is a dense command surface rather than a marketing 
 - top-level connection status and connector catalog
 - Google Calendar event creation/edit form
 - upcoming event table with edit/move/delete controls
+- Gmail search, label filtering, full message reading, compose, draft, send, reply, archive, and read/unread controls
 - unified timeline table
 - explicit disabled state when the private sync key is missing
 
@@ -157,6 +159,10 @@ The schema includes `integration_logs` for persisted provider request logs. The 
 - Gmail API scopes and methods: https://developers.google.com/workspace/gmail/api/auth/scopes
 - Google Calendar events API: https://developers.google.com/workspace/calendar/api/v3/reference/events
 - Google Calendar events/timezones concepts: https://developers.google.com/workspace/calendar/api/concepts/events-calendars
+- Gmail threads API: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads
+- Gmail messages API: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages
+- Gmail drafts API: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.drafts
+- Gmail send guide: https://developers.google.com/workspace/gmail/api/guides/sending
 - Google Drive API scopes: https://developers.google.com/workspace/drive/api/guides/api-specific-auth
 - Google Drive file search: https://developers.google.com/workspace/drive/api/guides/search-files
 - Google Docs batchUpdate: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/batchUpdate

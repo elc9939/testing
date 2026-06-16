@@ -140,6 +140,50 @@ export const calendarEventSchema = z.object({
   raw: z.record(z.string(), z.unknown()).default({})
 });
 
+export const gmailLabelSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: z.string().default('user'),
+  messageListVisibility: z.string().optional(),
+  labelListVisibility: z.string().optional()
+});
+
+export const gmailMessageSchema = z.object({
+  id: z.string().min(1),
+  threadId: z.string().min(1),
+  labelIds: z.array(z.string()).default([]),
+  snippet: z.string().default(''),
+  subject: z.string().default('(no subject)'),
+  from: z.string().default(''),
+  to: z.string().default(''),
+  cc: z.string().default(''),
+  date: z.string().default(''),
+  internalDate: z.string().default(''),
+  messageIdHeader: z.string().default(''),
+  references: z.string().default(''),
+  inReplyTo: z.string().default(''),
+  bodyText: z.string().default(''),
+  bodyHtml: z.string().default(''),
+  headers: z.record(z.string(), z.string()).default({})
+});
+
+export const gmailThreadSchema = z.object({
+  id: z.string().min(1),
+  historyId: z.string().default(''),
+  snippet: z.string().default(''),
+  labelIds: z.array(z.string()).default([]),
+  subject: z.string().default('(no subject)'),
+  from: z.string().default(''),
+  date: z.string().default(''),
+  unread: z.boolean().default(false),
+  messages: z.array(gmailMessageSchema).default([])
+});
+
+export const gmailDraftSchema = z.object({
+  id: z.string().min(1),
+  message: gmailMessageSchema.optional()
+});
+
 export const timelineItemSchema = z.object({
   id: z.string().min(1),
   source: z.enum(['google_calendar', 'brightspace', 'gmail', 'manual']),
@@ -255,6 +299,10 @@ export type ConnectorKind = z.infer<typeof connectorKindSchema>;
 export type ConnectorCapability = z.infer<typeof connectorCapabilitySchema>;
 export type IntegrationConnection = z.infer<typeof integrationConnectionSchema>;
 export type CalendarEvent = z.infer<typeof calendarEventSchema>;
+export type GmailLabel = z.infer<typeof gmailLabelSchema>;
+export type GmailMessage = z.infer<typeof gmailMessageSchema>;
+export type GmailThread = z.infer<typeof gmailThreadSchema>;
+export type GmailDraft = z.infer<typeof gmailDraftSchema>;
 export type TimelineItem = z.infer<typeof timelineItemSchema>;
 export type SyncEvent = z.infer<typeof syncEventSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;

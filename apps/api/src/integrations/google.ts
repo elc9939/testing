@@ -1,5 +1,13 @@
-import type { CalendarEvent, TimelineItem } from '@mini-hub/core';
-import { calendarEventSchema, personalWorkspaceId, timelineItemSchema } from '@mini-hub/core';
+import type { CalendarEvent, GmailDraft, GmailLabel, GmailMessage, GmailThread, TimelineItem } from '@mini-hub/core';
+import {
+  calendarEventSchema,
+  gmailDraftSchema,
+  gmailLabelSchema,
+  gmailMessageSchema,
+  gmailThreadSchema,
+  personalWorkspaceId,
+  timelineItemSchema
+} from '@mini-hub/core';
 import { env } from '../env';
 import type { MemoryStore } from '../store';
 import type {
@@ -7,7 +15,13 @@ import type {
   CalendarEventInput,
   CalendarEventPatch,
   ConnectorActionResult,
-  ConnectorCatalogEntry
+  ConnectorCatalogEntry,
+  GmailComposeInput,
+  GmailConnector,
+  GmailModifyInput,
+  GmailReplyInput,
+  GmailThreadList,
+  GmailThreadQuery
 } from './types';
 import {
   createOAuthState,
@@ -47,6 +61,48 @@ interface GoogleUserInfo {
   name?: string;
 }
 
+interface GmailApiHeader {
+  name?: string;
+  value?: string;
+}
+
+interface GmailApiPartBody {
+  data?: string;
+  size?: number;
+}
+
+interface GmailApiPart {
+  partId?: string;
+  mimeType?: string;
+  filename?: string;
+  headers?: GmailApiHeader[];
+  body?: GmailApiPartBody;
+  parts?: GmailApiPart[];
+}
+
+interface GmailApiMessage {
+  id?: string;
+  threadId?: string;
+  labelIds?: string[];
+  snippet?: string;
+  internalDate?: string;
+  payload?: GmailApiPart;
+}
+
+interface GmailApiThread {
+  id?: string;
+  historyId?: string;
+  snippet?: string;
+  messages?: GmailApiMessage[];
+}
+
+interface GmailApiDraft {
+  id?: string;
+  message?: GmailApiMessage;
+}
+
+const gmailBaseUrl = 'https://gmail.googleapis.com';
+
 function requireGoogleConfig(): void {
   if (!env.googleClientId || !env.googleClientSecret || !env.googleRedirectUri) {
     throw new Error('Google OAuth is not configured');
@@ -55,6 +111,121 @@ function requireGoogleConfig(): void {
 
 function encodePath(value: string): string {
   return encodeURIComponent(value);
+}
+
+function base64UrlEncode(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '');
+}
+
+function base64UrlDecode(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]+/gu, ' ').trim();
+}
+
+function addressList(values: string[] | undefined): string {
+  return (values ?? []).map(sanitizeHeader).filter(Boolean).join(', ');
+}
+
+function headerRecord(headers: GmailApiHeader[] | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const header of headers ?? []) {
+    if (!header.name || header.value === undefined) continue;
+    result[header.name.toLowerCase()] = header.value;
+  }
+  return result;
+}
+
+function extractBodies(part: GmailApiPart | undefined): { bodyText: string; bodyHtml: string } {
+  if (!part) return { bodyText: '', bodyHtml: '' };
+  let bodyText = '';
+  let bodyHtml = '';
+  const data = part.body?.data;
+  if (data && part.mimeType === 'text/plain') bodyText += base64UrlDecode(data);
+  if (data && part.mimeType === 'text/html') bodyHtml += base64UrlDecode(data);
+  for (const child of part.parts ?? []) {
+    const extracted = extractBodies(child);
+    if (extracted.bodyText) bodyText += `${bodyText ? '\n' : ''}${extracted.bodyText}`;
+    if (extracted.bodyHtml) bodyHtml += extracted.bodyHtml;
+  }
+  return { bodyText, bodyHtml };
+}
+
+function rawMime(input: GmailComposeInput, reply?: { inReplyTo?: string; references?: string }): string {
+  const headers: string[] = [];
+  headers.push(`To: ${addressList(input.to)}`);
+  const cc = addressList(input.cc);
+  const bcc = addressList(input.bcc);
+  if (cc) headers.push(`Cc: ${cc}`);
+  if (bcc) headers.push(`Bcc: ${bcc}`);
+  headers.push(`Subject: ${sanitizeHeader(input.subject)}`);
+  if (reply?.inReplyTo) headers.push(`In-Reply-To: ${sanitizeHeader(reply.inReplyTo)}`);
+  if (reply?.references) headers.push(`References: ${sanitizeHeader(reply.references)}`);
+  headers.push('MIME-Version: 1.0');
+  headers.push('Content-Type: text/plain; charset="UTF-8"');
+  headers.push('Content-Transfer-Encoding: 8bit');
+  const body = input.bodyText.replace(/\r?\n/gu, '\r\n');
+  return `${headers.join('\r\n')}\r\n\r\n${body}`;
+}
+
+function normalizeGmailMessage(message: GmailApiMessage): GmailMessage {
+  const headers = headerRecord(message.payload?.headers);
+  const bodies = extractBodies(message.payload);
+  return gmailMessageSchema.parse({
+    id: String(message.id ?? ''),
+    threadId: String(message.threadId ?? ''),
+    labelIds: message.labelIds ?? [],
+    snippet: message.snippet ?? '',
+    subject: headers.subject ?? '(no subject)',
+    from: headers.from ?? '',
+    to: headers.to ?? '',
+    cc: headers.cc ?? '',
+    date: headers.date ?? '',
+    internalDate: message.internalDate ?? '',
+    messageIdHeader: headers['message-id'] ?? '',
+    references: headers.references ?? '',
+    inReplyTo: headers['in-reply-to'] ?? '',
+    bodyText: bodies.bodyText,
+    bodyHtml: bodies.bodyHtml,
+    headers
+  });
+}
+
+function normalizeGmailThread(thread: GmailApiThread): GmailThread {
+  const messages = (thread.messages ?? []).map(normalizeGmailMessage);
+  const first = messages[0];
+  const latest = messages[messages.length - 1] ?? first;
+  const labelIds = Array.from(new Set(messages.flatMap((message) => message.labelIds)));
+  return gmailThreadSchema.parse({
+    id: String(thread.id ?? ''),
+    historyId: String(thread.historyId ?? ''),
+    snippet: thread.snippet ?? first?.snippet ?? '',
+    labelIds,
+    subject: first?.subject ?? '(no subject)',
+    from: latest?.from ?? first?.from ?? '',
+    date: latest?.date ?? first?.date ?? '',
+    unread: labelIds.includes('UNREAD'),
+    messages
+  });
+}
+
+function normalizeGmailDraft(draft: GmailApiDraft): GmailDraft {
+  return gmailDraftSchema.parse({
+    id: String(draft.id ?? ''),
+    message: draft.message ? normalizeGmailMessage(draft.message) : undefined
+  });
+}
+
+function timelineWhen(thread: GmailThread): string {
+  const latest = thread.messages[thread.messages.length - 1];
+  const internalDate = latest?.internalDate ? Number(latest.internalDate) : Number.NaN;
+  if (Number.isFinite(internalDate)) return new Date(internalDate).toISOString();
+  const parsed = latest?.date ? Date.parse(latest.date) : Number.NaN;
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString();
 }
 
 function toGoogleEvent(input: Omit<CalendarEventInput, 'calendarId'>): Record<string, unknown> {
@@ -110,7 +281,7 @@ function normalizeEvent(calendarId: string, event: Record<string, unknown>): Cal
   });
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
+export async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
   const body = text ? (JSON.parse(text) as unknown) : {};
   if (!response.ok) {
@@ -118,11 +289,80 @@ async function parseResponse<T>(response: Response): Promise<T> {
       body && typeof body === 'object' && 'error_description' in body
         ? String((body as { error_description: unknown }).error_description)
         : body && typeof body === 'object' && 'error' in body
-          ? String((body as { error: unknown }).error)
+          ? typeof (body as { error: unknown }).error === 'object' &&
+            (body as { error: { message?: unknown } }).error?.message
+            ? String((body as { error: { message: unknown } }).error.message)
+            : String((body as { error: unknown }).error)
           : `Google request failed with ${response.status}`;
     throw new Error(message);
   }
   return body as T;
+}
+
+export class GoogleApiClient {
+  constructor(private readonly store: MemoryStore) {}
+
+  private async token(): Promise<string> {
+    const connection = getConnection(this.store, 'google');
+    if (!connection || connection.status !== 'connected') throw new Error('Google is not connected');
+    let tokenSet = decryptTokenSet(connection.encryptedTokenSet);
+    const expiresAt = tokenSet.expiresAt ? Date.parse(tokenSet.expiresAt) : 0;
+    if (expiresAt && expiresAt > Date.now() + 60_000) return tokenSet.accessToken;
+    if (!tokenSet.refreshToken) {
+      this.store.integrationConnections.set(connection.id, {
+        ...connection,
+        status: 'needs_reauth',
+        error: 'Missing refresh token',
+        updatedAt: new Date().toISOString()
+      });
+      throw new Error('Google connection needs reauthorization');
+    }
+
+    requireGoogleConfig();
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.googleClientId ?? '',
+        client_secret: env.googleClientSecret ?? '',
+        refresh_token: tokenSet.refreshToken,
+        grant_type: 'refresh_token'
+      })
+    });
+    const body = await parseResponse<GoogleTokenResponse>(response);
+    const refreshedTokenSet: OAuthTokenSet = {
+      ...tokenSet,
+      accessToken: body.access_token
+    };
+    if (body.expires_in !== undefined) {
+      refreshedTokenSet.expiresAt = new Date(Date.now() + body.expires_in * 1000).toISOString();
+    }
+    if (body.scope !== undefined) refreshedTokenSet.scope = body.scope;
+    if (body.token_type !== undefined) refreshedTokenSet.tokenType = body.token_type;
+    tokenSet = refreshedTokenSet;
+    this.store.integrationConnections.set(connection.id, {
+      ...connection,
+      encryptedTokenSet: encryptTokenSet(tokenSet),
+      status: 'connected',
+      error: undefined,
+      updatedAt: new Date().toISOString()
+    });
+    return tokenSet.accessToken;
+  }
+
+  async request<T>(path: string, init: RequestInit = {}, baseUrl = 'https://www.googleapis.com'): Promise<T> {
+    const accessToken = await this.token();
+    const url = path.startsWith('https://') ? path : `${baseUrl}${path}`;
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+        ...(init.headers ?? {})
+      }
+    });
+    return parseResponse<T>(response);
+  }
 }
 
 export function googleCatalog(): ConnectorCatalogEntry[] {
@@ -142,13 +382,13 @@ export function googleCatalog(): ConnectorCatalogEntry[] {
     {
       id: 'gmail',
       label: 'Gmail',
-      status: 'planned',
+      status: 'implemented',
       auth: 'oauth2',
-      notes: 'OAuth scopes are requested now; message/thread/draft/label actions are the next connector adapter.',
+      notes: 'Implemented with thread search/read, full message normalization, compose/reply, drafts, send, labels, archive, and read/unread actions.',
       capabilities: [
-        { id: 'gmail.read', label: 'Read/search threads and messages', access: 'read', status: 'planned' },
-        { id: 'gmail.send', label: 'Compose, draft, reply, send', access: 'write', status: 'planned' },
-        { id: 'gmail.actions', label: 'Label, archive, read/unread', access: 'action', status: 'planned' }
+        { id: 'gmail.read', label: 'Read/search threads and messages', access: 'read', status: 'implemented' },
+        { id: 'gmail.send', label: 'Compose, draft, reply, send', access: 'write', status: 'implemented' },
+        { id: 'gmail.actions', label: 'Label, archive, read/unread', access: 'action', status: 'implemented' }
       ]
     },
     {
@@ -256,70 +496,14 @@ export async function revokeGoogleConnection(store: MemoryStore): Promise<void> 
 }
 
 export class GoogleCalendarConnector implements CalendarConnector {
-  constructor(private readonly store: MemoryStore) {}
+  private readonly googleClient: GoogleApiClient;
 
-  private async token(): Promise<string> {
-    const connection = getConnection(this.store, 'google');
-    if (!connection || connection.status !== 'connected') throw new Error('Google is not connected');
-    let tokenSet = decryptTokenSet(connection.encryptedTokenSet);
-    const expiresAt = tokenSet.expiresAt ? Date.parse(tokenSet.expiresAt) : 0;
-    if (expiresAt && expiresAt > Date.now() + 60_000) return tokenSet.accessToken;
-    if (!tokenSet.refreshToken) {
-      this.store.integrationConnections.set(connection.id, {
-        ...connection,
-        status: 'needs_reauth',
-        error: 'Missing refresh token',
-        updatedAt: new Date().toISOString()
-      });
-      throw new Error('Google connection needs reauthorization');
-    }
-
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: env.googleClientId ?? '',
-        client_secret: env.googleClientSecret ?? '',
-        refresh_token: tokenSet.refreshToken,
-        grant_type: 'refresh_token'
-      })
-    });
-    const body = await parseResponse<GoogleTokenResponse>(response);
-    const refreshedTokenSet: OAuthTokenSet = {
-      ...tokenSet,
-      accessToken: body.access_token
-    };
-    if (body.expires_in !== undefined) {
-      refreshedTokenSet.expiresAt = new Date(Date.now() + body.expires_in * 1000).toISOString();
-    }
-    if (body.scope !== undefined) refreshedTokenSet.scope = body.scope;
-    if (body.token_type !== undefined) refreshedTokenSet.tokenType = body.token_type;
-    tokenSet = refreshedTokenSet;
-    this.store.integrationConnections.set(connection.id, {
-      ...connection,
-      encryptedTokenSet: encryptTokenSet(tokenSet),
-      status: 'connected',
-      error: undefined,
-      updatedAt: new Date().toISOString()
-    });
-    return tokenSet.accessToken;
-  }
-
-  private async google<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const accessToken = await this.token();
-    const response = await fetch(`https://www.googleapis.com${path}`, {
-      ...init,
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json',
-        ...(init.headers ?? {})
-      }
-    });
-    return parseResponse<T>(response);
+  constructor(store: MemoryStore) {
+    this.googleClient = new GoogleApiClient(store);
   }
 
   async listCalendars(): Promise<CalendarSummary[]> {
-    const result = await this.google<{ items?: Array<{ id: string; summary: string; primary?: boolean; timeZone?: string }> }>(
+    const result = await this.googleClient.request<{ items?: Array<{ id: string; summary: string; primary?: boolean; timeZone?: string }> }>(
       '/calendar/v3/users/me/calendarList'
     );
     return (result.items ?? []).map((calendar) => {
@@ -346,21 +530,21 @@ export class GoogleCalendarConnector implements CalendarConnector {
     if (input.q) params.set('q', input.q);
     params.set('singleEvents', String(input.singleEvents ?? true));
     params.set('orderBy', 'startTime');
-    const result = await this.google<{ items?: Array<Record<string, unknown>> }>(
+    const result = await this.googleClient.request<{ items?: Array<Record<string, unknown>> }>(
       `/calendar/v3/calendars/${encodePath(input.calendarId)}/events?${params}`
     );
     return (result.items ?? []).map((event) => normalizeEvent(input.calendarId, event));
   }
 
   async getEvent(calendarId: string, eventId: string): Promise<CalendarEvent> {
-    const event = await this.google<Record<string, unknown>>(
+    const event = await this.googleClient.request<Record<string, unknown>>(
       `/calendar/v3/calendars/${encodePath(calendarId)}/events/${encodePath(eventId)}`
     );
     return normalizeEvent(calendarId, event);
   }
 
   async createEvent(input: CalendarEventInput): Promise<CalendarEvent> {
-    const event = await this.google<Record<string, unknown>>(`/calendar/v3/calendars/${encodePath(input.calendarId)}/events`, {
+    const event = await this.googleClient.request<Record<string, unknown>>(`/calendar/v3/calendars/${encodePath(input.calendarId)}/events`, {
       method: 'POST',
       body: JSON.stringify(toGoogleEvent(input))
     });
@@ -368,7 +552,7 @@ export class GoogleCalendarConnector implements CalendarConnector {
   }
 
   async updateEvent(input: CalendarEventPatch): Promise<CalendarEvent> {
-    const event = await this.google<Record<string, unknown>>(
+    const event = await this.googleClient.request<Record<string, unknown>>(
       `/calendar/v3/calendars/${encodePath(input.calendarId)}/events/${encodePath(input.eventId)}`,
       {
         method: 'PATCH',
@@ -379,7 +563,7 @@ export class GoogleCalendarConnector implements CalendarConnector {
   }
 
   async deleteEvent(calendarId: string, eventId: string): Promise<ConnectorActionResult> {
-    await this.google<Record<string, unknown>>(
+    await this.googleClient.request<Record<string, unknown>>(
       `/calendar/v3/calendars/${encodePath(calendarId)}/events/${encodePath(eventId)}`,
       { method: 'DELETE' }
     );
@@ -387,7 +571,7 @@ export class GoogleCalendarConnector implements CalendarConnector {
   }
 
   async moveEvent(calendarId: string, eventId: string, destinationCalendarId: string): Promise<CalendarEvent> {
-    const event = await this.google<Record<string, unknown>>(
+    const event = await this.googleClient.request<Record<string, unknown>>(
       `/calendar/v3/calendars/${encodePath(calendarId)}/events/${encodePath(eventId)}/move?destination=${encodePath(destinationCalendarId)}`,
       { method: 'POST' }
     );
@@ -419,6 +603,187 @@ export class GoogleCalendarConnector implements CalendarConnector {
           calendarId: event.calendarId,
           status: event.status,
           recurringEventId: event.recurringEventId
+        }
+      })
+    );
+  }
+}
+
+export class GoogleGmailConnector implements GmailConnector {
+  private readonly googleClient: GoogleApiClient;
+
+  constructor(store: MemoryStore) {
+    this.googleClient = new GoogleApiClient(store);
+  }
+
+  private gmail<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return this.googleClient.request<T>(`/gmail/v1/users/me${path}`, init, gmailBaseUrl);
+  }
+
+  private async sendRaw(raw: string, threadId?: string): Promise<GmailMessage> {
+    const message: { raw: string; threadId?: string } = { raw: base64UrlEncode(raw) };
+    if (threadId !== undefined) message.threadId = threadId;
+    const result = await this.gmail<GmailApiMessage>('/messages/send', {
+      method: 'POST',
+      body: JSON.stringify(message)
+    });
+    return this.getMessage(String(result.id ?? ''));
+  }
+
+  private async replyDraft(input: GmailReplyInput): Promise<{ raw: string; threadId: string }> {
+    const thread = await this.getThread(input.threadId);
+    const latest = thread.messages[thread.messages.length - 1];
+    if (!latest) throw new Error('Cannot reply to an empty Gmail thread');
+    const to = input.to?.length ? input.to : [latest.headers['reply-to'] || latest.from];
+    const subject = latest.subject.toLowerCase().startsWith('re:') ? latest.subject : `Re: ${latest.subject}`;
+    const references = [latest.references, latest.messageIdHeader].filter(Boolean).join(' ');
+    const compose: GmailComposeInput = {
+      to,
+      subject,
+      bodyText: input.bodyText
+    };
+    if (input.cc?.length) compose.cc = input.cc;
+    if (input.bcc?.length) compose.bcc = input.bcc;
+    return {
+      threadId: thread.id,
+      raw: rawMime(
+        compose,
+        {
+          inReplyTo: latest.messageIdHeader || latest.inReplyTo,
+          references
+        }
+      )
+    };
+  }
+
+  async listLabels(): Promise<GmailLabel[]> {
+    const result = await this.gmail<{ labels?: Array<Record<string, unknown>> }>('/labels');
+    return (result.labels ?? []).map((label) =>
+      gmailLabelSchema.parse({
+        id: String(label.id ?? ''),
+        name: String(label.name ?? ''),
+        type: String(label.type ?? 'user'),
+        messageListVisibility:
+          typeof label.messageListVisibility === 'string' ? label.messageListVisibility : undefined,
+        labelListVisibility: typeof label.labelListVisibility === 'string' ? label.labelListVisibility : undefined
+      })
+    );
+  }
+
+  async listThreads(input: GmailThreadQuery): Promise<GmailThreadList> {
+    const params = new URLSearchParams();
+    if (input.q) params.set('q', input.q);
+    if (input.pageToken) params.set('pageToken', input.pageToken);
+    params.set('maxResults', String(Math.min(Math.max(input.maxResults ?? 10, 1), 25)));
+    for (const labelId of input.labelIds ?? []) params.append('labelIds', labelId);
+    const result = await this.gmail<{
+      threads?: Array<{ id?: string }>;
+      nextPageToken?: string;
+      resultSizeEstimate?: number;
+    }>(`/threads?${params}`);
+    const ids = (result.threads ?? []).map((thread) => thread.id).filter((id): id is string => Boolean(id));
+    const threads = await Promise.all(ids.map((id) => this.getThread(id)));
+    const list: GmailThreadList = { threads };
+    if (result.nextPageToken !== undefined) list.nextPageToken = result.nextPageToken;
+    if (result.resultSizeEstimate !== undefined) list.resultSizeEstimate = result.resultSizeEstimate;
+    return list;
+  }
+
+  async getThread(threadId: string): Promise<GmailThread> {
+    const params = new URLSearchParams({ format: 'full' });
+    const thread = await this.gmail<GmailApiThread>(`/threads/${encodePath(threadId)}?${params}`);
+    return normalizeGmailThread(thread);
+  }
+
+  async getMessage(messageId: string): Promise<GmailMessage> {
+    const params = new URLSearchParams({ format: 'full' });
+    const message = await this.gmail<GmailApiMessage>(`/messages/${encodePath(messageId)}?${params}`);
+    return normalizeGmailMessage(message);
+  }
+
+  async sendMessage(input: GmailComposeInput): Promise<GmailMessage> {
+    return this.sendRaw(rawMime(input));
+  }
+
+  async createDraft(input: GmailComposeInput | GmailReplyInput): Promise<GmailDraft> {
+    const draft =
+      'threadId' in input
+        ? await this.replyDraft(input)
+        : {
+            raw: rawMime(input),
+            threadId: undefined
+          };
+    const message: { raw: string; threadId?: string } = { raw: base64UrlEncode(draft.raw) };
+    if (draft.threadId !== undefined) message.threadId = draft.threadId;
+    const result = await this.gmail<GmailApiDraft>('/drafts', {
+      method: 'POST',
+      body: JSON.stringify({ message })
+    });
+    return normalizeGmailDraft(result);
+  }
+
+  async sendDraft(draftId: string): Promise<GmailMessage> {
+    const result = await this.gmail<GmailApiMessage>(`/drafts/${encodePath(draftId)}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ id: draftId })
+    });
+    return this.getMessage(String(result.id ?? ''));
+  }
+
+  async deleteDraft(draftId: string): Promise<ConnectorActionResult> {
+    await this.gmail<Record<string, unknown>>(`/drafts/${encodePath(draftId)}`, { method: 'DELETE' });
+    return { ok: true, id: draftId };
+  }
+
+  async reply(input: GmailReplyInput): Promise<GmailMessage> {
+    const draft = await this.replyDraft(input);
+    return this.sendRaw(draft.raw, draft.threadId);
+  }
+
+  async modifyThread(threadId: string, input: GmailModifyInput): Promise<GmailThread> {
+    await this.gmail<GmailApiThread>(`/threads/${encodePath(threadId)}/modify`, {
+      method: 'POST',
+      body: JSON.stringify({
+        addLabelIds: input.addLabelIds ?? [],
+        removeLabelIds: input.removeLabelIds ?? []
+      })
+    });
+    return this.getThread(threadId);
+  }
+
+  archiveThread(threadId: string): Promise<GmailThread> {
+    return this.modifyThread(threadId, { removeLabelIds: ['INBOX'] });
+  }
+
+  markThreadRead(threadId: string): Promise<GmailThread> {
+    return this.modifyThread(threadId, { removeLabelIds: ['UNREAD'] });
+  }
+
+  markThreadUnread(threadId: string): Promise<GmailThread> {
+    return this.modifyThread(threadId, { addLabelIds: ['UNREAD'] });
+  }
+
+  async timeline(input: { maxResults?: number }): Promise<TimelineItem[]> {
+    const result = await this.listThreads({
+      q: 'in:inbox newer_than:30d (deadline OR due OR "action required" OR "please reply")',
+      maxResults: input.maxResults ?? 5
+    });
+    return result.threads.map((thread) =>
+      timelineItemSchema.parse({
+        id: `gmail:${thread.id}`,
+        source: 'gmail',
+        sourceId: thread.id,
+        kind: 'email_action',
+        title: thread.subject,
+        when: timelineWhen(thread),
+        timeZone: 'UTC',
+        actionUrl: `https://mail.google.com/mail/u/0/#inbox/${thread.id}`,
+        canEdit: true,
+        canComplete: true,
+        metadata: {
+          from: thread.from,
+          unread: thread.unread,
+          labels: thread.labelIds
         }
       })
     );

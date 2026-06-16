@@ -3,13 +3,14 @@ import { z } from 'zod';
 import { env } from '../env';
 import {
   GoogleCalendarConnector,
+  GoogleGmailConnector,
   googleAuthUrl,
   googleCatalog,
   handleGoogleCallback,
   revokeGoogleConnection
 } from '../integrations/google';
 import { getConnection } from '../integrations/token-vault';
-import type { CalendarEventPatch } from '../integrations/types';
+import type { CalendarEventPatch, GmailComposeInput, GmailModifyInput, GmailReplyInput } from '../integrations/types';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
 
@@ -44,6 +45,32 @@ const moveBody = deleteBody.extend({
   destinationCalendarId: z.string().min(1)
 });
 
+const emailHeaderValue = z.string().min(1).max(512).refine((value) => !/[\r\n]/u.test(value), {
+  message: 'Email header values cannot contain newlines'
+});
+
+const gmailComposeBody = z.object({
+  to: z.array(emailHeaderValue).min(1),
+  cc: z.array(emailHeaderValue).default([]),
+  bcc: z.array(emailHeaderValue).default([]),
+  subject: z.string().min(1).max(998).refine((value) => !/[\r\n]/u.test(value), {
+    message: 'Subject cannot contain newlines'
+  }),
+  bodyText: z.string().min(1).max(100_000)
+});
+
+const gmailReplyBody = z.object({
+  to: z.array(emailHeaderValue).default([]),
+  cc: z.array(emailHeaderValue).default([]),
+  bcc: z.array(emailHeaderValue).default([]),
+  bodyText: z.string().min(1).max(100_000)
+});
+
+const gmailModifyBody = z.object({
+  addLabelIds: z.array(z.string().min(1)).default([]),
+  removeLabelIds: z.array(z.string().min(1)).default([])
+});
+
 function publicConnection(connection: ReturnType<typeof getConnection>) {
   if (!connection) return null;
   return {
@@ -60,7 +87,11 @@ function publicConnection(connection: ReturnType<typeof getConnection>) {
 
 function connectorError(error: unknown): { message: string; status: 400 | 401 | 429 | 502 } {
   const message = error instanceof Error ? error.message : 'Integration request failed';
-  if (message.toLowerCase().includes('not connected') || message.toLowerCase().includes('reauthorization')) {
+  if (
+    message.toLowerCase().includes('not connected') ||
+    message.toLowerCase().includes('reauthorization') ||
+    message.toLowerCase().includes('insufficient authentication scopes')
+  ) {
     return { message, status: 401 };
   }
   if (message.toLowerCase().includes('rate')) return { message, status: 429 };
@@ -100,6 +131,53 @@ function eventPatch(input: z.infer<typeof eventPatchBody>): CalendarEventPatch {
   if (input.recurrence !== undefined) patch.recurrence = input.recurrence;
   if (input.reminders !== undefined) patch.reminders = input.reminders;
   return patch;
+}
+
+function gmailComposeInput(input: z.infer<typeof gmailComposeBody>): GmailComposeInput {
+  const compose: GmailComposeInput = {
+    to: input.to,
+    subject: input.subject,
+    bodyText: input.bodyText
+  };
+  if (input.cc.length) compose.cc = input.cc;
+  if (input.bcc.length) compose.bcc = input.bcc;
+  return compose;
+}
+
+function gmailReplyInput(threadId: string, input: z.infer<typeof gmailReplyBody>): GmailReplyInput {
+  const reply: GmailReplyInput = {
+    threadId,
+    bodyText: input.bodyText
+  };
+  if (input.to.length) reply.to = input.to;
+  if (input.cc.length) reply.cc = input.cc;
+  if (input.bcc.length) reply.bcc = input.bcc;
+  return reply;
+}
+
+function gmailModifyInput(input: z.infer<typeof gmailModifyBody>): GmailModifyInput {
+  const modify: GmailModifyInput = {};
+  if (input.addLabelIds.length) modify.addLabelIds = input.addLabelIds;
+  if (input.removeLabelIds.length) modify.removeLabelIds = input.removeLabelIds;
+  return modify;
+}
+
+function gmailThreadQuery(c: Context<AppBindings>): {
+  q?: string;
+  labelIds?: string[];
+  pageToken?: string;
+  maxResults?: number;
+} {
+  const query: { q?: string; labelIds?: string[]; pageToken?: string; maxResults?: number } = {};
+  const q = c.req.query('q');
+  const labelIds = c.req.queries('labelIds') ?? [];
+  const pageToken = c.req.query('pageToken');
+  const maxResults = c.req.query('maxResults');
+  if (q !== undefined && q.trim()) query.q = q;
+  if (labelIds.length) query.labelIds = labelIds;
+  if (pageToken !== undefined) query.pageToken = pageToken;
+  if (maxResults !== undefined) query.maxResults = Number(maxResults);
+  return query;
 }
 
 export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
@@ -246,6 +324,168 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
     }
   });
 
+  app.get('/gmail/labels', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ labels: await connector.listLabels() });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.get('/gmail/threads', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json(await connector.listThreads(gmailThreadQuery(c)));
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.get('/gmail/threads/:threadId', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ thread: await connector.getThread(c.req.param('threadId')) });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/messages/send', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    const parsed = gmailComposeBody.safeParse(await c.req.json());
+    if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ message: await connector.sendMessage(gmailComposeInput(parsed.data)) }, 201);
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/drafts', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    const body = await c.req.json();
+    const parsedReply = z.object({ threadId: z.string().min(1) }).merge(gmailReplyBody).safeParse(body);
+    const parsedCompose = gmailComposeBody.safeParse(body);
+    if (!parsedReply.success && !parsedCompose.success) {
+      return c.json({ error: 'Invalid request', issues: parsedCompose.error.issues }, 400);
+    }
+    try {
+      const connector = new GoogleGmailConnector(store);
+      const draft = parsedReply.success
+        ? await connector.createDraft(gmailReplyInput(parsedReply.data.threadId, parsedReply.data))
+        : parsedCompose.success
+          ? await connector.createDraft(gmailComposeInput(parsedCompose.data))
+          : null;
+      if (!draft) return c.json({ error: 'Invalid request' }, 400);
+      return c.json({ draft }, 201);
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/drafts/:draftId/send', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ message: await connector.sendDraft(c.req.param('draftId')) });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.delete('/gmail/drafts/:draftId', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json(await connector.deleteDraft(c.req.param('draftId')));
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/threads/:threadId/reply', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    const parsed = gmailReplyBody.safeParse(await c.req.json());
+    if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ message: await connector.reply(gmailReplyInput(c.req.param('threadId'), parsed.data)) }, 201);
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/threads/:threadId/modify', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    const parsed = gmailModifyBody.safeParse(await c.req.json());
+    if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ thread: await connector.modifyThread(c.req.param('threadId'), gmailModifyInput(parsed.data)) });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/threads/:threadId/archive', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ thread: await connector.archiveThread(c.req.param('threadId')) });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/threads/:threadId/read', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ thread: await connector.markThreadRead(c.req.param('threadId')) });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.post('/gmail/threads/:threadId/unread', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connector = new GoogleGmailConnector(store);
+      return c.json({ thread: await connector.markThreadUnread(c.req.param('threadId')) });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
   app.get('/timeline', async (c) => {
     const user = requireUser(c);
     if (user instanceof Response) return user;
@@ -255,8 +495,15 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
       const timeMax = c.req.query('timeMax');
       if (timeMin !== undefined) input.timeMin = timeMin;
       if (timeMax !== undefined) input.timeMax = timeMax;
-      const connector = new GoogleCalendarConnector(store);
-      return c.json({ items: await connector.timeline(input) });
+      const calendar = new GoogleCalendarConnector(store);
+      const gmail = new GoogleGmailConnector(store);
+      const results = await Promise.allSettled([calendar.timeline(input), gmail.timeline({ maxResults: 5 })]);
+      const items = results.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+      if (!items.length) {
+        const failure = results.find((result) => result.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+      }
+      return c.json({ items: items.sort((a, b) => a.when.localeCompare(b.when)) });
     } catch (error) {
       const result = connectorError(error);
       return c.json({ error: result.message }, result.status);

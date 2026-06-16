@@ -80,7 +80,7 @@ https://www.googleapis.com/auth/documents
 https://www.googleapis.com/auth/spreadsheets
 ```
 
-Calendar is implemented now. Gmail, Drive, Docs, and Sheets scopes are included so the same personal OAuth grant can unlock the next adapters without repeatedly reconnecting.
+Calendar and Gmail are implemented now. Drive, Docs, and Sheets scopes are included so the same personal OAuth grant can unlock the next adapters without repeatedly reconnecting.
 
 ## Using Google Calendar
 
@@ -92,6 +92,24 @@ Calendar is implemented now. Gmail, Drive, Docs, and Sheets scopes are included 
 6. Use the Productivity Hub to list events, create events, edit events, delete events, move events between calendars, set reminders, and pass recurrence rules such as `RRULE:FREQ=WEEKLY;COUNT=6`.
 
 The app sends all Google Calendar calls through `apps/api`; the browser never stores the Google refresh token.
+
+## Using Gmail
+
+After the same Google OAuth connection is complete, open `http://127.0.0.1:5173/productivity`.
+
+The Gmail panel supports:
+
+- search with Gmail query syntax, for example `in:inbox newer_than:30d`
+- optional label filtering
+- opening threads and reading normalized full message bodies
+- composing and saving a draft
+- composing and sending after confirmation
+- replying to an existing thread after confirmation
+- archiving a thread
+- marking a thread read or unread
+- applying a selected label to a thread
+
+The API builds RFC 2822-style plain-text MIME messages and sends them through Gmail's `raw` base64url message field. Send actions are confirmed in the UI because they have external side effects.
 
 ## Brightspace / D2L
 
@@ -138,6 +156,9 @@ The iCal path is deadline ingestion only. Those records should be marked read-on
 - Google OAuth web server flow: https://developers.google.com/identity/protocols/oauth2/web-server
 - Google Calendar API events: https://developers.google.com/workspace/calendar/api/v3/reference/events
 - Gmail scopes: https://developers.google.com/workspace/gmail/api/auth/scopes
+- Gmail threads: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads
+- Gmail messages send: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/send
+- Gmail drafts: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.drafts
 - Google Drive scopes: https://developers.google.com/workspace/drive/api/guides/api-specific-auth
 - Brightspace OAuth 2.0: https://docs.valence.desire2learn.com/basic/oauth2.html
 - Brightspace scopes: https://docs.valence.desire2learn.com/http-scopestable.html

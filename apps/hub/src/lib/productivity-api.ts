@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import type { CalendarEvent, TimelineItem } from '@mini-hub/core';
+import type { CalendarEvent, GmailDraft, GmailLabel, GmailMessage, GmailThread, TimelineItem } from '@mini-hub/core';
 import { apiUrl } from './api';
 import { clientData } from './client-data';
 
@@ -44,6 +44,28 @@ export interface CalendarEventDraft {
     useDefault: boolean;
     overrides: Array<{ method: string; minutes: number }>;
   };
+}
+
+export interface GmailThreadList {
+  threads: GmailThread[];
+  nextPageToken?: string;
+  resultSizeEstimate?: number;
+}
+
+export interface GmailComposeDraft {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  bodyText: string;
+}
+
+export interface GmailReplyDraft {
+  threadId: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  bodyText: string;
 }
 
 function syncHeaders(): HeadersInit {
@@ -151,4 +173,109 @@ export async function getTimeline(input: { timeMin?: string; timeMax?: string })
   if (input.timeMax) params.set('timeMax', input.timeMax);
   const result = await requestJson<{ items: TimelineItem[] }>(`/api/productivity/timeline?${params}`);
   return result.items;
+}
+
+export async function listGmailLabels(): Promise<GmailLabel[]> {
+  const result = await requestJson<{ labels: GmailLabel[] }>('/api/productivity/gmail/labels');
+  return result.labels;
+}
+
+export async function listGmailThreads(input: {
+  q?: string;
+  labelIds?: string[];
+  pageToken?: string;
+  maxResults?: number;
+}): Promise<GmailThreadList> {
+  const params = new URLSearchParams();
+  if (input.q) params.set('q', input.q);
+  if (input.pageToken) params.set('pageToken', input.pageToken);
+  if (input.maxResults) params.set('maxResults', String(input.maxResults));
+  for (const labelId of input.labelIds ?? []) params.append('labelIds', labelId);
+  return requestJson<GmailThreadList>(`/api/productivity/gmail/threads?${params}`);
+}
+
+export async function getGmailThread(threadId: string): Promise<GmailThread> {
+  const result = await requestJson<{ thread: GmailThread }>(
+    `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}`
+  );
+  return result.thread;
+}
+
+export async function sendGmailMessage(input: GmailComposeDraft): Promise<GmailMessage> {
+  const result = await requestJson<{ message: GmailMessage }>('/api/productivity/gmail/messages/send', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+  return result.message;
+}
+
+export async function createGmailDraft(input: GmailComposeDraft | GmailReplyDraft): Promise<GmailDraft> {
+  const result = await requestJson<{ draft: GmailDraft }>('/api/productivity/gmail/drafts', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+  return result.draft;
+}
+
+export async function sendGmailDraft(draftId: string): Promise<GmailMessage> {
+  const result = await requestJson<{ message: GmailMessage }>(
+    `/api/productivity/gmail/drafts/${encodeURIComponent(draftId)}/send`,
+    { method: 'POST' }
+  );
+  return result.message;
+}
+
+export async function deleteGmailDraft(draftId: string): Promise<void> {
+  await requestJson<{ ok: true }>(`/api/productivity/gmail/drafts/${encodeURIComponent(draftId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function replyGmailThread(input: GmailReplyDraft): Promise<GmailMessage> {
+  const result = await requestJson<{ message: GmailMessage }>(
+    `/api/productivity/gmail/threads/${encodeURIComponent(input.threadId)}/reply`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input)
+    }
+  );
+  return result.message;
+}
+
+export async function modifyGmailThread(
+  threadId: string,
+  input: { addLabelIds?: string[]; removeLabelIds?: string[] }
+): Promise<GmailThread> {
+  const result = await requestJson<{ thread: GmailThread }>(
+    `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/modify`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input)
+    }
+  );
+  return result.thread;
+}
+
+export async function archiveGmailThread(threadId: string): Promise<GmailThread> {
+  const result = await requestJson<{ thread: GmailThread }>(
+    `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/archive`,
+    { method: 'POST' }
+  );
+  return result.thread;
+}
+
+export async function markGmailThreadRead(threadId: string): Promise<GmailThread> {
+  const result = await requestJson<{ thread: GmailThread }>(
+    `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/read`,
+    { method: 'POST' }
+  );
+  return result.thread;
+}
+
+export async function markGmailThreadUnread(threadId: string): Promise<GmailThread> {
+  const result = await requestJson<{ thread: GmailThread }>(
+    `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/unread`,
+    { method: 'POST' }
+  );
+  return result.thread;
 }

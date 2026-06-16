@@ -1,32 +1,48 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
+    Archive,
     CalendarPlus,
     ExternalLink,
     Link,
+    Mail,
+    MailOpen,
     RefreshCw,
+    Reply,
     Save,
     Send,
+    Tag,
     Trash2,
     Unlink
   } from 'lucide-svelte';
-  import type { CalendarEvent, TimelineItem } from '@mini-hub/core';
+  import type { CalendarEvent, GmailLabel, GmailThread, TimelineItem } from '@mini-hub/core';
   import { canAutoSave, clientData } from '$lib/client-data';
   import {
+    archiveGmailThread,
+    createGmailDraft,
     createEvent,
     deleteEvent,
     getCatalog,
     getConnections,
+    getGmailThread,
     getGoogleOAuthUrl,
     getTimeline,
+    listGmailLabels,
+    listGmailThreads,
     listCalendars,
     listEvents,
+    markGmailThreadRead,
+    markGmailThreadUnread,
+    modifyGmailThread,
     moveEvent,
+    replyGmailThread,
     revokeGoogle,
+    sendGmailMessage,
     updateEvent,
     type CalendarEventDraft,
     type CalendarSummary,
     type ConnectorCatalogEntry,
+    type GmailComposeDraft,
     type PublicConnection
   } from '$lib/productivity-api';
 
@@ -37,14 +53,22 @@
   let calendars: CalendarSummary[] = [];
   let events: CalendarEvent[] = [];
   let timeline: TimelineItem[] = [];
+  let gmailThreads: GmailThread[] = [];
+  let gmailLabels: GmailLabel[] = [];
+  let selectedGmailThread: GmailThread | null = null;
   let selectedCalendarId = 'primary';
   let moveTargetCalendarId = '';
+  let gmailQuery = 'in:inbox newer_than:30d';
+  let selectedGmailLabelId = '';
   let query = '';
   let loading = false;
+  let gmailLoading = false;
   let actionError = '';
   let actionMessage = '';
   let editingEventId = '';
   let eventDraft = emptyDraft();
+  let composeDraft: GmailComposeDraft = emptyComposeDraft();
+  let replyBody = '';
 
   $: canAct = canAutoSave($clientData);
   $: googleConnection = connections.find((connection) => connection.provider === 'google');
@@ -65,6 +89,35 @@
       recurrence: [],
       reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }] }
     };
+  }
+
+  function emptyComposeDraft(): GmailComposeDraft {
+    return {
+      to: [],
+      cc: [],
+      bcc: [],
+      subject: '',
+      bodyText: ''
+    };
+  }
+
+  function splitAddresses(value: string): string[] {
+    return value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  function addressesValue(values: string[] | undefined): string {
+    return (values ?? []).join(', ');
+  }
+
+  function inputValue(event: Event): string {
+    return (event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
+  }
+
+  function threadPreview(thread: GmailThread): string {
+    return thread.messages[thread.messages.length - 1]?.snippet || thread.snippet || 'No preview';
   }
 
   function toLocalInput(value: string): string {
@@ -110,6 +163,7 @@
         moveTargetCalendarId = calendars.find((calendar) => calendar.id !== selectedCalendarId)?.id ?? '';
         eventDraft = { ...eventDraft, calendarId: selectedCalendarId, timeZone: calendars[0]?.timeZone ?? localTimeZone };
         await refreshEvents();
+        await refreshGmail();
       }
     } catch (error) {
       setError(error, 'Failed to load productivity hub');
@@ -133,6 +187,33 @@
       timeline = await getTimeline({ timeMin: now.toISOString(), timeMax: rangeEnd.toISOString() });
     } catch (error) {
       setError(error, 'Failed to refresh events');
+    }
+  }
+
+  async function refreshGmail(): Promise<void> {
+    if (!googleConnected) return;
+    gmailLoading = true;
+    actionError = '';
+    try {
+      const [threadResult, labels] = await Promise.all([
+        listGmailThreads({
+          q: gmailQuery.trim() || undefined,
+          labelIds: selectedGmailLabelId ? [selectedGmailLabelId] : undefined,
+          maxResults: 10
+        }),
+        listGmailLabels()
+      ]);
+      gmailThreads = threadResult.threads;
+      gmailLabels = labels;
+      if (selectedGmailThread && gmailThreads.some((thread) => thread.id === selectedGmailThread?.id)) {
+        selectedGmailThread = await getGmailThread(selectedGmailThread.id);
+      } else {
+        selectedGmailThread = gmailThreads[0] ?? null;
+      }
+    } catch (error) {
+      setError(error, 'Failed to refresh Gmail');
+    } finally {
+      gmailLoading = false;
     }
   }
 
@@ -218,6 +299,104 @@
     }
   }
 
+  async function openGmailThread(thread: GmailThread): Promise<void> {
+    actionError = '';
+    try {
+      selectedGmailThread = await getGmailThread(thread.id);
+      replyBody = '';
+    } catch (error) {
+      setError(error, 'Failed to open Gmail thread');
+    }
+  }
+
+  async function sendCompose(sendNow: boolean): Promise<void> {
+    if (!composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()) return;
+    if (sendNow && !confirm(`Send email to ${composeDraft.to.join(', ')}?`)) return;
+    actionError = '';
+    try {
+      if (sendNow) {
+        await sendGmailMessage(composeDraft);
+        actionMessage = 'Email sent.';
+      } else {
+        await createGmailDraft(composeDraft);
+        actionMessage = 'Draft saved.';
+      }
+      composeDraft = emptyComposeDraft();
+      await refreshGmail();
+    } catch (error) {
+      setError(error, sendNow ? 'Failed to send email' : 'Failed to save draft');
+    }
+  }
+
+  async function sendReply(sendNow: boolean): Promise<void> {
+    if (!selectedGmailThread || !replyBody.trim()) return;
+    if (sendNow && !confirm(`Send reply to "${selectedGmailThread.subject}"?`)) return;
+    actionError = '';
+    try {
+      if (sendNow) {
+        await replyGmailThread({ threadId: selectedGmailThread.id, bodyText: replyBody });
+        actionMessage = 'Reply sent.';
+      } else {
+        await createGmailDraft({ threadId: selectedGmailThread.id, bodyText: replyBody });
+        actionMessage = 'Reply draft saved.';
+      }
+      replyBody = '';
+      await openGmailThread(selectedGmailThread);
+      await refreshGmail();
+    } catch (error) {
+      setError(error, sendNow ? 'Failed to send reply' : 'Failed to save reply draft');
+    }
+  }
+
+  async function archiveThread(thread: GmailThread): Promise<void> {
+    actionError = '';
+    try {
+      await archiveGmailThread(thread.id);
+      actionMessage = 'Thread archived.';
+      await refreshGmail();
+    } catch (error) {
+      setError(error, 'Failed to archive thread');
+    }
+  }
+
+  async function toggleRead(thread: GmailThread): Promise<void> {
+    actionError = '';
+    try {
+      if (thread.unread) {
+        await markGmailThreadRead(thread.id);
+        actionMessage = 'Thread marked read.';
+      } else {
+        await markGmailThreadUnread(thread.id);
+        actionMessage = 'Thread marked unread.';
+      }
+      await refreshGmail();
+    } catch (error) {
+      setError(error, 'Failed to update read state');
+    }
+  }
+
+  async function toggleSelectedRead(): Promise<void> {
+    if (!selectedGmailThread) return;
+    await toggleRead(selectedGmailThread);
+  }
+
+  async function archiveSelectedThread(): Promise<void> {
+    if (!selectedGmailThread) return;
+    await archiveThread(selectedGmailThread);
+  }
+
+  async function applySelectedLabel(): Promise<void> {
+    if (!selectedGmailThread || !selectedGmailLabelId) return;
+    actionError = '';
+    try {
+      selectedGmailThread = await modifyGmailThread(selectedGmailThread.id, { addLabelIds: [selectedGmailLabelId] });
+      actionMessage = 'Label applied.';
+      await refreshGmail();
+    } catch (error) {
+      setError(error, 'Failed to apply label');
+    }
+  }
+
   onMount(() => {
     void clientData.init();
     void loadOverview();
@@ -257,7 +436,7 @@
   <section class="card card-pad success-banner">{actionMessage}</section>
 {/if}
 
-<section class="grid three">
+<section class="grid four">
   <div class="card card-pad metric">
     <span>Google</span>
     <strong>{googleConnected ? 'Connected' : 'Not connected'}</strong>
@@ -267,6 +446,11 @@
     <span>Calendars</span>
     <strong>{calendars.length}</strong>
     <p class="muted">List, create, edit, delete, move, reminders.</p>
+  </div>
+  <div class="card card-pad metric">
+    <span>Gmail</span>
+    <strong>{gmailThreads.length}</strong>
+    <p class="muted">Threads, drafts, sends, labels, archive, read state.</p>
   </div>
   <div class="card card-pad metric">
     <span>Timeline</span>
@@ -413,6 +597,157 @@
   </section>
 </section>
 
+<section class="gmail-workspace">
+  <section class="card table-card">
+    <div class="table-header gmail-header">
+      <div class="field">
+        <label for="gmail-search">Gmail search</label>
+        <input id="gmail-search" bind:value={gmailQuery} disabled={!googleConnected || gmailLoading} on:change={refreshGmail} />
+      </div>
+      <div class="field">
+        <label for="gmail-label">Label</label>
+        <select id="gmail-label" bind:value={selectedGmailLabelId} disabled={!googleConnected || gmailLoading} on:change={refreshGmail}>
+          <option value="">All labels</option>
+          {#each gmailLabels as label}
+            <option value={label.id}>{label.name}</option>
+          {/each}
+        </select>
+      </div>
+      <button class="button" type="button" disabled={!googleConnected || gmailLoading} on:click={refreshGmail}>
+        <RefreshCw size={17} />
+        <span>{gmailLoading ? 'Loading' : 'Mail'}</span>
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Thread</th>
+          <th>From</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each gmailThreads as thread}
+          <tr class:unread={thread.unread}>
+            <td>
+              <button class="link-button" type="button" on:click={() => openGmailThread(thread)}>
+                <strong>{thread.subject}</strong>
+              </button>
+              <div class="muted">{threadPreview(thread)}</div>
+            </td>
+            <td>{thread.from}</td>
+            <td>{thread.date}</td>
+            <td class="row-actions">
+              <button class="icon-button" type="button" aria-label={`Open ${thread.subject}`} title="Open" on:click={() => openGmailThread(thread)}>
+                <Mail size={16} />
+              </button>
+              <button class="icon-button" type="button" aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={thread.unread ? 'Mark read' : 'Mark unread'} on:click={() => toggleRead(thread)}>
+                <MailOpen size={16} />
+              </button>
+              <button class="icon-button" type="button" aria-label={`Archive ${thread.subject}`} title="Archive" on:click={() => archiveThread(thread)}>
+                <Archive size={16} />
+              </button>
+            </td>
+          </tr>
+        {:else}
+          <tr><td colspan="4" class="muted">{googleConnected ? 'No Gmail threads matched.' : 'Connect Google to load real Gmail threads.'}</td></tr>
+        {/each}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card card-pad mail-panel">
+    <div class="form-title">
+      <Mail size={18} />
+      <strong>{selectedGmailThread?.subject ?? 'Selected Thread'}</strong>
+    </div>
+    {#if selectedGmailThread}
+      <div class="mail-actions">
+        <button class="button" type="button" disabled={!googleConnected} on:click={toggleSelectedRead}>
+          <MailOpen size={17} />
+          <span>{selectedGmailThread.unread ? 'Mark Read' : 'Mark Unread'}</span>
+        </button>
+        <button class="button" type="button" disabled={!googleConnected} on:click={archiveSelectedThread}>
+          <Archive size={17} />
+          <span>Archive</span>
+        </button>
+        <button class="button" type="button" disabled={!googleConnected || !selectedGmailLabelId} on:click={applySelectedLabel}>
+          <Tag size={17} />
+          <span>Apply Label</span>
+        </button>
+      </div>
+      <div class="message-stack">
+        {#each selectedGmailThread.messages as message}
+          <article class="message-card">
+            <div>
+              <strong>{message.from}</strong>
+              <span>{message.date}</span>
+            </div>
+            <p class="muted">To: {message.to}</p>
+            <pre>{message.bodyText || message.snippet}</pre>
+          </article>
+        {/each}
+      </div>
+      <div class="field">
+        <label for="gmail-reply">Reply</label>
+        <textarea id="gmail-reply" bind:value={replyBody} disabled={!googleConnected} rows="5"></textarea>
+      </div>
+      <div class="action-row">
+        <button class="button" type="button" disabled={!googleConnected || !replyBody.trim()} on:click={() => sendReply(false)}>
+          <Save size={17} />
+          <span>Draft Reply</span>
+        </button>
+        <button class="button primary" type="button" disabled={!googleConnected || !replyBody.trim()} on:click={() => sendReply(true)}>
+          <Reply size={17} />
+          <span>Send Reply</span>
+        </button>
+      </div>
+    {:else}
+      <p class="muted">Select a Gmail thread to read the full messages and reply.</p>
+    {/if}
+  </section>
+</section>
+
+<section class="card card-pad compose-panel">
+  <div class="form-title">
+    <Send size={18} />
+    <strong>Compose</strong>
+  </div>
+  <div class="compose-grid">
+    <div class="field">
+      <label for="compose-to">To</label>
+      <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={!googleConnected} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
+    </div>
+    <div class="field">
+      <label for="compose-cc">Cc</label>
+      <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={!googleConnected} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
+    </div>
+    <div class="field">
+      <label for="compose-bcc">Bcc</label>
+      <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={!googleConnected} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
+    </div>
+    <div class="field">
+      <label for="compose-subject">Subject</label>
+      <input id="compose-subject" bind:value={composeDraft.subject} disabled={!googleConnected} />
+    </div>
+    <div class="field wide">
+      <label for="compose-body">Body</label>
+      <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={!googleConnected} rows="5"></textarea>
+    </div>
+  </div>
+  <div class="action-row">
+    <button class="button" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(false)}>
+      <Save size={17} />
+      <span>Save Draft</span>
+    </button>
+    <button class="button primary" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(true)}>
+      <Send size={17} />
+      <span>Send Email</span>
+    </button>
+  </div>
+</section>
+
 <section class="card table-card timeline-card">
   <div class="section-title">Unified Timeline</div>
   <table>
@@ -520,11 +855,93 @@
     line-height: 1.45;
   }
 
+  .grid.four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .workspace-grid {
     display: grid;
     grid-template-columns: minmax(280px, 390px) minmax(0, 1fr);
     gap: 14px;
     align-items: start;
+  }
+
+  .gmail-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    gap: 14px;
+    align-items: start;
+    margin-top: 14px;
+  }
+
+  .gmail-header {
+    grid-template-columns: minmax(180px, 1fr) minmax(160px, 240px) auto;
+    align-items: end;
+  }
+
+  .mail-panel,
+  .compose-panel {
+    display: grid;
+    gap: 14px;
+  }
+
+  .mail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .message-stack {
+    display: grid;
+    gap: 10px;
+    max-height: 480px;
+    overflow: auto;
+  }
+
+  .message-card {
+    padding: 12px;
+    border: 1px solid #e5eaf1;
+    border-radius: 8px;
+    background: #f8fafc;
+  }
+
+  .message-card div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .message-card pre {
+    margin: 10px 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: inherit;
+    line-height: 1.45;
+  }
+
+  .compose-panel {
+    margin-top: 14px;
+  }
+
+  .compose-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .link-button {
+    display: inline;
+    padding: 0;
+    border: 0;
+    color: #18202f;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  tr.unread td {
+    background: #f8fbff;
   }
 
   .event-form {
@@ -599,14 +1016,20 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .grid.four,
     .workspace-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .gmail-workspace {
       grid-template-columns: 1fr;
     }
   }
 
   @media (max-width: 760px) {
     .connector-grid,
-    .table-header {
+    .table-header,
+    .compose-grid {
       grid-template-columns: 1fr;
     }
   }
