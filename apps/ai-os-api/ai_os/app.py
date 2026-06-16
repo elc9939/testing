@@ -2,20 +2,25 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .agents.engine import AgentEngine, build_tool_registry
 from .background.registry import BackgroundRegistry, build_background_registry
 from .capabilities import build_capabilities
 from .config import Settings, get_settings
+from .health import full_health
 from .inference import InferenceRouter, sse
 from .jobs.primitives import JobPrimitives
 from .jobs.queue import JobQueue
+from .logging_setup import setup_logging
+from .maintenance import BackupManager, MaintenanceScheduler, cleanup_old_files, restore_backup_to_temp
 from .memory.store import SemanticMemory
 from .models import (
     AgentRunRequest,
@@ -28,6 +33,7 @@ from .models import (
 )
 from .multimodal.registry import MultimodalRegistry
 from .providers.registry import ProviderRegistry, build_provider_registry
+from .security import is_loopback_host
 from .storage import AppStorage
 from .telemetry import hardware_status
 
@@ -40,13 +46,20 @@ class Services:
         self.storage = storage
         self.providers = providers
         self.router = InferenceRouter(settings, providers, storage)
-        self.jobs = JobQueue(storage, settings.max_job_concurrency)
+        self.jobs = JobQueue(
+            storage,
+            max_concurrency=settings.max_job_concurrency,
+            max_active_jobs=settings.max_active_jobs,
+            job_timeout_s=settings.job_timeout_s,
+        )
         JobPrimitives(self.router).register(self.jobs)
         self.memory = SemanticMemory(storage, providers)
         self.background = build_background_registry()
         self.tools = build_tool_registry(self.router, self.memory)
         self.agents = AgentEngine(self.router, self.tools)
         self.multimodal = MultimodalRegistry(providers)
+        self.backups = BackupManager(settings, storage)
+        self.maintenance = MaintenanceScheduler(settings, self.backups)
 
 
 def create_app(
@@ -56,17 +69,31 @@ def create_app(
     background: BackgroundRegistry | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    setup_logging(settings)
     storage = storage or AppStorage(settings.database_path())
     providers = providers or build_provider_registry(settings)
     services = Services(settings, storage, providers)
     if background:
         services.background = background
 
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        services.settings.resolved_temp_dir().mkdir(parents=True, exist_ok=True)
+        services.settings.resolved_assets_dir().mkdir(parents=True, exist_ok=True)
+        if services.settings.require_loopback and services.settings.host not in {"127.0.0.1", "localhost", "::1"}:
+            logger.warning("AI OS host is not loopback while loopback enforcement is enabled", extra={"host": services.settings.host})
+        services.maintenance.start()
+        try:
+            yield
+        finally:
+            await services.maintenance.stop()
+            storage.close()
+
     app = FastAPI(
         title="Mini Hub Personal AI OS API",
         version="0.1.0",
         description="Capability substrate for local-first inference, jobs, memory, agents, ambient triggers, and multimodal adapters.",
+        lifespan=lifespan,
     )
     app.state.services = services
 
@@ -78,9 +105,52 @@ def create_app(
         allow_headers=["*"],
     )
 
-    @app.on_event("shutdown")
-    async def shutdown() -> None:
-        storage.close()
+    @app.middleware("http")
+    async def request_guard(request: Request, call_next):
+        if settings.require_loopback and request.client and not is_loopback_host(request.client.host):
+            logger.warning(
+                "Rejected non-loopback request",
+                extra={"remote_host": request.client.host, "path": request.url.path, "method": request.method},
+            )
+            return JSONResponse({"detail": "AI OS API only accepts loopback clients."}, status_code=403)
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > settings.max_request_bytes:
+                    return JSONResponse(
+                        {"detail": f"Request body exceeds limit of {settings.max_request_bytes} bytes."},
+                        status_code=413,
+                    )
+            except ValueError:
+                return JSONResponse({"detail": "Invalid content-length header."}, status_code=400)
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception("Unhandled request failure", extra={"path": request.url.path, "method": request.method})
+            raise
+        logger.info(
+            "request",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            },
+        )
+        return response
+
+    def inference_text_length(request: InferenceRequest) -> int:
+        if request.prompt:
+            return len(request.prompt)
+        return sum(len(message.content) for message in request.messages)
+
+    def enforce_request_limits(request: InferenceRequest) -> None:
+        if inference_text_length(request) > services.settings.max_prompt_chars:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Prompt exceeds limit of {services.settings.max_prompt_chars} characters.",
+            )
 
     @app.get("/api/ai/health")
     async def health() -> dict[str, Any]:
@@ -106,19 +176,77 @@ def create_app(
             "jobs": [job.model_dump(mode="json") for job in services.jobs.list()],
             "background": [unit.model_dump(mode="json") for unit in services.background.list()],
             "tools": [tool.model_dump(mode="json") for tool in services.tools.specs()],
+            "integrity": services.storage.integrity_report(),
+            "backups": [backup.as_dict() for backup in services.backups.list_backups()[:5]],
+            "metrics": {
+                "usage": services.storage.usage_metrics(),
+                "queue": services.jobs.metrics(),
+                "database": services.storage.data_counts(),
+            },
         }
+
+    @app.get("/api/ai/health/full")
+    async def full_health_endpoint() -> dict[str, Any]:
+        return await full_health(
+            settings=services.settings,
+            storage=services.storage,
+            providers=services.providers,
+            jobs=services.jobs,
+            backups=services.backups,
+        )
+
+    @app.get("/api/ai/metrics")
+    async def metrics() -> dict[str, Any]:
+        return {
+            "usage": services.storage.usage_metrics(),
+            "queue": services.jobs.metrics(),
+            "database": services.storage.data_counts(),
+            "hardware": hardware_status(services.storage).model_dump(mode="json"),
+        }
+
+    @app.get("/api/ai/integrity")
+    async def integrity() -> dict[str, Any]:
+        return services.storage.integrity_report()
+
+    @app.get("/api/ai/backups")
+    async def list_backups() -> dict[str, Any]:
+        return {"backups": [backup.as_dict() for backup in services.backups.list_backups()]}
+
+    @app.post("/api/ai/backups")
+    async def create_backup(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        reason = str((payload or {}).get("reason") or "manual")
+        return {"backup": services.backups.create_backup(reason=reason)}
+
+    @app.post("/api/ai/backups/{backup_id}/verify")
+    async def verify_backup(backup_id: str) -> dict[str, Any]:
+        return {"verification": services.backups.verify_backup(backup_id)}
+
+    @app.post("/api/ai/backups/{backup_id}/restore-test")
+    async def restore_test(backup_id: str) -> dict[str, Any]:
+        return {"restore": restore_backup_to_temp(services.settings, services.storage, backup_id)}
+
+    @app.post("/api/ai/maintenance/cleanup")
+    async def cleanup() -> dict[str, Any]:
+        result = cleanup_old_files(services.settings)
+        result["retention_removed"] = services.backups.apply_retention()
+        return result
 
     @app.post("/api/ai/infer")
     async def infer(request: InferenceRequest) -> dict[str, Any]:
         try:
+            enforce_request_limits(request)
             result = await services.router.infer(request)
             return {"result": result.model_dump(mode="json")}
+        except HTTPException:
+            raise
         except Exception as error:
             logger.exception("Inference failed")
             raise HTTPException(status_code=502, detail=str(error)) from error
 
     @app.post("/api/ai/infer/stream")
     async def infer_stream(request: InferenceRequest) -> StreamingResponse:
+        enforce_request_limits(request)
+
         async def events() -> AsyncIterator[str]:
             try:
                 async for chunk in services.router.stream(request):
@@ -141,8 +269,21 @@ def create_app(
     @app.post("/api/ai/jobs")
     async def create_job(request: JobCreateRequest) -> dict[str, Any]:
         try:
+            enforce_request_limits(request.request)
+            if len(request.items) > services.settings.max_job_items:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Job item count exceeds limit of {services.settings.max_job_items}.",
+                )
+            if request.text and len(request.text) > services.settings.max_memory_ingest_chars:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Job text exceeds limit of {services.settings.max_memory_ingest_chars} characters.",
+                )
             job = await services.jobs.create(request)
             return {"job": job.model_dump(mode="json")}
+        except HTTPException:
+            raise
         except Exception as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -207,7 +348,14 @@ def create_app(
     @app.post("/api/ai/memory/ingest")
     async def memory_ingest(request: MemoryIngestRequest) -> dict[str, Any]:
         try:
+            if len(request.text) > services.settings.max_memory_ingest_chars:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Memory ingest exceeds limit of {services.settings.max_memory_ingest_chars} characters.",
+                )
             return {"result": await services.memory.ingest(request)}
+        except HTTPException:
+            raise
         except Exception as error:
             logger.exception("Memory ingest failed")
             raise HTTPException(status_code=400, detail=str(error)) from error

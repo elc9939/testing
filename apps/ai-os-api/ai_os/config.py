@@ -33,6 +33,24 @@ class Settings(BaseSettings):
     host: str = Field(default="127.0.0.1", validation_alias="AI_OS_HOST")
     port: int = Field(default=8791, validation_alias="AI_OS_PORT")
     data_dir: Path = Field(default=Path(".ai-os-data"), validation_alias="AI_OS_DATA_DIR")
+    backup_dir: Path | None = Field(default=None, validation_alias="AI_OS_BACKUP_DIR")
+    backup_enabled: bool = Field(default=True, validation_alias="AI_OS_BACKUP_ENABLED")
+    backup_interval_minutes: int = Field(default=1440, validation_alias="AI_OS_BACKUP_INTERVAL_MINUTES")
+    backup_retention_count: int = Field(default=14, validation_alias="AI_OS_BACKUP_RETENTION_COUNT")
+    log_dir: Path | None = Field(default=None, validation_alias="AI_OS_LOG_DIR")
+    log_level: str = Field(default="INFO", validation_alias="AI_OS_LOG_LEVEL")
+    log_retention_days: int = Field(default=14, validation_alias="AI_OS_LOG_RETENTION_DAYS")
+    log_max_bytes: int = Field(default=5_000_000, validation_alias="AI_OS_LOG_MAX_BYTES")
+    temp_dir: Path | None = Field(default=None, validation_alias="AI_OS_TEMP_DIR")
+    assets_dir: Path | None = Field(default=None, validation_alias="AI_OS_ASSETS_DIR")
+    require_loopback: bool = Field(default=True, validation_alias="AI_OS_REQUIRE_LOOPBACK")
+    max_request_bytes: int = Field(default=15_000_000, validation_alias="AI_OS_MAX_REQUEST_BYTES")
+    max_prompt_chars: int = Field(default=200_000, validation_alias="AI_OS_MAX_PROMPT_CHARS")
+    max_memory_ingest_chars: int = Field(default=2_000_000, validation_alias="AI_OS_MAX_MEMORY_INGEST_CHARS")
+    max_job_items: int = Field(default=500, validation_alias="AI_OS_MAX_JOB_ITEMS")
+    max_active_jobs: int = Field(default=20, validation_alias="AI_OS_MAX_ACTIVE_JOBS")
+    job_timeout_s: float = Field(default=1800.0, validation_alias="AI_OS_JOB_TIMEOUT_S")
+    cleanup_max_age_days: int = Field(default=14, validation_alias="AI_OS_CLEANUP_MAX_AGE_DAYS")
     trusted_origins: list[str] = Field(
         default_factory=lambda: _csv_env(
             "AI_OS_TRUSTED_ORIGINS",
@@ -77,6 +95,18 @@ class Settings(BaseSettings):
 
     def database_path(self) -> Path:
         return self.data_dir / "ai-os.sqlite3"
+
+    def resolved_backup_dir(self) -> Path:
+        return self.backup_dir or self.data_dir / "backups"
+
+    def resolved_log_dir(self) -> Path:
+        return self.log_dir or self.data_dir / "logs"
+
+    def resolved_temp_dir(self) -> Path:
+        return self.temp_dir or self.data_dir / "tmp"
+
+    def resolved_assets_dir(self) -> Path:
+        return self.assets_dir or self.data_dir / "assets"
 
 
 @lru_cache

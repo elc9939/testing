@@ -11,9 +11,19 @@ JobHandler = Callable[[str, JobCreateRequest, "JobQueue"], Awaitable[list[Any]]]
 
 
 class JobQueue:
-    def __init__(self, storage: AppStorage, max_concurrency: int = 4):
+    def __init__(
+        self,
+        storage: AppStorage,
+        max_concurrency: int = 4,
+        max_active_jobs: int = 20,
+        job_timeout_s: float = 1800.0,
+        max_results_per_job: int = 2000,
+    ):
         self.storage = storage
         self.max_concurrency = max(1, max_concurrency)
+        self.max_active_jobs = max(1, max_active_jobs)
+        self.job_timeout_s = max(1.0, job_timeout_s)
+        self.max_results_per_job = max(1, max_results_per_job)
         self._jobs: dict[str, JobSnapshot] = {}
         self._results: dict[str, list[Any]] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
@@ -26,6 +36,9 @@ class JobQueue:
     async def create(self, request: JobCreateRequest) -> JobSnapshot:
         if request.primitive not in self._handlers:
             raise ValueError(f"Unknown job primitive: {request.primitive}")
+        active = sum(1 for job in self._jobs.values() if job.status in {"queued", "running"})
+        if active >= self.max_active_jobs:
+            raise ValueError(f"Too many active jobs ({active}); limit is {self.max_active_jobs}.")
         job_id = new_id("job")
         total = len(request.items) if request.primitive == "map" else request.n if request.primitive == "self_consistency" else 1
         snapshot = JobSnapshot(
@@ -47,7 +60,10 @@ class JobQueue:
     async def _run(self, job_id: str, request: JobCreateRequest) -> None:
         await self.update(job_id, status="running")
         try:
-            results = await self._handlers[request.primitive](job_id, request, self)
+            results = await asyncio.wait_for(
+                self._handlers[request.primitive](job_id, request, self),
+                timeout=self.job_timeout_s,
+            )
             self._results[job_id] = results
             status: JobStatus = "cancelled" if self._jobs[job_id].cancel_requested else "succeeded"
             await self.update(job_id, status=status, completed=self._jobs[job_id].total, progress=1)
@@ -55,6 +71,9 @@ class JobQueue:
         except asyncio.CancelledError:
             await self.update(job_id, status="cancelled")
             self.storage.log_job_event(job_id, "warning", "cancelled")
+        except TimeoutError:
+            await self.update(job_id, status="failed", error=f"Job exceeded timeout of {self.job_timeout_s} seconds.")
+            self.storage.log_job_event(job_id, "error", "timeout", {"timeout_s": self.job_timeout_s})
         except Exception as error:
             await self.update(job_id, status="failed", error=str(error))
             self.storage.log_job_event(job_id, "error", "failed", {"error": str(error)})
@@ -71,6 +90,8 @@ class JobQueue:
 
     async def append_result(self, job_id: str, result: Any) -> None:
         async with self._lock:
+            if len(self._results.setdefault(job_id, [])) >= self.max_results_per_job:
+                raise RuntimeError(f"Job result limit exceeded ({self.max_results_per_job}).")
             self._results.setdefault(job_id, []).append(result)
             job = self._jobs[job_id]
             awaitable = None
@@ -111,3 +132,23 @@ class JobQueue:
 
     def cancel_requested(self, job_id: str) -> bool:
         return bool(self._jobs.get(job_id) and self._jobs[job_id].cancel_requested)
+
+    def metrics(self) -> dict[str, Any]:
+        counts = {
+            "queued": 0,
+            "running": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "cancelled": 0,
+        }
+        for job in self._jobs.values():
+            counts[job.status] += 1
+        total_finished = counts["succeeded"] + counts["failed"] + counts["cancelled"]
+        return {
+            "ok": counts["failed"] == 0,
+            "queue_depth": counts["queued"] + counts["running"],
+            "max_active_jobs": self.max_active_jobs,
+            "max_concurrency": self.max_concurrency,
+            "counts": counts,
+            "success_rate": counts["succeeded"] / total_finished if total_finished else None,
+        }

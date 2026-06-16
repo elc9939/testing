@@ -87,6 +87,34 @@ export interface AiUsageEntry {
   metadata: Record<string, unknown>;
 }
 
+export interface AiBackupSummary {
+  id: string;
+  path: string;
+  created_at: string;
+  ok: boolean;
+  reason: string;
+  size_bytes: number;
+  error?: string;
+}
+
+export interface AiIntegrityStatus {
+  ok: boolean;
+  schema_version: number;
+  expected_schema_version: number;
+  integrity: string[];
+  foreign_key_errors: Array<Record<string, unknown>>;
+  json_errors: Array<Record<string, unknown>>;
+  counts: Record<string, number>;
+  database_path: string;
+}
+
+export interface AiMetrics {
+  usage: Record<string, unknown>;
+  queue: Record<string, unknown>;
+  database: Record<string, number>;
+  hardware?: AiHardwareStatus;
+}
+
 export interface AiStatus {
   providers: AiProviderStatus[];
   capabilities: AiCapabilityStatus[];
@@ -94,6 +122,9 @@ export interface AiStatus {
   jobs: AiJobSnapshot[];
   background: AiBackgroundUnit[];
   tools: AiToolSpec[];
+  integrity?: AiIntegrityStatus;
+  backups?: AiBackupSummary[];
+  metrics?: AiMetrics;
 }
 
 export interface AiInferenceInput {
@@ -136,6 +167,47 @@ export async function getAiStatus(): Promise<AiStatus> {
 export async function getAiUsage(limit = 50): Promise<AiUsageEntry[]> {
   const result = await requestJson<{ usage: AiUsageEntry[] }>(`/api/ai/usage?limit=${limit}`);
   return result.usage;
+}
+
+export async function getAiFullHealth(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/ai/health/full');
+}
+
+export async function getAiMetrics(): Promise<AiMetrics> {
+  return requestJson<AiMetrics>('/api/ai/metrics');
+}
+
+export async function listAiBackups(): Promise<AiBackupSummary[]> {
+  const result = await requestJson<{ backups: AiBackupSummary[] }>('/api/ai/backups');
+  return result.backups;
+}
+
+export async function createAiBackup(reason = 'dashboard'): Promise<Record<string, unknown>> {
+  const result = await requestJson<{ backup: Record<string, unknown> }>('/api/ai/backups', {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  });
+  return result.backup;
+}
+
+export async function verifyAiBackup(backupId: string): Promise<Record<string, unknown>> {
+  const result = await requestJson<{ verification: Record<string, unknown> }>(
+    `/api/ai/backups/${encodeURIComponent(backupId)}/verify`,
+    { method: 'POST' }
+  );
+  return result.verification;
+}
+
+export async function restoreTestAiBackup(backupId: string): Promise<Record<string, unknown>> {
+  const result = await requestJson<{ restore: Record<string, unknown> }>(
+    `/api/ai/backups/${encodeURIComponent(backupId)}/restore-test`,
+    { method: 'POST' }
+  );
+  return result.restore;
+}
+
+export async function cleanupAiOs(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>('/api/ai/maintenance/cleanup', { method: 'POST' });
 }
 
 export async function runInference(input: AiInferenceInput): Promise<Record<string, unknown>> {

@@ -23,6 +23,7 @@ PUBLIC_AI_OS_API_URL=http://127.0.0.1:8791
 AI_OS_HOST=127.0.0.1
 AI_OS_PORT=8791
 AI_OS_DATA_DIR=.ai-os-data
+AI_OS_REQUIRE_LOOPBACK=true
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_CHAT_MODEL=llama3.2
 OLLAMA_EMBEDDING_MODEL=all-minilm
@@ -69,6 +70,29 @@ AI_OS_SPECIALIST_PROVIDERS_JSON=[
 
 Keep the JSON on one line in `.env`.
 
+Personal-scale infrastructure settings:
+
+```bash
+AI_OS_BACKUP_ENABLED=true
+AI_OS_BACKUP_DIR=.ai-os-data/backups
+AI_OS_BACKUP_INTERVAL_MINUTES=1440
+AI_OS_BACKUP_RETENTION_COUNT=14
+AI_OS_LOG_DIR=.ai-os-data/logs
+AI_OS_LOG_LEVEL=INFO
+AI_OS_TEMP_DIR=.ai-os-data/tmp
+AI_OS_ASSETS_DIR=.ai-os-data/assets
+AI_OS_MAX_REQUEST_BYTES=52428800
+AI_OS_MAX_PROMPT_CHARS=200000
+AI_OS_MAX_MEMORY_INGEST_CHARS=2000000
+AI_OS_MAX_JOB_ITEMS=500
+AI_OS_MAX_ACTIVE_JOBS=20
+AI_OS_JOB_TIMEOUT_S=600
+AI_OS_CLEANUP_MAX_AGE_DAYS=14
+```
+
+Routine backups intentionally exclude giant model caches. Put generated files you care about
+under `AI_OS_ASSETS_DIR` if you want them included in AI OS backups.
+
 ## Ollama Models
 
 Install and start Ollama, then pull models:
@@ -110,6 +134,37 @@ cd apps/ai-os-api
 .venv\Scripts\python -m pytest
 ```
 
+Maintenance commands:
+
+```bash
+cd apps/ai-os-api
+.venv\Scripts\python -m ai_os.maintenance_cli backup --reason manual
+.venv\Scripts\python -m ai_os.maintenance_cli list
+.venv\Scripts\python -m ai_os.maintenance_cli verify <backup-id>
+.venv\Scripts\python -m ai_os.maintenance_cli integrity
+.venv\Scripts\python -m ai_os.maintenance_cli cleanup
+```
+
+Restore is deliberately explicit and writes to the target you provide:
+
+```bash
+cd apps/ai-os-api
+.venv\Scripts\python -m ai_os.maintenance_cli restore <backup-id> --target C:\path\to\restored-ai-os.sqlite3 --confirm RESTORE
+```
+
+To replace the live database, first stop the service, create a fresh backup of the current
+database, restore the chosen backup to a temporary target, verify it, then manually move it
+into `AI_OS_DATA_DIR`. Do not overwrite the live database while the service is running.
+
+PowerShell wrappers are available from the repo root:
+
+```bash
+pnpm ai-os:start
+pnpm ai-os:status
+pnpm ai-os:backup
+pnpm ai-os:stop
+```
+
 ## Hub
 
 Run the hub and existing API as before:
@@ -121,6 +176,9 @@ pnpm dev:hub
 ```
 
 Open `http://127.0.0.1:5173/ai-os`.
+
+The AI OS dashboard includes a Foundation Health panel for database integrity, latest backup,
+queue depth, recent failures, manual backup, backup verification, restore-test, and cleanup.
 
 ## GPU And Hardware Notes
 
@@ -136,10 +194,18 @@ Core status and visibility:
 
 ```text
 GET  /api/ai/health
+GET  /api/ai/health/full
 GET  /api/ai/status
 GET  /api/ai/providers
 GET  /api/ai/capabilities
 GET  /api/ai/usage
+GET  /api/ai/metrics
+GET  /api/ai/integrity
+GET  /api/ai/backups
+POST /api/ai/backups
+POST /api/ai/backups/{backup_id}/verify
+POST /api/ai/backups/{backup_id}/restore-test
+POST /api/ai/maintenance/cleanup
 ```
 
 Inference:
@@ -203,14 +269,110 @@ POST /api/ai/multimodal/{kind}/invoke
 3. The embedding provider is optional; Ollama is tried first and deterministic local hash
    embeddings are used only as graceful degradation.
 
+## Backup And Restore Checks
+
+Backups are created on startup schedule and can be created manually from the dashboard, API,
+or CLI. A backup is trustworthy only when verification succeeds:
+
+```bash
+pnpm ai-os:backup
+powershell -ExecutionPolicy Bypass -File scripts/ai-os.ps1 integrity
+```
+
+Use a restore-test before trusting disaster recovery:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/ai-os.ps1 verify -BackupId <backup-id>
+powershell -ExecutionPolicy Bypass -File scripts/ai-os.ps1 restore-test -BackupId <backup-id>
+```
+
+The restore-test restores into a temp database and runs SQLite integrity checks against that
+copy. It does not touch the live database.
+
+## Health, Logs, And Troubleshooting
+
+Useful URLs:
+
+```text
+http://127.0.0.1:8791/api/ai/health
+http://127.0.0.1:8791/api/ai/health/full
+http://127.0.0.1:8791/api/ai/metrics
+http://127.0.0.1:8791/api/ai/integrity
+http://127.0.0.1:8791/api/ai/backups
+```
+
+Logs are JSON lines under `AI_OS_LOG_DIR`, default `.ai-os-data/logs`. They include request
+status and latency. Secret-looking keys are redacted before being written to backup config
+summaries or log helper output.
+
+If `GET /api/ai/health/full` is `degraded`, check in this order:
+
+1. Database integrity and schema version.
+2. Latest backup verification.
+3. Ollama/provider reachability.
+4. Queue depth and recent job failures.
+5. Loopback security status.
+
+## Lifecycle
+
+For day-to-day local use:
+
+```bash
+pnpm ai-os:start
+pnpm ai-os:status
+pnpm ai-os:stop
+```
+
+For a simple crash-restart loop on a personal Windows machine:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/ai-os-supervisor.ps1
+```
+
+Stop the supervisor by creating `apps/ai-os-api/.ai-os-supervisor.stop`, or by closing the
+terminal running the supervisor. To start it after reboot, create a Windows Task Scheduler
+task that runs the command above at logon. This is intentionally lighter than installing a
+service manager.
+
+## Dependency And Model Hygiene
+
+Run the local hygiene check periodically:
+
+```bash
+pnpm ai-os:audit
+powershell -ExecutionPolicy Bypass -File scripts/ai-os-deps.ps1 outdated
+powershell -ExecutionPolicy Bypass -File scripts/ai-os-deps.ps1 models
+```
+
+Python dependencies are pinned exactly in `apps/ai-os-api/requirements.txt` and
+`apps/ai-os-api/pyproject.toml`. When updating, change pins intentionally, reinstall, then run:
+
+```bash
+cd apps/ai-os-api
+.venv\Scripts\python -m pip install -e .[test]
+.venv\Scripts\python -m pytest
+cd ..\..
+pnpm typecheck
+pnpm test:workspaces
+pnpm build
+```
+
+Current known dependency hygiene note: `pnpm audit --prod` may report transitive `esbuild`
+and `cookie` advisories through current Better Auth / Drizzle Kit / SvelteKit paths. Keep
+checking for upstream updates; do not hide the audit failure with a blanket ignore.
+
 ## Current Limits
 
 - The queue is in-process for v1. The interface can later be backed by Redis, SQLite workers,
   or a Tauri desktop worker without changing the dashboard API.
+- In-process jobs are bounded and observable, but valuable long-running jobs should eventually
+  persist checkpoints to SQLite because active tasks do not survive a process crash.
 - Local image/TTS/STT adapters are interfaces plus provider hooks. Concrete local engines such
   as Stable Diffusion, Whisper, or Piper can be added behind the same multimodal registry.
-- The FastAPI service assumes private localhost/Tauri use. Add an auth middleware before exposing
-  it to a public network.
+- The FastAPI service is local-first and rejects non-loopback clients by default. Add auth before
+  intentionally exposing it beyond the local machine.
+- The broader Hono personal sync API still needs its durable Postgres store wired end-to-end
+  before data in that subsystem should be treated like disaster-recoverable AI OS data.
 
 ## Source Notes
 

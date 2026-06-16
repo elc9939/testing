@@ -6,6 +6,7 @@
     Cpu,
     Database,
     Eye,
+    HardDrive,
     Image,
     ListChecks,
     Mic,
@@ -13,14 +14,18 @@
     RefreshCw,
     Search,
     Square,
+    ShieldCheck,
     ToggleLeft,
     ToggleRight,
     Volume2,
+    Wrench,
     Workflow,
     Zap
   } from 'lucide-svelte';
   import {
     cancelAiJob,
+    cleanupAiOs,
+    createAiBackup,
     createAiJob,
     getAiStatus,
     getAiUsage,
@@ -31,8 +36,10 @@
     runAgent,
     runBackgroundUnit,
     runInference,
+    restoreTestAiBackup,
     streamInference,
     toggleBackgroundUnit,
+    verifyAiBackup,
     type AiBackgroundUnit,
     type AiJobSnapshot,
     type AiStatus,
@@ -45,6 +52,8 @@
   let loading = false;
   let actionError = '';
   let actionMessage = '';
+  let foundationResult = '';
+  let foundationBusy = false;
 
   let inferPrompt = 'Return one sentence confirming which provider handled this ad hoc capability test.';
   let inferProvider = '';
@@ -103,6 +112,14 @@
 
   function numberLabel(value: number | undefined, suffix = ''): string {
     return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'n/a';
+  }
+
+  function metricValue(source: Record<string, unknown> | undefined, key: string): string {
+    const value = source?.[key];
+    if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
+    if (typeof value === 'string') return value;
+    if (value === null || value === undefined) return 'n/a';
+    return stringify(value);
   }
 
   async function refresh(): Promise<void> {
@@ -164,6 +181,62 @@
       setError(error, 'Inference failed.');
     } finally {
       inferBusy = false;
+    }
+  }
+
+  async function createBackupNow(): Promise<void> {
+    foundationBusy = true;
+    actionError = '';
+    try {
+      foundationResult = stringify(await createAiBackup('dashboard'));
+      await refresh();
+    } catch (error) {
+      setError(error, 'Backup failed.');
+    } finally {
+      foundationBusy = false;
+    }
+  }
+
+  async function verifyLatestBackup(): Promise<void> {
+    const latest = status?.backups?.[0];
+    if (!latest) return;
+    foundationBusy = true;
+    actionError = '';
+    try {
+      foundationResult = stringify(await verifyAiBackup(latest.id));
+      await refresh();
+    } catch (error) {
+      setError(error, 'Backup verification failed.');
+    } finally {
+      foundationBusy = false;
+    }
+  }
+
+  async function restoreTestLatestBackup(): Promise<void> {
+    const latest = status?.backups?.[0];
+    if (!latest) return;
+    foundationBusy = true;
+    actionError = '';
+    try {
+      foundationResult = stringify(await restoreTestAiBackup(latest.id));
+      await refresh();
+    } catch (error) {
+      setError(error, 'Restore test failed.');
+    } finally {
+      foundationBusy = false;
+    }
+  }
+
+  async function cleanupSystem(): Promise<void> {
+    foundationBusy = true;
+    actionError = '';
+    try {
+      foundationResult = stringify(await cleanupAiOs());
+      await refresh();
+    } catch (error) {
+      setError(error, 'Cleanup failed.');
+    } finally {
+      foundationBusy = false;
     }
   }
 
@@ -381,6 +454,89 @@
         </div>
       {/each}
     </div>
+  </div>
+</section>
+
+<section class="grid two work-grid">
+  <div class="card card-pad panel">
+    <div class="section-title">
+      <ShieldCheck size={18} />
+      <strong>Foundation Health</strong>
+    </div>
+    <div class="foundation-grid">
+      <article class:bad={!status?.integrity?.ok} class="foundation-tile">
+        <Database size={17} />
+        <span>Database</span>
+        <strong>{status?.integrity?.ok ? 'OK' : 'Check'}</strong>
+        <small>Schema {status?.integrity?.schema_version ?? 'n/a'} / {status?.integrity?.expected_schema_version ?? 'n/a'}</small>
+      </article>
+      <article class:bad={!status?.backups?.[0]?.ok} class="foundation-tile">
+        <HardDrive size={17} />
+        <span>Backups</span>
+        <strong>{status?.backups?.[0]?.ok ? 'Verified' : 'Needed'}</strong>
+        <small>{status?.backups?.[0]?.created_at ? new Date(status.backups[0].created_at).toLocaleString() : 'No backup yet'}</small>
+      </article>
+      <article class="foundation-tile">
+        <Workflow size={17} />
+        <span>Queue</span>
+        <strong>{metricValue(status?.metrics?.queue, 'queue_depth')}</strong>
+        <small>Active jobs</small>
+      </article>
+      <article class="foundation-tile">
+        <Activity size={17} />
+        <span>Failures</span>
+        <strong>{metricValue(status?.metrics?.usage, 'failed_calls')}</strong>
+        <small>{metricValue(status?.metrics?.usage, 'total_calls')} total calls</small>
+      </article>
+    </div>
+    <div class="action-row">
+      <button class="button primary" type="button" disabled={foundationBusy} on:click={createBackupNow}>
+        <HardDrive size={17} />
+        <span>Backup</span>
+      </button>
+      <button class="button" type="button" disabled={foundationBusy || !status?.backups?.length} on:click={verifyLatestBackup}>
+        <ShieldCheck size={17} />
+        <span>Verify</span>
+      </button>
+      <button class="button" type="button" disabled={foundationBusy || !status?.backups?.length} on:click={restoreTestLatestBackup}>
+        <Database size={17} />
+        <span>Restore Test</span>
+      </button>
+      <button class="button" type="button" disabled={foundationBusy} on:click={cleanupSystem}>
+        <Wrench size={17} />
+        <span>Cleanup</span>
+      </button>
+    </div>
+    <pre>{foundationResult}</pre>
+  </div>
+
+  <div class="card table-card">
+    <div class="section-title usage-title">
+      <HardDrive size={18} />
+      <strong>Backups</strong>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Status</th>
+          <th>Reason</th>
+          <th>Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each status?.backups ?? [] as backup}
+          <tr class:failed={!backup.ok}>
+            <td>{backup.created_at ? new Date(backup.created_at).toLocaleString() : backup.id}</td>
+            <td>{backup.ok ? 'OK' : backup.error ?? 'Check'}</td>
+            <td>{backup.reason}</td>
+            <td>{(backup.size_bytes / 1024).toFixed(1)} KB</td>
+          </tr>
+        {:else}
+          <tr><td colspan="4" class="muted">No backups yet.</td></tr>
+        {/each}
+      </tbody>
+    </table>
   </div>
 </section>
 
@@ -726,13 +882,42 @@
   .provider-row,
   .capability-row,
   .job-row,
-  .ambient-row {
+  .ambient-row,
+  .foundation-tile {
     display: grid;
     gap: 6px;
     padding: 12px;
     border: 1px solid #e5eaf1;
     border-radius: 8px;
     background: #f8fafc;
+  }
+
+  .foundation-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .foundation-tile {
+    min-height: 116px;
+  }
+
+  .foundation-tile.bad {
+    border-color: #f1c6b1;
+    background: #fff8f3;
+  }
+
+  .foundation-tile span {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+
+  .foundation-tile small {
+    color: #64748b;
+    overflow-wrap: anywhere;
   }
 
   .provider-row div,
@@ -849,6 +1034,7 @@
 
   @media (max-width: 1100px) {
     .metric-grid,
+    .foundation-grid,
     :global(.grid.two) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -856,6 +1042,7 @@
 
   @media (max-width: 760px) {
     .metric-grid,
+    .foundation-grid,
     :global(.grid.two),
     .control-grid,
     .job-row,

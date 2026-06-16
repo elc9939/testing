@@ -8,6 +8,8 @@ from typing import Any
 
 from .models import UsageLogEntry, new_id, now_iso
 
+CURRENT_SCHEMA_VERSION = 1
+
 
 class AppStorage:
     def __init__(self, db_path: Path):
@@ -16,65 +18,164 @@ class AppStorage:
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._ensure_schema()
+        self._conn.execute("pragma foreign_keys = on")
+        self._conn.execute("pragma journal_mode = wal")
+        self._migrate()
 
-    def _ensure_schema(self) -> None:
+    def _migrate(self) -> None:
         with self._lock, self._conn:
             self._conn.executescript(
                 """
-                create table if not exists usage_log (
-                  id text primary key,
-                  created_at text not null,
-                  provider text not null,
-                  model text not null,
-                  task_type text not null,
-                  ok integer not null,
-                  input_tokens integer not null,
-                  output_tokens integer not null,
-                  total_tokens integer not null,
-                  cost_usd real not null,
-                  latency_ms real not null,
-                  fallback_chain text not null,
-                  error text,
-                  metadata text not null
-                );
-
-                create table if not exists memory_documents (
-                  id text primary key,
-                  source_type text not null,
-                  source_id text not null,
-                  title text,
-                  metadata text not null,
-                  created_at text not null,
-                  updated_at text not null,
-                  unique(source_type, source_id)
-                );
-
-                create table if not exists memory_chunks (
-                  id text primary key,
-                  document_id text not null,
-                  chunk_index integer not null,
-                  text text not null,
-                  embedding text not null,
-                  metadata text not null,
-                  created_at text not null,
-                  foreign key(document_id) references memory_documents(id)
-                );
-
-                create table if not exists job_events (
-                  id text primary key,
-                  job_id text not null,
-                  created_at text not null,
-                  level text not null,
-                  message text not null,
-                  payload text not null
+                create table if not exists schema_migrations (
+                  version integer primary key,
+                  name text not null,
+                  applied_at text not null,
+                  reversible integer not null default 0,
+                  checksum text not null
                 );
                 """
             )
+            current = self.schema_version()
+            if current < 1:
+                self._apply_0001_initial()
+
+    def _apply_0001_initial(self) -> None:
+        self._conn.executescript(
+            """
+            create table if not exists usage_log (
+              id text primary key,
+              created_at text not null,
+              provider text not null,
+              model text not null,
+              task_type text not null,
+              ok integer not null,
+              input_tokens integer not null,
+              output_tokens integer not null,
+              total_tokens integer not null,
+              cost_usd real not null,
+              latency_ms real not null,
+              fallback_chain text not null,
+              error text,
+              metadata text not null
+            );
+
+            create table if not exists memory_documents (
+              id text primary key,
+              source_type text not null,
+              source_id text not null,
+              title text,
+              metadata text not null,
+              created_at text not null,
+              updated_at text not null,
+              unique(source_type, source_id)
+            );
+
+            create table if not exists memory_chunks (
+              id text primary key,
+              document_id text not null,
+              chunk_index integer not null,
+              text text not null,
+              embedding text not null,
+              metadata text not null,
+              created_at text not null,
+              foreign key(document_id) references memory_documents(id)
+            );
+
+            create index if not exists idx_memory_chunks_document on memory_chunks(document_id);
+            create index if not exists idx_usage_created_at on usage_log(created_at);
+
+            create table if not exists job_events (
+              id text primary key,
+              job_id text not null,
+              created_at text not null,
+              level text not null,
+              message text not null,
+              payload text not null
+            );
+            create index if not exists idx_job_events_job on job_events(job_id, created_at);
+            """
+        )
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (1, "0001_initial_ai_os_schema", now_iso(), 0, "builtin:0001_initial_ai_os_schema"),
+        )
+
+    def schema_version(self) -> int:
+        with self._lock:
+            row = self._conn.execute("select max(version) as version from schema_migrations").fetchone()
+        value = row["version"] if row else None
+        return int(value or 0)
 
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    def backup_to(self, destination: Path) -> None:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            self._conn.commit()
+            self._conn.execute("pragma wal_checkpoint(full)")
+            backup_conn = sqlite3.connect(destination)
+            try:
+                self._conn.backup(backup_conn)
+            finally:
+                backup_conn.close()
+
+    def data_counts(self) -> dict[str, int]:
+        tables = ["usage_log", "memory_documents", "memory_chunks", "job_events", "schema_migrations"]
+        counts: dict[str, int] = {}
+        with self._lock:
+            for table in tables:
+                row = self._conn.execute(f"select count(*) as count from {table}").fetchone()
+                counts[table] = int(row["count"] if row else 0)
+        return counts
+
+    def integrity_report(self) -> dict[str, Any]:
+        with self._lock:
+            integrity_rows = self._conn.execute("pragma integrity_check").fetchall()
+            foreign_key_rows = self._conn.execute("pragma foreign_key_check").fetchall()
+            migrations = self._conn.execute(
+                "select version, name, applied_at, reversible, checksum from schema_migrations order by version"
+            ).fetchall()
+            json_errors = self._json_validation_errors()
+        integrity = [str(row[0]) for row in integrity_rows]
+        foreign_key_errors = [dict(row) for row in foreign_key_rows]
+        ok = integrity == ["ok"] and not foreign_key_errors and not json_errors and self.schema_version() == CURRENT_SCHEMA_VERSION
+        return {
+            "ok": ok,
+            "schema_version": self.schema_version(),
+            "expected_schema_version": CURRENT_SCHEMA_VERSION,
+            "integrity": integrity,
+            "foreign_key_errors": foreign_key_errors,
+            "json_errors": json_errors,
+            "counts": self.data_counts(),
+            "migrations": [dict(row) for row in migrations],
+            "database_path": str(self.db_path),
+        }
+
+    def _json_validation_errors(self) -> list[dict[str, Any]]:
+        checks = [
+            ("usage_log", "metadata"),
+            ("usage_log", "fallback_chain"),
+            ("memory_documents", "metadata"),
+            ("memory_chunks", "metadata"),
+            ("memory_chunks", "embedding"),
+            ("job_events", "payload"),
+        ]
+        errors: list[dict[str, Any]] = []
+        for table, column in checks:
+            rows = self._conn.execute(f"select id, {column} as value from {table}").fetchall()
+            for row in rows:
+                try:
+                    json.loads(row["value"])
+                except Exception as error:
+                    errors.append({"table": table, "column": column, "id": row["id"], "error": str(error)})
+                    if len(errors) >= 25:
+                        return errors
+        return errors
 
     def log_usage(
         self,
@@ -256,3 +357,23 @@ class AppStorage:
                 "insert into job_events (id, job_id, created_at, level, message, payload) values (?, ?, ?, ?, ?, ?)",
                 (new_id("jobevt"), job_id, now_iso(), level, message, json.dumps(payload or {})),
             )
+
+    def usage_metrics(self) -> dict[str, Any]:
+        with self._lock:
+            total = self._conn.execute("select count(*) as count from usage_log").fetchone()["count"]
+            failed = self._conn.execute("select count(*) as count from usage_log where ok = 0").fetchone()["count"]
+            latency_rows = self._conn.execute(
+                """
+                select provider, avg(latency_ms) as avg_latency_ms, count(*) as count
+                from usage_log
+                where ok = 1
+                group by provider
+                order by provider
+                """
+            ).fetchall()
+        return {
+            "total_calls": int(total),
+            "failed_calls": int(failed),
+            "failure_rate": (float(failed) / float(total)) if total else 0.0,
+            "latency_by_provider": [dict(row) for row in latency_rows],
+        }

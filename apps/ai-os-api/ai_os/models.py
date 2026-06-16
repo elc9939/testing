@@ -17,17 +17,17 @@ def new_id(prefix: str) -> str:
 
 class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant", "tool"] = "user"
-    content: str
+    content: str = Field(min_length=1, max_length=200_000)
 
 
 class InferenceRequest(BaseModel):
-    task_type: str = "general"
-    prompt: str | None = None
+    task_type: str = Field(default="general", max_length=80)
+    prompt: str | None = Field(default=None, max_length=200_000)
     messages: list[ChatMessage] = Field(default_factory=list)
-    provider: str | None = None
-    model: str | None = None
-    temperature: float = 0.2
-    max_tokens: int = 512
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_tokens: int = Field(default=512, ge=1, le=8192)
     stream: bool = False
     local_first: bool = True
     allow_fallback: bool = True
@@ -134,13 +134,13 @@ JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 class JobCreateRequest(BaseModel):
     primitive: JobPrimitive
     request: InferenceRequest
-    items: list[str] = Field(default_factory=list)
-    template: str | None = None
-    n: int = 3
-    text: str | None = None
-    chunk_size: int = 2200
-    max_retries: int = 3
-    concurrency: int | None = None
+    items: list[str] = Field(default_factory=list, max_length=500)
+    template: str | None = Field(default=None, max_length=40_000)
+    n: int = Field(default=3, ge=1, le=20)
+    text: str | None = Field(default=None, max_length=2_000_000)
+    chunk_size: int = Field(default=2200, ge=200, le=50_000)
+    max_retries: int = Field(default=3, ge=1, le=10)
+    concurrency: int | None = Field(default=None, ge=1, le=32)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -160,22 +160,22 @@ class JobSnapshot(BaseModel):
 
 
 class MemoryIngestRequest(BaseModel):
-    source_type: str
-    source_id: str
-    text: str
-    title: str | None = None
+    source_type: str = Field(min_length=1, max_length=80)
+    source_id: str = Field(min_length=1, max_length=240)
+    text: str = Field(min_length=1, max_length=2_000_000)
+    title: str | None = Field(default=None, max_length=240)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    chunk_size: int = 1200
-    overlap: int = 120
-    embedding_provider: str | None = None
-    embedding_model: str | None = None
+    chunk_size: int = Field(default=1200, ge=200, le=50_000)
+    overlap: int = Field(default=120, ge=0, le=10_000)
+    embedding_provider: str | None = Field(default=None, max_length=120)
+    embedding_model: str | None = Field(default=None, max_length=160)
 
 
 class MemoryQueryRequest(BaseModel):
-    query: str
-    limit: int = 8
-    embedding_provider: str | None = None
-    embedding_model: str | None = None
+    query: str = Field(min_length=1, max_length=20_000)
+    limit: int = Field(default=8, ge=1, le=50)
+    embedding_provider: str | None = Field(default=None, max_length=120)
+    embedding_model: str | None = Field(default=None, max_length=160)
 
 
 class MemoryHit(BaseModel):
@@ -190,12 +190,12 @@ class MemoryHit(BaseModel):
 
 
 class AgentRunRequest(BaseModel):
-    objective: str
-    agent_id: str = "default"
-    max_steps: int = 4
-    provider: str | None = None
-    model: str | None = None
-    tools: list[str] = Field(default_factory=list)
+    objective: str = Field(min_length=1, max_length=50_000)
+    agent_id: str = Field(default="default", max_length=120)
+    max_steps: int = Field(default=4, ge=1, le=20)
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
+    tools: list[str] = Field(default_factory=list, max_length=50)
     context: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -221,11 +221,11 @@ class BackgroundToggleRequest(BaseModel):
 
 
 class MultimodalInvokeRequest(BaseModel):
-    prompt: str | None = None
-    text: str | None = None
-    image_base64: str | None = None
-    audio_base64: str | None = None
-    filename: str | None = None
-    provider: str | None = None
-    model: str | None = None
+    prompt: str | None = Field(default=None, max_length=200_000)
+    text: str | None = Field(default=None, max_length=200_000)
+    image_base64: str | None = Field(default=None, max_length=50_000_000)
+    audio_base64: str | None = Field(default=None, max_length=50_000_000)
+    filename: str | None = Field(default=None, max_length=240)
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
     options: dict[str, Any] = Field(default_factory=dict)
