@@ -9,6 +9,7 @@ export const routeMap = {
   studyDesk: '/desk/study',
   analytics: '/analytics',
   aiLab: '/ai-lab',
+  aiOs: '/ai-os',
   settings: '/settings'
 } as const;
 
@@ -73,6 +74,14 @@ export const launcherEntries = [
     group: 'intelligence',
     status: 'local-first',
     accent: '#f2c14e'
+  },
+  {
+    id: 'ai-os',
+    name: 'Personal AI OS',
+    route: routeMap.aiOs,
+    group: 'intelligence',
+    status: 'capability-substrate',
+    accent: '#4f8a8b'
   }
 ] as const;
 

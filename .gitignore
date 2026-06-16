@@ -13,6 +13,11 @@ apps/*/.svelte-kit/
 apps/*/build/
 apps/*/dist/
 apps/desktop/src-tauri/target/
+.ai-os-data/
+apps/ai-os-api/.venv/
+__pycache__/
+*.pyc
+*.egg-info/
 *.class
 
 # Pose Studio contact sheets (generated dev artifacts)

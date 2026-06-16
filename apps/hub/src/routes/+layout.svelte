@@ -6,6 +6,7 @@
     BrainCircuit,
     BriefcaseBusiness,
     CalendarClock,
+    Cpu,
     Gamepad2,
     GraduationCap,
     Home,
@@ -22,6 +23,7 @@
     { href: routeMap.studyDesk, label: 'Study', icon: GraduationCap },
     { href: routeMap.analytics, label: 'Analytics', icon: BarChart3 },
     { href: routeMap.aiLab, label: 'AI Lab', icon: BrainCircuit },
+    { href: routeMap.aiOs, label: 'AI OS', icon: Cpu },
     { href: routeMap.settings, label: 'Settings', icon: Settings }
   ];
 
