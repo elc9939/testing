@@ -107,8 +107,8 @@
     margin: 0;
     padding: 12px;
     border-radius: 6px;
-    background: #18202f;
-    color: #f6f8fb;
+    background: var(--text);
+    color: var(--bg);
     white-space: pre-wrap;
   }
 </style>

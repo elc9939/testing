@@ -37,13 +37,13 @@
     gap: 14px;
     align-items: center;
     padding: 18px;
-    color: #18202f;
+    color: var(--text);
     text-decoration: none;
   }
 
   .game-link p {
     margin: 5px 0 0;
-    color: #64748b;
+    color: var(--muted);
   }
 
   .legacy {

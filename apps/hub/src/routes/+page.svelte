@@ -58,10 +58,10 @@
     gap: 9px;
     min-height: 44px;
     padding: 10px 12px;
-    border: 1px solid #dfe5ee;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: #ffffff;
-    color: #475569;
+    background: var(--surface);
+    color: var(--muted);
   }
 
   .launcher {
@@ -74,7 +74,7 @@
     min-height: 150px;
     padding: 18px;
     overflow: hidden;
-    color: #18202f;
+    color: var(--text);
     text-decoration: none;
   }
 
@@ -98,7 +98,7 @@
   .launch-card span,
   .launch-card p {
     margin: 0;
-    color: #64748b;
+    color: var(--muted);
   }
 
   .launch-card :global(svg) {

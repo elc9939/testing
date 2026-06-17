@@ -783,21 +783,21 @@
   }
 
   .offline-banner {
-    border-color: #f2c14e;
-    color: #815d00;
-    background: #fff8df;
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
   }
 
   .error-banner {
-    border-color: #ff9f6e;
-    color: #944700;
-    background: #fff0e6;
+    border-color: var(--error-border);
+    color: var(--error-text);
+    background: var(--error-bg);
   }
 
   .success-banner {
-    border-color: #90d4a7;
-    color: #166534;
-    background: #ecfdf3;
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
   }
 
   .metric {
@@ -808,7 +808,7 @@
   }
 
   .metric span {
-    color: #64748b;
+    color: var(--muted);
     font-weight: 800;
   }
 
@@ -827,9 +827,9 @@
   .connector-card {
     min-height: 120px;
     padding: 14px;
-    border: 1px solid #dfe5ee;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--surface);
   }
 
   .connector-card div {
@@ -839,18 +839,18 @@
   }
 
   .connector-card span {
-    color: #64748b;
+    color: var(--muted);
     font-size: 12px;
     font-weight: 800;
   }
 
   .connector-card span.implemented {
-    color: #166534;
+    color: var(--success-text);
   }
 
   .connector-card p {
     margin: 10px 0 0;
-    color: #64748b;
+    color: var(--muted);
     font-size: 13px;
     line-height: 1.45;
   }
@@ -900,9 +900,9 @@
 
   .message-card {
     padding: 12px;
-    border: 1px solid #e5eaf1;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: #f8fafc;
+    background: var(--surface-muted);
   }
 
   .message-card div {
@@ -934,14 +934,14 @@
     display: inline;
     padding: 0;
     border: 0;
-    color: #18202f;
+    color: var(--text);
     background: transparent;
     cursor: pointer;
     text-align: left;
   }
 
   tr.unread td {
-    background: #f8fbff;
+    background: var(--surface-soft);
   }
 
   .event-form {
@@ -970,7 +970,7 @@
     grid-template-columns: minmax(180px, 1fr) minmax(180px, 260px);
     gap: 12px;
     padding: 14px;
-    border-bottom: 1px solid #e5eaf1;
+    border-bottom: 1px solid var(--border);
   }
 
   .row-actions {
@@ -984,16 +984,16 @@
     width: 34px;
     height: 34px;
     place-items: center;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
-    color: #18202f;
-    background: #ffffff;
+    color: var(--text);
+    background: var(--surface);
     cursor: pointer;
     text-decoration: none;
   }
 
   .icon-button.danger {
-    color: #9f1239;
+    color: var(--danger-text);
   }
 
   .icon-button:disabled,
@@ -1008,7 +1008,7 @@
 
   .timeline-card .section-title {
     padding: 14px;
-    border-bottom: 1px solid #e5eaf1;
+    border-bottom: 1px solid var(--border);
   }
 
   @media (max-width: 1100px) {

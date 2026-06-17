@@ -108,7 +108,7 @@
   .arena {
     min-height: min(64vh, 560px);
     overflow: hidden;
-    background: #10121f;
+    background: var(--code-bg);
   }
 
   .arena :global(canvas) {
@@ -120,7 +120,7 @@
   ul {
     margin: 8px 0 0;
     padding-left: 18px;
-    color: #475569;
+    color: var(--muted);
     font-size: 13px;
   }
 

@@ -1119,15 +1119,15 @@
   }
 
   .error-banner {
-    border-color: #ff9f6e;
-    color: #944700;
-    background: #fff0e6;
+    border-color: var(--error-border);
+    color: var(--error-text);
+    background: var(--error-bg);
   }
 
   .success-banner {
-    border-color: #90d4a7;
-    color: #166534;
-    background: #ecfdf3;
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
   }
 
   .metric-grid {
@@ -1145,7 +1145,7 @@
   }
 
   .metric span {
-    color: #64748b;
+    color: var(--muted);
     font-size: 13px;
     font-weight: 800;
     text-transform: uppercase;
@@ -1158,7 +1158,7 @@
   }
 
   .metric small {
-    color: #64748b;
+    color: var(--muted);
   }
 
   .top-grid,
@@ -1207,9 +1207,9 @@
     display: grid;
     gap: 6px;
     padding: 12px;
-    border: 1px solid #e5eaf1;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: #f8fafc;
+    background: var(--surface-muted);
   }
 
   .foundation-grid {
@@ -1223,12 +1223,12 @@
   }
 
   .foundation-tile.bad {
-    border-color: #f1c6b1;
-    background: #fff8f3;
+    border-color: var(--error-border);
+    background: var(--error-bg);
   }
 
   .foundation-tile span {
-    color: #64748b;
+    color: var(--muted);
     font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
@@ -1236,7 +1236,7 @@
   }
 
   .foundation-tile small {
-    color: #64748b;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 
@@ -1262,7 +1262,7 @@
   .asset-row span,
   .patch-row span,
   .capability-group > span {
-    color: #64748b;
+    color: var(--muted);
     font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
@@ -1279,7 +1279,7 @@
   .patch-row small,
   .patch-row p {
     margin: 0;
-    color: #64748b;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 
@@ -1288,13 +1288,13 @@
   .call-row.failed,
   .benchmark-row.failed,
   .patch-row.failed {
-    border-color: #f1c6b1;
-    background: #fff8f3;
+    border-color: var(--error-border);
+    background: var(--error-bg);
   }
 
   .tool-row.armed {
-    border-color: #f4d58d;
-    background: #fffaf0;
+    border-color: var(--warning-border);
+    background: var(--warning-bg);
   }
 
   .capability-group {
@@ -1316,7 +1316,7 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    color: #334155;
+    color: var(--text-soft);
     font-size: 13px;
     font-weight: 800;
   }
@@ -1333,8 +1333,8 @@
     margin: 0;
     padding: 12px;
     border-radius: 6px;
-    background: #18202f;
-    color: #f6f8fb;
+    background: var(--text);
+    color: var(--bg);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -1384,10 +1384,10 @@
     width: 34px;
     height: 34px;
     place-items: center;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
-    color: #18202f;
-    background: #ffffff;
+    color: var(--text);
+    background: var(--surface);
     cursor: pointer;
   }
 
@@ -1406,7 +1406,7 @@
   }
 
   tr.failed td {
-    background: #fff8f3;
+    background: var(--error-bg);
   }
 
   @media (max-width: 1100px) {

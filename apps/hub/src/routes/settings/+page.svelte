@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Cloud, Database, Download, ShieldCheck, Upload } from 'lucide-svelte';
+  import { Cloud, Database, Download, Moon, ShieldCheck, Sun, Upload } from 'lucide-svelte';
   import { apiUrl, getHealth } from '$lib/api';
   import { clientData } from '$lib/client-data';
+  import { setTheme, theme, type ThemeMode } from '$lib/theme';
 
   let apiStatus = 'Not checked';
   let settingsError = '';
+  let themeSaving = false;
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -32,6 +34,20 @@
       await clientData.importLegacySnapshot(localStorage);
     } catch (error) {
       settingsError = error instanceof Error ? error.message : 'Legacy import failed';
+    }
+  }
+
+  async function chooseTheme(mode: ThemeMode): Promise<void> {
+    settingsError = '';
+    setTheme(mode);
+    if (!$clientData.isOnline) return;
+    themeSaving = true;
+    try {
+      await clientData.saveSettings({ theme: mode });
+    } catch (error) {
+      settingsError = error instanceof Error ? error.message : 'Theme save failed';
+    } finally {
+      themeSaving = false;
     }
   }
 
@@ -67,6 +83,20 @@
     <ShieldCheck size={22} />
     <strong>Auth</strong>
     <span>{import.meta.env.PUBLIC_SYNC_MODE || 'personal'} local workspace</span>
+  </div>
+  <div class="card card-pad setting">
+    <Sun size={22} />
+    <strong>Appearance</strong>
+    <div class="theme-segment" aria-label="Theme">
+      <button class:active={$theme === 'light'} type="button" aria-pressed={$theme === 'light'} disabled={themeSaving} on:click={() => chooseTheme('light')}>
+        <Sun size={15} />
+        <span>Light</span>
+      </button>
+      <button class:active={$theme === 'dark'} type="button" aria-pressed={$theme === 'dark'} disabled={themeSaving} on:click={() => chooseTheme('dark')}>
+        <Moon size={15} />
+        <span>Dark</span>
+      </button>
+    </div>
   </div>
   <div class="card card-pad setting">
     <Database size={22} />
@@ -115,12 +145,12 @@
   .setting {
     display: grid;
     gap: 8px;
-    min-height: 150px;
+    min-height: 112px;
     align-content: start;
   }
 
   .setting span {
-    color: #64748b;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 
@@ -136,6 +166,40 @@
     gap: 8px;
   }
 
+  .theme-segment {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .theme-segment button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 30px;
+    border: 0;
+    border-radius: 4px;
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .theme-segment button.active {
+    color: var(--text);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .theme-segment button:disabled {
+    cursor: progress;
+    opacity: 0.72;
+  }
+
   dl {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -145,13 +209,13 @@
 
   dl div {
     padding: 10px;
-    border: 1px solid #dfe5ee;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #f8fafc;
+    background: var(--surface-muted);
   }
 
   dt {
-    color: #64748b;
+    color: var(--muted);
     font-size: 12px;
     font-weight: 800;
   }
@@ -164,7 +228,7 @@
 
   .sync-error {
     margin: 0;
-    color: #944700;
+    color: var(--error-text);
     font-weight: 800;
   }
 
