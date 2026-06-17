@@ -204,6 +204,65 @@ describe('mini hub api', () => {
     );
   });
 
+  it('upserts legacy imports by id without duplicating desk rows', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ useLogger: false, store });
+    const authHeaders = { 'content-type': 'application/json' };
+
+    const legacyJob = {
+      id: 'legacy-career-job:job-a',
+      workspaceId: 'personal',
+      company: 'Acme',
+      role: 'Quant Analyst',
+      status: 'interview',
+      notes: 'Imported from Career Desk',
+      nextActionAt: '2026-07-01',
+      deviceId: 'web:test',
+      updatedAt: '2026-06-02T12:00:00.000Z'
+    };
+    const firstJob = await app.request('/api/jobs', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(legacyJob)
+    });
+    const secondJob = await app.request('/api/jobs', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ ...legacyJob, notes: 'Imported again' })
+    });
+
+    expect(firstJob.status).toBe(201);
+    expect(secondJob.status).toBe(200);
+    expect(store.jobs).toHaveLength(1);
+    expect(store.jobs[0]).toMatchObject({ id: legacyJob.id, notes: 'Imported again' });
+
+    const legacySession = {
+      id: 'legacy-study-session:study-a',
+      workspaceId: 'personal',
+      subject: 'Exam P: Bayes review',
+      minutes: 35,
+      source: 'legacy-study-desk:examP',
+      loggedAt: '2026-06-03T10:00:00.000Z',
+      deviceId: 'web:test',
+      updatedAt: '2026-06-03T10:00:00.000Z'
+    };
+    const firstSession = await app.request('/api/study', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(legacySession)
+    });
+    const secondSession = await app.request('/api/study', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ ...legacySession, minutes: 45 })
+    });
+
+    expect(firstSession.status).toBe(201);
+    expect(secondSession.status).toBe(200);
+    expect(store.studySessions).toHaveLength(1);
+    expect(store.studySessions[0]).toMatchObject({ id: legacySession.id, minutes: 45 });
+  });
+
   it('serves the integration catalog in personal local mode', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
 

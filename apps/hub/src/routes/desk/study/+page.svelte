@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Edit3, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
+  import { Edit3, Plus, RefreshCw, Save, Search, Trash2, Upload, X } from 'lucide-svelte';
   import type { StudySession } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
@@ -16,7 +16,9 @@
   let searchQuery = '';
   let saveError = '';
   let rowError = '';
+  let importMessage = '';
   let saving = false;
+  let importing = false;
   let rowBusyId = '';
   let editingSessionId = '';
   let studyDraft: StudyDraft = emptyStudyDraft();
@@ -66,6 +68,21 @@
   async function refreshSummary(): Promise<void> {
     const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
     summary = inspectLegacyStorage(localStorage);
+  }
+
+  async function importLegacy(): Promise<void> {
+    saveError = '';
+    importMessage = '';
+    importing = true;
+    try {
+      const result = await clientData.importLegacySnapshot(localStorage);
+      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'} and ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}.`;
+      await refreshSummary();
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : 'Legacy import failed';
+    } finally {
+      importing = false;
+    }
   }
 
   async function addLog(): Promise<void> {
@@ -144,10 +161,16 @@
     <p class="eyebrow">Desk</p>
     <h1>Study</h1>
   </div>
-  <button class="button" type="button" on:click={refreshSummary}>
-    <RefreshCw size={17} />
-    <span>Scan</span>
-  </button>
+  <div class="action-row">
+    <button class="button" type="button" on:click={refreshSummary}>
+      <RefreshCw size={17} />
+      <span>Scan</span>
+    </button>
+    <button class="button" type="button" disabled={!canSave || importing} on:click={importLegacy}>
+      <Upload size={17} />
+      <span>{importing ? 'Importing' : 'Import Legacy'}</span>
+    </button>
+  </div>
 </section>
 
 {#if !canSave}
@@ -155,6 +178,9 @@
 {/if}
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>
+{/if}
+{#if importMessage}
+  <section class="card card-pad success-banner">{importMessage}</section>
 {/if}
 
 <section class="grid three">
@@ -187,6 +213,7 @@
 <section class="metric-strip">
   <div><span>Total Minutes</span><strong>{totalMinutes}</strong></div>
   <div><span>Legacy Days</span><strong>{summary?.studyDays ?? 0}</strong></div>
+  <div><span>Legacy Sessions</span><strong>{summary?.studySessions ?? 0}</strong></div>
   <div><span>Visible Logs</span><strong>{filteredLogs.length} / {logs.length}</strong></div>
 </section>
 
@@ -281,7 +308,7 @@
 
   .metric-strip {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px;
     margin: 14px 0 0;
   }
@@ -376,6 +403,14 @@
     border-color: var(--error-border);
     color: var(--error-text);
     background: var(--error-bg);
+    font-weight: 800;
+  }
+
+  .success-banner {
+    margin-bottom: 14px;
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
     font-weight: 800;
   }
 

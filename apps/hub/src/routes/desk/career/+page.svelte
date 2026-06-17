@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Download, Edit3, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
+  import { Download, Edit3, Plus, RefreshCw, Save, Search, Trash2, Upload, X } from 'lucide-svelte';
   import type { JobRecord } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
 
-  const statuses = ['lead', 'applied', 'interview', 'offer'];
+  const statuses = ['lead', 'applied', 'interview', 'offer', 'rejected', 'archived'];
 
   interface JobDraft {
     company: string;
@@ -25,7 +25,9 @@
   let statusFilter = 'all';
   let saveError = '';
   let rowError = '';
+  let importMessage = '';
   let saving = false;
+  let importing = false;
   let rowBusyId = '';
   let editingJobId = '';
   let jobDraft: JobDraft = emptyJobDraft();
@@ -67,6 +69,21 @@
   async function refreshSummary(): Promise<void> {
     const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
     summary = inspectLegacyStorage(localStorage);
+  }
+
+  async function importLegacy(): Promise<void> {
+    saveError = '';
+    importMessage = '';
+    importing = true;
+    try {
+      const result = await clientData.importLegacySnapshot(localStorage);
+      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'} and ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}.`;
+      await refreshSummary();
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : 'Legacy import failed';
+    } finally {
+      importing = false;
+    }
   }
 
   async function addJob(): Promise<void> {
@@ -187,6 +204,9 @@
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>
 {/if}
+{#if importMessage}
+  <section class="card card-pad success-banner">{importMessage}</section>
+{/if}
 
 <section class="grid two">
   <form class="card card-pad form" on:submit|preventDefault={addJob}>
@@ -231,6 +251,10 @@
       {#each summary.warnings as warning}
         <p class="muted">{warning}</p>
       {/each}
+      <button class="button" type="button" disabled={!canSave || importing} on:click={importLegacy}>
+        <Upload size={17} />
+        <span>{importing ? 'Importing' : 'Import Legacy Data'}</span>
+      </button>
     {:else}
       <p class="muted">Scanning local browser data.</p>
     {/if}
@@ -453,6 +477,14 @@
     border-color: var(--error-border);
     color: var(--error-text);
     background: var(--error-bg);
+    font-weight: 800;
+  }
+
+  .success-banner {
+    margin-bottom: 14px;
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
     font-weight: 800;
   }
 

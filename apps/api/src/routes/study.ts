@@ -6,10 +6,14 @@ import type { MemoryStore } from '../store';
 import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds } from '../store';
 
 const studyBody = z.object({
+  id: z.string().min(1).optional(),
   workspaceId: z.string().min(1),
   subject: z.string().min(1),
   minutes: z.number().int().nonnegative(),
-  source: z.string().default('manual')
+  source: z.string().default('manual'),
+  loggedAt: z.string().min(1).optional(),
+  deviceId: z.string().min(1).optional(),
+  updatedAt: z.string().min(1).optional()
 });
 
 const studyPatchBody = studyBody.partial().extend({
@@ -39,26 +43,32 @@ export function studyRoutes(store: MemoryStore): Hono<AppBindings> {
     }
 
     const now = new Date().toISOString();
+    const existingIndex = parsed.data.id ? store.studySessions.findIndex((session) => session.id === parsed.data.id) : -1;
     const session = studySessionSchema.parse({
-      id: crypto.randomUUID(),
+      ...(existingIndex >= 0 ? store.studySessions[existingIndex] : {}),
+      id: parsed.data.id ?? crypto.randomUUID(),
       workspaceId: parsed.data.workspaceId,
       subject: parsed.data.subject,
       minutes: parsed.data.minutes,
       source: parsed.data.source,
-      loggedAt: now,
-      deviceId: 'api',
-      updatedAt: now
+      loggedAt: parsed.data.loggedAt ?? now,
+      deviceId: parsed.data.deviceId ?? 'api',
+      updatedAt: parsed.data.updatedAt ?? now
     });
-    store.studySessions.push(session);
+    if (existingIndex >= 0) {
+      store.studySessions[existingIndex] = session;
+    } else {
+      store.studySessions.push(session);
+    }
     appendSyncEvent(store, {
       workspaceId: session.workspaceId,
       entityType: 'study_session',
       entityId: session.id,
-      operation: 'insert',
+      operation: existingIndex >= 0 ? 'update' : 'insert',
       payload: session,
       deviceId: session.deviceId
     });
-    return c.json({ session }, 201);
+    return c.json({ session }, existingIndex >= 0 ? 200 : 201);
   });
 
   app.patch('/:id', async (c) => {

@@ -6,12 +6,16 @@ import type { MemoryStore } from '../store';
 import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds } from '../store';
 
 const jobBody = z.object({
+  id: z.string().min(1).optional(),
   workspaceId: z.string().min(1),
   company: z.string().min(1),
   role: z.string().min(1),
   status: z.string().min(1).default('lead'),
+  fitScore: z.number().min(0).max(100).optional(),
   notes: z.string().default(''),
-  nextActionAt: z.string().nullable().optional()
+  nextActionAt: z.string().nullable().optional(),
+  deviceId: z.string().min(1).optional(),
+  updatedAt: z.string().min(1).optional()
 });
 
 const jobPatchBody = jobBody.partial().extend({
@@ -41,27 +45,34 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
     }
 
     const now = new Date().toISOString();
+    const existingIndex = parsed.data.id ? store.jobs.findIndex((job) => job.id === parsed.data.id) : -1;
     const job = jobSchema.parse({
-      id: crypto.randomUUID(),
+      ...(existingIndex >= 0 ? store.jobs[existingIndex] : {}),
+      id: parsed.data.id ?? crypto.randomUUID(),
       workspaceId: parsed.data.workspaceId,
       company: parsed.data.company,
       role: parsed.data.role,
       status: parsed.data.status,
+      fitScore: parsed.data.fitScore,
       notes: parsed.data.notes,
       nextActionAt: parsed.data.nextActionAt ?? undefined,
-      deviceId: 'api',
-      updatedAt: now
+      deviceId: parsed.data.deviceId ?? 'api',
+      updatedAt: parsed.data.updatedAt ?? now
     });
-    store.jobs.push(job);
+    if (existingIndex >= 0) {
+      store.jobs[existingIndex] = job;
+    } else {
+      store.jobs.push(job);
+    }
     appendSyncEvent(store, {
       workspaceId: job.workspaceId,
       entityType: 'job',
       entityId: job.id,
-      operation: 'insert',
+      operation: existingIndex >= 0 ? 'update' : 'insert',
       payload: job,
       deviceId: job.deviceId
     });
-    return c.json({ job }, 201);
+    return c.json({ job }, existingIndex >= 0 ? 200 : 201);
   });
 
   app.patch('/:id', async (c) => {

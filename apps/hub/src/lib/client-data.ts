@@ -9,6 +9,7 @@ import {
   type StudySession,
   type SyncEvent
 } from '@mini-hub/core';
+import type { LegacyEntityImport } from '@mini-hub/db/migration';
 import { apiUrl } from './api';
 
 type PGliteDatabase = Awaited<ReturnType<typeof import('@mini-hub/db/local').createMiniHubPglite>>;
@@ -568,15 +569,58 @@ export function createClientDataStore() {
     return result.settings;
   }
 
-  async function importLegacySnapshot(storage: Storage): Promise<void> {
-    const { exportLegacySnapshot } = await import('@mini-hub/db/migration');
-    const snapshot = exportLegacySnapshot(storage);
+  async function importLegacySnapshot(storage: Storage): Promise<LegacyEntityImport> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+
+    const { createLegacyEntityImport } = await import('@mini-hub/db/migration');
     const now = new Date().toISOString();
+    const legacyImport = createLegacyEntityImport(storage, {
+      workspaceId: state.workspaceId,
+      deviceId: state.deviceId,
+      importedAt: now
+    });
+
+    for (const legacyJob of legacyImport.jobs) {
+      const result = await requestJson<{ job: JobRecord }>('/api/jobs', {
+        method: 'POST',
+        body: JSON.stringify(legacyJob)
+      });
+      await upsertJob(result.job);
+    }
+
+    for (const legacySession of legacyImport.studySessions) {
+      const result = await requestJson<{ session: StudySession }>('/api/study', {
+        method: 'POST',
+        body: JSON.stringify(legacySession)
+      });
+      await upsertStudySession(result.session);
+    }
+
+    const current = get(store);
+    const legacyImportSummary = {
+      importedAt: now,
+      jobs: legacyImport.jobs.length,
+      studySessions: legacyImport.studySessions.length,
+      studyDays: legacyImport.summary.studyDays,
+      studyCareerActions: legacyImport.summary.studyCareerActions,
+      warnings: legacyImport.summary.warnings
+    };
     await saveSettings({
-      recentState: { legacySnapshot: snapshot },
+      recentState: {
+        ...(current.settings?.recentState ?? {}),
+        legacySnapshot: legacyImport.snapshot,
+        legacyImport: legacyImportSummary
+      },
       lastLegacyImportAt: now
     });
-    await saveGameState('legacy-import', { snapshot, importedAt: now });
+    await saveGameState('legacy-import', {
+      snapshot: legacyImport.snapshot,
+      importedAt: now,
+      summary: legacyImportSummary
+    });
+    await loadCache();
+    return legacyImport;
   }
 
   function destroy(): void {
