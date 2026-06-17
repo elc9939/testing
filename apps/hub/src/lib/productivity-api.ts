@@ -50,6 +50,15 @@ export interface GmailThreadList {
   resultSizeEstimate?: number;
 }
 
+export interface GmailThreadInsight {
+  thread: GmailThread;
+  priority: number;
+  category: 'deadline' | 'reply' | 'career' | 'school' | 'finance' | 'travel' | 'personal' | 'notification' | 'noise';
+  reason: string;
+  deadlineHint?: string;
+  source: 'ollama' | 'heuristic';
+}
+
 export interface GmailComposeDraft {
   to: string[];
   cc?: string[];
@@ -160,6 +169,19 @@ export async function listGmailThreads(input: {
   if (input.maxResults) params.set('maxResults', String(input.maxResults));
   for (const labelId of input.labelIds ?? []) params.append('labelIds', labelId);
   return requestApiJson<GmailThreadList>(`/api/productivity/gmail/threads?${params}`);
+}
+
+export async function listPriorityGmailThreads(input: {
+  q?: string;
+  labelIds?: string[];
+  maxResults?: number;
+}): Promise<GmailThreadInsight[]> {
+  const params = new URLSearchParams();
+  if (input.q) params.set('q', input.q);
+  if (input.maxResults) params.set('maxResults', String(input.maxResults));
+  for (const labelId of input.labelIds ?? []) params.append('labelIds', labelId);
+  const result = await requestApiJson<{ threads: GmailThreadInsight[] }>(`/api/productivity/gmail/priority?${params}`);
+  return result.threads;
 }
 
 export async function getGmailThread(threadId: string): Promise<GmailThread> {

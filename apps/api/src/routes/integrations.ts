@@ -9,7 +9,8 @@ import {
   handleGoogleCallback,
   revokeGoogleConnection
 } from '../integrations/google';
-import { getConnection } from '../integrations/token-vault';
+import { triageGmailThreads } from '../integrations/email-triage';
+import { getConnection, getConnections as getStoredConnections } from '../integrations/token-vault';
 import type { CalendarEventPatch, GmailComposeInput, GmailModifyInput, GmailReplyInput } from '../integrations/types';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
@@ -97,6 +98,24 @@ function connectorError(error: unknown): { message: string; status: 400 | 401 | 
   if (message.toLowerCase().includes('rate')) return { message, status: 429 };
   if (message.toLowerCase().includes('google request failed')) return { message, status: 502 };
   return { message, status: 400 };
+}
+
+function connectedGoogleConnections(store: MemoryStore) {
+  return getStoredConnections(store, 'google').filter((connection) => connection.status === 'connected');
+}
+
+function sortThreadsByDate<T extends { thread?: { date?: string; messages?: Array<{ internalDate?: string; date?: string }> }; date?: string; messages?: Array<{ internalDate?: string; date?: string }> }>(
+  items: T[]
+): T[] {
+  function value(item: T): number {
+    const thread = item.thread ?? item;
+    const latest = thread.messages?.[thread.messages.length - 1];
+    const internalDate = latest?.internalDate ? Number(latest.internalDate) : Number.NaN;
+    if (Number.isFinite(internalDate)) return internalDate;
+    const parsed = Date.parse(latest?.date ?? thread.date ?? '');
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return items.sort((a, b) => value(b) - value(a));
 }
 
 function eventQuery(c: Context<AppBindings>): {
@@ -224,7 +243,8 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      await revokeGoogleConnection(store);
+      const body = await c.req.json().catch(() => ({})) as { connectionId?: string };
+      await revokeGoogleConnection(store, body.connectionId);
       return c.json({ ok: true });
     } catch (error) {
       const result = connectorError(error);
@@ -242,8 +262,17 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      const connector = new GoogleCalendarConnector(store);
-      return c.json({ calendars: await connector.listCalendars() });
+      const connections = connectedGoogleConnections(store);
+      if (!connections.length) throw new Error('Google is not connected');
+      const results = await Promise.allSettled(
+        connections.map((connection) => new GoogleCalendarConnector(store, connection.id).listCalendars())
+      );
+      const calendars = results.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+      if (!calendars.length) {
+        const failure = results.find((result) => result.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+      }
+      return c.json({ calendars });
     } catch (error) {
       const result = connectorError(error);
       return c.json({ error: result.message }, result.status);
@@ -328,8 +357,21 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      const connector = new GoogleGmailConnector(store);
-      return c.json({ labels: await connector.listLabels() });
+      const connections = connectedGoogleConnections(store);
+      if (!connections.length) throw new Error('Google is not connected');
+      const results = await Promise.allSettled(
+        connections.map((connection) => new GoogleGmailConnector(store, connection.id).listLabels())
+      );
+      const byId = new Map(
+        results
+          .flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
+          .map((label) => [label.id, label])
+      );
+      if (!byId.size) {
+        const failure = results.find((result) => result.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+      }
+      return c.json({ labels: Array.from(byId.values()) });
     } catch (error) {
       const result = connectorError(error);
       return c.json({ error: result.message }, result.status);
@@ -340,8 +382,54 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      const connector = new GoogleGmailConnector(store);
-      return c.json(await connector.listThreads(gmailThreadQuery(c)));
+      const connections = connectedGoogleConnections(store);
+      if (!connections.length) throw new Error('Google is not connected');
+      const query = gmailThreadQuery(c);
+      const results = await Promise.allSettled(
+        connections.map((connection) => new GoogleGmailConnector(store, connection.id).listThreads(query))
+      );
+      const threads = sortThreadsByDate(results.flatMap((result) => (result.status === 'fulfilled' ? result.value.threads : []))).slice(
+        0,
+        query.maxResults ?? 10
+      );
+      if (!threads.length) {
+        const failure = results.find((result) => result.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+      }
+      return c.json({ threads });
+    } catch (error) {
+      const result = connectorError(error);
+      return c.json({ error: result.message }, result.status);
+    }
+  });
+
+  app.get('/gmail/priority', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    try {
+      const connections = connectedGoogleConnections(store);
+      if (!connections.length) throw new Error('Google is not connected');
+      const query = gmailThreadQuery(c);
+      const maxResults = Math.min(Math.max(query.maxResults ?? 10, 1), 20);
+      const searchQuery = query.q ?? 'in:inbox newer_than:30d';
+      const results = await Promise.allSettled(
+        connections.map((connection) =>
+          new GoogleGmailConnector(store, connection.id).listThreads({
+            ...query,
+            q: searchQuery,
+            maxResults: 20
+          })
+        )
+      );
+      const threads = sortThreadsByDate(
+        results.flatMap((result) => (result.status === 'fulfilled' ? result.value.threads : []))
+      );
+      if (!threads.length) {
+        const failure = results.find((result) => result.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+      }
+      const insights = await triageGmailThreads(threads, { maxResults, minPriority: 45 });
+      return c.json({ threads: insights });
     } catch (error) {
       const result = connectorError(error);
       return c.json({ error: result.message }, result.status);
@@ -495,9 +583,14 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
       const timeMax = c.req.query('timeMax');
       if (timeMin !== undefined) input.timeMin = timeMin;
       if (timeMax !== undefined) input.timeMax = timeMax;
-      const calendar = new GoogleCalendarConnector(store);
-      const gmail = new GoogleGmailConnector(store);
-      const results = await Promise.allSettled([calendar.timeline(input), gmail.timeline({ maxResults: 5 })]);
+      const connections = connectedGoogleConnections(store);
+      if (!connections.length) throw new Error('Google is not connected');
+      const results = await Promise.allSettled(
+        connections.flatMap((connection) => [
+          new GoogleCalendarConnector(store, connection.id).timeline(input),
+          new GoogleGmailConnector(store, connection.id).timeline({ maxResults: 5 })
+        ])
+      );
       const items = results.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
       if (!items.length) {
         const failure = results.find((result) => result.status === 'rejected');

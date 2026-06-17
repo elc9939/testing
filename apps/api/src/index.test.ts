@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp, createMemoryStore } from './index';
+import { triageGmailThreads } from './integrations/email-triage';
 import { GoogleGmailConnector } from './integrations/google';
 import { decryptTokenSet, encryptTokenSet, upsertConnection } from './integrations/token-vault';
 import { enableIntegrationPersistence, integrationConnectionsPath } from './store';
@@ -387,7 +388,7 @@ describe('mini hub api', () => {
 
     expect(labels[0]).toMatchObject({ id: 'INBOX', name: 'INBOX' });
     expect(threads.threads[0]).toMatchObject({
-      id: 'thread-1',
+      id: expect.stringContaining('thread-1'),
       subject: 'Project deadline',
       unread: true
     });
@@ -492,5 +493,92 @@ describe('mini hub api', () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it('keeps separate Google grants for different account labels', () => {
+    const store = createMemoryStore();
+    const personal = upsertConnection(store, {
+      workspaceId: 'personal',
+      provider: 'google',
+      accountLabel: 'personal@example.com',
+      scopes: ['gmail'],
+      encryptedTokenSet: encryptTokenSet({ accessToken: 'personal-token' }),
+      status: 'connected'
+    });
+    const school = upsertConnection(store, {
+      workspaceId: 'personal',
+      provider: 'google',
+      accountLabel: 'school@example.edu',
+      scopes: ['gmail'],
+      encryptedTokenSet: encryptTokenSet({ accessToken: 'school-token' }),
+      status: 'connected'
+    });
+
+    expect(personal.id).not.toBe(school.id);
+    expect(store.integrationConnections.size).toBe(2);
+  });
+
+  it('prioritizes action/deadline email above low-signal marketing', async () => {
+    const baseMessage = {
+      id: 'message-1',
+      threadId: 'urgent-thread',
+      labelIds: ['INBOX', 'UNREAD'],
+      snippet: 'Please reply before Friday about the interview schedule.',
+      subject: 'Interview schedule deadline',
+      from: 'Recruiter <recruiter@example.com>',
+      to: 'me@example.com',
+      cc: '',
+      date: 'Wed, 17 Jun 2026 12:00:00 +0000',
+      internalDate: '1781712000000',
+      messageIdHeader: '<message-1@example.com>',
+      references: '',
+      inReplyTo: '',
+      bodyText: 'Please reply before Friday about the interview schedule.',
+      bodyHtml: '',
+      headers: {}
+    };
+    const threads = [
+      {
+        id: 'urgent-thread',
+        historyId: 'h1',
+        snippet: 'Please reply before Friday about the interview schedule.',
+        labelIds: ['INBOX', 'UNREAD'],
+        subject: 'Interview schedule deadline',
+        from: 'Recruiter <recruiter@example.com>',
+        date: 'Wed, 17 Jun 2026 12:00:00 +0000',
+        unread: true,
+        messages: [baseMessage]
+      },
+      {
+        id: 'promo-thread',
+        historyId: 'h2',
+        snippet: 'Sale discount promo newsletter view web version.',
+        labelIds: ['CATEGORY_PROMOTIONS'],
+        subject: 'Huge sale today',
+        from: 'Shop <shop@example.com>',
+        date: 'Wed, 17 Jun 2026 11:00:00 +0000',
+        unread: false,
+        messages: [
+          {
+            ...baseMessage,
+            id: 'promo-message',
+            threadId: 'promo-thread',
+            labelIds: ['CATEGORY_PROMOTIONS'],
+            subject: 'Huge sale today',
+            from: 'Shop <shop@example.com>',
+            snippet: 'Sale discount promo newsletter view web version.',
+            bodyText: 'Sale discount promo newsletter view web version.'
+          }
+        ]
+      }
+    ];
+
+    const insights = await triageGmailThreads(threads, { maxResults: 2, minPriority: 0 });
+
+    expect(insights[0]).toMatchObject({
+      category: expect.stringMatching(/deadline|career|reply/),
+      thread: expect.objectContaining({ id: 'urgent-thread' })
+    });
+    expect(insights[0]?.priority ?? 0).toBeGreaterThan(insights[1]?.priority ?? 0);
   });
 });

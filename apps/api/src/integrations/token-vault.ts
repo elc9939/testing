@@ -82,7 +82,10 @@ export function upsertConnection(
 ): IntegrationConnection {
   const now = new Date().toISOString();
   const existing = Array.from(store.integrationConnections.values()).find(
-    (connection) => connection.workspaceId === input.workspaceId && connection.provider === input.provider
+    (connection) =>
+      connection.workspaceId === input.workspaceId &&
+      connection.provider === input.provider &&
+      connection.accountLabel === input.accountLabel
   );
   const connection = integrationConnectionSchema.parse({
     ...(existing ?? {}),
@@ -101,5 +104,15 @@ export function getConnection(store: MemoryStore, provider: IntegrationConnectio
     Array.from(store.integrationConnections.values()).find(
       (connection) => connection.workspaceId === personalWorkspaceId && connection.provider === provider
     ) ?? null
+  );
+}
+
+export function getConnectionById(store: MemoryStore, id: string): IntegrationConnection | null {
+  return store.integrationConnections.get(id) ?? null;
+}
+
+export function getConnections(store: MemoryStore, provider: IntegrationConnection['provider']): IntegrationConnection[] {
+  return Array.from(store.integrationConnections.values()).filter(
+    (connection) => connection.workspaceId === personalWorkspaceId && connection.provider === provider
   );
 }

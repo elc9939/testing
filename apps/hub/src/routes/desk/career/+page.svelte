@@ -51,6 +51,10 @@
   $: filteredJobs = jobs.filter(matchesJob);
   $: filteredCareerActions = careerActions.filter(matchesCareerAction);
   $: importedLegacy = (($clientData.settings?.recentState?.legacyImport ?? null) as LegacyImportState | null);
+  $: applyQueue = jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status));
+  $: activeJobs = jobs.filter((job) => !['rejected', 'archived'].includes(job.status));
+  $: openCareerActions = careerActions.filter((action) => !action.completedAt);
+  $: dueCareerActions = openCareerActions.filter((action) => action.dueAt);
 
   function emptyJobDraft(): JobDraft {
     return { company: '', role: '', status: 'lead', notes: '', nextActionAt: '' };
@@ -162,6 +166,23 @@
       .join('\n\n')
       .trim();
     return sections;
+  }
+
+  function oneLine(value: string): string {
+    return value.replace(/\s+/gu, ' ').trim();
+  }
+
+  function notesSummary(job: JobRecord): string {
+    const visible = oneLine(visibleJobNotes(job));
+    if (visible) return visible;
+    const details = primaryLegacyJobDetails(job)
+      .slice(0, 3)
+      .map((detail) => `${detail.label}: ${detail.value}`)
+      .join(' · ');
+    if (details) return details;
+    const historyCount = legacyHistoryCount(job);
+    if (historyCount) return `${historyCount} legacy history event${historyCount === 1 ? '' : 's'} preserved`;
+    return 'None';
   }
 
   function legacyHistoryCount(job: JobRecord): number {
@@ -299,62 +320,12 @@
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>
 {/if}
-<section class="grid two">
-  <form class="card card-pad form" on:submit|preventDefault={addJob}>
-    <div class="field">
-      <label for="company">Company</label>
-      <input id="company" bind:value={company} disabled={!canSave || saving} autocomplete="organization" />
-    </div>
-    <div class="field">
-      <label for="role">Role</label>
-      <input id="role" bind:value={role} disabled={!canSave || saving} autocomplete="off" />
-    </div>
-    <div class="field">
-      <label for="status">Status</label>
-      <select id="status" bind:value={status} disabled={!canSave || saving}>
-        {#each statuses as item}
-          <option value={item}>{item}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="field">
-      <label for="next-action">Next action</label>
-      <input id="next-action" bind:value={nextActionAt} disabled={!canSave || saving} type="date" />
-    </div>
-    <div class="field wide">
-      <label for="notes">Notes</label>
-      <textarea id="notes" bind:value={notes} disabled={!canSave || saving} rows="2"></textarea>
-    </div>
-    <button class="button primary" type="submit" disabled={!canSave || saving}>
-      <Plus size={17} />
-      <span>{saving ? 'Saving' : 'Add Job'}</span>
-    </button>
-  </form>
 
-  <div class="card card-pad">
-    <strong>Legacy Data</strong>
-    {#if summary}
-      <dl>
-        <div><dt>Jobs</dt><dd>{summary.careers}</dd></div>
-        <div><dt>Study sessions</dt><dd>{summary.studySessions}</dd></div>
-        <div><dt>Study daily actions</dt><dd>{summary.studyCareerActions}</dd></div>
-        <div><dt>High-score games</dt><dd>{summary.highScoreGames}</dd></div>
-        <div><dt>Theme</dt><dd>{summary.hasTheme ? 'Found' : 'None'}</dd></div>
-      </dl>
-      {#each summary.warnings as warning}
-        <p class="muted">{warning}</p>
-      {/each}
-      {#if importedLegacy}
-        <div class="import-summary">
-          <span>Last import</span>
-          <strong>{importedLegacy.importedAt ? displayUpdated(importedLegacy.importedAt) : 'Recorded'}</strong>
-          <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions, {importedLegacy.careerActions ?? importedLegacy.studyCareerActions ?? 0} career actions</small>
-        </div>
-      {/if}
-    {:else}
-      <p class="muted">Scanning local browser data.</p>
-    {/if}
-  </div>
+<section class="focus-strip" aria-label="Career focus">
+  <div><span>Apply queue</span><strong>{applyQueue.length}</strong></div>
+  <div><span>Active jobs</span><strong>{activeJobs.length}</strong></div>
+  <div><span>Open updates</span><strong>{openCareerActions.length}</strong></div>
+  <div><span>Dated follow-ups</span><strong>{dueCareerActions.length}</strong></div>
 </section>
 
 <section class="table-toolbar" aria-label="Career filters">
@@ -422,29 +393,34 @@
             <td>{job.status}</td>
             <td>{displayDate(job.nextActionAt)}</td>
             <td class="notes-cell">
-              {#if visibleJobNotes(job)}
-                <p>{visibleJobNotes(job)}</p>
-              {/if}
-              {#if primaryLegacyJobDetails(job).length}
-                <div class="legacy-detail-list" aria-label="Legacy Career Desk details">
-                  {#each primaryLegacyJobDetails(job) as detail}
-                    <span>
-                      <b>{detail.label}</b>
-                      {#if detail.label === 'Link'}
-                        <a href={detail.value} target="_blank" rel="noreferrer">Open</a>
-                      {:else}
-                        {detail.value}
-                      {/if}
-                    </span>
-                  {/each}
+              <details class="notes-detail">
+                <summary>{notesSummary(job)}</summary>
+                <div class="notes-expanded">
+                  {#if visibleJobNotes(job)}
+                    <p>{visibleJobNotes(job)}</p>
+                  {/if}
+                  {#if primaryLegacyJobDetails(job).length}
+                    <div class="legacy-detail-list" aria-label="Legacy Career Desk details">
+                      {#each primaryLegacyJobDetails(job) as detail}
+                        <span>
+                          <b>{detail.label}</b>
+                          {#if detail.label === 'Link'}
+                            <a href={detail.value} target="_blank" rel="noreferrer">Open</a>
+                          {:else}
+                            {detail.value}
+                          {/if}
+                        </span>
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if legacyHistoryCount(job)}
+                    <small class="legacy-history-note">{legacyHistoryCount(job)} legacy history event{legacyHistoryCount(job) === 1 ? '' : 's'} preserved</small>
+                  {/if}
+                  {#if !visibleJobNotes(job) && !primaryLegacyJobDetails(job).length && !legacyHistoryCount(job)}
+                    <span class="muted">None</span>
+                  {/if}
                 </div>
-              {/if}
-              {#if legacyHistoryCount(job)}
-                <small class="legacy-history-note">{legacyHistoryCount(job)} legacy history event{legacyHistoryCount(job) === 1 ? '' : 's'} preserved</small>
-              {/if}
-              {#if !visibleJobNotes(job) && !primaryLegacyJobDetails(job).length && !legacyHistoryCount(job)}
-                <span class="muted">None</span>
-              {/if}
+              </details>
             </td>
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
@@ -499,6 +475,73 @@
   </table>
 </section>
 
+<section class="utility-panels">
+  <details class="card card-pad compact-panel">
+    <summary>
+      <span>Manual add</span>
+      <small>Add a job by hand when it is not imported or discovered elsewhere.</small>
+    </summary>
+    <form class="form compact-form" on:submit|preventDefault={addJob}>
+      <div class="field">
+        <label for="company">Company</label>
+        <input id="company" bind:value={company} disabled={!canSave || saving} autocomplete="organization" />
+      </div>
+      <div class="field">
+        <label for="role">Role</label>
+        <input id="role" bind:value={role} disabled={!canSave || saving} autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status" bind:value={status} disabled={!canSave || saving}>
+          {#each statuses as item}
+            <option value={item}>{item}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="field">
+        <label for="next-action">Next action</label>
+        <input id="next-action" bind:value={nextActionAt} disabled={!canSave || saving} type="date" />
+      </div>
+      <div class="field wide">
+        <label for="notes">Notes</label>
+        <textarea id="notes" bind:value={notes} disabled={!canSave || saving} rows="2"></textarea>
+      </div>
+      <button class="button primary" type="submit" disabled={!canSave || saving}>
+        <Plus size={17} />
+        <span>{saving ? 'Saving' : 'Add Job'}</span>
+      </button>
+    </form>
+  </details>
+
+  <details class="card card-pad compact-panel">
+    <summary>
+      <span>Legacy data</span>
+      <small>{importedLegacy ? `${importedLegacy.jobs ?? 0} imported jobs, ${importedLegacy.careerActions ?? importedLegacy.studyCareerActions ?? 0} actions` : 'Scan/export old local browser data'}</small>
+    </summary>
+    {#if summary}
+      <dl>
+        <div><dt>Jobs</dt><dd>{summary.careers}</dd></div>
+        <div><dt>Study sessions</dt><dd>{summary.studySessions}</dd></div>
+        <div><dt>Study daily actions</dt><dd>{summary.studyCareerActions}</dd></div>
+        <div><dt>High-score games</dt><dd>{summary.highScoreGames}</dd></div>
+        <div><dt>Theme</dt><dd>{summary.hasTheme ? 'Found' : 'None'}</dd></div>
+      </dl>
+      {#each summary.warnings as warning}
+        <p class="muted">{warning}</p>
+      {/each}
+      {#if importedLegacy}
+        <div class="import-summary">
+          <span>Last import</span>
+          <strong>{importedLegacy.importedAt ? displayUpdated(importedLegacy.importedAt) : 'Recorded'}</strong>
+          <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions, {importedLegacy.careerActions ?? importedLegacy.studyCareerActions ?? 0} career actions</small>
+        </div>
+      {/if}
+    {:else}
+      <p class="muted">Scanning local browser data.</p>
+    {/if}
+  </details>
+</section>
+
 <style>
   .form {
     display: grid;
@@ -543,6 +586,37 @@
     color: var(--muted);
   }
 
+  .focus-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .focus-strip div {
+    display: grid;
+    gap: 3px;
+    padding: 9px 11px;
+    border-right: 1px solid var(--border);
+  }
+
+  .focus-strip div:last-child {
+    border-right: 0;
+  }
+
+  .focus-strip span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .focus-strip strong {
+    font-size: 18px;
+  }
+
   .table-toolbar {
     display: grid;
     grid-template-columns: minmax(220px, 1fr) 180px auto;
@@ -583,6 +657,46 @@
     margin-top: 14px;
   }
 
+  .utility-panels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  .compact-panel {
+    padding: 0;
+  }
+
+  .compact-panel summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    font-weight: 900;
+  }
+
+  .compact-panel summary small {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .compact-panel > :not(summary) {
+    margin: 0 14px 14px;
+  }
+
+  .compact-form {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
   .table-section-title {
     display: flex;
     align-items: center;
@@ -600,11 +714,33 @@
   .notes-cell {
     min-width: 180px;
     max-width: 360px;
-    white-space: pre-wrap;
   }
 
-  .notes-cell p {
+  .notes-detail summary {
+    max-width: 340px;
+    overflow: hidden;
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .notes-detail[open] summary {
+    margin-bottom: 8px;
+    color: var(--muted);
+    white-space: normal;
+  }
+
+  .notes-expanded {
+    display: grid;
+    gap: 8px;
+    max-width: 420px;
+  }
+
+  .notes-expanded p {
     margin: 0 0 8px;
+    white-space: pre-wrap;
   }
 
   .legacy-detail-list {
@@ -703,8 +839,19 @@
   }
 
   @media (max-width: 820px) {
-    .table-toolbar {
+    .table-toolbar,
+    .utility-panels,
+    .focus-strip {
       grid-template-columns: 1fr;
+    }
+
+    .focus-strip div {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .focus-strip div:last-child {
+      border-bottom: 0;
     }
   }
 </style>

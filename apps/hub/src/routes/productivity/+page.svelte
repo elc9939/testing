@@ -11,6 +11,7 @@
     Reply,
     Save,
     Send,
+    Sparkles,
     Tag,
     Trash2,
     Unlink,
@@ -29,7 +30,7 @@
     getGoogleOAuthUrl,
     getTimeline,
     listGmailLabels,
-    listGmailThreads,
+    listPriorityGmailThreads,
     listCalendars,
     listEvents,
     markGmailThreadRead,
@@ -44,6 +45,7 @@
     type CalendarSummary,
     type ConnectorCatalogEntry,
     type GmailComposeDraft,
+    type GmailThreadInsight,
     type PublicConnection
   } from '$lib/productivity-api';
 
@@ -55,6 +57,7 @@
   let events: CalendarEvent[] = [];
   let timeline: TimelineItem[] = [];
   let gmailThreads: GmailThread[] = [];
+  let priorityThreads: GmailThreadInsight[] = [];
   let gmailLabels: GmailLabel[] = [];
   let selectedGmailThread: GmailThread | null = null;
   let selectedCalendarId = 'primary';
@@ -74,8 +77,9 @@
   let composeDialogOpen = false;
 
   $: canAct = canAutoSave($clientData);
-  $: googleConnection = connections.find((connection) => connection.provider === 'google');
-  $: googleConnected = googleConnection?.status === 'connected';
+  $: googleConnections = connections.filter((connection) => connection.provider === 'google' && connection.status === 'connected');
+  $: googleConnection = googleConnections[0];
+  $: googleConnected = googleConnections.length > 0;
 
   function emptyDraft(): CalendarEventDraft {
     const start = new Date(Date.now() + 60 * 60 * 1000);
@@ -121,6 +125,22 @@
 
   function threadPreview(thread: GmailThread): string {
     return thread.messages[thread.messages.length - 1]?.snippet || thread.snippet || 'No preview';
+  }
+
+  function scopedConnectionId(resourceId: string): string {
+    const separator = resourceId.indexOf('::');
+    return separator === -1 ? '' : resourceId.slice(0, separator);
+  }
+
+  function accountLabelForResource(resourceId: string): string {
+    const connectionId = scopedConnectionId(resourceId);
+    return connections.find((connection) => connection.id === connectionId)?.accountLabel ?? googleConnection?.accountLabel ?? 'Google';
+  }
+
+  function priorityClass(priority: number): string {
+    if (priority >= 78) return 'high';
+    if (priority >= 60) return 'medium';
+    return 'low';
   }
 
   function toLocalInput(value: string): string {
@@ -221,14 +241,15 @@
     actionError = '';
     try {
       const [threadResult, labels] = await Promise.all([
-        listGmailThreads({
+        listPriorityGmailThreads({
           q: gmailQuery.trim() || undefined,
           labelIds: selectedGmailLabelId ? [selectedGmailLabelId] : undefined,
           maxResults: 10
         }),
         listGmailLabels()
       ]);
-      gmailThreads = threadResult.threads;
+      priorityThreads = threadResult;
+      gmailThreads = threadResult.map((insight) => insight.thread);
       gmailLabels = labels;
       if (selectedGmailThread && gmailThreads.some((thread) => thread.id === selectedGmailThread?.id)) {
         selectedGmailThread = await getGmailThread(selectedGmailThread.id);
@@ -450,6 +471,10 @@
       <span>Refresh</span>
     </button>
     {#if googleConnected}
+      <button class="button" type="button" disabled={!canAct} on:click={connectGoogle}>
+        <Link size={17} />
+        <span>Add Account</span>
+      </button>
       <button class="button" type="button" disabled={!canAct} on:click={disconnectGoogle}>
         <Unlink size={17} />
         <span>Revoke Google</span>
@@ -474,9 +499,9 @@
 
 <section class="status-strip" aria-label="Productivity status">
   <div><span>Google</span><strong>{googleConnected ? 'Connected' : 'Not connected'}</strong></div>
-  <div><span>Account</span><strong>{googleConnection?.accountLabel ?? 'None'}</strong></div>
+  <div><span>Accounts</span><strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'None'}</strong></div>
   <div><span>Calendars</span><strong>{calendars.length}</strong></div>
-  <div><span>Mail</span><strong>{gmailThreads.length}</strong></div>
+  <div><span>Priority Mail</span><strong>{priorityThreads.length}</strong></div>
   <div><span>Timeline</span><strong>{timeline.length}</strong></div>
 </section>
 
@@ -557,43 +582,61 @@
 
 <section class="gmail-workspace">
   <section class="card table-card">
-    <div class="table-header gmail-header">
-      <div class="field">
-        <label for="gmail-search">Gmail search</label>
-        <input id="gmail-search" bind:value={gmailQuery} disabled={!googleConnected || gmailLoading} on:change={refreshGmail} />
-      </div>
-      <div class="field">
-        <label for="gmail-label">Label</label>
-        <select id="gmail-label" bind:value={selectedGmailLabelId} disabled={!googleConnected || gmailLoading} on:change={refreshGmail}>
-          <option value="">All labels</option>
-          {#each gmailLabels as label}
-            <option value={label.id}>{label.name}</option>
-          {/each}
-        </select>
+    <div class="table-title-row">
+      <div class="form-title">
+        <Sparkles size={18} />
+        <strong>Priority Inbox</strong>
       </div>
       <button class="button" type="button" disabled={!googleConnected || gmailLoading} on:click={refreshGmail}>
         <RefreshCw size={17} />
-        <span>{gmailLoading ? 'Loading' : 'Mail'}</span>
+        <span>{gmailLoading ? 'Sorting' : 'Refresh'}</span>
       </button>
     </div>
+    <details class="mail-filter-panel">
+      <summary>Mail search controls</summary>
+      <div class="table-header gmail-header">
+        <div class="field">
+          <label for="gmail-search">Gmail search</label>
+          <input id="gmail-search" bind:value={gmailQuery} disabled={!googleConnected || gmailLoading} on:change={refreshGmail} />
+        </div>
+        <div class="field">
+          <label for="gmail-label">Label</label>
+          <select id="gmail-label" bind:value={selectedGmailLabelId} disabled={!googleConnected || gmailLoading} on:change={refreshGmail}>
+            <option value="">All labels</option>
+            {#each gmailLabels as label}
+              <option value={label.id}>{label.name}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+    </details>
     <table>
       <thead>
         <tr>
+          <th>Signal</th>
           <th>Thread</th>
+          <th>Account</th>
           <th>From</th>
           <th>Date</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {#each gmailThreads as thread}
+        {#each priorityThreads as insight}
+          {@const thread = insight.thread}
           <tr class:unread={thread.unread}>
+            <td>
+              <span class={`priority-pill ${priorityClass(insight.priority)}`}>{insight.priority}</span>
+              <div class="muted">{insight.category}</div>
+              <small class="triage-reason">{insight.reason}{insight.deadlineHint ? ` · ${insight.deadlineHint}` : ''}</small>
+            </td>
             <td>
               <button class="link-button" type="button" on:click={() => openGmailThread(thread)}>
                 <strong>{thread.subject}</strong>
               </button>
               <div class="muted">{threadPreview(thread)}</div>
             </td>
+            <td>{accountLabelForResource(thread.id)}</td>
             <td>{thread.from}</td>
             <td>{thread.date}</td>
             <td class="row-actions">
@@ -609,7 +652,7 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan="4" class="muted">{googleConnected ? 'No Gmail threads matched.' : 'Connect Google to load real Gmail threads.'}</td></tr>
+          <tr><td colspan="6" class="muted">{googleConnected ? 'No priority Gmail threads matched. Try broadening the search controls.' : 'Connect Google to load and sort real Gmail threads.'}</td></tr>
         {/each}
       </tbody>
     </table>
@@ -933,8 +976,70 @@
   }
 
   .gmail-header {
-    grid-template-columns: minmax(180px, 1fr) minmax(160px, 240px) auto;
+    grid-template-columns: minmax(180px, 1fr) minmax(160px, 240px);
     align-items: end;
+  }
+
+  .table-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mail-filter-panel {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mail-filter-panel summary {
+    padding: 8px 14px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mail-filter-panel .table-header {
+    border-bottom: 0;
+  }
+
+  .priority-pill {
+    display: inline-grid;
+    min-width: 38px;
+    height: 24px;
+    place-items: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 900;
+    background: var(--surface-muted);
+  }
+
+  .priority-pill.high {
+    border-color: var(--error-border);
+    color: var(--error-text);
+    background: var(--error-bg);
+  }
+
+  .priority-pill.medium {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .priority-pill.low {
+    border-color: var(--border);
+    color: var(--muted);
+  }
+
+  .triage-reason {
+    display: block;
+    margin-top: 3px;
+    max-width: 160px;
+    color: var(--muted);
+    line-height: 1.25;
   }
 
   .mail-panel {

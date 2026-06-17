@@ -1,4 +1,12 @@
-import type { CalendarEvent, GmailDraft, GmailLabel, GmailMessage, GmailThread, TimelineItem } from '@mini-hub/core';
+import type {
+  CalendarEvent,
+  GmailDraft,
+  GmailLabel,
+  GmailMessage,
+  GmailThread,
+  IntegrationConnection,
+  TimelineItem
+} from '@mini-hub/core';
 import {
   calendarEventSchema,
   gmailDraftSchema,
@@ -28,6 +36,7 @@ import {
   decryptTokenSet,
   encryptTokenSet,
   getConnection,
+  getConnectionById,
   upsertConnection,
   verifyOAuthState,
   type OAuthTokenSet
@@ -102,6 +111,20 @@ interface GmailApiDraft {
 }
 
 const gmailBaseUrl = 'https://gmail.googleapis.com';
+const scopedIdSeparator = '::';
+
+export function encodeScopedResourceId(connectionId: string, resourceId: string): string {
+  return `${connectionId}${scopedIdSeparator}${resourceId}`;
+}
+
+export function decodeScopedResourceId(value: string): { connectionId?: string; resourceId: string } {
+  const separatorIndex = value.indexOf(scopedIdSeparator);
+  if (separatorIndex === -1) return { resourceId: value };
+  return {
+    connectionId: value.slice(0, separatorIndex),
+    resourceId: value.slice(separatorIndex + scopedIdSeparator.length)
+  };
+}
 
 function requireGoogleConfig(): void {
   if (!env.googleClientId || !env.googleClientSecret || !env.googleRedirectUri) {
@@ -300,11 +323,25 @@ export async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export class GoogleApiClient {
-  constructor(private readonly store: MemoryStore) {}
+  constructor(
+    private readonly store: MemoryStore,
+    private readonly connectionId?: string
+  ) {}
+
+  connection(): IntegrationConnection {
+    const connection = this.connectionId
+      ? getConnectionById(this.store, this.connectionId)
+      : getConnection(this.store, 'google');
+    if (!connection || connection.status !== 'connected') throw new Error('Google is not connected');
+    return connection;
+  }
+
+  scopedId(resourceId: string): string {
+    return encodeScopedResourceId(this.connection().id, resourceId);
+  }
 
   private async token(): Promise<string> {
-    const connection = getConnection(this.store, 'google');
-    if (!connection || connection.status !== 'connected') throw new Error('Google is not connected');
+    const connection = this.connection();
     let tokenSet = decryptTokenSet(connection.encryptedTokenSet);
     const expiresAt = tokenSet.expiresAt ? Date.parse(tokenSet.expiresAt) : 0;
     if (expiresAt && expiresAt > Date.now() + 60_000) return tokenSet.accessToken;
@@ -434,7 +471,7 @@ export function googleAuthUrl(): string {
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', googleScopes.join(' '));
   url.searchParams.set('access_type', 'offline');
-  url.searchParams.set('prompt', 'consent');
+  url.searchParams.set('prompt', 'consent select_account');
   url.searchParams.set('include_granted_scopes', 'true');
   url.searchParams.set('state', createOAuthState('google'));
   return url.toString();
@@ -481,8 +518,8 @@ export async function handleGoogleCallback(store: MemoryStore, code: string, sta
   });
 }
 
-export async function revokeGoogleConnection(store: MemoryStore): Promise<void> {
-  const connection = getConnection(store, 'google');
+export async function revokeGoogleConnection(store: MemoryStore, connectionId?: string): Promise<void> {
+  const connection = connectionId ? getConnectionById(store, connectionId) : getConnection(store, 'google');
   if (!connection) return;
   const tokenSet = decryptTokenSet(connection.encryptedTokenSet);
   const token = tokenSet.refreshToken ?? tokenSet.accessToken;
@@ -501,18 +538,32 @@ export async function revokeGoogleConnection(store: MemoryStore): Promise<void> 
 export class GoogleCalendarConnector implements CalendarConnector {
   private readonly googleClient: GoogleApiClient;
 
-  constructor(store: MemoryStore) {
-    this.googleClient = new GoogleApiClient(store);
+  constructor(
+    private readonly store: MemoryStore,
+    connectionId?: string
+  ) {
+    this.googleClient = new GoogleApiClient(store, connectionId);
+  }
+
+  private clientForCalendarId(calendarId: string): { client: GoogleApiClient; rawCalendarId: string; publicCalendarId: string } {
+    const parsed = decodeScopedResourceId(calendarId);
+    const client = new GoogleApiClient(this.store, parsed.connectionId ?? this.googleClient.connection().id);
+    return {
+      client,
+      rawCalendarId: parsed.resourceId,
+      publicCalendarId: client.scopedId(parsed.resourceId)
+    };
   }
 
   async listCalendars(): Promise<CalendarSummary[]> {
+    const connection = this.googleClient.connection();
     const result = await this.googleClient.request<{ items?: Array<{ id: string; summary: string; primary?: boolean; timeZone?: string }> }>(
       '/calendar/v3/users/me/calendarList'
     );
     return (result.items ?? []).map((calendar) => {
       const summary: CalendarSummary = {
-        id: calendar.id,
-        summary: calendar.summary
+        id: encodeScopedResourceId(connection.id, calendar.id),
+        summary: `${calendar.summary} (${connection.accountLabel})`
       };
       if (calendar.primary !== undefined) summary.primary = calendar.primary;
       if (calendar.timeZone !== undefined) summary.timeZone = calendar.timeZone;
@@ -533,52 +584,62 @@ export class GoogleCalendarConnector implements CalendarConnector {
     if (input.q) params.set('q', input.q);
     params.set('singleEvents', String(input.singleEvents ?? true));
     params.set('orderBy', 'startTime');
-    const result = await this.googleClient.request<{ items?: Array<Record<string, unknown>> }>(
-      `/calendar/v3/calendars/${encodePath(input.calendarId)}/events?${params}`
+    const { client, rawCalendarId, publicCalendarId } = this.clientForCalendarId(input.calendarId);
+    const result = await client.request<{ items?: Array<Record<string, unknown>> }>(
+      `/calendar/v3/calendars/${encodePath(rawCalendarId)}/events?${params}`
     );
-    return (result.items ?? []).map((event) => normalizeEvent(input.calendarId, event));
+    return (result.items ?? []).map((event) => normalizeEvent(publicCalendarId, event));
   }
 
   async getEvent(calendarId: string, eventId: string): Promise<CalendarEvent> {
-    const event = await this.googleClient.request<Record<string, unknown>>(
-      `/calendar/v3/calendars/${encodePath(calendarId)}/events/${encodePath(eventId)}`
+    const { client, rawCalendarId, publicCalendarId } = this.clientForCalendarId(calendarId);
+    const event = await client.request<Record<string, unknown>>(
+      `/calendar/v3/calendars/${encodePath(rawCalendarId)}/events/${encodePath(eventId)}`
     );
-    return normalizeEvent(calendarId, event);
+    return normalizeEvent(publicCalendarId, event);
   }
 
   async createEvent(input: CalendarEventInput): Promise<CalendarEvent> {
-    const event = await this.googleClient.request<Record<string, unknown>>(`/calendar/v3/calendars/${encodePath(input.calendarId)}/events`, {
+    const { client, rawCalendarId, publicCalendarId } = this.clientForCalendarId(input.calendarId);
+    const event = await client.request<Record<string, unknown>>(`/calendar/v3/calendars/${encodePath(rawCalendarId)}/events`, {
       method: 'POST',
       body: JSON.stringify(toGoogleEvent(input))
     });
-    return normalizeEvent(input.calendarId, event);
+    return normalizeEvent(publicCalendarId, event);
   }
 
   async updateEvent(input: CalendarEventPatch): Promise<CalendarEvent> {
-    const event = await this.googleClient.request<Record<string, unknown>>(
-      `/calendar/v3/calendars/${encodePath(input.calendarId)}/events/${encodePath(input.eventId)}`,
+    const { client, rawCalendarId, publicCalendarId } = this.clientForCalendarId(input.calendarId);
+    const event = await client.request<Record<string, unknown>>(
+      `/calendar/v3/calendars/${encodePath(rawCalendarId)}/events/${encodePath(input.eventId)}`,
       {
         method: 'PATCH',
         body: JSON.stringify(toGooglePatch(input))
       }
     );
-    return normalizeEvent(input.calendarId, event);
+    return normalizeEvent(publicCalendarId, event);
   }
 
   async deleteEvent(calendarId: string, eventId: string): Promise<ConnectorActionResult> {
-    await this.googleClient.request<Record<string, unknown>>(
-      `/calendar/v3/calendars/${encodePath(calendarId)}/events/${encodePath(eventId)}`,
+    const { client, rawCalendarId } = this.clientForCalendarId(calendarId);
+    await client.request<Record<string, unknown>>(
+      `/calendar/v3/calendars/${encodePath(rawCalendarId)}/events/${encodePath(eventId)}`,
       { method: 'DELETE' }
     );
     return { ok: true, id: eventId };
   }
 
   async moveEvent(calendarId: string, eventId: string, destinationCalendarId: string): Promise<CalendarEvent> {
-    const event = await this.googleClient.request<Record<string, unknown>>(
-      `/calendar/v3/calendars/${encodePath(calendarId)}/events/${encodePath(eventId)}/move?destination=${encodePath(destinationCalendarId)}`,
+    const source = this.clientForCalendarId(calendarId);
+    const destination = this.clientForCalendarId(destinationCalendarId);
+    if (source.client.connection().id !== destination.client.connection().id) {
+      throw new Error('Google Calendar cannot move events between different connected accounts');
+    }
+    const event = await source.client.request<Record<string, unknown>>(
+      `/calendar/v3/calendars/${encodePath(source.rawCalendarId)}/events/${encodePath(eventId)}/move?destination=${encodePath(destination.rawCalendarId)}`,
       { method: 'POST' }
     );
-    return normalizeEvent(destinationCalendarId, event);
+    return normalizeEvent(destination.publicCalendarId, event);
   }
 
   async timeline(input: { timeMin?: string; timeMax?: string }): Promise<TimelineItem[]> {
@@ -615,22 +676,50 @@ export class GoogleCalendarConnector implements CalendarConnector {
 export class GoogleGmailConnector implements GmailConnector {
   private readonly googleClient: GoogleApiClient;
 
-  constructor(store: MemoryStore) {
-    this.googleClient = new GoogleApiClient(store);
+  constructor(
+    private readonly store: MemoryStore,
+    connectionId?: string
+  ) {
+    this.googleClient = new GoogleApiClient(store, connectionId);
   }
 
-  private gmail<T>(path: string, init: RequestInit = {}): Promise<T> {
-    return this.googleClient.request<T>(`/gmail/v1/users/me${path}`, init, gmailBaseUrl);
+  private clientForResourceId(value?: string): { client: GoogleApiClient; resourceId?: string } {
+    if (!value) return { client: this.googleClient };
+    const parsed = decodeScopedResourceId(value);
+    return {
+      client: new GoogleApiClient(this.store, parsed.connectionId ?? this.googleClient.connection().id),
+      resourceId: parsed.resourceId
+    };
+  }
+
+  private gmail<T>(path: string, init: RequestInit = {}, client = this.googleClient): Promise<T> {
+    return client.request<T>(`/gmail/v1/users/me${path}`, init, gmailBaseUrl);
+  }
+
+  private scopedMessage(message: GmailMessage, client = this.googleClient): GmailMessage {
+    return {
+      ...message,
+      threadId: client.scopedId(message.threadId)
+    };
+  }
+
+  private scopedThread(thread: GmailThread, client = this.googleClient): GmailThread {
+    return {
+      ...thread,
+      id: client.scopedId(thread.id),
+      messages: thread.messages.map((message) => this.scopedMessage(message, client))
+    };
   }
 
   private async sendRaw(raw: string, threadId?: string): Promise<GmailMessage> {
+    const { client, resourceId } = this.clientForResourceId(threadId);
     const message: { raw: string; threadId?: string } = { raw: base64UrlEncode(raw) };
-    if (threadId !== undefined) message.threadId = threadId;
+    if (resourceId !== undefined) message.threadId = resourceId;
     const result = await this.gmail<GmailApiMessage>('/messages/send', {
       method: 'POST',
       body: JSON.stringify(message)
-    });
-    return this.getMessage(String(result.id ?? ''));
+    }, client);
+    return this.getMessage(client.scopedId(String(result.id ?? '')));
   }
 
   private async replyDraft(input: GmailReplyInput): Promise<{ raw: string; threadId: string }> {
@@ -674,6 +763,7 @@ export class GoogleGmailConnector implements GmailConnector {
   }
 
   async listThreads(input: GmailThreadQuery): Promise<GmailThreadList> {
+    const client = this.googleClient;
     const params = new URLSearchParams();
     if (input.q) params.set('q', input.q);
     if (input.pageToken) params.set('pageToken', input.pageToken);
@@ -685,7 +775,7 @@ export class GoogleGmailConnector implements GmailConnector {
       resultSizeEstimate?: number;
     }>(`/threads?${params}`);
     const ids = (result.threads ?? []).map((thread) => thread.id).filter((id): id is string => Boolean(id));
-    const threads = await Promise.all(ids.map((id) => this.getThread(id)));
+    const threads = await Promise.all(ids.map((id) => this.getThread(client.scopedId(id))));
     const list: GmailThreadList = { threads };
     if (result.nextPageToken !== undefined) list.nextPageToken = result.nextPageToken;
     if (result.resultSizeEstimate !== undefined) list.resultSizeEstimate = result.resultSizeEstimate;
@@ -693,15 +783,17 @@ export class GoogleGmailConnector implements GmailConnector {
   }
 
   async getThread(threadId: string): Promise<GmailThread> {
+    const { client, resourceId } = this.clientForResourceId(threadId);
     const params = new URLSearchParams({ format: 'full' });
-    const thread = await this.gmail<GmailApiThread>(`/threads/${encodePath(threadId)}?${params}`);
-    return normalizeGmailThread(thread);
+    const thread = await this.gmail<GmailApiThread>(`/threads/${encodePath(resourceId ?? threadId)}?${params}`, {}, client);
+    return this.scopedThread(normalizeGmailThread(thread), client);
   }
 
   async getMessage(messageId: string): Promise<GmailMessage> {
+    const { client, resourceId } = this.clientForResourceId(messageId);
     const params = new URLSearchParams({ format: 'full' });
-    const message = await this.gmail<GmailApiMessage>(`/messages/${encodePath(messageId)}?${params}`);
-    return normalizeGmailMessage(message);
+    const message = await this.gmail<GmailApiMessage>(`/messages/${encodePath(resourceId ?? messageId)}?${params}`, {}, client);
+    return this.scopedMessage(normalizeGmailMessage(message), client);
   }
 
   async sendMessage(input: GmailComposeInput): Promise<GmailMessage> {
@@ -717,11 +809,12 @@ export class GoogleGmailConnector implements GmailConnector {
             threadId: undefined
           };
     const message: { raw: string; threadId?: string } = { raw: base64UrlEncode(draft.raw) };
-    if (draft.threadId !== undefined) message.threadId = draft.threadId;
+    const { client, resourceId } = this.clientForResourceId(draft.threadId);
+    if (resourceId !== undefined) message.threadId = resourceId;
     const result = await this.gmail<GmailApiDraft>('/drafts', {
       method: 'POST',
       body: JSON.stringify({ message })
-    });
+    }, client);
     return normalizeGmailDraft(result);
   }
 
@@ -744,13 +837,14 @@ export class GoogleGmailConnector implements GmailConnector {
   }
 
   async modifyThread(threadId: string, input: GmailModifyInput): Promise<GmailThread> {
-    await this.gmail<GmailApiThread>(`/threads/${encodePath(threadId)}/modify`, {
+    const { client, resourceId } = this.clientForResourceId(threadId);
+    await this.gmail<GmailApiThread>(`/threads/${encodePath(resourceId ?? threadId)}/modify`, {
       method: 'POST',
       body: JSON.stringify({
         addLabelIds: input.addLabelIds ?? [],
         removeLabelIds: input.removeLabelIds ?? []
       })
-    });
+    }, client);
     return this.getThread(threadId);
   }
 
@@ -771,8 +865,9 @@ export class GoogleGmailConnector implements GmailConnector {
       q: 'in:inbox newer_than:30d (deadline OR due OR "action required" OR "please reply")',
       maxResults: input.maxResults ?? 5
     });
-    return result.threads.map((thread) =>
-      timelineItemSchema.parse({
+    return result.threads.map((thread) => {
+      const rawThreadId = decodeScopedResourceId(thread.id).resourceId;
+      return timelineItemSchema.parse({
         id: `gmail:${thread.id}`,
         source: 'gmail',
         sourceId: thread.id,
@@ -780,7 +875,7 @@ export class GoogleGmailConnector implements GmailConnector {
         title: thread.subject,
         when: timelineWhen(thread),
         timeZone: 'UTC',
-        actionUrl: `https://mail.google.com/mail/u/0/#inbox/${thread.id}`,
+        actionUrl: `https://mail.google.com/mail/u/0/#inbox/${rawThreadId}`,
         canEdit: true,
         canComplete: true,
         metadata: {
@@ -788,7 +883,7 @@ export class GoogleGmailConnector implements GmailConnector {
           unread: thread.unread,
           labels: thread.labelIds
         }
-      })
-    );
+      });
+    });
   }
 }
