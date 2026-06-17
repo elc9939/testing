@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowRight, Gamepad2 } from 'lucide-svelte';
-  import { hubHref } from '$lib/routes';
+  import { hubHref, legacyHref } from '$lib/routes';
 </script>
 
 <section class="page-header">
@@ -20,7 +20,7 @@
     <ArrowRight size={18} />
   </a>
 
-  <a class="card game-link legacy" href={hubHref('/legacy/')}>
+  <a class="card game-link legacy" href={legacyHref()}>
     <Gamepad2 size={22} />
     <div>
       <strong>Legacy Arcade</strong>

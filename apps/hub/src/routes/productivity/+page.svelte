@@ -802,8 +802,8 @@
 
   .metric {
     display: grid;
-    gap: 7px;
-    min-height: 150px;
+    gap: 6px;
+    min-height: 112px;
     align-content: center;
   }
 
@@ -813,7 +813,7 @@
   }
 
   .metric strong {
-    font-size: 28px;
+    font-size: 22px;
     line-height: 1;
   }
 

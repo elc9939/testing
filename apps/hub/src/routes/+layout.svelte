@@ -84,20 +84,20 @@
 <style>
   :global(:root) {
     color-scheme: light;
-    --bg: #f4f6f8;
+    --bg: #f7f7f4;
     --surface: #ffffff;
-    --surface-muted: #f8fafc;
-    --surface-soft: #f8fbff;
-    --text: #18202f;
-    --text-soft: #334155;
-    --muted: #64748b;
-    --border: #dfe5ee;
-    --border-strong: #cbd5e1;
-    --active: #edf3f8;
-    --primary-bg: #18202f;
+    --surface-muted: #f0efeb;
+    --surface-soft: #f4f1ec;
+    --text: #24211d;
+    --text-soft: #4b443e;
+    --muted: #68615b;
+    --border: #e5e1da;
+    --border-strong: #d9d5ce;
+    --active: #ebe9e3;
+    --primary-bg: #24211d;
     --primary-text: #ffffff;
-    --code-bg: #0f172a;
-    --code-text: #e2e8f0;
+    --code-bg: #161514;
+    --code-text: #ebe6dc;
     --warning-border: #f2c14e;
     --warning-text: #815d00;
     --warning-bg: #fff8df;
@@ -114,20 +114,20 @@
 
   :global(:root[data-theme='dark']) {
     color-scheme: dark;
-    --bg: #121311;
-    --surface: #1b1c19;
-    --surface-muted: #23241f;
-    --surface-soft: #20231d;
-    --text: #eceee8;
-    --text-soft: #c9ccbf;
-    --muted: #a6aa9b;
-    --border: #34362f;
-    --border-strong: #44473d;
-    --active: #2b3024;
-    --primary-bg: #eceee8;
-    --primary-text: #121311;
-    --code-bg: #0e0f0d;
-    --code-text: #e1e4d7;
+    --bg: #151413;
+    --surface: #222120;
+    --surface-muted: #1d1c1b;
+    --surface-soft: #2a2927;
+    --text: #ebe6dc;
+    --text-soft: #ccc4ba;
+    --muted: #aaa29a;
+    --border: #2a2724;
+    --border-strong: #35312d;
+    --active: #2b2824;
+    --primary-bg: #ebe6dc;
+    --primary-text: #151413;
+    --code-bg: #0f0e0d;
+    --code-text: #ebe6dc;
     --warning-border: #a7812e;
     --warning-text: #f4d58d;
     --warning-bg: #2b2415;
@@ -150,6 +150,7 @@
     margin: 0;
     color: var(--text);
     background: var(--bg);
+    font-size: 13px;
     font-family:
       Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
@@ -164,14 +165,14 @@
   .shell {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: 210px minmax(0, 1fr);
+    grid-template-columns: 224px minmax(0, 1fr);
   }
 
   .rail {
     position: sticky;
     top: 0;
     height: 100vh;
-    padding: 14px 12px;
+    padding: 11px 8px;
     border-right: 1px solid var(--border);
     background: var(--surface);
   }
@@ -180,9 +181,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 8px 14px;
+    min-height: 34px;
+    padding: 0 6px 12px;
     color: var(--text);
-    font-weight: 800;
+    font-weight: 650;
     text-decoration: none;
   }
 
@@ -204,8 +206,8 @@
   }
 
   .sync-pill {
-    margin: 0 10px 14px;
-    padding: 7px 8px;
+    margin: 0 6px 12px;
+    padding: 6px 8px;
     border: 1px solid var(--border);
     border-radius: 6px;
     color: var(--muted);
@@ -224,8 +226,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 36px;
-    padding: 8px 9px;
+    min-height: 32px;
+    padding: 6px 8px;
     border-radius: 7px;
     color: var(--muted);
     text-decoration: none;
@@ -239,7 +241,7 @@
 
   main {
     min-width: 0;
-    padding: 18px clamp(14px, 2.4vw, 28px);
+    padding: 14px clamp(12px, 2vw, 22px);
   }
 
   :global(.page-header) {
@@ -247,24 +249,26 @@
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    margin-bottom: 14px;
-    padding-bottom: 10px;
+    min-height: 46px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
   }
 
   :global(h1) {
     margin: 0;
-    font-size: 24px;
-    line-height: 1.15;
+    font-size: 18px;
+    line-height: 1.2;
     letter-spacing: 0;
+    font-weight: 650;
   }
 
   :global(.eyebrow) {
-    margin: 0 0 4px;
+    margin: 0 0 2px;
     color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 540;
+    text-transform: none;
     letter-spacing: 0;
   }
 
@@ -274,7 +278,7 @@
 
   :global(.grid) {
     display: grid;
-    gap: 14px;
+    gap: 10px;
   }
 
   :global(.grid.three) {
@@ -292,7 +296,7 @@
   }
 
   :global(.card-pad) {
-    padding: 14px;
+    padding: 12px;
   }
 
   :global(.action-row) {
@@ -306,8 +310,8 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 34px;
-    padding: 7px 10px;
+    min-height: 30px;
+    padding: 5px 9px;
     border: 1px solid var(--border-strong);
     border-radius: 6px;
     color: var(--text);
@@ -339,7 +343,7 @@
     width: 100%;
     border: 1px solid var(--border-strong);
     border-radius: 6px;
-    padding: 10px 11px;
+    padding: 8px 10px;
     color: var(--text);
     background: var(--surface);
   }
@@ -347,11 +351,12 @@
   :global(table) {
     width: 100%;
     border-collapse: collapse;
+    font-size: 13px;
   }
 
   :global(th),
   :global(td) {
-    padding: 11px 10px;
+    padding: 9px 10px;
     border-bottom: 1px solid var(--border);
     text-align: left;
     vertical-align: top;
@@ -372,7 +377,7 @@
     .rail {
       z-index: 10;
       height: auto;
-      padding: 10px;
+      padding: 9px;
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
@@ -390,12 +395,12 @@
 
     nav a {
       justify-content: center;
-      min-height: 38px;
+      min-height: 34px;
       white-space: nowrap;
     }
 
     main {
-      padding: 20px 14px;
+      padding: 14px 12px;
     }
 
     :global(.page-header) {

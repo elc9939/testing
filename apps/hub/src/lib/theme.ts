@@ -18,7 +18,7 @@ export function applyTheme(mode: ThemeMode): void {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.theme = mode;
   document.documentElement.style.colorScheme = mode;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#121311' : '#f4f6f8');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#151413' : '#f7f7f4');
 }
 
 export function setTheme(mode: ThemeMode): void {

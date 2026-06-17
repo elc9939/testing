@@ -1140,7 +1140,7 @@
   .metric {
     display: grid;
     gap: 6px;
-    min-height: 136px;
+    min-height: 104px;
     align-content: center;
   }
 
@@ -1153,7 +1153,7 @@
   }
 
   .metric strong {
-    font-size: 30px;
+    font-size: 23px;
     line-height: 1;
   }
 
