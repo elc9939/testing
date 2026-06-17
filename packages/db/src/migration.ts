@@ -20,12 +20,17 @@ export interface LegacyImportSummary {
   warnings: string[];
 }
 
-type ReadableStorage = Pick<Storage, 'getItem'>;
+type ReadableStorage = Pick<Storage, 'getItem'> & Partial<Pick<Storage, 'key' | 'length'>>;
 
 export interface LegacyEntityImportOptions {
   workspaceId?: string;
   deviceId: string;
   importedAt?: string;
+}
+
+export interface LegacyGameStateImport {
+  gameId: string;
+  state: Record<string, unknown>;
 }
 
 export interface LegacyEntityImport {
@@ -34,9 +39,21 @@ export interface LegacyEntityImport {
   jobs: JobRecord[];
   studySessions: StudySession[];
   careerActions: CareerActionRecord[];
+  theme: string | undefined;
+  highScores: Record<string, unknown>;
+  recentState: Record<string, unknown>;
+  gameStates: LegacyGameStateImport[];
   linkedState: Record<string, unknown>;
   warnings: string[];
 }
+
+const legacyRecentStateKeys = [legacyStorageKeys.recentState, 'miniHub.recent.v1'] as const;
+const legacyStickArenaMapKeys = [legacyStorageKeys.stickArenaMap, 'stickArena.customMap.v1'] as const;
+const legacySnapshotKeys = [
+  ...Object.values(legacyStorageKeys),
+  ...legacyRecentStateKeys,
+  ...legacyStickArenaMapKeys
+] as const;
 
 const trackNames: Record<string, string> = {
   examP: 'Exam P',
@@ -48,6 +65,29 @@ function readJson(storage: ReadableStorage, key: string): unknown {
   const raw = storage.getItem(key);
   if (!raw) return undefined;
   return JSON.parse(raw) as unknown;
+}
+
+function storageKeys(storage: ReadableStorage): string[] {
+  if (typeof storage.key !== 'function' || typeof storage.length !== 'number') return [];
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key) keys.push(key);
+  }
+  return keys;
+}
+
+function readFirstString(storage: ReadableStorage, keys: readonly string[]): string {
+  for (const key of keys) {
+    const value = storage.getItem(key);
+    if (value) return value;
+  }
+  return '';
+}
+
+function readJsonFromKeys(storage: ReadableStorage, keys: readonly string[]): unknown {
+  const key = keys.find((item) => Boolean(storage.getItem(item)));
+  return key ? readJson(storage, key) : undefined;
 }
 
 function countArray(value: unknown): number {
@@ -106,6 +146,65 @@ function dateAtNoonIso(value: unknown): string | undefined {
   if (!raw) return undefined;
   if (/^\d{4}-\d{2}-\d{2}$/u.test(raw)) return `${raw}T12:00:00.000Z`;
   return isoDateTime(raw);
+}
+
+function readLegacyTheme(storage: ReadableStorage): string | undefined {
+  const value = text(storage.getItem(legacyStorageKeys.theme));
+  return value === 'light' || value === 'dark' || value === 'system' ? value : undefined;
+}
+
+function readLegacyHighScores(storage: ReadableStorage, warnings: string[]): Record<string, unknown> {
+  const highScores: Record<string, unknown> = {};
+
+  try {
+    const aggregate = asRecord(readJson(storage, legacyStorageKeys.highScores));
+    if (aggregate) Object.assign(highScores, aggregate);
+  } catch {
+    warnings.push('High-score data exists but could not be parsed.');
+  }
+
+  for (const key of storageKeys(storage)) {
+    if (!key.startsWith('arcade_')) continue;
+    const scoreKey = key.slice('arcade_'.length);
+    if (!scoreKey) continue;
+    const rawValue = storage.getItem(key);
+    if (!rawValue) continue;
+    const numericValue = Number(rawValue);
+    highScores[scoreKey] = Number.isFinite(numericValue) ? numericValue : rawValue;
+  }
+
+  return highScores;
+}
+
+function readLegacyRecentState(storage: ReadableStorage, warnings: string[]): Record<string, unknown> {
+  try {
+    const value = readJsonFromKeys(storage, legacyRecentStateKeys);
+    if (Array.isArray(value)) return { legacyRecents: value.map(text).filter(Boolean) };
+    return asRecord(value) ?? {};
+  } catch {
+    warnings.push('Recent app data exists but could not be parsed.');
+    return {};
+  }
+}
+
+function readLegacyStickArenaMap(storage: ReadableStorage): string {
+  return text(readFirstString(storage, legacyStickArenaMapKeys));
+}
+
+function createLegacyGameStates(storage: ReadableStorage): LegacyGameStateImport[] {
+  const selectedMap = readLegacyStickArenaMap(storage);
+  return selectedMap
+    ? [
+        {
+          gameId: 'stick-arena-lab',
+          state: {
+            legacySelectedMap: selectedMap,
+            selectedMap,
+            source: 'legacy-stick-arena'
+          }
+        }
+      ]
+    : [];
 }
 
 function noteLine(label: string, value: unknown): string | null {
@@ -407,10 +506,25 @@ function readLegacyStudyState(storage: ReadableStorage, warnings: string[]): Rec
 function createLinkedState(
   storage: ReadableStorage,
   rawJobs: unknown[],
-  study: Record<string, unknown> | null
+  study: Record<string, unknown> | null,
+  shellState: {
+    theme: string | undefined;
+    highScores: Record<string, unknown>;
+    recentState: Record<string, unknown>;
+    gameStates: LegacyGameStateImport[];
+  }
 ): Record<string, unknown> {
   const studyRecord = study ?? {};
   return {
+    legacyShell: {
+      theme: shellState.theme,
+      highScores: shellState.highScores,
+      recentState: shellState.recentState
+    },
+    stickArena: {
+      selectedMap: readLegacyStickArenaMap(storage),
+      gameStateLinked: shellState.gameStates.some((state) => state.gameId === 'stick-arena-lab')
+    },
     careerDesk: {
       jobCount: rawJobs.length,
       emailSeeded: storage.getItem(legacyStorageKeys.careerEmailSeed) === '1',
@@ -442,11 +556,7 @@ export function inspectLegacyStorage(storage: ReadableStorage): LegacyImportSumm
     : 0;
   let highScoreGames = 0;
 
-  try {
-    highScoreGames = countObjectKeys(readJson(storage, legacyStorageKeys.highScores));
-  } catch {
-    warnings.push('High-score data exists but could not be parsed.');
-  }
+  highScoreGames = countObjectKeys(readLegacyHighScores(storage, warnings));
 
   return {
     careers,
@@ -455,14 +565,15 @@ export function inspectLegacyStorage(storage: ReadableStorage): LegacyImportSumm
     studyCareerActions,
     highScoreGames,
     hasTheme: Boolean(storage.getItem(legacyStorageKeys.theme)),
-    hasStickArenaMap: Boolean(storage.getItem(legacyStorageKeys.stickArenaMap)),
+    hasStickArenaMap: Boolean(readLegacyStickArenaMap(storage)),
     warnings
   };
 }
 
 export function exportLegacySnapshot(storage: ReadableStorage): Record<string, string> {
   const snapshot: Record<string, string> = {};
-  for (const key of Object.values(legacyStorageKeys)) {
+  const keys = new Set<string>([...legacySnapshotKeys, ...storageKeys(storage).filter((key) => key.startsWith('arcade_'))]);
+  for (const key of keys) {
     const value = storage.getItem(key);
     if (value) snapshot[key] = value;
   }
@@ -480,6 +591,10 @@ export function createLegacyEntityImport(storage: ReadableStorage, options: Lega
   const rawJobs = readLegacyJobs(storage, warnings);
   const study = readLegacyStudyState(storage, warnings);
   const rawStudySessions = Array.isArray(study?.sessions) ? study.sessions : [];
+  const theme = readLegacyTheme(storage);
+  const highScores = readLegacyHighScores(storage, warnings);
+  const recentState = readLegacyRecentState(storage, warnings);
+  const gameStates = createLegacyGameStates(storage);
   const jobs = rawJobs
     .map((job, index) => convertLegacyJob(job, index, normalizedOptions))
     .filter((job): job is JobRecord => Boolean(job));
@@ -509,7 +624,16 @@ export function createLegacyEntityImport(storage: ReadableStorage, options: Lega
     jobs,
     studySessions,
     careerActions,
-    linkedState: createLinkedState(storage, rawJobs, study),
+    theme,
+    highScores,
+    recentState,
+    gameStates,
+    linkedState: createLinkedState(storage, rawJobs, study, {
+      theme,
+      highScores,
+      recentState,
+      gameStates
+    }),
     warnings: combinedWarnings
   };
 }

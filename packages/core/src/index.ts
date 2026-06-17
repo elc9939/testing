@@ -17,11 +17,11 @@ export const routeMap = {
 export const legacyStorageKeys = {
   theme: 'miniHub.theme.v1',
   highScores: 'miniHub.highScores.v1',
-  recentState: 'miniHub.recent.v1',
+  recentState: 'miniHub.recents.v1',
   careerJobs: 'careerDesk.jobs.v1',
   careerEmailSeed: 'careerDesk.emailSeed.v6',
   studyState: 'studyDesk.state.v1',
-  stickArenaMap: 'stickArena.customMap.v1'
+  stickArenaMap: 'stickArenaMap'
 } as const;
 
 export const personalWorkspaceId = 'personal';

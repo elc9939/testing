@@ -704,6 +704,10 @@ export function createClientDataStore() {
       await upsertCareerAction(result.action);
     }
 
+    for (const legacyGameState of legacyImport.gameStates) {
+      await saveGameState(legacyGameState.gameId, legacyGameState.state);
+    }
+
     const current = get(store);
     const legacyImportSummary = {
       importedAt: now,
@@ -712,11 +716,21 @@ export function createClientDataStore() {
       careerActions: legacyImport.careerActions.length,
       studyDays: legacyImport.summary.studyDays,
       studyCareerActions: legacyImport.summary.studyCareerActions,
+      highScoreGames: legacyImport.summary.highScoreGames,
+      gameStates: legacyImport.gameStates.length,
+      hasTheme: legacyImport.summary.hasTheme,
+      hasStickArenaMap: legacyImport.summary.hasStickArenaMap,
       warnings: legacyImport.summary.warnings
     };
     await saveSettings({
+      theme: legacyImport.theme ?? current.settings?.theme,
+      highScores: {
+        ...(current.settings?.highScores ?? {}),
+        ...legacyImport.highScores
+      },
       recentState: {
         ...(current.settings?.recentState ?? {}),
+        ...legacyImport.recentState,
         legacySnapshot: legacyImport.snapshot,
         legacyImport: legacyImportSummary,
         legacyLinkedState: legacyImport.linkedState

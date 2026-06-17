@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { legacyStorageKeys } from '@mini-hub/core';
 import { createLegacyEntityImport, inspectLegacyStorage } from './migration';
 
-function storageFrom(values: Record<string, string>): Pick<Storage, 'getItem'> {
+function storageFrom(values: Record<string, string>): Pick<Storage, 'getItem' | 'key' | 'length'> {
+  const keys = Object.keys(values);
   return {
-    getItem: (key: string) => values[key] ?? null
+    getItem: (key: string) => values[key] ?? null,
+    key: (index: number) => keys[index] ?? null,
+    length: keys.length
   };
 }
 
@@ -27,6 +30,64 @@ describe('legacy storage migration', () => {
       studyDays: 2,
       studySessions: 2,
       studyCareerActions: 1
+    });
+  });
+
+  it('imports legacy shell high scores, recent apps, theme, and Stick Arena map state', () => {
+    const storage = storageFrom({
+      [legacyStorageKeys.theme]: 'dark',
+      [legacyStorageKeys.highScores]: JSON.stringify({ snake: 17 }),
+      [legacyStorageKeys.recentState]: JSON.stringify(['study-desk', 'stickrun']),
+      [legacyStorageKeys.stickArenaMap]: 'forest',
+      arcade_twenty48: '4096',
+      arcade_ttt_w: '3'
+    });
+
+    expect(inspectLegacyStorage(storage)).toMatchObject({
+      highScoreGames: 3,
+      hasTheme: true,
+      hasStickArenaMap: true
+    });
+
+    const result = createLegacyEntityImport(storage, {
+      workspaceId: 'personal',
+      deviceId: 'web:test',
+      importedAt: '2026-06-04T00:00:00.000Z'
+    });
+
+    expect(result.theme).toBe('dark');
+    expect(result.highScores).toEqual({
+      snake: 17,
+      twenty48: 4096,
+      ttt_w: 3
+    });
+    expect(result.recentState).toEqual({ legacyRecents: ['study-desk', 'stickrun'] });
+    expect(result.gameStates).toEqual([
+      {
+        gameId: 'stick-arena-lab',
+        state: {
+          legacySelectedMap: 'forest',
+          selectedMap: 'forest',
+          source: 'legacy-stick-arena'
+        }
+      }
+    ]);
+    expect(result.snapshot).toMatchObject({
+      [legacyStorageKeys.recentState]: JSON.stringify(['study-desk', 'stickrun']),
+      [legacyStorageKeys.stickArenaMap]: 'forest',
+      arcade_twenty48: '4096',
+      arcade_ttt_w: '3'
+    });
+    expect(result.linkedState).toMatchObject({
+      legacyShell: {
+        theme: 'dark',
+        highScores: { twenty48: 4096 },
+        recentState: { legacyRecents: ['study-desk', 'stickrun'] }
+      },
+      stickArena: {
+        selectedMap: 'forest',
+        gameStateLinked: true
+      }
     });
   });
 
