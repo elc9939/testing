@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Download, Edit3, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
+  import { Download, Edit3, Mail, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
   import type { CareerActionRecord, JobRecord } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
+  import { getConnections, listPriorityGmailThreads, type GmailThreadInsight, type PublicConnection } from '$lib/productivity-api';
+  import { hubHref } from '$lib/routes';
 
   const statuses = ['lead', 'applied', 'interview', 'offer', 'rejected', 'archived'];
 
@@ -47,6 +49,10 @@
   let rowBusyId = '';
   let editingJobId = '';
   let jobDraft: JobDraft = emptyJobDraft();
+  let connections: PublicConnection[] = [];
+  let careerMailUpdates: GmailThreadInsight[] = [];
+  let mailUpdatesLoading = false;
+  let mailUpdatesError = '';
 
   $: canSave = canAutoSave($clientData);
   $: jobs = $clientData.jobs;
@@ -58,6 +64,9 @@
   $: activeJobs = jobs.filter((job) => !['rejected', 'archived'].includes(job.status));
   $: openCareerActions = careerActions.filter((action) => !action.completedAt);
   $: dueCareerActions = openCareerActions.filter((action) => action.dueAt);
+  $: googleConnected = connections.some((connection) => connection.provider === 'google' && connection.status === 'connected');
+  $: unreadCareerMailUpdates = careerMailUpdates.filter((insight) => insight.thread.unread);
+  $: visibleCareerMailUpdates = (unreadCareerMailUpdates.length ? unreadCareerMailUpdates : careerMailUpdates).slice(0, 5);
 
   function emptyJobDraft(): JobDraft {
     return { company: '', role: '', status: 'lead', notes: '', nextActionAt: '' };
@@ -200,6 +209,37 @@
       .length;
   }
 
+  function isCareerMailSignal(insight: GmailThreadInsight): boolean {
+    if (insight.category === 'career') return true;
+    const text = [insight.thread.subject, insight.thread.from, insight.thread.snippet].join(' ').toLowerCase();
+    return /\b(interview|application|recruiter|hiring|offer|resume|career|job)\b/u.test(text);
+  }
+
+  function threadDate(value: string): string {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  }
+
+  async function refreshCareerMailUpdates(): Promise<void> {
+    mailUpdatesLoading = true;
+    mailUpdatesError = '';
+    try {
+      const nextConnections = await getConnections();
+      connections = nextConnections;
+      const hasGoogle = nextConnections.some((connection) => connection.provider === 'google' && connection.status === 'connected');
+      if (!hasGoogle) {
+        careerMailUpdates = [];
+        return;
+      }
+      const insights = await listPriorityGmailThreads({ maxResults: 20 });
+      careerMailUpdates = insights.filter(isCareerMailSignal).slice(0, 8);
+    } catch (error) {
+      mailUpdatesError = error instanceof Error ? error.message : 'Career mail scan failed';
+    } finally {
+      mailUpdatesLoading = false;
+    }
+  }
+
   async function refreshSummary(): Promise<void> {
     const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
     summary = inspectLegacyStorage(localStorage);
@@ -298,6 +338,7 @@
     localDevOrigin = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
     void clientData.init();
     void refreshSummary();
+    void refreshCareerMailUpdates();
   });
 </script>
 
@@ -310,6 +351,10 @@
     <button class="button" type="button" on:click={refreshSummary}>
       <RefreshCw size={17} />
       <span>Scan</span>
+    </button>
+    <button class="button" type="button" disabled={mailUpdatesLoading} on:click={refreshCareerMailUpdates}>
+      <Mail size={17} />
+      <span>{mailUpdatesLoading ? 'Sorting' : 'Mail Updates'}</span>
     </button>
     <button class="button" type="button" on:click={exportSnapshot}>
       <Download size={17} />
@@ -328,8 +373,35 @@
 <section class="focus-strip" aria-label="Career focus">
   <div><span>Apply queue</span><strong>{applyQueue.length}</strong></div>
   <div><span>Active jobs</span><strong>{activeJobs.length}</strong></div>
-  <div><span>Open updates</span><strong>{openCareerActions.length}</strong></div>
+  <div><span>Open updates</span><strong>{openCareerActions.length + unreadCareerMailUpdates.length}</strong></div>
   <div><span>Dated follow-ups</span><strong>{dueCareerActions.length}</strong></div>
+</section>
+
+<section class="card mail-updates-panel" aria-label="Career mail updates">
+  <div class="table-section-title">
+    <strong>Unread Job Updates</strong>
+    <span>{googleConnected ? `${visibleCareerMailUpdates.length} shown / ${careerMailUpdates.length} career signals` : 'Google not connected'}</span>
+  </div>
+  {#if mailUpdatesError}
+    <p class="muted mail-update-empty">{mailUpdatesError}</p>
+  {:else if !googleConnected}
+    <p class="muted mail-update-empty">Connect Google in Hub, then this page will surface recruiter, interview, application, and offer threads.</p>
+  {:else if mailUpdatesLoading && !visibleCareerMailUpdates.length}
+    <p class="muted mail-update-empty">Sorting priority inbox threads...</p>
+  {:else if visibleCareerMailUpdates.length}
+    <div class="mail-update-list">
+      {#each visibleCareerMailUpdates as insight}
+        <a class:unread={insight.thread.unread} class="mail-update-row" href={hubHref('/productivity')}>
+          <span>{insight.thread.unread ? 'Unread' : 'Seen'}</span>
+          <strong>{insight.thread.subject}</strong>
+          <small>{insight.reason}{insight.deadlineHint ? ` - ${insight.deadlineHint}` : ''}</small>
+          <small>{threadDate(insight.thread.date)}</small>
+        </a>
+      {/each}
+    </div>
+  {:else}
+    <p class="muted mail-update-empty">No career-related priority mail surfaced in the recent inbox scan.</p>
+  {/if}
 </section>
 
 <section class="table-toolbar" aria-label="Career filters">
@@ -634,6 +706,62 @@
     font-size: 18px;
   }
 
+  .mail-updates-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .mail-update-list {
+    display: grid;
+  }
+
+  .mail-update-row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 84px;
+    gap: 3px 10px;
+    padding: 9px 11px;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .mail-update-row:hover {
+    background: var(--active);
+  }
+
+  .mail-update-row span {
+    grid-row: span 2;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mail-update-row.unread span,
+  .mail-update-row.unread strong {
+    color: var(--text);
+  }
+
+  .mail-update-row strong,
+  .mail-update-row small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mail-update-row small {
+    color: var(--muted);
+  }
+
+  .mail-update-row small:last-child {
+    text-align: right;
+  }
+
+  .mail-update-empty {
+    margin: 0;
+    padding: 11px;
+  }
+
   .table-toolbar {
     display: grid;
     grid-template-columns: minmax(220px, 1fr) 180px auto;
@@ -893,6 +1021,15 @@
 
     .focus-strip div:last-child {
       border-bottom: 0;
+    }
+
+    .mail-update-row {
+      grid-template-columns: 62px minmax(0, 1fr);
+    }
+
+    .mail-update-row small:last-child {
+      grid-column: 2;
+      text-align: left;
     }
   }
 </style>
