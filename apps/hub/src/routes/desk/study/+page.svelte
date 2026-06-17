@@ -19,6 +19,31 @@
     studyCareerActions?: number;
   }
 
+  interface LegacyTopicRow {
+    track: string;
+    done: number;
+    total: number;
+    next: string;
+    updatedAt: string;
+  }
+
+  interface LegacyDailyRow {
+    date: string;
+    careerActions: number;
+    neetcodeNew: number;
+    neetcodeSubmissions: number;
+    note: string;
+  }
+
+  interface LegacyGithubSummary {
+    repo: string;
+    lastSync: string;
+    submissions: number;
+    problems: number;
+    newPaths: number;
+    status: string;
+  }
+
   let summary: LegacyImportSummary | null = null;
   let subject = 'Exam P';
   let minutes = 30;
@@ -41,6 +66,25 @@
   $: todayMinutes = logs.filter((item) => isToday(item.loggedAt)).reduce((sum, item) => sum + item.minutes, 0);
   $: weekMinutes = logs.filter((item) => isThisWeek(item.loggedAt)).reduce((sum, item) => sum + item.minutes, 0);
   $: importedLegacy = (($clientData.settings?.recentState?.legacyImport ?? null) as LegacyImportState | null);
+  $: legacyLinkedState = (($clientData.settings?.recentState?.legacyLinkedState ??
+    $clientData.settings?.preferences?.legacyLinkedState ??
+    null) as Record<string, unknown> | null);
+  $: legacyStudyState = asRecord(legacyLinkedState?.studyDesk);
+  $: legacyStudySettings = asRecord(legacyStudyState?.settings);
+  $: legacyStudyTopics = asRecord(legacyStudyState?.topics);
+  $: legacyStudyDaily = asRecord(legacyStudyState?.daily);
+  $: legacyGithub = summarizeLegacyGithub(asRecord(legacyStudyState?.github));
+  $: legacyTopicRows = buildLegacyTopicRows(legacyStudyTopics);
+  $: legacyDailyRows = buildLegacyDailyRows(legacyStudyDaily);
+  $: hasLegacyStudyState = Boolean(
+    legacyStudyState &&
+      (Object.keys(legacyStudySettings ?? {}).length ||
+        legacyTopicRows.length ||
+        legacyDailyRows.length ||
+        legacyGithub.problems ||
+        legacyGithub.submissions ||
+        legacyGithub.lastSync)
+  );
 
   function emptyStudyDraft(): StudyDraft {
     return { subject: '', minutes: 30 };
@@ -54,6 +98,83 @@
   function matchesCareerAction(action: CareerActionRecord): boolean {
     const query = searchQuery.trim().toLowerCase();
     return !query || action.label.toLowerCase().includes(query);
+  }
+
+  function asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  }
+
+  function text(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+  }
+
+  function numberValue(value: unknown): number {
+    const next = Number(value);
+    return Number.isFinite(next) ? next : 0;
+  }
+
+  function arrayLength(value: unknown): number {
+    return Array.isArray(value) ? value.length : 0;
+  }
+
+  function trackLabel(value: string): string {
+    const labels: Record<string, string> = {
+      examP: 'Exam P',
+      quant: 'Quant',
+      coding: 'Coding'
+    };
+    return labels[value] ?? value;
+  }
+
+  function buildLegacyTopicRows(topics: Record<string, unknown> | null): LegacyTopicRow[] {
+    if (!topics) return [];
+    return Object.entries(topics)
+      .map(([track, value]) => {
+        const list = Array.isArray(value) ? value.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+        const done = list.filter((item) => Boolean(item.done)).length;
+        const next = list.find((item) => !item.done);
+        const updatedAt = list
+          .map((item) => text(item.updatedAt))
+          .filter(Boolean)
+          .sort()
+          .at(-1);
+        return {
+          track: trackLabel(track),
+          done,
+          total: list.length,
+          next: next ? text(next.title) || text(next.id) || 'Untitled milestone' : list.length ? 'Complete' : 'None',
+          updatedAt: updatedAt ?? ''
+        };
+      })
+      .filter((row) => row.total > 0);
+  }
+
+  function buildLegacyDailyRows(daily: Record<string, unknown> | null): LegacyDailyRow[] {
+    if (!daily) return [];
+    return Object.entries(daily)
+      .map(([date, value]) => {
+        const record = asRecord(value) ?? {};
+        return {
+          date,
+          careerActions: arrayLength(record.careerActions),
+          neetcodeNew: numberValue(record.neetcodeNew),
+          neetcodeSubmissions: numberValue(record.neetcodeSubmissions),
+          note: text(record.note)
+        };
+      })
+      .sort((left, right) => right.date.localeCompare(left.date))
+      .slice(0, 10);
+  }
+
+  function summarizeLegacyGithub(github: Record<string, unknown> | null): LegacyGithubSummary {
+    return {
+      repo: text(github?.repo) || 'None',
+      lastSync: text(github?.lastSync),
+      submissions: numberValue(github?.submissions),
+      problems: arrayLength(github?.problems),
+      newPaths: arrayLength(github?.newPaths),
+      status: text(github?.status) || 'unknown'
+    };
   }
 
   function displayDateTime(value: string): string {
@@ -242,6 +363,86 @@
   <div><span>Linked Actions</span><strong>{careerActions.length}</strong></div>
 </section>
 
+{#if hasLegacyStudyState}
+  <section class="card card-pad legacy-study-panel">
+    <div class="table-title compact">
+      <strong>Linked Legacy Study Desk</strong>
+      <span>settings, topics, GitHub, and daily history preserved from old mode</span>
+    </div>
+
+    <div class="legacy-summary-grid">
+      <div><span>Exam Date</span><strong>{text(legacyStudySettings?.examDate) || 'None'}</strong></div>
+      <div><span>Weekly Goal</span><strong>{numberValue(legacyStudySettings?.weeklyGoal) || 0} min</strong></div>
+      <div><span>GitHub Repo</span><strong>{legacyGithub.repo}</strong></div>
+      <div><span>Submissions</span><strong>{legacyGithub.submissions}</strong></div>
+      <div><span>Problems</span><strong>{legacyGithub.problems}</strong></div>
+      <div><span>Last Sync</span><strong>{legacyGithub.lastSync ? displayDateTime(legacyGithub.lastSync) : 'Never'}</strong></div>
+    </div>
+
+    <div class="legacy-grid">
+      <div class="legacy-subtable">
+        <div class="legacy-subtitle">
+          <strong>Topic Progress</strong>
+          <span>{legacyTopicRows.length} tracks</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Track</th>
+              <th>Done</th>
+              <th>Next</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each legacyTopicRows as row}
+              <tr>
+                <td>{row.track}</td>
+                <td>{row.done}/{row.total}</td>
+                <td>{row.next}</td>
+                <td>{row.updatedAt ? displayDateTime(row.updatedAt) : 'None'}</td>
+              </tr>
+            {:else}
+              <tr><td colspan="4" class="muted">No legacy topics were found.</td></tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="legacy-subtable">
+        <div class="legacy-subtitle">
+          <strong>Recent Daily Records</strong>
+          <span>{legacyDailyRows.length} shown</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Career</th>
+              <th>New Code</th>
+              <th>Submissions</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each legacyDailyRows as row}
+              <tr>
+                <td>{row.date}</td>
+                <td>{row.careerActions}</td>
+                <td>{row.neetcodeNew}</td>
+                <td>{row.neetcodeSubmissions}</td>
+                <td>{row.note || 'None'}</td>
+              </tr>
+            {:else}
+              <tr><td colspan="5" class="muted">No legacy daily records were found.</td></tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{/if}
+
 <section class="table-toolbar" aria-label="Study filters">
   <div class="field">
     <label for="study-search">Search</label>
@@ -428,9 +629,68 @@
     border-bottom: 1px solid var(--border);
   }
 
+  .table-title.compact {
+    padding: 0 0 12px;
+  }
+
   .table-title span {
     color: var(--muted);
     font-weight: 700;
+  }
+
+  .legacy-study-panel {
+    display: grid;
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  .legacy-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .legacy-summary-grid div {
+    display: grid;
+    gap: 4px;
+    min-height: 66px;
+    align-content: center;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .legacy-summary-grid span,
+  .legacy-subtitle span {
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .legacy-summary-grid strong {
+    overflow-wrap: anywhere;
+  }
+
+  .legacy-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 14px;
+  }
+
+  .legacy-subtable {
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .legacy-subtitle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
   }
 
   .table-input {
@@ -499,6 +759,11 @@
 
   @media (max-width: 820px) {
     .metric-strip {
+      grid-template-columns: 1fr;
+    }
+
+    .legacy-summary-grid,
+    .legacy-grid {
       grid-template-columns: 1fr;
     }
   }

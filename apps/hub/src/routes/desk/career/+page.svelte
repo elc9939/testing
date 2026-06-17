@@ -25,6 +25,11 @@
     nextActionAt: string;
   }
 
+  interface LegacyJobDetail {
+    label: string;
+    value: string;
+  }
+
   let summary: LegacyImportSummary | null = null;
   let company = '';
   let role = '';
@@ -75,6 +80,83 @@
       job.role.toLowerCase().includes(query) ||
       job.notes.toLowerCase().includes(query);
     return statusMatch && queryMatch;
+  }
+
+  function legacyDetailBlock(notes: string): string {
+    const marker = 'Legacy Career Desk details:';
+    const start = notes.indexOf(marker);
+    if (start === -1) return '';
+    const afterMarker = notes.slice(start + marker.length);
+    const [block] = afterMarker.split('\n\n');
+    return block ?? '';
+  }
+
+  function legacyJobDetails(job: JobRecord): LegacyJobDetail[] {
+    return legacyDetailBlock(job.notes)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('- '))
+      .map((line) => {
+        const body = line.slice(2);
+        const separator = body.indexOf(':');
+        if (separator === -1) return null;
+        const label = body.slice(0, separator).trim();
+        const value = body.slice(separator + 1).trim();
+        return label && value ? { label, value } : null;
+      })
+      .filter((detail): detail is LegacyJobDetail => Boolean(detail));
+  }
+
+  function primaryLegacyJobDetails(job: JobRecord): LegacyJobDetail[] {
+    const priority = [
+      'Legacy stage',
+      'Priority',
+      'Location',
+      'Work mode',
+      'Job type',
+      'Date applied',
+      'Deadline',
+      'Next action',
+      'Contact name',
+      'Contact info',
+      'Resume version',
+      'Cover letter',
+      'Source',
+      'Link',
+      'Tags'
+    ];
+    const details = legacyJobDetails(job);
+    const byLabel = new Map(details.map((detail) => [detail.label, detail]));
+    return priority
+      .map((label) => byLabel.get(label))
+      .filter((detail): detail is LegacyJobDetail => Boolean(detail))
+      .slice(0, 8);
+  }
+
+  function visibleJobNotes(job: JobRecord): string {
+    const sections = job.notes
+      .split('\n\n')
+      .filter(
+        (section) =>
+          !section.startsWith('Legacy Career Desk details:') &&
+          !section.startsWith('Legacy description:') &&
+          !section.startsWith('Legacy history:')
+      )
+      .join('\n\n')
+      .trim();
+    return sections;
+  }
+
+  function legacyHistoryCount(job: JobRecord): number {
+    const marker = 'Legacy history:';
+    const start = job.notes.indexOf(marker);
+    if (start === -1) return 0;
+    const [block] = job.notes.slice(start + marker.length).split('\n\n');
+    return (block ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('- '))
+      .length;
   }
 
   async function refreshSummary(): Promise<void> {
@@ -345,7 +427,31 @@
             <td>{job.role}</td>
             <td>{job.status}</td>
             <td>{displayDate(job.nextActionAt)}</td>
-            <td class="notes-cell">{job.notes || 'None'}</td>
+            <td class="notes-cell">
+              {#if visibleJobNotes(job)}
+                <p>{visibleJobNotes(job)}</p>
+              {/if}
+              {#if primaryLegacyJobDetails(job).length}
+                <div class="legacy-detail-list" aria-label="Legacy Career Desk details">
+                  {#each primaryLegacyJobDetails(job) as detail}
+                    <span>
+                      <b>{detail.label}</b>
+                      {#if detail.label === 'Link'}
+                        <a href={detail.value} target="_blank" rel="noreferrer">Open</a>
+                      {:else}
+                        {detail.value}
+                      {/if}
+                    </span>
+                  {/each}
+                </div>
+              {/if}
+              {#if legacyHistoryCount(job)}
+                <small class="legacy-history-note">{legacyHistoryCount(job)} legacy history event{legacyHistoryCount(job) === 1 ? '' : 's'} preserved</small>
+              {/if}
+              {#if !visibleJobNotes(job) && !primaryLegacyJobDetails(job).length && !legacyHistoryCount(job)}
+                <span class="muted">None</span>
+              {/if}
+            </td>
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">
@@ -450,8 +556,48 @@
 
   .notes-cell {
     min-width: 180px;
-    max-width: 280px;
+    max-width: 360px;
     white-space: pre-wrap;
+  }
+
+  .notes-cell p {
+    margin: 0 0 8px;
+  }
+
+  .legacy-detail-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    white-space: normal;
+  }
+
+  .legacy-detail-list span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-soft);
+    background: var(--surface-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .legacy-detail-list b {
+    color: var(--muted);
+  }
+
+  .legacy-detail-list a {
+    color: var(--accent);
+    font-weight: 800;
+  }
+
+  .legacy-history-note {
+    display: block;
+    margin-top: 8px;
+    color: var(--muted);
+    font-weight: 700;
   }
 
   .table-input,
