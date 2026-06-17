@@ -748,11 +748,13 @@ export function createClientDataStore() {
 
     const state = get(store);
     if (!canAutoSave(state)) return;
-    if (readStorage(legacyAutoImportStorageKey) === 'done') return;
-    if (state.settings?.lastLegacyImportAt || state.settings?.recentState?.legacyImport) {
+    const cachedEntityCount = state.jobs.length + state.studySessions.length + state.careerActions.length + state.gameRuns.length + state.gameStates.length;
+    const hasImportedState = Boolean(state.settings?.lastLegacyImportAt || state.settings?.recentState?.legacyImport);
+    if (hasImportedState && cachedEntityCount > 0) {
       writeStorage(legacyAutoImportStorageKey, 'done');
       return;
     }
+    if (readStorage(legacyAutoImportStorageKey) === 'done' && cachedEntityCount > 0) return;
 
     const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
     const summary = inspectLegacyStorage(localStorage);

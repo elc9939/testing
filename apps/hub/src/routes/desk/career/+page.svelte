@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Download, Edit3, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
-  import type { JobRecord } from '@mini-hub/core';
+  import type { CareerActionRecord, JobRecord } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
 
@@ -47,7 +47,9 @@
 
   $: canSave = canAutoSave($clientData);
   $: jobs = $clientData.jobs;
+  $: careerActions = $clientData.careerActions;
   $: filteredJobs = jobs.filter(matchesJob);
+  $: filteredCareerActions = careerActions.filter(matchesCareerAction);
   $: importedLegacy = (($clientData.settings?.recentState?.legacyImport ?? null) as LegacyImportState | null);
 
   function emptyJobDraft(): JobDraft {
@@ -78,6 +80,23 @@
       job.role.toLowerCase().includes(query) ||
       job.notes.toLowerCase().includes(query);
     return statusMatch && queryMatch;
+  }
+
+  function matchesCareerAction(action: CareerActionRecord): boolean {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    const linkedJob = jobs.find((job) => job.id === action.jobId);
+    return (
+      action.label.toLowerCase().includes(query) ||
+      linkedJob?.company.toLowerCase().includes(query) ||
+      linkedJob?.role.toLowerCase().includes(query) ||
+      false
+    );
+  }
+
+  function linkedJobLabel(action: CareerActionRecord): string {
+    const linkedJob = jobs.find((job) => job.id === action.jobId);
+    return linkedJob ? `${linkedJob.role} at ${linkedJob.company}` : 'Unlinked';
   }
 
   function legacyDetailBlock(notes: string): string {
@@ -449,6 +468,37 @@
   </table>
 </section>
 
+<section class="card table-card action-table">
+  <div class="table-section-title">
+    <strong>Career Actions</strong>
+    <span>{filteredCareerActions.length} shown / {careerActions.length} synced</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Action</th>
+        <th>Job</th>
+        <th>Due</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {#each filteredCareerActions as action}
+        <tr>
+          <td>{action.label}</td>
+          <td>{linkedJobLabel(action)}</td>
+          <td>{action.dueAt ? displayDate(action.dueAt) : 'None'}</td>
+          <td>{action.completedAt ? `Done ${displayDate(action.completedAt)}` : 'Open'}</td>
+        </tr>
+      {:else}
+        <tr>
+          <td colspan="4" class="muted">{careerActions.length ? 'No career actions match the current filters.' : 'No linked career actions imported yet.'}</td>
+        </tr>
+      {/each}
+    </tbody>
+  </table>
+</section>
+
 <style>
   .form {
     display: grid;
@@ -527,6 +577,24 @@
 
   .table-card {
     overflow: auto;
+  }
+
+  .action-table {
+    margin-top: 14px;
+  }
+
+  .table-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-section-title span {
+    color: var(--muted);
+    font-weight: 700;
   }
 
   .notes-cell {

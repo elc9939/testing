@@ -1,4 +1,40 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 const fallbackSecret = 'dev-only-change-me-32-characters-minimum';
+
+function unquoteEnvValue(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function loadEnvFile(path: string): void {
+  if (!existsSync(path)) return;
+  const text = readFileSync(path, 'utf8');
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const match = /^([\w.-]+)\s*=\s*(.*)$/.exec(trimmed);
+    if (!match) continue;
+    const [, key, value] = match;
+    if (key && process.env[key] === undefined) process.env[key] = unquoteEnvValue(value ?? '');
+  }
+}
+
+for (const path of new Set([
+  resolve(process.cwd(), '.env'),
+  resolve(process.cwd(), '.env.local'),
+  resolve(process.cwd(), '../../.env'),
+  resolve(process.cwd(), '../../.env.local')
+])) {
+  loadEnvFile(path);
+}
 
 function splitOrigins(value: string | undefined): string[] {
   return (
