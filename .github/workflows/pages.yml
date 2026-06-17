@@ -63,7 +63,7 @@ jobs:
 
       - name: Add legacy arcade fallback
         run: |
-          cp apps/hub/build/404.html apps/hub/build/index.html
+          if [ ! -f apps/hub/build/index.html ]; then cp apps/hub/build/404.html apps/hub/build/index.html; fi
           touch apps/hub/build/.nojekyll
           mkdir -p apps/hub/build/legacy
           cp index.html manifest.webmanifest sw.js apps/hub/build/legacy/
