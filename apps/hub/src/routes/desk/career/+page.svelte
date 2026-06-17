@@ -30,7 +30,10 @@
     value: string;
   }
 
+  const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
+
   let summary: LegacyImportSummary | null = null;
+  let localDevOrigin = false;
   let company = '';
   let role = '';
   let status = 'lead';
@@ -292,6 +295,7 @@
   }
 
   onMount(() => {
+    localDevOrigin = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
     void clientData.init();
     void refreshSummary();
   });
@@ -437,7 +441,19 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="7" class="muted">{jobs.length ? 'No jobs match the current filters.' : 'No new jobs in this Svelte workspace yet.'}</td>
+          <td colspan="7" class="muted">
+            {#if jobs.length}
+              No jobs match the current filters.
+            {:else}
+              <div class="empty-career-state">
+                <span>No new jobs in this Svelte workspace yet.</span>
+                {#if localDevOrigin}
+                  <small>Legacy Career Desk jobs saved on GitHub Pages live under that browser origin, so localhost cannot read them directly.</small>
+                  <a class="link-button" href={githubPagesCareerUrl} target="_blank" rel="noreferrer">Open GitHub Pages import</a>
+                {/if}
+              </div>
+            {/if}
+          </td>
         </tr>
       {/each}
     </tbody>
@@ -539,6 +555,7 @@
     {:else}
       <p class="muted">Scanning local browser data.</p>
     {/if}
+    <p class="muted import-hint">Legacy import scans only this page's browser origin. For old GitHub Pages jobs, open the GitHub Pages Career page while the local API is running, then use this panel there.</p>
   </details>
 </section>
 
@@ -647,6 +664,30 @@
     align-items: center;
     color: var(--muted);
     font-weight: 800;
+  }
+
+  .empty-career-state {
+    display: grid;
+    gap: 5px;
+    max-width: 620px;
+  }
+
+  .empty-career-state small,
+  .import-hint {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .link-button {
+    width: fit-content;
+    border: 0;
+    padding: 0;
+    color: var(--text);
+    background: transparent;
+    font-weight: 750;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 
   .table-card {
