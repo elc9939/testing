@@ -9,7 +9,7 @@ import {
   timelineItemSchema
 } from '@mini-hub/core';
 import { env } from '../env';
-import type { MemoryStore } from '../store';
+import { persistIntegrationConnections, type MemoryStore } from '../store';
 import type {
   CalendarConnector,
   CalendarEventInput,
@@ -315,6 +315,7 @@ export class GoogleApiClient {
         error: 'Missing refresh token',
         updatedAt: new Date().toISOString()
       });
+      persistIntegrationConnections(this.store);
       throw new Error('Google connection needs reauthorization');
     }
 
@@ -347,6 +348,7 @@ export class GoogleApiClient {
       error: undefined,
       updatedAt: new Date().toISOString()
     });
+    persistIntegrationConnections(this.store);
     return tokenSet.accessToken;
   }
 
@@ -493,6 +495,7 @@ export async function revokeGoogleConnection(store: MemoryStore): Promise<void> 
     status: 'revoked',
     updatedAt: new Date().toISOString()
   });
+  persistIntegrationConnections(store);
 }
 
 export class GoogleCalendarConnector implements CalendarConnector {

@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createApp, createMemoryStore } from './index';
 import { GoogleGmailConnector } from './integrations/google';
 import { decryptTokenSet, encryptTokenSet, upsertConnection } from './integrations/token-vault';
+import { enableIntegrationPersistence, integrationConnectionsPath } from './store';
 
 describe('mini hub api', () => {
   afterEach(() => {
@@ -456,5 +460,37 @@ describe('mini hub api', () => {
       refreshToken: 'refresh-token',
       scope: 'calendar'
     });
+  });
+
+  it('persists encrypted integration connections across store instances', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'mini-hub-integrations-'));
+    try {
+      const path = integrationConnectionsPath(tempDir);
+      const firstStore = createMemoryStore();
+      enableIntegrationPersistence(firstStore, path);
+      const connection = upsertConnection(firstStore, {
+        workspaceId: 'personal',
+        provider: 'google',
+        accountLabel: 'tester@example.com',
+        scopes: ['https://www.googleapis.com/auth/calendar'],
+        encryptedTokenSet: encryptTokenSet({
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          tokenType: 'Bearer'
+        }),
+        status: 'connected'
+      });
+
+      const secondStore = createMemoryStore();
+      enableIntegrationPersistence(secondStore, path);
+
+      expect(secondStore.integrationConnections.get(connection.id)).toMatchObject({
+        accountLabel: 'tester@example.com',
+        provider: 'google',
+        status: 'connected'
+      });
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import type { IntegrationConnection } from '@mini-hub/core';
 import { integrationConnectionSchema, personalWorkspaceId } from '@mini-hub/core';
 import { env } from '../env';
-import type { MemoryStore } from '../store';
+import { persistIntegrationConnections, type MemoryStore } from '../store';
 
 export interface OAuthTokenSet {
   accessToken: string;
@@ -92,6 +92,7 @@ export function upsertConnection(
     updatedAt: now
   });
   store.integrationConnections.set(connection.id, connection);
+  persistIntegrationConnections(store);
   return connection;
 }
 

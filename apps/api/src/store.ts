@@ -1,6 +1,7 @@
 import {
   personalUserId,
   personalWorkspaceId,
+  integrationConnectionSchema,
   type Achievement,
   type CareerActionRecord,
   type GameRun,
@@ -13,6 +14,8 @@ import {
   type SyncEvent,
   type Workspace
 } from '@mini-hub/core';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 export interface WorkspaceMember {
   id: string;
@@ -33,6 +36,7 @@ export interface MemoryStore {
   achievements: Achievement[];
   notes: NoteRecord[];
   integrationConnections: Map<string, IntegrationConnection>;
+  integrationPersistencePath?: string;
   syncEvents: SyncEvent[];
 }
 
@@ -51,6 +55,33 @@ export function createMemoryStore(): MemoryStore {
     integrationConnections: new Map(),
     syncEvents: []
   };
+}
+
+export function integrationConnectionsPath(dataDir: string): string {
+  return join(dataDir, 'integration-connections.json');
+}
+
+export function enableIntegrationPersistence(store: MemoryStore, path: string): void {
+  store.integrationPersistencePath = path;
+  mkdirSync(dirname(path), { recursive: true });
+  if (!existsSync(path)) return;
+
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown;
+    const connections = integrationConnectionSchema.array().parse(parsed);
+    store.integrationConnections = new Map(connections.map((connection) => [connection.id, connection]));
+  } catch (error) {
+    console.warn(
+      `Could not load persisted integration connections: ${error instanceof Error ? error.message : 'unknown error'}`
+    );
+  }
+}
+
+export function persistIntegrationConnections(store: MemoryStore): void {
+  if (!store.integrationPersistencePath) return;
+  mkdirSync(dirname(store.integrationPersistencePath), { recursive: true });
+  const connections = Array.from(store.integrationConnections.values());
+  writeFileSync(store.integrationPersistencePath, JSON.stringify(connections, null, 2), 'utf8');
 }
 
 export const defaultStore = createMemoryStore();

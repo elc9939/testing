@@ -15,7 +15,14 @@ import { settingsRoutes } from './routes/settings';
 import { studyRoutes } from './routes/study';
 import { syncRoutes } from './routes/sync';
 import { workspaceRoutes } from './routes/workspaces';
-import { createMemoryStore, defaultStore, ensurePersonalWorkspace, type MemoryStore } from './store';
+import {
+  createMemoryStore,
+  defaultStore,
+  enableIntegrationPersistence,
+  ensurePersonalWorkspace,
+  integrationConnectionsPath,
+  type MemoryStore
+} from './store';
 
 export interface CreateAppOptions {
   authBypass?: boolean;
@@ -113,6 +120,7 @@ export function createApp(options: CreateAppOptions = {}) {
 export type AppType = ReturnType<typeof createApp>;
 
 if (process.env.NODE_ENV !== 'test') {
+  enableIntegrationPersistence(defaultStore, integrationConnectionsPath(env.dataDir));
   const app = createApp();
   serve({ fetch: app.fetch, port: env.port });
   console.log(`Mini Hub API listening on http://localhost:${env.port}`);

@@ -14,6 +14,7 @@ apps/*/build/
 apps/*/dist/
 apps/desktop/src-tauri/target/
 .ai-os-data/
+.mini-hub-data/
 .macro-lab-data/
 apps/ai-os-api/.venv/
 apps/ai-os-api/.ai-os.pid

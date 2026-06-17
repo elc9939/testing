@@ -48,6 +48,7 @@ function splitOrigins(value: string | undefined): string[] {
 
 export const env = {
   port: Number(process.env.PORT ?? 8787),
+  dataDir: process.env.MINI_HUB_DATA_DIR ?? resolve(process.cwd(), '../../.mini-hub-data'),
   databaseUrl: process.env.DATABASE_URL,
   betterAuthUrl: process.env.BETTER_AUTH_URL ?? `http://localhost:${process.env.PORT ?? 8787}`,
   betterAuthSecret: process.env.BETTER_AUTH_SECRET ?? fallbackSecret,
