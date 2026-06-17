@@ -116,10 +116,55 @@ describe('legacy storage migration', () => {
       ])
     );
     expect(result.linkedState).toMatchObject({
+      careerDesk: {
+        jobs: [
+          expect.objectContaining({
+            id: 'legacy-career-job:job-a',
+            legacyId: 'job-a',
+            title: 'Quant Analyst',
+            company: 'Acme',
+            priority: 'High',
+            link: 'https://example.com/job',
+            historyCount: 1
+          })
+        ]
+      },
       studyDesk: {
         settings: { examDate: '2026-09-01', weeklyGoal: 600 },
         github: { submissions: 42 }
       }
     });
+  });
+
+  it('preserves the legacy Study Desk session date as the logged day', () => {
+    const storage = storageFrom({
+      [legacyStorageKeys.studyState]: JSON.stringify({
+        sessions: [
+          {
+            id: 'backfilled',
+            track: 'coding',
+            minutes: 75,
+            notes: 'Backfilled graph review',
+            date: '2026-06-01',
+            createdAt: '2026-06-05T23:15:00.000Z'
+          }
+        ]
+      })
+    });
+
+    const result = createLegacyEntityImport(storage, {
+      workspaceId: 'personal',
+      deviceId: 'web:test',
+      importedAt: '2026-06-07T00:00:00.000Z'
+    });
+
+    expect(result.studySessions).toEqual([
+      expect.objectContaining({
+        id: 'legacy-study-session:backfilled',
+        subject: 'Coding Practice: Backfilled graph review',
+        loggedAt: '2026-06-01T12:00:00.000Z',
+        updatedAt: '2026-06-05T23:15:00.000Z'
+      })
+    ]);
   });
 });

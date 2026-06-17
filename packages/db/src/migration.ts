@@ -335,7 +335,8 @@ function convertLegacyStudySession(
   const track = text(session.track) || 'examP';
   const trackName = trackNames[track] ?? track;
   const notes = text(session.notes);
-  const loggedAt = isoDateTime(session.createdAt) ?? isoDateTime(session.date) ?? options.importedAt;
+  const loggedAt = dateAtNoonIso(session.date) ?? isoDateTime(session.createdAt) ?? options.importedAt;
+  const updatedAt = isoDateTime(session.createdAt) ?? loggedAt;
   const parsed = studySessionSchema.safeParse({
     id: stableLegacyId('legacy-study-session', session.id, index),
     workspaceId: options.workspaceId,
@@ -344,10 +345,44 @@ function convertLegacyStudySession(
     source: `legacy-study-desk:${track}`,
     loggedAt,
     deviceId: options.deviceId,
-    updatedAt: loggedAt
+    updatedAt
   });
 
   return parsed.success ? parsed.data : null;
+}
+
+function legacyCareerJobState(value: unknown, index: number): Record<string, unknown> | null {
+  const job = asRecord(value);
+  if (!job) return null;
+  return {
+    id: stableLegacyId('legacy-career-job', job.id, index),
+    legacyId: text(job.id) || String(index + 1),
+    title: text(job.title) || text(job.role),
+    company: text(job.company),
+    stage: text(job.stage),
+    priority: text(job.priority),
+    location: text(job.location),
+    workMode: text(job.workMode),
+    salaryMin: text(job.salaryMin),
+    salaryMax: text(job.salaryMax),
+    jobType: text(job.jobType),
+    source: text(job.source),
+    link: text(job.link),
+    deadline: text(job.deadline),
+    dateApplied: text(job.dateApplied),
+    nextAction: text(job.nextAction),
+    nextActionDate: text(job.nextActionDate),
+    contactName: text(job.contactName),
+    contactInfo: text(job.contactInfo),
+    resumeVersion: text(job.resumeVersion),
+    coverStatus: text(job.coverStatus),
+    tags: stringList(job.tags),
+    notes: text(job.notes),
+    description: text(job.description),
+    historyCount: Array.isArray(job.history) ? job.history.length : 0,
+    createdAt: text(job.createdAt),
+    updatedAt: text(job.updatedAt)
+  };
 }
 
 function readLegacyJobs(storage: ReadableStorage, warnings: string[]): unknown[] {
@@ -378,7 +413,10 @@ function createLinkedState(
   return {
     careerDesk: {
       jobCount: rawJobs.length,
-      emailSeeded: storage.getItem(legacyStorageKeys.careerEmailSeed) === '1'
+      emailSeeded: storage.getItem(legacyStorageKeys.careerEmailSeed) === '1',
+      jobs: rawJobs
+        .map((job, index) => legacyCareerJobState(job, index))
+        .filter((job): job is Record<string, unknown> => Boolean(job))
     },
     studyDesk: {
       settings: asRecord(studyRecord.settings) ?? {},
