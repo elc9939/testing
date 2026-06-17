@@ -22,13 +22,14 @@ export async function createDuckDbRuntime() {
 
 export async function renderMetricBars(target: HTMLElement, rows: MetricRow[]): Promise<void> {
   const Plot = await import('@observablehq/plot');
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#5b62d6';
   const plot = Plot.plot({
     width: Math.max(320, target.clientWidth || 640),
     height: 260,
     marginLeft: 96,
-    color: { range: ['#4fb477'] },
+    color: { range: [accent] },
     marks: [
-      Plot.barX(rows, { x: 'value', y: 'label', sort: { y: '-x' }, fill: '#4fb477', rx: 3 }),
+      Plot.barX(rows, { x: 'value', y: 'label', sort: { y: '-x' }, fill: accent, rx: 3 }),
       Plot.ruleX([0])
     ]
   });
@@ -49,4 +50,3 @@ export function buildSparklinePath(values: number[], width = 240, height = 64): 
     .x((_, index) => x(index))
     .y((value) => y(value))(values) ?? '';
 }
-

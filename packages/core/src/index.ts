@@ -33,64 +33,56 @@ export const launcherEntries = [
     name: 'Productivity Hub',
     route: routeMap.productivity,
     group: 'command',
-    status: 'google-calendar',
-    accent: '#2f7dd1'
+    status: 'google-calendar'
   },
   {
     id: 'stick-arena-lab',
     name: 'Stick Arena Lab',
     route: routeMap.stickArenaLab,
     group: 'games',
-    status: 'vertical-slice',
-    accent: '#ff9f6e'
+    status: 'vertical-slice'
   },
   {
     id: 'career-desk',
     name: 'Career Desk',
     route: routeMap.careerDesk,
     group: 'desk',
-    status: 'migration-ready',
-    accent: '#4fb477'
+    status: 'migration-ready'
   },
   {
     id: 'study-desk',
     name: 'Study Desk',
     route: routeMap.studyDesk,
     group: 'desk',
-    status: 'migration-ready',
-    accent: '#7aa36f'
+    status: 'migration-ready'
   },
   {
     id: 'analytics',
     name: 'Analytics',
     route: routeMap.analytics,
     group: 'insight',
-    status: 'duckdb-plot',
-    accent: '#5aa9e6'
+    status: 'duckdb-plot'
   },
   {
     id: 'ai-lab',
     name: 'AI Lab',
     route: routeMap.aiLab,
     group: 'intelligence',
-    status: 'local-first',
-    accent: '#f2c14e'
+    status: 'local-first'
   },
   {
     id: 'ai-os',
     name: 'Personal AI OS',
     route: routeMap.aiOs,
     group: 'intelligence',
-    status: 'capability-substrate',
-    accent: '#4f8a8b'
+    status: 'capability-substrate'
   },
   {
     id: 'macro-lab',
     name: 'Macro Lab',
     route: routeMap.macroLab,
     group: 'automation',
-    status: 'local-control',
-    accent: '#7c8c3a'
+    status: 'local-control'
   }
 ] as const;
 

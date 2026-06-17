@@ -76,7 +76,7 @@
 
   .sparkline path {
     fill: none;
-    stroke: #5aa9e6;
+    stroke: var(--accent);
     stroke-width: 4;
     stroke-linecap: round;
     stroke-linejoin: round;

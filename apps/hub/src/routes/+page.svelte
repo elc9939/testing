@@ -33,7 +33,7 @@
 
 <section class="grid three launcher" aria-label="Launcher">
   {#each launcherEntries as entry}
-    <a class="card launch-card" href={hubHref(entry.route)} style={`--accent:${entry.accent}`}>
+    <a class="card launch-card" href={hubHref(entry.route)}>
       <div>
         <strong>{entry.name}</strong>
         <span>{entry.group}</span>
