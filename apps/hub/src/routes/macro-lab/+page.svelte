@@ -332,7 +332,7 @@
   }
 
   .metric strong {
-    font-size: 22px;
+    font-size: 18px;
   }
 
   .workspace {
@@ -390,7 +390,7 @@
 
   textarea {
     width: 100%;
-    min-height: 430px;
+    min-height: 360px;
     padding: 14px;
     border: 0;
     border-bottom: 1px solid var(--border);

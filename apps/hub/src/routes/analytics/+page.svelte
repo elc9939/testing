@@ -63,7 +63,7 @@
   }
 
   .plot {
-    min-height: 280px;
+    min-height: 220px;
   }
 
   .sparkline {
@@ -71,7 +71,7 @@
     width: 100%;
     max-width: 420px;
     height: auto;
-    margin: 22px 0;
+    margin: 14px 0;
   }
 
   .sparkline path {
@@ -82,4 +82,3 @@
     stroke-linejoin: round;
   }
 </style>
-

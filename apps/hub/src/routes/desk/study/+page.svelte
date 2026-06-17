@@ -10,6 +10,14 @@
     minutes: number;
   }
 
+  interface LegacyImportState {
+    importedAt?: string;
+    jobs?: number;
+    studySessions?: number;
+    studyDays?: number;
+    studyCareerActions?: number;
+  }
+
   let summary: LegacyImportSummary | null = null;
   let subject = 'Exam P';
   let minutes = 30;
@@ -29,6 +37,7 @@
   $: totalMinutes = logs.reduce((sum, item) => sum + item.minutes, 0);
   $: todayMinutes = logs.filter((item) => isToday(item.loggedAt)).reduce((sum, item) => sum + item.minutes, 0);
   $: weekMinutes = logs.filter((item) => isThisWeek(item.loggedAt)).reduce((sum, item) => sum + item.minutes, 0);
+  $: importedLegacy = (($clientData.settings?.recentState?.legacyImport ?? null) as LegacyImportState | null);
 
   function emptyStudyDraft(): StudyDraft {
     return { subject: '', minutes: 30 };
@@ -182,6 +191,13 @@
 {#if importMessage}
   <section class="card card-pad success-banner">{importMessage}</section>
 {/if}
+{#if importedLegacy}
+  <section class="card card-pad import-summary">
+    <span>Last legacy import</span>
+    <strong>{importedLegacy.importedAt ? displayDateTime(importedLegacy.importedAt) : 'Recorded'}</strong>
+    <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions, {importedLegacy.studyCareerActions ?? 0} daily career actions preserved in the snapshot</small>
+  </section>
+{/if}
 
 <section class="grid three">
   <form class="card card-pad form" on:submit|preventDefault={addLog}>
@@ -214,6 +230,7 @@
   <div><span>Total Minutes</span><strong>{totalMinutes}</strong></div>
   <div><span>Legacy Days</span><strong>{summary?.studyDays ?? 0}</strong></div>
   <div><span>Legacy Sessions</span><strong>{summary?.studySessions ?? 0}</strong></div>
+  <div><span>Legacy Career Actions</span><strong>{summary?.studyCareerActions ?? 0}</strong></div>
   <div><span>Visible Logs</span><strong>{filteredLogs.length} / {logs.length}</strong></div>
 </section>
 
@@ -292,7 +309,7 @@
     display: grid;
     align-content: center;
     gap: 6px;
-    min-height: 112px;
+    min-height: 88px;
   }
 
   .metric span,
@@ -302,13 +319,13 @@
   }
 
   .metric strong {
-    font-size: 22px;
+    font-size: 18px;
     line-height: 1;
   }
 
   .metric-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 14px;
     margin: 14px 0 0;
   }
@@ -328,6 +345,17 @@
     grid-template-columns: minmax(220px, 420px);
     gap: 12px;
     margin: 16px 0 10px;
+  }
+
+  .import-summary {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+
+  .import-summary span,
+  .import-summary small {
+    color: var(--muted);
   }
 
   .search-box {

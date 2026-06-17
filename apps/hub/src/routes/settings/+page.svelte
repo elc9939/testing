@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Cloud, Database, Download, Moon, ShieldCheck, Sun, Upload } from 'lucide-svelte';
+  import { Cloud, Database, Download, Monitor, Moon, ShieldCheck, Sun, Upload } from 'lucide-svelte';
   import { apiUrl, getHealth } from '$lib/api';
   import { clientData } from '$lib/client-data';
   import { setTheme, theme, type ThemeMode } from '$lib/theme';
@@ -88,6 +88,10 @@
     <Sun size={22} />
     <strong>Appearance</strong>
     <div class="theme-segment" aria-label="Theme">
+      <button class:active={$theme === 'system'} type="button" aria-pressed={$theme === 'system'} disabled={themeSaving} on:click={() => chooseTheme('system')}>
+        <Monitor size={15} />
+        <span>System</span>
+      </button>
       <button class:active={$theme === 'light'} type="button" aria-pressed={$theme === 'light'} disabled={themeSaving} on:click={() => chooseTheme('light')}>
         <Sun size={15} />
         <span>Light</span>
@@ -168,7 +172,7 @@
 
   .theme-segment {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2px;
     padding: 2px;
     border: 1px solid var(--border);

@@ -49,15 +49,15 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
   }
 
   .status-strip div {
     display: flex;
     align-items: center;
     gap: 9px;
-    min-height: 44px;
-    padding: 10px 12px;
+    min-height: 38px;
+    padding: 8px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--surface);
@@ -71,8 +71,8 @@
   .launch-card {
     position: relative;
     display: grid;
-    min-height: 150px;
-    padding: 18px;
+    min-height: 108px;
+    padding: 12px;
     overflow: hidden;
     color: var(--text);
     text-decoration: none;
@@ -92,7 +92,7 @@
   }
 
   .launch-card strong {
-    font-size: 19px;
+    font-size: 15px;
   }
 
   .launch-card span,

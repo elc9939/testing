@@ -16,7 +16,7 @@
   import { routeMap } from '@mini-hub/core';
   import { clientData } from '$lib/client-data';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
-  import { applyTheme, normalizeTheme, setTheme, theme } from '$lib/theme';
+  import { applyTheme, normalizeTheme, setTheme, theme, watchSystemTheme, type ThemeMode } from '$lib/theme';
 
   const nav = [
     { href: routeMap.today, label: 'Today', icon: Home },
@@ -35,7 +35,12 @@
 
   onMount(() => {
     let remoteTheme = '';
-    const unsubscribeTheme = theme.subscribe(applyTheme);
+    let currentTheme: ThemeMode = 'system';
+    const unsubscribeTheme = theme.subscribe((nextTheme) => {
+      currentTheme = nextTheme;
+      applyTheme(nextTheme);
+    });
+    const unsubscribeSystemTheme = watchSystemTheme(() => applyTheme(currentTheme));
     const unsubscribeData = clientData.subscribe((state) => {
       const nextTheme = state.settings?.theme;
       if (nextTheme && nextTheme !== remoteTheme) {
@@ -47,6 +52,7 @@
     void clientData.init();
     return () => {
       unsubscribeTheme();
+      unsubscribeSystemTheme();
       unsubscribeData();
     };
   });
@@ -84,20 +90,21 @@
 <style>
   :global(:root) {
     color-scheme: light;
-    --bg: #f7f7f4;
+    --bg: #f5f6f8;
     --surface: #ffffff;
-    --surface-muted: #f0efeb;
-    --surface-soft: #f4f1ec;
-    --text: #24211d;
-    --text-soft: #4b443e;
-    --muted: #68615b;
-    --border: #e5e1da;
-    --border-strong: #d9d5ce;
-    --active: #ebe9e3;
-    --primary-bg: #24211d;
+    --surface-muted: #f1f4f8;
+    --surface-soft: #eaf1fb;
+    --text: #18212f;
+    --text-soft: #334155;
+    --muted: #64748b;
+    --border: #dfe5ee;
+    --border-strong: #cbd5e1;
+    --active: #e8eef6;
+    --primary-bg: #2f6feb;
     --primary-text: #ffffff;
-    --code-bg: #161514;
-    --code-text: #ebe6dc;
+    --accent: #2f6feb;
+    --code-bg: #0f172a;
+    --code-text: #e2e8f0;
     --warning-border: #f2c14e;
     --warning-text: #815d00;
     --warning-bg: #fff8df;
@@ -114,20 +121,21 @@
 
   :global(:root[data-theme='dark']) {
     color-scheme: dark;
-    --bg: #151413;
-    --surface: #222120;
-    --surface-muted: #1d1c1b;
-    --surface-soft: #2a2927;
-    --text: #ebe6dc;
-    --text-soft: #ccc4ba;
-    --muted: #aaa29a;
-    --border: #2a2724;
-    --border-strong: #35312d;
-    --active: #2b2824;
-    --primary-bg: #ebe6dc;
-    --primary-text: #151413;
-    --code-bg: #0f0e0d;
-    --code-text: #ebe6dc;
+    --bg: #0b0f14;
+    --surface: #121923;
+    --surface-muted: #17202b;
+    --surface-soft: #1b2837;
+    --text: #eef2f7;
+    --text-soft: #cbd5e1;
+    --muted: #9aa8b7;
+    --border: rgba(226, 232, 240, 0.12);
+    --border-strong: rgba(226, 232, 240, 0.22);
+    --active: #1f2b39;
+    --primary-bg: #8ab4f8;
+    --primary-text: #0b0f14;
+    --accent: #8ab4f8;
+    --code-bg: #070a0f;
+    --code-text: #eef2f7;
     --warning-border: #a7812e;
     --warning-text: #f4d58d;
     --warning-bg: #2b2415;
@@ -257,7 +265,7 @@
 
   :global(h1) {
     margin: 0;
-    font-size: 18px;
+    font-size: 17px;
     line-height: 1.2;
     letter-spacing: 0;
     font-weight: 650;

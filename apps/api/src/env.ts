@@ -3,7 +3,7 @@ const fallbackSecret = 'dev-only-change-me-32-characters-minimum';
 function splitOrigins(value: string | undefined): string[] {
   return (
     value ??
-    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io'
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io'
   )
     .split(',')
     .map((origin) => origin.trim())

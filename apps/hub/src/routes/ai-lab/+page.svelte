@@ -101,7 +101,7 @@
   }
 
   pre {
-    min-height: 180px;
+    min-height: 120px;
     max-height: 360px;
     overflow: auto;
     margin: 0;
@@ -112,4 +112,3 @@
     white-space: pre-wrap;
   }
 </style>
-

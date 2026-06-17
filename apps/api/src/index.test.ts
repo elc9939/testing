@@ -77,6 +77,15 @@ describe('mini hub api', () => {
     expect(await response.json()).toMatchObject({ ok: true, service: 'mini-hub-api' });
   });
 
+  it('allows common fallback Vite dev origins for local import flows', async () => {
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
+    const response = await app.request('/api/health', {
+      headers: { Origin: 'http://127.0.0.1:5174' }
+    });
+
+    expect(response.headers.get('access-control-allow-origin')).toBe('http://127.0.0.1:5174');
+  });
+
   it('accepts protected personal routes in local mode', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/workspaces');

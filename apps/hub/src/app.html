@@ -5,14 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script>
       try {
-        const theme = localStorage.getItem('miniHub.theme.v1') === 'dark' ? 'dark' : 'light';
+        const storedTheme = localStorage.getItem('miniHub.theme.v1');
+        const preference = storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system' ? storedTheme : 'system';
+        const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
         document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.themePreference = preference;
         document.documentElement.style.colorScheme = theme;
       } catch {
         document.documentElement.dataset.theme = 'light';
+        document.documentElement.dataset.themePreference = 'system';
       }
     </script>
-    <meta name="theme-color" content="#f4f6f8" />
+    <meta name="theme-color" content="#f5f6f8" />
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

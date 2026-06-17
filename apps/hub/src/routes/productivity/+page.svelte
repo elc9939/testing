@@ -803,7 +803,7 @@
   .metric {
     display: grid;
     gap: 6px;
-    min-height: 112px;
+    min-height: 88px;
     align-content: center;
   }
 
@@ -813,7 +813,7 @@
   }
 
   .metric strong {
-    font-size: 22px;
+    font-size: 18px;
     line-height: 1;
   }
 
@@ -825,8 +825,8 @@
   }
 
   .connector-card {
-    min-height: 120px;
-    padding: 14px;
+    min-height: 96px;
+    padding: 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--surface);

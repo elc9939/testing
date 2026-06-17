@@ -58,6 +58,10 @@ BRIGHTSPACE_ICAL_URL=
    - Authorized JavaScript origins:
      - `http://127.0.0.1:5173`
      - `http://localhost:5173`
+     - `http://127.0.0.1:5174`
+     - `http://localhost:5174`
+     - `http://127.0.0.1:5175`
+     - `http://localhost:5175`
    - Authorized redirect URIs:
      - `http://127.0.0.1:8787/api/integrations/google/oauth/callback`
 6. Put the generated client id and client secret in `.env`.

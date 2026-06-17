@@ -7,6 +7,15 @@
 
   const statuses = ['lead', 'applied', 'interview', 'offer', 'rejected', 'archived'];
 
+  interface LegacyImportState {
+    importedAt?: string;
+    jobs?: number;
+    studySessions?: number;
+    studyDays?: number;
+    studyCareerActions?: number;
+    warnings?: string[];
+  }
+
   interface JobDraft {
     company: string;
     role: string;
@@ -35,6 +44,7 @@
   $: canSave = canAutoSave($clientData);
   $: jobs = $clientData.jobs;
   $: filteredJobs = jobs.filter(matchesJob);
+  $: importedLegacy = (($clientData.settings?.recentState?.legacyImport ?? null) as LegacyImportState | null);
 
   function emptyJobDraft(): JobDraft {
     return { company: '', role: '', status: 'lead', notes: '', nextActionAt: '' };
@@ -245,6 +255,8 @@
     {#if summary}
       <dl>
         <div><dt>Jobs</dt><dd>{summary.careers}</dd></div>
+        <div><dt>Study sessions</dt><dd>{summary.studySessions}</dd></div>
+        <div><dt>Study daily actions</dt><dd>{summary.studyCareerActions}</dd></div>
         <div><dt>High-score games</dt><dd>{summary.highScoreGames}</dd></div>
         <div><dt>Theme</dt><dd>{summary.hasTheme ? 'Found' : 'None'}</dd></div>
       </dl>
@@ -255,6 +267,13 @@
         <Upload size={17} />
         <span>{importing ? 'Importing' : 'Import Legacy Data'}</span>
       </button>
+      {#if importedLegacy}
+        <div class="import-summary">
+          <span>Last import</span>
+          <strong>{importedLegacy.importedAt ? displayUpdated(importedLegacy.importedAt) : 'Recorded'}</strong>
+          <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions</small>
+        </div>
+      {/if}
     {:else}
       <p class="muted">Scanning local browser data.</p>
     {/if}
@@ -377,6 +396,19 @@
   dd {
     margin: 0;
     font-weight: 800;
+  }
+
+  .import-summary {
+    display: grid;
+    gap: 3px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .import-summary span,
+  .import-summary small {
+    color: var(--muted);
   }
 
   .table-toolbar {

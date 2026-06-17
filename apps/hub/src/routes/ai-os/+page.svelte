@@ -1140,7 +1140,7 @@
   .metric {
     display: grid;
     gap: 6px;
-    min-height: 104px;
+    min-height: 88px;
     align-content: center;
   }
 
@@ -1153,7 +1153,7 @@
   }
 
   .metric strong {
-    font-size: 23px;
+    font-size: 18px;
     line-height: 1;
   }
 
@@ -1219,7 +1219,7 @@
   }
 
   .foundation-tile {
-    min-height: 116px;
+    min-height: 92px;
   }
 
   .foundation-tile.bad {
@@ -1327,7 +1327,7 @@
   }
 
   pre {
-    min-height: 170px;
+    min-height: 120px;
     max-height: 360px;
     overflow: auto;
     margin: 0;
