@@ -11,7 +11,10 @@
     GraduationCap,
     Home,
     Keyboard,
-    Settings
+    Monitor,
+    Moon,
+    Settings,
+    Sun
   } from 'lucide-svelte';
   import { routeMap } from '@mini-hub/core';
   import { clientData } from '$lib/client-data';
@@ -32,6 +35,17 @@
   ];
 
   $: path = hubRouteFromPath($page.url.pathname);
+  $: themeLabel = $theme === 'dark' ? 'Dark' : $theme === 'light' ? 'Light' : 'System';
+
+  function cycleTheme(): void {
+    const modes: ThemeMode[] = ['system', 'light', 'dark'];
+    const currentIndex = modes.indexOf($theme);
+    const nextTheme = modes[(currentIndex + 1) % modes.length] ?? 'system';
+    setTheme(nextTheme);
+    if ($clientData.isOnline) {
+      void clientData.saveSettings({ theme: nextTheme }).catch(() => undefined);
+    }
+  }
 
   onMount(() => {
     let remoteTheme = '';
@@ -71,6 +85,16 @@
     <div class:offline={$clientData.status === 'offline-readonly'} class="sync-pill">
       {$clientData.status === 'offline-readonly' ? 'Offline read-only' : $clientData.status}
     </div>
+    <button class="theme-cycle" type="button" aria-label={`Theme: ${themeLabel}. Change theme`} on:click={cycleTheme}>
+      {#if $theme === 'dark'}
+        <Moon size={15} />
+      {:else if $theme === 'light'}
+        <Sun size={15} />
+      {:else}
+        <Monitor size={15} />
+      {/if}
+      <span>{themeLabel}</span>
+    </button>
 
     <nav>
       {#each nav as item}
@@ -90,19 +114,19 @@
 <style>
   :global(:root) {
     color-scheme: light;
-    --bg: #f5f6f8;
+    --bg: #efefec;
     --surface: #ffffff;
-    --surface-muted: #f1f4f8;
-    --surface-soft: #eaf1fb;
-    --text: #18212f;
-    --text-soft: #334155;
-    --muted: #64748b;
-    --border: #dfe5ee;
-    --border-strong: #cbd5e1;
-    --active: #e8eef6;
-    --primary-bg: #2f6feb;
+    --surface-muted: #f0efeb;
+    --surface-soft: #e9e6df;
+    --text: #24211d;
+    --text-soft: #423c37;
+    --muted: #68615b;
+    --border: #d9d5ce;
+    --border-strong: #c7c1b8;
+    --active: #e9e6df;
+    --primary-bg: #9b653b;
     --primary-text: #ffffff;
-    --accent: #2f6feb;
+    --accent: #9b653b;
     --code-bg: #0f172a;
     --code-text: #e2e8f0;
     --warning-border: #f2c14e;
@@ -121,19 +145,19 @@
 
   :global(:root[data-theme='dark']) {
     color-scheme: dark;
-    --bg: #0b0f14;
-    --surface: #121923;
-    --surface-muted: #17202b;
-    --surface-soft: #1b2837;
-    --text: #eef2f7;
-    --text-soft: #cbd5e1;
-    --muted: #9aa8b7;
-    --border: rgba(226, 232, 240, 0.12);
-    --border-strong: rgba(226, 232, 240, 0.22);
-    --active: #1f2b39;
-    --primary-bg: #8ab4f8;
-    --primary-text: #0b0f14;
-    --accent: #8ab4f8;
+    --bg: #151413;
+    --surface: #222120;
+    --surface-muted: #1d1c1b;
+    --surface-soft: #242321;
+    --text: #ebe6dc;
+    --text-soft: #d3cbc1;
+    --muted: #aaa29a;
+    --border: #35312d;
+    --border-strong: #48423c;
+    --active: #2b2927;
+    --primary-bg: #c27c45;
+    --primary-text: #151413;
+    --accent: #c27c45;
     --code-bg: #070a0f;
     --code-text: #eef2f7;
     --warning-border: #a7812e;
@@ -160,7 +184,7 @@
     background: var(--bg);
     font-size: 13px;
     font-family:
-      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      "Segoe UI Variable Text", "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   :global(button),
@@ -173,14 +197,14 @@
   .shell {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: 224px minmax(0, 1fr);
+    grid-template-columns: 218px minmax(0, 1fr);
   }
 
   .rail {
     position: sticky;
     top: 0;
     height: 100vh;
-    padding: 11px 8px;
+    padding: 10px 8px;
     border-right: 1px solid var(--border);
     background: var(--surface);
   }
@@ -189,8 +213,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 34px;
-    padding: 0 6px 12px;
+    min-height: 32px;
+    padding: 0 6px 8px;
     color: var(--text);
     font-weight: 650;
     text-decoration: none;
@@ -198,8 +222,8 @@
 
   .brand-mark {
     display: grid;
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     place-items: center;
     border-radius: 8px;
     color: var(--primary-text);
@@ -214,8 +238,8 @@
   }
 
   .sync-pill {
-    margin: 0 6px 12px;
-    padding: 6px 8px;
+    margin: 0 6px 8px;
+    padding: 5px 7px;
     border: 1px solid var(--border);
     border-radius: 6px;
     color: var(--muted);
@@ -230,12 +254,33 @@
     background: var(--warning-bg);
   }
 
+  .theme-cycle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: calc(100% - 12px);
+    min-height: 30px;
+    margin: 0 6px 10px;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    background: var(--surface-muted);
+    cursor: pointer;
+  }
+
+  .theme-cycle:hover {
+    color: var(--text);
+    background: var(--active);
+  }
+
   nav a {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 32px;
-    padding: 6px 8px;
+    min-height: 30px;
+    padding: 5px 8px;
     border-radius: 7px;
     color: var(--muted);
     text-decoration: none;
@@ -249,32 +294,32 @@
 
   main {
     min-width: 0;
-    padding: 14px clamp(12px, 2vw, 22px);
+    padding: 10px clamp(10px, 1.8vw, 18px);
   }
 
   :global(.page-header) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    min-height: 46px;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
+    gap: 10px;
+    min-height: 34px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
     border-bottom: 1px solid var(--border);
   }
 
   :global(h1) {
     margin: 0;
-    font-size: 17px;
+    font-size: 15px;
     line-height: 1.2;
     letter-spacing: 0;
     font-weight: 650;
   }
 
   :global(.eyebrow) {
-    margin: 0 0 2px;
+    margin: 0 0 1px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 540;
     text-transform: none;
     letter-spacing: 0;
@@ -318,8 +363,8 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 30px;
-    padding: 5px 9px;
+    min-height: 28px;
+    padding: 4px 8px;
     border: 1px solid var(--border-strong);
     border-radius: 6px;
     color: var(--text);
@@ -351,7 +396,7 @@
     width: 100%;
     border: 1px solid var(--border-strong);
     border-radius: 6px;
-    padding: 8px 10px;
+    padding: 7px 9px;
     color: var(--text);
     background: var(--surface);
   }
@@ -364,7 +409,7 @@
 
   :global(th),
   :global(td) {
-    padding: 9px 10px;
+    padding: 8px 9px;
     border-bottom: 1px solid var(--border);
     text-align: left;
     vertical-align: top;
@@ -385,30 +430,30 @@
     .rail {
       z-index: 10;
       height: auto;
-      padding: 9px;
+      padding: 8px;
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
 
     .brand {
-      padding: 4px 6px 10px;
+      padding: 2px 6px 8px;
     }
 
     nav {
       grid-auto-flow: column;
-      grid-auto-columns: minmax(86px, 1fr);
+      grid-auto-columns: minmax(82px, 1fr);
       overflow-x: auto;
       padding-bottom: 2px;
     }
 
     nav a {
       justify-content: center;
-      min-height: 34px;
+      min-height: 32px;
       white-space: nowrap;
     }
 
     main {
-      padding: 14px 12px;
+      padding: 10px 10px;
     }
 
     :global(.page-header) {
