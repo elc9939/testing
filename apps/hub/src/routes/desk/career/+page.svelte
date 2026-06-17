@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Download, Edit3, Plus, RefreshCw, Save, Search, Trash2, Upload, X } from 'lucide-svelte';
+  import { Download, Edit3, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
   import type { JobRecord } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
@@ -40,9 +40,7 @@
   let statusFilter = 'all';
   let saveError = '';
   let rowError = '';
-  let importMessage = '';
   let saving = false;
-  let importing = false;
   let rowBusyId = '';
   let editingJobId = '';
   let jobDraft: JobDraft = emptyJobDraft();
@@ -164,21 +162,6 @@
     summary = inspectLegacyStorage(localStorage);
   }
 
-  async function importLegacy(): Promise<void> {
-    saveError = '';
-    importMessage = '';
-    importing = true;
-    try {
-      const result = await clientData.importLegacySnapshot(localStorage);
-      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'}, ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}, and ${result.careerActions.length} career action${result.careerActions.length === 1 ? '' : 's'}.`;
-      await refreshSummary();
-    } catch (error) {
-      saveError = error instanceof Error ? error.message : 'Legacy import failed';
-    } finally {
-      importing = false;
-    }
-  }
-
   async function addJob(): Promise<void> {
     if (!company.trim() || !role.trim()) return;
     saveError = '';
@@ -297,10 +280,6 @@
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>
 {/if}
-{#if importMessage}
-  <section class="card card-pad success-banner">{importMessage}</section>
-{/if}
-
 <section class="grid two">
   <form class="card card-pad form" on:submit|preventDefault={addJob}>
     <div class="field">
@@ -334,7 +313,7 @@
   </form>
 
   <div class="card card-pad">
-    <strong>Legacy Import</strong>
+    <strong>Legacy Data</strong>
     {#if summary}
       <dl>
         <div><dt>Jobs</dt><dd>{summary.careers}</dd></div>
@@ -346,10 +325,6 @@
       {#each summary.warnings as warning}
         <p class="muted">{warning}</p>
       {/each}
-      <button class="button" type="button" disabled={!canSave || importing} on:click={importLegacy}>
-        <Upload size={17} />
-        <span>{importing ? 'Importing' : 'Import Legacy Data'}</span>
-      </button>
       {#if importedLegacy}
         <div class="import-summary">
           <span>Last import</span>
@@ -656,14 +631,6 @@
     border-color: var(--error-border);
     color: var(--error-text);
     background: var(--error-bg);
-    font-weight: 800;
-  }
-
-  .success-banner {
-    margin-bottom: 14px;
-    border-color: var(--success-border);
-    color: var(--success-text);
-    background: var(--success-bg);
     font-weight: 800;
   }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Edit3, Plus, RefreshCw, Save, Search, Trash2, Upload, X } from 'lucide-svelte';
+  import { Edit3, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
   import type { CareerActionRecord, StudySession } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
@@ -50,9 +50,7 @@
   let searchQuery = '';
   let saveError = '';
   let rowError = '';
-  let importMessage = '';
   let saving = false;
-  let importing = false;
   let rowBusyId = '';
   let editingSessionId = '';
   let studyDraft: StudyDraft = emptyStudyDraft();
@@ -208,21 +206,6 @@
     summary = inspectLegacyStorage(localStorage);
   }
 
-  async function importLegacy(): Promise<void> {
-    saveError = '';
-    importMessage = '';
-    importing = true;
-    try {
-      const result = await clientData.importLegacySnapshot(localStorage);
-      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'}, ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}, and ${result.careerActions.length} career action${result.careerActions.length === 1 ? '' : 's'}.`;
-      await refreshSummary();
-    } catch (error) {
-      saveError = error instanceof Error ? error.message : 'Legacy import failed';
-    } finally {
-      importing = false;
-    }
-  }
-
   async function addLog(): Promise<void> {
     if (!subject.trim() || minutes < 1) return;
     saveError = '';
@@ -304,10 +287,6 @@
       <RefreshCw size={17} />
       <span>Scan</span>
     </button>
-    <button class="button" type="button" disabled={!canSave || importing} on:click={importLegacy}>
-      <Upload size={17} />
-      <span>{importing ? 'Importing' : 'Import Legacy'}</span>
-    </button>
   </div>
 </section>
 
@@ -316,9 +295,6 @@
 {/if}
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>
-{/if}
-{#if importMessage}
-  <section class="card card-pad success-banner">{importMessage}</section>
 {/if}
 {#if importedLegacy}
   <section class="card card-pad import-summary">
@@ -746,14 +722,6 @@
     border-color: var(--error-border);
     color: var(--error-text);
     background: var(--error-bg);
-    font-weight: 800;
-  }
-
-  .success-banner {
-    margin-bottom: 14px;
-    border-color: var(--success-border);
-    color: var(--success-text);
-    background: var(--success-bg);
     font-weight: 800;
   }
 

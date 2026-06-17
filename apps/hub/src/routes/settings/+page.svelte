@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Cloud, Database, Download, Monitor, Moon, ShieldCheck, Sun, Upload } from 'lucide-svelte';
+  import { Cloud, Download, Monitor, Moon, Sun } from 'lucide-svelte';
   import { apiUrl, getHealth } from '$lib/api';
   import { clientData } from '$lib/client-data';
   import { setTheme, theme, type ThemeMode } from '$lib/theme';
@@ -8,6 +8,7 @@
   let apiStatus = 'Not checked';
   let settingsError = '';
   let themeSaving = false;
+  $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -25,15 +26,6 @@
       await clientData.syncNow();
     } catch (error) {
       settingsError = error instanceof Error ? error.message : 'Sync failed';
-    }
-  }
-
-  async function importLegacy(): Promise<void> {
-    settingsError = '';
-    try {
-      await clientData.importLegacySnapshot(localStorage);
-    } catch (error) {
-      settingsError = error instanceof Error ? error.message : 'Legacy import failed';
     }
   }
 
@@ -78,15 +70,12 @@
   </button>
 </section>
 
-<section class="grid three">
-  <div class="card card-pad setting">
-    <ShieldCheck size={22} />
-    <strong>Auth</strong>
-    <span>{import.meta.env.PUBLIC_SYNC_MODE || 'personal'} local workspace</span>
-  </div>
-  <div class="card card-pad setting">
-    <Sun size={22} />
-    <strong>Appearance</strong>
+<section class="card card-pad settings-panel">
+  <div class="panel-block">
+    <div class="section-title">
+      <Sun size={18} />
+      <strong>Appearance</strong>
+    </div>
     <div class="theme-segment" aria-label="Theme">
       <button class:active={$theme === 'system'} type="button" aria-pressed={$theme === 'system'} disabled={themeSaving} on:click={() => chooseTheme('system')}>
         <Monitor size={15} />
@@ -102,66 +91,48 @@
       </button>
     </div>
   </div>
-  <div class="card card-pad setting">
-    <Database size={22} />
-    <strong>Local DB</strong>
-    <span>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</span>
-  </div>
-  <div class="card card-pad setting">
-    <Cloud size={22} />
-    <strong>API</strong>
-    <span>{apiUrl}</span>
-    <span class="muted">{apiStatus}</span>
-  </div>
-</section>
 
-<section class="card card-pad sync-panel">
-  <div class="section-title">
-    <Cloud size={18} />
-    <strong>Personal Sync</strong>
+  <div class="panel-block">
+    <div class="section-title">
+      <Cloud size={18} />
+      <strong>Personal Sync</strong>
+    </div>
+    <dl>
+      <div><dt>Mode</dt><dd>{$clientData.isOnline ? 'Online auto-save' : 'Offline read-only'}</dd></div>
+      <div><dt>Status</dt><dd>{$clientData.status}</dd></div>
+      <div><dt>Last synced</dt><dd>{$clientData.lastSyncedAt ? new Date($clientData.lastSyncedAt).toLocaleString() : 'Never'}</dd></div>
+      <div><dt>Legacy</dt><dd>{legacyImport?.importedAt ? `Imported ${new Date(legacyImport.importedAt).toLocaleDateString()}` : 'Auto'}</dd></div>
+      <div><dt>Device</dt><dd>{$clientData.deviceId}</dd></div>
+      <div><dt>API</dt><dd>{apiUrl}</dd></div>
+      <div><dt>API check</dt><dd>{apiStatus}</dd></div>
+      <div><dt>Local DB</dt><dd>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</dd></div>
+    </dl>
+    <div class="action-row">
+      <button class="button" type="button" on:click={syncNow}>
+        <Cloud size={17} />
+        <span>Sync Now</span>
+      </button>
+      <button class="button" type="button" on:click={exportCache}>
+        <Download size={17} />
+        <span>Export Cache</span>
+      </button>
+    </div>
+    {#if settingsError || $clientData.error}
+      <p class="sync-error">{settingsError || $clientData.error}</p>
+    {/if}
   </div>
-  <dl>
-    <div><dt>Device</dt><dd>{$clientData.deviceId}</dd></div>
-    <div><dt>Mode</dt><dd>{$clientData.isOnline ? 'Online auto-save' : 'Offline read-only'}</dd></div>
-    <div><dt>Status</dt><dd>{$clientData.status}</dd></div>
-    <div><dt>Last synced</dt><dd>{$clientData.lastSyncedAt ? new Date($clientData.lastSyncedAt).toLocaleString() : 'Never'}</dd></div>
-  </dl>
-  <div class="action-row">
-    <button class="button" type="button" on:click={syncNow}>
-      <Cloud size={17} />
-      <span>Sync Now</span>
-    </button>
-    <button class="button" type="button" disabled={!$clientData.isOnline} on:click={importLegacy}>
-      <Upload size={17} />
-      <span>Import Legacy</span>
-    </button>
-    <button class="button" type="button" on:click={exportCache}>
-      <Download size={17} />
-      <span>Export Cache</span>
-    </button>
-  </div>
-  {#if settingsError || $clientData.error}
-    <p class="sync-error">{settingsError || $clientData.error}</p>
-  {/if}
 </section>
 
 <style>
-  .setting {
+  .settings-panel {
     display: grid;
-    gap: 8px;
-    min-height: 112px;
-    align-content: start;
+    gap: 16px;
+    max-width: 980px;
   }
 
-  .setting span {
-    color: var(--muted);
-    overflow-wrap: anywhere;
-  }
-
-  .sync-panel {
+  .panel-block {
     display: grid;
-    gap: 14px;
-    margin-top: 14px;
+    gap: 10px;
   }
 
   .section-title {
@@ -207,15 +178,26 @@
   dl {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    gap: 0;
     margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
   }
 
   dl div {
-    padding: 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    padding: 9px 10px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
     background: var(--surface-muted);
+  }
+
+  dl div:nth-child(4n) {
+    border-right: 0;
+  }
+
+  dl div:nth-last-child(-n + 4) {
+    border-bottom: 0;
   }
 
   dt {
@@ -239,6 +221,17 @@
   @media (max-width: 820px) {
     dl {
       grid-template-columns: 1fr;
+    }
+
+    dl div,
+    dl div:nth-child(4n),
+    dl div:nth-last-child(-n + 4) {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    dl div:last-child {
+      border-bottom: 0;
     }
   }
 </style>

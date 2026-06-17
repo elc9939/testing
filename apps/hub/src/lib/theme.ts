@@ -30,7 +30,7 @@ export function applyTheme(mode: ThemeMode): void {
   document.documentElement.dataset.theme = resolved;
   document.documentElement.dataset.themePreference = mode;
   document.documentElement.style.colorScheme = resolved;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#0f1124' : '#f5f6ff');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#111211' : '#f4f4f2');
 }
 
 export function setTheme(mode: ThemeMode): void {

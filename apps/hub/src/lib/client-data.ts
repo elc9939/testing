@@ -10,8 +10,8 @@ import {
   type StudySession,
   type SyncEvent
 } from '@mini-hub/core';
-import type { LegacyEntityImport } from '@mini-hub/db/migration';
-import { apiUrl } from './api';
+import type { LegacyEntityImport, LegacyImportSummary } from '@mini-hub/db/migration';
+import { requestApiJson } from './api';
 
 type PGliteDatabase = Awaited<ReturnType<typeof import('@mini-hub/db/local').createMiniHubPglite>>;
 type JobPatchInput = Partial<Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'>> & {
@@ -25,6 +25,7 @@ type CareerActionPatchInput = Partial<Pick<CareerActionRecord, 'jobId' | 'label'
 
 const deviceIdStorageKey = 'miniHub.deviceId.v1';
 const cursorStorageKey = 'miniHub.syncCursor.v1';
+const legacyAutoImportStorageKey = 'miniHub.legacyAutoImport.v1';
 
 export interface ClientDataState {
   initialized: boolean;
@@ -83,26 +84,16 @@ function parseJson(value: unknown): Record<string, unknown> {
   }
 }
 
-function headers(): HeadersInit {
-  return {
-    'content-type': 'application/json'
-  };
-}
-
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      ...headers(),
-      ...(init.headers ?? {})
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Request ${path} failed with ${response.status}`);
-  }
-  return (await response.json()) as T;
+function legacySummaryHasData(summary: LegacyImportSummary): boolean {
+  return Boolean(
+    summary.careers ||
+      summary.studyDays ||
+      summary.studySessions ||
+      summary.studyCareerActions ||
+      summary.highScoreGames ||
+      summary.hasTheme ||
+      summary.hasStickArenaMap
+  );
 }
 
 export function createClientDataStore() {
@@ -466,7 +457,7 @@ export function createClientDataStore() {
     setPartial({ status: 'syncing', error: '' });
     try {
       const current = get(store);
-      const result = await requestJson<{ changes: SyncEvent[]; cursor: string }>(
+      const result = await requestApiJson<{ changes: SyncEvent[]; cursor: string }>(
         `/api/sync/pull?since=${encodeURIComponent(current.cursor)}`
       );
       for (const event of result.changes) {
@@ -481,6 +472,7 @@ export function createClientDataStore() {
         status: 'idle',
         error: ''
       });
+      await autoImportLegacyIfNeeded();
     } catch (error) {
       setPartial({
         status: 'error',
@@ -525,7 +517,7 @@ export function createClientDataStore() {
   async function saveJob(input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'> & { nextActionAt?: string | null }): Promise<JobRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ job: JobRecord }>('/api/jobs', {
+    const result = await requestApiJson<{ job: JobRecord }>('/api/jobs', {
       method: 'POST',
       body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
     });
@@ -537,7 +529,7 @@ export function createClientDataStore() {
   async function updateJob(id: string, input: JobPatchInput): Promise<JobRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ job: JobRecord }>(`/api/jobs/${encodeURIComponent(id)}`, {
+    const result = await requestApiJson<{ job: JobRecord }>(`/api/jobs/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(input)
     });
@@ -549,7 +541,7 @@ export function createClientDataStore() {
   async function deleteJob(id: string): Promise<void> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    await requestJson<{ ok: true }>(`/api/jobs/${encodeURIComponent(id)}`, {
+    await requestApiJson<{ ok: true }>(`/api/jobs/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
     await deleteLocalJob(id);
@@ -559,7 +551,7 @@ export function createClientDataStore() {
   async function saveStudySession(input: Pick<StudySession, 'subject' | 'minutes' | 'source'>): Promise<StudySession> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ session: StudySession }>('/api/study', {
+    const result = await requestApiJson<{ session: StudySession }>('/api/study', {
       method: 'POST',
       body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
     });
@@ -571,7 +563,7 @@ export function createClientDataStore() {
   async function updateStudySession(id: string, input: StudySessionPatchInput): Promise<StudySession> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ session: StudySession }>(`/api/study/${encodeURIComponent(id)}`, {
+    const result = await requestApiJson<{ session: StudySession }>(`/api/study/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(input)
     });
@@ -583,7 +575,7 @@ export function createClientDataStore() {
   async function deleteStudySession(id: string): Promise<void> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    await requestJson<{ ok: true }>(`/api/study/${encodeURIComponent(id)}`, {
+    await requestApiJson<{ ok: true }>(`/api/study/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
     await deleteLocalStudySession(id);
@@ -595,7 +587,7 @@ export function createClientDataStore() {
   ): Promise<CareerActionRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ action: CareerActionRecord }>('/api/career-actions', {
+    const result = await requestApiJson<{ action: CareerActionRecord }>('/api/career-actions', {
       method: 'POST',
       body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
     });
@@ -607,7 +599,7 @@ export function createClientDataStore() {
   async function updateCareerAction(id: string, input: CareerActionPatchInput): Promise<CareerActionRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ action: CareerActionRecord }>(`/api/career-actions/${encodeURIComponent(id)}`, {
+    const result = await requestApiJson<{ action: CareerActionRecord }>(`/api/career-actions/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(input)
     });
@@ -619,7 +611,7 @@ export function createClientDataStore() {
   async function deleteCareerAction(id: string): Promise<void> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    await requestJson<{ ok: true }>(`/api/career-actions/${encodeURIComponent(id)}`, {
+    await requestApiJson<{ ok: true }>(`/api/career-actions/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
     await deleteLocalCareerAction(id);
@@ -629,7 +621,7 @@ export function createClientDataStore() {
   async function saveGameRun(input: Pick<GameRun, 'gameId' | 'score' | 'durationMs' | 'metadata'>): Promise<GameRun> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ run: GameRun }>('/api/game-runs', {
+    const result = await requestApiJson<{ run: GameRun }>('/api/game-runs', {
       method: 'POST',
       body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
     });
@@ -641,7 +633,7 @@ export function createClientDataStore() {
   async function saveGameState(gameId: string, value: Record<string, unknown>): Promise<GameState> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ state: GameState }>(`/api/game-state/${encodeURIComponent(gameId)}`, {
+    const result = await requestApiJson<{ state: GameState }>(`/api/game-state/${encodeURIComponent(gameId)}`, {
       method: 'PUT',
       body: JSON.stringify({ state: value })
     });
@@ -653,7 +645,7 @@ export function createClientDataStore() {
   async function saveSettings(input: Partial<PersonalSettings>): Promise<PersonalSettings> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ settings: PersonalSettings }>('/api/settings', {
+    const result = await requestApiJson<{ settings: PersonalSettings }>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify({
         theme: input.theme,
@@ -681,7 +673,7 @@ export function createClientDataStore() {
     });
 
     for (const legacyJob of legacyImport.jobs) {
-      const result = await requestJson<{ job: JobRecord }>('/api/jobs', {
+      const result = await requestApiJson<{ job: JobRecord }>('/api/jobs', {
         method: 'POST',
         body: JSON.stringify(legacyJob)
       });
@@ -689,7 +681,7 @@ export function createClientDataStore() {
     }
 
     for (const legacySession of legacyImport.studySessions) {
-      const result = await requestJson<{ session: StudySession }>('/api/study', {
+      const result = await requestApiJson<{ session: StudySession }>('/api/study', {
         method: 'POST',
         body: JSON.stringify(legacySession)
       });
@@ -697,7 +689,7 @@ export function createClientDataStore() {
     }
 
     for (const legacyAction of legacyImport.careerActions) {
-      const result = await requestJson<{ action: CareerActionRecord }>('/api/career-actions', {
+      const result = await requestApiJson<{ action: CareerActionRecord }>('/api/career-actions', {
         method: 'POST',
         body: JSON.stringify(legacyAction)
       });
@@ -749,6 +741,32 @@ export function createClientDataStore() {
     });
     await loadCache();
     return legacyImport;
+  }
+
+  async function autoImportLegacyIfNeeded(): Promise<void> {
+    if (typeof localStorage === 'undefined') return;
+
+    const state = get(store);
+    if (!canAutoSave(state)) return;
+    if (readStorage(legacyAutoImportStorageKey) === 'done') return;
+    if (state.settings?.lastLegacyImportAt || state.settings?.recentState?.legacyImport) {
+      writeStorage(legacyAutoImportStorageKey, 'done');
+      return;
+    }
+
+    const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
+    const summary = inspectLegacyStorage(localStorage);
+    if (!legacySummaryHasData(summary)) return;
+
+    try {
+      await importLegacySnapshot(localStorage);
+      writeStorage(legacyAutoImportStorageKey, 'done');
+    } catch (error) {
+      setPartial({
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Legacy import failed'
+      });
+    }
   }
 
   function destroy(): void {

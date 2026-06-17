@@ -13,7 +13,8 @@
     Send,
     Tag,
     Trash2,
-    Unlink
+    Unlink,
+    X
   } from 'lucide-svelte';
   import type { CalendarEvent, GmailLabel, GmailThread, TimelineItem } from '@mini-hub/core';
   import { canAutoSave, clientData } from '$lib/client-data';
@@ -69,6 +70,8 @@
   let eventDraft = emptyDraft();
   let composeDraft: GmailComposeDraft = emptyComposeDraft();
   let replyBody = '';
+  let eventDialogOpen = false;
+  let composeDialogOpen = false;
 
   $: canAct = canAutoSave($clientData);
   $: googleConnection = connections.find((connection) => connection.provider === 'google');
@@ -149,6 +152,28 @@
 
   function setError(error: unknown, fallback: string): void {
     actionError = error instanceof Error ? error.message : fallback;
+  }
+
+  function openNewEvent(): void {
+    editingEventId = '';
+    eventDraft = emptyDraft();
+    eventDialogOpen = true;
+  }
+
+  function closeEventDialog(): void {
+    editingEventId = '';
+    eventDraft = emptyDraft();
+    eventDialogOpen = false;
+  }
+
+  function openComposeDialog(): void {
+    composeDraft = emptyComposeDraft();
+    composeDialogOpen = true;
+  }
+
+  function closeComposeDialog(): void {
+    composeDraft = emptyComposeDraft();
+    composeDialogOpen = false;
   }
 
   async function loadOverview(): Promise<void> {
@@ -252,6 +277,7 @@
       }
       editingEventId = '';
       eventDraft = emptyDraft();
+      eventDialogOpen = false;
       await refreshEvents();
     } catch (error) {
       setError(error, 'Failed to save event');
@@ -273,6 +299,7 @@
       recurrence: event.recurrence,
       reminders: event.reminders
     };
+    eventDialogOpen = true;
   }
 
   async function removeEvent(event: CalendarEvent): Promise<void> {
@@ -322,6 +349,7 @@
         actionMessage = 'Draft saved.';
       }
       composeDraft = emptyComposeDraft();
+      composeDialogOpen = false;
       await refreshGmail();
     } catch (error) {
       setError(error, sendNow ? 'Failed to send email' : 'Failed to save draft');
@@ -409,6 +437,14 @@
     <h1>Productivity Hub</h1>
   </div>
   <div class="action-row">
+    <button class="button" type="button" disabled={!googleConnected || !canAct} on:click={openNewEvent}>
+      <CalendarPlus size={17} />
+      <span>New Event</span>
+    </button>
+    <button class="button" type="button" disabled={!googleConnected || !canAct} on:click={openComposeDialog}>
+      <Send size={17} />
+      <span>Compose</span>
+    </button>
     <button class="button" type="button" disabled={!canAct || loading} on:click={loadOverview}>
       <RefreshCw size={17} />
       <span>Refresh</span>
@@ -436,108 +472,30 @@
   <section class="card card-pad success-banner">{actionMessage}</section>
 {/if}
 
-<section class="grid four">
-  <div class="card card-pad metric">
-    <span>Google</span>
-    <strong>{googleConnected ? 'Connected' : 'Not connected'}</strong>
-    <p class="muted">{googleConnection?.accountLabel ?? 'OAuth required for real actions.'}</p>
-  </div>
-  <div class="card card-pad metric">
-    <span>Calendars</span>
-    <strong>{calendars.length}</strong>
-    <p class="muted">List, create, edit, delete, move, reminders.</p>
-  </div>
-  <div class="card card-pad metric">
-    <span>Gmail</span>
-    <strong>{gmailThreads.length}</strong>
-    <p class="muted">Threads, drafts, sends, labels, archive, read state.</p>
-  </div>
-  <div class="card card-pad metric">
-    <span>Timeline</span>
-    <strong>{timeline.length}</strong>
-    <p class="muted">Unified event/deadline surface.</p>
-  </div>
+<section class="status-strip" aria-label="Productivity status">
+  <div><span>Google</span><strong>{googleConnected ? 'Connected' : 'Not connected'}</strong></div>
+  <div><span>Account</span><strong>{googleConnection?.accountLabel ?? 'None'}</strong></div>
+  <div><span>Calendars</span><strong>{calendars.length}</strong></div>
+  <div><span>Mail</span><strong>{gmailThreads.length}</strong></div>
+  <div><span>Timeline</span><strong>{timeline.length}</strong></div>
 </section>
 
-<section class="connector-grid" aria-label="Integration catalog">
-  {#each catalog as connector}
-    <article class="connector-card">
-      <div>
-        <strong>{connector.label}</strong>
-        <span class:implemented={connector.status === 'implemented'}>{connector.status}</span>
-      </div>
-      <p>{connector.notes}</p>
-    </article>
-  {/each}
-</section>
+{#if catalog.length}
+  <details class="connector-details">
+    <summary>Connectors</summary>
+    <div class="connector-list" aria-label="Integration catalog">
+      {#each catalog as connector}
+        <article>
+          <strong>{connector.label}</strong>
+          <span>{connector.status}</span>
+          <p>{connector.notes}</p>
+        </article>
+      {/each}
+    </div>
+  </details>
+{/if}
 
 <section class="workspace-grid">
-  <form class="card card-pad event-form" on:submit|preventDefault={saveEvent}>
-    <div class="form-title">
-      <CalendarPlus size={18} />
-      <strong>{editingEventId ? 'Edit Event' : 'Create Event'}</strong>
-    </div>
-    <div class="field">
-      <label for="calendar">Calendar</label>
-      <select id="calendar" bind:value={selectedCalendarId} disabled={!googleConnected} on:change={refreshEvents}>
-        <option value="primary">Primary</option>
-        {#each calendars as calendar}
-          <option value={calendar.id}>{calendar.summary}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="field">
-      <label for="event-title">Title</label>
-      <input id="event-title" bind:value={eventDraft.title} disabled={!googleConnected} />
-    </div>
-    <div class="field">
-      <label for="event-start">Start</label>
-      <input id="event-start" bind:value={eventDraft.start} disabled={!googleConnected} type="datetime-local" />
-    </div>
-    <div class="field">
-      <label for="event-end">End</label>
-      <input id="event-end" bind:value={eventDraft.end} disabled={!googleConnected} type="datetime-local" />
-    </div>
-    <div class="field">
-      <label for="event-zone">Time zone</label>
-      <input id="event-zone" bind:value={eventDraft.timeZone} disabled={!googleConnected} />
-    </div>
-    <div class="field">
-      <label for="event-location">Location</label>
-      <input id="event-location" bind:value={eventDraft.location} disabled={!googleConnected} />
-    </div>
-    <div class="field">
-      <label for="event-reminder">Reminder minutes</label>
-      <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={!googleConnected} type="number" min="0" step="5" />
-    </div>
-    <div class="field wide">
-      <label for="event-description">Description</label>
-      <textarea id="event-description" bind:value={eventDraft.description} disabled={!googleConnected} rows="3"></textarea>
-    </div>
-    <div class="field wide">
-      <label for="event-recurrence">Recurrence rules</label>
-      <textarea
-        id="event-recurrence"
-        disabled={!googleConnected}
-        rows="2"
-        placeholder="RRULE:FREQ=WEEKLY;COUNT=6"
-        value={(eventDraft.recurrence ?? []).join('\n')}
-        on:input={(event) => (eventDraft.recurrence = event.currentTarget.value.split('\n').map((line) => line.trim()).filter(Boolean))}
-      ></textarea>
-    </div>
-    <div class="action-row">
-      <button class="button primary" type="submit" disabled={!googleConnected || !canAct}>
-        <Save size={17} />
-        <span>{editingEventId ? 'Update Event' : 'Create Event'}</span>
-      </button>
-      {#if editingEventId}
-        <button class="button" type="button" on:click={() => { editingEventId = ''; eventDraft = emptyDraft(); }}>
-          Cancel
-        </button>
-      {/if}
-    </div>
-  </form>
-
   <section class="card table-card">
     <div class="table-header">
       <div class="field">
@@ -709,45 +667,6 @@
   </section>
 </section>
 
-<section class="card card-pad compose-panel">
-  <div class="form-title">
-    <Send size={18} />
-    <strong>Compose</strong>
-  </div>
-  <div class="compose-grid">
-    <div class="field">
-      <label for="compose-to">To</label>
-      <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={!googleConnected} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
-    </div>
-    <div class="field">
-      <label for="compose-cc">Cc</label>
-      <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={!googleConnected} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
-    </div>
-    <div class="field">
-      <label for="compose-bcc">Bcc</label>
-      <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={!googleConnected} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
-    </div>
-    <div class="field">
-      <label for="compose-subject">Subject</label>
-      <input id="compose-subject" bind:value={composeDraft.subject} disabled={!googleConnected} />
-    </div>
-    <div class="field wide">
-      <label for="compose-body">Body</label>
-      <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={!googleConnected} rows="5"></textarea>
-    </div>
-  </div>
-  <div class="action-row">
-    <button class="button" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(false)}>
-      <Save size={17} />
-      <span>Save Draft</span>
-    </button>
-    <button class="button primary" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(true)}>
-      <Send size={17} />
-      <span>Send Email</span>
-    </button>
-  </div>
-</section>
-
 <section class="card table-card timeline-card">
   <div class="section-title">Unified Timeline</div>
   <table>
@@ -773,6 +692,131 @@
     </tbody>
   </table>
 </section>
+
+{#if eventDialogOpen}
+  <div class="modal-layer">
+    <button class="modal-backdrop" type="button" aria-label="Close event editor" on:click={closeEventDialog}></button>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="event-dialog-title">
+      <form class="modal-form" on:submit|preventDefault={saveEvent}>
+      <div class="modal-title">
+        <div class="form-title">
+          <CalendarPlus size={18} />
+          <strong id="event-dialog-title">{editingEventId ? 'Edit Event' : 'Create Event'}</strong>
+        </div>
+        <button class="icon-button" type="button" aria-label="Close event editor" on:click={closeEventDialog}>
+          <X size={16} />
+        </button>
+      </div>
+      <div class="modal-grid">
+        <div class="field">
+          <label for="calendar">Calendar</label>
+          <select id="calendar" bind:value={selectedCalendarId} disabled={!googleConnected} on:change={refreshEvents}>
+            <option value="primary">Primary</option>
+            {#each calendars as calendar}
+              <option value={calendar.id}>{calendar.summary}</option>
+            {/each}
+          </select>
+        </div>
+        <div class="field">
+          <label for="event-title">Title</label>
+          <input id="event-title" bind:value={eventDraft.title} disabled={!googleConnected} />
+        </div>
+        <div class="field">
+          <label for="event-start">Start</label>
+          <input id="event-start" bind:value={eventDraft.start} disabled={!googleConnected} type="datetime-local" />
+        </div>
+        <div class="field">
+          <label for="event-end">End</label>
+          <input id="event-end" bind:value={eventDraft.end} disabled={!googleConnected} type="datetime-local" />
+        </div>
+        <div class="field">
+          <label for="event-zone">Time zone</label>
+          <input id="event-zone" bind:value={eventDraft.timeZone} disabled={!googleConnected} />
+        </div>
+        <div class="field">
+          <label for="event-location">Location</label>
+          <input id="event-location" bind:value={eventDraft.location} disabled={!googleConnected} />
+        </div>
+        <div class="field">
+          <label for="event-reminder">Reminder minutes</label>
+          <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={!googleConnected} type="number" min="0" step="5" />
+        </div>
+        <div class="field wide">
+          <label for="event-description">Description</label>
+          <textarea id="event-description" bind:value={eventDraft.description} disabled={!googleConnected} rows="3"></textarea>
+        </div>
+        <div class="field wide">
+          <label for="event-recurrence">Recurrence rules</label>
+          <textarea
+            id="event-recurrence"
+            disabled={!googleConnected}
+            rows="2"
+            placeholder="RRULE:FREQ=WEEKLY;COUNT=6"
+            value={(eventDraft.recurrence ?? []).join('\n')}
+            on:input={(event) => (eventDraft.recurrence = event.currentTarget.value.split('\n').map((line) => line.trim()).filter(Boolean))}
+          ></textarea>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="button primary" type="submit" disabled={!googleConnected || !canAct}>
+          <Save size={17} />
+          <span>{editingEventId ? 'Update Event' : 'Create Event'}</span>
+        </button>
+        <button class="button" type="button" on:click={closeEventDialog}>Cancel</button>
+      </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
+{#if composeDialogOpen}
+  <div class="modal-layer">
+    <button class="modal-backdrop" type="button" aria-label="Close composer" on:click={closeComposeDialog}></button>
+    <div class="modal-panel modal-form" role="dialog" aria-modal="true" aria-labelledby="compose-dialog-title">
+      <div class="modal-title">
+        <div class="form-title">
+          <Send size={18} />
+          <strong id="compose-dialog-title">Compose</strong>
+        </div>
+        <button class="icon-button" type="button" aria-label="Close composer" on:click={closeComposeDialog}>
+          <X size={16} />
+        </button>
+      </div>
+      <div class="modal-grid compose-grid">
+        <div class="field">
+          <label for="compose-to">To</label>
+          <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={!googleConnected} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
+        </div>
+        <div class="field">
+          <label for="compose-cc">Cc</label>
+          <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={!googleConnected} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
+        </div>
+        <div class="field">
+          <label for="compose-bcc">Bcc</label>
+          <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={!googleConnected} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
+        </div>
+        <div class="field wide">
+          <label for="compose-subject">Subject</label>
+          <input id="compose-subject" bind:value={composeDraft.subject} disabled={!googleConnected} />
+        </div>
+        <div class="field wide">
+          <label for="compose-body">Body</label>
+          <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={!googleConnected} rows="7"></textarea>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="button" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(false)}>
+          <Save size={17} />
+          <span>Save Draft</span>
+        </button>
+        <button class="button primary" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(true)}>
+          <Send size={17} />
+          <span>Send Email</span>
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .offline-banner,
@@ -800,68 +844,82 @@
     background: var(--success-bg);
   }
 
-  .metric {
+  .status-strip {
     display: grid;
-    gap: 6px;
-    min-height: 88px;
-    align-content: center;
-  }
-
-  .metric span {
-    color: var(--muted);
-    font-weight: 800;
-  }
-
-  .metric strong {
-    font-size: 18px;
-    line-height: 1;
-  }
-
-  .connector-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin: 14px 0;
-  }
-
-  .connector-card {
-    min-height: 96px;
-    padding: 12px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    margin: 0 0 10px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .status-strip div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 11px;
+    border-right: 1px solid var(--border);
+  }
+
+  .status-strip div:last-child {
+    border-right: 0;
+  }
+
+  .status-strip span,
+  .connector-details summary {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .status-strip strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .connector-details {
+    margin: 0 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
     background: var(--surface);
   }
 
-  .connector-card div {
-    display: flex;
-    justify-content: space-between;
+  .connector-details summary {
+    padding: 8px 11px;
+    cursor: pointer;
+  }
+
+  .connector-list {
+    display: grid;
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .connector-list article {
+    display: grid;
+    grid-template-columns: minmax(140px, 0.4fr) 96px minmax(0, 1fr);
     gap: 10px;
+    padding: 8px 11px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
   }
 
-  .connector-card span {
+  .connector-list article:last-child {
+    border-bottom: 0;
+  }
+
+  .connector-list span,
+  .connector-list p {
+    margin: 0;
     color: var(--muted);
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .connector-card span.implemented {
-    color: var(--accent);
-  }
-
-  .connector-card p {
-    margin: 10px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.45;
-  }
-
-  .grid.four {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .workspace-grid {
     display: grid;
-    grid-template-columns: minmax(280px, 390px) minmax(0, 1fr);
+    grid-template-columns: 1fr;
     gap: 14px;
     align-items: start;
   }
@@ -879,8 +937,7 @@
     align-items: end;
   }
 
-  .mail-panel,
-  .compose-panel {
+  .mail-panel {
     display: grid;
     gap: 14px;
   }
@@ -920,10 +977,6 @@
     line-height: 1.45;
   }
 
-  .compose-panel {
-    margin-top: 14px;
-  }
-
   .compose-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -942,11 +995,6 @@
 
   tr.unread td {
     background: var(--surface-soft);
-  }
-
-  .event-form {
-    display: grid;
-    gap: 12px;
   }
 
   .form-title,
@@ -1011,14 +1059,60 @@
     border-bottom: 1px solid var(--border);
   }
 
-  @media (max-width: 1100px) {
-    .connector-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  .modal-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: start center;
+    padding: 7vh 16px 24px;
+  }
 
-    .grid.four,
-    .workspace-grid {
-      grid-template-columns: 1fr;
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(3px);
+    cursor: default;
+  }
+
+  .modal-panel {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 14px;
+    width: min(760px, 100%);
+    max-height: 86vh;
+    overflow: auto;
+    padding: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: var(--surface);
+    box-shadow: 0 18px 50px color-mix(in srgb, var(--code-bg) 28%, transparent);
+  }
+
+  .modal-form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .modal-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  @media (max-width: 1100px) {
+    .status-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .gmail-workspace {
@@ -1027,10 +1121,21 @@
   }
 
   @media (max-width: 760px) {
-    .connector-grid,
+    .status-strip,
+    .connector-list article,
     .table-header,
+    .modal-grid,
     .compose-grid {
       grid-template-columns: 1fr;
+    }
+
+    .status-strip div {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .status-strip div:last-child {
+      border-bottom: 0;
     }
   }
 </style>

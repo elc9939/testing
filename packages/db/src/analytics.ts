@@ -23,8 +23,8 @@ export async function createDuckDbRuntime() {
 export async function renderMetricBars(target: HTMLElement, rows: MetricRow[]): Promise<void> {
   const Plot = await import('@observablehq/plot');
   const styles = getComputedStyle(document.documentElement);
-  const accent = styles.getPropertyValue('--accent').trim() || '#6259d9';
-  const text = styles.getPropertyValue('--text').trim() || '#202337';
+  const accent = styles.getPropertyValue('--accent').trim() || '#555a56';
+  const text = styles.getPropertyValue('--text').trim() || '#20211f';
   const plot = Plot.plot({
     width: Math.max(320, target.clientWidth || 640),
     height: 260,
