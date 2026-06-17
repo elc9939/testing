@@ -25,7 +25,7 @@ def redact_mapping(values: Mapping[str, Any]) -> dict[str, Any]:
 
 def redact_text(value: str) -> str:
     result = value
-    for marker in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AI_OS_ADMIN_TOKEN", "MINI_HUB_SYNC_KEY"):
+    for marker in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AI_OS_ADMIN_TOKEN"):
         result = result.replace(marker, f"{marker[:4]}...")
     return result
 

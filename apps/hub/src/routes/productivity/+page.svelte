@@ -428,7 +428,7 @@
 </section>
 
 {#if !canAct}
-  <section class="card card-pad offline-banner">Sync key required: productivity actions need the private API key before OAuth or calendar writes can run.</section>
+  <section class="card card-pad offline-banner">API unavailable or offline: productivity actions need the local API before OAuth or calendar writes can run.</section>
 {/if}
 {#if actionError}
   <section class="card card-pad error-banner">{actionError}</section>

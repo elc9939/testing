@@ -10,7 +10,6 @@ export interface AppBindings {
   Variables: {
     user: SessionUser | null;
     session: { id: string; userId: string } | null;
-    syncKeyAccepted: boolean;
   };
 }
 

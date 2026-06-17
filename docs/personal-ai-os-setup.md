@@ -55,13 +55,12 @@ Optional app-control endpoints:
 ```bash
 AI_OS_HUB_API_URL=http://127.0.0.1:8787
 AI_OS_HUB_WORKSPACE_ID=personal
-MINI_HUB_SYNC_KEY=replace-with-a-private-personal-sync-key
 AI_OS_MACRO_LAB_API_URL=http://127.0.0.1:8792
 ```
 
-The command bar uses those URLs for real tool calls. `MINI_HUB_SYNC_KEY` is required before
-Study Desk or Career Desk write tools can mutate the Hub API. Macro execution talks to the
-local Macro Lab daemon and still requires confirmation from the command request.
+The command bar uses those URLs for real tool calls. Study Desk and Career Desk write tools
+mutate the local Hub API in personal mode. Macro execution talks to the local Macro Lab daemon
+and still requires confirmation from the command request.
 
 Optional design patch sandbox:
 

@@ -4,8 +4,6 @@ import { GoogleGmailConnector } from './integrations/google';
 import { decryptTokenSet, encryptTokenSet, upsertConnection } from './integrations/token-vault';
 
 describe('mini hub api', () => {
-  const syncKey = 'test-sync-key';
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -73,31 +71,23 @@ describe('mini hub api', () => {
   }
 
   it('serves health checks', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/health');
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, service: 'mini-hub-api' });
   });
 
-  it('rejects protected routes without the personal sync key', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
+  it('accepts protected personal routes in local mode', async () => {
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/workspaces');
-    expect(response.status).toBe(401);
-  });
-
-  it('accepts protected routes with the personal sync key', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
-    const response = await app.request('/api/workspaces', {
-      headers: { 'x-mini-hub-sync-key': syncKey }
-    });
     expect(response.status).toBe(200);
     const body = (await response.json()) as { workspaces: Array<{ id: string }> };
     expect(body.workspaces[0]?.id).toBe('personal');
   });
 
   it('saves user-facing entities and exposes sync changes by cursor', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
-    const authHeaders = { 'content-type': 'application/json', 'x-mini-hub-sync-key': syncKey };
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
+    const authHeaders = { 'content-type': 'application/json' };
 
     const jobResponse = await app.request('/api/jobs', {
       method: 'POST',
@@ -134,25 +124,21 @@ describe('mini hub api', () => {
     });
     expect(settingsResponse.status).toBe(200);
 
-    const pullResponse = await app.request('/api/sync/pull', {
-      headers: { 'x-mini-hub-sync-key': syncKey }
-    });
+    const pullResponse = await app.request('/api/sync/pull');
     expect(pullResponse.status).toBe(200);
     const pull = (await pullResponse.json()) as { changes: Array<{ entityType: string }>; cursor: string };
     expect(pull.changes.map((change) => change.entityType)).toEqual(
       expect.arrayContaining(['job', 'study_session', 'game_run', 'game_state', 'settings'])
     );
 
-    const secondPullResponse = await app.request(`/api/sync/pull?since=${encodeURIComponent(pull.cursor)}`, {
-      headers: { 'x-mini-hub-sync-key': syncKey }
-    });
+    const secondPullResponse = await app.request(`/api/sync/pull?since=${encodeURIComponent(pull.cursor)}`);
     const secondPull = (await secondPullResponse.json()) as { changes: unknown[] };
     expect(secondPull.changes).toHaveLength(0);
   });
 
   it('updates and deletes desk entities with sync events', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
-    const authHeaders = { 'content-type': 'application/json', 'x-mini-hub-sync-key': syncKey };
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
+    const authHeaders = { 'content-type': 'application/json' };
 
     const jobResponse = await app.request('/api/jobs', {
       method: 'POST',
@@ -178,8 +164,7 @@ describe('mini hub api', () => {
     expect(patchedJob.job.nextActionAt).toBe('2026-07-01');
 
     const deleteJobResponse = await app.request(`/api/jobs/${job.id}`, {
-      method: 'DELETE',
-      headers: { 'x-mini-hub-sync-key': syncKey }
+      method: 'DELETE'
     });
     expect(deleteJobResponse.status).toBe(200);
 
@@ -201,14 +186,11 @@ describe('mini hub api', () => {
     expect(patchedStudy.session.minutes).toBe(45);
 
     const deleteStudyResponse = await app.request(`/api/study/${session.id}`, {
-      method: 'DELETE',
-      headers: { 'x-mini-hub-sync-key': syncKey }
+      method: 'DELETE'
     });
     expect(deleteStudyResponse.status).toBe(200);
 
-    const pullResponse = await app.request('/api/sync/pull', {
-      headers: { 'x-mini-hub-sync-key': syncKey }
-    });
+    const pullResponse = await app.request('/api/sync/pull');
     const pull = (await pullResponse.json()) as {
       changes: Array<{ entityType: string; entityId: string; operation: string }>;
     };
@@ -222,15 +204,10 @@ describe('mini hub api', () => {
     );
   });
 
-  it('protects the integration catalog behind the personal sync key', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
+  it('serves the integration catalog in personal local mode', async () => {
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
 
-    const rejected = await app.request('/api/integrations/catalog');
-    expect(rejected.status).toBe(401);
-
-    const accepted = await app.request('/api/integrations/catalog', {
-      headers: { 'x-mini-hub-sync-key': syncKey }
-    });
+    const accepted = await app.request('/api/integrations/catalog');
     expect(accepted.status).toBe(200);
     const body = (await accepted.json()) as { connectors: Array<{ id: string; status: string }> };
     expect(body.connectors).toEqual(
@@ -242,20 +219,16 @@ describe('mini hub api', () => {
   });
 
   it('returns a clean provider auth error before Google is connected', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
-    const response = await app.request('/api/productivity/calendar/calendars', {
-      headers: { 'x-mini-hub-sync-key': syncKey }
-    });
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
+    const response = await app.request('/api/productivity/calendar/calendars');
 
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({ error: 'Google is not connected' });
   });
 
   it('returns a clean Gmail auth error before Google is connected', async () => {
-    const app = createApp({ personalSyncKey: syncKey, useLogger: false, store: createMemoryStore() });
-    const response = await app.request('/api/productivity/gmail/threads', {
-      headers: { 'x-mini-hub-sync-key': syncKey }
-    });
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
+    const response = await app.request('/api/productivity/gmail/threads');
 
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({ error: 'Google is not connected' });

@@ -17,19 +17,17 @@ type JobPatchInput = Partial<Pick<JobRecord, 'company' | 'role' | 'status' | 'no
 };
 type StudySessionPatchInput = Partial<Pick<StudySession, 'subject' | 'minutes' | 'source'>>;
 
-const syncKeyStorageKey = 'miniHub.personalSyncKey.v1';
 const deviceIdStorageKey = 'miniHub.deviceId.v1';
 const cursorStorageKey = 'miniHub.syncCursor.v1';
 
 export interface ClientDataState {
   initialized: boolean;
   isOnline: boolean;
-  syncKey: string;
   deviceId: string;
   workspaceId: string;
   cursor: string;
   lastSyncedAt: string;
-  status: 'idle' | 'syncing' | 'offline-readonly' | 'missing-key' | 'error';
+  status: 'idle' | 'syncing' | 'offline-readonly' | 'error';
   error: string;
   jobs: JobRecord[];
   studySessions: StudySession[];
@@ -38,8 +36,8 @@ export interface ClientDataState {
   gameStates: GameState[];
 }
 
-export function canAutoSave(state: Pick<ClientDataState, 'isOnline' | 'syncKey'>): boolean {
-  return state.isOnline && state.syncKey.trim().length > 0;
+export function canAutoSave(state: Pick<ClientDataState, 'isOnline'>): boolean {
+  return state.isOnline;
 }
 
 function browserOnline(): boolean {
@@ -78,19 +76,18 @@ function parseJson(value: unknown): Record<string, unknown> {
   }
 }
 
-function headers(syncKey: string): HeadersInit {
+function headers(): HeadersInit {
   return {
-    'content-type': 'application/json',
-    'x-mini-hub-sync-key': syncKey
+    'content-type': 'application/json'
   };
 }
 
-async function requestJson<T>(path: string, syncKey: string, init: RequestInit = {}): Promise<T> {
+async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
-      ...headers(syncKey),
+      ...headers(),
       ...(init.headers ?? {})
     }
   });
@@ -110,12 +107,11 @@ export function createClientDataStore() {
   const store = writable<ClientDataState>({
     initialized: false,
     isOnline: browserOnline(),
-    syncKey: readStorage(syncKeyStorageKey),
     deviceId: ensureDeviceId(),
     workspaceId: personalWorkspaceId,
     cursor: readStorage(cursorStorageKey),
     lastSyncedAt: '',
-    status: readStorage(syncKeyStorageKey) ? 'idle' : 'missing-key',
+    status: browserOnline() ? 'idle' : 'offline-readonly',
     error: '',
     jobs: [],
     studySessions: [],
@@ -398,10 +394,6 @@ export function createClientDataStore() {
 
   async function syncNow(): Promise<void> {
     const state = get(store);
-    if (!state.syncKey.trim()) {
-      setPartial({ status: 'missing-key', error: '' });
-      return;
-    }
     if (!state.isOnline) {
       setPartial({ status: 'offline-readonly', error: '' });
       return;
@@ -411,8 +403,7 @@ export function createClientDataStore() {
     try {
       const current = get(store);
       const result = await requestJson<{ changes: SyncEvent[]; cursor: string }>(
-        `/api/sync/pull?since=${encodeURIComponent(current.cursor)}`,
-        current.syncKey
+        `/api/sync/pull?since=${encodeURIComponent(current.cursor)}`
       );
       for (const event of result.changes) {
         await applyEvent(event);
@@ -442,13 +433,13 @@ export function createClientDataStore() {
       setPartial({
         initialized: true,
         isOnline: browserOnline(),
-        status: get(store).syncKey ? (browserOnline() ? 'idle' : 'offline-readonly') : 'missing-key'
+        status: browserOnline() ? 'idle' : 'offline-readonly'
       });
 
       if (typeof window !== 'undefined' && !listenersBound) {
         listenersBound = true;
         window.addEventListener('online', () => {
-          setPartial({ isOnline: true, status: get(store).syncKey ? 'idle' : 'missing-key' });
+          setPartial({ isOnline: true, status: 'idle' });
           void syncNow();
         });
         window.addEventListener('offline', () => {
@@ -467,23 +458,10 @@ export function createClientDataStore() {
     return initPromise;
   }
 
-  async function setSyncKey(syncKey: string): Promise<void> {
-    writeStorage(syncKeyStorageKey, syncKey.trim());
-    writeStorage(cursorStorageKey, '');
-    setPartial({ syncKey: syncKey.trim(), cursor: '', status: syncKey.trim() ? 'idle' : 'missing-key' });
-    await syncNow();
-  }
-
-  function clearSyncKey(): void {
-    writeStorage(syncKeyStorageKey, '');
-    writeStorage(cursorStorageKey, '');
-    setPartial({ syncKey: '', cursor: '', status: 'missing-key' });
-  }
-
   async function saveJob(input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'> & { nextActionAt?: string | null }): Promise<JobRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ job: JobRecord }>('/api/jobs', state.syncKey, {
+    const result = await requestJson<{ job: JobRecord }>('/api/jobs', {
       method: 'POST',
       body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
     });
@@ -495,7 +473,7 @@ export function createClientDataStore() {
   async function updateJob(id: string, input: JobPatchInput): Promise<JobRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ job: JobRecord }>(`/api/jobs/${encodeURIComponent(id)}`, state.syncKey, {
+    const result = await requestJson<{ job: JobRecord }>(`/api/jobs/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(input)
     });
@@ -507,7 +485,7 @@ export function createClientDataStore() {
   async function deleteJob(id: string): Promise<void> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    await requestJson<{ ok: true }>(`/api/jobs/${encodeURIComponent(id)}`, state.syncKey, {
+    await requestJson<{ ok: true }>(`/api/jobs/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
     await deleteLocalJob(id);
@@ -517,7 +495,7 @@ export function createClientDataStore() {
   async function saveStudySession(input: Pick<StudySession, 'subject' | 'minutes' | 'source'>): Promise<StudySession> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ session: StudySession }>('/api/study', state.syncKey, {
+    const result = await requestJson<{ session: StudySession }>('/api/study', {
       method: 'POST',
       body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
     });
@@ -529,7 +507,7 @@ export function createClientDataStore() {
   async function updateStudySession(id: string, input: StudySessionPatchInput): Promise<StudySession> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ session: StudySession }>(`/api/study/${encodeURIComponent(id)}`, state.syncKey, {
+    const result = await requestJson<{ session: StudySession }>(`/api/study/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(input)
     });
@@ -541,7 +519,7 @@ export function createClientDataStore() {
   async function deleteStudySession(id: string): Promise<void> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    await requestJson<{ ok: true }>(`/api/study/${encodeURIComponent(id)}`, state.syncKey, {
+    await requestJson<{ ok: true }>(`/api/study/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
     await deleteLocalStudySession(id);
@@ -551,7 +529,7 @@ export function createClientDataStore() {
   async function saveGameRun(input: Pick<GameRun, 'gameId' | 'score' | 'durationMs' | 'metadata'>): Promise<GameRun> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ run: GameRun }>('/api/game-runs', state.syncKey, {
+    const result = await requestJson<{ run: GameRun }>('/api/game-runs', {
       method: 'POST',
       body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
     });
@@ -563,7 +541,7 @@ export function createClientDataStore() {
   async function saveGameState(gameId: string, value: Record<string, unknown>): Promise<GameState> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ state: GameState }>(`/api/game-state/${encodeURIComponent(gameId)}`, state.syncKey, {
+    const result = await requestJson<{ state: GameState }>(`/api/game-state/${encodeURIComponent(gameId)}`, {
       method: 'PUT',
       body: JSON.stringify({ state: value })
     });
@@ -575,7 +553,7 @@ export function createClientDataStore() {
   async function saveSettings(input: Partial<PersonalSettings>): Promise<PersonalSettings> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
-    const result = await requestJson<{ settings: PersonalSettings }>('/api/settings', state.syncKey, {
+    const result = await requestJson<{ settings: PersonalSettings }>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify({
         theme: input.theme,
@@ -611,8 +589,6 @@ export function createClientDataStore() {
     subscribe: store.subscribe,
     init,
     syncNow,
-    setSyncKey,
-    clearSyncKey,
     saveJob,
     updateJob,
     deleteJob,

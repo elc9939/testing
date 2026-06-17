@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Cloud, Database, Download, KeyRound, ShieldCheck, Upload } from 'lucide-svelte';
+  import { Cloud, Database, Download, ShieldCheck, Upload } from 'lucide-svelte';
   import { apiUrl, getHealth } from '$lib/api';
   import { clientData } from '$lib/client-data';
 
   let apiStatus = 'Not checked';
-  let syncKeyDraft = '';
   let settingsError = '';
 
   async function checkApi(): Promise<void> {
@@ -15,15 +14,6 @@
       apiStatus = `${health.service}: ${health.ok ? 'ok' : 'not ok'}`;
     } catch (error) {
       apiStatus = error instanceof Error ? error.message : 'API unavailable';
-    }
-  }
-
-  async function saveSyncKey(): Promise<void> {
-    settingsError = '';
-    try {
-      await clientData.setSyncKey(syncKeyDraft);
-    } catch (error) {
-      settingsError = error instanceof Error ? error.message : 'Sync key save failed';
     }
   }
 
@@ -57,7 +47,6 @@
 
   onMount(() => {
     void clientData.init();
-    syncKeyDraft = $clientData.syncKey;
     void checkApi();
   });
 </script>
@@ -77,7 +66,7 @@
   <div class="card card-pad setting">
     <ShieldCheck size={22} />
     <strong>Auth</strong>
-    <span>{import.meta.env.PUBLIC_SYNC_MODE || 'personal'} mode with private sync key</span>
+    <span>{import.meta.env.PUBLIC_SYNC_MODE || 'personal'} local workspace</span>
   </div>
   <div class="card card-pad setting">
     <Database size={22} />
@@ -94,16 +83,8 @@
 
 <section class="card card-pad sync-panel">
   <div class="section-title">
-    <KeyRound size={18} />
-    <strong>Personal Sync Key</strong>
-  </div>
-  <div class="sync-grid">
-    <div class="field">
-      <label for="sync-key">Private key</label>
-      <input id="sync-key" bind:value={syncKeyDraft} type="password" autocomplete="off" />
-    </div>
-    <button class="button primary" type="button" on:click={saveSyncKey}>Save Key</button>
-    <button class="button" type="button" on:click={() => clientData.clearSyncKey()}>Clear</button>
+    <Cloud size={18} />
+    <strong>Personal Sync</strong>
   </div>
   <dl>
     <div><dt>Device</dt><dd>{$clientData.deviceId}</dd></div>
@@ -116,7 +97,7 @@
       <Cloud size={17} />
       <span>Sync Now</span>
     </button>
-    <button class="button" type="button" disabled={!$clientData.syncKey || !$clientData.isOnline} on:click={importLegacy}>
+    <button class="button" type="button" disabled={!$clientData.isOnline} on:click={importLegacy}>
       <Upload size={17} />
       <span>Import Legacy</span>
     </button>
@@ -155,13 +136,6 @@
     gap: 8px;
   }
 
-  .sync-grid {
-    display: grid;
-    grid-template-columns: minmax(220px, 1fr) auto auto;
-    gap: 10px;
-    align-items: end;
-  }
-
   dl {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -195,7 +169,6 @@
   }
 
   @media (max-width: 820px) {
-    .sync-grid,
     dl {
       grid-template-columns: 1fr;
     }

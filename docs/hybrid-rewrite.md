@@ -8,7 +8,7 @@ This repo now contains two application tracks:
 ## Workspaces
 
 - `apps/hub`: SvelteKit SPA/static frontend.
-- `apps/api`: Hono API with Better Auth mounted at `/api/auth/*` and v1 personal sync-key mode.
+- `apps/api`: Hono API with Better Auth mounted at `/api/auth/*` and v1 single-user personal mode.
 - `apps/desktop`: Tauri v2 shell around the SvelteKit build.
 - `packages/core`: shared routes, launcher metadata, Zod contracts, and legacy storage keys.
 - `packages/db`: Drizzle schema, PGlite local DB bootstrap, sync conflict helpers, migration inspection, and analytics helpers.
@@ -42,11 +42,10 @@ The API expects:
 - `BETTER_AUTH_URL` for the API origin.
 - `TRUSTED_ORIGINS` for the SvelteKit/Tauri origins.
 - `PUBLIC_SYNC_MODE=personal` for the no-account personal workflow.
-- `MINI_HUB_SYNC_KEY` for the private key that each of your devices enters in Settings.
 
 ## Personal Offline + Sync V1
 
-The current sync mode is personal, not public multi-user. The hub stores a per-device id and a private sync key in browser storage, sends the key as `X-Mini-Hub-Sync-Key`, and keeps a PGlite cache for offline reads.
+The current sync mode is personal, not public multi-user. The hub stores a per-device id, keeps a PGlite cache for offline reads, and uses the local API as the online save/sync boundary.
 
 - Online: Career Desk, Study Desk, game runs, game state, settings, and legacy snapshots auto-save through the API.
 - Offline: cached data stays visible, but edit/save controls are disabled.

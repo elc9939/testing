@@ -12,7 +12,7 @@ Build a private, single-user command center for email, calendar, files, coursewo
 
 The productivity hub extends the staged Mini Hub rewrite:
 
-- `apps/hub`: SvelteKit SPA/static UI. It renders the command center, starts OAuth, and calls the API with the existing private sync key.
+- `apps/hub`: SvelteKit SPA/static UI. It renders the command center, starts OAuth, and calls the local personal API.
 - `apps/api`: Hono API. It owns OAuth callbacks, encrypted token storage, provider calls, validation, connector error handling, and all mutation endpoints.
 - `packages/core`: shared route names, Zod contracts, connector status/capability types, calendar event shape, and unified timeline item shape.
 - `packages/db`: Drizzle schema for server-authoritative Postgres tables, including integration connections and logs.
@@ -65,12 +65,11 @@ Provider data is not blindly mirrored yet. Calendar events are fetched live from
 
 The app uses two layers:
 
-1. Personal hub gate: existing `MINI_HUB_SYNC_KEY`, sent as `X-Mini-Hub-Sync-Key`. This keeps the private app closed even before provider OAuth begins.
+1. Personal local mode: the Hono API maps local personal-mode requests to the single personal workspace. Keep the service bound to loopback unless you intentionally expose it.
 2. Provider OAuth: Google OAuth 2.0 authorization-code flow with offline access. The API creates a signed `state`, exchanges the code server-side, stores encrypted token JSON, refreshes access tokens when needed, and supports revocation.
 
 Secrets are only read from env:
 
-- `MINI_HUB_SYNC_KEY`
 - `MINI_HUB_TOKEN_ENCRYPTION_KEY`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
@@ -126,7 +125,7 @@ The `Productivity Hub` route is a dense command surface rather than a marketing 
 - upcoming event table with edit/move/delete controls
 - Gmail search, label filtering, full message reading, compose, draft, send, reply, archive, and read/unread controls
 - unified timeline table
-- explicit disabled state when the private sync key is missing
+- explicit disabled state when the API is offline or unavailable
 
 Destructive actions require browser confirmation before calling the API. Provider failures appear as visible error banners.
 

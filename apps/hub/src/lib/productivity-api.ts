@@ -1,7 +1,5 @@
-import { get } from 'svelte/store';
 import type { CalendarEvent, GmailDraft, GmailLabel, GmailMessage, GmailThread, TimelineItem } from '@mini-hub/core';
 import { apiUrl } from './api';
-import { clientData } from './client-data';
 
 export interface ConnectorCatalogEntry {
   id: string;
@@ -69,10 +67,8 @@ export interface GmailReplyDraft {
 }
 
 function syncHeaders(): HeadersInit {
-  const { syncKey } = get(clientData);
   return {
-    'content-type': 'application/json',
-    'x-mini-hub-sync-key': syncKey
+    'content-type': 'application/json'
   };
 }
 

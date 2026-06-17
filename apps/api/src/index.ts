@@ -18,7 +18,6 @@ import { createMemoryStore, defaultStore, ensurePersonalWorkspace, type MemorySt
 
 export interface CreateAppOptions {
   authBypass?: boolean;
-  personalSyncKey?: string;
   syncMode?: string;
   useLogger?: boolean;
   store?: MemoryStore;
@@ -45,7 +44,6 @@ export function createApp(options: CreateAppOptions = {}) {
   const store = options.store ?? defaultStore;
   const authBypass = options.authBypass ?? env.devAuthBypass;
   const syncMode = options.syncMode ?? env.syncMode;
-  const personalSyncKey = options.personalSyncKey ?? env.personalSyncKey;
   ensurePersonalWorkspace(store);
 
   if (options.useLogger ?? process.env.NODE_ENV !== 'test') {
@@ -59,7 +57,7 @@ export function createApp(options: CreateAppOptions = {}) {
         if (!origin) return env.trustedOrigins[0] ?? '*';
         return env.trustedOrigins.includes(origin) ? origin : env.trustedOrigins[0];
       },
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Mini-Hub-Sync-Key'],
+      allowHeaders: ['Content-Type', 'Authorization'],
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true
     })
@@ -68,16 +66,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use('*', async (c, next) => {
     const oauthCallbackPath = c.req.path === '/api/integrations/google/oauth/callback';
     if (syncMode === 'personal' && c.req.path.startsWith('/api/') && c.req.path !== '/api/health' && !c.req.path.startsWith('/api/auth/') && !oauthCallbackPath) {
-      const suppliedKey = c.req.header('X-Mini-Hub-Sync-Key') ?? '';
-      const accepted = Boolean(personalSyncKey) && suppliedKey === personalSyncKey;
-      c.set('syncKeyAccepted', accepted);
-      if (accepted) {
-        c.set('user', personalUser());
-        c.set('session', { id: 'personal-sync-key-session', userId: personalUserId });
-      } else {
-        c.set('user', null);
-        c.set('session', null);
-      }
+      c.set('user', personalUser());
+      c.set('session', { id: 'personal-session', userId: personalUserId });
       await next();
       return;
     }
@@ -100,7 +90,6 @@ export function createApp(options: CreateAppOptions = {}) {
       c.set('user', null);
       c.set('session', null);
     }
-    c.set('syncKeyAccepted', false);
     await next();
   });
 

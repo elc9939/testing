@@ -101,7 +101,6 @@ class Settings(BaseSettings):
 
     hub_api_url: str = Field(default="http://127.0.0.1:8787", validation_alias="AI_OS_HUB_API_URL")
     hub_workspace_id: str = Field(default="personal", validation_alias="AI_OS_HUB_WORKSPACE_ID")
-    mini_hub_sync_key: str | None = Field(default=None, validation_alias="MINI_HUB_SYNC_KEY")
     macro_lab_api_url: str = Field(default="http://127.0.0.1:8792", validation_alias="AI_OS_MACRO_LAB_API_URL")
 
     design_workspace_root: Path = Field(default=Path("../.."), validation_alias="AI_OS_DESIGN_WORKSPACE_ROOT")

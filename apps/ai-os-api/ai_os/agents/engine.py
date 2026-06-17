@@ -159,10 +159,7 @@ def build_tool_registry(
     registry = ToolRegistry(storage)
 
     def hub_headers() -> dict[str, str]:
-        headers = {"content-type": "application/json"}
-        if settings and settings.mini_hub_sync_key:
-            headers["X-Mini-Hub-Sync-Key"] = settings.mini_hub_sync_key
-        return headers
+        return {"content-type": "application/json"}
 
     def require_settings() -> Settings:
         if not settings:
@@ -198,15 +195,11 @@ def build_tool_registry(
     async def hub_status_tool(_: dict[str, Any]) -> dict[str, Any]:
         configured = require_settings()
         health = await get_json(f"{configured.hub_api_url.rstrip('/')}/api/health", headers=hub_headers())
-        settings_result: dict[str, Any] | None = None
-        if configured.mini_hub_sync_key:
-            settings_result = await get_json(f"{configured.hub_api_url.rstrip('/')}/api/settings", headers=hub_headers())
+        settings_result = await get_json(f"{configured.hub_api_url.rstrip('/')}/api/settings", headers=hub_headers())
         return {"ok": True, "health": health, "settings": settings_result}
 
     async def study_add_tool(payload: dict[str, Any]) -> dict[str, Any]:
         configured = require_settings()
-        if not configured.mini_hub_sync_key:
-            raise RuntimeError("MINI_HUB_SYNC_KEY is required for hub write tools.")
         body = {
             "workspaceId": configured.hub_workspace_id,
             "subject": str(payload.get("subject") or payload.get("title") or "AI OS session"),
@@ -217,8 +210,6 @@ def build_tool_registry(
 
     async def career_job_add_tool(payload: dict[str, Any]) -> dict[str, Any]:
         configured = require_settings()
-        if not configured.mini_hub_sync_key:
-            raise RuntimeError("MINI_HUB_SYNC_KEY is required for hub write tools.")
         body = {
             "workspaceId": configured.hub_workspace_id,
             "company": str(payload.get("company") or "Unknown"),

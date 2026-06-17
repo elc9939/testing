@@ -84,7 +84,7 @@
     <strong>Status</strong>
     <p class="muted">{status}</p>
     <strong>Saving</strong>
-    <p class="muted">{canSave ? saveStatus || 'Ready' : 'Offline read-only or sync key missing'}</p>
+    <p class="muted">{canSave ? saveStatus || 'Ready' : 'Offline read-only'}</p>
     <strong>Telemetry</strong>
     {#if telemetry.length}
       <ul>

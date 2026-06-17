@@ -182,7 +182,7 @@
 </section>
 
 {#if !canSave}
-  <section class="card card-pad offline-banner">Offline or missing sync key: cached jobs are readable, saving is disabled.</section>
+  <section class="card card-pad offline-banner">Offline: cached jobs are readable, saving is disabled.</section>
 {/if}
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>

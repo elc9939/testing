@@ -26,7 +26,6 @@ PUBLIC_API_URL=http://127.0.0.1:8787
 PUBLIC_SYNC_MODE=personal
 HUB_PUBLIC_URL=http://127.0.0.1:5173
 
-MINI_HUB_SYNC_KEY=replace-with-a-private-personal-sync-key
 MINI_HUB_TOKEN_ENCRYPTION_KEY=replace-with-at-least-32-random-characters
 
 GOOGLE_CLIENT_ID=
@@ -39,7 +38,7 @@ BRIGHTSPACE_CLIENT_SECRET=
 BRIGHTSPACE_ICAL_URL=
 ```
 
-`MINI_HUB_SYNC_KEY` gates the private hub API. `MINI_HUB_TOKEN_ENCRYPTION_KEY` encrypts provider OAuth tokens at rest and signs OAuth state.
+`MINI_HUB_TOKEN_ENCRYPTION_KEY` encrypts provider OAuth tokens at rest and signs OAuth state.
 
 ## Google OAuth App
 
@@ -84,12 +83,10 @@ Calendar and Gmail are implemented now. Drive, Docs, and Sheets scopes are inclu
 
 ## Using Google Calendar
 
-1. Open `http://127.0.0.1:5173/settings`.
-2. Enter and save the same private sync key as `MINI_HUB_SYNC_KEY`.
-3. Open `http://127.0.0.1:5173/productivity`.
-4. Select `Connect Google`.
-5. Complete Google OAuth.
-6. Use the Productivity Hub to list events, create events, edit events, delete events, move events between calendars, set reminders, and pass recurrence rules such as `RRULE:FREQ=WEEKLY;COUNT=6`.
+1. Open `http://127.0.0.1:5173/productivity`.
+2. Select `Connect Google`.
+3. Complete Google OAuth.
+4. Use the Productivity Hub to list events, create events, edit events, delete events, move events between calendars, set reminders, and pass recurrence rules such as `RRULE:FREQ=WEEKLY;COUNT=6`.
 
 The app sends all Google Calendar calls through `apps/api`; the browser never stores the Google refresh token.
 
@@ -145,7 +142,7 @@ The iCal path is deadline ingestion only. Those records should be marked read-on
 
 ## Troubleshooting
 
-- `401 Unauthorized`: the hub sync key in Settings does not match `MINI_HUB_SYNC_KEY`.
+- `401 Unauthorized`: Google is not connected yet, or its refresh token needs reauthorization.
 - `Google OAuth is not configured`: `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing.
 - `redirect_uri_mismatch`: the URI in Google Cloud does not exactly match `GOOGLE_REDIRECT_URI`.
 - `Google connection needs reauthorization`: Google did not return or no longer accepts the refresh token. Revoke and reconnect.

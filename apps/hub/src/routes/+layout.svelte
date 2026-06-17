@@ -47,8 +47,8 @@
       <span class="brand-mark">MH</span>
       <span>Mini Hub</span>
     </a>
-    <div class:offline={$clientData.status === 'offline-readonly'} class:missing={$clientData.status === 'missing-key'} class="sync-pill">
-      {$clientData.status === 'offline-readonly' ? 'Offline read-only' : $clientData.status === 'missing-key' ? 'Sync key needed' : $clientData.status}
+    <div class:offline={$clientData.status === 'offline-readonly'} class="sync-pill">
+      {$clientData.status === 'offline-readonly' ? 'Offline read-only' : $clientData.status}
     </div>
 
     <nav>
@@ -143,12 +143,6 @@
     border-color: #f2c14e;
     color: #815d00;
     background: #fff8df;
-  }
-
-  .sync-pill.missing {
-    border-color: #ff9f6e;
-    color: #944700;
-    background: #fff0e6;
   }
 
   nav a {
