@@ -2,6 +2,7 @@ import { get, writable } from 'svelte/store';
 import {
   createDeviceId,
   personalWorkspaceId,
+  type CareerActionRecord,
   type GameRun,
   type GameState,
   type JobRecord,
@@ -17,6 +18,10 @@ type JobPatchInput = Partial<Pick<JobRecord, 'company' | 'role' | 'status' | 'no
   nextActionAt?: string | null;
 };
 type StudySessionPatchInput = Partial<Pick<StudySession, 'subject' | 'minutes' | 'source'>>;
+type CareerActionPatchInput = Partial<Pick<CareerActionRecord, 'jobId' | 'label'>> & {
+  dueAt?: string | null;
+  completedAt?: string | null;
+};
 
 const deviceIdStorageKey = 'miniHub.deviceId.v1';
 const cursorStorageKey = 'miniHub.syncCursor.v1';
@@ -32,6 +37,7 @@ export interface ClientDataState {
   error: string;
   jobs: JobRecord[];
   studySessions: StudySession[];
+  careerActions: CareerActionRecord[];
   gameRuns: GameRun[];
   settings: PersonalSettings | null;
   gameStates: GameState[];
@@ -116,6 +122,7 @@ export function createClientDataStore() {
     error: '',
     jobs: [],
     studySessions: [],
+    careerActions: [],
     gameRuns: [],
     settings: null,
     gameStates: []
@@ -190,6 +197,32 @@ export function createClientDataStore() {
     );
   }
 
+  async function upsertCareerAction(action: CareerActionRecord): Promise<void> {
+    const local = await getDb();
+    await local.query(
+      `insert into career_actions (id, workspace_id, job_id, label, due_at, completed_at, device_id, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
+       on conflict (id) do update set
+       workspace_id=excluded.workspace_id,
+       job_id=excluded.job_id,
+       label=excluded.label,
+       due_at=excluded.due_at,
+       completed_at=excluded.completed_at,
+       device_id=excluded.device_id,
+       updated_at=excluded.updated_at`,
+      [
+        action.id,
+        action.workspaceId,
+        action.jobId ?? null,
+        action.label,
+        action.dueAt ?? null,
+        action.completedAt ?? null,
+        action.deviceId,
+        action.updatedAt
+      ]
+    );
+  }
+
   async function deleteLocalJob(id: string): Promise<void> {
     const local = await getDb();
     await local.query('delete from jobs where id = $1', [id]);
@@ -198,6 +231,11 @@ export function createClientDataStore() {
   async function deleteLocalStudySession(id: string): Promise<void> {
     const local = await getDb();
     await local.query('delete from study_sessions where id = $1', [id]);
+  }
+
+  async function deleteLocalCareerAction(id: string): Promise<void> {
+    const local = await getDb();
+    await local.query('delete from career_actions where id = $1', [id]);
   }
 
   async function upsertGameRun(run: GameRun): Promise<void> {
@@ -291,6 +329,16 @@ export function createClientDataStore() {
       device_id: string;
       updated_at: string;
     }>('select * from study_sessions order by logged_at desc');
+    const careerActions = await local.query<{
+      id: string;
+      workspace_id: string;
+      job_id: string | null;
+      label: string;
+      due_at: string | null;
+      completed_at: string | null;
+      device_id: string;
+      updated_at: string;
+    }>('select * from career_actions order by coalesce(completed_at, due_at, updated_at) desc');
     const runs = await local.query<{
       id: string;
       workspace_id: string;
@@ -343,6 +391,16 @@ export function createClientDataStore() {
         deviceId: row.device_id,
         updatedAt: row.updated_at
       })),
+      careerActions: careerActions.rows.map((row) => ({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        jobId: row.job_id ?? undefined,
+        label: row.label,
+        dueAt: row.due_at ?? undefined,
+        completedAt: row.completed_at ?? undefined,
+        deviceId: row.device_id,
+        updatedAt: row.updated_at
+      })),
       gameRuns: runs.rows.map((row) => ({
         id: row.id,
         workspaceId: row.workspace_id,
@@ -385,9 +443,14 @@ export function createClientDataStore() {
       await deleteLocalStudySession(event.entityId);
       return;
     }
+    if (event.operation === 'delete' && event.entityType === 'career_action') {
+      await deleteLocalCareerAction(event.entityId);
+      return;
+    }
 
     if (event.entityType === 'job') await upsertJob(event.payload as JobRecord);
     if (event.entityType === 'study_session') await upsertStudySession(event.payload as StudySession);
+    if (event.entityType === 'career_action') await upsertCareerAction(event.payload as CareerActionRecord);
     if (event.entityType === 'game_run') await upsertGameRun(event.payload as GameRun);
     if (event.entityType === 'settings') await upsertSettings(event.payload as PersonalSettings);
     if (event.entityType === 'game_state') await upsertGameState(event.payload as GameState);
@@ -527,6 +590,42 @@ export function createClientDataStore() {
     await loadCache();
   }
 
+  async function saveCareerAction(
+    input: Pick<CareerActionRecord, 'label'> & { jobId?: string; dueAt?: string | null; completedAt?: string | null }
+  ): Promise<CareerActionRecord> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+    const result = await requestJson<{ action: CareerActionRecord }>('/api/career-actions', {
+      method: 'POST',
+      body: JSON.stringify({ ...input, workspaceId: state.workspaceId })
+    });
+    await upsertCareerAction(result.action);
+    await loadCache();
+    return result.action;
+  }
+
+  async function updateCareerAction(id: string, input: CareerActionPatchInput): Promise<CareerActionRecord> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+    const result = await requestJson<{ action: CareerActionRecord }>(`/api/career-actions/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+    await upsertCareerAction(result.action);
+    await loadCache();
+    return result.action;
+  }
+
+  async function deleteCareerAction(id: string): Promise<void> {
+    const state = get(store);
+    if (!canAutoSave(state)) throw new Error('Offline read-only mode');
+    await requestJson<{ ok: true }>(`/api/career-actions/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+    await deleteLocalCareerAction(id);
+    await loadCache();
+  }
+
   async function saveGameRun(input: Pick<GameRun, 'gameId' | 'score' | 'durationMs' | 'metadata'>): Promise<GameRun> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
@@ -597,11 +696,20 @@ export function createClientDataStore() {
       await upsertStudySession(result.session);
     }
 
+    for (const legacyAction of legacyImport.careerActions) {
+      const result = await requestJson<{ action: CareerActionRecord }>('/api/career-actions', {
+        method: 'POST',
+        body: JSON.stringify(legacyAction)
+      });
+      await upsertCareerAction(result.action);
+    }
+
     const current = get(store);
     const legacyImportSummary = {
       importedAt: now,
       jobs: legacyImport.jobs.length,
       studySessions: legacyImport.studySessions.length,
+      careerActions: legacyImport.careerActions.length,
       studyDays: legacyImport.summary.studyDays,
       studyCareerActions: legacyImport.summary.studyCareerActions,
       warnings: legacyImport.summary.warnings
@@ -610,14 +718,20 @@ export function createClientDataStore() {
       recentState: {
         ...(current.settings?.recentState ?? {}),
         legacySnapshot: legacyImport.snapshot,
-        legacyImport: legacyImportSummary
+        legacyImport: legacyImportSummary,
+        legacyLinkedState: legacyImport.linkedState
+      },
+      preferences: {
+        ...(current.settings?.preferences ?? {}),
+        legacyLinkedState: legacyImport.linkedState
       },
       lastLegacyImportAt: now
     });
     await saveGameState('legacy-import', {
       snapshot: legacyImport.snapshot,
       importedAt: now,
-      summary: legacyImportSummary
+      summary: legacyImportSummary,
+      linkedState: legacyImport.linkedState
     });
     await loadCache();
     return legacyImport;
@@ -639,6 +753,9 @@ export function createClientDataStore() {
     saveStudySession,
     updateStudySession,
     deleteStudySession,
+    saveCareerAction,
+    updateCareerAction,
+    deleteCareerAction,
     saveGameRun,
     saveGameState,
     saveSettings,

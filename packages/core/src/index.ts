@@ -260,6 +260,17 @@ export const studySessionSchema = z.object({
   updatedAt: z.string().min(1)
 });
 
+export const careerActionSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: z.string().min(1),
+  jobId: z.string().optional(),
+  label: z.string().min(1),
+  dueAt: z.string().optional(),
+  completedAt: z.string().optional(),
+  deviceId: z.string().min(1),
+  updatedAt: z.string().min(1)
+});
+
 export const gameRunSchema = z.object({
   id: z.string().min(1),
   workspaceId: z.string().min(1),
@@ -326,6 +337,7 @@ export type SyncEvent = z.infer<typeof syncEventSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type JobRecord = z.infer<typeof jobSchema>;
 export type StudySession = z.infer<typeof studySessionSchema>;
+export type CareerActionRecord = z.infer<typeof careerActionSchema>;
 export type GameRun = z.infer<typeof gameRunSchema>;
 export type PersonalSettings = z.infer<typeof personalSettingsSchema>;
 export type GameState = z.infer<typeof gameStateSchema>;

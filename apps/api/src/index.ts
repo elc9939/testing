@@ -9,6 +9,7 @@ import { env } from './env';
 import { gameRunRoutes } from './routes/game-runs';
 import { gameStateRoutes } from './routes/game-state';
 import { integrationRoutes, productivityRoutes } from './routes/integrations';
+import { careerActionRoutes } from './routes/career-actions';
 import { jobRoutes } from './routes/jobs';
 import { settingsRoutes } from './routes/settings';
 import { studyRoutes } from './routes/study';
@@ -101,6 +102,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route('/api/integrations', integrationRoutes(store));
   app.route('/api/productivity', productivityRoutes(store));
   app.route('/api/jobs', jobRoutes(store));
+  app.route('/api/career-actions', careerActionRoutes(store));
   app.route('/api/study', studyRoutes(store));
   app.route('/api/game-runs', gameRunRoutes(store));
   app.route('/api/game-state', gameStateRoutes(store));

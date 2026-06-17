@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Edit3, Plus, RefreshCw, Save, Search, Trash2, Upload, X } from 'lucide-svelte';
-  import type { StudySession } from '@mini-hub/core';
+  import type { CareerActionRecord, StudySession } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
 
@@ -14,6 +14,7 @@
     importedAt?: string;
     jobs?: number;
     studySessions?: number;
+    careerActions?: number;
     studyDays?: number;
     studyCareerActions?: number;
   }
@@ -33,7 +34,9 @@
 
   $: canSave = canAutoSave($clientData);
   $: logs = $clientData.studySessions;
+  $: careerActions = $clientData.careerActions;
   $: filteredLogs = logs.filter(matchesLog);
+  $: filteredCareerActions = careerActions.filter(matchesCareerAction).slice(0, 12);
   $: totalMinutes = logs.reduce((sum, item) => sum + item.minutes, 0);
   $: todayMinutes = logs.filter((item) => isToday(item.loggedAt)).reduce((sum, item) => sum + item.minutes, 0);
   $: weekMinutes = logs.filter((item) => isThisWeek(item.loggedAt)).reduce((sum, item) => sum + item.minutes, 0);
@@ -46,6 +49,11 @@
   function matchesLog(log: StudySession): boolean {
     const query = searchQuery.trim().toLowerCase();
     return !query || log.subject.toLowerCase().includes(query);
+  }
+
+  function matchesCareerAction(action: CareerActionRecord): boolean {
+    const query = searchQuery.trim().toLowerCase();
+    return !query || action.label.toLowerCase().includes(query);
   }
 
   function displayDateTime(value: string): string {
@@ -85,7 +93,7 @@
     importing = true;
     try {
       const result = await clientData.importLegacySnapshot(localStorage);
-      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'} and ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}.`;
+      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'}, ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}, and ${result.careerActions.length} career action${result.careerActions.length === 1 ? '' : 's'}.`;
       await refreshSummary();
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Legacy import failed';
@@ -195,7 +203,7 @@
   <section class="card card-pad import-summary">
     <span>Last legacy import</span>
     <strong>{importedLegacy.importedAt ? displayDateTime(importedLegacy.importedAt) : 'Recorded'}</strong>
-    <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions, {importedLegacy.studyCareerActions ?? 0} daily career actions preserved in the snapshot</small>
+    <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions, {importedLegacy.careerActions ?? importedLegacy.studyCareerActions ?? 0} linked career actions</small>
   </section>
 {/if}
 
@@ -231,7 +239,7 @@
   <div><span>Legacy Days</span><strong>{summary?.studyDays ?? 0}</strong></div>
   <div><span>Legacy Sessions</span><strong>{summary?.studySessions ?? 0}</strong></div>
   <div><span>Legacy Career Actions</span><strong>{summary?.studyCareerActions ?? 0}</strong></div>
-  <div><span>Visible Logs</span><strong>{filteredLogs.length} / {logs.length}</strong></div>
+  <div><span>Linked Actions</span><strong>{careerActions.length}</strong></div>
 </section>
 
 <section class="table-toolbar" aria-label="Study filters">
@@ -242,6 +250,35 @@
       <input id="study-search" bind:value={searchQuery} placeholder="Subject" />
     </div>
   </div>
+</section>
+
+<section class="card table-card action-card">
+  <div class="table-title">
+    <strong>Linked Career Actions</strong>
+    <span>{filteredCareerActions.length} shown / {careerActions.length} synced</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Action</th>
+        <th>Due</th>
+        <th>Completed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {#each filteredCareerActions as action}
+        <tr>
+          <td>{action.label}</td>
+          <td>{action.dueAt ? displayDateTime(action.dueAt) : 'None'}</td>
+          <td>{action.completedAt ? displayDateTime(action.completedAt) : 'Open'}</td>
+        </tr>
+      {:else}
+        <tr>
+          <td colspan="3" class="muted">{careerActions.length ? 'No linked career actions match the current search.' : 'No linked career actions imported yet.'}</td>
+        </tr>
+      {/each}
+    </tbody>
+  </table>
 </section>
 
 <section class="card table-card">
@@ -376,6 +413,24 @@
 
   .table-card {
     overflow: auto;
+  }
+
+  .action-card {
+    margin-bottom: 14px;
+  }
+
+  .table-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-title span {
+    color: var(--muted);
+    font-weight: 700;
   }
 
   .table-input {

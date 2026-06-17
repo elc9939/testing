@@ -112,6 +112,17 @@ describe('mini hub api', () => {
     });
     expect(studyResponse.status).toBe(201);
 
+    const careerActionResponse = await app.request('/api/career-actions', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        label: 'Apply to Acme',
+        completedAt: '2026-06-05T12:00:00.000Z'
+      })
+    });
+    expect(careerActionResponse.status).toBe(201);
+
     const gameRunResponse = await app.request('/api/game-runs', {
       method: 'POST',
       headers: authHeaders,
@@ -137,7 +148,7 @@ describe('mini hub api', () => {
     expect(pullResponse.status).toBe(200);
     const pull = (await pullResponse.json()) as { changes: Array<{ entityType: string }>; cursor: string };
     expect(pull.changes.map((change) => change.entityType)).toEqual(
-      expect.arrayContaining(['job', 'study_session', 'game_run', 'game_state', 'settings'])
+      expect.arrayContaining(['job', 'study_session', 'career_action', 'game_run', 'game_state', 'settings'])
     );
 
     const secondPullResponse = await app.request(`/api/sync/pull?since=${encodeURIComponent(pull.cursor)}`);
@@ -199,6 +210,28 @@ describe('mini hub api', () => {
     });
     expect(deleteStudyResponse.status).toBe(200);
 
+    const careerActionResponse = await app.request('/api/career-actions', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ workspaceId: 'personal', label: 'Prep interview', dueAt: '2026-07-02T12:00:00.000Z' })
+    });
+    const { action } = (await careerActionResponse.json()) as { action: { id: string } };
+
+    const patchedActionResponse = await app.request(`/api/career-actions/${action.id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ label: 'Prep technical interview', completedAt: '2026-07-01T19:00:00.000Z' })
+    });
+    expect(patchedActionResponse.status).toBe(200);
+    const patchedAction = (await patchedActionResponse.json()) as { action: { label: string; completedAt?: string } };
+    expect(patchedAction.action.label).toBe('Prep technical interview');
+    expect(patchedAction.action.completedAt).toBe('2026-07-01T19:00:00.000Z');
+
+    const deleteActionResponse = await app.request(`/api/career-actions/${action.id}`, {
+      method: 'DELETE'
+    });
+    expect(deleteActionResponse.status).toBe(200);
+
     const pullResponse = await app.request('/api/sync/pull');
     const pull = (await pullResponse.json()) as {
       changes: Array<{ entityType: string; entityId: string; operation: string }>;
@@ -208,7 +241,9 @@ describe('mini hub api', () => {
         expect.objectContaining({ entityType: 'job', entityId: job.id, operation: 'update' }),
         expect.objectContaining({ entityType: 'job', entityId: job.id, operation: 'delete' }),
         expect.objectContaining({ entityType: 'study_session', entityId: session.id, operation: 'update' }),
-        expect.objectContaining({ entityType: 'study_session', entityId: session.id, operation: 'delete' })
+        expect.objectContaining({ entityType: 'study_session', entityId: session.id, operation: 'delete' }),
+        expect.objectContaining({ entityType: 'career_action', entityId: action.id, operation: 'update' }),
+        expect.objectContaining({ entityType: 'career_action', entityId: action.id, operation: 'delete' })
       ])
     );
   });
@@ -270,6 +305,30 @@ describe('mini hub api', () => {
     expect(secondSession.status).toBe(200);
     expect(store.studySessions).toHaveLength(1);
     expect(store.studySessions[0]).toMatchObject({ id: legacySession.id, minutes: 45 });
+
+    const legacyAction = {
+      id: 'legacy-study-career-action:2026-06-04:career-a',
+      workspaceId: 'personal',
+      label: 'Apply: Submitted Acme follow-up',
+      completedAt: '2026-06-04T18:30:00.000Z',
+      deviceId: 'web:test',
+      updatedAt: '2026-06-04T18:30:00.000Z'
+    };
+    const firstAction = await app.request('/api/career-actions', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(legacyAction)
+    });
+    const secondAction = await app.request('/api/career-actions', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ ...legacyAction, label: 'Apply: Submitted again' })
+    });
+
+    expect(firstAction.status).toBe(201);
+    expect(secondAction.status).toBe(200);
+    expect(store.careerActions).toHaveLength(1);
+    expect(store.careerActions[0]).toMatchObject({ id: legacyAction.id, label: 'Apply: Submitted again' });
   });
 
   it('serves the integration catalog in personal local mode', async () => {

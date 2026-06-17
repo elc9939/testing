@@ -2,6 +2,7 @@ import {
   personalUserId,
   personalWorkspaceId,
   type Achievement,
+  type CareerActionRecord,
   type GameRun,
   type GameState,
   type IntegrationConnection,
@@ -25,6 +26,7 @@ export interface MemoryStore {
   members: WorkspaceMember[];
   jobs: JobRecord[];
   studySessions: StudySession[];
+  careerActions: CareerActionRecord[];
   gameRuns: GameRun[];
   settings: PersonalSettings | null;
   gameStates: Map<string, GameState>;
@@ -40,6 +42,7 @@ export function createMemoryStore(): MemoryStore {
     members: [],
     jobs: [],
     studySessions: [],
+    careerActions: [],
     gameRuns: [],
     settings: null,
     gameStates: new Map(),

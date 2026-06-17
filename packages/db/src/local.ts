@@ -27,6 +27,18 @@ create table if not exists study_sessions (
   updated_at text not null
 );
 
+create table if not exists career_actions (
+  id text primary key,
+  workspace_id text not null,
+  job_id text,
+  label text not null,
+  due_at text,
+  completed_at text,
+  device_id text not null,
+  deleted boolean not null default false,
+  updated_at text not null
+);
+
 create table if not exists game_runs (
   id text primary key,
   workspace_id text not null,

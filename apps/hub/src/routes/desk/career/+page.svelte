@@ -11,6 +11,7 @@
     importedAt?: string;
     jobs?: number;
     studySessions?: number;
+    careerActions?: number;
     studyDays?: number;
     studyCareerActions?: number;
     warnings?: string[];
@@ -87,7 +88,7 @@
     importing = true;
     try {
       const result = await clientData.importLegacySnapshot(localStorage);
-      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'} and ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}.`;
+      importMessage = `Imported ${result.jobs.length} job${result.jobs.length === 1 ? '' : 's'}, ${result.studySessions.length} study session${result.studySessions.length === 1 ? '' : 's'}, and ${result.careerActions.length} career action${result.careerActions.length === 1 ? '' : 's'}.`;
       await refreshSummary();
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Legacy import failed';
@@ -271,7 +272,7 @@
         <div class="import-summary">
           <span>Last import</span>
           <strong>{importedLegacy.importedAt ? displayUpdated(importedLegacy.importedAt) : 'Recorded'}</strong>
-          <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions</small>
+          <small>{importedLegacy.jobs ?? 0} jobs, {importedLegacy.studySessions ?? 0} study sessions, {importedLegacy.careerActions ?? importedLegacy.studyCareerActions ?? 0} career actions</small>
         </div>
       {/if}
     {:else}

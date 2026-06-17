@@ -1,8 +1,10 @@
 import {
+  careerActionSchema,
   jobSchema,
   legacyStorageKeys,
   personalWorkspaceId,
   studySessionSchema,
+  type CareerActionRecord,
   type JobRecord,
   type StudySession
 } from '@mini-hub/core';
@@ -31,6 +33,8 @@ export interface LegacyEntityImport {
   summary: LegacyImportSummary;
   jobs: JobRecord[];
   studySessions: StudySession[];
+  careerActions: CareerActionRecord[];
+  linkedState: Record<string, unknown>;
   warnings: string[];
 }
 
@@ -95,6 +99,13 @@ function dateValue(value: unknown): string | undefined {
 function stableLegacyId(prefix: string, rawId: unknown, index: number): string {
   const id = text(rawId) || String(index + 1);
   return `${prefix}:${id}`;
+}
+
+function dateAtNoonIso(value: unknown): string | undefined {
+  const raw = text(value);
+  if (!raw) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(raw)) return `${raw}T12:00:00.000Z`;
+  return isoDateTime(raw);
 }
 
 function noteLine(label: string, value: unknown): string | null {
@@ -182,6 +193,135 @@ function convertLegacyJob(value: unknown, index: number, options: Required<Legac
   return parsed.success ? parsed.data : null;
 }
 
+function convertCareerAction(input: {
+  id: string;
+  workspaceId: string;
+  jobId?: string | undefined;
+  label: string;
+  dueAt?: string | undefined;
+  completedAt?: string | undefined;
+  deviceId: string;
+  updatedAt: string;
+}): CareerActionRecord | null {
+  const parsed = careerActionSchema.safeParse(input);
+  return parsed.success ? parsed.data : null;
+}
+
+function convertLegacyStudyCareerActions(
+  study: Record<string, unknown> | null,
+  options: Required<LegacyEntityImportOptions>
+): CareerActionRecord[] {
+  const daily = asRecord(study?.daily) ?? asRecord(study?.days);
+  if (!daily) return [];
+
+  return Object.entries(daily).flatMap(([date, value], dayIndex) => {
+    const day = asRecord(value);
+    const actions = Array.isArray(day?.careerActions) ? day.careerActions : [];
+    return actions
+      .map((action, actionIndex) => {
+        const record = asRecord(action);
+        if (!record) return null;
+        const kind = text(record.kind) || 'Career action';
+        const notes = text(record.notes);
+        const completedAt = isoDateTime(record.at) ?? dateAtNoonIso(date) ?? options.importedAt;
+        return convertCareerAction({
+          id: stableLegacyId('legacy-study-career-action', `${date}:${text(record.id) || actionIndex + 1}`, dayIndex + actionIndex),
+          workspaceId: options.workspaceId,
+          label: notes ? `${kind}: ${notes}` : kind,
+          completedAt,
+          deviceId: options.deviceId,
+          updatedAt: completedAt
+        });
+      })
+      .filter((action): action is CareerActionRecord => Boolean(action));
+  });
+}
+
+function convertLegacyJobCareerActions(
+  value: unknown,
+  index: number,
+  options: Required<LegacyEntityImportOptions>
+): CareerActionRecord[] {
+  const job = asRecord(value);
+  if (!job) return [];
+
+  const jobId = stableLegacyId('legacy-career-job', job.id, index);
+  const jobKey = text(job.id) || String(index + 1);
+  const role = text(job.title) || text(job.role) || 'Untitled role';
+  const company = text(job.company) || 'Unknown company';
+  const updatedAt = isoDateTime(job.updatedAt) ?? isoDateTime(job.createdAt) ?? options.importedAt;
+  const actions: Array<CareerActionRecord | null> = [];
+
+  const dateApplied = dateAtNoonIso(job.dateApplied);
+  if (dateApplied) {
+    actions.push(
+      convertCareerAction({
+        id: stableLegacyId('legacy-career-action:applied', jobKey, index),
+        workspaceId: options.workspaceId,
+        jobId,
+        label: `Applied: ${role} at ${company}`,
+        completedAt: dateApplied,
+        deviceId: options.deviceId,
+        updatedAt: dateApplied
+      })
+    );
+  }
+
+  const nextAction = text(job.nextAction);
+  const nextActionAt = dateAtNoonIso(job.nextActionDate);
+  if (nextAction || nextActionAt) {
+    actions.push(
+      convertCareerAction({
+        id: stableLegacyId('legacy-career-action:next', jobKey, index),
+        workspaceId: options.workspaceId,
+        jobId,
+        label: nextAction ? `Next: ${nextAction}` : `Next action: ${role} at ${company}`,
+        dueAt: nextActionAt,
+        deviceId: options.deviceId,
+        updatedAt
+      })
+    );
+  }
+
+  const deadlineAt = dateAtNoonIso(job.deadline);
+  if (deadlineAt && deadlineAt !== nextActionAt) {
+    actions.push(
+      convertCareerAction({
+        id: stableLegacyId('legacy-career-action:deadline', jobKey, index),
+        workspaceId: options.workspaceId,
+        jobId,
+        label: `Deadline: ${role} at ${company}`,
+        dueAt: deadlineAt,
+        deviceId: options.deviceId,
+        updatedAt
+      })
+    );
+  }
+
+  if (Array.isArray(job.history)) {
+    job.history.forEach((item, historyIndex) => {
+      const record = asRecord(item);
+      if (!record) return;
+      const label = text(record.text);
+      if (!label) return;
+      const completedAt = isoDateTime(record.at) ?? updatedAt;
+      actions.push(
+        convertCareerAction({
+          id: stableLegacyId('legacy-career-action:history', `${jobKey}:${historyIndex + 1}:${text(record.at)}`, historyIndex),
+          workspaceId: options.workspaceId,
+          jobId,
+          label,
+          completedAt,
+          deviceId: options.deviceId,
+          updatedAt: completedAt
+        })
+      );
+    });
+  }
+
+  return actions.filter((action): action is CareerActionRecord => Boolean(action));
+}
+
 function convertLegacyStudySession(
   value: unknown,
   index: number,
@@ -227,6 +367,26 @@ function readLegacyStudyState(storage: ReadableStorage, warnings: string[]): Rec
     warnings.push('Study Desk data exists but could not be parsed.');
     return null;
   }
+}
+
+function createLinkedState(
+  storage: ReadableStorage,
+  rawJobs: unknown[],
+  study: Record<string, unknown> | null
+): Record<string, unknown> {
+  const studyRecord = study ?? {};
+  return {
+    careerDesk: {
+      jobCount: rawJobs.length,
+      emailSeeded: storage.getItem(legacyStorageKeys.careerEmailSeed) === '1'
+    },
+    studyDesk: {
+      settings: asRecord(studyRecord.settings) ?? {},
+      topics: asRecord(studyRecord.topics) ?? {},
+      github: asRecord(studyRecord.github) ?? {},
+      daily: asRecord(studyRecord.daily) ?? asRecord(studyRecord.days) ?? {}
+    }
+  };
 }
 
 export function inspectLegacyStorage(storage: ReadableStorage): LegacyImportSummary {
@@ -288,6 +448,10 @@ export function createLegacyEntityImport(storage: ReadableStorage, options: Lega
   const studySessions = rawStudySessions
     .map((session, index) => convertLegacyStudySession(session, index, normalizedOptions))
     .filter((session): session is StudySession => Boolean(session));
+  const careerActions = [
+    ...convertLegacyStudyCareerActions(study, normalizedOptions),
+    ...rawJobs.flatMap((job, index) => convertLegacyJobCareerActions(job, index, normalizedOptions))
+  ];
 
   if (jobs.length < rawJobs.length) {
     warnings.push(`${rawJobs.length - jobs.length} Career Desk job(s) could not be converted.`);
@@ -306,6 +470,8 @@ export function createLegacyEntityImport(storage: ReadableStorage, options: Lega
     },
     jobs,
     studySessions,
+    careerActions,
+    linkedState: createLinkedState(storage, rawJobs, study),
     warnings: combinedWarnings
   };
 }

@@ -43,6 +43,7 @@ describe('legacy storage migration', () => {
           link: 'https://example.com/job',
           nextAction: 'Prep probability questions',
           nextActionDate: '2026-07-01',
+          dateApplied: '2026-06-05',
           notes: 'Good fit',
           history: [{ at: '2026-06-01T12:00:00.000Z', text: 'Created' }],
           updatedAt: '2026-06-02T12:00:00.000Z'
@@ -50,7 +51,14 @@ describe('legacy storage migration', () => {
       ]),
       [legacyStorageKeys.studyState]: JSON.stringify({
         sessions: [{ id: 'study-a', track: 'quant', minutes: 50, notes: 'EV drills', createdAt: '2026-06-03T10:00:00.000Z' }],
-        daily: {}
+        daily: {
+          '2026-06-04': {
+            careerActions: [{ id: 'career-a', kind: 'Apply', notes: 'Submitted Acme follow-up', at: '2026-06-04T18:30:00.000Z' }]
+          }
+        },
+        settings: { examDate: '2026-09-01', weeklyGoal: 600 },
+        topics: { examP: [{ id: 'bayes', title: 'Bayes', done: true, updatedAt: '2026-06-04T00:00:00.000Z' }] },
+        github: { repo: 'elc9939/neetcode-submissions', submissions: 42 }
       })
     });
 
@@ -78,6 +86,40 @@ describe('legacy storage migration', () => {
       minutes: 50,
       source: 'legacy-study-desk:quant',
       loggedAt: '2026-06-03T10:00:00.000Z'
+    });
+
+    expect(result.careerActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'legacy-study-career-action:2026-06-04:career-a',
+          label: 'Apply: Submitted Acme follow-up',
+          completedAt: '2026-06-04T18:30:00.000Z'
+        }),
+        expect.objectContaining({
+          id: 'legacy-career-action:applied:job-a',
+          jobId: 'legacy-career-job:job-a',
+          label: 'Applied: Quant Analyst at Acme',
+          completedAt: '2026-06-05T12:00:00.000Z'
+        }),
+        expect.objectContaining({
+          id: 'legacy-career-action:next:job-a',
+          jobId: 'legacy-career-job:job-a',
+          label: 'Next: Prep probability questions',
+          dueAt: '2026-07-01T12:00:00.000Z'
+        }),
+        expect.objectContaining({
+          id: 'legacy-career-action:history:job-a:1:2026-06-01T12:00:00.000Z',
+          jobId: 'legacy-career-job:job-a',
+          label: 'Created',
+          completedAt: '2026-06-01T12:00:00.000Z'
+        })
+      ])
+    );
+    expect(result.linkedState).toMatchObject({
+      studyDesk: {
+        settings: { examDate: '2026-09-01', weeklyGoal: 600 },
+        github: { submissions: 42 }
+      }
     });
   });
 });
