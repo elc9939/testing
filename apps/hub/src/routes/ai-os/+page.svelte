@@ -1333,8 +1333,8 @@
     margin: 0;
     padding: 12px;
     border-radius: 6px;
-    background: var(--text);
-    color: var(--bg);
+    background: var(--code-bg);
+    color: var(--code-text);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }

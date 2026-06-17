@@ -22,12 +22,20 @@ export async function createDuckDbRuntime() {
 
 export async function renderMetricBars(target: HTMLElement, rows: MetricRow[]): Promise<void> {
   const Plot = await import('@observablehq/plot');
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#5b62d6';
+  const styles = getComputedStyle(document.documentElement);
+  const accent = styles.getPropertyValue('--accent').trim() || '#6259d9';
+  const text = styles.getPropertyValue('--text').trim() || '#202337';
   const plot = Plot.plot({
     width: Math.max(320, target.clientWidth || 640),
     height: 260,
     marginLeft: 96,
+    style: {
+      background: 'transparent',
+      color: text
+    },
     color: { range: [accent] },
+    x: { grid: true, label: null },
+    y: { label: null },
     marks: [
       Plot.barX(rows, { x: 'value', y: 'label', sort: { y: '-x' }, fill: accent, rx: 3 }),
       Plot.ruleX([0])

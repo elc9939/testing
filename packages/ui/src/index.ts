@@ -11,9 +11,9 @@ export const palette = {
   border: 'var(--border)',
   blue: 'var(--accent)',
   violet: 'var(--accent)',
-  amber: '#f2c14e',
-  coral: '#ff9f6e',
-  green: '#4fb477'
+  warning: 'var(--warning-text)',
+  error: 'var(--error-text)',
+  success: 'var(--success-text)'
 } as const;
 
 export function statusLabel(value: string): string {

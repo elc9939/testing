@@ -845,7 +845,7 @@
   }
 
   .connector-card span.implemented {
-    color: var(--success-text);
+    color: var(--accent);
   }
 
   .connector-card p {

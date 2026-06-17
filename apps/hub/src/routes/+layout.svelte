@@ -114,64 +114,64 @@
 <style>
   :global(:root) {
     color-scheme: light;
-    --bg: #f4f6fb;
+    --bg: #f5f6ff;
     --surface: #ffffff;
-    --surface-muted: #eef2f8;
-    --surface-soft: #e7ecf7;
-    --text: #1d2333;
-    --text-soft: #374052;
-    --muted: #667085;
-    --border: #d9dfec;
-    --border-strong: #c4ccdc;
-    --active: #e8ecf8;
-    --primary-bg: #5b62d6;
+    --surface-muted: #eef1ff;
+    --surface-soft: #e5e9fb;
+    --text: #202337;
+    --text-soft: #3d435b;
+    --muted: #68708b;
+    --border: #d8ddf0;
+    --border-strong: #c3c9e4;
+    --active: #e9ecff;
+    --primary-bg: #6259d9;
     --primary-text: #ffffff;
-    --accent: #5b62d6;
-    --code-bg: #0f172a;
-    --code-text: #e2e8f0;
-    --warning-border: #f2c14e;
-    --warning-text: #815d00;
-    --warning-bg: #fff8df;
-    --error-border: #ff9f6e;
-    --error-text: #944700;
-    --error-bg: #fff0e6;
-    --success-border: #90d4a7;
-    --success-text: #166534;
-    --success-bg: #ecfdf3;
-    --danger-border: #ef4444;
-    --danger-text: #9f1239;
-    --danger-bg: #fff5f5;
+    --accent: #6259d9;
+    --code-bg: #101327;
+    --code-text: #edf0ff;
+    --warning-border: #d7a12a;
+    --warning-text: #6c4c00;
+    --warning-bg: #fff7dd;
+    --error-border: #dd7660;
+    --error-text: #8e3428;
+    --error-bg: #fff1ec;
+    --success-border: #74b89a;
+    --success-text: #0f6348;
+    --success-bg: #effaf5;
+    --danger-border: #dc4361;
+    --danger-text: #941833;
+    --danger-bg: #fff0f4;
   }
 
   :global(:root[data-theme='dark']) {
     color-scheme: dark;
-    --bg: #11131d;
-    --surface: #171a27;
-    --surface-muted: #1e2231;
-    --surface-soft: #252b3d;
-    --text: #eef1ff;
-    --text-soft: #cfd5ea;
-    --muted: #a4abc2;
-    --border: #30364a;
-    --border-strong: #434b63;
-    --active: #252a3b;
-    --primary-bg: #9aa4ff;
-    --primary-text: #10121b;
-    --accent: #9aa4ff;
-    --code-bg: #070a0f;
-    --code-text: #eef2f7;
-    --warning-border: #a7812e;
-    --warning-text: #f4d58d;
-    --warning-bg: #2b2415;
-    --error-border: #9f624a;
-    --error-text: #ffb395;
-    --error-bg: #2d1d18;
-    --success-border: #3f8f61;
-    --success-text: #9be4b4;
-    --success-bg: #14271d;
-    --danger-border: #9f4d59;
-    --danger-text: #ffb4c0;
-    --danger-bg: #2d171d;
+    --bg: #0f1124;
+    --surface: #17192d;
+    --surface-muted: #20233a;
+    --surface-soft: #2a2e4b;
+    --text: #f1f3ff;
+    --text-soft: #d4d8f0;
+    --muted: #aab1ca;
+    --border: #303651;
+    --border-strong: #444b68;
+    --active: #2a2f4d;
+    --primary-bg: #a59cff;
+    --primary-text: #101224;
+    --accent: #a59cff;
+    --code-bg: #090d1b;
+    --code-text: #edf0ff;
+    --warning-border: #a68133;
+    --warning-text: #efd18a;
+    --warning-bg: #2a2415;
+    --error-border: #a86155;
+    --error-text: #ffc2b8;
+    --error-bg: #2d1b1a;
+    --success-border: #528a73;
+    --success-text: #9fdabc;
+    --success-bg: #15251f;
+    --danger-border: #a94f65;
+    --danger-text: #ffc0cd;
+    --danger-bg: #301821;
   }
 
   :global(*) {
@@ -187,11 +187,54 @@
       "Segoe UI Variable Text", "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
+  :global(html) {
+    background: var(--bg);
+  }
+
   :global(button),
   :global(input),
   :global(select),
   :global(textarea) {
     font: inherit;
+    color: var(--text);
+  }
+
+  :global(button),
+  :global(input),
+  :global(select),
+  :global(textarea),
+  :global(progress) {
+    accent-color: var(--accent);
+  }
+
+  :global(option) {
+    color: var(--text);
+    background: var(--surface);
+  }
+
+  :global(input:disabled),
+  :global(select:disabled),
+  :global(textarea:disabled) {
+    color: var(--muted);
+    background: var(--surface-muted);
+    opacity: 1;
+  }
+
+  :global(button:disabled) {
+    opacity: 0.6;
+  }
+
+  :global(input:-webkit-autofill),
+  :global(textarea:-webkit-autofill),
+  :global(select:-webkit-autofill) {
+    box-shadow: 0 0 0 1000px var(--surface) inset;
+    -webkit-text-fill-color: var(--text);
+    caret-color: var(--text);
+  }
+
+  :global(::selection) {
+    color: var(--text);
+    background: var(--active);
   }
 
   .shell {
