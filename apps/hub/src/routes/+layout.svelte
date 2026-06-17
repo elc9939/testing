@@ -15,6 +15,7 @@
   } from 'lucide-svelte';
   import { routeMap } from '@mini-hub/core';
   import { clientData } from '$lib/client-data';
+  import { hubHref, hubRouteFromPath } from '$lib/routes';
 
   const nav = [
     { href: routeMap.today, label: 'Today', icon: Home },
@@ -29,7 +30,7 @@
     { href: routeMap.settings, label: 'Settings', icon: Settings }
   ];
 
-  $: path = $page.url.pathname;
+  $: path = hubRouteFromPath($page.url.pathname);
 
   onMount(() => {
     void clientData.init();
@@ -42,7 +43,7 @@
 
 <div class="shell">
   <aside class="rail" aria-label="Primary">
-    <a class="brand" href={routeMap.today} aria-label="Mini Hub home">
+    <a class="brand" href={hubHref(routeMap.today)} aria-label="Mini Hub home">
       <span class="brand-mark">MH</span>
       <span>Mini Hub</span>
     </a>
@@ -52,7 +53,7 @@
 
     <nav>
       {#each nav as item}
-        <a class:active={path === item.href || (item.href !== '/' && path.startsWith(item.href))} href={item.href}>
+        <a class:active={path === item.href || (item.href !== '/' && path.startsWith(item.href))} href={hubHref(item.href)}>
           <svelte:component this={item.icon} size={18} strokeWidth={1.9} />
           <span>{item.label}</span>
         </a>

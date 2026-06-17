@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ArrowRight, Gamepad2 } from 'lucide-svelte';
+  import { hubHref } from '$lib/routes';
 </script>
 
 <section class="page-header">
@@ -10,7 +11,7 @@
 </section>
 
 <section class="grid two">
-  <a class="card game-link" href="/games/stick-arena-lab">
+  <a class="card game-link" href={hubHref('/games/stick-arena-lab')}>
     <Gamepad2 size={22} />
     <div>
       <strong>Stick Arena Ability Lab</strong>
@@ -19,7 +20,7 @@
     <ArrowRight size={18} />
   </a>
 
-  <a class="card game-link legacy" href="/../../index.html">
+  <a class="card game-link legacy" href={hubHref('/legacy/')}>
     <Gamepad2 size={22} />
     <div>
       <strong>Legacy Arcade</strong>
@@ -49,4 +50,3 @@
     border-style: dashed;
   }
 </style>
-

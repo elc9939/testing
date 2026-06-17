@@ -224,6 +224,22 @@ pnpm dev:hub
 
 Open `http://127.0.0.1:5173/ai-os`.
 
+GitHub Pages publishes the same Svelte hub at:
+
+```text
+https://elc9939.github.io/testing/
+https://elc9939.github.io/testing/ai-os
+```
+
+The previous static arcade is retained at:
+
+```text
+https://elc9939.github.io/testing/legacy/
+```
+
+When using the Pages site as the UI, keep local services running on `127.0.0.1` if you want
+AI OS, Macro Lab, or personal sync actions to work from that browser tab.
+
 The AI OS dashboard includes a Foundation Health panel for database integrity, latest backup,
 queue depth, recent failures, manual backup, backup verification, restore-test, and cleanup.
 

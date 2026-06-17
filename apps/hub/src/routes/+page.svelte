@@ -2,6 +2,7 @@
   import { ArrowRight, DatabaseZap, Gamepad2, ShieldCheck } from 'lucide-svelte';
   import { launcherEntries } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
+  import { hubHref } from '$lib/routes';
 </script>
 
 <section class="page-header">
@@ -9,7 +10,7 @@
     <p class="eyebrow">Today</p>
     <h1>Mini Hub</h1>
   </div>
-  <a class="button primary" href="/settings">
+  <a class="button primary" href={hubHref('/settings')}>
     <ShieldCheck size={17} />
     <span>Workspace Setup</span>
   </a>
@@ -32,7 +33,7 @@
 
 <section class="grid three launcher" aria-label="Launcher">
   {#each launcherEntries as entry}
-    <a class="card launch-card" href={entry.route} style={`--accent:${entry.accent}`}>
+    <a class="card launch-card" href={hubHref(entry.route)} style={`--accent:${entry.accent}`}>
       <div>
         <strong>{entry.name}</strong>
         <span>{entry.group}</span>

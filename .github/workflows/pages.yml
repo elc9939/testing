@@ -1,8 +1,7 @@
 name: Deploy to GitHub Pages
 
-# Publishes the static arcade to GitHub Pages so it can be opened (and
-# installed) on any phone via a public URL. Deploys from the default branch,
-# which is what the auto-created github-pages environment permits.
+# Publishes the Svelte Mini Hub to GitHub Pages while retaining the legacy
+# static arcade at /legacy/.
 on:
   push:
     branches:
@@ -29,6 +28,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.7
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Configure Pages
         # enablement: true turns on GitHub Pages (with the Actions build type)
         # automatically on the first run, so no manual Settings toggle is needed.
@@ -36,19 +49,30 @@ jobs:
         with:
           enablement: true
 
-      # Assemble ONLY the static game files. This deliberately excludes
-      # .env, *.json, notebooks and other repo content so nothing private
-      # is ever published to the public site.
-      - name: Assemble site
+      - name: Check legacy app
+        run: pnpm legacy:check
+
+      - name: Build Svelte hub
+        env:
+          PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          PUBLIC_API_URL: http://127.0.0.1:8787
+          PUBLIC_AI_OS_API_URL: http://127.0.0.1:8791
+          PUBLIC_MACRO_LAB_API_URL: http://127.0.0.1:8792
+          PUBLIC_SYNC_MODE: personal
+        run: pnpm --filter @mini-hub/hub build
+
+      - name: Add legacy arcade fallback
         run: |
-          mkdir -p _site
-          cp index.html manifest.webmanifest sw.js _site/
-          cp -r css js icons _site/
+          cp apps/hub/build/404.html apps/hub/build/index.html
+          touch apps/hub/build/.nojekyll
+          mkdir -p apps/hub/build/legacy
+          cp index.html manifest.webmanifest sw.js apps/hub/build/legacy/
+          cp -r css js icons apps/hub/build/legacy/
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '_site'
+          path: 'apps/hub/build'
 
       - name: Deploy to GitHub Pages
         id: deployment
