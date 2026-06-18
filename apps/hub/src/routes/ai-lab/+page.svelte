@@ -46,7 +46,18 @@
 <section class="page-header">
   <div>
     <p class="eyebrow">AI Lab</p>
-    <h1>Local Intelligence</h1>
+    <h1>Browser Experiments</h1>
+  </div>
+</section>
+
+<section class="card card-pad plain-guide">
+  <div>
+    <strong>What this is</strong>
+    <p>AI Lab is a small sandbox for browser-side local AI pieces. Use it to try text classification and code parsing without running the full AI OS control room.</p>
+  </div>
+  <div>
+    <strong>When to use AI OS instead</strong>
+    <p>Use AI OS for Ollama/API routing, agents, memory search, queues, multimodal adapters, benchmarks, tools, and health checks.</p>
   </div>
 </section>
 
@@ -83,11 +94,37 @@
       <Play size={17} />
       <span>Parse</span>
     </button>
-    <pre>{result}</pre>
   </div>
 </section>
 
+<section class="card card-pad result-panel">
+  <div class="section-title">
+    <BrainCircuit size={18} />
+    <strong>Result</strong>
+  </div>
+  <pre>{result}</pre>
+</section>
+
 <style>
+  .plain-guide {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 10px;
+    background: var(--surface-muted);
+  }
+
+  .plain-guide div {
+    display: grid;
+    gap: 5px;
+  }
+
+  .plain-guide p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
   .panel {
     display: grid;
     gap: 12px;
@@ -110,5 +147,17 @@
     background: var(--code-bg);
     color: var(--code-text);
     white-space: pre-wrap;
+  }
+
+  .result-panel {
+    display: grid;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  @media (max-width: 760px) {
+    .plain-guide {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

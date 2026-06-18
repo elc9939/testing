@@ -515,7 +515,7 @@
 <section class="page-header">
   <div>
     <p class="eyebrow">Personal AI OS</p>
-    <h1>Capability Dashboard</h1>
+    <h1>Capability Console</h1>
   </div>
   <button class="button" type="button" disabled={loading} on:click={refresh}>
     <RefreshCw size={17} />
@@ -528,6 +528,21 @@
 {:else if actionMessage}
   <section class="card card-pad success-banner">{actionMessage}</section>
 {/if}
+
+<section class="card card-pad plain-guide">
+  <div>
+    <strong>What this page is</strong>
+    <p>AI OS is the control room for the local/API AI stack: providers, routed inference, jobs, memory, agents, tools, media adapters, benchmarks, health, and backups.</p>
+  </div>
+  <div>
+    <strong>Easier path</strong>
+    <p>Use the side assistant for normal-language requests. It opens pages, checks status, summarizes cached hub data, and sends tool-backed commands here when needed.</p>
+  </div>
+  <div>
+    <strong>Safety model</strong>
+    <p>Read-only actions can run directly. Writes, macro runs, and design changes require explicit confirmation before they change your app or machine.</p>
+  </div>
+</section>
 
 <section class="metric-grid">
   <article class="card card-pad metric">
@@ -1118,6 +1133,26 @@
     font-weight: 800;
   }
 
+  .plain-guide {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+    background: var(--surface-muted);
+  }
+
+  .plain-guide div {
+    display: grid;
+    gap: 5px;
+    align-content: start;
+  }
+
+  .plain-guide p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
   .error-banner {
     border-color: var(--error-border);
     color: var(--error-text);
@@ -1412,6 +1447,7 @@
   @media (max-width: 1100px) {
     .metric-grid,
     .foundation-grid,
+    .plain-guide,
     :global(.grid.two),
     .patch-list {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1421,6 +1457,7 @@
   @media (max-width: 760px) {
     .metric-grid,
     .foundation-grid,
+    .plain-guide,
     :global(.grid.two),
     .control-grid,
     .patch-list,

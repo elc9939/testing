@@ -17,6 +17,7 @@
     Sun
   } from 'lucide-svelte';
   import { routeMap } from '@mini-hub/core';
+  import AssistantDock from '$lib/AssistantDock.svelte';
   import { clientData } from '$lib/client-data';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
   import { applyTheme, normalizeTheme, setTheme, theme, watchSystemTheme, type ThemeMode } from '$lib/theme';
@@ -109,6 +110,8 @@
   <main>
     <slot />
   </main>
+
+  <AssistantDock />
 </div>
 
 <style>
