@@ -28,6 +28,12 @@ interface OllamaTriageResult {
   deadlineHint?: unknown;
 }
 
+interface OllamaTagsResponse {
+  models?: Array<{ name?: unknown; model?: unknown }>;
+}
+
+let ollamaModelPromise: Promise<string | null> | null = null;
+
 const highSignalTerms = [
   'deadline',
   'due',
@@ -169,17 +175,43 @@ function parseOllamaJson(text: string): OllamaTriageResult | null {
   }
 }
 
+async function resolveOllamaModel(): Promise<string | null> {
+  if (ollamaModelPromise) return ollamaModelPromise;
+  ollamaModelPromise = (async () => {
+    const configuredModel = env.ollamaChatModel.trim();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    try {
+      const response = await fetch(`${env.ollamaBaseUrl}/api/tags`, { signal: controller.signal });
+      if (!response.ok) return configuredModel || null;
+      const body = (await response.json()) as OllamaTagsResponse;
+      const models = (body.models ?? [])
+        .map((model) => (typeof model.name === 'string' ? model.name : typeof model.model === 'string' ? model.model : ''))
+        .filter(Boolean);
+      if (!models.length) return configuredModel || null;
+      return models.includes(configuredModel) ? configuredModel : (models[0] ?? configuredModel);
+    } catch {
+      return configuredModel || null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+  return ollamaModelPromise;
+}
+
 async function ollamaTriage(thread: GmailThread): Promise<EmailThreadInsight | null> {
-  if (!env.emailTriageAi) return null;
+  if (!env.emailTriageAi || process.env.NODE_ENV === 'test') return null;
+  const model = await resolveOllamaModel();
+  if (!model) return null;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 7000);
+  const timeout = setTimeout(() => controller.abort(), env.ollamaEmailTriageTimeoutMs);
   try {
     const response = await fetch(`${env.ollamaBaseUrl}/api/generate`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: env.ollamaChatModel,
+        model,
         stream: false,
         format: 'json',
         prompt: [
@@ -202,7 +234,7 @@ async function ollamaTriage(thread: GmailThread): Promise<EmailThreadInsight | n
       )
         ? (parsed.category as EmailTriageCategory)
         : fallback.category;
-    const priority = typeof parsed.priority === 'number' ? parsed.priority : fallback.priority;
+    const priority = typeof parsed.priority === 'number' ? Math.max(parsed.priority, fallback.priority) : fallback.priority;
     const reason = typeof parsed.reason === 'string' && parsed.reason.trim() ? parsed.reason.trim() : fallback.reason;
     const deadlineHint =
       typeof parsed.deadlineHint === 'string' && parsed.deadlineHint.trim()
@@ -227,11 +259,22 @@ export async function triageGmailThreads(
   threads: GmailThread[],
   options: { maxResults?: number; minPriority?: number } = {}
 ): Promise<EmailThreadInsight[]> {
-  const insights = await Promise.all(
-    threads.map(async (thread) => (await ollamaTriage(thread)) ?? heuristicTriage(thread))
-  );
-  return insights
-    .filter((insight) => insight.priority >= (options.minPriority ?? 50))
+  const maxResults = options.maxResults ?? 10;
+  const minPriority = options.minPriority ?? 50;
+  const heuristicInsights = threads
+    .map(heuristicTriage)
+    .filter((insight) => insight.priority >= minPriority)
     .sort((a, b) => b.priority - a.priority)
-    .slice(0, options.maxResults ?? 10);
+    .slice(0, Math.max(maxResults, 1));
+
+  const aiCandidateCount = Math.min(heuristicInsights.length, maxResults, 8);
+  const refinedInsights: EmailThreadInsight[] = [];
+  for (const insight of heuristicInsights.slice(0, aiCandidateCount)) {
+    refinedInsights.push((await ollamaTriage(insight.thread)) ?? insight);
+  }
+
+  return [...refinedInsights, ...heuristicInsights.slice(aiCandidateCount)]
+    .filter((insight) => insight.priority >= minPriority)
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, maxResults);
 }
