@@ -1,12 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Cloud, Download, Monitor, Moon, Sun } from 'lucide-svelte';
-  import { apiUrl, getHealth } from '$lib/api';
+  import { Cloud, Download, Monitor, Moon, Save, Sun } from 'lucide-svelte';
+  import { getApiUrl, getHealth } from '$lib/api';
+  import { getAiOsApiUrl } from '$lib/ai-os-api';
   import { clientData } from '$lib/client-data';
+  import { getMacroLabApiUrl } from '$lib/macro-lab-api';
+  import { localNetworkHint, setServiceEndpoints } from '$lib/service-config';
   import { setTheme, theme, type ThemeMode } from '$lib/theme';
 
   let apiStatus = 'Not checked';
   let settingsError = '';
+  let endpointMessage = '';
+  let hubApiInput = '';
+  let aiOsInput = '';
+  let macroLabInput = '';
   let themeSaving = false;
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
 
@@ -27,6 +34,23 @@
     } catch (error) {
       settingsError = error instanceof Error ? error.message : 'Sync failed';
     }
+  }
+
+  function loadEndpointInputs(): void {
+    hubApiInput = getApiUrl();
+    aiOsInput = getAiOsApiUrl();
+    macroLabInput = getMacroLabApiUrl();
+  }
+
+  function saveEndpoints(): void {
+    setServiceEndpoints({
+      hubApi: hubApiInput,
+      aiOs: aiOsInput,
+      macroLab: macroLabInput
+    });
+    loadEndpointInputs();
+    endpointMessage = 'Saved. Service requests now use these URLs on this browser.';
+    void checkApi();
   }
 
   async function chooseTheme(mode: ThemeMode): Promise<void> {
@@ -54,6 +78,7 @@
   }
 
   onMount(() => {
+    loadEndpointInputs();
     void clientData.init();
     void checkApi();
   });
@@ -103,7 +128,7 @@
       <div><dt>Last synced</dt><dd>{$clientData.lastSyncedAt ? new Date($clientData.lastSyncedAt).toLocaleString() : 'Never'}</dd></div>
       <div><dt>Legacy</dt><dd>{legacyImport?.importedAt ? `Imported ${new Date(legacyImport.importedAt).toLocaleDateString()}` : 'Auto'}</dd></div>
       <div><dt>Device</dt><dd>{$clientData.deviceId}</dd></div>
-      <div><dt>API</dt><dd>{apiUrl}</dd></div>
+      <div><dt>API</dt><dd>{getApiUrl()}</dd></div>
       <div><dt>API check</dt><dd>{apiStatus}</dd></div>
       <div><dt>Local DB</dt><dd>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</dd></div>
     </dl>
@@ -121,6 +146,41 @@
       <p class="sync-error">{settingsError || $clientData.error}</p>
     {/if}
   </div>
+
+  <div class="panel-block">
+    <div class="section-title">
+      <Monitor size={18} />
+      <strong>Desktop Services</strong>
+    </div>
+    <p class="helper-text">{localNetworkHint()}</p>
+    <div class="endpoint-grid">
+      <div class="field">
+        <label for="hub-api-url">Mini Hub API</label>
+        <input id="hub-api-url" bind:value={hubApiInput} placeholder="http://192.168.1.25:8787" />
+      </div>
+      <div class="field">
+        <label for="ai-os-url">AI OS API</label>
+        <input id="ai-os-url" bind:value={aiOsInput} placeholder="http://192.168.1.25:8791" />
+      </div>
+      <div class="field">
+        <label for="macro-lab-url">Macro Lab API</label>
+        <input id="macro-lab-url" bind:value={macroLabInput} placeholder="http://192.168.1.25:8792" />
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="button primary" type="button" on:click={saveEndpoints}>
+        <Save size={17} />
+        <span>Save Service URLs</span>
+      </button>
+      <button class="button" type="button" on:click={loadEndpointInputs}>
+        <Cloud size={17} />
+        <span>Reload Values</span>
+      </button>
+    </div>
+    {#if endpointMessage}
+      <p class="endpoint-message">{endpointMessage}</p>
+    {/if}
+  </div>
 </section>
 
 <style>
@@ -132,6 +192,24 @@
 
   .panel-block {
     display: grid;
+    gap: 10px;
+  }
+
+  .helper-text,
+  .endpoint-message {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .endpoint-message {
+    color: var(--success-text);
+    font-weight: 800;
+  }
+
+  .endpoint-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
 
@@ -219,6 +297,10 @@
   }
 
   @media (max-width: 820px) {
+    .endpoint-grid {
+      grid-template-columns: 1fr;
+    }
+
     dl {
       grid-template-columns: 1fr;
     }

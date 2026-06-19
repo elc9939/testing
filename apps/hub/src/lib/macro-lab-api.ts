@@ -1,7 +1,15 @@
 import { env as publicEnv } from '$env/dynamic/public';
+import { requestServiceJson, resolveServiceUrl } from './service-config';
 
-export const macroLabApiUrl =
-  publicEnv.PUBLIC_MACRO_LAB_API_URL || import.meta.env.VITE_PUBLIC_MACRO_LAB_API_URL || 'http://127.0.0.1:8792';
+export function getMacroLabApiUrl(): string {
+  return resolveServiceUrl(
+    'macroLab',
+    publicEnv.PUBLIC_MACRO_LAB_API_URL || import.meta.env.VITE_PUBLIC_MACRO_LAB_API_URL,
+    'http://127.0.0.1:8792'
+  );
+}
+
+export const macroLabApiUrl = getMacroLabApiUrl();
 
 export interface MacroAction {
   id: string;
@@ -63,25 +71,7 @@ export interface ActionSpec {
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${macroLabApiUrl}${path}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init.headers ?? {})
-    }
-  });
-  if (!response.ok) {
-    let message = `Macro Lab request failed with ${response.status}`;
-    try {
-      const body = (await response.json()) as { detail?: unknown; error?: unknown };
-      if (typeof body.detail === 'string') message = body.detail;
-      else if (typeof body.error === 'string') message = body.error;
-    } catch {
-      // Keep status fallback.
-    }
-    throw new Error(message);
-  }
-  return (await response.json()) as T;
+  return requestServiceJson<T>('macroLab', getMacroLabApiUrl(), path, init);
 }
 
 export async function getMacroStatus(): Promise<MacroStatus> {

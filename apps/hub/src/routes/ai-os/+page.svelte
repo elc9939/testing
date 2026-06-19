@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { routeMap } from '@mini-hub/core';
   import {
     Activity,
     BrainCircuit,
@@ -23,11 +24,14 @@
     Workflow,
     Zap
   } from 'lucide-svelte';
+  import { hubHref } from '$lib/routes';
+  import { localNetworkHint } from '$lib/service-config';
   import {
     cancelAiJob,
     cleanupAiOs,
     createAiBackup,
     createAiJob,
+    getAiOsApiUrl,
     getAiStatus,
     getAiUsage,
     ingestMemory,
@@ -525,6 +529,14 @@
 
 {#if actionError}
   <section class="card card-pad error-banner">{actionError}</section>
+  <section class="card card-pad connection-card">
+    <div>
+      <strong>Desktop service</strong>
+      <span>{getAiOsApiUrl()}</span>
+      <p>{localNetworkHint()}</p>
+    </div>
+    <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>
+  </section>
 {:else if actionMessage}
   <section class="card card-pad success-banner">{actionMessage}</section>
 {/if}
@@ -1133,6 +1145,28 @@
     font-weight: 800;
   }
 
+  .connection-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    background: var(--surface-muted);
+  }
+
+  .connection-card div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .connection-card span,
+  .connection-card p {
+    margin: 0;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
   .plain-guide {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1464,6 +1498,11 @@
     .job-row,
     .ambient-row {
       grid-template-columns: 1fr;
+    }
+
+    .connection-card {
+      align-items: stretch;
+      flex-direction: column;
     }
   }
 </style>

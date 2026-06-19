@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Edit3, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
+  import { CalendarDays, Edit3, Flame, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
   import type { CareerActionRecord, StudySession } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { canAutoSave, clientData } from '$lib/client-data';
@@ -44,8 +44,17 @@
     status: string;
   }
 
+  interface DailyProgress {
+    date: string;
+    neetcodeNew: number;
+    neetcodeSubmissions: number;
+    minutes: number;
+    active: boolean;
+    intensity: number;
+  }
+
   let summary: LegacyImportSummary | null = null;
-  let subject = 'Exam P';
+  let subject = 'NeetCode';
   let minutes = 30;
   let searchQuery = '';
   let saveError = '';
@@ -54,6 +63,8 @@
   let rowBusyId = '';
   let editingSessionId = '';
   let studyDraft: StudyDraft = emptyStudyDraft();
+  const quickSubjects = ['NeetCode', 'Review', 'Math', 'Project'];
+  const quickMinutes = [15, 30, 45, 60];
 
   $: canSave = canAutoSave($clientData);
   $: logs = $clientData.studySessions;
@@ -74,6 +85,11 @@
   $: legacyGithub = summarizeLegacyGithub(asRecord(legacyStudyState?.github));
   $: legacyTopicRows = buildLegacyTopicRows(legacyStudyTopics);
   $: legacyDailyRows = buildLegacyDailyRows(legacyStudyDaily);
+  $: progressDays = buildProgressDays(legacyStudyDaily, logs);
+  $: currentStreak = calculateStreak(progressDays);
+  $: activeProgressDays = progressDays.filter((day) => day.active).length;
+  $: neetcodeSubmissions = progressDays.reduce((sum, day) => sum + day.neetcodeSubmissions, 0);
+  $: neetcodeNewProblems = progressDays.reduce((sum, day) => sum + day.neetcodeNew, 0);
   $: hasLegacyStudyState = Boolean(
     legacyStudyState &&
       (Object.keys(legacyStudySettings ?? {}).length ||
@@ -164,6 +180,57 @@
       .slice(0, 10);
   }
 
+  function localDayKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function buildProgressDays(daily: Record<string, unknown> | null, sessions: StudySession[]): DailyProgress[] {
+    const days = new Map<string, DailyProgress>();
+    const today = startOfLocalDay(new Date());
+    for (let offset = 27; offset >= 0; offset -= 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - offset);
+      const key = localDayKey(date);
+      days.set(key, { date: key, neetcodeNew: 0, neetcodeSubmissions: 0, minutes: 0, active: false, intensity: 0 });
+    }
+
+    for (const [date, value] of Object.entries(daily ?? {})) {
+      const row = days.get(date);
+      if (!row) continue;
+      const record = asRecord(value) ?? {};
+      row.neetcodeNew = numberValue(record.neetcodeNew);
+      row.neetcodeSubmissions = numberValue(record.neetcodeSubmissions);
+    }
+
+    for (const session of sessions) {
+      const parsed = new Date(session.loggedAt);
+      if (Number.isNaN(parsed.getTime())) continue;
+      const row = days.get(localDayKey(parsed));
+      if (row) row.minutes += session.minutes;
+    }
+
+    return [...days.values()].map((day) => {
+      const score = day.neetcodeSubmissions + day.neetcodeNew + Math.floor(day.minutes / 30);
+      return {
+        ...day,
+        active: score > 0,
+        intensity: Math.min(4, score)
+      };
+    });
+  }
+
+  function calculateStreak(days: DailyProgress[]): number {
+    let streak = 0;
+    for (const day of [...days].reverse()) {
+      if (!day.active) break;
+      streak += 1;
+    }
+    return streak;
+  }
+
   function summarizeLegacyGithub(github: Record<string, unknown> | null): LegacyGithubSummary {
     return {
       repo: text(github?.repo) || 'None',
@@ -216,13 +283,18 @@
         minutes: Number(minutes),
         source: 'manual'
       });
-      subject = '';
+      subject = 'NeetCode';
       minutes = 30;
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Save failed';
     } finally {
       saving = false;
     }
+  }
+
+  function chooseQuickLog(nextSubject: string, nextMinutes: number): void {
+    subject = nextSubject;
+    minutes = nextMinutes;
   }
 
   function startEditLog(log: StudySession): void {
@@ -304,46 +376,71 @@
   </section>
 {/if}
 
-<section class="grid three">
-  <form class="card card-pad form" on:submit|preventDefault={addLog}>
-    <div class="field">
-      <label for="subject">Subject</label>
-      <input id="subject" bind:value={subject} disabled={!canSave || saving} />
+<section class="progress-grid">
+  <div class="card card-pad progress-panel">
+    <div class="section-title split">
+      <span>
+        <CalendarDays size={18} />
+        <strong>Daily Progress</strong>
+      </span>
+      <small>last 28 days</small>
     </div>
-    <div class="field">
-      <label for="minutes">Minutes</label>
-      <input id="minutes" bind:value={minutes} disabled={!canSave || saving} type="number" min="1" step="5" />
+    <div class="progress-stats">
+      <div><span>Streak</span><strong>{currentStreak}</strong></div>
+      <div><span>Active Days</span><strong>{activeProgressDays}</strong></div>
+      <div><span>Submissions</span><strong>{legacyGithub.submissions || neetcodeSubmissions}</strong></div>
+      <div><span>New Problems</span><strong>{legacyGithub.problems || neetcodeNewProblems}</strong></div>
+    </div>
+    <div class="progress-calendar" aria-label="NeetCode and study progress over the last 28 days">
+      {#each progressDays as day}
+        <div class={`day-cell level-${day.intensity}`} title={`${day.date}: ${day.neetcodeSubmissions} submissions, ${day.neetcodeNew} new, ${day.minutes} minutes`}>
+          <span>{Number(day.date.slice(-2))}</span>
+        </div>
+      {/each}
+    </div>
+    <div class="progress-foot">
+      <span>GitHub: {legacyGithub.lastSync ? displayDateTime(legacyGithub.lastSync) : 'not synced yet'}</span>
+      <span>{todayMinutes} min today / {weekMinutes} min this week</span>
+    </div>
+  </div>
+
+  <form class="card card-pad form quick-log" on:submit|preventDefault={addLog}>
+    <div class="section-title">
+      <Flame size={18} />
+      <strong>Quick Log</strong>
+    </div>
+    <div class="quick-row">
+      {#each quickSubjects as option}
+        <button class:active={subject === option} type="button" on:click={() => (subject = option)}>{option}</button>
+      {/each}
+    </div>
+    <div class="quick-row">
+      {#each quickMinutes as option}
+        <button class:active={minutes === option} type="button" on:click={() => chooseQuickLog(subject, option)}>{option}m</button>
+      {/each}
+    </div>
+    <div class="compact-fields">
+      <div class="field">
+        <label for="subject">Label</label>
+        <input id="subject" bind:value={subject} disabled={!canSave || saving} />
+      </div>
+      <div class="field minutes-field">
+        <label for="minutes">Minutes</label>
+        <input id="minutes" bind:value={minutes} disabled={!canSave || saving} type="number" min="1" step="5" />
+      </div>
     </div>
     <button class="button primary" type="button" disabled={!canSave || saving} on:click={addLog}>
       <Plus size={17} />
-      <span>{saving ? 'Saving' : 'Log'}</span>
+      <span>{saving ? 'Saving' : 'Log Progress'}</span>
     </button>
   </form>
-
-  <div class="card card-pad metric">
-    <span>Today</span>
-    <strong>{todayMinutes}</strong>
-  </div>
-
-  <div class="card card-pad metric">
-    <span>This Week</span>
-    <strong>{weekMinutes}</strong>
-  </div>
-</section>
-
-<section class="metric-strip">
-  <div><span>Total Minutes</span><strong>{totalMinutes}</strong></div>
-  <div><span>Legacy Days</span><strong>{summary?.studyDays ?? 0}</strong></div>
-  <div><span>Legacy Sessions</span><strong>{summary?.studySessions ?? 0}</strong></div>
-  <div><span>Legacy Career Actions</span><strong>{summary?.studyCareerActions ?? 0}</strong></div>
-  <div><span>Linked Actions</span><strong>{careerActions.length}</strong></div>
 </section>
 
 {#if hasLegacyStudyState}
   <section class="card card-pad legacy-study-panel">
     <div class="table-title compact">
-      <strong>Linked Legacy Study Desk</strong>
-      <span>settings, topics, GitHub, and daily history preserved from old mode</span>
+      <strong>NeetCode Source</strong>
+      <span>GitHub and legacy daily history preserved from old mode</span>
     </div>
 
     <div class="legacy-summary-grid">
@@ -355,203 +452,307 @@
       <div><span>Last Sync</span><strong>{legacyGithub.lastSync ? displayDateTime(legacyGithub.lastSync) : 'Never'}</strong></div>
     </div>
 
-    <div class="legacy-grid">
-      <div class="legacy-subtable">
-        <div class="legacy-subtitle">
-          <strong>Topic Progress</strong>
-          <span>{legacyTopicRows.length} tracks</span>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Track</th>
-              <th>Done</th>
-              <th>Next</th>
-              <th>Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each legacyTopicRows as row}
+    <details class="legacy-details">
+      <summary>Show preserved topic and daily details</summary>
+      <div class="legacy-grid">
+        <div class="legacy-subtable">
+          <div class="legacy-subtitle">
+            <strong>Topic Progress</strong>
+            <span>{legacyTopicRows.length} tracks</span>
+          </div>
+          <table>
+            <thead>
               <tr>
-                <td>{row.track}</td>
-                <td>{row.done}/{row.total}</td>
-                <td>{row.next}</td>
-                <td>{row.updatedAt ? displayDateTime(row.updatedAt) : 'None'}</td>
+                <th>Track</th>
+                <th>Done</th>
+                <th>Next</th>
+                <th>Updated</th>
               </tr>
-            {:else}
-              <tr><td colspan="4" class="muted">No legacy topics were found.</td></tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {#each legacyTopicRows as row}
+                <tr>
+                  <td>{row.track}</td>
+                  <td>{row.done}/{row.total}</td>
+                  <td>{row.next}</td>
+                  <td>{row.updatedAt ? displayDateTime(row.updatedAt) : 'None'}</td>
+                </tr>
+              {:else}
+                <tr><td colspan="4" class="muted">No legacy topics were found.</td></tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
 
-      <div class="legacy-subtable">
-        <div class="legacy-subtitle">
-          <strong>Recent Daily Records</strong>
-          <span>{legacyDailyRows.length} shown</span>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Career</th>
-              <th>New Code</th>
-              <th>Submissions</th>
-              <th>Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each legacyDailyRows as row}
+        <div class="legacy-subtable">
+          <div class="legacy-subtitle">
+            <strong>Recent Daily Records</strong>
+            <span>{legacyDailyRows.length} shown</span>
+          </div>
+          <table>
+            <thead>
               <tr>
-                <td>{row.date}</td>
-                <td>{row.careerActions}</td>
-                <td>{row.neetcodeNew}</td>
-                <td>{row.neetcodeSubmissions}</td>
-                <td>{row.note || 'None'}</td>
+                <th>Date</th>
+                <th>Career</th>
+                <th>New Code</th>
+                <th>Submissions</th>
+                <th>Note</th>
               </tr>
-            {:else}
-              <tr><td colspan="5" class="muted">No legacy daily records were found.</td></tr>
-            {/each}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {#each legacyDailyRows as row}
+                <tr>
+                  <td>{row.date}</td>
+                  <td>{row.careerActions}</td>
+                  <td>{row.neetcodeNew}</td>
+                  <td>{row.neetcodeSubmissions}</td>
+                  <td>{row.note || 'None'}</td>
+                </tr>
+              {:else}
+                <tr><td colspan="5" class="muted">No legacy daily records were found.</td></tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </details>
   </section>
 {/if}
 
-<section class="table-toolbar" aria-label="Study filters">
-  <div class="field">
-    <label for="study-search">Search</label>
-    <div class="search-box">
-      <Search size={16} />
-      <input id="study-search" bind:value={searchQuery} placeholder="Subject" />
+<details class="secondary-details">
+  <summary>Linked career actions</summary>
+  <div class="table-toolbar" aria-label="Study filters">
+    <div class="field">
+      <label for="study-search">Search</label>
+      <div class="search-box">
+        <Search size={16} />
+        <input id="study-search" bind:value={searchQuery} placeholder="Subject" />
+      </div>
     </div>
   </div>
-</section>
 
-<section class="card table-card action-card">
-  <div class="table-title">
-    <strong>Linked Career Actions</strong>
-    <span>{filteredCareerActions.length} shown / {careerActions.length} synced</span>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Action</th>
-        <th>Due</th>
-        <th>Completed</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each filteredCareerActions as action}
+  <section class="card table-card action-card">
+    <div class="table-title">
+      <strong>Linked Career Actions</strong>
+      <span>{filteredCareerActions.length} shown / {careerActions.length} synced</span>
+    </div>
+    <table>
+      <thead>
         <tr>
-          <td>{action.label}</td>
-          <td>{action.dueAt ? displayDateTime(action.dueAt) : 'None'}</td>
-          <td>{action.completedAt ? displayDateTime(action.completedAt) : 'Open'}</td>
+          <th>Action</th>
+          <th>Due</th>
+          <th>Completed</th>
         </tr>
-      {:else}
-        <tr>
-          <td colspan="3" class="muted">{careerActions.length ? 'No linked career actions match the current search.' : 'No linked career actions imported yet.'}</td>
-        </tr>
-      {/each}
-    </tbody>
-  </table>
-</section>
+      </thead>
+      <tbody>
+        {#each filteredCareerActions as action}
+          <tr>
+            <td>{action.label}</td>
+            <td>{action.dueAt ? displayDateTime(action.dueAt) : 'None'}</td>
+            <td>{action.completedAt ? displayDateTime(action.completedAt) : 'Open'}</td>
+          </tr>
+        {:else}
+          <tr>
+            <td colspan="3" class="muted">{careerActions.length ? 'No linked career actions match the current search.' : 'No linked career actions imported yet.'}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </section>
+</details>
 
-<section class="card table-card">
-  <table>
-    <thead>
-      <tr>
-        <th>Subject</th>
-        <th>Minutes</th>
-        <th>Logged</th>
-        <th>Updated</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each filteredLogs as log}
+<details class="secondary-details">
+  <summary>Manual study logs</summary>
+  <section class="card table-card">
+    <table>
+      <thead>
         <tr>
-          {#if editingSessionId === log.id}
-            <td><input class="table-input" bind:value={studyDraft.subject} disabled={rowBusyId === log.id} /></td>
-            <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={rowBusyId === log.id} type="number" min="1" step="5" /></td>
-            <td>{displayDateTime(log.loggedAt)}</td>
-            <td>{displayDateTime(log.updatedAt)}</td>
-            <td class="actions-cell">
-              <div class="row-actions">
-                <button class="icon-button" type="button" aria-label="Save study log" title="Save log" disabled={!canSave || rowBusyId === log.id} on:click={() => saveLogEdit(log)}>
-                  <Save size={16} />
-                </button>
-                <button class="icon-button" type="button" aria-label="Cancel study log edit" title="Cancel" disabled={rowBusyId === log.id} on:click={cancelEditLog}>
-                  <X size={16} />
-                </button>
-              </div>
-            </td>
-          {:else}
-            <td>{log.subject}</td>
-            <td>{log.minutes}</td>
-            <td>{displayDateTime(log.loggedAt)}</td>
-            <td>{displayDateTime(log.updatedAt)}</td>
-            <td class="actions-cell">
-              <div class="row-actions">
-                <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title="Edit" disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
-                  <Edit3 size={16} />
-                </button>
-                <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title="Delete" disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </td>
-          {/if}
+          <th>Subject</th>
+          <th>Minutes</th>
+          <th>Logged</th>
+          <th>Updated</th>
+          <th>Actions</th>
         </tr>
-      {:else}
-        <tr>
-          <td colspan="5" class="muted">{logs.length ? 'No study logs match the current filters.' : 'No study logs in this Svelte workspace yet.'}</td>
-        </tr>
-      {/each}
-    </tbody>
-  </table>
-</section>
+      </thead>
+      <tbody>
+        {#each filteredLogs as log}
+          <tr>
+            {#if editingSessionId === log.id}
+              <td><input class="table-input" bind:value={studyDraft.subject} disabled={rowBusyId === log.id} /></td>
+              <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={rowBusyId === log.id} type="number" min="1" step="5" /></td>
+              <td>{displayDateTime(log.loggedAt)}</td>
+              <td>{displayDateTime(log.updatedAt)}</td>
+              <td class="actions-cell">
+                <div class="row-actions">
+                  <button class="icon-button" type="button" aria-label="Save study log" title="Save log" disabled={!canSave || rowBusyId === log.id} on:click={() => saveLogEdit(log)}>
+                    <Save size={16} />
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Cancel study log edit" title="Cancel" disabled={rowBusyId === log.id} on:click={cancelEditLog}>
+                    <X size={16} />
+                  </button>
+                </div>
+              </td>
+            {:else}
+              <td>{log.subject}</td>
+              <td>{log.minutes}</td>
+              <td>{displayDateTime(log.loggedAt)}</td>
+              <td>{displayDateTime(log.updatedAt)}</td>
+              <td class="actions-cell">
+                <div class="row-actions">
+                  <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title="Edit" disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
+                    <Edit3 size={16} />
+                  </button>
+                  <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title="Delete" disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            {/if}
+          </tr>
+        {:else}
+          <tr>
+            <td colspan="5" class="muted">{logs.length ? 'No study logs match the current filters.' : 'No study logs in this Svelte workspace yet.'}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </section>
+</details>
 
 <style>
+  .progress-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.7fr);
+    gap: 12px;
+  }
+
+  .progress-panel,
   .form {
     display: grid;
     gap: 12px;
   }
 
-  .metric {
-    display: grid;
-    align-content: center;
-    gap: 6px;
-    min-height: 88px;
-  }
-
-  .metric span,
-  .metric-strip span {
-    color: var(--muted);
-    font-weight: 700;
-  }
-
-  .metric strong {
-    font-size: 18px;
-    line-height: 1;
-  }
-
-  .metric-strip {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 14px;
-    margin: 14px 0 0;
-  }
-
-  .metric-strip div {
+  .section-title {
     display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title.split {
     justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
+  }
+
+  .section-title.split span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title small {
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  .progress-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .progress-stats div {
+    display: grid;
+    gap: 4px;
+    min-height: 66px;
+    align-content: center;
+    padding: 10px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .progress-stats span,
+  .progress-foot {
+    color: var(--muted);
+    font-weight: 750;
+  }
+
+  .progress-stats strong {
+    font-size: 19px;
+  }
+
+  .progress-calendar {
+    display: grid;
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .day-cell {
+    display: grid;
+    min-height: 34px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
     background: var(--surface);
+    font-size: 11px;
+    font-weight: 850;
+  }
+
+  .day-cell.level-1 {
+    border-color: var(--border-strong);
+    color: var(--text);
+    background: var(--surface-soft);
+  }
+
+  .day-cell.level-2,
+  .day-cell.level-3,
+  .day-cell.level-4 {
+    border-color: var(--primary-bg);
+    color: var(--primary-text);
+    background: var(--primary-bg);
+  }
+
+  .day-cell.level-3,
+  .day-cell.level-4 {
+    outline: 2px solid var(--border-strong);
+  }
+
+  .progress-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .quick-log {
+    align-content: start;
+  }
+
+  .quick-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .quick-row button {
+    min-height: 36px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    color: var(--text-soft);
+    background: var(--surface);
+    cursor: pointer;
+  }
+
+  .quick-row button.active,
+  .quick-row button:hover {
+    color: var(--primary-text);
+    background: var(--primary-bg);
+  }
+
+  .compact-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 110px;
+    gap: 8px;
   }
 
   .table-toolbar {
@@ -618,6 +819,30 @@
     display: grid;
     gap: 14px;
     margin-top: 14px;
+  }
+
+  .legacy-details,
+  .secondary-details {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .legacy-details summary,
+  .secondary-details summary {
+    min-height: 42px;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    background: var(--surface-muted);
+    font-weight: 850;
+    cursor: pointer;
+  }
+
+  .legacy-details[open] summary,
+  .secondary-details[open] summary {
+    margin-bottom: 10px;
   }
 
   .legacy-summary-grid {
@@ -726,8 +951,23 @@
   }
 
   @media (max-width: 820px) {
-    .metric-strip {
+    .progress-grid,
+    .progress-stats,
+    .compact-fields {
       grid-template-columns: 1fr;
+    }
+
+    .progress-calendar {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+
+    .day-cell {
+      min-height: 40px;
+      font-size: 12px;
+    }
+
+    .quick-row button {
+      min-height: 44px;
     }
 
     .legacy-summary-grid,

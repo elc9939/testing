@@ -1,7 +1,15 @@
 import { env as publicEnv } from '$env/dynamic/public';
+import { requestServiceJson, resolveServiceUrl } from './service-config';
 
-export const aiOsApiUrl =
-  publicEnv.PUBLIC_AI_OS_API_URL || import.meta.env.VITE_PUBLIC_AI_OS_API_URL || 'http://127.0.0.1:8791';
+export function getAiOsApiUrl(): string {
+  return resolveServiceUrl(
+    'aiOs',
+    publicEnv.PUBLIC_AI_OS_API_URL || import.meta.env.VITE_PUBLIC_AI_OS_API_URL,
+    'http://127.0.0.1:8791'
+  );
+}
+
+export const aiOsApiUrl = getAiOsApiUrl();
 
 export interface AiProviderStatus {
   id: string;
@@ -199,25 +207,7 @@ export interface AiInferenceInput {
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${aiOsApiUrl}${path}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init.headers ?? {})
-    }
-  });
-  if (!response.ok) {
-    let message = `AI OS request failed with ${response.status}`;
-    try {
-      const body = (await response.json()) as { detail?: unknown; error?: unknown };
-      if (typeof body.detail === 'string') message = body.detail;
-      else if (typeof body.error === 'string') message = body.error;
-    } catch {
-      // Preserve the status fallback.
-    }
-    throw new Error(message);
-  }
-  return (await response.json()) as T;
+  return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init);
 }
 
 export async function getAiStatus(): Promise<AiStatus> {
@@ -282,12 +272,19 @@ export async function streamInference(
   input: AiInferenceInput,
   onEvent: (event: string, data: Record<string, unknown>) => void
 ): Promise<void> {
-  const response = await fetch(`${aiOsApiUrl}/api/ai/infer/stream`, {
+  const baseUrl = getAiOsApiUrl();
+  const response = await fetch(`${baseUrl}/api/ai/infer/stream`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', accept: 'text/event-stream, application/json' },
     body: JSON.stringify(toInferencePayload({ ...input, stream: true } as AiInferenceInput))
   });
-  if (!response.ok || !response.body) throw new Error(`AI OS stream failed with ${response.status}`);
+  if (!response.ok || !response.body) {
+    const text = await response.text().catch(() => '');
+    if (text.trimStart().startsWith('<')) {
+      throw new Error(`AI OS stream returned the web app HTML instead of events. Set AI OS API URL in Settings to the desktop service, usually ${baseUrl}.`);
+    }
+    throw new Error(`AI OS stream failed with ${response.status}`);
+  }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';

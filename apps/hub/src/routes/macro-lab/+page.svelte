@@ -14,8 +14,12 @@
     ToggleRight,
     Wrench
   } from 'lucide-svelte';
+  import { routeMap } from '@mini-hub/core';
+  import { hubHref } from '$lib/routes';
+  import { localNetworkHint } from '$lib/service-config';
   import {
     createMacro,
+    getMacroLabApiUrl,
     getMacroStatus,
     listMacroActions,
     listMacroRuns,
@@ -194,6 +198,14 @@
 
 {#if error}
   <div class="notice error">{error}</div>
+  <section class="card card-pad connection-card">
+    <div>
+      <strong>Desktop service</strong>
+      <span>{getMacroLabApiUrl()}</span>
+      <p>{localNetworkHint()}</p>
+    </div>
+    <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>
+  </section>
 {/if}
 
 <section class="status-strip">
@@ -435,6 +447,28 @@
     background: var(--danger-bg);
   }
 
+  .connection-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    background: var(--surface-muted);
+  }
+
+  .connection-card div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .connection-card span,
+  .connection-card p {
+    margin: 0;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
   .lower {
     margin-top: 14px;
   }
@@ -498,6 +532,11 @@
     .workspace,
     .grid.two {
       grid-template-columns: 1fr;
+    }
+
+    .connection-card {
+      align-items: stretch;
+      flex-direction: column;
     }
   }
 </style>

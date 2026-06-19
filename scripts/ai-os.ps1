@@ -1,7 +1,8 @@
 param(
   [ValidateSet('start', 'stop', 'restart', 'status', 'health', 'backup', 'verify', 'restore-test', 'integrity', 'cleanup')]
   [string]$Action = 'status',
-  [string]$BackupId = ''
+  [string]$BackupId = '',
+  [switch]$Lan
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +13,18 @@ $PidFile = Join-Path $ApiDir '.ai-os.pid'
 $OutLog = Join-Path $ApiDir 'dev-server.out.log'
 $ErrLog = Join-Path $ApiDir 'dev-server.err.log'
 $HealthUrl = 'http://127.0.0.1:8791/api/ai/health'
+
+function Get-LanIPv4 {
+  $address = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.IPAddress -notlike '127.*' -and
+      $_.IPAddress -notlike '169.254.*' -and
+      $_.PrefixOrigin -ne 'WellKnown'
+    } |
+    Select-Object -First 1 -ExpandProperty IPAddress
+  if ($address) { return $address }
+  return 'YOUR-DESKTOP-IP'
+}
 
 function Get-AiOsPid {
   $conn = Get-NetTCPConnection -LocalPort 8791 -ErrorAction SilentlyContinue |
@@ -40,6 +53,13 @@ function Start-AiOs {
   if ($aiOsPid) {
     Write-Output "AI OS already running as PID $aiOsPid"
     return
+  }
+  if ($Lan) {
+    $lanIp = Get-LanIPv4
+    $env:AI_OS_HOST = '0.0.0.0'
+    $env:AI_OS_REQUIRE_LOOPBACK = 'false'
+    $env:AI_OS_TRUSTED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://$lanIp:5173,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"
+    Write-Output "AI OS LAN mode: use http://$lanIp:8791 from your phone."
   }
   $process = Start-Process -FilePath $Python `
     -ArgumentList '-m', 'ai_os' `
@@ -80,7 +100,11 @@ switch ($Action) {
   'restart' { Stop-AiOs; Start-AiOs }
   'status' {
     $aiOsPid = Get-AiOsPid
-    if ($aiOsPid) { Write-Output "AI OS listening on 127.0.0.1:8791 as PID $aiOsPid" } else { Write-Output 'AI OS is not running' }
+    if ($aiOsPid) {
+      $lanIp = Get-LanIPv4
+      Write-Output "AI OS listening on 127.0.0.1:8791 as PID $aiOsPid"
+      Write-Output "LAN URL if started with -Lan: http://$lanIp:8791"
+    } else { Write-Output 'AI OS is not running' }
   }
   'health' { Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 5 | ConvertTo-Json -Depth 8 }
   'backup' { Invoke-Maintenance @('backup', '--reason', 'script') }

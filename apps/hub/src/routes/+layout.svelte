@@ -183,6 +183,7 @@
 
   :global(body) {
     margin: 0;
+    overflow-x: hidden;
     color: var(--text);
     background: var(--bg);
     font-size: 13px;
@@ -191,7 +192,15 @@
   }
 
   :global(html) {
+    overflow-x: hidden;
     background: var(--bg);
+  }
+
+  :global(img),
+  :global(canvas),
+  :global(video),
+  :global(svg) {
+    max-width: 100%;
   }
 
   :global(button),
@@ -340,6 +349,7 @@
 
   main {
     min-width: 0;
+    overflow-x: hidden;
     padding: 10px clamp(10px, 1.8vw, 18px);
   }
 
@@ -470,35 +480,52 @@
 
   @media (max-width: 820px) {
     .shell {
-      grid-template-columns: 1fr;
+      display: block;
+      padding-bottom: 76px;
     }
 
     .rail {
-      z-index: 10;
+      position: fixed;
+      inset: auto 0 0;
+      z-index: 60;
       height: auto;
-      padding: 8px;
+      padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
       border-right: 0;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 0;
+      box-shadow: 0 -10px 24px rgb(0 0 0 / 12%);
     }
 
-    .brand {
-      padding: 2px 6px 8px;
+    .brand,
+    .sync-pill,
+    .theme-cycle {
+      display: none;
     }
 
     nav {
       grid-auto-flow: column;
-      grid-auto-columns: minmax(82px, 1fr);
+      grid-auto-columns: minmax(64px, 1fr);
       overflow-x: auto;
       padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+
+    nav::-webkit-scrollbar {
+      display: none;
     }
 
     nav a {
+      flex-direction: column;
       justify-content: center;
-      min-height: 32px;
+      gap: 3px;
+      min-height: 56px;
+      padding: 6px 8px;
+      font-size: 11px;
       white-space: nowrap;
     }
 
     main {
+      width: 100%;
       padding: 10px 10px;
     }
 
@@ -510,6 +537,23 @@
     :global(.grid.three),
     :global(.grid.two) {
       grid-template-columns: 1fr;
+    }
+
+    :global(.button) {
+      min-height: 40px;
+      padding: 7px 10px;
+    }
+
+    :global(input),
+    :global(select),
+    :global(textarea) {
+      min-height: 40px;
+      font-size: 16px;
+    }
+
+    :global(.table-card) {
+      max-width: calc(100vw - 20px);
+      overflow-x: auto;
     }
   }
 </style>
