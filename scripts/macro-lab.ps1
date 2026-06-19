@@ -62,8 +62,15 @@ function Start-MacroLab {
     $lanIp = Get-LanIPv4
     $env:MACRO_LAB_HOST = '0.0.0.0'
     $env:MACRO_LAB_REQUIRE_LOOPBACK = 'false'
-    $env:MACRO_LAB_TRUSTED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://$lanIp:5173,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"
-    Write-Output "Macro Lab LAN mode: use http://$lanIp:8792 from your phone."
+    $env:MACRO_LAB_TRUSTED_ORIGINS = @(
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      "http://${lanIp}:5173",
+      'http://localhost:1420',
+      'http://127.0.0.1:1420',
+      'https://elc9939.github.io'
+    ) | ConvertTo-Json -Compress
+    Write-Output "Macro Lab LAN mode: use http://${lanIp}:8792 from your phone."
   }
   $pythonPath = Get-PythonPath
   $process = Start-Process -FilePath $pythonPath `
@@ -98,7 +105,7 @@ switch ($Action) {
     if ($macroLabPid) {
       $lanIp = Get-LanIPv4
       Write-Output "Macro Lab listening on 127.0.0.1:8792 as PID $macroLabPid"
-      Write-Output "LAN URL if started with -Lan: http://$lanIp:8792"
+      Write-Output "LAN URL if started with -Lan: http://${lanIp}:8792"
     } else { Write-Output 'Macro Lab is not running' }
   }
   'health' { Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 5 | ConvertTo-Json -Depth 8 }

@@ -2,6 +2,8 @@
 
 The GitHub Pages hub is a static site. When a phone opens it, `127.0.0.1` points at the phone, not the desktop. Also, GitHub Pages is served over HTTPS while these private desktop services use local HTTP, so the most reliable full-control mode is to open the hub from the desktop over LAN.
 
+The same HTTPS-to-local-HTTP browser protection can affect desktop-only service pages like AI OS and Macro Lab. If a service page on GitHub Pages says `Failed to fetch`, open the local hub URL printed by the launcher instead of the GitHub Pages URL.
+
 1. Double-click this file in the repo folder:
 
 ```text

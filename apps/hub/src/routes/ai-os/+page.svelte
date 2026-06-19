@@ -128,6 +128,7 @@
   $: providerOptions = providers.map((provider) => provider.id);
   $: hardware = status?.hardware;
   $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
+  $: connectedLocalAiOsHref = localConnectedAiOsHref();
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -142,6 +143,17 @@
   function setError(error: unknown, fallback: string): void {
     actionError = error instanceof Error ? error.message : fallback;
     actionMessage = '';
+  }
+
+  function localConnectedAiOsHref(): string {
+    const apiUrl = getAiOsApiUrl();
+    const localHost = apiUrl.includes('localhost') ? 'localhost' : '127.0.0.1';
+    return `http://${localHost}:5173/ai-os?aiOsUrl=${encodeURIComponent(apiUrl)}`;
+  }
+
+  function shouldOfferLocalHub(): boolean {
+    if (typeof window === 'undefined') return false;
+    return window.location.protocol === 'https:' && /^http:\/\/(?:127\.0\.0\.1|localhost)(?::|\/|$)/u.test(getAiOsApiUrl());
   }
 
   function stringify(value: unknown): string {
@@ -535,7 +547,12 @@
       <span>{getAiOsApiUrl()}</span>
       <p>{localNetworkHint()}</p>
     </div>
-    <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>
+    <div class="connection-actions">
+      {#if shouldOfferLocalHub()}
+        <a class="button primary" href={connectedLocalAiOsHref}>Open connected local AI OS</a>
+      {/if}
+      <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>
+    </div>
   </section>
 {:else if actionMessage}
   <section class="card card-pad success-banner">{actionMessage}</section>
@@ -1167,6 +1184,13 @@
     overflow-wrap: anywhere;
   }
 
+  .connection-card .connection-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
   .plain-guide {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1503,6 +1527,10 @@
     .connection-card {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .connection-card .connection-actions {
+      justify-content: flex-start;
     }
   }
 </style>

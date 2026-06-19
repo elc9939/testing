@@ -13,6 +13,7 @@ $PidFile = Join-Path $ApiDir '.ai-os.pid'
 $OutLog = Join-Path $ApiDir 'dev-server.out.log'
 $ErrLog = Join-Path $ApiDir 'dev-server.err.log'
 $HealthUrl = 'http://127.0.0.1:8791/api/ai/health'
+$ServiceName = 'mini-hub-ai-os-api'
 
 function Get-LanIPv4 {
   $address = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -41,6 +42,15 @@ function Get-AiOsPid {
   return $null
 }
 
+function Test-AiOsApi {
+  try {
+    $health = Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 3
+    return $health.service -eq $ServiceName
+  } catch {
+    return $false
+  }
+}
+
 function Assert-Python {
   if (-not (Test-Path $Python)) {
     throw "Missing AI OS venv Python at $Python. Create it with: cd apps\ai-os-api; python -m venv .venv; .venv\Scripts\python -m pip install -r requirements.txt"
@@ -51,20 +61,30 @@ function Start-AiOs {
   Assert-Python
   $aiOsPid = Get-AiOsPid
   if ($aiOsPid) {
-    if ($Lan) {
+    if (Test-AiOsApi) {
+      if (-not $Lan) {
+        Write-Output "AI OS already running as PID $aiOsPid"
+        return
+      }
       Write-Output "Restarting AI OS in LAN mode from PID $aiOsPid"
       Stop-AiOs | Out-Null
     } else {
-      Write-Output "AI OS already running as PID $aiOsPid"
-      return
+      throw "Port 8791 is already in use by PID $aiOsPid, but it does not answer as $ServiceName. Stop that process or change AI_OS_PORT."
     }
   }
   if ($Lan) {
     $lanIp = Get-LanIPv4
     $env:AI_OS_HOST = '0.0.0.0'
     $env:AI_OS_REQUIRE_LOOPBACK = 'false'
-    $env:AI_OS_TRUSTED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://$lanIp:5173,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"
-    Write-Output "AI OS LAN mode: use http://$lanIp:8791 from your phone."
+    $env:AI_OS_TRUSTED_ORIGINS = @(
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      "http://${lanIp}:5173",
+      'http://localhost:1420',
+      'http://127.0.0.1:1420',
+      'https://elc9939.github.io'
+    ) | ConvertTo-Json -Compress
+    Write-Output "AI OS LAN mode: use http://${lanIp}:8791 from your phone."
   }
   $process = Start-Process -FilePath $Python `
     -ArgumentList '-m', 'ai_os' `
@@ -75,6 +95,13 @@ function Start-AiOs {
     -PassThru
   Set-Content -Path $PidFile -Value $process.Id
   Start-Sleep -Seconds 2
+  if (-not (Test-AiOsApi)) {
+    if (Test-Path $ErrLog) {
+      $tail = (Get-Content -Tail 20 $ErrLog) -join "`n"
+      throw "AI OS failed to become healthy after start. Recent error log:`n$tail"
+    }
+    throw "AI OS failed to become healthy after start."
+  }
   Write-Output "AI OS started as PID $($process.Id)"
 }
 
@@ -108,7 +135,7 @@ switch ($Action) {
     if ($aiOsPid) {
       $lanIp = Get-LanIPv4
       Write-Output "AI OS listening on 127.0.0.1:8791 as PID $aiOsPid"
-      Write-Output "LAN URL if started with -Lan: http://$lanIp:8791"
+      Write-Output "LAN URL if started with -Lan: http://${lanIp}:8791"
     } else { Write-Output 'AI OS is not running' }
   }
   'health' { Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 5 | ConvertTo-Json -Depth 8 }

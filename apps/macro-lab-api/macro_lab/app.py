@@ -198,15 +198,23 @@ def create_app(settings: Settings | None = None, storage: MacroStorage | None = 
 
     @app.middleware("http")
     async def request_guard(request: Request, call_next):
+        def with_private_network_header(response: JSONResponse):
+            origin = request.headers.get("origin")
+            if origin and origin in settings.trusted_origins:
+                response.headers["Access-Control-Allow-Private-Network"] = "true"
+            return response
+
         if settings.require_loopback and request.client and request.client.host not in {"127.0.0.1", "::1", "testclient"}:
-            return JSONResponse({"detail": "Macro Lab only accepts loopback clients."}, status_code=403)
+            return with_private_network_header(
+                JSONResponse({"detail": "Macro Lab only accepts loopback clients."}, status_code=403)
+            )
         content_length = request.headers.get("content-length")
         if content_length:
             try:
                 if int(content_length) > settings.max_request_bytes:
-                    return JSONResponse({"detail": "Request body too large."}, status_code=413)
+                    return with_private_network_header(JSONResponse({"detail": "Request body too large."}, status_code=413))
             except ValueError:
-                return JSONResponse({"detail": "Invalid content-length header."}, status_code=400)
+                return with_private_network_header(JSONResponse({"detail": "Invalid content-length header."}, status_code=400))
         started = time.perf_counter()
         try:
             response = await call_next(request)
@@ -214,7 +222,7 @@ def create_app(settings: Settings | None = None, storage: MacroStorage | None = 
             logger.exception("Unhandled request failure")
             raise
         logger.info(json.dumps({"method": request.method, "path": request.url.path, "status": response.status_code, "latency_ms": round((time.perf_counter() - started) * 1000, 2)}))
-        return response
+        return with_private_network_header(response)
 
     @app.get("/api/macro-lab/health")
     async def health() -> dict[str, Any]:

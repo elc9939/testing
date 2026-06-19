@@ -114,22 +114,32 @@ def create_app(
 
     @app.middleware("http")
     async def request_guard(request: Request, call_next):
+        def with_private_network_header(response: JSONResponse | StreamingResponse):
+            origin = request.headers.get("origin")
+            if origin and origin in settings.trusted_origins:
+                response.headers["Access-Control-Allow-Private-Network"] = "true"
+            return response
+
         if settings.require_loopback and request.client and not is_loopback_host(request.client.host):
             logger.warning(
                 "Rejected non-loopback request",
                 extra={"remote_host": request.client.host, "path": request.url.path, "method": request.method},
             )
-            return JSONResponse({"detail": "AI OS API only accepts loopback clients."}, status_code=403)
+            return with_private_network_header(
+                JSONResponse({"detail": "AI OS API only accepts loopback clients."}, status_code=403)
+            )
         content_length = request.headers.get("content-length")
         if content_length:
             try:
                 if int(content_length) > settings.max_request_bytes:
-                    return JSONResponse(
-                        {"detail": f"Request body exceeds limit of {settings.max_request_bytes} bytes."},
-                        status_code=413,
+                    return with_private_network_header(
+                        JSONResponse(
+                            {"detail": f"Request body exceeds limit of {settings.max_request_bytes} bytes."},
+                            status_code=413,
+                        )
                     )
             except ValueError:
-                return JSONResponse({"detail": "Invalid content-length header."}, status_code=400)
+                return with_private_network_header(JSONResponse({"detail": "Invalid content-length header."}, status_code=400))
         started = time.perf_counter()
         try:
             response = await call_next(request)
@@ -145,7 +155,7 @@ def create_app(
                 "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             },
         )
-        return response
+        return with_private_network_header(response)
 
     def inference_text_length(request: InferenceRequest) -> int:
         if request.prompt:

@@ -276,6 +276,24 @@ def test_non_loopback_client_is_rejected(tmp_path):
     assert response.status_code == 403
 
 
+def test_trusted_web_origin_gets_private_network_header(tmp_path):
+    settings = Settings(
+        data_dir=tmp_path,
+        backup_enabled=False,
+        trusted_origins=["https://elc9939.github.io"],
+    )
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.get("/api/ai/health", headers={"Origin": "https://elc9939.github.io"})
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://elc9939.github.io"
+    assert response.headers["access-control-allow-private-network"] == "true"
+
+
 def test_configurable_resource_limits_are_enforced(tmp_path):
     settings = Settings(
         data_dir=tmp_path,
