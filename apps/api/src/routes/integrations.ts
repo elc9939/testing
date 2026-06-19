@@ -411,7 +411,7 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
       if (!connections.length) throw new Error('Google is not connected');
       const query = gmailThreadQuery(c);
       const maxResults = Math.min(Math.max(query.maxResults ?? 10, 1), 20);
-      const searchQuery = query.q ?? 'in:inbox newer_than:30d';
+      const searchQuery = query.q ?? 'in:inbox newer_than:30d -category:promotions -category:social -category:forums';
       const results = await Promise.allSettled(
         connections.map((connection) =>
           new GoogleGmailConnector(store, connection.id).listThreads({
@@ -428,7 +428,7 @@ export function productivityRoutes(store: MemoryStore): Hono<AppBindings> {
         const failure = results.find((result) => result.status === 'rejected');
         if (failure?.status === 'rejected') throw failure.reason;
       }
-      const insights = await triageGmailThreads(threads, { maxResults, minPriority: 45 });
+      const insights = await triageGmailThreads(threads, { maxResults, minPriority: 65 });
       return c.json({ threads: insights });
     } catch (error) {
       const result = connectorError(error);

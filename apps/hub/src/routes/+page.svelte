@@ -4,48 +4,103 @@
     ArrowRight,
     BriefcaseBusiness,
     CalendarClock,
+    Inbox,
     RefreshCw,
-    Settings,
-    Sparkles
+    Settings
   } from 'lucide-svelte';
-  import { launcherEntries, type JobRecord, type TimelineItem } from '@mini-hub/core';
+  import { launcherEntries, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
   import { clientData } from '$lib/client-data';
   import { hubHref } from '$lib/routes';
   import {
     getConnections,
-    getTimeline,
+    listCalendars,
+    listEvents,
     listPriorityGmailThreads,
+    type CalendarSummary,
     type GmailThreadInsight,
     type PublicConnection
   } from '$lib/productivity-api';
 
   let connections: PublicConnection[] = [];
+  let calendars: CalendarSummary[] = [];
+  let agendaEvents: CalendarEvent[] = [];
   let priorityThreads: GmailThreadInsight[] = [];
-  let timeline: TimelineItem[] = [];
   let dashboardLoading = false;
   let dashboardError = '';
   let lastLoadedAt = '';
+  let calendarLabelMap = new Map<string, string>();
+  let importantMail: GmailThreadInsight[] = [];
+  let visibleAgenda: CalendarEvent[] = [];
+  let nextEvent: CalendarEvent | null = null;
 
   $: googleConnections = connections.filter(
     (connection) => connection.provider === 'google' && connection.status === 'connected'
   );
   $: googleConnected = googleConnections.length > 0;
+  $: calendarLabelMap = new Map(calendars.map((calendar) => [calendar.id, calendar.summary]));
+  $: visibleAgenda = agendaEvents.slice(0, 12);
+  $: nextEvent = agendaEvents[0] ?? null;
+  $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 5);
   $: applyQueue = $clientData.jobs
     .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
     .sort((a, b) => (a.nextActionAt ?? a.updatedAt).localeCompare(b.nextActionAt ?? b.updatedAt))
-    .slice(0, 5);
+    .slice(0, 4);
   $: openCareerActions = $clientData.careerActions
     .filter((action) => !action.completedAt)
     .sort((a, b) => (a.dueAt ?? a.updatedAt).localeCompare(b.dueAt ?? b.updatedAt))
-    .slice(0, 5);
-  $: careerMailSignals = priorityThreads.filter((insight) => isCareerSignal(insight)).slice(0, 3);
-  $: visibleTimeline = timeline.slice(0, 7);
+    .slice(0, 4);
 
-  function isCareerSignal(insight: GmailThreadInsight): boolean {
-    if (insight.category === 'career') return true;
-    const text = [insight.thread.subject, insight.thread.from, insight.thread.snippet].join(' ').toLowerCase();
-    return /\b(interview|application|recruiter|hiring|offer|resume|job)\b/u.test(text);
+  function importantMailQuery(): string {
+    return [
+      'in:inbox newer_than:30d',
+      '-category:promotions',
+      '-category:social',
+      '-category:forums',
+      '(deadline OR due OR "action required" OR "please reply" OR interview OR appointment OR reservation OR flight OR exam OR assignment OR security OR verification)'
+    ].join(' ');
+  }
+
+  function isImportantMailSignal(insight: GmailThreadInsight): boolean {
+    if (insight.category === 'noise' || insight.category === 'notification') return false;
+    if (isLikelyLowSignalMail(insight)) return false;
+    return insight.priority >= 65 || Boolean(insight.deadlineHint);
+  }
+
+  function isLikelyLowSignalMail(insight: GmailThreadInsight): boolean {
+    const text = [insight.thread.subject, insight.thread.from, insight.thread.snippet, insight.reason]
+      .join(' ')
+      .toLowerCase();
+    if (insight.thread.labelIds.some((label) => ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(label))) {
+      return !/\b(deadline|due|interview|appointment|reservation|flight|exam|assignment|security|verification|invoice|payment)\b/u.test(text);
+    }
+    return /\b(unsubscribe|promo|promotion|newsletter|sale|discount|sponsored|advertisement|view web version|limited time)\b/u.test(text);
+  }
+
+  function passiveCalendar(calendar: CalendarSummary): boolean {
+    return /\b(holiday|birthdays?|contacts|moon|weather)\b/iu.test(calendar.summary);
+  }
+
+  function selectCalendarTargets(items: CalendarSummary[]): CalendarSummary[] {
+    const targets = new Map<string, CalendarSummary>();
+    for (const calendar of items.filter((item) => item.primary)) targets.set(calendar.id, calendar);
+    for (const calendar of items.filter((item) => !passiveCalendar(item))) targets.set(calendar.id, calendar);
+    return Array.from(targets.values()).slice(0, 6);
+  }
+
+  function eventTimeValue(event: CalendarEvent): number {
+    const parsed = Date.parse(event.start);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
+    const byKey = new Map<string, CalendarEvent>();
+    for (const event of events) byKey.set(`${event.calendarId}:${event.id}`, event);
+    return Array.from(byKey.values());
+  }
+
+  function sortEvents(events: CalendarEvent[]): CalendarEvent[] {
+    return events.slice().sort((a, b) => eventTimeValue(a) - eventTimeValue(b));
   }
 
   function displayWhen(value: string | undefined): string {
@@ -71,25 +126,38 @@
     }).format(date);
   }
 
+  function displayEventDay(event: CalendarEvent): string {
+    const date = new Date(event.start);
+    if (Number.isNaN(date.getTime())) return event.start;
+    return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
+  }
+
+  function displayEventTime(event: CalendarEvent): string {
+    if (!event.start.includes('T')) return 'All day';
+    const start = new Date(event.start);
+    const end = new Date(event.end);
+    if (Number.isNaN(start.getTime())) return event.start;
+    const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+    if (Number.isNaN(end.getTime())) return timeFormatter.format(start);
+    return `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
+  }
+
+  function calendarLabel(calendarId: string): string {
+    return calendarLabelMap.get(calendarId) ?? 'Google Calendar';
+  }
+
   function threadWhen(insight: GmailThreadInsight): string {
     return displayShortDate(insight.thread.date);
   }
 
-  function priorityLabel(priority: number): string {
-    if (priority >= 80) return 'High';
-    if (priority >= 60) return 'Medium';
-    return 'Watch';
-  }
-
-  function sourceLabel(source: GmailThreadInsight['source']): string {
-    return source === 'ollama' ? 'Ollama' : 'Rules fallback';
-  }
-
-  function timelineKind(item: TimelineItem): string {
-    if (item.kind === 'email_action') return 'Email';
-    if (item.kind === 'deadline') return 'Deadline';
-    if (item.kind === 'task') return 'Task';
-    return 'Event';
+  function mailCategoryLabel(category: GmailThreadInsight['category']): string {
+    if (category === 'reply') return 'Reply';
+    if (category === 'deadline') return 'Deadline';
+    if (category === 'career') return 'Career';
+    if (category === 'school') return 'School';
+    if (category === 'finance') return 'Money';
+    if (category === 'travel') return 'Travel';
+    return 'Personal';
   }
 
   function careerJobLine(job: JobRecord): string {
@@ -108,15 +176,29 @@
       if (hasGoogle) {
         const now = new Date();
         const end = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-        const [nextPriorityThreads, nextTimeline] = await Promise.all([
-          listPriorityGmailThreads({ maxResults: 8 }),
-          getTimeline({ timeMin: now.toISOString(), timeMax: end.toISOString() })
+        const nextCalendars = await listCalendars();
+        calendars = nextCalendars;
+
+        const [eventResults, nextPriorityThreads] = await Promise.all([
+          Promise.allSettled(
+            selectCalendarTargets(nextCalendars).map((calendar) =>
+              listEvents({
+                calendarId: calendar.id,
+                timeMin: now.toISOString(),
+                timeMax: end.toISOString()
+              })
+            )
+          ),
+          listPriorityGmailThreads({ maxResults: 8, q: importantMailQuery() }).catch(() => [])
         ]);
         priorityThreads = nextPriorityThreads;
-        timeline = nextTimeline;
+        agendaEvents = sortEvents(
+          dedupeEvents(eventResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : [])))
+        ).slice(0, 24);
       } else {
+        calendars = [];
+        agendaEvents = [];
         priorityThreads = [];
-        timeline = [];
       }
       lastLoadedAt = new Date().toISOString();
     } catch (error) {
@@ -134,12 +216,12 @@
 <section class="page-header today-header">
   <div>
     <p class="eyebrow">Today</p>
-    <h1>Command Center</h1>
+    <h1>Calendar Home</h1>
   </div>
   <div class="header-actions">
     <span class="sync-note">
       {#if dashboardLoading}
-        Sorting...
+        Loading calendar...
       {:else if lastLoadedAt}
         Updated {displayShortDate(lastLoadedAt)}
       {:else}
@@ -169,60 +251,21 @@
     <strong>{googleConnections.length}</strong>
   </div>
   <div>
-    <span>Priority mail</span>
-    <strong>{priorityThreads.length}</strong>
+    <span>Calendar events</span>
+    <strong>{agendaEvents.length}</strong>
   </div>
   <div>
-    <span>Upcoming items</span>
-    <strong>{timeline.length}</strong>
+    <span>Important mail</span>
+    <strong>{importantMail.length}</strong>
   </div>
 </section>
 
-<section class="grid dashboard-grid" aria-label="Today dashboard">
-  <article class="card panel priority-panel">
-    <div class="panel-title">
-      <div>
-        <span class="icon-chip"><Sparkles size={16} /></span>
-        <strong>Important Mail</strong>
-      </div>
-      <a class="button compact" href={hubHref('/productivity')}>
-        <span>Open Hub</span>
-        <ArrowRight size={15} />
-      </a>
-    </div>
-
-    {#if !googleConnected}
-      <p class="empty-note">Connect Google in the Hub to sort personal and school inboxes.</p>
-    {:else if dashboardLoading && !priorityThreads.length}
-      <p class="empty-note">Sorting recent inbox threads...</p>
-    {:else if priorityThreads.length}
-      <div class="mail-list">
-        {#each priorityThreads as insight}
-          <a class="mail-row" href={hubHref('/productivity')}>
-            <span class="score">{priorityLabel(insight.priority)}</span>
-            <span class="mail-main">
-              <strong>{insight.thread.subject}</strong>
-              <small>{insight.thread.from}</small>
-            </span>
-            <span class="mail-meta">
-              <small>{insight.category}</small>
-              <small>{threadWhen(insight)}</small>
-            </span>
-            <span class="reason">{insight.reason}{insight.deadlineHint ? ` - ${insight.deadlineHint}` : ''}</span>
-            <span class="source">{sourceLabel(insight.source)}</span>
-          </a>
-        {/each}
-      </div>
-    {:else}
-      <p class="empty-note">No high-signal inbox threads found in the recent window.</p>
-    {/if}
-  </article>
-
-  <article class="card panel timeline-panel">
+<section class="home-grid" aria-label="Calendar-first command center">
+  <article class="card panel agenda-panel">
     <div class="panel-title">
       <div>
         <span class="icon-chip"><CalendarClock size={16} /></span>
-        <strong>Deadlines & Timeline</strong>
+        <strong>Upcoming Calendar</strong>
       </div>
       <a class="button compact" href={hubHref('/productivity')}>
         <span>Manage</span>
@@ -231,71 +274,125 @@
     </div>
 
     {#if !googleConnected}
-      <p class="empty-note">Calendar and Gmail action items appear here after Google is connected.</p>
-    {:else if visibleTimeline.length}
-      <div class="timeline-list">
-        {#each visibleTimeline as item}
-          <a class="timeline-row" href={item.actionUrl ?? hubHref('/productivity')} target={item.actionUrl ? '_blank' : undefined} rel={item.actionUrl ? 'noreferrer' : undefined}>
-            <span>{timelineKind(item)}</span>
-            <strong>{item.title}</strong>
-            <small>{displayWhen(item.when)}</small>
+      <div class="empty-block">
+        <strong>Connect Google to make this your live agenda.</strong>
+        <p>Calendar events will become the main homepage. Gmail stays off to the side unless it has a real action, deadline, or event signal.</p>
+        <a class="button compact" href={hubHref('/productivity')}>Open Productivity Hub</a>
+      </div>
+    {:else if dashboardLoading && !visibleAgenda.length}
+      <p class="empty-note">Loading your upcoming calendar...</p>
+    {:else if visibleAgenda.length}
+      <div class="agenda-list">
+        {#each visibleAgenda as event}
+          <a
+            class="agenda-row"
+            href={event.htmlLink ?? hubHref('/productivity')}
+            target={event.htmlLink ? '_blank' : undefined}
+            rel={event.htmlLink ? 'noreferrer' : undefined}
+          >
+            <time datetime={event.start}>
+              <strong>{displayEventDay(event)}</strong>
+              <span>{displayEventTime(event)}</span>
+            </time>
+            <span class="agenda-main">
+              <strong>{event.title}</strong>
+              <small>{calendarLabel(event.calendarId)}{event.location ? ` - ${event.location}` : ''}</small>
+            </span>
+            <span class="agenda-meta">{event.status}</span>
           </a>
         {/each}
       </div>
     {:else}
-      <p class="empty-note">No deadlines or calendar items loaded for the next two weeks.</p>
+      <p class="empty-note">No upcoming events found on your active Google calendars for the next two weeks.</p>
     {/if}
   </article>
 
-  <article class="card panel career-panel">
-    <div class="panel-title">
-      <div>
-        <span class="icon-chip"><BriefcaseBusiness size={16} /></span>
-        <strong>Career Focus</strong>
+  <aside class="side-rail">
+    <article class="card panel next-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><CalendarClock size={16} /></span>
+          <strong>Next Up</strong>
+        </div>
       </div>
-      <a class="button compact" href={hubHref('/desk/career')}>
-        <span>Review</span>
-        <ArrowRight size={15} />
-      </a>
-    </div>
+      {#if nextEvent}
+        <div class="next-event">
+          <strong>{nextEvent.title}</strong>
+          <span>{displayWhen(nextEvent.start)}</span>
+          <small>{calendarLabel(nextEvent.calendarId)}{nextEvent.location ? ` - ${nextEvent.location}` : ''}</small>
+        </div>
+      {:else}
+        <p class="empty-note">No calendar item is currently queued.</p>
+      {/if}
+    </article>
 
-    <div class="career-columns">
-      <div>
-        <h2>Apply Queue</h2>
-        {#if applyQueue.length}
-          {#each applyQueue as job}
-            <a class="career-row" href={hubHref('/desk/career')}>
-              <strong>{careerJobLine(job)}</strong>
-              <small>{job.status} {job.nextActionAt ? `- ${displayShortDate(job.nextActionAt)}` : ''}</small>
+    <article class="card panel mail-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Inbox size={16} /></span>
+          <strong>Important Mail</strong>
+        </div>
+        <a class="button compact" href={hubHref('/productivity')}>
+          <span>Inbox</span>
+          <ArrowRight size={15} />
+        </a>
+      </div>
+
+      {#if !googleConnected}
+        <p class="empty-note">Connect Google before mail triage can run.</p>
+      {:else if dashboardLoading && !importantMail.length}
+        <p class="empty-note">Checking only action-heavy mail...</p>
+      {:else if importantMail.length}
+        <div class="mail-list">
+          {#each importantMail as insight}
+            <a class="mail-row" href={hubHref('/productivity')}>
+              <span class="mail-tag">{mailCategoryLabel(insight.category)}</span>
+              <span class="mail-main">
+                <strong>{insight.thread.subject}</strong>
+                <small>{insight.thread.from}</small>
+              </span>
+              <small class="mail-when">{threadWhen(insight)}</small>
+              <span class="reason">{insight.reason}{insight.deadlineHint ? ` - ${insight.deadlineHint}` : ''}</span>
             </a>
           {/each}
-        {:else}
-          <p class="empty-note">No saved jobs are queued in the new workspace yet.</p>
-        {/if}
+        </div>
+      {:else}
+        <p class="empty-note">No mail was important enough for the home view. Good, honestly.</p>
+      {/if}
+    </article>
+
+    <article class="card panel career-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><BriefcaseBusiness size={16} /></span>
+          <strong>Career Focus</strong>
+        </div>
+        <a class="button compact" href={hubHref('/desk/career')}>
+          <span>Review</span>
+          <ArrowRight size={15} />
+        </a>
       </div>
 
-      <div>
-        <h2>Updates</h2>
-        {#if openCareerActions.length}
+      {#if applyQueue.length || openCareerActions.length}
+        <div class="career-list">
           {#each openCareerActions as action}
             <a class="career-row" href={hubHref('/desk/career')}>
               <strong>{action.label}</strong>
               <small>{action.dueAt ? displayShortDate(action.dueAt) : 'No due date'}</small>
             </a>
           {/each}
-        {:else if careerMailSignals.length}
-          {#each careerMailSignals as insight}
-            <a class="career-row" href={hubHref('/productivity')}>
-              <strong>{insight.thread.subject}</strong>
-              <small>{insight.reason}</small>
+          {#each applyQueue as job}
+            <a class="career-row" href={hubHref('/desk/career')}>
+              <strong>{careerJobLine(job)}</strong>
+              <small>{job.status}{job.nextActionAt ? ` - ${displayShortDate(job.nextActionAt)}` : ''}</small>
             </a>
           {/each}
-        {:else}
-          <p class="empty-note">No open follow-ups or career email signals surfaced.</p>
-        {/if}
-      </div>
-    </div>
-  </article>
+        </div>
+      {:else}
+        <p class="empty-note">No dated career actions are queued in the new workspace yet.</p>
+      {/if}
+    </article>
+  </aside>
 </section>
 
 <details class="card launcher-panel">
@@ -320,6 +417,11 @@
 <style>
   .today-header {
     align-items: center;
+  }
+
+  .today-header h1 {
+    font-size: 22px;
+    letter-spacing: 0;
   }
 
   .header-actions {
@@ -366,18 +468,22 @@
     font-size: 18px;
   }
 
-  .dashboard-grid {
-    grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr);
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.7fr);
+    gap: 10px;
     align-items: start;
+  }
+
+  .side-rail {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
   }
 
   .panel {
     min-width: 0;
     overflow: hidden;
-  }
-
-  .priority-panel {
-    grid-row: span 2;
   }
 
   .panel-title {
@@ -418,40 +524,123 @@
     font-size: 12px;
   }
 
-  .empty-note {
+  .empty-note,
+  .empty-block p {
     margin: 0;
-    padding: 12px;
     color: var(--muted);
   }
 
+  .empty-note {
+    padding: 12px;
+  }
+
+  .empty-block {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+  }
+
+  .empty-block strong {
+    font-size: 14px;
+  }
+
+  .agenda-list,
   .mail-list,
-  .timeline-list {
+  .career-list {
     display: grid;
   }
 
+  .agenda-row,
   .mail-row,
-  .timeline-row,
   .career-row {
     color: var(--text);
     text-decoration: none;
   }
 
-  .mail-row {
+  .agenda-row {
     display: grid;
-    grid-template-columns: 74px minmax(0, 1fr) 82px;
-    gap: 8px 10px;
+    grid-template-columns: 128px minmax(0, 1fr) 92px;
+    gap: 10px;
+    align-items: center;
+    min-height: 68px;
     padding: 10px;
     border-bottom: 1px solid var(--border);
   }
 
+  .agenda-row:hover,
   .mail-row:hover,
-  .timeline-row:hover,
   .career-row:hover {
     background: var(--active);
   }
 
-  .score,
-  .source {
+  .agenda-row time {
+    display: grid;
+    gap: 3px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .agenda-row time strong {
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .agenda-main,
+  .mail-main {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+  }
+
+  .agenda-main strong,
+  .mail-main strong,
+  .career-row strong,
+  .next-event strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agenda-main small,
+  .agenda-meta,
+  .mail-main small,
+  .mail-when,
+  .reason,
+  .career-row small,
+  .next-event span,
+  .next-event small {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agenda-meta {
+    justify-self: end;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: capitalize;
+  }
+
+  .next-event {
+    display: grid;
+    gap: 5px;
+    padding: 12px;
+  }
+
+  .next-event strong {
+    font-size: 15px;
+  }
+
+  .mail-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 54px;
+    gap: 5px 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mail-tag {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -466,36 +655,9 @@
     font-weight: 750;
   }
 
-  .mail-main {
-    display: grid;
-    min-width: 0;
-    gap: 2px;
-  }
-
-  .mail-main strong,
-  .career-row strong,
-  .timeline-row strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mail-main small,
-  .mail-meta small,
-  .reason,
-  .source,
-  .timeline-row small,
-  .career-row small {
-    overflow: hidden;
-    color: var(--muted);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mail-meta {
-    display: grid;
-    gap: 2px;
-    text-align: right;
+  .mail-when {
+    justify-self: end;
+    font-size: 12px;
   }
 
   .reason {
@@ -503,54 +665,11 @@
     font-size: 12px;
   }
 
-  .source {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .timeline-row {
-    display: grid;
-    grid-template-columns: 78px minmax(0, 1fr);
-    gap: 3px 10px;
-    padding: 10px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .timeline-row span {
-    grid-row: span 2;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 750;
-  }
-
-  .career-panel {
-    grid-column: 2;
-  }
-
-  .career-columns {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0;
-  }
-
-  .career-columns > div + div {
-    border-left: 1px solid var(--border);
-  }
-
-  .career-columns h2 {
-    margin: 0;
-    padding: 9px 10px 4px;
-    color: var(--muted);
-    font-size: 12px;
-    letter-spacing: 0;
-    text-transform: uppercase;
-  }
-
   .career-row {
     display: grid;
     gap: 3px;
-    padding: 8px 10px;
-    border-top: 1px solid var(--border);
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
   }
 
   .launcher-panel {
@@ -622,14 +741,8 @@
   }
 
   @media (max-width: 1040px) {
-    .dashboard-grid,
-    .career-panel {
+    .home-grid {
       grid-template-columns: 1fr;
-      grid-column: auto;
-    }
-
-    .priority-panel {
-      grid-row: auto;
     }
   }
 
@@ -642,33 +755,26 @@
       justify-content: flex-start;
     }
 
-    .mail-row {
-      grid-template-columns: 68px minmax(0, 1fr);
+    .agenda-row {
+      grid-template-columns: 92px minmax(0, 1fr);
     }
 
-    .mail-meta {
+    .agenda-meta {
       grid-column: 2;
-      grid-row: 2;
-      display: flex;
-      justify-content: space-between;
-      text-align: left;
+      justify-self: start;
+    }
+
+    .mail-row {
+      grid-template-columns: 66px minmax(0, 1fr);
+    }
+
+    .mail-when {
+      grid-column: 2;
+      justify-self: start;
     }
 
     .reason {
       grid-column: 2;
-    }
-
-    .source {
-      grid-row: 3;
-    }
-
-    .career-columns {
-      grid-template-columns: 1fr;
-    }
-
-    .career-columns > div + div {
-      border-top: 1px solid var(--border);
-      border-left: 0;
     }
   }
 </style>

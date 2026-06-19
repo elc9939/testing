@@ -82,6 +82,31 @@ describe('mini hub api', () => {
     expect(await response.json()).toMatchObject({ ok: true, service: 'mini-hub-api' });
   });
 
+  it('serves assistant chat through the Mini Hub Ollama fallback', async () => {
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return jsonResponse({ models: [{ name: 'llama3.2' }] });
+      if (url.endsWith('/api/generate')) return jsonResponse({ response: 'Calendar first. Email stays in the side rail.' });
+      return jsonResponse({ error: 'unexpected request' }, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
+    const response = await app.request('/api/assistant/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'what should the homepage focus on?' })
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      text: 'Calendar first. Email stays in the side rail.',
+      provider: 'ollama',
+      model: 'llama3.2',
+      fallback: 'mini-hub-api'
+    });
+  });
+
   it('allows common fallback Vite dev origins for local import flows', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/health', {
@@ -580,5 +605,46 @@ describe('mini hub api', () => {
       thread: expect.objectContaining({ id: 'urgent-thread' })
     });
     expect(insights[0]?.priority ?? 0).toBeGreaterThan(insights[1]?.priority ?? 0);
+  });
+
+  it('does not let Gmail IMPORTANT promote promotional mail into the home list', async () => {
+    const promoMessage = {
+      id: 'promo-message',
+      threadId: 'promo-thread',
+      labelIds: ['INBOX', 'IMPORTANT', 'CATEGORY_PROMOTIONS'],
+      snippet: 'Limited time discount sale newsletter view web version.',
+      subject: 'Important limited time sale',
+      from: 'Shop <shop@example.com>',
+      to: 'me@example.com',
+      cc: '',
+      date: 'Wed, 17 Jun 2026 11:00:00 +0000',
+      internalDate: '1781708400000',
+      messageIdHeader: '<promo-message@example.com>',
+      references: '',
+      inReplyTo: '',
+      bodyText: 'Limited time discount sale newsletter unsubscribe view web version.',
+      bodyHtml: '',
+      headers: {}
+    };
+
+    const insights = await triageGmailThreads(
+      [
+        {
+          id: 'promo-thread',
+          historyId: 'h2',
+          snippet: promoMessage.snippet,
+          labelIds: promoMessage.labelIds,
+          subject: promoMessage.subject,
+          from: promoMessage.from,
+          date: promoMessage.date,
+          unread: true,
+          messages: [promoMessage]
+        }
+      ],
+      { maxResults: 1, minPriority: 0 }
+    );
+
+    expect(insights[0]).toMatchObject({ category: 'noise' });
+    expect(insights[0]?.priority ?? 100).toBeLessThan(45);
   });
 });

@@ -40,6 +40,9 @@ const highSignalTerms = [
   'action required',
   'please reply',
   'respond',
+  'rsvp',
+  'meeting',
+  'calendar invite',
   'interview',
   'application',
   'offer',
@@ -48,7 +51,6 @@ const highSignalTerms = [
   'appointment',
   'reservation',
   'ticket',
-  'confirmation',
   'invoice',
   'payment',
   'security',
@@ -68,7 +70,14 @@ const noiseTerms = [
   'cart',
   'prime day',
   'unsubscribe',
-  'view web version'
+  'view web version',
+  'advertisement',
+  'sponsored',
+  'limited time',
+  'exclusive offer',
+  'reward points',
+  'points balance',
+  'digest'
 ];
 
 function clampPriority(value: number): number {
@@ -101,16 +110,22 @@ export function heuristicTriage(thread: GmailThread): EmailThreadInsight {
   let priority = 35;
   let category: EmailTriageCategory = 'notification';
   const reasons: string[] = [];
+  const hasGmailImportant = thread.labelIds.includes('IMPORTANT');
+  const hasMarketingCategory = thread.labelIds.some((label) =>
+    ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(label)
+  );
+  const hasNoiseTerm = includesAny(lower, noiseTerms);
+  const hasHighSignalTerm = includesAny(lower, highSignalTerms);
 
   if (thread.unread) {
     priority += 8;
     reasons.push('unread');
   }
-  if (thread.labelIds.includes('IMPORTANT')) {
-    priority += 16;
-    reasons.push('Gmail marked important');
+  if (hasGmailImportant && hasHighSignalTerm) {
+    priority += 5;
+    reasons.push('Gmail importance plus action language');
   }
-  if (includesAny(lower, highSignalTerms)) {
+  if (hasHighSignalTerm) {
     priority += 24;
     category = 'reply';
     reasons.push('action/deadline language');
@@ -143,15 +158,18 @@ export function heuristicTriage(thread: GmailThread): EmailThreadInsight {
     reasons.push(deadline ? `date hint: ${deadline}` : 'deadline hint');
   }
 
-  if (thread.labelIds.some((label) => ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(label))) {
-    priority -= 18;
+  const hasActionableSignal = category !== 'notification' || Boolean(deadline) || hasHighSignalTerm;
+  if (hasMarketingCategory) {
+    priority -= hasActionableSignal ? 18 : 35;
     reasons.push('promotional/social category');
+    if (!hasActionableSignal) category = 'noise';
   }
-  if (includesAny(lower, noiseTerms)) {
-    priority -= 22;
-    if (priority < 45) category = 'noise';
+  if (hasNoiseTerm) {
+    priority -= hasActionableSignal ? 18 : 30;
+    if (priority < 60) category = 'noise';
     reasons.push('likely low-signal marketing');
   }
+  if (category === 'noise') priority = Math.min(priority, 35);
 
   const reason = reasons.length ? reasons.slice(0, 3).join(', ') : 'general inbox item';
   return {
@@ -234,7 +252,9 @@ async function ollamaTriage(thread: GmailThread): Promise<EmailThreadInsight | n
       )
         ? (parsed.category as EmailTriageCategory)
         : fallback.category;
-    const priority = typeof parsed.priority === 'number' ? Math.max(parsed.priority, fallback.priority) : fallback.priority;
+    const aiPriority = typeof parsed.priority === 'number' ? parsed.priority : fallback.priority;
+    const priority =
+      fallback.category === 'noise' ? Math.min(aiPriority, fallback.priority) : Math.max(aiPriority, fallback.priority);
     const reason = typeof parsed.reason === 'string' && parsed.reason.trim() ? parsed.reason.trim() : fallback.reason;
     const deadlineHint =
       typeof parsed.deadlineHint === 'string' && parsed.deadlineHint.trim()
@@ -260,7 +280,7 @@ export async function triageGmailThreads(
   options: { maxResults?: number; minPriority?: number } = {}
 ): Promise<EmailThreadInsight[]> {
   const maxResults = options.maxResults ?? 10;
-  const minPriority = options.minPriority ?? 50;
+  const minPriority = options.minPriority ?? 60;
   const heuristicInsights = threads
     .map(heuristicTriage)
     .filter((insight) => insight.priority >= minPriority)

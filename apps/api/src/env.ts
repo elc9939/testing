@@ -62,6 +62,7 @@ export const env = {
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? `http://127.0.0.1:${process.env.PORT ?? 8787}/api/integrations/google/oauth/callback`,
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434',
   ollamaChatModel: process.env.OLLAMA_CHAT_MODEL ?? 'llama3.2',
+  ollamaAssistantTimeoutMs: Number(process.env.OLLAMA_ASSISTANT_TIMEOUT_MS ?? 45_000),
   ollamaEmailTriageTimeoutMs: Number(process.env.OLLAMA_EMAIL_TRIAGE_TIMEOUT_MS ?? 45_000),
   emailTriageAi: process.env.MINI_HUB_EMAIL_TRIAGE_AI !== 'false',
   brightspaceBaseUrl: process.env.BRIGHTSPACE_BASE_URL,

@@ -3,7 +3,9 @@
   import { goto } from '$app/navigation';
   import { Bot, ChevronRight, Cpu, MessageCircle, PanelRightClose, PanelRightOpen, Search, Send, ShieldCheck, Sparkles } from 'lucide-svelte';
   import { clientData } from '$lib/client-data';
+  import { chatWithMiniHubAssistant } from '$lib/assistant-api';
   import { hubHref } from '$lib/routes';
+  import { localNetworkHint } from '$lib/service-config';
   import {
     getAiStatus,
     queryMemory,
@@ -159,7 +161,7 @@
     } catch (error) {
       addMessage({
         role: 'assistant',
-        text: `I could not reach AI OS. Start it with pnpm ai-os:start, then try again.\n\n${errorMessage(error)}`,
+        text: `I could not reach AI OS, so tool/agent status is unavailable right now.\n\n${localNetworkHint()}\n\n${errorMessage(error)}`,
         actions: [{ id: 'retry-status', label: 'Retry', kind: 'retry', objective: 'Check AI status' }]
       });
     } finally {
@@ -230,12 +232,31 @@
       const text = typeof result.text === 'string' && result.text.trim() ? result.text.trim() : JSON.stringify(result, null, 2);
       addMessage({ role: 'assistant', text });
     } catch (error) {
-      addMessage({
-        role: 'assistant',
-        text: `I could not reach a model for free-form chat. I can still open pages and summarize cached hub data.\n\n${errorMessage(error)}`
-      });
+      await chatWithMiniHubFallback(input, error);
     } finally {
       busy = false;
+    }
+  }
+
+  async function chatWithMiniHubFallback(input: string, aiOsError: unknown): Promise<void> {
+    try {
+      const response = await chatWithMiniHubAssistant({
+        message: input,
+        context: {
+          source: 'assistant-popup',
+          localSummary: localHubSummary(),
+          aiOsUnavailable: errorMessage(aiOsError)
+        }
+      });
+      addMessage({
+        role: 'assistant',
+        text: `${response.text}\n\nModel: ${response.model ?? response.provider} via Mini Hub API fallback.`
+      });
+    } catch (fallbackError) {
+      addMessage({
+        role: 'assistant',
+        text: localAssistantFallback(input, aiOsError, fallbackError)
+      });
     }
   }
 
@@ -281,6 +302,37 @@
 
   function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  function localAssistantFallback(input: string, aiOsError: unknown, fallbackError: unknown): string {
+    const normalized = input.toLowerCase();
+    const status = [
+      `AI OS: ${errorMessage(aiOsError)}`,
+      `Mini Hub/Ollama fallback: ${errorMessage(fallbackError)}`
+    ].join('\n');
+
+    if (/\b(ai lab|transformers|tree[- ]?sitter)\b/u.test(normalized)) {
+      return `${assistantExplanation('ai-lab')}\n\nLive model chat is offline right now, but I can still route you around the app.\n\n${status}`;
+    }
+
+    if (/\b(ai os|ollama|model|provider|agent|memory|rag)\b/u.test(normalized)) {
+      return `${assistantExplanation('ai-os')}\n\nThe heavy AI service is currently unreachable. The quickest local fix is to use the phone/desktop launcher so the API and AI OS services come up together.\n\n${localNetworkHint()}\n\n${status}`;
+    }
+
+    if (/\b(calendar|email|gmail|command center|homepage|today|deadline|event)\b/u.test(normalized)) {
+      return [
+        'The command center is being shaped around calendar-first attention: upcoming Google Calendar events and actual dated obligations should lead, while email belongs in a smaller important-mail side rail.',
+        'I can still open the Productivity Hub, summarize cached career/study data, or explain the AI surfaces while live model chat is offline.',
+        status
+      ].join('\n\n');
+    }
+
+    return [
+      'Live model chat is offline, but the local assistant shell is still working.',
+      'I can open pages, explain AI Lab or AI OS, summarize cached hub data, and retry tool-backed commands once AI OS is reachable.',
+      localNetworkHint(),
+      status
+    ].join('\n\n');
   }
 
   function commandNeedsConfirmation(value: unknown): boolean {
