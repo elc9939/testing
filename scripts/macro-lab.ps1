@@ -50,8 +50,13 @@ function Get-MacroLabPid {
 function Start-MacroLab {
   $macroLabPid = Get-MacroLabPid
   if ($macroLabPid) {
-    Write-Output "Macro Lab already running as PID $macroLabPid"
-    return
+    if ($Lan) {
+      Write-Output "Restarting Macro Lab in LAN mode from PID $macroLabPid"
+      Stop-MacroLab | Out-Null
+    } else {
+      Write-Output "Macro Lab already running as PID $macroLabPid"
+      return
+    }
   }
   if ($Lan) {
     $lanIp = Get-LanIPv4

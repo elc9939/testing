@@ -28,6 +28,15 @@ function Get-PortPid([int]$Port) {
   return $null
 }
 
+function Test-MiniHubApi([int]$Port) {
+  try {
+    $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 3
+    return $health.service -eq 'mini-hub-api'
+  } catch {
+    return $false
+  }
+}
+
 $lanIp = Get-LanIPv4
 $serviceUrl = "http://$lanIp`:$HubPort/?apiUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:$ApiPort"))&aiOsUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8791"))&macroLabUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8792"))"
 
@@ -35,8 +44,17 @@ Push-Location $Root
 try {
   $apiPid = Get-PortPid $ApiPort
   if ($apiPid) {
-    Write-Output "Mini Hub API already listening on $ApiPort as PID $apiPid"
-  } else {
+    if (Test-MiniHubApi $ApiPort) {
+      Write-Output "Restarting Mini Hub API in LAN mode from PID $apiPid"
+      Stop-Process -Id $apiPid -Force
+      Start-Sleep -Seconds 1
+      $apiPid = $null
+    } else {
+      throw "Port $ApiPort is already in use by PID $apiPid and does not look like Mini Hub API."
+    }
+  }
+
+  if (-not $apiPid) {
     $env:PORT = "$ApiPort"
     $env:HUB_PUBLIC_URL = "http://$lanIp`:$HubPort"
     $env:TRUSTED_ORIGINS = "http://localhost:$HubPort,http://127.0.0.1:$HubPort,http://$lanIp`:$HubPort,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"

@@ -51,8 +51,13 @@ function Start-AiOs {
   Assert-Python
   $aiOsPid = Get-AiOsPid
   if ($aiOsPid) {
-    Write-Output "AI OS already running as PID $aiOsPid"
-    return
+    if ($Lan) {
+      Write-Output "Restarting AI OS in LAN mode from PID $aiOsPid"
+      Stop-AiOs | Out-Null
+    } else {
+      Write-Output "AI OS already running as PID $aiOsPid"
+      return
+    }
   }
   if ($Lan) {
     $lanIp = Get-LanIPv4
