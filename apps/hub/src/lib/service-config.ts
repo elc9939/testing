@@ -103,7 +103,7 @@ export function getStoredServiceEndpoints(): ServiceEndpoint[] {
 }
 
 export function localNetworkHint(): string {
-  return 'For phone access, start the desktop services in LAN mode and set these URLs to your desktop IPv4 address, for example http://192.168.1.25:8787, http://192.168.1.25:8791, and http://192.168.1.25:8792.';
+  return 'For full phone access, run pnpm hub:start:lan plus the API/AI OS/Macro LAN scripts, then open the LAN hub URL printed by the script. Use your desktop IPv4 address for services, for example http://192.168.1.25:8787, http://192.168.1.25:8791, and http://192.168.1.25:8792.';
 }
 
 export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string): string {
