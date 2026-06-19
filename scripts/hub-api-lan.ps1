@@ -4,6 +4,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'script-utils.ps1')
+$Pnpm = Get-PnpmCommand $Root
 
 function Get-LanIPv4 {
   $address = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -25,7 +27,7 @@ $env:TRUSTED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://$lanI
 Write-Output "Mini Hub API LAN mode: use http://$lanIp`:$Port from your phone."
 Push-Location $Root
 try {
-  & pnpm --filter @mini-hub/api start
+  & $Pnpm --filter @mini-hub/api start
 } finally {
   Pop-Location
 }

@@ -5,8 +5,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'script-utils.ps1')
+$Pnpm = Get-PnpmCommand $Root
 $ApiOutLog = Join-Path $Root '.tmp-api-lan.out.log'
 $ApiErrLog = Join-Path $Root '.tmp-api-lan.err.log'
+$PhoneLinkFile = Join-Path $Root 'phone-link.txt'
 
 function Get-LanIPv4 {
   $address = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -39,6 +42,13 @@ function Test-MiniHubApi([int]$Port) {
 
 $lanIp = Get-LanIPv4
 $serviceUrl = "http://$lanIp`:$HubPort/?apiUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:$ApiPort"))&aiOsUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8791"))&macroLabUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8792"))"
+Set-Content -Path $PhoneLinkFile -Value $serviceUrl
+try {
+  Set-Clipboard -Value $serviceUrl
+  $clipboardMessage = "Copied the phone URL to your clipboard."
+} catch {
+  $clipboardMessage = "Could not copy the phone URL to the clipboard, but it was written to phone-link.txt."
+}
 
 Push-Location $Root
 try {
@@ -58,7 +68,7 @@ try {
     $env:PORT = "$ApiPort"
     $env:HUB_PUBLIC_URL = "http://$lanIp`:$HubPort"
     $env:TRUSTED_ORIGINS = "http://localhost:$HubPort,http://127.0.0.1:$HubPort,http://$lanIp`:$HubPort,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"
-    $apiProcess = Start-Process -FilePath 'pnpm' `
+    $apiProcess = Start-Process -FilePath $Pnpm `
       -ArgumentList '--filter', '@mini-hub/api', 'start' `
       -WorkingDirectory $Root `
       -WindowStyle Hidden `
@@ -74,8 +84,10 @@ try {
   Write-Output ""
   Write-Output "Open this from your phone while this terminal stays running:"
   Write-Output $serviceUrl
+  Write-Output $clipboardMessage
+  Write-Output "The same URL is saved in phone-link.txt."
   Write-Output ""
-  & pnpm --filter @mini-hub/hub dev -- --host 0.0.0.0 --port $HubPort
+  & $Pnpm --filter @mini-hub/hub dev -- --host 0.0.0.0 --port $HubPort
 } finally {
   Pop-Location
 }

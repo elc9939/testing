@@ -4,6 +4,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'script-utils.ps1')
+$Pnpm = Get-PnpmCommand $Root
 
 function Get-LanIPv4 {
   $address = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -27,7 +29,7 @@ Write-Output "Keep this terminal running while using the phone UI."
 
 Push-Location $Root
 try {
-  & pnpm --filter @mini-hub/hub dev -- --host 0.0.0.0 --port $Port
+  & $Pnpm --filter @mini-hub/hub dev -- --host 0.0.0.0 --port $Port
 } finally {
   Pop-Location
 }

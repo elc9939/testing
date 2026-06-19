@@ -103,7 +103,7 @@ export function getStoredServiceEndpoints(): ServiceEndpoint[] {
 }
 
 export function localNetworkHint(): string {
-  return 'For full phone access, run pnpm hub:start:lan plus the API/AI OS/Macro LAN scripts, then open the LAN hub URL printed by the script. Use your desktop IPv4 address for services, for example http://192.168.1.25:8787, http://192.168.1.25:8791, and http://192.168.1.25:8792.';
+  return 'For full phone access, double-click Start Mini Hub Phone Mode.cmd on the desktop and keep that window open. It starts the API, AI OS, Macro Lab, and hub, then prints/copies a phone URL with the desktop service addresses already filled in.';
 }
 
 export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string): string {

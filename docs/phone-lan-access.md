@@ -2,13 +2,19 @@
 
 The GitHub Pages hub is a static site. When a phone opens it, `127.0.0.1` points at the phone, not the desktop. Also, GitHub Pages is served over HTTPS while these private desktop services use local HTTP, so the most reliable full-control mode is to open the hub from the desktop over LAN.
 
-1. Start the whole local stack on the desktop in LAN mode:
+1. Double-click this file in the repo folder:
+
+```text
+Start Mini Hub Phone Mode.cmd
+```
+
+This starts the Mini Hub API, AI OS, Macro Lab, and the Svelte hub, then prints a phone URL. It also copies that URL to the clipboard and saves it to `phone-link.txt`.
+
+If you prefer the terminal, this is the same thing:
 
 ```powershell
 pnpm stack:start:lan
 ```
-
-This starts the Mini Hub API, AI OS, Macro Lab, and the Svelte hub, then prints a phone URL.
 
 If you want to run pieces separately for debugging:
 
@@ -19,7 +25,7 @@ pnpm ai-os:start:lan
 pnpm macro-lab:start:lan
 ```
 
-2. Open the URL printed by the LAN command on the phone. It includes query parameters that store the desktop service URLs automatically.
+2. Open the URL printed by the launcher on the phone. It includes query parameters that store the desktop service URLs automatically.
 
 3. If needed, open Settings -> Desktop Services on the phone and confirm the URLs match the desktop IPv4 shown by the scripts:
 
