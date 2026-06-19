@@ -232,6 +232,9 @@ async function ollamaTriage(thread: GmailThread): Promise<EmailThreadInsight | n
         model,
         stream: false,
         format: 'json',
+        options: {
+          num_ctx: env.ollamaContextTokens
+        },
         prompt: [
           'Classify this email thread for a private productivity dashboard.',
           'Return compact JSON only with: priority 0-100, category one of deadline/reply/career/school/finance/travel/personal/notification/noise, reason under 14 words, optional deadlineHint.',

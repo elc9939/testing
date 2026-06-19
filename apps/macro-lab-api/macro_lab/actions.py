@@ -210,6 +210,7 @@ async def ollama_transform_clipboard(action: ActionDefinition, config: dict[str,
                     {"role": "system", "content": "You are a concise local desktop text transformer."},
                     {"role": "user", "content": f"{prompt}\n\n{value}"},
                 ],
+                "options": {"num_ctx": context.settings.ollama_context_tokens},
             },
         )
         response.raise_for_status()

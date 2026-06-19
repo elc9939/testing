@@ -83,10 +83,14 @@ describe('mini hub api', () => {
   });
 
   it('serves assistant chat through the Mini Hub Ollama fallback', async () => {
-    const fetchMock = vi.fn(async (input: unknown) => {
+    let generateBody: { model?: string; options?: { num_ctx?: number } } | undefined;
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith('/api/tags')) return jsonResponse({ models: [{ name: 'llama3.2' }] });
-      if (url.endsWith('/api/generate')) return jsonResponse({ response: 'Calendar first. Email stays in the side rail.' });
+      if (url.endsWith('/api/tags')) return jsonResponse({ models: [{ name: 'llama3.1:8b' }] });
+      if (url.endsWith('/api/generate')) {
+        generateBody = JSON.parse(String(init?.body ?? '{}'));
+        return jsonResponse({ response: 'Calendar first. Email stays in the side rail.' });
+      }
       return jsonResponse({ error: 'unexpected request' }, 404);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -102,8 +106,12 @@ describe('mini hub api', () => {
     expect(await response.json()).toMatchObject({
       text: 'Calendar first. Email stays in the side rail.',
       provider: 'ollama',
-      model: 'llama3.2',
+      model: 'llama3.1:8b',
       fallback: 'mini-hub-api'
+    });
+    expect(generateBody).toMatchObject({
+      model: 'llama3.1:8b',
+      options: { num_ctx: 8192 }
     });
   });
 

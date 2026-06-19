@@ -96,6 +96,7 @@ class MultimodalRegistry:
             "prompt": request.prompt or "Describe this image.",
             "images": [request.image_base64],
             "stream": False,
+            "options": {"num_ctx": provider.settings.ollama_context_tokens},
         }
         async with httpx.AsyncClient(timeout=provider.settings.ollama_timeout_s) as client:
             response = await client.post(provider._url("/generate"), json=payload)

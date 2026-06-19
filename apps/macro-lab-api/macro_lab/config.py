@@ -44,8 +44,9 @@ class Settings(BaseSettings):
     max_run_history: int = Field(default=500, validation_alias="MACRO_LAB_MAX_RUN_HISTORY")
 
     ollama_base_url: str = Field(default="http://127.0.0.1:11434", validation_alias="OLLAMA_BASE_URL")
-    ollama_model: str = Field(default="llama3.2", validation_alias="MACRO_LAB_OLLAMA_MODEL")
+    ollama_model: str = Field(default="llama3.1:8b", validation_alias="MACRO_LAB_OLLAMA_MODEL")
     ollama_timeout_s: float = Field(default=120.0, validation_alias="MACRO_LAB_OLLAMA_TIMEOUT_S")
+    ollama_context_tokens: int = Field(default=8192, ge=1024, le=131072, validation_alias="OLLAMA_CONTEXT_TOKENS")
 
     def database_path(self) -> Path:
         return self.data_dir / "macro-lab.sqlite3"

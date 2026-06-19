@@ -16,6 +16,7 @@ from ai_os.maintenance import BackupManager
 from ai_os.memory.store import SemanticMemory
 from ai_os.models import InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, ProviderStatus, ProviderUsage, StreamChunk
 from ai_os.providers.base import ProviderAdapter, ProviderUnavailable
+from ai_os.providers.ollama import OllamaProvider
 from ai_os.providers.registry import ProviderRegistry
 from ai_os.storage import AppStorage
 
@@ -242,6 +243,41 @@ def test_request_bounds_reject_unbounded_jobs():
 
     with pytest.raises(ValidationError):
         InferenceRequest(prompt="ok", max_tokens=9000)
+
+
+@pytest.mark.asyncio
+async def test_ollama_provider_uses_configured_context(monkeypatch, tmp_path):
+    captured: dict[str, object] = {}
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {"message": {"content": "ok"}, "eval_count": 1, "prompt_eval_count": 1}
+
+    class Client:
+        def __init__(self, timeout=None):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, json):
+            captured["url"] = url
+            captured["json"] = json
+            return Response()
+
+    monkeypatch.setattr("ai_os.providers.ollama.httpx.AsyncClient", Client)
+    provider = OllamaProvider(Settings(data_dir=tmp_path, backup_enabled=False, ollama_context_tokens=8192))
+
+    result = await provider.complete(InferenceRequest(prompt="hello"))
+
+    assert result.text == "ok"
+    assert captured["json"]["options"]["num_ctx"] == 8192
 
 
 def test_health_and_backup_endpoints(tmp_path):

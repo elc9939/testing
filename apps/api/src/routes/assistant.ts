@@ -70,6 +70,9 @@ async function runOllamaChat(message: string, context: Record<string, unknown>):
       body: JSON.stringify({
         model,
         stream: false,
+        options: {
+          num_ctx: env.ollamaContextTokens
+        },
         prompt: systemPrompt(message, context)
       })
     });

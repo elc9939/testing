@@ -65,7 +65,11 @@ class OllamaProvider(ProviderAdapter):
             "model": model,
             "messages": [message.model_dump() for message in request.as_messages()],
             "stream": False,
-            "options": {"temperature": request.temperature, "num_predict": request.max_tokens},
+            "options": {
+                "temperature": request.temperature,
+                "num_predict": request.max_tokens,
+                "num_ctx": self.settings.ollama_context_tokens,
+            },
         }
         async with httpx.AsyncClient(timeout=self.settings.ollama_timeout_s) as client:
             response = await client.post(self._url("/chat"), json=payload)
@@ -98,7 +102,11 @@ class OllamaProvider(ProviderAdapter):
             "model": model,
             "messages": [message.model_dump() for message in request.as_messages()],
             "stream": True,
-            "options": {"temperature": request.temperature, "num_predict": request.max_tokens},
+            "options": {
+                "temperature": request.temperature,
+                "num_predict": request.max_tokens,
+                "num_ctx": self.settings.ollama_context_tokens,
+            },
         }
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream("POST", self._url("/chat"), json=payload) as response:

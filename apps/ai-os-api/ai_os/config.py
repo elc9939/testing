@@ -65,9 +65,10 @@ class Settings(BaseSettings):
     )
 
     ollama_base_url: str = Field(default="http://127.0.0.1:11434", validation_alias="OLLAMA_BASE_URL")
-    ollama_chat_model: str = Field(default="llama3.2", validation_alias="OLLAMA_CHAT_MODEL")
+    ollama_chat_model: str = Field(default="llama3.1:8b", validation_alias="OLLAMA_CHAT_MODEL")
     ollama_embedding_model: str = Field(default="all-minilm", validation_alias="OLLAMA_EMBEDDING_MODEL")
     ollama_timeout_s: float = Field(default=120.0, validation_alias="OLLAMA_TIMEOUT_S")
+    ollama_context_tokens: int = Field(default=8192, ge=1024, le=131072, validation_alias="OLLAMA_CONTEXT_TOKENS")
 
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     openai_base_url: str = Field(default="https://api.openai.com/v1", validation_alias="OPENAI_BASE_URL")

@@ -25,8 +25,9 @@ AI_OS_PORT=8791
 AI_OS_DATA_DIR=.ai-os-data
 AI_OS_REQUIRE_LOOPBACK=true
 OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_CHAT_MODEL=llama3.2
+OLLAMA_CHAT_MODEL=llama3.1:8b
 OLLAMA_EMBEDDING_MODEL=all-minilm
+OLLAMA_CONTEXT_TOKENS=8192
 ```
 
 Optional paid providers:
@@ -144,7 +145,7 @@ under `AI_OS_ASSETS_DIR` if you want them included in AI OS backups.
 Install and start Ollama, then pull models:
 
 ```bash
-ollama pull llama3.2
+ollama pull llama3.1:8b
 ollama pull all-minilm
 ```
 
@@ -154,8 +155,12 @@ Optional vision/image models depend on your hardware and the current Ollama mode
 ollama pull llava
 ```
 
+`OLLAMA_CONTEXT_TOKENS=8192` doubles the usual 4k local context while staying conservative
+for a desktop GPU. Larger values are allowed, but they use more memory and may push models
+partly back to CPU.
+
 Ollama's API defaults to `http://localhost:11434/api`, and its current docs cover chat,
-model listing, embeddings through `/api/embed`, and vision/image-capable generation:
+model listing, embeddings through `/api/embed`, context length, and vision/image-capable generation:
 https://docs.ollama.com/api/introduction and https://github.com/ollama/ollama/blob/main/docs/api.md
 
 ## Python API
