@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -16,6 +17,23 @@ from ..providers.ollama import OllamaProvider
 from ..providers.openai_provider import OpenAIProvider
 from ..providers.registry import ProviderRegistry
 from ..storage import AppStorage
+
+
+def _windows_speech_available() -> bool:
+    return os.name == "nt" and bool(shutil.which("powershell"))
+
+
+def _run_windows_powershell(script: str, args: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+    with tempfile.TemporaryDirectory() as tmp:
+        script_path = Path(tmp) / "invoke.ps1"
+        script_path.write_text(script, encoding="utf-8")
+        return subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
 
 
 class MultimodalRegistry:
@@ -38,9 +56,11 @@ class MultimodalRegistry:
             },
             "multimodal.audio_tts": {
                 "piper": bool(self.settings.piper_executable and self.settings.piper_voice_path),
+                "windows-tts": _windows_speech_available(),
             },
             "multimodal.audio_stt": {
                 "whisper": bool(self.settings.whisper_executable),
+                "windows-stt": _windows_speech_available(),
             },
             "multimodal.video": {
                 "builtin-video": self.settings.builtin_media_enabled,
@@ -61,6 +81,12 @@ class MultimodalRegistry:
             return self._record_asset(kind, provider_id, request, result)
         if provider_id == "whisper":
             result = await asyncio.to_thread(self._whisper_stt, request)
+            return self._record_asset(kind, provider_id, request, result)
+        if provider_id == "windows-tts":
+            result = await asyncio.to_thread(self._windows_tts, request)
+            return self._record_asset(kind, provider_id, request, result)
+        if provider_id == "windows-stt":
+            result = await asyncio.to_thread(self._windows_stt, request)
             return self._record_asset(kind, provider_id, request, result)
         if provider_id in {"builtin-image", "builtin-audio", "builtin-video"}:
             expected = provider_id.removeprefix("builtin-")
@@ -145,8 +171,12 @@ class MultimodalRegistry:
             return "comfyui"
         if kind == "audio_tts" and self.settings.piper_executable:
             return "piper"
+        if kind == "audio_tts" and _windows_speech_available():
+            return "windows-tts"
         if kind == "audio_stt" and self.settings.whisper_executable:
             return "whisper"
+        if kind == "audio_stt" and _windows_speech_available():
+            return "windows-stt"
         return "openai"
 
     async def _ollama_vision(self, provider: OllamaProvider, request: MultimodalInvokeRequest) -> dict[str, Any]:
@@ -464,6 +494,85 @@ class MultimodalRegistry:
             transcript_path = tmp_path / f"{input_path.stem}.txt"
             transcript = transcript_path.read_text(encoding="utf-8").strip() if transcript_path.exists() else completed.stdout.strip()
         return {"provider": "whisper", "model": self.settings.whisper_model, "text": transcript}
+
+    def _windows_tts(self, request: MultimodalInvokeRequest) -> dict[str, Any]:
+        if not _windows_speech_available():
+            raise ValueError("Windows System.Speech TTS is only available on Windows with PowerShell.")
+        text = request.text or request.prompt or ""
+        if not text:
+            raise ValueError("text or prompt is required for TTS.")
+
+        script = r"""
+param([string]$TextPath, [string]$OutputPath)
+$ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Speech
+$text = [System.IO.File]::ReadAllText($TextPath, [System.Text.Encoding]::UTF8)
+$speaker = New-Object System.Speech.Synthesis.SpeechSynthesizer
+try {
+  if ($env:AI_OS_WINDOWS_TTS_VOICE) { $speaker.SelectVoice($env:AI_OS_WINDOWS_TTS_VOICE) }
+  if ($env:AI_OS_WINDOWS_TTS_RATE) { $speaker.Rate = [int]$env:AI_OS_WINDOWS_TTS_RATE }
+  $speaker.SetOutputToWaveFile($OutputPath)
+  $speaker.Speak($text)
+} finally {
+  $speaker.Dispose()
+}
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            text_path = tmp_path / "speech.txt"
+            output_path = tmp_path / "speech.wav"
+            text_path.write_text(text, encoding="utf-8")
+            completed = _run_windows_powershell(script, [str(text_path), str(output_path)], self.settings.piper_timeout_s)
+            if completed.returncode != 0:
+                raise RuntimeError((completed.stderr or completed.stdout or "Windows TTS failed.").strip())
+            if not output_path.exists():
+                raise RuntimeError("Windows TTS completed but did not create speech.wav.")
+            audio = output_path.read_bytes()
+        return {
+            "provider": "windows-tts",
+            "model": "System.Speech.Synthesis",
+            "content_type": "audio/wav",
+            "audio_base64": base64.b64encode(audio).decode("ascii"),
+        }
+
+    def _windows_stt(self, request: MultimodalInvokeRequest) -> dict[str, Any]:
+        if not _windows_speech_available():
+            raise ValueError("Windows System.Speech STT is only available on Windows with PowerShell.")
+        if not request.audio_base64:
+            raise ValueError("audio_base64 is required for speech-to-text.")
+
+        audio = base64.b64decode(request.audio_base64)
+        suffix = Path(request.filename or "audio.wav").suffix or ".wav"
+        script = r"""
+param([string]$InputPath, [string]$OutputPath, [string]$TimeoutSeconds)
+$ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Speech
+$recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine([System.Globalization.CultureInfo]::CurrentCulture)
+try {
+  $recognizer.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
+  $recognizer.SetInputToWaveFile($InputPath)
+  $result = $recognizer.Recognize([TimeSpan]::FromSeconds([int]$TimeoutSeconds))
+  $text = if ($null -eq $result) { "" } else { $result.Text }
+  [System.IO.File]::WriteAllText($OutputPath, $text, [System.Text.Encoding]::UTF8)
+} finally {
+  $recognizer.Dispose()
+}
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            input_path = tmp_path / f"audio{suffix}"
+            output_path = tmp_path / "transcript.txt"
+            input_path.write_bytes(audio)
+            recognition_window = str(max(1, min(120, int(self.settings.whisper_timeout_s))))
+            completed = _run_windows_powershell(
+                script,
+                [str(input_path), str(output_path), recognition_window],
+                self.settings.whisper_timeout_s,
+            )
+            if completed.returncode != 0:
+                raise RuntimeError((completed.stderr or completed.stdout or "Windows speech recognition failed.").strip())
+            transcript = output_path.read_text(encoding="utf-8").strip() if output_path.exists() else ""
+        return {"provider": "windows-stt", "model": "System.Speech.DictationGrammar", "text": transcript}
 
     def _record_asset(
         self,

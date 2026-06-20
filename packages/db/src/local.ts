@@ -106,8 +106,6 @@ create table if not exists sync_meta (
   key text primary key,
   value text not null
 );
-
-alter table jobs add column if not exists application_url text not null default '';
 `;
 
 export interface LocalDatabaseOptions {

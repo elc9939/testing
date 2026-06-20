@@ -26,6 +26,7 @@ type CareerActionPatchInput = Partial<Pick<CareerActionRecord, 'jobId' | 'label'
 const deviceIdStorageKey = 'miniHub.deviceId.v1';
 const cursorStorageKey = 'miniHub.syncCursor.v1';
 const legacyAutoImportStorageKey = 'miniHub.legacyAutoImport.v1';
+const localCacheFallbackStorageKey = 'miniHub.localCacheFallback.v1';
 
 export interface ClientDataState {
   initialized: boolean;
@@ -126,9 +127,25 @@ export function createClientDataStore() {
   async function getDb(): Promise<PGliteDatabase> {
     if (db) return db;
     const { createMiniHubPglite } = await import('@mini-hub/db/local');
-    db = await createMiniHubPglite({
-      dataDir: import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'
-    });
+    const configuredDataDir = import.meta.env.PUBLIC_PGLITE_DATA_DIR || '';
+    const persistentUnavailable = !configuredDataDir && readStorage(localCacheFallbackStorageKey) === 'memory';
+    const requestedDataDir = persistentUnavailable ? 'memory://mini-hub-fallback' : configuredDataDir || 'idb://mini-hub';
+    try {
+      db = await createMiniHubPglite({ dataDir: requestedDataDir });
+      if (!requestedDataDir.startsWith('memory://')) {
+        writeStorage(localCacheFallbackStorageKey, 'persistent');
+      }
+    } catch (error) {
+      console.warn('Persistent offline cache is unavailable; using memory cache for this browser session.');
+      if (!configuredDataDir) {
+        writeStorage(localCacheFallbackStorageKey, 'memory');
+      }
+      db = await createMiniHubPglite({ dataDir: 'memory://mini-hub-fallback' });
+      setPartial({
+        status: 'error',
+        error: 'Persistent offline cache is unavailable in this browser session; using memory cache until reload.'
+      });
+    }
     return db;
   }
 

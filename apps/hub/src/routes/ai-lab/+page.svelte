@@ -1,9 +1,14 @@
 <script lang="ts">
   import { BrainCircuit, FileCode2, Play } from 'lucide-svelte';
+  import javascriptGrammarUrl from 'tree-sitter-javascript/tree-sitter-javascript.wasm?url';
 
   let text = 'Follow up with two high-fit roles, summarize the study backlog, and classify today as focused work.';
   let labels = 'career, study, games, admin';
-  let grammarUrl = '';
+  let codeText = `function scoreCareerFit(role) {
+  const tags = role.tags ?? [];
+  return tags.includes('ai') && role.remote ? 0.95 : 0.62;
+}`;
+  let grammarUrl = javascriptGrammarUrl;
   let result = 'Idle';
   let busy = false;
 
@@ -33,7 +38,7 @@
     result = 'Loading parser';
     try {
       const ai = await import('@mini-hub/ai');
-      const parsed = await ai.parseWithTreeSitter(text, grammarUrl.trim());
+      const parsed = await ai.parseWithTreeSitter(codeText, grammarUrl.trim() || javascriptGrammarUrl);
       result = JSON.stringify(parsed, null, 2);
     } catch (error) {
       result = error instanceof Error ? error.message : 'Parse failed';
@@ -88,7 +93,11 @@
     </div>
     <div class="field">
       <label for="grammar">Grammar WASM URL</label>
-      <input id="grammar" bind:value={grammarUrl} placeholder="/tree-sitter-javascript.wasm" />
+      <input id="grammar" bind:value={grammarUrl} />
+    </div>
+    <div class="field">
+      <label for="code-text">Code</label>
+      <textarea id="code-text" bind:value={codeText} rows="7"></textarea>
     </div>
     <button class="button" type="button" disabled={busy} on:click={parseCode}>
       <Play size={17} />

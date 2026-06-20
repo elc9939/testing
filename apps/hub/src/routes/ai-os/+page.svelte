@@ -146,6 +146,8 @@
   $: availableProviders = providers.filter((provider) => provider.available);
   $: providerOptions = providers.map((provider) => provider.id);
   $: hardware = status?.hardware;
+  $: primaryGpu = hardware?.gpus?.[0];
+  $: loadedModels = hardware?.loaded_models ?? [];
   $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
   $: plainCapabilities = buildPlainCapabilities(status);
   $: autoRouteText = autoRouteSummary(status);
@@ -238,6 +240,65 @@
     return stringify(value);
   }
 
+  function metricNumber(source: Record<string, unknown> | undefined, key: string): number | undefined {
+    const value = source?.[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  }
+
+  function metricString(source: Record<string, unknown> | undefined, key: string): string | undefined {
+    const value = source?.[key];
+    return typeof value === 'string' && value.trim() ? value : undefined;
+  }
+
+  function gbFromMb(value: number | undefined): string {
+    return typeof value === 'number' && Number.isFinite(value) ? `${(value / 1024).toFixed(1)} GB` : 'n/a';
+  }
+
+  function gpuName(gpu: Record<string, unknown> | undefined): string {
+    return metricString(gpu, 'name') ?? 'No GPU';
+  }
+
+  function gpuMemoryLabel(gpu: Record<string, unknown> | undefined): string {
+    const used = metricNumber(gpu, 'memory_used_mb');
+    const total = metricNumber(gpu, 'memory_total_mb') ?? metricNumber(gpu, 'memory_reported_total_mb');
+    if (used !== undefined && total !== undefined) return `${gbFromMb(used)} / ${gbFromMb(total)}`;
+    if (used !== undefined) return `${gbFromMb(used)} used`;
+    return 'VRAM n/a';
+  }
+
+  function gpuTemperatureLabel(gpu: Record<string, unknown> | undefined): string {
+    const value = metricNumber(gpu, 'temperature_c');
+    if (value !== undefined) return `${value.toFixed(0)} C`;
+    const source = metricString(gpu, 'temperature_source');
+    return source === 'unavailable' ? 'sensor unavailable' : 'temperature n/a';
+  }
+
+  function modelName(model: Record<string, unknown>): string {
+    return metricString(model, 'name') ?? metricString(model, 'model') ?? 'loaded model';
+  }
+
+  function modelLoadSummary(models: Array<Record<string, unknown>>): string {
+    if (!models.length) return 'No model loaded';
+    return models
+      .map((model) => {
+        const processor = metricString(model, 'processor');
+        return `${modelName(model)}${processor ? ` · ${processor}` : ''}`;
+      })
+      .join(', ');
+  }
+
+  function modelDetail(model: Record<string, unknown>): string {
+    const processor = metricString(model, 'processor') ?? 'processor unknown';
+    const vram = metricNumber(model, 'vram_gb');
+    const size = metricNumber(model, 'size_gb');
+    const context = metricNumber(model, 'context_length');
+    const pieces = [processor];
+    if (vram !== undefined) pieces.push(`${vram.toFixed(1)} GB VRAM`);
+    if (size !== undefined) pieces.push(`${size.toFixed(1)} GB model`);
+    if (context !== undefined) pieces.push(`${context} ctx`);
+    return pieces.join(' · ');
+  }
+
   function hasCapability(nextStatus: AiStatus | null, id: string): boolean {
     return Boolean(nextStatus?.capabilities.find((capability) => capability.id === id)?.available);
   }
@@ -285,7 +346,7 @@
       {
         id: 'voice',
         label: 'Speak or transcribe',
-        detail: 'Text-to-speech and speech-to-text become available when Piper, Whisper, or OpenAI audio is configured.',
+        detail: 'Text-to-speech and speech-to-text can use Windows local speech, Piper, Whisper, or OpenAI audio.',
         available: hasCapability(nextStatus, 'multimodal.audio_tts') || hasCapability(nextStatus, 'multimodal.audio_stt'),
         state:
           hasCapability(nextStatus, 'multimodal.audio_tts') || hasCapability(nextStatus, 'multimodal.audio_stt')
@@ -793,6 +854,18 @@
     <small>{hardware?.memory_used_gb ?? 'n/a'} / {hardware?.memory_total_gb ?? 'n/a'} GB</small>
   </article>
   <article class="card card-pad metric">
+    <HardDrive size={19} />
+    <span>GPU</span>
+    <strong>{numberLabel(metricNumber(primaryGpu, 'utilization_percent'), '%')}</strong>
+    <small>{gpuName(primaryGpu)} · {gpuMemoryLabel(primaryGpu)} · {gpuTemperatureLabel(primaryGpu)}</small>
+  </article>
+  <article class="card card-pad metric">
+    <BrainCircuit size={19} />
+    <span>Model Load</span>
+    <strong>{loadedModels.length}</strong>
+    <small>{modelLoadSummary(loadedModels)}</small>
+  </article>
+  <article class="card card-pad metric">
     <Zap size={19} />
     <span>Tokens/sec</span>
     <strong>{numberLabel(hardware?.recent_tokens_per_second)}</strong>
@@ -838,6 +911,37 @@
           </article>
         {:else}
           <p class="muted">AI OS API is not reachable yet.</p>
+        {/each}
+      </div>
+    </div>
+
+    <div class="gpu-panel">
+      <div class="section-title">
+        <HardDrive size={18} />
+        <strong>GPU and Model Load</strong>
+      </div>
+      <div class="gpu-list">
+        {#each hardware?.gpus ?? [] as gpu}
+          <article class="gpu-row">
+            <div>
+              <strong>{gpuName(gpu)}</strong>
+              <span>{metricString(gpu, 'vendor') ?? metricString(gpu, 'source') ?? 'gpu'}</span>
+            </div>
+            <small>{numberLabel(metricNumber(gpu, 'utilization_percent'), '%')} · {gpuMemoryLabel(gpu)} · {gpuTemperatureLabel(gpu)}</small>
+          </article>
+        {:else}
+          <p class="muted">No GPU telemetry rows yet.</p>
+        {/each}
+        {#each loadedModels as model}
+          <article class="model-row">
+            <div>
+              <strong>{modelName(model)}</strong>
+              <span>{metricString(model, 'processor') ?? 'loaded'}</span>
+            </div>
+            <small>{modelDetail(model)}</small>
+          </article>
+        {:else}
+          <p class="muted">No Ollama model is currently loaded.</p>
         {/each}
       </div>
     </div>
@@ -1620,7 +1724,7 @@
 
   .metric-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 12px;
     margin-bottom: 14px;
   }
@@ -1670,6 +1774,7 @@
 
   .provider-list,
   .capability-groups,
+  .gpu-list,
   .job-list,
   .ambient-list,
   .tool-list,
@@ -1683,6 +1788,8 @@
 
   .provider-row,
   .capability-row,
+  .gpu-row,
+  .model-row,
   .job-row,
   .ambient-row,
   .tool-row,
@@ -1728,6 +1835,8 @@
   }
 
   .provider-row div,
+  .gpu-row div,
+  .model-row div,
   .job-row div,
   .ambient-row div:first-child,
   .tool-row div,
@@ -1741,6 +1850,8 @@
   }
 
   .provider-row span,
+  .gpu-row span,
+  .model-row span,
   .job-row span,
   .ambient-row span,
   .tool-row span,
@@ -1757,6 +1868,8 @@
   }
 
   .provider-row p,
+  .gpu-row small,
+  .model-row small,
   .capability-row small,
   .tool-row small,
   .call-row small,

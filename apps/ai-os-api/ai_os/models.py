@@ -123,6 +123,7 @@ class HardwareStatus(BaseModel):
     memory_used_gb: float | None = None
     memory_total_gb: float | None = None
     gpus: list[dict[str, Any]] = Field(default_factory=list)
+    loaded_models: list[dict[str, Any]] = Field(default_factory=list)
     recent_tokens_per_second: float | None = None
     error: str | None = None
 

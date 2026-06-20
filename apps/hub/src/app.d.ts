@@ -6,5 +6,9 @@ declare global {
   }
 }
 
-export {};
+declare module '*.wasm?url' {
+  const src: string;
+  export default src;
+}
 
+export {};

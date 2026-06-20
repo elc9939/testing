@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import subprocess
 import sys
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,6 +26,7 @@ from ai_os.providers.openai_compatible import OpenAICompatibleLocalProvider
 from ai_os.providers.ollama import OllamaProvider
 from ai_os.providers.registry import ProviderRegistry
 from ai_os.storage import AppStorage
+from ai_os.telemetry import _parse_windows_gpu_payload
 
 
 class FailingProvider(ProviderAdapter):
@@ -490,3 +493,83 @@ def test_configurable_resource_limits_are_enforced(tmp_path):
     assert infer.status_code == 413
     assert job.status_code == 413
     assert memory.status_code == 413
+
+
+def test_windows_gpu_payload_reports_amd_vram_and_utilization():
+    payload = {
+        "controllers": {
+            "Name": "AMD Radeon RX 6600",
+            "Status": "OK",
+            "AdapterRAM": 4_293_918_720,
+            "DriverVersion": "32.0.21043.12001",
+            "VideoProcessor": "AMD Radeon Graphics Processor (0x73FF)",
+            "PNPDeviceID": "PCI\\VEN_1002&DEV_73FF",
+        },
+        "memory": [
+            {"Name": "luid_0x00000000_0x00011095_phys_0", "DedicatedUsage": 0, "SharedUsage": 8192, "TotalCommitted": 44_748_800},
+            {
+                "Name": "luid_0x00000000_0x0000F6A2_phys_0",
+                "DedicatedUsage": 7_944_622_080,
+                "SharedUsage": 904_716_288,
+                "TotalCommitted": 9_491_738_624,
+            },
+        ],
+        "engines": [
+            {"Name": "pid_1_luid_0x00000000_0x0000F6A2_phys_0_eng_2_engtype_Compute 0", "UtilizationPercentage": 12.5},
+            {"Name": "pid_2_luid_0x00000000_0x0000F6A2_phys_0_eng_4_engtype_Copy", "UtilizationPercentage": 1},
+        ],
+        "registryMemory": [
+            {
+                "Name": "AMD Radeon RX 6600",
+                "MatchingDeviceId": "PCI\\VEN_1002&DEV_73FF&SUBSYS_52171849&REV_C7",
+                "MemorySize": 4_293_918_720,
+                "QwMemorySize": 8_573_157_376,
+            }
+        ],
+    }
+
+    gpus = _parse_windows_gpu_payload(payload)
+
+    assert gpus[0]["name"] == "AMD Radeon RX 6600"
+    assert gpus[0]["vendor"] == "AMD"
+    assert gpus[0]["utilization_percent"] == 13.5
+    assert gpus[0]["memory_used_mb"] == pytest.approx(7576.6, rel=0.01)
+    assert gpus[0]["memory_reported_total_mb"] == pytest.approx(4095, rel=0.01)
+    assert gpus[0]["memory_total_mb"] == pytest.approx(8176.0, rel=0.01)
+    assert gpus[0]["memory_total_source"] == "driver-registry"
+    assert gpus[0]["temperature_c"] is None
+    assert gpus[0]["temperature_source"] == "unavailable"
+
+
+@pytest.mark.asyncio
+async def test_windows_speech_fallbacks_can_generate_and_transcribe(monkeypatch, tmp_path):
+    def fake_available() -> bool:
+        return True
+
+    def fake_powershell(script: str, args: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+        if "SpeechSynthesizer" in script:
+            Path(args[1]).write_bytes(b"RIFFfake wav")
+        else:
+            Path(args[1]).write_text("local speech smoke test", encoding="utf-8")
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("ai_os.multimodal.registry._windows_speech_available", fake_available)
+    monkeypatch.setattr("ai_os.multimodal.registry._run_windows_powershell", fake_powershell)
+    settings = Settings(data_dir=tmp_path, backup_enabled=False)
+    storage = AppStorage(settings.database_path())
+    multimodal = MultimodalRegistry(settings, ProviderRegistry([]), storage)
+
+    adapters = multimodal.capability_adapters()
+    assert adapters["multimodal.audio_tts"]["windows-tts"] is True
+    assert adapters["multimodal.audio_stt"]["windows-stt"] is True
+
+    tts = await multimodal.invoke("audio_tts", MultimodalInvokeRequest(text="hello"))
+    stt = await multimodal.invoke(
+        "audio_stt",
+        MultimodalInvokeRequest(audio_base64=tts["audio_base64"], filename="speech.wav"),
+    )
+
+    assert tts["provider"] == "windows-tts"
+    assert base64.b64decode(tts["audio_base64"]).startswith(b"RIFF")
+    assert stt["provider"] == "windows-stt"
+    assert stt["text"] == "local speech smoke test"

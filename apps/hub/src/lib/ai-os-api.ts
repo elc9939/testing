@@ -41,6 +41,7 @@ export interface AiHardwareStatus {
   memory_used_gb?: number;
   memory_total_gb?: number;
   gpus: Array<Record<string, unknown>>;
+  loaded_models?: Array<Record<string, unknown>>;
   recent_tokens_per_second?: number;
   error?: string;
 }

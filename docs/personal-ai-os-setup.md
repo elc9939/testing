@@ -158,8 +158,10 @@ AI_OS_MEDIA_TEMP_DIR=<temp directory>
 
 Your command should write the generated file to `AI_OS_MEDIA_OUTPUT`, or print JSON containing
 `output_path`, `image_base64`, `audio_base64`, or `video_base64`. Outputs are persisted into
-the AI OS generation gallery. Piper and Whisper are invoked as local CLI tools and return
-base64 audio or transcript text through the same multimodal endpoint as API providers.
+the AI OS generation gallery. Piper and Whisper are invoked as local CLI tools when
+configured and return base64 audio or transcript text through the same multimodal endpoint
+as API providers. On Windows, the service also exposes `windows-tts` and `windows-stt`
+through `System.Speech`, so basic local speech works even before Piper/Whisper are installed.
 
 Optional specialist provider:
 
@@ -315,6 +317,13 @@ queue depth, recent failures, manual backup, backup verification, restore-test, 
 
 - The dashboard reads CPU/RAM via `psutil`.
 - NVIDIA GPU telemetry uses `nvidia-smi` when present.
+- Windows/AMD GPU telemetry uses Windows GPU performance counters. For Radeon cards, total
+  VRAM is read from the display driver registry value when available because
+  `Win32_VideoController.AdapterRAM` can underreport modern cards.
+- Ollama model residency is read from `/api/ps`, including model name, context, VRAM load,
+  and inferred CPU/GPU residency.
+- GPU temperature is shown when a sensor backend exposes it. Stock Windows/AMD counters do
+  not expose RX 6600 temperature, so the dashboard may correctly show `sensor unavailable`.
 - VRAM is not required for the infrastructure itself. It matters only for the models you pull.
 - If `nvidia-smi` is absent or Ollama is offline, the dashboard shows degraded status instead of failing.
 - Tokens/sec is derived from recent usage logs when providers report or stream enough timing data.

@@ -206,6 +206,7 @@ Implemented adapters:
 - ComfyUI image generation when `COMFYUI_BASE_URL` plus a workflow are configured.
 - Piper local TTS when `PIPER_EXECUTABLE` and `PIPER_VOICE_PATH` are configured.
 - Whisper CLI local STT when `WHISPER_EXECUTABLE` is configured.
+- Windows local TTS/STT through `System.Speech` as a zero-install fallback on Windows.
 
 Outputs are recorded in `generation_assets`; binary image/audio results are copied under
 `AI_OS_ASSETS_DIR/generations`.
@@ -238,8 +239,8 @@ rates so cost controls can exist without hardcoding pricing claims.
 - Specialist providers are loaded only from `AI_OS_SPECIALIST_PROVIDERS_JSON`.
 - Ambient units are registered but off by default.
 - Destructive agent tools are not included by default.
-- Missing GPU, Ollama, API keys, models, or optional binaries produce degraded status objects
-  rather than crashing the dashboard.
+- Missing GPU sensors, Ollama, API keys, models, or optional binaries produce degraded status
+  objects rather than crashing the dashboard.
 - Provider fallback is explicit in each request and recorded in usage logs.
 
 ## Public API Surface
