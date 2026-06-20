@@ -5,6 +5,7 @@
     ArrowRight,
     BriefcaseBusiness,
     CalendarClock,
+    Cpu,
     Inbox,
     RefreshCw,
     Settings
@@ -20,6 +21,8 @@
     type CapabilityState
   } from '$lib/capability-registry';
   import { clientData } from '$lib/client-data';
+  import { machineModeFromPreferences } from '$lib/machine-mode';
+  import { buildModeRecommendations, type ModeRecommendation } from '$lib/mode-recommendations';
   import { hubHref } from '$lib/routes';
   import {
     getConnections,
@@ -45,6 +48,7 @@
   let attentionItems: AttentionItem[] = [];
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
   let capabilityIssues: CapabilityRegistryEntry[] = [];
+  let modeRecommendations: ModeRecommendation[] = [];
   let capabilityLoading = false;
   let capabilityError = '';
 
@@ -56,6 +60,7 @@
   $: visibleAgenda = agendaEvents.slice(0, 12);
   $: nextEvent = agendaEvents[0] ?? null;
   $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 5);
+  $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: attentionItems = buildAttentionItems({
     googleConnected,
     dashboardError,
@@ -68,6 +73,11 @@
     studySessions: $clientData.studySessions
   }).slice(0, 8);
   $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 4);
+  $: modeRecommendations = buildModeRecommendations({
+    mode: currentMachineMode,
+    capabilitySnapshot,
+    attentionCount: attentionItems.length
+  });
   $: applyQueue = $clientData.jobs
     .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
     .sort((a, b) => (a.nextActionAt ?? a.updatedAt).localeCompare(b.nextActionAt ?? b.updatedAt))
@@ -402,6 +412,39 @@
   </div>
 
   <aside class="side-rail">
+    <article class="card panel mode-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Cpu size={16} /></span>
+          <strong>Machine Mode</strong>
+        </div>
+        <a class="button compact" href={hubHref('/settings')}>
+          <span>Mode</span>
+          <ArrowRight size={15} />
+        </a>
+      </div>
+      <div class="mode-summary">
+        <strong>{currentMachineMode.label}</strong>
+        <span>{currentMachineMode.summary}</span>
+      </div>
+      {#if modeRecommendations.length}
+        <div class="mode-rec-list">
+          {#each modeRecommendations as item}
+            <a class="mode-rec-row" href={hubHref(item.route)}>
+              <span class="mode-rec-tag">{item.tag}</span>
+              <span class="mode-rec-main">
+                <strong>{item.label}</strong>
+                <small>{item.detail}</small>
+              </span>
+              <ArrowRight size={15} />
+            </a>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">No mode-specific recommendation is available from the current capability snapshot.</p>
+      {/if}
+    </article>
+
     <article class="card panel next-panel">
       <div class="panel-title">
         <div>
@@ -822,6 +865,78 @@
     display: grid;
     gap: 5px;
     padding: 12px;
+  }
+
+  .mode-summary {
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mode-summary strong {
+    font-size: 14px;
+  }
+
+  .mode-summary span {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .mode-rec-list {
+    display: grid;
+  }
+
+  .mode-rec-row {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr) 16px;
+    gap: 8px;
+    align-items: center;
+    min-height: 62px;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .mode-rec-row:hover {
+    background: var(--active);
+  }
+
+  .mode-rec-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 58px;
+    min-height: 22px;
+    padding: 2px 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mode-rec-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .mode-rec-main strong,
+  .mode-rec-main small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mode-rec-main small {
+    color: var(--muted);
   }
 
   .next-event strong {

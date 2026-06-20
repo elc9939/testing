@@ -42,7 +42,8 @@ local API services to be running on the same machine:
 The Svelte app under `apps/hub` provides these main pages:
 
 - Today dashboard: command-center cockpit with a real attention queue derived from
-  calendar, Gmail, career, study, local sync/service signals, and capability health.
+  calendar, Gmail, career, study, local sync/service signals, capability health, and
+  Machine Mode-aware next actions.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls.
@@ -72,7 +73,8 @@ stores Machine Modes v1: Balanced, Beast, Quiet, Offline, Night Shift, and Maint
 These modes are now enforced by AI OS for routed text calls and queued jobs: Offline blocks
 paid/cloud providers, Quiet and Night Shift avoid paid providers unless explicitly selected,
 and Quiet/Maintenance clamp job concurrency. The assistant and AI OS dashboard both pass the
-current mode into command, inference, job, and media calls.
+current mode into command, inference, job, and media calls. Today also turns the current mode
+and capability registry into concrete next actions without inventing data.
 
 ### Personal Data And Sync
 

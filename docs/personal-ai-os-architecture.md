@@ -96,6 +96,12 @@ on dashboard inference, command, job, and media calls. The FastAPI service norma
 metadata in `ai_os.machine_modes` and records the resolved policy in usage, job, and asset
 metadata.
 
+The Today cockpit uses the same Settings mode and browser-side capability registry to show
+mode-aware next actions. Those recommendations are derived only from the current snapshot:
+for example, Beast Mode suggests benchmarks only when a local LLM is ready, Offline Mode
+explains local/cache-only work only when the relevant local capabilities are present, and
+Maintenance Mode points at real blockers before general health checks.
+
 Current enforcement is intentionally small but real:
 
 - `Balanced`: preserves the request's `local_first` and fallback settings.
