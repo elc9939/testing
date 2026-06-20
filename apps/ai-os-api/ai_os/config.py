@@ -82,15 +82,22 @@ class Settings(BaseSettings):
     anthropic_model: str = Field(default="claude-sonnet-4-5", validation_alias="ANTHROPIC_MODEL")
 
     request_timeout_s: float = Field(default=90.0, validation_alias="AI_OS_REQUEST_TIMEOUT_S")
+    local_provider_status_timeout_s: float = Field(default=2.0, validation_alias="AI_OS_LOCAL_PROVIDER_STATUS_TIMEOUT_S")
     max_job_concurrency: int = Field(default=4, validation_alias="AI_OS_MAX_JOB_CONCURRENCY")
     provider_priority: list[str] = Field(
-        default_factory=lambda: _csv_env("AI_OS_PROVIDER_PRIORITY", ["ollama", "openai", "anthropic"])
+        default_factory=lambda: _csv_env(
+            "AI_OS_PROVIDER_PRIORITY",
+            ["ollama", "lmstudio", "llamacpp", "vllm", "openai", "anthropic"],
+        )
     )
     provider_costs: dict[str, dict[str, float]] = Field(
         default_factory=lambda: _json_env(
             "AI_OS_PROVIDER_COSTS_JSON",
             {
                 "ollama": {"input_per_1m": 0.0, "output_per_1m": 0.0},
+                "lmstudio": {"input_per_1m": 0.0, "output_per_1m": 0.0},
+                "llamacpp": {"input_per_1m": 0.0, "output_per_1m": 0.0},
+                "vllm": {"input_per_1m": 0.0, "output_per_1m": 0.0},
                 "openai": {"input_per_1m": 0.0, "output_per_1m": 0.0},
                 "anthropic": {"input_per_1m": 0.0, "output_per_1m": 0.0},
             },
@@ -99,6 +106,16 @@ class Settings(BaseSettings):
     specialist_providers: list[dict[str, Any]] = Field(
         default_factory=lambda: _json_env("AI_OS_SPECIALIST_PROVIDERS_JSON", [])
     )
+
+    lmstudio_base_url: str = Field(default="http://127.0.0.1:1234/v1", validation_alias="LM_STUDIO_BASE_URL")
+    lmstudio_model: str | None = Field(default=None, validation_alias="LM_STUDIO_MODEL")
+    lmstudio_api_key: str | None = Field(default=None, validation_alias="LM_STUDIO_API_KEY")
+    llamacpp_base_url: str = Field(default="http://127.0.0.1:8080/v1", validation_alias="LLAMA_CPP_BASE_URL")
+    llamacpp_model: str | None = Field(default=None, validation_alias="LLAMA_CPP_MODEL")
+    llamacpp_api_key: str | None = Field(default=None, validation_alias="LLAMA_CPP_API_KEY")
+    vllm_base_url: str = Field(default="http://127.0.0.1:8000/v1", validation_alias="VLLM_BASE_URL")
+    vllm_model: str | None = Field(default=None, validation_alias="VLLM_MODEL")
+    vllm_api_key: str | None = Field(default=None, validation_alias="VLLM_API_KEY")
 
     hub_api_url: str = Field(default="http://127.0.0.1:8787", validation_alias="AI_OS_HUB_API_URL")
     hub_workspace_id: str = Field(default="personal", validation_alias="AI_OS_HUB_WORKSPACE_ID")
@@ -116,7 +133,18 @@ class Settings(BaseSettings):
 
     comfyui_base_url: str | None = Field(default=None, validation_alias="COMFYUI_BASE_URL")
     comfyui_workflow_path: Path | None = Field(default=None, validation_alias="COMFYUI_WORKFLOW_PATH")
+    comfyui_image_workflow_path: Path | None = Field(default=None, validation_alias="COMFYUI_IMAGE_WORKFLOW_PATH")
+    comfyui_video_workflow_path: Path | None = Field(default=None, validation_alias="COMFYUI_VIDEO_WORKFLOW_PATH")
     comfyui_timeout_s: float = Field(default=600.0, validation_alias="COMFYUI_TIMEOUT_S")
+
+    local_image_command: str | None = Field(default=None, validation_alias="AI_OS_LOCAL_IMAGE_COMMAND")
+    local_audio_command: str | None = Field(default=None, validation_alias="AI_OS_LOCAL_AUDIO_COMMAND")
+    local_video_command: str | None = Field(default=None, validation_alias="AI_OS_LOCAL_VIDEO_COMMAND")
+    local_image_extension: str = Field(default=".png", validation_alias="AI_OS_LOCAL_IMAGE_EXTENSION")
+    local_audio_extension: str = Field(default=".wav", validation_alias="AI_OS_LOCAL_AUDIO_EXTENSION")
+    local_video_extension: str = Field(default=".mp4", validation_alias="AI_OS_LOCAL_VIDEO_EXTENSION")
+    local_media_timeout_s: float = Field(default=900.0, validation_alias="AI_OS_LOCAL_MEDIA_TIMEOUT_S")
+    local_media_work_dir: Path | None = Field(default=None, validation_alias="AI_OS_LOCAL_MEDIA_WORK_DIR")
 
     piper_executable: str | None = Field(default=None, validation_alias="PIPER_EXECUTABLE")
     piper_voice_path: Path | None = Field(default=None, validation_alias="PIPER_VOICE_PATH")

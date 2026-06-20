@@ -7,10 +7,12 @@
     Cpu,
     Database,
     Eye,
+    Film,
     HardDrive,
     Image,
     ListChecks,
     Mic,
+    Music,
     Play,
     RefreshCw,
     Search,
@@ -115,7 +117,9 @@
   let multimodalText = 'This is an ad hoc TTS test from the AI OS dashboard.';
   let imageBase64 = '';
   let audioBase64 = '';
+  let videoBase64 = '';
   let multimodalResult = '';
+  let multimodalPreview: { kind: 'image' | 'audio' | 'video'; src: string } | null = null;
   let multimodalBusy = false;
 
   let benchmarkKind = 'text';
@@ -128,6 +132,7 @@
   $: providerOptions = providers.map((provider) => provider.id);
   $: hardware = status?.hardware;
   $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
+  $: mediaProviderOptions = multimodalProviderOptions(status);
   $: connectedLocalAiOsHref = localConnectedAiOsHref();
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
@@ -158,6 +163,47 @@
 
   function stringify(value: unknown): string {
     return JSON.stringify(value, null, 2);
+  }
+
+  function redactMediaPayloads(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(redactMediaPayloads);
+    if (!value || typeof value !== 'object') return value;
+    const next: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      if (['image_base64', 'audio_base64', 'video_base64', 'b64_json'].includes(key) && typeof item === 'string') {
+        next[key] = `[base64 ${item.length} chars]`;
+      } else {
+        next[key] = redactMediaPayloads(item);
+      }
+    }
+    return next;
+  }
+
+  function multimodalProviderOptions(nextStatus: AiStatus | null): string[] {
+    const adapters = (nextStatus?.capabilities ?? [])
+      .filter((capability) => capability.kind === 'multimodal')
+      .flatMap((capability) => capability.adapters);
+    return [...new Set([...adapters, ...providerOptions])].filter(Boolean);
+  }
+
+  function mediaPreview(result: Record<string, unknown>, fallbackKind: string): { kind: 'image' | 'audio' | 'video'; src: string } | null {
+    const contentType = typeof result.content_type === 'string' ? result.content_type : '';
+    if (typeof result.image_base64 === 'string') {
+      return { kind: 'image', src: `data:${contentType || 'image/png'};base64,${result.image_base64}` };
+    }
+    if (typeof result.audio_base64 === 'string') {
+      return { kind: 'audio', src: `data:${contentType || 'audio/wav'};base64,${result.audio_base64}` };
+    }
+    if (typeof result.video_base64 === 'string') {
+      return { kind: 'video', src: `data:${contentType || 'video/mp4'};base64,${result.video_base64}` };
+    }
+    const data = Array.isArray(result.data) ? result.data : [];
+    const b64Image = data.find((item) => item && typeof item === 'object' && typeof (item as { b64_json?: unknown }).b64_json === 'string') as
+      | { b64_json: string }
+      | undefined;
+    if (b64Image) return { kind: 'image', src: `data:image/png;base64,${b64Image.b64_json}` };
+    if (fallbackKind === 'video' && typeof result.output_path === 'string') return null;
+    return null;
   }
 
   function numberLabel(value: number | undefined, suffix = ''): string {
@@ -475,9 +521,11 @@
         prompt: multimodalPrompt,
         text: multimodalText,
         image_base64: imageBase64 || undefined,
-        audio_base64: audioBase64 || undefined
+        audio_base64: audioBase64 || undefined,
+        video_base64: videoBase64 || undefined
       });
-      multimodalResult = stringify(result);
+      multimodalPreview = mediaPreview(result, multimodalKind);
+      multimodalResult = stringify(redactMediaPayloads(result));
       generationAssets = await listGenerationAssets(24);
     } catch (error) {
       setError(error, 'Multimodal invocation failed.');
@@ -739,6 +787,8 @@
         <select id="benchmark-kind" bind:value={benchmarkKind}>
           <option value="text">text</option>
           <option value="image">image</option>
+          <option value="audio">audio</option>
+          <option value="video">video</option>
         </select>
       </div>
       <div class="field wide">
@@ -1027,6 +1077,10 @@
     <div class="section-title">
       {#if multimodalKind === 'image'}
         <Image size={18} />
+      {:else if multimodalKind === 'video'}
+        <Film size={18} />
+      {:else if multimodalKind === 'audio'}
+        <Music size={18} />
       {:else if multimodalKind === 'audio_tts'}
         <Volume2 size={18} />
       {:else if multimodalKind === 'audio_stt'}
@@ -1041,6 +1095,8 @@
         <label for="multi-kind">Kind</label>
         <select id="multi-kind" bind:value={multimodalKind}>
           <option value="image">image</option>
+          <option value="audio">audio generation</option>
+          <option value="video">video generation</option>
           <option value="audio_tts">audio TTS</option>
           <option value="audio_stt">audio STT</option>
           <option value="vision">vision</option>
@@ -1050,7 +1106,7 @@
         <label for="multi-provider">Provider</label>
         <select id="multi-provider" bind:value={multimodalProvider}>
           <option value="">auto</option>
-          {#each providerOptions as provider}
+          {#each mediaProviderOptions as provider}
             <option value={provider}>{provider}</option>
           {/each}
         </select>
@@ -1071,11 +1127,27 @@
         <label for="audio-base64">Audio base64</label>
         <textarea id="audio-base64" bind:value={audioBase64} rows="2"></textarea>
       </div>
+      <div class="field wide">
+        <label for="video-base64">Video base64</label>
+        <textarea id="video-base64" bind:value={videoBase64} rows="2"></textarea>
+      </div>
     </div>
     <button class="button primary" type="button" disabled={multimodalBusy} on:click={invokeMedia}>
       <Play size={17} />
       <span>Invoke</span>
     </button>
+    {#if multimodalPreview}
+      <div class="media-preview">
+        {#if multimodalPreview.kind === 'image'}
+          <img src={multimodalPreview.src} alt="Generated preview" />
+        {:else if multimodalPreview.kind === 'audio'}
+          <audio controls src={multimodalPreview.src}></audio>
+        {:else}
+          <!-- svelte-ignore a11y_media_has_caption -->
+          <video controls src={multimodalPreview.src}></video>
+        {/if}
+      </div>
+    {/if}
     <pre>{multimodalResult}</pre>
     <div class="asset-list">
       {#each generationAssets.slice(0, 6) as asset}
@@ -1430,6 +1502,27 @@
     color: var(--code-text);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  .media-preview {
+    display: grid;
+    min-height: 72px;
+    place-items: center;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+  }
+
+  .media-preview img,
+  .media-preview video {
+    max-width: 100%;
+    max-height: 340px;
+    border-radius: 6px;
+  }
+
+  .media-preview audio {
+    width: 100%;
   }
 
   .job-row {

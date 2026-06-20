@@ -249,6 +249,7 @@ class MultimodalInvokeRequest(BaseModel):
     text: str | None = Field(default=None, max_length=200_000)
     image_base64: str | None = Field(default=None, max_length=50_000_000)
     audio_base64: str | None = Field(default=None, max_length=50_000_000)
+    video_base64: str | None = Field(default=None, max_length=100_000_000)
     filename: str | None = Field(default=None, max_length=240)
     provider: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=160)
@@ -296,7 +297,7 @@ class DesignPatchRecord(BaseModel):
 
 
 class BenchmarkRequest(BaseModel):
-    kind: Literal["text", "image"] = "text"
+    kind: Literal["text", "image", "audio", "video"] = "text"
     prompt: str = Field(default="Explain what this local AI stack can do in one tight paragraph.", max_length=50_000)
     provider: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=160)

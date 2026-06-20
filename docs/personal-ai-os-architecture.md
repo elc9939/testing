@@ -25,6 +25,11 @@ the personal data sync service.
   streaming surfaces: https://developers.openai.com/api/reference/overview/
 - Anthropic's Messages API supports streaming responses with server-sent events:
   https://platform.claude.com/docs/en/build-with-claude/streaming
+- LM Studio, llama.cpp server, and vLLM expose OpenAI-compatible local HTTP APIs that can
+  be used as drop-in local providers:
+  https://lmstudio.ai/docs/developer/openai-compat,
+  https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md, and
+  https://docs.vllm.ai/en/stable/getting_started/quickstart/
 
 ## Service Boundary
 
@@ -33,6 +38,9 @@ flowchart LR
   Hub["SvelteKit Hub / AI OS Dashboard"] -->|"HTTP + optional SSE"| API["FastAPI AI OS API"]
   API --> Router["Inference Router"]
   Router --> Ollama["Ollama Adapter"]
+  Router --> LMStudio["LM Studio Adapter"]
+  Router --> LlamaCpp["llama.cpp Server Adapter"]
+  Router --> VLLM["vLLM Adapter"]
   Router --> OpenAI["OpenAI Adapter"]
   Router --> Anthropic["Anthropic Adapter"]
   Router --> Specialist["Specialist HTTP Adapters"]
@@ -74,9 +82,11 @@ state and can be rebuilt or moved independently.
 - `stream(request)` for token/chunk streaming.
 - Optional `embed(texts, model)` for local or API embeddings.
 
-Adapters are registered by ID (`ollama`, `openai`, `anthropic`, `specialist:<name>`). The
-router can choose by explicit provider, task type, local-first preference, cost ceiling, or
-fallback policy. Adding another provider is a new adapter class plus one registration line.
+Adapters are registered by ID (`ollama`, `lmstudio`, `llamacpp`, `vllm`, `openai`,
+`anthropic`, `specialist:<name>`). The router can choose by explicit provider, task type,
+local-first preference, cost ceiling, or fallback policy. LM Studio, llama.cpp, and vLLM
+share one OpenAI-compatible local adapter and differ by base URL/model/key settings.
+Adding another provider is a new adapter class or another OpenAI-compatible registration.
 
 ### Capability
 
@@ -91,12 +101,20 @@ Capabilities are discoverable service surfaces, not workflows:
 - `agents.plan_act_check`
 - `memory.semantic_search`
 - `multimodal.image`
+- `multimodal.audio`
 - `multimodal.audio_tts`
 - `multimodal.audio_stt`
+- `multimodal.video`
 - `multimodal.vision`
 
 Each capability reports availability, adapter IDs, safety level, and whether it is enabled.
 Ambient or destructive units default to disabled.
+
+Local media generation is intentionally command-backed as well as provider-backed. ComfyUI
+handles image/video workflows through `/prompt`, `/history`, and `/view`; Piper and Whisper
+cover local TTS/STT; and `AI_OS_LOCAL_IMAGE_COMMAND`, `AI_OS_LOCAL_AUDIO_COMMAND`, and
+`AI_OS_LOCAL_VIDEO_COMMAND` allow any local generator to write a result file to
+`AI_OS_MEDIA_OUTPUT` without giving the browser arbitrary shell access.
 
 ### Job Primitive
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import sys
 from collections.abc import AsyncIterator
 
 import pytest
@@ -14,8 +16,10 @@ from ai_os.jobs.primitives import JobPrimitives
 from ai_os.jobs.queue import JobQueue
 from ai_os.maintenance import BackupManager
 from ai_os.memory.store import SemanticMemory
-from ai_os.models import InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, ProviderStatus, ProviderUsage, StreamChunk
+from ai_os.models import InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, StreamChunk
+from ai_os.multimodal.registry import MultimodalRegistry
 from ai_os.providers.base import ProviderAdapter, ProviderUnavailable
+from ai_os.providers.openai_compatible import OpenAICompatibleLocalProvider
 from ai_os.providers.ollama import OllamaProvider
 from ai_os.providers.registry import ProviderRegistry
 from ai_os.storage import AppStorage
@@ -278,6 +282,90 @@ async def test_ollama_provider_uses_configured_context(monkeypatch, tmp_path):
 
     assert result.text == "ok"
     assert captured["json"]["options"]["num_ctx"] == 8192
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_local_provider_completes(monkeypatch, tmp_path):
+    captured: dict[str, object] = {}
+
+    class Response:
+        def __init__(self, payload: dict[str, object]):
+            self.payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return self.payload
+
+    class Client:
+        def __init__(self, timeout=None):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            return Response({"data": [{"id": "local-model"}]})
+
+        async def post(self, url, headers=None, json=None):
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["json"] = json
+            return Response(
+                {
+                    "choices": [{"message": {"content": "local ok"}}],
+                    "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
+                }
+            )
+
+    monkeypatch.setattr("ai_os.providers.openai_compatible.httpx.AsyncClient", Client)
+    provider = OpenAICompatibleLocalProvider(
+        provider_id="lmstudio",
+        label="LM Studio Local",
+        base_url="http://127.0.0.1:1234/v1",
+        api_key="local-key",
+        settings=Settings(data_dir=tmp_path, backup_enabled=False),
+    )
+
+    result = await provider.complete(InferenceRequest(prompt="hello"))
+
+    assert result.provider == "lmstudio"
+    assert result.model == "local-model"
+    assert result.text == "local ok"
+    assert result.usage.total_tokens == 5
+    assert captured["url"] == "http://127.0.0.1:1234/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer local-key"
+
+
+@pytest.mark.asyncio
+async def test_local_video_generation_command_records_asset(tmp_path):
+    command = (
+        f'"{sys.executable}" -c "import os, pathlib; '
+        "pathlib.Path(os.environ['AI_OS_MEDIA_OUTPUT']).write_bytes(b'fake-video')" + '"'
+    )
+    settings = Settings(
+        data_dir=tmp_path,
+        backup_enabled=False,
+        local_video_command=command,
+        local_video_extension=".mp4",
+    )
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([])
+    multimodal = MultimodalRegistry(settings, registry, storage)
+
+    result = await multimodal.invoke("video", MultimodalInvokeRequest(prompt="demo video"))
+
+    assert result["provider"] == "local-video"
+    assert result["content_type"] == "video/mp4"
+    assert base64.b64decode(result["video_base64"]) == b"fake-video"
+    assets = storage.list_generation_assets()
+    assert assets[0].kind == "video"
+    assert assets[0].provider == "local-video"
+    assert assets[0].asset_path
 
 
 def test_health_and_backup_endpoints(tmp_path):

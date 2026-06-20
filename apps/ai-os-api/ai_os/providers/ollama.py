@@ -17,7 +17,7 @@ class OllamaProvider(ProviderAdapter):
     label = "Ollama Local"
     local = True
     paid = False
-    capabilities = ["text.inference", "text.streaming", "memory.embedding", "multimodal.vision", "multimodal.image.local"]
+    capabilities = ["text.inference", "text.streaming", "memory.embedding", "multimodal.vision"]
 
     def __init__(self, settings: Settings):
         self.settings = settings

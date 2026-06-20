@@ -28,7 +28,29 @@ OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_CHAT_MODEL=llama3.1:8b
 OLLAMA_EMBEDDING_MODEL=all-minilm
 OLLAMA_CONTEXT_TOKENS=8192
+AI_OS_LOCAL_PROVIDER_STATUS_TIMEOUT_S=2
 ```
+
+Optional local OpenAI-compatible providers:
+
+```bash
+LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
+LM_STUDIO_MODEL=
+LM_STUDIO_API_KEY=
+
+LLAMA_CPP_BASE_URL=http://127.0.0.1:8080/v1
+LLAMA_CPP_MODEL=
+LLAMA_CPP_API_KEY=
+
+VLLM_BASE_URL=http://127.0.0.1:8000/v1
+VLLM_MODEL=
+VLLM_API_KEY=
+```
+
+These are local-first adapters. LM Studio's default local API port is commonly `1234`, vLLM
+defaults to `8000`, and llama.cpp server deployments commonly use an OpenAI-compatible `/v1`
+base URL. Leave them unset if you only want Ollama; the dashboard will show them as offline
+until those servers are running.
 
 Optional paid providers:
 
@@ -46,7 +68,7 @@ ANTHROPIC_MODEL=claude-sonnet-4-5
 Optional cost estimates:
 
 ```bash
-AI_OS_PROVIDER_COSTS_JSON={"ollama":{"input_per_1m":0,"output_per_1m":0},"openai":{"input_per_1m":0,"output_per_1m":0},"anthropic":{"input_per_1m":0,"output_per_1m":0}}
+AI_OS_PROVIDER_COSTS_JSON={"ollama":{"input_per_1m":0,"output_per_1m":0},"lmstudio":{"input_per_1m":0,"output_per_1m":0},"llamacpp":{"input_per_1m":0,"output_per_1m":0},"vllm":{"input_per_1m":0,"output_per_1m":0},"openai":{"input_per_1m":0,"output_per_1m":0},"anthropic":{"input_per_1m":0,"output_per_1m":0}}
 ```
 
 Those values are your configurable estimates, not authoritative billing records.
@@ -81,7 +103,18 @@ Optional local multimodal engines:
 ```bash
 COMFYUI_BASE_URL=http://127.0.0.1:8188
 COMFYUI_WORKFLOW_PATH=C:\path\to\workflow.json
+COMFYUI_IMAGE_WORKFLOW_PATH=C:\path\to\image-workflow.json
+COMFYUI_VIDEO_WORKFLOW_PATH=C:\path\to\video-workflow.json
 COMFYUI_TIMEOUT_S=600
+
+AI_OS_LOCAL_IMAGE_COMMAND=
+AI_OS_LOCAL_AUDIO_COMMAND=
+AI_OS_LOCAL_VIDEO_COMMAND=
+AI_OS_LOCAL_IMAGE_EXTENSION=.png
+AI_OS_LOCAL_AUDIO_EXTENSION=.wav
+AI_OS_LOCAL_VIDEO_EXTENSION=.mp4
+AI_OS_LOCAL_MEDIA_TIMEOUT_S=900
+AI_OS_LOCAL_MEDIA_WORK_DIR=
 
 PIPER_EXECUTABLE=C:\path\to\piper.exe
 PIPER_VOICE_PATH=C:\path\to\voice.onnx
@@ -93,9 +126,29 @@ WHISPER_TIMEOUT_S=600
 ```
 
 ComfyUI expects a workflow JSON. If the workflow contains `{{prompt}}` strings they are
-replaced; common `CLIPTextEncode.inputs.text` nodes are also set from the prompt. Piper and
-Whisper are invoked as local CLI tools and return base64 audio or transcript text through the
-same multimodal endpoint as API providers.
+replaced; common `CLIPTextEncode.inputs.text` nodes are also set from the prompt. The legacy
+`COMFYUI_WORKFLOW_PATH` remains the default image workflow; use `COMFYUI_VIDEO_WORKFLOW_PATH`
+for video workflows that save `.mp4`, `.webm`, `.mov`, or `.gif` outputs.
+
+The `AI_OS_LOCAL_*_COMMAND` settings are generic local generators for tools such as ComfyUI
+CLI wrappers, Stable Diffusion scripts, MusicGen/AudioCraft wrappers, AnimateDiff pipelines,
+or any other local program. They are intentionally env-configured, not UI-configured. The
+service runs the command with:
+
+```text
+AI_OS_MEDIA_KIND=image|audio|video
+AI_OS_MEDIA_PROMPT=<prompt>
+AI_OS_MEDIA_TEXT=<text>
+AI_OS_MEDIA_PROMPT_FILE=<temp prompt.txt>
+AI_OS_MEDIA_TEXT_FILE=<temp text.txt>
+AI_OS_MEDIA_OUTPUT=<temp output file path>
+AI_OS_MEDIA_TEMP_DIR=<temp directory>
+```
+
+Your command should write the generated file to `AI_OS_MEDIA_OUTPUT`, or print JSON containing
+`output_path`, `image_base64`, `audio_base64`, or `video_base64`. Outputs are persisted into
+the AI OS generation gallery. Piper and Whisper are invoked as local CLI tools and return
+base64 audio or transcript text through the same multimodal endpoint as API providers.
 
 Optional specialist provider:
 
@@ -314,12 +367,18 @@ GET  /api/ai/benchmarks
 POST /api/ai/benchmarks
 ```
 
+`{kind}` currently supports `image`, `audio`, `video`, `audio_tts`, `audio_stt`, and
+`vision`. The benchmark endpoint supports `text`, `image`, `audio`, and `video`.
+
 ## Adding A Provider
 
-1. Create a class implementing `ProviderAdapter` in `apps/ai-os-api/ai_os/providers`.
-2. Implement `status()`, `complete()`, and optionally `stream()` and `embed()`.
-3. Register it in `build_provider_registry()` in `providers/registry.py`.
-4. Add any secrets or model defaults to `config.py` and `.env.example`.
+1. For a local OpenAI-compatible server, add a new `OpenAICompatibleLocalProvider`
+   registration in `providers/registry.py`.
+2. For a custom protocol, create a class implementing `ProviderAdapter` in
+   `apps/ai-os-api/ai_os/providers`.
+3. Implement `status()`, `complete()`, and optionally `stream()` and `embed()`.
+4. Register it in `build_provider_registry()` in `providers/registry.py`.
+5. Add any secrets or model defaults to `config.py` and `.env.example`.
 
 ## Adding A Job Primitive
 
@@ -345,8 +404,8 @@ POST /api/ai/benchmarks
 
 1. Add a provider branch in `MultimodalRegistry.invoke()`.
 2. Return a plain JSON result with `provider`, optional `model`, and either `image_base64`,
-   `audio_base64`, `text`, or provider metadata.
-3. Let `_record_asset()` persist generated image/audio outputs into `AI_OS_ASSETS_DIR`.
+   `audio_base64`, `video_base64`, `text`, or provider metadata.
+3. Let `_record_asset()` persist generated image/audio/video outputs into `AI_OS_ASSETS_DIR`.
 
 ## Adding A Benchmark
 
@@ -470,6 +529,12 @@ checking for upstream updates; do not hide the audit failure with a blanket igno
 
 - OpenAI Responses, Chat Completions, image generation, audio transcription, and speech endpoints
   are documented at https://developers.openai.com/api/reference/overview/
+- LM Studio exposes local REST, OpenAI-compatible, and Anthropic-compatible endpoints:
+  https://lmstudio.ai/docs/developer/core/server and https://lmstudio.ai/docs/developer/openai-compat
+- llama.cpp server exposes OpenAI-compatible chat, responses, and embeddings routes:
+  https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md
+- vLLM can serve an OpenAI-compatible API server, defaulting to port `8000` in its quickstart:
+  https://docs.vllm.ai/en/stable/getting_started/quickstart/
 - OpenAI streaming responses use SSE in the current official docs:
   https://developers.openai.com/api/reference/python/
 - Anthropic Messages streaming uses SSE:

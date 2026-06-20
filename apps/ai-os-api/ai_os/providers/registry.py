@@ -6,6 +6,7 @@ from ..config import Settings
 from .anthropic import AnthropicProvider
 from .base import ProviderAdapter
 from .ollama import OllamaProvider
+from .openai_compatible import OpenAICompatibleLocalProvider
 from .openai_provider import OpenAIProvider
 from .specialist import SpecialistHttpProvider
 
@@ -27,6 +28,30 @@ class ProviderRegistry:
 def build_provider_registry(settings: Settings) -> ProviderRegistry:
     adapters: list[ProviderAdapter] = [
         OllamaProvider(settings),
+        OpenAICompatibleLocalProvider(
+            provider_id="lmstudio",
+            label="LM Studio Local",
+            base_url=settings.lmstudio_base_url,
+            model=settings.lmstudio_model,
+            api_key=settings.lmstudio_api_key,
+            settings=settings,
+        ),
+        OpenAICompatibleLocalProvider(
+            provider_id="llamacpp",
+            label="llama.cpp Server",
+            base_url=settings.llamacpp_base_url,
+            model=settings.llamacpp_model,
+            api_key=settings.llamacpp_api_key,
+            settings=settings,
+        ),
+        OpenAICompatibleLocalProvider(
+            provider_id="vllm",
+            label="vLLM Local Server",
+            base_url=settings.vllm_base_url,
+            model=settings.vllm_model,
+            api_key=settings.vllm_api_key,
+            settings=settings,
+        ),
         OpenAIProvider(settings),
         AnthropicProvider(settings),
     ]

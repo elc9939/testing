@@ -181,14 +181,22 @@ def create_app(
     @app.get("/api/ai/capabilities")
     async def capabilities() -> dict[str, Any]:
         statuses = await asyncio.gather(*(adapter.status() for adapter in services.providers.all()))
-        return {"capabilities": [capability.model_dump(mode="json") for capability in build_capabilities(list(statuses))]}
+        return {
+            "capabilities": [
+                capability.model_dump(mode="json")
+                for capability in build_capabilities(list(statuses), services.multimodal.capability_adapters())
+            ]
+        }
 
     @app.get("/api/ai/status")
     async def status() -> dict[str, Any]:
         statuses = await asyncio.gather(*(adapter.status() for adapter in services.providers.all()))
         return {
             "providers": [provider.model_dump(mode="json") for provider in statuses],
-            "capabilities": [capability.model_dump(mode="json") for capability in build_capabilities(list(statuses))],
+            "capabilities": [
+                capability.model_dump(mode="json")
+                for capability in build_capabilities(list(statuses), services.multimodal.capability_adapters())
+            ],
             "hardware": hardware_status(services.storage).model_dump(mode="json"),
             "jobs": [job.model_dump(mode="json") for job in services.jobs.list()],
             "background": [unit.model_dump(mode="json") for unit in services.background.list()],
@@ -490,7 +498,7 @@ def create_app(
                 services.router,
                 services.storage,
                 request,
-                image_invoker=lambda media_request: services.multimodal.invoke("image", media_request),
+                media_invoker=lambda kind, media_request: services.multimodal.invoke(kind, media_request),
             )
             return {"benchmark": record.model_dump(mode="json")}
         except Exception as error:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -22,16 +23,45 @@ class MultimodalRegistry:
         self.providers = providers
         self.storage = storage
 
+    def capability_adapters(self) -> dict[str, dict[str, bool]]:
+        return {
+            "multimodal.image": {
+                "comfyui": bool(self.settings.comfyui_base_url),
+                "local-image": bool(self.settings.local_image_command),
+            },
+            "multimodal.audio": {
+                "local-audio": bool(self.settings.local_audio_command),
+            },
+            "multimodal.audio_tts": {
+                "piper": bool(self.settings.piper_executable and self.settings.piper_voice_path),
+            },
+            "multimodal.audio_stt": {
+                "whisper": bool(self.settings.whisper_executable),
+            },
+            "multimodal.video": {
+                "comfyui": bool(self.settings.comfyui_base_url and self.settings.comfyui_video_workflow_path),
+                "local-video": bool(self.settings.local_video_command),
+            },
+        }
+
     async def invoke(self, kind: str, request: MultimodalInvokeRequest) -> dict[str, Any]:
         provider_id = request.provider or self._default_provider(kind)
         if provider_id == "comfyui":
-            result = await self._comfyui_image(request)
+            if kind not in {"image", "video"}:
+                raise ValueError("ComfyUI is available for image/video workflows.")
+            result = await self._comfyui_media(request, kind)
             return self._record_asset(kind, provider_id, request, result)
         if provider_id == "piper":
             result = await asyncio.to_thread(self._piper_tts, request)
             return self._record_asset(kind, provider_id, request, result)
         if provider_id == "whisper":
             result = await asyncio.to_thread(self._whisper_stt, request)
+            return self._record_asset(kind, provider_id, request, result)
+        if provider_id in {"local-image", "local-audio", "local-video"}:
+            expected = provider_id.removeprefix("local-")
+            if kind != expected:
+                raise ValueError(f"Provider {provider_id} only handles kind='{expected}'.")
+            result = await asyncio.to_thread(self._local_media_command, kind, request)
             return self._record_asset(kind, provider_id, request, result)
 
         provider = self.providers.get(provider_id)
@@ -42,7 +72,13 @@ class MultimodalRegistry:
             if isinstance(provider, OpenAIProvider):
                 result = await provider.generate_image(request.prompt or "", request.model, request.options)
                 return self._record_asset(kind, provider_id, request, result)
-            raise ValueError(f"Provider {provider_id} does not expose image generation. Use provider='comfyui' for local image generation.")
+            raise ValueError("This provider does not expose image generation. Use provider='comfyui' or provider='local-image' for local image generation.")
+
+        if kind == "audio":
+            raise ValueError("Audio generation requires provider='local-audio' and AI_OS_LOCAL_AUDIO_COMMAND.")
+
+        if kind == "video":
+            raise ValueError("Video generation requires provider='local-video' or a configured ComfyUI video workflow.")
 
         if kind == "audio_tts":
             if isinstance(provider, OpenAIProvider):
@@ -78,7 +114,15 @@ class MultimodalRegistry:
     def _default_provider(self, kind: str) -> str:
         if kind == "vision":
             return "ollama"
+        if kind == "image" and self.settings.local_image_command:
+            return "local-image"
         if kind == "image" and self.settings.comfyui_base_url:
+            return "comfyui"
+        if kind == "audio" and self.settings.local_audio_command:
+            return "local-audio"
+        if kind == "video" and self.settings.local_video_command:
+            return "local-video"
+        if kind == "video" and self.settings.comfyui_base_url and self.settings.comfyui_video_workflow_path:
             return "comfyui"
         if kind == "audio_tts" and self.settings.piper_executable:
             return "piper"
@@ -106,14 +150,15 @@ class MultimodalRegistry:
         data.setdefault("model", payload["model"])
         return data
 
-    async def _comfyui_image(self, request: MultimodalInvokeRequest) -> dict[str, Any]:
+    async def _comfyui_media(self, request: MultimodalInvokeRequest, kind: str) -> dict[str, Any]:
         if not self.settings.comfyui_base_url:
             raise ValueError("COMFYUI_BASE_URL is not configured.")
         workflow = request.options.get("workflow")
         if workflow is None:
-            if not self.settings.comfyui_workflow_path:
-                raise ValueError("COMFYUI_WORKFLOW_PATH or options.workflow is required for local ComfyUI image generation.")
-            workflow = json.loads(Path(self.settings.comfyui_workflow_path).read_text(encoding="utf-8"))
+            workflow_path = self._comfyui_workflow_path(kind)
+            if not workflow_path:
+                raise ValueError(f"A ComfyUI workflow path or options.workflow is required for local {kind} generation.")
+            workflow = json.loads(Path(workflow_path).read_text(encoding="utf-8"))
         elif isinstance(workflow, str):
             workflow = json.loads(workflow)
         if not isinstance(workflow, dict):
@@ -140,26 +185,34 @@ class MultimodalRegistry:
                     break
             if not history:
                 raise TimeoutError("ComfyUI image generation timed out.")
-            image_ref = self._first_comfyui_image(history)
-            if not image_ref:
+            output_ref = self._first_comfyui_output(history, kind)
+            if not output_ref:
                 return {"provider": "comfyui", "model": request.model or "workflow", "prompt_id": prompt_id, "history": history}
             view = await client.get(
                 f"{base_url}/view",
                 params={
-                    "filename": image_ref.get("filename"),
-                    "subfolder": image_ref.get("subfolder", ""),
-                    "type": image_ref.get("type", "output"),
+                    "filename": output_ref.get("filename"),
+                    "subfolder": output_ref.get("subfolder", ""),
+                    "type": output_ref.get("type", "output"),
                 },
             )
             view.raise_for_status()
+            content_type = view.headers.get("content-type") or self._content_type_for_filename(str(output_ref.get("filename") or ""))
+            encoded = base64.b64encode(view.content).decode("ascii")
+            payload_key = "video_base64" if kind == "video" else "image_base64"
             return {
                 "provider": "comfyui",
                 "model": request.model or "workflow",
                 "prompt_id": prompt_id,
-                "image_base64": base64.b64encode(view.content).decode("ascii"),
-                "content_type": view.headers.get("content-type", "image/png"),
+                payload_key: encoded,
+                "content_type": content_type,
                 "history": {"outputs": history.get("outputs", {})},
             }
+
+    def _comfyui_workflow_path(self, kind: str) -> Path | None:
+        if kind == "video":
+            return self.settings.comfyui_video_workflow_path
+        return self.settings.comfyui_image_workflow_path or self.settings.comfyui_workflow_path
 
     def _inject_prompt(self, value: Any, prompt: str) -> Any:
         if isinstance(value, dict):
@@ -175,17 +228,158 @@ class MultimodalRegistry:
             return value.replace("{{prompt}}", prompt)
         return value
 
-    def _first_comfyui_image(self, history: dict[str, Any]) -> dict[str, Any] | None:
+    def _first_comfyui_output(self, history: dict[str, Any], kind: str) -> dict[str, Any] | None:
+        preferred_extensions = {
+            "image": {".png", ".jpg", ".jpeg", ".webp", ".gif"},
+            "video": {".mp4", ".webm", ".mov", ".gif"},
+        }.get(kind, set())
         outputs = history.get("outputs")
         if not isinstance(outputs, dict):
             return None
         for output in outputs.values():
-            images = output.get("images") if isinstance(output, dict) else None
-            if isinstance(images, list) and images:
-                first = images[0]
-                if isinstance(first, dict):
-                    return first
+            if not isinstance(output, dict):
+                continue
+            for key in ("videos", "gifs", "images", "files"):
+                files = output.get(key)
+                if not isinstance(files, list):
+                    continue
+                for item in files:
+                    if not isinstance(item, dict):
+                        continue
+                    filename = str(item.get("filename") or "")
+                    if not preferred_extensions or Path(filename).suffix.lower() in preferred_extensions:
+                        return item
         return None
+
+    def _local_media_command(self, kind: str, request: MultimodalInvokeRequest) -> dict[str, Any]:
+        command = {
+            "image": self.settings.local_image_command,
+            "audio": self.settings.local_audio_command,
+            "video": self.settings.local_video_command,
+        }.get(kind)
+        if not command:
+            raise ValueError(f"AI_OS_LOCAL_{kind.upper()}_COMMAND is not configured.")
+
+        output_extension = self._local_extension(kind)
+        content_type = self._content_type_for_extension(output_extension)
+        temp_root = self.settings.resolved_temp_dir()
+        temp_root.mkdir(parents=True, exist_ok=True)
+        work_dir = self.settings.local_media_work_dir or temp_root
+        work_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=temp_root) as tmp:
+            tmp_path = Path(tmp)
+            output_path = tmp_path / f"output{output_extension}"
+            prompt_path = tmp_path / "prompt.txt"
+            text_path = tmp_path / "text.txt"
+            prompt_path.write_text(request.prompt or "", encoding="utf-8")
+            text_path.write_text(request.text or "", encoding="utf-8")
+            env = os.environ.copy()
+            env.update(
+                {
+                    "AI_OS_MEDIA_KIND": kind,
+                    "AI_OS_MEDIA_PROMPT": request.prompt or "",
+                    "AI_OS_MEDIA_TEXT": request.text or "",
+                    "AI_OS_MEDIA_PROMPT_FILE": str(prompt_path),
+                    "AI_OS_MEDIA_TEXT_FILE": str(text_path),
+                    "AI_OS_MEDIA_OUTPUT": str(output_path),
+                    "AI_OS_MEDIA_TEMP_DIR": str(tmp_path),
+                }
+            )
+            self._write_optional_input(tmp_path, env, "image", request.image_base64, request.filename)
+            self._write_optional_input(tmp_path, env, "audio", request.audio_base64, request.filename)
+            self._write_optional_input(tmp_path, env, "video", request.video_base64, request.filename)
+            completed = subprocess.run(
+                command,
+                shell=True,
+                cwd=str(work_dir),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=self.settings.local_media_timeout_s,
+                check=False,
+            )
+            if completed.returncode != 0:
+                detail = (completed.stderr or completed.stdout or "Local media command failed.").strip()
+                raise RuntimeError(detail[:2000])
+            result = self._local_command_result(completed.stdout, output_path, kind, content_type)
+            result.setdefault("stdout", completed.stdout[-2000:])
+            result.setdefault("stderr", completed.stderr[-2000:])
+            return result
+
+    def _write_optional_input(self, tmp_path: Path, env: dict[str, str], kind: str, payload: str | None, filename: str | None) -> None:
+        if not payload:
+            return
+        suffix = Path(filename or f"input.{kind}").suffix or ".bin"
+        path = tmp_path / f"input_{kind}{suffix}"
+        path.write_bytes(base64.b64decode(payload))
+        env[f"AI_OS_MEDIA_INPUT_{kind.upper()}"] = str(path)
+
+    def _local_command_result(self, stdout: str, output_path: Path, kind: str, content_type: str) -> dict[str, Any]:
+        parsed = self._parse_command_json(stdout)
+        if isinstance(parsed, dict):
+            if any(key in parsed for key in ("image_base64", "audio_base64", "video_base64")):
+                parsed.setdefault("provider", f"local-{kind}")
+                parsed.setdefault("content_type", content_type)
+                return parsed
+            output_from_json = parsed.get("output_path")
+            if isinstance(output_from_json, str) and output_from_json:
+                output_path = Path(output_from_json)
+        if not output_path.exists():
+            raise RuntimeError(f"Local media command completed but did not create {output_path}.")
+        payload_key = f"{kind}_base64"
+        return {
+            "provider": f"local-{kind}",
+            "model": "local-command",
+            "content_type": self._content_type_for_filename(str(output_path)) or content_type,
+            payload_key: base64.b64encode(output_path.read_bytes()).decode("ascii"),
+            "output_path": str(output_path),
+        }
+
+    def _parse_command_json(self, text: str) -> dict[str, Any] | None:
+        stripped = text.strip()
+        if not stripped:
+            return None
+        try:
+            value = json.loads(stripped)
+            return value if isinstance(value, dict) else None
+        except json.JSONDecodeError:
+            return None
+
+    def _local_extension(self, kind: str) -> str:
+        raw = {
+            "image": self.settings.local_image_extension,
+            "audio": self.settings.local_audio_extension,
+            "video": self.settings.local_video_extension,
+        }[kind]
+        extension = raw.strip().lower()
+        if not extension.startswith("."):
+            extension = f".{extension}"
+        allowed = {
+            "image": {".png", ".jpg", ".jpeg", ".webp"},
+            "audio": {".wav", ".mp3", ".flac", ".ogg"},
+            "video": {".mp4", ".webm", ".mov", ".gif"},
+        }[kind]
+        fallback = {"image": ".png", "audio": ".wav", "video": ".mp4"}[kind]
+        return extension if extension in allowed else fallback
+
+    def _content_type_for_filename(self, filename: str) -> str:
+        return self._content_type_for_extension(Path(filename).suffix.lower())
+
+    def _content_type_for_extension(self, extension: str) -> str:
+        return {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".wav": "audio/wav",
+            ".mp3": "audio/mpeg",
+            ".flac": "audio/flac",
+            ".ogg": "audio/ogg",
+            ".mp4": "video/mp4",
+            ".webm": "video/webm",
+            ".mov": "video/quicktime",
+        }.get(extension.lower(), "application/octet-stream")
 
     def _piper_tts(self, request: MultimodalInvokeRequest) -> dict[str, Any]:
         if not self.settings.piper_executable or not self.settings.piper_voice_path:
@@ -274,7 +468,7 @@ class MultimodalRegistry:
             metadata={
                 key: value
                 for key, value in result.items()
-                if key not in {"image_base64", "audio_base64"}
+                if key not in {"image_base64", "audio_base64", "video_base64"}
             },
         )
         enriched = dict(result)
@@ -290,6 +484,13 @@ class MultimodalRegistry:
         elif isinstance(result.get("audio_base64"), str):
             payload = result["audio_base64"]
             extension = ".wav" if content_type == "audio/wav" else ".mp3"
+        elif isinstance(result.get("video_base64"), str):
+            payload = result["video_base64"]
+            extension = {
+                "video/webm": ".webm",
+                "video/quicktime": ".mov",
+                "image/gif": ".gif",
+            }.get(content_type or "", ".mp4")
         elif isinstance(result.get("data"), list):
             for item in result["data"]:
                 if isinstance(item, dict) and isinstance(item.get("b64_json"), str):

@@ -10,24 +10,26 @@ from .storage import AppStorage
 from .telemetry import hardware_status
 
 
-ImageInvoker = Callable[[MultimodalInvokeRequest], Awaitable[dict[str, Any]]]
+MediaInvoker = Callable[[str, MultimodalInvokeRequest], Awaitable[dict[str, Any]]]
 
 
 async def run_benchmark(
     router: InferenceRouter,
     storage: AppStorage,
     request: BenchmarkRequest,
-    image_invoker: ImageInvoker | None = None,
+    media_invoker: MediaInvoker | None = None,
 ) -> BenchmarkRunRecord:
     before = hardware_status(storage).model_dump(mode="json")
     started = time.perf_counter()
     try:
-        if request.kind == "image":
-            if not image_invoker:
-                raise RuntimeError("Image benchmark requires a multimodal image invoker.")
-            result = await image_invoker(
+        if request.kind in {"image", "audio", "video"}:
+            if not media_invoker:
+                raise RuntimeError(f"{request.kind.title()} benchmark requires a multimodal invoker.")
+            result = await media_invoker(
+                request.kind,
                 MultimodalInvokeRequest(
                     prompt=request.prompt,
+                    text=request.prompt,
                     provider=request.provider,
                     model=request.model,
                     options={"benchmark": True},
