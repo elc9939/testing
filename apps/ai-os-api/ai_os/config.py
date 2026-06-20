@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     log_max_bytes: int = Field(default=5_000_000, validation_alias="AI_OS_LOG_MAX_BYTES")
     temp_dir: Path | None = Field(default=None, validation_alias="AI_OS_TEMP_DIR")
     assets_dir: Path | None = Field(default=None, validation_alias="AI_OS_ASSETS_DIR")
+    desktop_export_dir: Path | None = Field(default=None, validation_alias="AI_OS_DESKTOP_EXPORT_DIR")
     require_loopback: bool = Field(default=True, validation_alias="AI_OS_REQUIRE_LOOPBACK")
     max_request_bytes: int = Field(default=15_000_000, validation_alias="AI_OS_MAX_REQUEST_BYTES")
     max_prompt_chars: int = Field(default=200_000, validation_alias="AI_OS_MAX_PROMPT_CHARS")
@@ -173,6 +174,23 @@ class Settings(BaseSettings):
 
     def resolved_assets_dir(self) -> Path:
         return self.assets_dir or self.data_dir / "assets"
+
+    def resolved_desktop_export_dir(self) -> Path:
+        if self.desktop_export_dir:
+            return self.desktop_export_dir
+        candidates: list[Path] = []
+        user_profile = os.getenv("USERPROFILE")
+        if user_profile:
+            profile = Path(user_profile)
+            candidates.extend([profile / "Desktop", profile / "OneDrive" / "Desktop"])
+        one_drive = os.getenv("OneDrive") or os.getenv("OneDriveConsumer")
+        if one_drive:
+            candidates.append(Path(one_drive) / "Desktop")
+        candidates.append(Path.home() / "Desktop")
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return candidates[0]
 
     def resolved_design_workspace_root(self) -> Path:
         return self.design_workspace_root.resolve()

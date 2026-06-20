@@ -64,7 +64,7 @@ export function assistantExplanation(topic: AssistantTopic): string {
 
   return [
     'This assistant is the friendly front door.',
-    'It can open parts of the app, explain AI Lab or AI OS, summarize cached hub data, search semantic memory, check provider status, and hand tool-backed requests to AI OS.',
+    'It can open parts of the app, explain AI Lab or AI OS, summarize cached hub data, search semantic memory, check provider status, generate media files through AI OS, and hand tool-backed requests to AI OS.',
     'Write actions and macro runs stay behind confirmation so it can help without quietly changing things.'
   ].join('\n\n');
 }
@@ -103,7 +103,7 @@ function navigationDestination(input: string): { route: string; label: string } 
 }
 
 function looksLikeAppCommand(input: string): boolean {
-  const actionVerb = /\b(add|create|log|record|update|edit|delete|remove|archive|mark|send|draft|reply|run|start|stop|focus|search)\b/u;
-  const appNoun = /\b(study|session|career|job|application|macro|automation|gmail|email|calendar|event|deadline|memory|rag|hub|app)\b/u;
+  const actionVerb = /\b(add|create|generate|make|draw|render|save|export|log|record|update|edit|delete|remove|archive|mark|send|draft|reply|run|start|stop|focus|search)\b/u;
+  const appNoun = /\b(study|session|career|job|application|macro|automation|gmail|email|calendar|event|deadline|memory|rag|hub|app|image|picture|photo|media|file|desktop|download)\b/u;
   return actionVerb.test(input) && appNoun.test(input);
 }

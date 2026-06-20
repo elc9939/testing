@@ -120,6 +120,7 @@ AI_OS_BUILTIN_MEDIA_WIDTH=1024
 AI_OS_BUILTIN_MEDIA_HEIGHT=576
 AI_OS_BUILTIN_AUDIO_DURATION_S=8
 AI_OS_BUILTIN_VIDEO_FRAMES=36
+AI_OS_DESKTOP_EXPORT_DIR=
 
 PIPER_EXECUTABLE=C:\path\to\piper.exe
 PIPER_VOICE_PATH=C:\path\to\voice.onnx
@@ -140,6 +141,12 @@ Ollama for a compact creative plan, then renders a PNG image, WAV audio clip, or
 locally with Pillow and Python's audio primitives. This is not photorealistic Stable Diffusion
 or a music foundation model; it is a zero-extra-server local generation path that proves the
 pipeline, gallery, previews, benchmarks, and local-only artifact storage end to end.
+
+The assistant command path can also save generated images directly to your Desktop through
+the confirmation-gated `media.generate_image_file` tool. Leave `AI_OS_DESKTOP_EXPORT_DIR`
+empty to use the current Windows user's Desktop, or set it to a different folder for testing.
+Requests such as "create an AI image of a cat and add it to my desktop" are routed to this
+tool instead of the text-only inference tool.
 
 The `AI_OS_LOCAL_*_COMMAND` settings are generic local generators for heavier tools such as
 ComfyUI CLI wrappers, Stable Diffusion scripts, MusicGen/AudioCraft wrappers, AnimateDiff

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import base64
 import json
+import re
 import time
 from collections.abc import Awaitable, Callable
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -10,10 +14,78 @@ from pydantic import BaseModel
 from ..config import Settings
 from ..inference import InferenceRouter
 from ..memory.store import SemanticMemory
-from ..models import AgentRunRequest, AgentRunResult, AgentStep, ChatMessage, InferenceRequest
+from ..models import (
+    AgentRunRequest,
+    AgentRunResult,
+    AgentStep,
+    ChatMessage,
+    InferenceRequest,
+    MultimodalInvokeRequest,
+)
 from ..storage import AppStorage
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+MediaInvoker = Callable[[str, MultimodalInvokeRequest], Awaitable[dict[str, Any]]]
+
+
+def _content_type_extension(content_type: str | None) -> str:
+    return {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }.get((content_type or "").split(";")[0].strip().lower(), ".png")
+
+
+def _safe_filename(value: str | None, fallback: str, extension: str) -> str:
+    base = Path(value or fallback).name
+    if not base:
+        base = fallback
+    stem = Path(base).stem or fallback
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("._-") or fallback
+    suffix = Path(base).suffix.lower()
+    if suffix not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+        suffix = extension
+    return f"{safe_stem}{suffix}"
+
+
+def _unique_child_path(directory: Path, filename: str) -> Path:
+    candidate = (directory / filename).resolve()
+    root = directory.resolve()
+    if candidate.parent != root:
+        raise ValueError("Export filename must stay inside the configured Desktop export directory.")
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
+    for index in range(2, 1000):
+        alternate = root / f"{stem}-{index}{suffix}"
+        if not alternate.exists():
+            return alternate
+    raise RuntimeError("Could not choose a unique Desktop export filename.")
+
+
+def _image_bytes_from_result(result: dict[str, Any]) -> tuple[bytes, str, str | None]:
+    content_type = result.get("content_type") if isinstance(result.get("content_type"), str) else None
+    if isinstance(result.get("image_base64"), str):
+        return base64.b64decode(result["image_base64"]), _content_type_extension(content_type), content_type
+    if isinstance(result.get("data"), list):
+        for item in result["data"]:
+            if isinstance(item, dict) and isinstance(item.get("b64_json"), str):
+                return base64.b64decode(item["b64_json"]), ".png", content_type or "image/png"
+    asset = result.get("asset") if isinstance(result.get("asset"), dict) else {}
+    asset_path = asset.get("asset_path") if isinstance(asset.get("asset_path"), str) else None
+    if asset_path:
+        path = Path(asset_path)
+        if path.exists() and path.is_file():
+            extension = (
+                path.suffix.lower()
+                if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+                else _content_type_extension(content_type)
+            )
+            return path.read_bytes(), extension, content_type
+    raise ValueError("The selected image provider did not return image bytes.")
 
 
 class ToolSpec(BaseModel):
@@ -97,6 +169,8 @@ class AgentEngine:
             "You are a generic AI OS execution engine. Do not invent app-specific goals. "
             "Some tools are write/destructive and require confirmation. If a tool returns requires_confirmation, "
             "stop and explain the exact confirmation needed instead of trying to bypass it. "
+            "Use media.generate_image_file for image creation or requests to save generated images to the Desktop; "
+            "do not use ai.infer for image generation. "
             "For each step, respond with concise JSON using keys plan, tool_calls, done, output. "
             "tool_calls is an array of {tool_id, arguments}. Available tools: "
             + json.dumps(tool_specs)
@@ -155,6 +229,7 @@ def build_tool_registry(
     memory: SemanticMemory,
     settings: Settings | None = None,
     storage: AppStorage | None = None,
+    media_invoker: MediaInvoker | None = None,
 ) -> ToolRegistry:
     registry = ToolRegistry(storage)
 
@@ -185,6 +260,41 @@ def build_tool_registry(
     async def infer_tool(payload: dict[str, Any]) -> dict[str, Any]:
         result = await router.infer(InferenceRequest(prompt=str(payload.get("prompt") or ""), task_type="agent.tool.infer"))
         return {"ok": True, "result": result.model_dump(mode="json")}
+
+    async def media_generate_image_file_tool(payload: dict[str, Any]) -> dict[str, Any]:
+        configured = require_settings()
+        if not media_invoker:
+            raise RuntimeError("AI OS multimodal image generation was not configured.")
+        prompt = str(payload.get("prompt") or payload.get("description") or "AI-generated image").strip()
+        if not prompt:
+            raise ValueError("prompt is required.")
+        provider = payload.get("provider") if isinstance(payload.get("provider"), str) and payload.get("provider") else None
+        model = payload.get("model") if isinstance(payload.get("model"), str) and payload.get("model") else None
+        media_result = await media_invoker(
+            "image",
+            MultimodalInvokeRequest(prompt=prompt, provider=provider, model=model, save_to_gallery=True),
+        )
+        image_bytes, extension, content_type = _image_bytes_from_result(media_result)
+        destination = configured.resolved_desktop_export_dir()
+        destination.mkdir(parents=True, exist_ok=True)
+        default_name = f"ai-image-{datetime.now().strftime('%Y%m%d-%H%M%S')}{extension}"
+        filename = _safe_filename(
+            payload.get("filename") if isinstance(payload.get("filename"), str) else None,
+            default_name,
+            extension,
+        )
+        target = _unique_child_path(destination, filename)
+        target.write_bytes(image_bytes)
+        return {
+            "ok": True,
+            "tool_id": "media.generate_image_file",
+            "desktop_path": str(target),
+            "provider": media_result.get("provider"),
+            "model": media_result.get("model"),
+            "content_type": content_type or "image/png",
+            "bytes": len(image_bytes),
+            "asset": media_result.get("asset"),
+        }
 
     async def memory_tool(payload: dict[str, Any]) -> dict[str, Any]:
         from ..models import MemoryQueryRequest
@@ -248,6 +358,27 @@ def build_tool_registry(
             safety="read",
         ),
         infer_tool,
+    )
+    registry.register(
+        ToolSpec(
+            id="media.generate_image_file",
+            label="Generate image file",
+            description="Generate an image through the AI OS multimodal adapters and save it as a Desktop file.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string"},
+                    "filename": {"type": "string"},
+                    "provider": {"type": "string"},
+                    "model": {"type": "string"},
+                    "destination": {"type": "string", "enum": ["desktop"]},
+                },
+                "required": ["prompt"],
+            },
+            safety="write",
+            requires_confirmation=True,
+        ),
+        media_generate_image_file_tool,
     )
     registry.register(
         ToolSpec(

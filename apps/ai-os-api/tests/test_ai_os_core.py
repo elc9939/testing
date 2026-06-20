@@ -183,6 +183,76 @@ def test_command_endpoint_blocks_write_tools_without_confirmation(tmp_path):
     assert body["tool_calls"][0]["ok"] is False
 
 
+def test_image_file_command_requires_confirmation_before_desktop_write(tmp_path):
+    export_dir = tmp_path / "Desktop"
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        backup_enabled=False,
+        provider_priority=["openai"],
+        desktop_export_dir=export_dir,
+    )
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/ai/command",
+            json={"objective": "create an ai image of a cat and add it to my desktop", "confirm_actions": False},
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["result"]["status"] == "needs_more_steps"
+    assert body["tool_calls"][0]["tool_id"] == "media.generate_image_file"
+    assert body["tool_calls"][0]["requires_confirmation"] is True
+    assert body["tool_calls"][0]["ok"] is False
+    assert not export_dir.exists()
+
+
+def test_image_file_command_writes_to_configured_desktop_when_confirmed(monkeypatch, tmp_path):
+    async def plan(_, prompt: str, kind: str) -> MediaPlan:
+        return MediaPlan(
+            prompt=prompt,
+            palette=["#101820", "#2563eb", "#a78bfa", "#f8fafc"],
+            mood="curious",
+            motion="still",
+            tempo_bpm=96,
+            scale=[0, 2, 4, 7, 9],
+            seed=999 + len(kind),
+        )
+
+    monkeypatch.setattr("ai_os.media_engine.BuiltinMediaEngine._plan", plan)
+    export_dir = tmp_path / "Desktop"
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        backup_enabled=False,
+        provider_priority=["openai"],
+        desktop_export_dir=export_dir,
+        builtin_media_width=320,
+        builtin_media_height=256,
+    )
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/ai/command",
+            json={"objective": "create an ai image of a cat and add it to my desktop", "confirm_actions": True},
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["result"]["status"] == "succeeded"
+    assert body["tool_calls"][0]["tool_id"] == "media.generate_image_file"
+    assert body["tool_calls"][0]["ok"] is True
+    image_path = Path(body["tool_calls"][0]["result"]["desktop_path"])
+    assert image_path.parent == export_dir.resolve()
+    assert image_path.name == "ai-cat.png"
+    assert image_path.read_bytes().startswith(b"\x89PNG")
+
+
 def test_design_patch_endpoint_stores_unified_diff(tmp_path):
     settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
     storage = AppStorage(settings.database_path())

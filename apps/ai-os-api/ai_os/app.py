@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
@@ -47,6 +48,25 @@ from .telemetry import hardware_status
 logger = logging.getLogger("ai_os")
 
 
+def _image_file_command_payload(objective: str) -> dict[str, Any] | None:
+    normalized = objective.lower()
+    has_image_target = bool(re.search(r"\b(image|picture|photo|artwork|drawing|wallpaper)\b", normalized))
+    has_create_action = bool(re.search(r"\b(create|generate|make|draw|render|save|add|put|place|export)\b", normalized))
+    has_file_destination = bool(re.search(r"\b(desktop|file|download|save|export)\b", normalized))
+    if not (has_image_target and has_create_action and has_file_destination):
+        return None
+    prompt = re.sub(
+        r"\b(?:and\s+)?(?:add|save|put|place|drop|export)\s+(?:it|that|the\s+image)?\s*(?:to|on|onto|as)?\s*(?:my\s+)?(?:desktop|file|downloads?)\b.*$",
+        "",
+        objective,
+        flags=re.IGNORECASE,
+    ).strip(" .")
+    if not prompt:
+        prompt = objective
+    filename = "ai-cat.png" if re.search(r"\bcat|kitten\b", normalized) else None
+    return {"prompt": prompt, "destination": "desktop", **({"filename": filename} if filename else {})}
+
+
 class Services:
     def __init__(self, settings: Settings, storage: AppStorage, providers: ProviderRegistry):
         self.settings = settings
@@ -62,9 +82,15 @@ class Services:
         JobPrimitives(self.router).register(self.jobs)
         self.memory = SemanticMemory(storage, providers)
         self.background = build_background_registry()
-        self.tools = build_tool_registry(self.router, self.memory, settings, storage)
-        self.agents = AgentEngine(self.router, self.tools)
         self.multimodal = MultimodalRegistry(settings, providers, storage)
+        self.tools = build_tool_registry(
+            self.router,
+            self.memory,
+            settings,
+            storage,
+            media_invoker=self.multimodal.invoke,
+        )
+        self.agents = AgentEngine(self.router, self.tools)
         self.backups = BackupManager(settings, storage)
         self.maintenance = MaintenanceScheduler(settings, self.backups)
 
@@ -372,6 +398,59 @@ def create_app(
     async def command(request: CommandRequest) -> dict[str, Any]:
         try:
             run_id = new_id("cmd")
+            direct_image_payload = _image_file_command_payload(request.objective)
+            if direct_image_payload:
+                if request.provider:
+                    direct_image_payload["provider"] = request.provider
+                if request.model:
+                    direct_image_payload["model"] = request.model
+                observation = await services.tools.call(
+                    "media.generate_image_file",
+                    direct_image_payload,
+                    confirmed=request.confirm_actions,
+                    run_id=run_id,
+                )
+                if observation.get("requires_confirmation"):
+                    status = "needs_more_steps"
+                elif observation.get("ok"):
+                    status = "succeeded"
+                else:
+                    status = "failed"
+                output = str(observation.get("message") or observation.get("error") or "")
+                if observation.get("ok") and observation.get("desktop_path"):
+                    output = f"Saved generated image to {observation['desktop_path']}"
+                elif observation.get("requires_confirmation"):
+                    output = "This will generate an image and save it to your Desktop. Run again with confirmation to execute."
+                return {
+                    "result": {
+                        "id": new_id("agent"),
+                        "agent_id": "command-bar",
+                        "status": status,
+                        "objective": request.objective,
+                        "steps": [
+                            {
+                                "index": 0,
+                                "phase": "plan",
+                                "text": "Matched direct image-file command.",
+                                "tool_calls": [{"tool_id": "media.generate_image_file", "arguments": direct_image_payload}],
+                                "observations": [],
+                            },
+                            {
+                                "index": 0,
+                                "phase": "act",
+                                "text": "Called image generation file tool.",
+                                "tool_calls": [],
+                                "observations": [observation],
+                            },
+                        ],
+                        "output": output,
+                    },
+                    "tool_calls": [
+                        entry.model_dump(mode="json")
+                        for entry in services.storage.list_tool_calls(25)
+                        if entry.run_id == run_id
+                    ],
+                }
             agent_request = AgentRunRequest(
                 objective=request.objective,
                 agent_id="command-bar",

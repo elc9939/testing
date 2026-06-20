@@ -232,6 +232,9 @@ class BuiltinMediaEngine:
 
         field = field.filter(ImageFilter.GaussianBlur(radius=0.6))
         bg = Image.alpha_composite(bg.convert("RGBA"), field)
+        subject = self._render_prompt_subject(plan, width, height, phase)
+        if subject:
+            bg = Image.alpha_composite(bg, subject)
         accent = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         accent_draw = ImageDraw.Draw(accent, "RGBA")
         for index, word in enumerate(self._keywords(plan.prompt)[:7]):
@@ -244,6 +247,94 @@ class BuiltinMediaEngine:
             shifted = ImageChops.offset(bg, int(math.sin(phase * math.tau) * 8), int(math.cos(phase * math.tau) * 4))
             bg = Image.blend(bg, shifted, 0.18)
         return bg.convert("RGB")
+
+    def _render_prompt_subject(self, plan: MediaPlan, width: int, height: int, phase: float) -> Image.Image | None:
+        words = set(self._keywords(plan.prompt))
+        if words.intersection({"cat", "kitten"}):
+            return self._render_cat(plan, width, height, phase)
+        return None
+
+    def _render_cat(self, plan: MediaPlan, width: int, height: int, phase: float) -> Image.Image:
+        layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer, "RGBA")
+        scale = min(width, height) * 0.48
+        cx = width * 0.53 + math.sin(phase * math.tau) * scale * 0.025
+        cy = height * 0.55
+        fur = self._rgb(plan.palette[-1])
+        accent = self._rgb(plan.palette[2 % len(plan.palette)])
+        outline = (18, 24, 38, 220)
+        shadow = (0, 0, 0, 70)
+
+        draw.ellipse(
+            (cx - scale * 0.38, cy + scale * 0.24, cx + scale * 0.42, cy + scale * 0.40),
+            fill=shadow,
+        )
+        body_box = (cx - scale * 0.26, cy - scale * 0.04, cx + scale * 0.30, cy + scale * 0.36)
+        head_box = (cx - scale * 0.20, cy - scale * 0.36, cx + scale * 0.22, cy + scale * 0.04)
+        draw.arc(
+            (cx + scale * 0.18, cy - scale * 0.02, cx + scale * 0.62, cy + scale * 0.35),
+            start=200,
+            end=350,
+            fill=(*accent, 235),
+            width=max(6, int(scale * 0.055)),
+        )
+        draw.ellipse(body_box, fill=(*fur, 225), outline=outline, width=max(2, int(scale * 0.015)))
+        draw.ellipse(head_box, fill=(*fur, 240), outline=outline, width=max(2, int(scale * 0.015)))
+
+        left_ear = [
+            (cx - scale * 0.17, cy - scale * 0.28),
+            (cx - scale * 0.11, cy - scale * 0.55),
+            (cx - scale * 0.01, cy - scale * 0.30),
+        ]
+        right_ear = [
+            (cx + scale * 0.02, cy - scale * 0.30),
+            (cx + scale * 0.15, cy - scale * 0.54),
+            (cx + scale * 0.19, cy - scale * 0.27),
+        ]
+        draw.polygon(left_ear, fill=(*fur, 240))
+        draw.polygon(right_ear, fill=(*fur, 240))
+        draw.line([*left_ear, left_ear[0]], fill=outline, width=max(2, int(scale * 0.013)))
+        draw.line([*right_ear, right_ear[0]], fill=outline, width=max(2, int(scale * 0.013)))
+        draw.polygon(
+            [
+                (cx - scale * 0.12, cy - scale * 0.31),
+                (cx - scale * 0.10, cy - scale * 0.45),
+                (cx - scale * 0.05, cy - scale * 0.32),
+            ],
+            fill=(*accent, 150),
+        )
+        draw.polygon(
+            [
+                (cx + scale * 0.08, cy - scale * 0.33),
+                (cx + scale * 0.14, cy - scale * 0.45),
+                (cx + scale * 0.15, cy - scale * 0.31),
+            ],
+            fill=(*accent, 150),
+        )
+
+        eye_y = cy - scale * 0.18
+        for eye_x in (cx - scale * 0.075, cx + scale * 0.095):
+            draw.ellipse(
+                (eye_x - scale * 0.023, eye_y - scale * 0.035, eye_x + scale * 0.023, eye_y + scale * 0.035),
+                fill=(8, 12, 20, 245),
+            )
+            draw.ellipse(
+                (eye_x - scale * 0.006, eye_y - scale * 0.023, eye_x + scale * 0.006, eye_y - scale * 0.011),
+                fill=(255, 255, 255, 230),
+            )
+        nose = [(cx + scale * 0.01, cy - scale * 0.10), (cx + scale * 0.05, cy - scale * 0.06), (cx - scale * 0.02, cy - scale * 0.05)]
+        draw.polygon(nose, fill=(*accent, 230))
+        draw.line((cx + scale * 0.015, cy - scale * 0.05, cx + scale * 0.015, cy + scale * 0.01), fill=outline, width=2)
+        draw.arc((cx - scale * 0.045, cy - scale * 0.02, cx + scale * 0.015, cy + scale * 0.06), 0, 70, fill=outline, width=2)
+        draw.arc((cx + scale * 0.015, cy - scale * 0.02, cx + scale * 0.08, cy + scale * 0.06), 110, 180, fill=outline, width=2)
+
+        for offset in (-0.04, 0.0, 0.04):
+            y = cy - scale * (0.085 + offset)
+            draw.line((cx - scale * 0.02, y, cx - scale * 0.22, y - scale * 0.035), fill=outline, width=2)
+            draw.line((cx + scale * 0.05, y, cx + scale * 0.27, y - scale * 0.035), fill=outline, width=2)
+        draw.line((cx - scale * 0.14, cy + scale * 0.05, cx - scale * 0.18, cy + scale * 0.25), fill=outline, width=3)
+        draw.line((cx + scale * 0.14, cy + scale * 0.06, cx + scale * 0.19, cy + scale * 0.25), fill=outline, width=3)
+        return layer
 
     def _int_option(self, request: MultimodalInvokeRequest, key: str, default: int, minimum: int, maximum: int) -> int:
         try:

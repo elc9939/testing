@@ -161,6 +161,11 @@ The command bar at `POST /api/ai/command` is a thin natural-language wrapper aro
 agent runtime. It does not get special privileges. It uses the same registry, confirmation
 rules, and logs as `POST /api/ai/agents/run`.
 
+Obvious file-producing media commands such as "generate an image and save it to my Desktop"
+are routed deterministically to `media.generate_image_file` before the planning model runs.
+That tool still uses the same multimodal adapters and write confirmation gate, but avoids
+local-model JSON drift for common one-shot commands.
+
 ### Design Patch
 
 AI-assisted app modification is intentionally patch-based:
@@ -210,6 +215,10 @@ Implemented adapters:
 
 Outputs are recorded in `generation_assets`; binary image/audio results are copied under
 `AI_OS_ASSETS_DIR/generations`.
+
+The agent tool `media.generate_image_file` wraps `multimodal.image` and exports a generated
+image to `AI_OS_DESKTOP_EXPORT_DIR`, or the current user's Desktop when that setting is not
+provided. It is a write tool and always requires confirmation.
 
 ### Benchmark
 
