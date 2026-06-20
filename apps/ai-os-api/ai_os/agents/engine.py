@@ -177,6 +177,10 @@ class AgentEngine:
             "If context includes capability_registry, treat it as the authoritative current machine/app capability "
             "snapshot. Prefer ready local capabilities, mention blocked/offline prerequisites, and do not claim an "
             "unavailable capability succeeded. "
+            "If context includes machine_mode, honor it as the user's current compute policy: Beast can use heavy "
+            "local work, Quiet should avoid heavy/background work, Offline should avoid cloud/paid/network routes, "
+            "Night Shift should favor unattended local batches, backups, indexing, summaries, cleanup, and morning "
+            "reports, and Maintenance should prioritize diagnostics, backups, restore tests, cleanup, and health checks. "
             "For each step, respond with concise JSON using keys plan, tool_calls, done, output. "
             "tool_calls is an array of {tool_id, arguments}. Available tools: "
             + json.dumps(tool_specs)

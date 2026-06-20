@@ -67,7 +67,10 @@ status from the Mini Hub API, AI OS, Macro Lab, Google connection state, and the
 offline cache into one machine capability snapshot. Today uses that snapshot to show what
 is ready, running, needs setup, degraded, blocked, or offline without inventing fake data.
 Settings uses the same snapshot as the service control surface, with per-service health
-links and routes into the panels that can fix or inspect each capability.
+links and routes into the panels that can fix or inspect each capability. Settings also
+stores Machine Modes v1: Balanced, Beast, Quiet, Offline, Night Shift, and Maintenance.
+These are advisory compute policies today, passed into assistant and AI OS command context
+so future routing, background queues, and local/GPU-heavy work can obey them consistently.
 
 ### Personal Data And Sync
 
@@ -138,6 +141,8 @@ The floating assistant in the hub is the friendlier front door for AI OS:
 - Runs AI OS tool-backed commands.
 - Sends a compact capability snapshot into AI OS command context so agent plans can prefer
   ready local tools and report unavailable prerequisites instead of guessing.
+- Sends the current Machine Mode into AI OS command context so plans can distinguish Beast,
+  Quiet, Offline, Night Shift, and Maintenance intent.
 - Can search/scrape the web, use browser extraction, generate media files, and call app
   tools when AI OS is running.
 - Write/system actions remain confirmation-gated.

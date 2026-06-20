@@ -13,6 +13,14 @@
     type CapabilityService
   } from '$lib/capability-registry';
   import { clientData } from '$lib/client-data';
+  import {
+    formatMachineModeContext,
+    machineModeFromPreferences,
+    machineModePreferenceKey,
+    machineModes,
+    type MachineModeDefinition,
+    type MachineModeId
+  } from '$lib/machine-mode';
   import { getMacroLabApiUrl } from '$lib/macro-lab-api';
   import { getConnections } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
@@ -36,12 +44,15 @@
   let aiOsInput = '';
   let macroLabInput = '';
   let themeSaving = false;
+  let modeSaving = false;
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
   let capabilityIssues: CapabilityRegistryEntry[] = [];
   let capabilityGroups: CapabilityServiceGroup[] = [];
   let capabilityLoading = false;
   let capabilityError = '';
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
+  $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
+  $: currentMachineModeDetails = formatMachineModeContext(currentMachineMode);
   $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 8);
   $: capabilityGroups = groupCapabilityServices(capabilitySnapshot?.capabilities ?? []);
 
@@ -96,6 +107,27 @@
       settingsError = error instanceof Error ? error.message : 'Theme save failed';
     } finally {
       themeSaving = false;
+    }
+  }
+
+  async function chooseMachineMode(mode: MachineModeId): Promise<void> {
+    settingsError = '';
+    if (!$clientData.isOnline) {
+      settingsError = 'Offline read-only mode';
+      return;
+    }
+    modeSaving = true;
+    try {
+      await clientData.saveSettings({
+        preferences: {
+          ...($clientData.settings?.preferences ?? {}),
+          [machineModePreferenceKey]: mode
+        }
+      });
+    } catch (error) {
+      settingsError = error instanceof Error ? error.message : 'Machine mode save failed';
+    } finally {
+      modeSaving = false;
     }
   }
 
@@ -181,6 +213,10 @@
     return entries.join(' · ') || capability.requiredService || capability.locality;
   }
 
+  function modeButtonTitle(mode: MachineModeDefinition): string {
+    return `${mode.label}: ${mode.summary}`;
+  }
+
   onMount(() => {
     loadEndpointInputs();
     void clientData.init();
@@ -209,6 +245,32 @@
       <Activity size={17} />
       <span>{capabilityLoading ? 'Checking' : 'Refresh Capabilities'}</span>
     </button>
+  </div>
+
+  <div class="machine-mode-panel">
+    <div class="mode-heading">
+      <div>
+        <strong>Machine Mode</strong>
+        <span>{currentMachineMode.summary}</span>
+      </div>
+      <small>{modeSaving ? 'Saving' : currentMachineMode.label}</small>
+    </div>
+    <div class="mode-segment" aria-label="Machine mode">
+      {#each machineModes as mode}
+        <button
+          class:active={currentMachineMode.id === mode.id}
+          type="button"
+          title={modeButtonTitle(mode)}
+          aria-pressed={currentMachineMode.id === mode.id}
+          disabled={modeSaving || !$clientData.isOnline}
+          on:click={() => chooseMachineMode(mode.id)}
+        >
+          <strong>{mode.shortLabel}</strong>
+          <span>{mode.summary}</span>
+        </button>
+      {/each}
+    </div>
+    <pre class="mode-context">{currentMachineModeDetails}</pre>
   </div>
 
   {#if capabilitySnapshot}
@@ -410,6 +472,95 @@
     margin: 0;
     font-size: 17px;
     letter-spacing: 0;
+  }
+
+  .machine-mode-panel {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .mode-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .mode-heading div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .mode-heading strong {
+    font-size: 14px;
+  }
+
+  .mode-heading span,
+  .mode-heading small {
+    color: var(--muted);
+  }
+
+  .mode-heading span {
+    line-height: 1.35;
+  }
+
+  .mode-heading small {
+    flex: 0 0 auto;
+    font-weight: 800;
+  }
+
+  .mode-segment {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 6px;
+  }
+
+  .mode-segment button {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    min-height: 86px;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    background: var(--surface);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mode-segment button.active {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .mode-segment button:disabled {
+    cursor: not-allowed;
+    opacity: 0.68;
+  }
+
+  .mode-segment strong,
+  .mode-segment span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mode-segment span {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .mode-context {
+    max-height: 120px;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
   }
 
   .capability-kpis {
@@ -734,6 +885,18 @@
     .service-control-header {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .mode-heading {
+      flex-direction: column;
+    }
+
+    .mode-segment {
+      grid-template-columns: 1fr;
+    }
+
+    .mode-segment button {
+      min-height: 64px;
     }
 
     .capability-kpis {

@@ -11,6 +11,7 @@
     type CapabilityRegistrySnapshot
   } from '$lib/capability-registry';
   import { hubHref } from '$lib/routes';
+  import { formatMachineModeContext, machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import { localNetworkHint } from '$lib/service-config';
   import { getConnections } from '$lib/productivity-api';
   import {
@@ -61,6 +62,7 @@
   $: providerCount = aiStatus?.providers.length ?? 0;
   $: capabilityReadyCount = capabilitySnapshot ? capabilitySnapshot.summary.ready + capabilitySnapshot.summary.running : 0;
   $: capabilityTotal = capabilitySnapshot?.summary.total ?? 0;
+  $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
 
   function newMessageId(): string {
     if (globalThis.crypto && 'randomUUID' in globalThis.crypto) return globalThis.crypto.randomUUID();
@@ -238,6 +240,7 @@
         max_steps: 4,
         context: {
           source: 'assistant-popup',
+          machine_mode: machineModeContext(currentMachineMode.id),
           capability_registry: registryContext
         }
       });
@@ -264,11 +267,13 @@
     busy = true;
     try {
       const registryText = capabilitySnapshot ? `\n\nCurrent capability registry:\n${formatCapabilityRegistrySummary(capabilitySnapshot)}` : '';
+      const modeText = `\n\nCurrent ${formatMachineModeContext(currentMachineMode)}`;
       const result = await runInference({
         prompt: [
           'You are the Mini Hub side assistant for a private personal productivity and AI OS app.',
           'Be concise and practical. Explain how to use the app, AI Lab, AI OS, Macro Lab, Career Desk, Study Desk, and Productivity Hub when relevant.',
           'Do not claim you performed an action unless a tool/action was actually invoked by the UI.',
+          modeText,
           registryText,
           `User: ${input}`
         ].join('\n')
@@ -289,6 +294,7 @@
         context: {
           source: 'assistant-popup',
           localSummary: localHubSummary(),
+          machineMode: machineModeContext(currentMachineMode.id),
           capabilitySummary: capabilitySnapshot ? formatCapabilityRegistrySummary(capabilitySnapshot) : '',
           aiOsUnavailable: errorMessage(aiOsError)
         }
@@ -463,11 +469,11 @@
           <span class="title-row"><Bot size={17} /> Assistant</span>
           <small>
             {#if capabilityTotal}
-              {capabilityReadyCount}/{capabilityTotal} capabilities ready
+              {currentMachineMode.shortLabel} · {capabilityReadyCount}/{capabilityTotal} ready
             {:else if providerCount}
-              {availableProviderCount}/{providerCount} providers online
+              {currentMachineMode.shortLabel} · {availableProviderCount}/{providerCount} providers
             {:else}
-              App helper and AI OS bridge
+              {currentMachineMode.shortLabel} · App helper
             {/if}
           </small>
         </div>
