@@ -41,7 +41,8 @@ local API services to be running on the same machine:
 
 The Svelte app under `apps/hub` provides these main pages:
 
-- Today dashboard: personal overview, launcher, career/study signals, sync state.
+- Today dashboard: command-center cockpit with a real attention queue derived from
+  calendar, Gmail, career, study, and local sync/service signals.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls.
@@ -53,6 +54,12 @@ The Svelte app under `apps/hub` provides these main pages:
   backups, telemetry, and web/browser access.
 - Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
 - Settings: endpoint configuration, theme, sync status, legacy import/export, dark mode.
+
+The product direction is intentionally shifting toward a unified local-first Personal AI OS:
+Today should show what needs attention, AI OS should become the intelligence/capability
+layer, Macro Lab should be the local action layer, Career and Study should become connected
+workflow systems, and the legacy games should remain available as playground/lab surfaces
+rather than the main identity of the app.
 
 ### Personal Data And Sync
 

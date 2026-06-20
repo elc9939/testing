@@ -10,6 +10,7 @@
   } from 'lucide-svelte';
   import { launcherEntries, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
+  import { attentionKindLabel, buildAttentionItems, type AttentionItem } from '$lib/attention';
   import { clientData } from '$lib/client-data';
   import { hubHref } from '$lib/routes';
   import {
@@ -33,6 +34,7 @@
   let importantMail: GmailThreadInsight[] = [];
   let visibleAgenda: CalendarEvent[] = [];
   let nextEvent: CalendarEvent | null = null;
+  let attentionItems: AttentionItem[] = [];
 
   $: googleConnections = connections.filter(
     (connection) => connection.provider === 'google' && connection.status === 'connected'
@@ -42,6 +44,17 @@
   $: visibleAgenda = agendaEvents.slice(0, 12);
   $: nextEvent = agendaEvents[0] ?? null;
   $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 5);
+  $: attentionItems = buildAttentionItems({
+    googleConnected,
+    dashboardError,
+    syncStatus: $clientData.status,
+    syncError: $clientData.error,
+    events: agendaEvents,
+    importantMail,
+    jobs: $clientData.jobs,
+    careerActions: $clientData.careerActions,
+    studySessions: $clientData.studySessions
+  }).slice(0, 8);
   $: applyQueue = $clientData.jobs
     .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
     .sort((a, b) => (a.nextActionAt ?? a.updatedAt).localeCompare(b.nextActionAt ?? b.updatedAt))
@@ -164,6 +177,11 @@
     return [job.company, job.role].filter(Boolean).join(' - ');
   }
 
+  function attentionMeta(item: AttentionItem): string {
+    if (item.dueAt) return displayShortDate(item.dueAt);
+    return attentionKindLabel(item.kind);
+  }
+
   async function refreshDashboard(): Promise<void> {
     dashboardLoading = true;
     dashboardError = '';
@@ -216,7 +234,7 @@
 <section class="page-header today-header">
   <div>
     <p class="eyebrow">Today</p>
-    <h1>Calendar Home</h1>
+    <h1>Command Center</h1>
   </div>
   <div class="header-actions">
     <span class="sync-note">
@@ -247,8 +265,8 @@
 
 <section class="grid three signal-strip" aria-label="Today signals">
   <div>
-    <span>Google accounts</span>
-    <strong>{googleConnections.length}</strong>
+    <span>Needs attention</span>
+    <strong>{attentionItems.length}</strong>
   </div>
   <div>
     <span>Calendar events</span>
@@ -260,52 +278,87 @@
   </div>
 </section>
 
-<section class="home-grid" aria-label="Calendar-first command center">
-  <article class="card panel agenda-panel">
-    <div class="panel-title">
-      <div>
-        <span class="icon-chip"><CalendarClock size={16} /></span>
-        <strong>Upcoming Calendar</strong>
+<section class="home-grid" aria-label="Today command center">
+  <div class="main-column">
+    <article class="card panel attention-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Inbox size={16} /></span>
+          <strong>Needs Attention</strong>
+        </div>
+        <a class="button compact" href={hubHref('/settings')}>
+          <span>Status</span>
+          <ArrowRight size={15} />
+        </a>
       </div>
-      <a class="button compact" href={hubHref('/productivity')}>
-        <span>Manage</span>
-        <ArrowRight size={15} />
-      </a>
-    </div>
 
-    {#if !googleConnected}
-      <div class="empty-block">
-        <strong>Connect Google to make this your live agenda.</strong>
-        <p>Calendar events will become the main homepage. Gmail stays off to the side unless it has a real action, deadline, or event signal.</p>
-        <a class="button compact" href={hubHref('/productivity')}>Open Productivity Hub</a>
+      {#if attentionItems.length}
+        <div class="attention-list">
+          {#each attentionItems as item}
+            <a class="attention-row" href={hubHref(item.route)}>
+              <span class:service={item.kind === 'service'} class="attention-kind">{attentionKindLabel(item.kind)}</span>
+              <span class="attention-main">
+                <strong>{item.title}</strong>
+                <small>{item.detail}</small>
+              </span>
+              <span class="attention-meta">{attentionMeta(item)}</span>
+            </a>
+          {/each}
+        </div>
+      {:else}
+        <div class="empty-block">
+          <strong>No urgent signals right now.</strong>
+          <p>Today will fill from real calendar, mail, career, study, and local service data as those systems have something actionable.</p>
+        </div>
+      {/if}
+    </article>
+
+    <article class="card panel agenda-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><CalendarClock size={16} /></span>
+          <strong>Upcoming Calendar</strong>
+        </div>
+        <a class="button compact" href={hubHref('/productivity')}>
+          <span>Manage</span>
+          <ArrowRight size={15} />
+        </a>
       </div>
-    {:else if dashboardLoading && !visibleAgenda.length}
-      <p class="empty-note">Loading your upcoming calendar...</p>
-    {:else if visibleAgenda.length}
-      <div class="agenda-list">
-        {#each visibleAgenda as event}
-          <a
-            class="agenda-row"
-            href={event.htmlLink ?? hubHref('/productivity')}
-            target={event.htmlLink ? '_blank' : undefined}
-            rel={event.htmlLink ? 'noreferrer' : undefined}
-          >
-            <time datetime={event.start}>
-              <strong>{displayEventDay(event)}</strong>
-              <span>{displayEventTime(event)}</span>
-            </time>
-            <span class="agenda-main">
-              <strong>{event.title}</strong>
-              <small>{calendarLabel(event.calendarId)}{event.location ? ` - ${event.location}` : ''}</small>
-            </span>
-            <span class="agenda-meta">{event.status}</span>
-          </a>
-        {/each}
-      </div>
-    {:else}
-      <p class="empty-note">No upcoming events found on your active Google calendars for the next two weeks.</p>
-    {/if}
-  </article>
+
+      {#if !googleConnected}
+        <div class="empty-block">
+          <strong>Connect Google to make this your live agenda.</strong>
+          <p>Calendar and Gmail signals become part of the attention queue once the Productivity Hub is connected.</p>
+          <a class="button compact" href={hubHref('/productivity')}>Open Productivity Hub</a>
+        </div>
+      {:else if dashboardLoading && !visibleAgenda.length}
+        <p class="empty-note">Loading your upcoming calendar...</p>
+      {:else if visibleAgenda.length}
+        <div class="agenda-list">
+          {#each visibleAgenda as event}
+            <a
+              class="agenda-row"
+              href={event.htmlLink ?? hubHref('/productivity')}
+              target={event.htmlLink ? '_blank' : undefined}
+              rel={event.htmlLink ? 'noreferrer' : undefined}
+            >
+              <time datetime={event.start}>
+                <strong>{displayEventDay(event)}</strong>
+                <span>{displayEventTime(event)}</span>
+              </time>
+              <span class="agenda-main">
+                <strong>{event.title}</strong>
+                <small>{calendarLabel(event.calendarId)}{event.location ? ` - ${event.location}` : ''}</small>
+              </span>
+              <span class="agenda-meta">{event.status}</span>
+            </a>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">No upcoming events found on your active Google calendars for the next two weeks.</p>
+      {/if}
+    </article>
+  </div>
 
   <aside class="side-rail">
     <article class="card panel next-panel">
@@ -475,6 +528,12 @@
     align-items: start;
   }
 
+  .main-column {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+
   .side-rail {
     display: grid;
     gap: 10px;
@@ -544,17 +603,29 @@
     font-size: 14px;
   }
 
+  .attention-list,
   .agenda-list,
   .mail-list,
   .career-list {
     display: grid;
   }
 
+  .attention-row,
   .agenda-row,
   .mail-row,
   .career-row {
     color: var(--text);
     text-decoration: none;
+  }
+
+  .attention-row {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr) 76px;
+    gap: 10px;
+    align-items: center;
+    min-height: 62px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
   }
 
   .agenda-row {
@@ -567,10 +638,33 @@
     border-bottom: 1px solid var(--border);
   }
 
+  .attention-row:hover,
   .agenda-row:hover,
   .mail-row:hover,
   .career-row:hover {
     background: var(--active);
+  }
+
+  .attention-kind {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 66px;
+    min-height: 22px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-muted);
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .attention-kind.service {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
   }
 
   .agenda-row time {
@@ -585,6 +679,7 @@
     font-size: 13px;
   }
 
+  .attention-main,
   .agenda-main,
   .mail-main {
     display: grid;
@@ -592,6 +687,7 @@
     gap: 3px;
   }
 
+  .attention-main strong,
   .agenda-main strong,
   .mail-main strong,
   .career-row strong,
@@ -601,6 +697,8 @@
     white-space: nowrap;
   }
 
+  .attention-main small,
+  .attention-meta,
   .agenda-main small,
   .agenda-meta,
   .mail-main small,
@@ -620,6 +718,12 @@
     font-size: 12px;
     font-weight: 700;
     text-transform: capitalize;
+  }
+
+  .attention-meta {
+    justify-self: end;
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .next-event {
@@ -757,6 +861,15 @@
 
     .agenda-row {
       grid-template-columns: 92px minmax(0, 1fr);
+    }
+
+    .attention-row {
+      grid-template-columns: 76px minmax(0, 1fr);
+    }
+
+    .attention-meta {
+      grid-column: 2;
+      justify-self: start;
     }
 
     .agenda-meta {
