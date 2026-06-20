@@ -1,167 +1,296 @@
-# Mini Arcade 🕹️
+# Mini Hub / Personal AI OS
 
-A pocketful of fun browser games behind one menu. Pure vanilla HTML/CSS/JS — **no build step, no dependencies**. Just open it and play.
+Mini Hub is no longer just a small static arcade. It is now a private personal command
+center with a staged SvelteKit rewrite, local-first data, productivity tools, AI
+infrastructure, desktop automation, and the original game arcade preserved as a legacy
+route.
 
-## 📱 Play on your phone (easiest)
+The public GitHub Pages app is here:
 
-This repo auto-deploys to **GitHub Pages**, so you get a link you can just tap open — no computer, no setup. The deploy workflow enables Pages for you on its first run, then publishes on every push to:
-
-```
+```text
 https://elc9939.github.io/testing/
 ```
 
-> If the first deploy ever fails to self-enable, turn it on manually once at
-> **Settings → Pages → Build and deployment → Source → "GitHub Actions"** and re-run the workflow.
+GitHub Pages serves the Svelte Mini Hub. The original vanilla arcade is still available at:
 
-Open that URL on your phone and play. To make it feel like a real app:
-
-- **iPhone (Safari):** tap **Share → Add to Home Screen**.
-- **Android (Chrome):** tap **⋮ → Install app** (or *Add to Home screen*).
-
-It then launches full-screen from your home screen and **works offline** (it's an installable PWA). High scores are saved on your device.
-
-> The Pages deploy publishes **only** the game files (`index.html`, `css/`, `js/`, `icons/`, `manifest.webmanifest`, `sw.js`) — never `.env` or anything else in the repo.
-
-## Play locally
-
-Open `index.html` in any modern browser, or serve it:
-
-```bash
-python3 -m http.server 8000
-# then visit http://localhost:8000  (or http://<your-computer-ip>:8000 from a phone on the same Wi-Fi)
+```text
+https://elc9939.github.io/testing/legacy/
 ```
 
-Press **Esc** or the **‹ Menu** button to return to the arcade at any time.
+## Current Reality
 
-## The games
+This repo contains two layers:
 
-| Game | What it is |
-| --- | --- |
-| 🚀 **Star Drifter** | Dodge an endless asteroid storm. Grab orbs for points and 🛡️/🐢/✨ power-ups. |
-| 🐍 **Neon Snake** | Classic snake — eat fruit, grow, don't crash. Speeds up as you go. |
-| 🧱 **Brick Blaster** | Paddle-and-ball brick breaker with 9 increasingly tricky levels. |
-| 🧠 **Memory Match** | Flip tiles to pair every emoji in the fewest moves. |
-| 🎯 **Reaction Rush** | 30-second target-tapping frenzy with a combo multiplier. |
-| ⭕ **Tic-Tac-Toe** | Face a flawless minimax AI. You can't win — but can you force a draw? |
-| ⚔️ **Stick Arena** | Pick a class (Knight / Rogue / Lancer / Mage / Ranger), survive escalating waves of class bots, and turn the arena into a physics-heavy brawl. Left-click = main attack, right-click = special; aim with the cursor. Knock crates around, use platforms for space, and chain KOs for score. Want the older reach-the-flag platforming mode? Add `?classic` to the URL. |
-| 🎯 **Neon Pinball** | A single-table pinball with real ball + flipper physics. Charge the plunger, flick the flippers (A/D, ←/→, or tap the table sides), light the bumpers, and ride the combo multiplier off the drain. |
-| 🪐 **Orbit** | A gravity sandbox. Drag to fling planets around a star and watch them swing into glowing n-body orbits, pull on each other, and merge on contact. Chill and hypnotic. |
-| 🔢 **2048** | The classic sliding-number puzzle with buttery tile animations. Swipe (or arrow keys / WASD) to merge equal tiles and chase 2048. |
-| 🔴 **Four in a Row** | Connect Four against an AlphaZero-style AI: a small policy+value network, trained through the local AI lab (`ai/connect4`), guides an MCTS search you can watch "think." Learning Mode adds live coaching for center control, blocks, forks, and blunder checks. |
-| 🃏 **Gambit** | A roguelike deckbuilder card battler. Pick a class (Knight / Rogue / Mage), spend energy on attack/block/ability cards, and beat foes that telegraph their next move. Draft a new card after each win and survive to the boss. |
+- A static SvelteKit web hub that can be deployed to GitHub Pages.
+- Local desktop services that unlock private data sync, Google integrations, local AI,
+  browser/web scraping tools, and Windows automation.
 
-## Project layout
+The website can load without the local services, but the full app experience expects the
+local API services to be running on the same machine:
 
+| Service | Default URL | Purpose |
+| --- | --- | --- |
+| Svelte Hub | `http://127.0.0.1:5173` | Main browser UI and GitHub Pages build. |
+| Mini Hub API | `http://127.0.0.1:8787` | Personal data, sync, career/study records, game state, Google integration API. |
+| AI OS API | `http://127.0.0.1:8791` | Local/API model routing, tools, RAG, jobs, multimodal generation, backups, health, web/browser access. |
+| Macro Lab API | `http://127.0.0.1:8792` | Local Windows macro automation daemon. |
+
+## What The App Does Now
+
+### Hub UI
+
+The Svelte app under `apps/hub` provides these main pages:
+
+- Today dashboard: personal overview, launcher, career/study signals, sync state.
+- Career Desk: job/application tracking, action items, legacy career data import.
+- Study Desk: study sessions, daily progress, linked career actions, legacy study data.
+- Productivity Hub: Google Calendar and Gmail actions through real API calls.
+- Games: new game surfaces plus a link to the legacy arcade.
+- Stick Arena Lab: Pixi/Rapier-style game-engine slice and saved run metadata.
+- Analytics: local dashboard surface for career/study/game data.
+- AI Lab: small browser-side local AI experiments such as classification and code parsing.
+- AI OS: capability dashboard for local AI, tools, memory, jobs, agents, media, health,
+  backups, telemetry, and web/browser access.
+- Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
+- Settings: endpoint configuration, theme, sync status, legacy import/export, dark mode.
+
+### Personal Data And Sync
+
+The hub is currently optimized for a private single-user setup:
+
+- The Hono API runs in personal mode by default.
+- Postgres is supported as the source of truth when configured.
+- Browser/Tauri clients keep a local PGlite cache.
+- Offline mode is read-only: cached data stays visible, but saves are disabled.
+- Legacy `localStorage` data is imported so old Career Desk, Study Desk, game state,
+  theme, high scores, and Stick Arena map data remain accessible.
+
+### Productivity Integrations
+
+The Productivity Hub uses server-side OAuth and provider adapters.
+
+Implemented now:
+
+- Google OAuth flow.
+- Google Calendar list/view/create/edit/delete/move/reminder support.
+- Gmail search/list/read/compose/draft/send/reply/archive/mark read/unread/label actions.
+
+Partially prepared:
+
+- Google Drive, Docs, and Sheets scopes/config are present for future adapters.
+- Brightspace/D2L support depends on institution API access; iCal deadline ingestion is the
+  practical fallback when write APIs are unavailable.
+
+More detail: `docs/personal-productivity-hub-setup.md`.
+
+### AI OS
+
+`apps/ai-os-api` is a FastAPI service for local-first AI capability infrastructure.
+
+Current capabilities include:
+
+- Unified inference routing across Ollama, OpenAI-compatible local servers, OpenAI,
+  Anthropic, and specialist providers.
+- Streaming responses and per-call usage/cost/latency logs.
+- Batch jobs: map, self-consistency, chunk summarization, retry loops.
+- Local semantic memory/RAG with pluggable ingestion.
+- Agent/tool runtime with read/write/destructive safety metadata.
+- Multimodal adapters for image, audio, TTS, STT, video, and vision.
+- Built-in local starter media renderer plus optional ComfyUI/local command/OpenAI paths.
+- Image-to-Desktop tool exposed to the assistant.
+- Web tools: `web.search`, `web.scrape`, and `browser.extract` with private-network
+  blocking by default.
+- Health, metrics, backup, restore-test, cleanup, dependency/model hygiene surfaces.
+- AMD/Windows GPU telemetry where the local machine exposes it.
+
+More detail:
+
+- `docs/personal-ai-os-architecture.md`
+- `docs/personal-ai-os-setup.md`
+- `docs/personal-ai-os-infrastructure-audit.md`
+
+### Assistant Popup
+
+The floating assistant in the hub is the friendlier front door for AI OS:
+
+- Opens/navigates app pages.
+- Explains AI Lab, AI OS, and hub surfaces.
+- Summarizes cached hub data.
+- Searches semantic memory.
+- Checks AI/provider/hardware status.
+- Runs AI OS tool-backed commands.
+- Can search/scrape the web, use browser extraction, generate media files, and call app
+  tools when AI OS is running.
+- Write/system actions remain confirmation-gated.
+
+### Macro Lab
+
+`apps/macro-lab-api` is a local Windows automation daemon, surfaced in the hub's Macro Lab.
+
+Current scope:
+
+- Macro definitions and run history.
+- JSON macro editor in the UI.
+- Dry-run and confirmed execution modes.
+- Local input/window/file/clipboard/shell-oriented action primitives.
+- Folder/time/hotkey-style trigger plumbing.
+- Panic/armed safety controls.
+
+More detail:
+
+- `docs/macro-lab-architecture.md`
+- `docs/macro-lab-setup.md`
+
+### Games And Legacy Arcade
+
+The old static arcade still exists and is intentionally retained:
+
+- Legacy route: `/legacy/`
+- PWA/offline cache for the legacy static app.
+- Games include Stick Arena, Star Drifter, Neon Snake, Brick Blaster, Memory Match,
+  Reaction Rush, Tic-Tac-Toe, Neon Pinball, Orbit, 2048, Four in a Row, and Gambit.
+- Connect Four AI training/evaluation scripts remain under `ai/` and `scripts/`.
+- `logminer/` remains a standalone Java CSV log utility.
+
+## Project Layout
+
+```text
+apps/hub/              SvelteKit static hub deployed to GitHub Pages
+apps/api/              Hono API for sync, personal data, OAuth integrations, Gmail/Calendar
+apps/ai-os-api/        FastAPI AI OS backend for models, tools, RAG, media, health, backups
+apps/macro-lab-api/    FastAPI Windows automation daemon
+apps/desktop/          Tauri desktop shell scaffold
+packages/core/         Shared TypeScript domain types and route constants
+packages/db/           Shared schema/local data helpers
+packages/ai/           Shared AI/browser-side helpers
+packages/game-engine/  Shared game engine experiments
+packages/ui/           Shared UI package scaffold
+css/, js/, icons/      Legacy static arcade assets copied to /legacy on Pages deploy
+ai/                    Legacy/local Connect Four training and evaluation code
+logminer/              Standalone Java CSV log summarizer
+docs/                  Architecture and setup notes for the larger subsystems
+scripts/               Launchers, checks, icon generation, AI/game utilities
 ```
-index.html              arcade shell + menu (+ PWA meta & SW registration)
-css/style.css           shared styling
-js/arcade.js            framework: game registry, menu, lifecycle, helpers
-js/games/*.js           one self-contained module per game
-manifest.webmanifest    PWA manifest (installable app metadata)
-sw.js                   service worker — caches everything for offline play
-icons/                  app icons (192/512 for PWA, 180 for iOS)
-scripts/gen-icons.js    regenerates the PNG icons (node scripts/gen-icons.js)
-scripts/train-connect4.js  CLI wrapper for the Four-in-a-Row trainer
-scripts/eval-connect4.js   quick local model evaluation
-ai/connect4/            reusable rules, neural net, MCTS, training, evaluation
-logminer/               standalone Java CSV log processing utility
-.github/workflows/      GitHub Pages deploy + CI checks
+
+## Setup
+
+Install Node dependencies from the repo root:
+
+```powershell
+pnpm install
 ```
 
-## AI lab
+Create Python virtual environments for local services:
 
-The browser arcade only loads compact exported models. Training and evaluation
-run locally in `ai/` so heavier experiments do not slow down the web app.
+```powershell
+cd apps/ai-os-api
+python -m venv .venv
+.venv\Scripts\python -m pip install -U pip
+.venv\Scripts\python -m pip install -e .[test]
 
-```bash
-npm run ai:connect4:eval
-npm run ai:connect4:train
+cd ..\macro-lab-api
+python -m venv .venv
+.venv\Scripts\python -m pip install -U pip
+.venv\Scripts\python -m pip install -e .[test]
 ```
 
-For fast smoke tests, pass tiny positional arguments:
+Copy `.env.example` to `.env` when configuring OAuth/API keys or non-default service URLs.
+Secrets belong in `.env`, never in git.
 
-```bash
-node scripts/eval-connect4.js 2 8
-node scripts/train-connect4.js 1 2 8
+## Running Locally
+
+For the core web app and data API:
+
+```powershell
+pnpm dev:api
+pnpm dev:hub
 ```
 
-The Connect Four trainer writes `js/games/connect4-weights.json`, which the
-Four in a Row game loads at startup.
+For AI OS:
 
-## LogMiner utility
-
-`logminer/` is a standalone Java CLI for summarizing simple CSV event logs. It
-expects non-recursive `.csv` inputs with this exact header:
-
-```csv
-timestamp,userId,action,bytes,status
+```powershell
+pnpm ai-os:start
+pnpm ai-os:status
 ```
 
-Fields may be quoted with double quotes, and embedded quotes are escaped by
-doubling them. Valid actions are `LOGIN`, `LOGOUT`, `UPLOAD`, and `DOWNLOAD`
-(case-insensitive).
+For Macro Lab:
 
-Run it from the repo root:
-
-```bash
-javac logminer/*.java
-java logminer.Main --input path/to/logs --output path/to/out --threads 4 --topUsers 5
+```powershell
+pnpm macro-lab:start
+pnpm macro-lab:status
 ```
 
-It writes `summary.json`, `summary.bin`, `users.csv`, and `errors.csv`.
-Malformed data rows are counted and recorded in `errors.csv`; malformed headers
-stop that file from being processed.
+For a phone/LAN development session that starts the hub, API, AI OS, and Macro Lab with
+LAN-safe URLs:
+
+```powershell
+pnpm stack:start:lan
+```
+
+That script writes the generated phone URL to `phone-link.txt` and tries to copy it to the
+clipboard.
+
+## GitHub Pages Deployment
+
+`.github/workflows/pages.yml` builds the Svelte hub and publishes it to GitHub Pages. During
+deployment it also copies the legacy static arcade to `/legacy/`.
+
+Important distinction:
+
+- GitHub Pages can serve the UI.
+- GitHub Pages cannot run your local Hono/FastAPI services.
+- Full sync, Google integrations, AI OS tools, and Macro Lab require local services or a
+  separately deployed API endpoint configured in Settings.
 
 ## Checks
 
-GitHub Actions runs lightweight checks on every push and pull request. You can
-run the same checks locally with:
+Common local checks:
 
-```bash
-npm test
+```powershell
+pnpm typecheck
+pnpm test:workspaces
+pnpm legacy:check
+```
 
-# Or without npm:
+Python backend checks:
+
+```powershell
+apps\ai-os-api\.venv\Scripts\python.exe -m pytest apps\ai-os-api\tests
+apps\macro-lab-api\.venv\Scripts\python.exe -m pytest apps\macro-lab-api\tests
+```
+
+Legacy static checks:
+
+```powershell
 node scripts/check-all.js
-
-# Or run checks individually:
-node scripts/check-js-syntax.js
-node scripts/check-pwa-cache.js
-node scripts/check-logminer.js
 ```
 
-- JavaScript syntax checks for the arcade and helper scripts.
-- PWA cache coverage for assets referenced by `index.html`, the web manifest, the arcade app catalog, workers, and local assets fetched by app scripts.
-- `javac logminer/*.java` plus a LogMiner smoke test.
+The GitHub CI workflow still covers the legacy/static JavaScript, PWA cache, Stick Arena pose
+smoke test, and LogMiner smoke test.
 
-### Adding an app
+## Current Boundaries
 
-Each app gets a lightweight card entry in `js/app-manifest.js`:
+- This is a private, single-user system in active development, not a polished public SaaS.
+- Offline editing is intentionally out of scope right now; offline means read-only cache.
+- Local AI quality depends on your installed Ollama/local models and GPU/CPU resources.
+- Heavy image/audio/video generation needs ComfyUI, a local command adapter, or paid API
+  keys; the built-in media engine is a local starter renderer.
+- Macro Lab is Windows-oriented and should be treated as a powerful local automation tool.
+- Browser/web scraping tools are read-only and block private/local hosts by default.
+- Google Drive/Docs/Sheets and Brightspace are planned/partially scaffolded, not equivalent
+  to the current Gmail/Calendar implementation.
 
-```js
-{
-  id: 'mygame',
-  name: 'My Game',
-  emoji: 'game',
-  desc: 'One-line pitch shown on the menu card.',
-  color: '#5ef2ff',
-  kind: 'game',
-  src: 'js/games/mygame.js?v=1',
-}
-```
+## README Maintenance
 
-The app script is loaded only when its card is opened. Inside that script, the app
-self-registers its runtime with the shell:
+When the app's real behavior changes, update this README in the same change whenever the
+change affects:
 
-```js
-Arcade.register({
-  id: 'mygame',
-  start(root, api) { /* mount your game into `root` */ },
-  stop() { /* optional: clean up timers etc. */ },
-});
-```
+- what the app is for,
+- what pages/features exist,
+- what services are required,
+- how to run or deploy it,
+- what integrations/tools are available,
+- what limitations users should expect.
 
-The `api` passed to `start` provides managed helpers that auto-clean on exit:
-`makeCanvas(root)`, `loop(cb)`, `on(target, type, fn)`, and `getBest/setBest(key)`
-for persistent high scores. Add the script path to `sw.js` if it should work offline.
-
-Enjoy! ✦
+Subsystem-specific details should also be kept in the matching file under `docs/` or the
+service-level README.
