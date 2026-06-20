@@ -100,7 +100,10 @@ The Today cockpit uses the same Settings mode and browser-side capability regist
 mode-aware next actions. Those recommendations are derived only from the current snapshot:
 for example, Beast Mode suggests benchmarks only when a local LLM is ready, Offline Mode
 explains local/cache-only work only when the relevant local capabilities are present, and
-Maintenance Mode points at real blockers before general health checks.
+Maintenance Mode points at real blockers before general health checks. Recommendations stay
+as navigation when the app cannot safely execute them yet; today the executable set is limited
+to existing AI OS endpoints for text benchmarks, fresh backup verify/restore-tests, and a
+small local summary batch in the job queue.
 
 Current enforcement is intentionally small but real:
 

@@ -9,6 +9,15 @@ export interface ModeRecommendation {
   tag: string;
   priority: number;
   capabilityId?: string;
+  action?: ModeRecommendationAction;
+}
+
+export type ModeRecommendationActionKind = 'run_text_benchmark' | 'run_foundation_check' | 'queue_local_summary_batch';
+
+export interface ModeRecommendationAction {
+  kind: ModeRecommendationActionKind;
+  label: string;
+  confirm?: string;
 }
 
 interface ModeRecommendationInput {
@@ -53,6 +62,10 @@ function rec(
   capabilityId?: string
 ): ModeRecommendation {
   return { id, label, detail, route, tag, priority, capabilityId };
+}
+
+function withAction(recommendation: ModeRecommendation, action: ModeRecommendationAction): ModeRecommendation {
+  return { ...recommendation, action };
 }
 
 export function buildModeRecommendations(input: ModeRecommendationInput): ModeRecommendation[] {
@@ -140,7 +153,12 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
       const telemetryDetail = ready(telemetry)
         ? 'Local LLM and machine telemetry are ready, so this is a good time to benchmark tokens/sec and GPU behavior.'
         : 'Local LLM is ready; open AI OS to benchmark or inspect why telemetry is limited.';
-      recommendations.push(rec('beast:benchmark', 'Benchmark local compute', telemetryDetail, '/ai-os', 'Benchmark', 95, 'ai.local-llm'));
+      recommendations.push(
+        withAction(
+          rec('beast:benchmark', 'Benchmark local compute', telemetryDetail, '/ai-os', 'Benchmark', 95, 'ai.local-llm'),
+          { kind: 'run_text_benchmark', label: 'Run' }
+        )
+      );
     } else if (needsWork(localLlm)) {
       recommendations.push(
         rec(
@@ -202,9 +220,12 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
   }
 
   if (mode.id === 'night') {
-    if (ready(aiJobs)) {
+    if (ready(aiJobs) && ready(localLlm)) {
       recommendations.push(
-        rec('night:batch', 'Queue a local batch', 'The job queue is available for map, retry, chunk summarization, or overnight analysis work.', '/ai-os', 'Batch', 95, 'ai.jobs')
+        withAction(
+          rec('night:batch', 'Queue a local batch', 'The local model route and job queue are available for overnight map, retry, or summarization work.', '/ai-os', 'Batch', 95, 'ai.jobs'),
+          { kind: 'queue_local_summary_batch', label: 'Queue' }
+        )
       );
     }
     if (ready(memory)) {
@@ -214,7 +235,14 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
     }
     if (ready(aiService)) {
       recommendations.push(
-        rec('night:backup', 'Run backup and restore checks', 'AI OS is reachable, so Foundation Health can verify backups before unattended work.', '/ai-os', 'Backup', 78, 'ai-os.service')
+        withAction(
+          rec('night:backup', 'Run backup and restore checks', 'AI OS is reachable, so Foundation Health can verify backups before unattended work.', '/ai-os', 'Backup', 78, 'ai-os.service'),
+          {
+            kind: 'run_foundation_check',
+            label: 'Check',
+            confirm: 'Create a fresh AI OS backup, verify it, and run a restore test?'
+          }
+        )
       );
     }
   }
@@ -240,7 +268,14 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
     }
     if (ready(aiService)) {
       recommendations.push(
-        rec('maintenance:foundation', 'Run restore-test and cleanup checks', 'AI OS Foundation Health can verify backups, database integrity, logs, and cleanup paths.', '/ai-os', 'Health', 90, 'ai-os.service')
+        withAction(
+          rec('maintenance:foundation', 'Run restore-test and cleanup checks', 'AI OS Foundation Health can verify backups, database integrity, logs, and cleanup paths.', '/ai-os', 'Health', 90, 'ai-os.service'),
+          {
+            kind: 'run_foundation_check',
+            label: 'Check',
+            confirm: 'Create a fresh AI OS backup, verify it, and run a restore test?'
+          }
+        )
       );
     }
     if (!issueCount && ready(telemetry)) {

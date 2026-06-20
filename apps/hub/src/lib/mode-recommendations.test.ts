@@ -99,8 +99,19 @@ describe('buildModeRecommendations', () => {
       capabilitySnapshot: readySnapshot()
     });
 
-    expect(recommendations.map((item) => item.id)).toContain('beast:benchmark');
+    const benchmark = recommendations.find((item) => item.id === 'beast:benchmark');
+    expect(benchmark?.action?.kind).toBe('run_text_benchmark');
     expect(recommendations.map((item) => item.id)).toContain('beast:media');
+  });
+
+  it('marks night shift batch and backup work as executable when local foundations are ready', () => {
+    const recommendations = buildModeRecommendations({
+      mode: machineModeDefinition('night'),
+      capabilitySnapshot: readySnapshot()
+    });
+
+    expect(recommendations.find((item) => item.id === 'night:batch')?.action?.kind).toBe('queue_local_summary_batch');
+    expect(recommendations.find((item) => item.id === 'night:backup')?.action?.kind).toBe('run_foundation_check');
   });
 
   it('makes offline mode explicit about local-only and cache behavior', () => {
@@ -136,5 +147,16 @@ describe('buildModeRecommendations', () => {
 
     expect(recommendations[0].id.startsWith('maintenance:issue:')).toBe(true);
     expect(recommendations.some((item) => item.id === 'maintenance:macro-panic')).toBe(true);
+  });
+
+  it('marks maintenance foundation checks as confirm-gated actions', () => {
+    const recommendations = buildModeRecommendations({
+      mode: machineModeDefinition('maintenance'),
+      capabilitySnapshot: readySnapshot()
+    });
+
+    const foundation = recommendations.find((item) => item.id === 'maintenance:foundation');
+    expect(foundation?.action?.kind).toBe('run_foundation_check');
+    expect(foundation?.action?.confirm).toContain('restore test');
   });
 });

@@ -14,14 +14,16 @@
   import { statusLabel } from '@mini-hub/ui';
   import { attentionKindLabel, buildAttentionItems, type AttentionItem } from '$lib/attention';
   import {
+    formatCapabilityRegistrySummary,
     loadCapabilityRegistry,
     selectCapabilityIssues,
     type CapabilityRegistryEntry,
     type CapabilityRegistrySnapshot,
     type CapabilityState
   } from '$lib/capability-registry';
+  import { createAiBackup, createAiJob, restoreTestAiBackup, runBenchmark, verifyAiBackup } from '$lib/ai-os-api';
   import { clientData } from '$lib/client-data';
-  import { machineModeFromPreferences } from '$lib/machine-mode';
+  import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import { buildModeRecommendations, type ModeRecommendation } from '$lib/mode-recommendations';
   import { hubHref } from '$lib/routes';
   import {
@@ -51,6 +53,9 @@
   let modeRecommendations: ModeRecommendation[] = [];
   let capabilityLoading = false;
   let capabilityError = '';
+  let modeActionBusyId = '';
+  let modeActionMessage = '';
+  let modeActionError = '';
 
   $: googleConnections = connections.filter(
     (connection) => connection.provider === 'google' && connection.status === 'connected'
@@ -212,6 +217,86 @@
 
   function readyCapabilityCount(snapshot: CapabilityRegistrySnapshot): number {
     return snapshot.summary.ready + snapshot.summary.running;
+  }
+
+  function modeMetadata(): Record<string, unknown> {
+    return {
+      source: 'today-mode-recommendation',
+      machine_mode: machineModeContext(currentMachineMode.id)
+    };
+  }
+
+  function requireRecordId(value: Record<string, unknown>, label: string): string {
+    if (typeof value.id === 'string' && value.id.trim()) return value.id;
+    throw new Error(`${label} did not return an id.`);
+  }
+
+  function okLabel(value: Record<string, unknown>, success: string, failure: string): string {
+    return value.ok === true ? success : failure;
+  }
+
+  async function runModeRecommendation(item: ModeRecommendation): Promise<void> {
+    if (!item.action || modeActionBusyId) return;
+    if (item.action.confirm && typeof window !== 'undefined' && !window.confirm(item.action.confirm)) return;
+
+    modeActionBusyId = item.id;
+    modeActionMessage = '';
+    modeActionError = '';
+
+    try {
+      if (item.action.kind === 'run_text_benchmark') {
+        const run = await runBenchmark({
+          kind: 'text',
+          prompt:
+            'Today cockpit local compute benchmark. In one concise paragraph, state what model route is active and what this Mini Hub machine can help with. Do not claim access to data not provided.',
+          max_tokens: 192,
+          local_first: true
+        });
+        const speed = typeof run.tokens_per_second === 'number' ? ` at ${run.tokens_per_second.toFixed(1)} tokens/sec` : '';
+        modeActionMessage = `Benchmark logged on ${run.provider ?? 'auto'}${run.model ? `/${run.model}` : ''}${speed}.`;
+      } else if (item.action.kind === 'run_foundation_check') {
+        const backup = await createAiBackup(`today-${currentMachineMode.id}-foundation-check`);
+        const backupId = requireRecordId(backup, 'Backup');
+        const verification = await verifyAiBackup(backupId);
+        const restore = await restoreTestAiBackup(backupId);
+        modeActionMessage = [
+          `Backup ${backupId} created.`,
+          okLabel(verification, 'Checksum/integrity verification passed.', 'Checksum/integrity verification needs review.'),
+          okLabel(restore, 'Restore test passed.', 'Restore test needs review.')
+        ].join(' ');
+      } else if (item.action.kind === 'queue_local_summary_batch') {
+        const snapshotSummary = capabilitySnapshot
+          ? formatCapabilityRegistrySummary(capabilitySnapshot)
+          : 'Capability registry unavailable.';
+        const job = await createAiJob({
+          primitive: 'map',
+          request: {
+            task_type: 'today.night_shift.summary',
+            prompt: 'Summarize a real Mini Hub capability signal.',
+            max_tokens: 220,
+            local_first: true,
+            allow_fallback: false,
+            metadata: modeMetadata()
+          },
+          items: [
+            `Machine mode:\n${currentMachineMode.label}\n${currentMachineMode.summary}`,
+            `Capability snapshot:\n${snapshotSummary}`,
+            `Attention queue count: ${attentionItems.length}`
+          ],
+          template:
+            'Summarize this real Mini Hub signal in one concise operational note. Do not invent external data.\n\n{item}',
+          concurrency: 1,
+          metadata: { recommendation_id: item.id, ...modeMetadata() }
+        });
+        modeActionMessage = `Queued local ${job.primitive} job ${job.id}.`;
+      }
+
+      await refreshCapabilities();
+    } catch (error) {
+      modeActionError = error instanceof Error ? error.message : 'Recommendation action failed.';
+    } finally {
+      modeActionBusyId = '';
+    }
   }
 
   async function refreshCapabilities(nextGoogleConnected = googleConnected): Promise<void> {
@@ -430,18 +515,35 @@
       {#if modeRecommendations.length}
         <div class="mode-rec-list">
           {#each modeRecommendations as item}
-            <a class="mode-rec-row" href={hubHref(item.route)}>
-              <span class="mode-rec-tag">{item.tag}</span>
-              <span class="mode-rec-main">
-                <strong>{item.label}</strong>
-                <small>{item.detail}</small>
-              </span>
-              <ArrowRight size={15} />
-            </a>
+            <div class="mode-rec-row">
+              <a class="mode-rec-link" href={hubHref(item.route)}>
+                <span class="mode-rec-tag">{item.tag}</span>
+                <span class="mode-rec-main">
+                  <strong>{item.label}</strong>
+                  <small>{item.detail}</small>
+                </span>
+                <ArrowRight size={15} />
+              </a>
+              {#if item.action}
+                <button
+                  class="button compact mode-action-button"
+                  type="button"
+                  disabled={Boolean(modeActionBusyId)}
+                  on:click={() => runModeRecommendation(item)}
+                >
+                  <span>{modeActionBusyId === item.id ? 'Running' : item.action.label}</span>
+                </button>
+              {/if}
+            </div>
           {/each}
         </div>
       {:else}
         <p class="empty-note">No mode-specific recommendation is available from the current capability snapshot.</p>
+      {/if}
+      {#if modeActionError}
+        <p class="mode-action-note error">{modeActionError}</p>
+      {:else if modeActionMessage}
+        <p class="mode-action-note success">{modeActionMessage}</p>
       {/if}
     </article>
 
@@ -889,18 +991,49 @@
 
   .mode-rec-row {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: 62px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mode-rec-link {
+    display: grid;
     grid-template-columns: 70px minmax(0, 1fr) 16px;
     gap: 8px;
     align-items: center;
     min-height: 62px;
     padding: 9px 10px;
-    border-bottom: 1px solid var(--border);
     color: var(--text);
     text-decoration: none;
   }
 
-  .mode-rec-row:hover {
+  .mode-rec-link:hover {
     background: var(--active);
+  }
+
+  .mode-action-button {
+    margin-right: 10px;
+    white-space: nowrap;
+  }
+
+  .mode-action-note {
+    margin: 0;
+    padding: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .mode-action-note.success {
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
+  .mode-action-note.error {
+    color: var(--error-text);
+    background: var(--error-bg);
   }
 
   .mode-rec-tag {
