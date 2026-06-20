@@ -12,6 +12,7 @@
   } from 'lucide-svelte';
   import { launcherEntries, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
+  import { aiActivityStateLabel, buildAiActivityItems, type AiActivityItem } from '$lib/ai-activity';
   import { attentionKindLabel, buildAttentionItems, type AttentionItem } from '$lib/attention';
   import {
     formatCapabilityRegistrySummary,
@@ -21,7 +22,15 @@
     type CapabilityRegistrySnapshot,
     type CapabilityState
   } from '$lib/capability-registry';
-  import { createAiBackup, createAiJob, restoreTestAiBackup, runBenchmark, verifyAiBackup } from '$lib/ai-os-api';
+  import {
+    createAiBackup,
+    createAiJob,
+    getAiStatus,
+    restoreTestAiBackup,
+    runBenchmark,
+    verifyAiBackup,
+    type AiStatus
+  } from '$lib/ai-os-api';
   import { clientData } from '$lib/client-data';
   import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import { buildModeRecommendations, type ModeRecommendation } from '$lib/mode-recommendations';
@@ -53,6 +62,10 @@
   let modeRecommendations: ModeRecommendation[] = [];
   let capabilityLoading = false;
   let capabilityError = '';
+  let aiStatus: AiStatus | null = null;
+  let aiActivityItems: AiActivityItem[] = [];
+  let aiActivityLoading = false;
+  let aiActivityError = '';
   let modeActionBusyId = '';
   let modeActionMessage = '';
   let modeActionError = '';
@@ -83,6 +96,7 @@
     capabilitySnapshot,
     attentionCount: attentionItems.length
   });
+  $: aiActivityItems = buildAiActivityItems(aiStatus, 5);
   $: applyQueue = $clientData.jobs
     .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
     .sort((a, b) => (a.nextActionAt ?? a.updatedAt).localeCompare(b.nextActionAt ?? b.updatedAt))
@@ -219,6 +233,10 @@
     return snapshot.summary.ready + snapshot.summary.running;
   }
 
+  function displayActivityWhen(value: string): string {
+    return displayWhen(value);
+  }
+
   function modeMetadata(): Record<string, unknown> {
     return {
       source: 'today-mode-recommendation',
@@ -291,7 +309,7 @@
         modeActionMessage = `Queued local ${job.primitive} job ${job.id}.`;
       }
 
-      await refreshCapabilities();
+      await Promise.all([refreshCapabilities(), refreshAiActivity()]);
     } catch (error) {
       modeActionError = error instanceof Error ? error.message : 'Recommendation action failed.';
     } finally {
@@ -313,6 +331,18 @@
       capabilityError = error instanceof Error ? error.message : 'Capability registry failed to load.';
     } finally {
       capabilityLoading = false;
+    }
+  }
+
+  async function refreshAiActivity(): Promise<void> {
+    aiActivityLoading = true;
+    aiActivityError = '';
+    try {
+      aiStatus = await getAiStatus();
+    } catch (error) {
+      aiActivityError = error instanceof Error ? error.message : 'AI OS activity failed to load.';
+    } finally {
+      aiActivityLoading = false;
     }
   }
 
@@ -359,6 +389,7 @@
     } finally {
       dashboardLoading = false;
       void refreshCapabilities(hasGoogle);
+      void refreshAiActivity();
     }
   }
 
@@ -492,6 +523,40 @@
         </div>
       {:else}
         <p class="empty-note">No upcoming events found on your active Google calendars for the next two weeks.</p>
+      {/if}
+    </article>
+
+    <article class="card panel ai-activity-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Activity size={16} /></span>
+          <strong>AI OS Activity</strong>
+        </div>
+        <a class="button compact" href={hubHref('/ai-os')}>
+          <span>Logs</span>
+          <ArrowRight size={15} />
+        </a>
+      </div>
+
+      {#if aiActivityItems.length}
+        <div class="ai-activity-list">
+          {#each aiActivityItems as item}
+            <a class="ai-activity-row" href={hubHref(item.route)}>
+              <span class={`activity-state ${item.state}`}>{aiActivityStateLabel(item.state)}</span>
+              <span class="activity-main">
+                <strong>{item.title}</strong>
+                <small>{item.detail}</small>
+              </span>
+              <time datetime={item.occurredAt}>{displayActivityWhen(item.occurredAt)}</time>
+            </a>
+          {/each}
+        </div>
+      {:else if aiActivityLoading}
+        <p class="empty-note">Loading recent AI OS jobs, tools, backups, and benchmarks...</p>
+      {:else if aiActivityError}
+        <p class="empty-note">{aiActivityError}</p>
+      {:else}
+        <p class="empty-note">No AI OS activity is logged yet. Runs from this cockpit will appear here after refresh.</p>
       {/if}
     </article>
   </div>
@@ -842,6 +907,7 @@
 
   .attention-list,
   .agenda-list,
+  .ai-activity-list,
   .mail-list,
   .career-list {
     display: grid;
@@ -849,6 +915,7 @@
 
   .attention-row,
   .agenda-row,
+  .ai-activity-row,
   .mail-row,
   .career-row {
     color: var(--text);
@@ -877,6 +944,7 @@
 
   .attention-row:hover,
   .agenda-row:hover,
+  .ai-activity-row:hover,
   .mail-row:hover,
   .career-row:hover {
     background: var(--active);
@@ -955,6 +1023,76 @@
     font-size: 12px;
     font-weight: 700;
     text-transform: capitalize;
+  }
+
+  .ai-activity-row {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr) 132px;
+    gap: 10px;
+    align-items: center;
+    min-height: 58px;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .activity-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 66px;
+    min-height: 22px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .activity-state.success {
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
+  .activity-state.failed {
+    border-color: var(--error-border);
+    color: var(--error-text);
+    background: var(--error-bg);
+  }
+
+  .activity-state.running,
+  .activity-state.queued {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .activity-main {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .activity-main strong,
+  .activity-main small,
+  .ai-activity-row time {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .activity-main small,
+  .ai-activity-row time {
+    color: var(--muted);
+  }
+
+  .ai-activity-row time {
+    justify-self: end;
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .attention-meta {
@@ -1306,6 +1444,10 @@
       grid-template-columns: 92px minmax(0, 1fr);
     }
 
+    .ai-activity-row {
+      grid-template-columns: 72px minmax(0, 1fr);
+    }
+
     .attention-row {
       grid-template-columns: 76px minmax(0, 1fr);
     }
@@ -1316,6 +1458,11 @@
     }
 
     .agenda-meta {
+      grid-column: 2;
+      justify-self: start;
+    }
+
+    .ai-activity-row time {
       grid-column: 2;
       justify-self: start;
     }

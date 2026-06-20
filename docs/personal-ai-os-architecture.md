@@ -103,7 +103,9 @@ explains local/cache-only work only when the relevant local capabilities are pre
 Maintenance Mode points at real blockers before general health checks. Recommendations stay
 as navigation when the app cannot safely execute them yet; today the executable set is limited
 to existing AI OS endpoints for text benchmarks, fresh backup verify/restore-tests, and a
-small local summary batch in the job queue.
+small local summary batch in the job queue. The cockpit also normalizes recent AI OS jobs,
+tool calls, benchmarks, backups, and generated assets into one activity list so execution
+history is visible without opening the full AI OS dashboard.
 
 Current enforcement is intentionally small but real:
 

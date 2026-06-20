@@ -43,7 +43,7 @@ The Svelte app under `apps/hub` provides these main pages:
 
 - Today dashboard: command-center cockpit with a real attention queue derived from
   calendar, Gmail, career, study, local sync/service signals, capability health, and
-  Machine Mode-aware next actions with a few direct AI OS actions.
+  Machine Mode-aware next actions, direct AI OS actions, and recent AI OS activity.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls.
@@ -77,7 +77,8 @@ current mode into command, inference, job, and media calls. Today also turns the
 and capability registry into concrete next actions without inventing data. Where the backend
 already has a real endpoint, those recommendations can run the action directly: local compute
 benchmarks, fresh backup verification/restore-tests, and a small local summary batch through
-the AI OS job queue.
+the AI OS job queue. Today also shows a compact AI OS activity panel built from real job,
+tool-call, benchmark, backup, and generation logs so actions have visible follow-through.
 
 ### Personal Data And Sync
 
