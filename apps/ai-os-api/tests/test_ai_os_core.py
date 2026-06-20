@@ -15,6 +15,7 @@ from ai_os.inference import InferenceRouter
 from ai_os.jobs.primitives import JobPrimitives
 from ai_os.jobs.queue import JobQueue
 from ai_os.maintenance import BackupManager
+from ai_os.media_engine import MediaPlan
 from ai_os.memory.store import SemanticMemory
 from ai_os.models import InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, StreamChunk
 from ai_os.multimodal.registry import MultimodalRegistry
@@ -366,6 +367,47 @@ async def test_local_video_generation_command_records_asset(tmp_path):
     assert assets[0].kind == "video"
     assert assets[0].provider == "local-video"
     assert assets[0].asset_path
+
+
+@pytest.mark.asyncio
+async def test_builtin_media_engine_generates_image_audio_and_video(monkeypatch, tmp_path):
+    async def plan(_, prompt: str, kind: str) -> MediaPlan:
+        return MediaPlan(
+            prompt=prompt,
+            palette=["#101820", "#2563eb", "#a78bfa", "#f8fafc"],
+            mood="focused",
+            motion="pulse",
+            tempo_bpm=112,
+            scale=[0, 2, 5, 7, 9],
+            seed=12345 + len(kind),
+        )
+
+    monkeypatch.setattr("ai_os.media_engine.BuiltinMediaEngine._plan", plan)
+    settings = Settings(
+        data_dir=tmp_path,
+        backup_enabled=False,
+        builtin_media_width=320,
+        builtin_media_height=256,
+        builtin_audio_duration_s=1,
+        builtin_video_frames=4,
+    )
+    storage = AppStorage(settings.database_path())
+    multimodal = MultimodalRegistry(settings, ProviderRegistry([]), storage)
+
+    image = await multimodal.invoke("image", MultimodalInvokeRequest(prompt="blue technical image"))
+    audio = await multimodal.invoke("audio", MultimodalInvokeRequest(prompt="soft synth audio"))
+    video = await multimodal.invoke("video", MultimodalInvokeRequest(prompt="animated study loop"))
+
+    assert image["provider"] == "builtin-image"
+    assert image["content_type"] == "image/png"
+    assert base64.b64decode(image["image_base64"]).startswith(b"\x89PNG")
+    assert audio["provider"] == "builtin-audio"
+    assert audio["content_type"] == "audio/wav"
+    assert base64.b64decode(audio["audio_base64"]).startswith(b"RIFF")
+    assert video["provider"] == "builtin-video"
+    assert video["content_type"] == "image/gif"
+    assert base64.b64decode(video["video_base64"]).startswith(b"GIF")
+    assert [asset.kind for asset in storage.list_generation_assets(3)] == ["video", "audio", "image"]
 
 
 def test_health_and_backup_endpoints(tmp_path):

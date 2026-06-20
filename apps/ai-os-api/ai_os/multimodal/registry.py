@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
+from ..media_engine import BuiltinMediaEngine
 from ..models import ChatMessage, InferenceRequest, MultimodalInvokeRequest
 from ..providers.ollama import OllamaProvider
 from ..providers.openai_provider import OpenAIProvider
@@ -22,14 +23,17 @@ class MultimodalRegistry:
         self.settings = settings
         self.providers = providers
         self.storage = storage
+        self.builtin = BuiltinMediaEngine(settings)
 
     def capability_adapters(self) -> dict[str, dict[str, bool]]:
         return {
             "multimodal.image": {
+                "builtin-image": self.settings.builtin_media_enabled,
                 "comfyui": bool(self.settings.comfyui_base_url),
                 "local-image": bool(self.settings.local_image_command),
             },
             "multimodal.audio": {
+                "builtin-audio": self.settings.builtin_media_enabled,
                 "local-audio": bool(self.settings.local_audio_command),
             },
             "multimodal.audio_tts": {
@@ -39,6 +43,7 @@ class MultimodalRegistry:
                 "whisper": bool(self.settings.whisper_executable),
             },
             "multimodal.video": {
+                "builtin-video": self.settings.builtin_media_enabled,
                 "comfyui": bool(self.settings.comfyui_base_url and self.settings.comfyui_video_workflow_path),
                 "local-video": bool(self.settings.local_video_command),
             },
@@ -56,6 +61,14 @@ class MultimodalRegistry:
             return self._record_asset(kind, provider_id, request, result)
         if provider_id == "whisper":
             result = await asyncio.to_thread(self._whisper_stt, request)
+            return self._record_asset(kind, provider_id, request, result)
+        if provider_id in {"builtin-image", "builtin-audio", "builtin-video"}:
+            expected = provider_id.removeprefix("builtin-")
+            if kind != expected:
+                raise ValueError(f"Provider {provider_id} only handles kind='{expected}'.")
+            if not self.settings.builtin_media_enabled:
+                raise ValueError("Built-in local media generation is disabled.")
+            result = await self.builtin.invoke(kind, request)
             return self._record_asset(kind, provider_id, request, result)
         if provider_id in {"local-image", "local-audio", "local-video"}:
             expected = provider_id.removeprefix("local-")
@@ -116,12 +129,18 @@ class MultimodalRegistry:
             return "ollama"
         if kind == "image" and self.settings.local_image_command:
             return "local-image"
+        if kind == "image" and self.settings.builtin_media_enabled:
+            return "builtin-image"
         if kind == "image" and self.settings.comfyui_base_url:
             return "comfyui"
         if kind == "audio" and self.settings.local_audio_command:
             return "local-audio"
+        if kind == "audio" and self.settings.builtin_media_enabled:
+            return "builtin-audio"
         if kind == "video" and self.settings.local_video_command:
             return "local-video"
+        if kind == "video" and self.settings.builtin_media_enabled:
+            return "builtin-video"
         if kind == "video" and self.settings.comfyui_base_url and self.settings.comfyui_video_workflow_path:
             return "comfyui"
         if kind == "audio_tts" and self.settings.piper_executable:

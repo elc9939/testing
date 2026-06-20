@@ -110,11 +110,13 @@ Capabilities are discoverable service surfaces, not workflows:
 Each capability reports availability, adapter IDs, safety level, and whether it is enabled.
 Ambient or destructive units default to disabled.
 
-Local media generation is intentionally command-backed as well as provider-backed. ComfyUI
-handles image/video workflows through `/prompt`, `/history`, and `/view`; Piper and Whisper
-cover local TTS/STT; and `AI_OS_LOCAL_IMAGE_COMMAND`, `AI_OS_LOCAL_AUDIO_COMMAND`, and
-`AI_OS_LOCAL_VIDEO_COMMAND` allow any local generator to write a result file to
-`AI_OS_MEDIA_OUTPUT` without giving the browser arbitrary shell access.
+Local media generation is intentionally layered. The built-in media engine asks Ollama for a
+small creative plan, then renders stylized PNG/WAV/animated-GIF artifacts locally so the media
+pipeline works without external keys or a second server. ComfyUI handles heavier image/video
+workflows through `/prompt`, `/history`, and `/view`; Piper and Whisper cover local TTS/STT;
+and `AI_OS_LOCAL_IMAGE_COMMAND`, `AI_OS_LOCAL_AUDIO_COMMAND`, and `AI_OS_LOCAL_VIDEO_COMMAND`
+allow any local generator to write a result file to `AI_OS_MEDIA_OUTPUT` without giving the
+browser arbitrary shell access.
 
 ### Job Primitive
 

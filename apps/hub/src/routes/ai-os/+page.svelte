@@ -195,6 +195,9 @@
       return { kind: 'audio', src: `data:${contentType || 'audio/wav'};base64,${result.audio_base64}` };
     }
     if (typeof result.video_base64 === 'string') {
+      if (contentType.startsWith('image/')) {
+        return { kind: 'image', src: `data:${contentType};base64,${result.video_base64}` };
+      }
       return { kind: 'video', src: `data:${contentType || 'video/mp4'};base64,${result.video_base64}` };
     }
     const data = Array.isArray(result.data) ? result.data : [];

@@ -115,6 +115,11 @@ AI_OS_LOCAL_AUDIO_EXTENSION=.wav
 AI_OS_LOCAL_VIDEO_EXTENSION=.mp4
 AI_OS_LOCAL_MEDIA_TIMEOUT_S=900
 AI_OS_LOCAL_MEDIA_WORK_DIR=
+AI_OS_BUILTIN_MEDIA_ENABLED=true
+AI_OS_BUILTIN_MEDIA_WIDTH=1024
+AI_OS_BUILTIN_MEDIA_HEIGHT=576
+AI_OS_BUILTIN_AUDIO_DURATION_S=8
+AI_OS_BUILTIN_VIDEO_FRAMES=36
 
 PIPER_EXECUTABLE=C:\path\to\piper.exe
 PIPER_VOICE_PATH=C:\path\to\voice.onnx
@@ -130,10 +135,16 @@ replaced; common `CLIPTextEncode.inputs.text` nodes are also set from the prompt
 `COMFYUI_WORKFLOW_PATH` remains the default image workflow; use `COMFYUI_VIDEO_WORKFLOW_PATH`
 for video workflows that save `.mp4`, `.webm`, `.mov`, or `.gif` outputs.
 
-The `AI_OS_LOCAL_*_COMMAND` settings are generic local generators for tools such as ComfyUI
-CLI wrappers, Stable Diffusion scripts, MusicGen/AudioCraft wrappers, AnimateDiff pipelines,
-or any other local program. They are intentionally env-configured, not UI-configured. The
-service runs the command with:
+`AI_OS_BUILTIN_MEDIA_ENABLED=true` enables the included local starter media engine. It asks
+Ollama for a compact creative plan, then renders a PNG image, WAV audio clip, or animated GIF
+locally with Pillow and Python's audio primitives. This is not photorealistic Stable Diffusion
+or a music foundation model; it is a zero-extra-server local generation path that proves the
+pipeline, gallery, previews, benchmarks, and local-only artifact storage end to end.
+
+The `AI_OS_LOCAL_*_COMMAND` settings are generic local generators for heavier tools such as
+ComfyUI CLI wrappers, Stable Diffusion scripts, MusicGen/AudioCraft wrappers, AnimateDiff
+pipelines, or any other local program. They are intentionally env-configured, not UI-configured.
+The service runs the command with:
 
 ```text
 AI_OS_MEDIA_KIND=image|audio|video
@@ -518,6 +529,9 @@ checking for upstream updates; do not hide the audit failure with a blanket igno
   or a Tauri desktop worker without changing the dashboard API.
 - In-process jobs are bounded and observable, but valuable long-running jobs should eventually
   persist checkpoints to SQLite because active tasks do not survive a process crash.
+- The built-in local media engine creates stylized procedural image/audio/video artifacts
+  directed by Ollama. Use ComfyUI, Stable Diffusion, MusicGen, AnimateDiff, or similar engines
+  through the local command/ComfyUI adapters when you want heavier model-native media output.
 - ComfyUI/Piper/Whisper are CLI/API adapters, not installers. They degrade cleanly when the
   corresponding executable, workflow, or service URL is missing.
 - The FastAPI service is local-first and rejects non-loopback clients by default. Add auth before

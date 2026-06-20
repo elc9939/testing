@@ -145,6 +145,11 @@ class Settings(BaseSettings):
     local_video_extension: str = Field(default=".mp4", validation_alias="AI_OS_LOCAL_VIDEO_EXTENSION")
     local_media_timeout_s: float = Field(default=900.0, validation_alias="AI_OS_LOCAL_MEDIA_TIMEOUT_S")
     local_media_work_dir: Path | None = Field(default=None, validation_alias="AI_OS_LOCAL_MEDIA_WORK_DIR")
+    builtin_media_enabled: bool = Field(default=True, validation_alias="AI_OS_BUILTIN_MEDIA_ENABLED")
+    builtin_media_width: int = Field(default=1024, ge=256, le=2048, validation_alias="AI_OS_BUILTIN_MEDIA_WIDTH")
+    builtin_media_height: int = Field(default=576, ge=256, le=2048, validation_alias="AI_OS_BUILTIN_MEDIA_HEIGHT")
+    builtin_audio_duration_s: float = Field(default=8.0, ge=1.0, le=60.0, validation_alias="AI_OS_BUILTIN_AUDIO_DURATION_S")
+    builtin_video_frames: int = Field(default=36, ge=4, le=180, validation_alias="AI_OS_BUILTIN_VIDEO_FRAMES")
 
     piper_executable: str | None = Field(default=None, validation_alias="PIPER_EXECUTABLE")
     piper_voice_path: Path | None = Field(default=None, validation_alias="PIPER_VOICE_PATH")
