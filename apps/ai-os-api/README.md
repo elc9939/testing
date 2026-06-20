@@ -2,7 +2,8 @@
 
 FastAPI capability substrate for local-first inference, queues, ambient triggers, agents,
 semantic memory, app-control tools, reversible design patches, built-in local media
-generation, multimodal adapters, and hardware benchmarks.
+generation, multimodal adapters, web scraping/browser extraction tools, and hardware
+benchmarks.
 
 See:
 

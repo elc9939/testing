@@ -100,6 +100,9 @@ Capabilities are discoverable service surfaces, not workflows:
 - `ambient.triggers`
 - `agents.plan_act_check`
 - `memory.semantic_search`
+- `web.search`
+- `web.scrape`
+- `browser.extract`
 - `multimodal.image`
 - `multimodal.audio`
 - `multimodal.audio_tts`
@@ -153,9 +156,10 @@ The agent engine is a generic plan-act-check-retry loop:
 
 Tools are real functions exposed by the AI OS service. Current tools include routed inference,
 semantic memory search, Hub status, Study Desk session creation, Career Desk job creation,
-Macro Lab macro listing, and Macro Lab macro execution. Tools declare `read`, `write`, or
-`destructive` safety. Write/destructive tools require `confirm_actions=true`; otherwise the
-tool call is logged as blocked and the model receives a confirmation-needed observation.
+web search, web page scraping, browser-rendered page extraction, Macro Lab macro listing, and
+Macro Lab macro execution. Tools declare `read`, `write`, or `destructive` safety.
+Write/destructive tools require `confirm_actions=true`; otherwise the tool call is logged as
+blocked and the model receives a confirmation-needed observation.
 
 The command bar at `POST /api/ai/command` is a thin natural-language wrapper around this
 agent runtime. It does not get special privileges. It uses the same registry, confirmation
@@ -165,6 +169,11 @@ Obvious file-producing media commands such as "generate an image and save it to 
 are routed deterministically to `media.generate_image_file` before the planning model runs.
 That tool still uses the same multimodal adapters and write confirmation gate, but avoids
 local-model JSON drift for common one-shot commands.
+
+Likewise, obvious internet commands such as "search the web for ..." or "scrape
+https://..." are routed directly to `web.search`, `web.scrape`, or `browser.extract`. These
+are read-only tools, but they still go through the tool log so the assistant cannot silently
+pretend it browsed.
 
 ### Design Patch
 
@@ -194,6 +203,23 @@ Semantic memory is source-agnostic. A source only needs to emit:
 The service chunks text, embeds it through the selected embedding provider, stores vectors in
 SQLite, and exposes semantic query as a reusable service. PDFs, notes, chats, code, or Drive
 exports can each become ingestion adapters later.
+
+### Web Access Adapter
+
+Web access is a dedicated read-only subsystem, not a side effect of text inference:
+
+- `web.search`: searches the public web through the DuckDuckGo HTML endpoint and returns
+  titles, URLs, and snippets.
+- `web.scrape`: fetches an HTTP/HTTPS URL with `httpx` and extracts readable text, metadata,
+  headings, and links with BeautifulSoup.
+- `browser.extract`: opens the URL with headless Playwright/Chrome when available, extracts
+  rendered body text and links, and falls back to `web.scrape` with `browser_available=false`
+  if no browser is usable.
+
+By default `AI_OS_WEB_ALLOW_PRIVATE_HOSTS=false`, so web tools cannot fetch localhost,
+private LAN IPs, link-local addresses, or `.local` hosts. This avoids accidental SSRF-style
+access to local services when an internet page redirects somewhere surprising. A personal
+power-user can enable private-host access explicitly when needed.
 
 ### Multimodal Adapter
 

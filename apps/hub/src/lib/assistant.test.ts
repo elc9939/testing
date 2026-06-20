@@ -28,4 +28,10 @@ describe('assistant intent resolver', () => {
     expect(resolveAssistantIntent('add a 25 minute study session for linear algebra')).toEqual({ kind: 'command' });
     expect(resolveAssistantIntent('tell me a joke')).toEqual({ kind: 'chat' });
   });
+
+  it('sends web and browser access requests to AI OS command mode', () => {
+    expect(resolveAssistantIntent('search the web for local llm benchmarks')).toEqual({ kind: 'command' });
+    expect(resolveAssistantIntent('scrape https://example.com and extract the links')).toEqual({ kind: 'command' });
+    expect(resolveAssistantIntent('open https://example.com in browser mode')).toEqual({ kind: 'command' });
+  });
 });

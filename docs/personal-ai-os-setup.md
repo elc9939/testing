@@ -208,10 +208,30 @@ AI_OS_MAX_JOB_ITEMS=500
 AI_OS_MAX_ACTIVE_JOBS=20
 AI_OS_JOB_TIMEOUT_S=600
 AI_OS_CLEANUP_MAX_AGE_DAYS=14
+AI_OS_WEB_ACCESS_ENABLED=true
+AI_OS_WEB_ALLOW_PRIVATE_HOSTS=false
+AI_OS_WEB_TIMEOUT_S=20
+AI_OS_WEB_BROWSER_TIMEOUT_S=30
+AI_OS_WEB_BROWSER_MAX_WAIT_MS=5000
+AI_OS_WEB_MAX_BYTES=2000000
+AI_OS_WEB_MAX_TEXT_CHARS=60000
+AI_OS_WEB_MAX_LINKS=80
+AI_OS_WEB_MAX_REDIRECTS=5
+AI_OS_WEB_SEARCH_MAX_RESULTS=8
+AI_OS_WEB_USER_AGENT=MiniHubAIOS/0.1 (+https://github.com/elc9939/testing)
+AI_OS_WEB_BROWSER_EXECUTABLE_PATH=
 ```
 
 Routine backups intentionally exclude giant model caches. Put generated files you care about
 under `AI_OS_ASSETS_DIR` if you want them included in AI OS backups.
+
+The web settings power the assistant tools `web.search`, `web.scrape`, and
+`browser.extract`. The default `AI_OS_WEB_ALLOW_PRIVATE_HOSTS=false` blocks localhost,
+private LAN ranges, link-local addresses, and `.local` hosts. Leave that default on for
+normal internet browsing; set it to `true` only when you intentionally want the assistant to
+read local/private pages. `browser.extract` uses Playwright with Chrome/Edge/Chromium when
+available and falls back to the HTTP scraper with `browser_available=false` when a headless
+browser is unavailable.
 
 ## Ollama Models
 
@@ -396,6 +416,18 @@ POST /api/ai/benchmarks
 
 `{kind}` currently supports `image`, `audio`, `video`, `audio_tts`, `audio_stt`, and
 `vision`. The benchmark endpoint supports `text`, `image`, `audio`, and `video`.
+
+Web/browser access is exposed through the tool registry rather than separate public routes:
+
+```text
+web.search       {"query":"...", "limit":6}
+web.scrape       {"url":"https://...", "include_html":false}
+browser.extract  {"url":"https://...", "wait_until":"domcontentloaded", "screenshot":false}
+```
+
+Use `POST /api/ai/command` for natural-language requests such as "search the web for local
+LLM benchmarks" or "scrape https://example.com". Use `POST /api/ai/agents/run` when you want
+to constrain an agent to these exact tool IDs.
 
 ## Adding A Provider
 

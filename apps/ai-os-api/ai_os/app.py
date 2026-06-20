@@ -44,8 +44,13 @@ from .providers.registry import ProviderRegistry, build_provider_registry
 from .security import is_loopback_host
 from .storage import AppStorage
 from .telemetry import hardware_status
+from .web_access import WebAccess
 
 logger = logging.getLogger("ai_os")
+
+
+def _capability_adapters(services: "Services") -> dict[str, dict[str, bool]]:
+    return {**services.multimodal.capability_adapters(), **services.web.capability_adapters()}
 
 
 def _image_file_command_payload(objective: str) -> dict[str, Any] | None:
@@ -67,6 +72,27 @@ def _image_file_command_payload(objective: str) -> dict[str, Any] | None:
     return {"prompt": prompt, "destination": "desktop", **({"filename": filename} if filename else {})}
 
 
+def _web_command_payload(objective: str) -> tuple[str, dict[str, Any]] | None:
+    normalized = objective.lower()
+    url_match = re.search(r"https?://[^\s<>)\]}\"']+", objective)
+    if url_match:
+        url = url_match.group(0).rstrip(".,;:")
+        if re.search(r"\b(browser|render|javascript|js|dynamic|open)\b", normalized):
+            return "browser.extract", {"url": url, "wait_until": "domcontentloaded"}
+        if re.search(r"\b(scrape|fetch|read|extract|summarize|page|site|url|website|web)\b", normalized):
+            return "web.scrape", {"url": url}
+    if re.search(r"\b(search|look up|lookup|google|find)\b", normalized) and re.search(r"\b(web|internet|online)\b", normalized):
+        query = re.sub(
+            r"^\s*(?:please\s+|can\s+you\s+)?(?:search|look\s+up|lookup|google|find)\s+(?:the\s+)?(?:web|internet|online)?\s*(?:for|about)?\s*",
+            "",
+            objective,
+            flags=re.IGNORECASE,
+        ).strip(" ?.")
+        if query:
+            return "web.search", {"query": query}
+    return None
+
+
 class Services:
     def __init__(self, settings: Settings, storage: AppStorage, providers: ProviderRegistry):
         self.settings = settings
@@ -83,12 +109,14 @@ class Services:
         self.memory = SemanticMemory(storage, providers)
         self.background = build_background_registry()
         self.multimodal = MultimodalRegistry(settings, providers, storage)
+        self.web = WebAccess(settings)
         self.tools = build_tool_registry(
             self.router,
             self.memory,
             settings,
             storage,
             media_invoker=self.multimodal.invoke,
+            web_access=self.web,
         )
         self.agents = AgentEngine(self.router, self.tools)
         self.backups = BackupManager(settings, storage)
@@ -210,7 +238,7 @@ def create_app(
         return {
             "capabilities": [
                 capability.model_dump(mode="json")
-                for capability in build_capabilities(list(statuses), services.multimodal.capability_adapters())
+                for capability in build_capabilities(list(statuses), _capability_adapters(services))
             ]
         }
 
@@ -221,7 +249,7 @@ def create_app(
             "providers": [provider.model_dump(mode="json") for provider in statuses],
             "capabilities": [
                 capability.model_dump(mode="json")
-                for capability in build_capabilities(list(statuses), services.multimodal.capability_adapters())
+                for capability in build_capabilities(list(statuses), _capability_adapters(services))
             ],
             "hardware": hardware_status(services.storage).model_dump(mode="json"),
             "jobs": [job.model_dump(mode="json") for job in services.jobs.list()],
@@ -398,6 +426,53 @@ def create_app(
     async def command(request: CommandRequest) -> dict[str, Any]:
         try:
             run_id = new_id("cmd")
+            direct_web = _web_command_payload(request.objective)
+            if direct_web:
+                tool_id, payload = direct_web
+                observation = await services.tools.call(tool_id, payload, confirmed=request.confirm_actions, run_id=run_id)
+                status = "succeeded" if observation.get("ok") else "failed"
+                if tool_id == "web.search" and observation.get("ok"):
+                    output = f"Found {observation.get('result_count', 0)} web results for {payload.get('query')}."
+                elif observation.get("ok"):
+                    title = observation.get("title") or observation.get("final_url") or payload.get("url")
+                    text_length = observation.get("text_length")
+                    output = f"Extracted {title}"
+                    if isinstance(text_length, int):
+                        output += f" ({text_length} characters before truncation)."
+                    else:
+                        output += "."
+                else:
+                    output = str(observation.get("error") or "Web tool failed.")
+                return {
+                    "result": {
+                        "id": new_id("agent"),
+                        "agent_id": "command-bar",
+                        "status": status,
+                        "objective": request.objective,
+                        "steps": [
+                            {
+                                "index": 0,
+                                "phase": "plan",
+                                "text": f"Matched direct {tool_id} command.",
+                                "tool_calls": [{"tool_id": tool_id, "arguments": payload}],
+                                "observations": [],
+                            },
+                            {
+                                "index": 0,
+                                "phase": "act",
+                                "text": f"Called {tool_id}.",
+                                "tool_calls": [],
+                                "observations": [observation],
+                            },
+                        ],
+                        "output": output,
+                    },
+                    "tool_calls": [
+                        entry.model_dump(mode="json")
+                        for entry in services.storage.list_tool_calls(25)
+                        if entry.run_id == run_id
+                    ],
+                }
             direct_image_payload = _image_file_command_payload(request.objective)
             if direct_image_payload:
                 if request.provider:

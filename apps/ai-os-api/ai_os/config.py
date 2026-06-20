@@ -52,6 +52,21 @@ class Settings(BaseSettings):
     max_active_jobs: int = Field(default=20, validation_alias="AI_OS_MAX_ACTIVE_JOBS")
     job_timeout_s: float = Field(default=1800.0, validation_alias="AI_OS_JOB_TIMEOUT_S")
     cleanup_max_age_days: int = Field(default=14, validation_alias="AI_OS_CLEANUP_MAX_AGE_DAYS")
+    web_access_enabled: bool = Field(default=True, validation_alias="AI_OS_WEB_ACCESS_ENABLED")
+    web_allow_private_hosts: bool = Field(default=False, validation_alias="AI_OS_WEB_ALLOW_PRIVATE_HOSTS")
+    web_timeout_s: float = Field(default=20.0, ge=1.0, le=120.0, validation_alias="AI_OS_WEB_TIMEOUT_S")
+    web_browser_timeout_s: float = Field(default=30.0, ge=1.0, le=180.0, validation_alias="AI_OS_WEB_BROWSER_TIMEOUT_S")
+    web_browser_max_wait_ms: int = Field(default=5000, ge=0, le=30000, validation_alias="AI_OS_WEB_BROWSER_MAX_WAIT_MS")
+    web_max_bytes: int = Field(default=2_000_000, ge=10_000, le=25_000_000, validation_alias="AI_OS_WEB_MAX_BYTES")
+    web_max_text_chars: int = Field(default=60_000, ge=1_000, le=500_000, validation_alias="AI_OS_WEB_MAX_TEXT_CHARS")
+    web_max_links: int = Field(default=80, ge=0, le=500, validation_alias="AI_OS_WEB_MAX_LINKS")
+    web_max_redirects: int = Field(default=5, ge=0, le=20, validation_alias="AI_OS_WEB_MAX_REDIRECTS")
+    web_search_max_results: int = Field(default=8, ge=1, le=25, validation_alias="AI_OS_WEB_SEARCH_MAX_RESULTS")
+    web_user_agent: str = Field(
+        default="MiniHubAIOS/0.1 (+https://github.com/elc9939/testing)",
+        validation_alias="AI_OS_WEB_USER_AGENT",
+    )
+    web_browser_executable_path: Path | None = Field(default=None, validation_alias="AI_OS_WEB_BROWSER_EXECUTABLE_PATH")
     trusted_origins: list[str] = Field(
         default_factory=lambda: _csv_env(
             "AI_OS_TRUSTED_ORIGINS",

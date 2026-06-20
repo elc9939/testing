@@ -23,6 +23,7 @@ from ..models import (
     MultimodalInvokeRequest,
 )
 from ..storage import AppStorage
+from ..web_access import WebAccess
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 MediaInvoker = Callable[[str, MultimodalInvokeRequest], Awaitable[dict[str, Any]]]
@@ -171,6 +172,8 @@ class AgentEngine:
             "stop and explain the exact confirmation needed instead of trying to bypass it. "
             "Use media.generate_image_file for image creation or requests to save generated images to the Desktop; "
             "do not use ai.infer for image generation. "
+            "Use web.search for internet search, web.scrape for normal page extraction, and browser.extract "
+            "for JavaScript/browser-rendered pages. Do not claim you browsed unless a web or browser tool ran. "
             "For each step, respond with concise JSON using keys plan, tool_calls, done, output. "
             "tool_calls is an array of {tool_id, arguments}. Available tools: "
             + json.dumps(tool_specs)
@@ -230,6 +233,7 @@ def build_tool_registry(
     settings: Settings | None = None,
     storage: AppStorage | None = None,
     media_invoker: MediaInvoker | None = None,
+    web_access: WebAccess | None = None,
 ) -> ToolRegistry:
     registry = ToolRegistry(storage)
 
@@ -301,6 +305,35 @@ def build_tool_registry(
 
         hits = await memory.query(MemoryQueryRequest(query=str(payload.get("query") or ""), limit=int(payload.get("limit") or 5)))
         return {"ok": True, "hits": [hit.model_dump(mode="json") for hit in hits]}
+
+    def require_web_access() -> WebAccess:
+        if not web_access:
+            raise RuntimeError("AI OS web access was not configured.")
+        return web_access
+
+    async def web_search_tool(payload: dict[str, Any]) -> dict[str, Any]:
+        return await require_web_access().search(
+            query=str(payload.get("query") or ""),
+            limit=int(payload.get("limit") or 6),
+        )
+
+    async def web_scrape_tool(payload: dict[str, Any]) -> dict[str, Any]:
+        return await require_web_access().scrape(
+            url=str(payload.get("url") or ""),
+            include_html=bool(payload.get("include_html", False)),
+            max_text_chars=int(payload["max_text_chars"]) if payload.get("max_text_chars") is not None else None,
+            max_links=int(payload["max_links"]) if payload.get("max_links") is not None else None,
+        )
+
+    async def browser_extract_tool(payload: dict[str, Any]) -> dict[str, Any]:
+        return await require_web_access().browser_extract(
+            url=str(payload.get("url") or ""),
+            wait_until=str(payload.get("wait_until") or "domcontentloaded"),
+            wait_ms=int(payload.get("wait_ms") or 0),
+            screenshot=bool(payload.get("screenshot", False)),
+            max_text_chars=int(payload["max_text_chars"]) if payload.get("max_text_chars") is not None else None,
+            max_links=int(payload["max_links"]) if payload.get("max_links") is not None else None,
+        )
 
     async def hub_status_tool(_: dict[str, Any]) -> dict[str, Any]:
         configured = require_settings()
@@ -393,6 +426,63 @@ def build_tool_registry(
             safety="read",
         ),
         memory_tool,
+    )
+    registry.register(
+        ToolSpec(
+            id="web.search",
+            label="Search web",
+            description="Search the public web and return result titles, URLs, and snippets.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 25},
+                },
+                "required": ["query"],
+            },
+            safety="read",
+        ),
+        web_search_tool,
+    )
+    registry.register(
+        ToolSpec(
+            id="web.scrape",
+            label="Scrape web page",
+            description="Fetch a URL over the internet and extract title, metadata, text, headings, and links.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string"},
+                    "include_html": {"type": "boolean"},
+                    "max_text_chars": {"type": "integer", "minimum": 1000},
+                    "max_links": {"type": "integer", "minimum": 0},
+                },
+                "required": ["url"],
+            },
+            safety="read",
+        ),
+        web_scrape_tool,
+    )
+    registry.register(
+        ToolSpec(
+            id="browser.extract",
+            label="Extract browser page",
+            description="Open a URL in a headless browser when available and extract rendered page text, links, and optional screenshot.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string"},
+                    "wait_until": {"type": "string", "enum": ["commit", "domcontentloaded", "load", "networkidle"]},
+                    "wait_ms": {"type": "integer", "minimum": 0, "maximum": 30000},
+                    "screenshot": {"type": "boolean"},
+                    "max_text_chars": {"type": "integer", "minimum": 1000},
+                    "max_links": {"type": "integer", "minimum": 0},
+                },
+                "required": ["url"],
+            },
+            safety="read",
+        ),
+        browser_extract_tool,
     )
     registry.register(
         ToolSpec(

@@ -27,6 +27,7 @@ from ai_os.providers.ollama import OllamaProvider
 from ai_os.providers.registry import ProviderRegistry
 from ai_os.storage import AppStorage
 from ai_os.telemetry import _parse_windows_gpu_payload
+from ai_os.web_access import WebAccess
 
 
 class FailingProvider(ProviderAdapter):
@@ -84,6 +85,35 @@ class JsonToolPlanProvider(EchoProvider):
             usage=ProviderUsage(input_tokens=5, output_tokens=5, total_tokens=10),
             latency_ms=1,
         )
+
+
+class FakeWebResponse:
+    def __init__(self, url: str, body: str, content_type: str = "text/html; charset=utf-8", status_code: int = 200):
+        self.url = url
+        self.content = body.encode("utf-8")
+        self.headers = {"content-type": content_type}
+        self.status_code = status_code
+
+
+def install_fake_web(monkeypatch, routes: dict[str, str]) -> None:
+    class Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            url_text = str(url)
+            body = routes.get(url_text)
+            if body is None:
+                body = next((value for key, value in routes.items() if url_text.startswith(key)), "")
+            return FakeWebResponse(url_text, body)
+
+    monkeypatch.setattr("ai_os.web_access.httpx.AsyncClient", Client)
 
 
 def make_router(tmp_path) -> tuple[InferenceRouter, AppStorage, ProviderRegistry]:
@@ -251,6 +281,123 @@ def test_image_file_command_writes_to_configured_desktop_when_confirmed(monkeypa
     assert image_path.parent == export_dir.resolve()
     assert image_path.name == "ai-cat.png"
     assert image_path.read_bytes().startswith(b"\x89PNG")
+
+
+def test_web_tools_are_registered_and_visible_as_capabilities(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        tools = client.get("/api/ai/tools").json()["tools"]
+        capabilities = client.get("/api/ai/capabilities").json()["capabilities"]
+
+    tool_ids = {tool["id"] for tool in tools}
+    capability_ids = {capability["id"] for capability in capabilities}
+    assert {"web.search", "web.scrape", "browser.extract"}.issubset(tool_ids)
+    assert {"web.search", "web.scrape", "browser.extract"}.issubset(capability_ids)
+
+
+def test_web_scrape_command_extracts_text_links_and_logs(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://example.test/notes": """
+            <html>
+              <head><title>Research Notes</title><meta name="description" content="Course notes"></head>
+              <body><main><h1>Important update</h1><p>Graph theory deadline is Friday.</p>
+              <a href="/syllabus">Syllabus</a></main></body>
+            </html>
+            """,
+        },
+    )
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/command", json={"objective": "scrape https://example.test/notes"})
+
+    body = response.json()
+    result = body["tool_calls"][0]["result"]
+    assert response.status_code == 200
+    assert body["tool_calls"][0]["tool_id"] == "web.scrape"
+    assert body["tool_calls"][0]["ok"] is True
+    assert result["title"] == "Research Notes"
+    assert "Graph theory deadline is Friday" in result["text"]
+    assert result["links"][0]["url"] == "https://example.test/syllabus"
+
+
+def test_web_search_command_returns_results(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://duckduckgo.com/html/": """
+            <html><body>
+              <div class="result">
+                <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.com%2Fdiscrete">Discrete math guide</a>
+                <a class="result__snippet">Sets, proofs, and graphs.</a>
+              </div>
+            </body></html>
+            """,
+        },
+    )
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/command", json={"objective": "search the web for discrete math"})
+
+    result = response.json()["tool_calls"][0]["result"]
+    assert response.status_code == 200
+    assert response.json()["tool_calls"][0]["tool_id"] == "web.search"
+    assert result["result_count"] == 1
+    assert result["results"][0]["title"] == "Discrete math guide"
+    assert result["results"][0]["url"] == "https://example.com/discrete"
+
+
+@pytest.mark.asyncio
+async def test_web_scraper_blocks_private_hosts_by_default(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False)
+    web = WebAccess(settings)
+
+    with pytest.raises(ValueError, match="Private/local"):
+        await web.scrape("http://127.0.0.1:8791/private")
+
+
+def test_browser_extract_command_falls_back_to_http_scraper(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://example.test/app": """
+            <html><head><title>Rendered fallback</title></head>
+            <body><p>Browser fallback content.</p></body></html>
+            """,
+        },
+    )
+
+    async def unavailable_browser(*args, **kwargs):
+        raise RuntimeError("headless browser unavailable")
+
+    monkeypatch.setattr("ai_os.web_access.WebAccess._extract_with_browser", unavailable_browser)
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/command", json={"objective": "open https://example.test/app in browser"})
+
+    result = response.json()["tool_calls"][0]["result"]
+    assert response.status_code == 200
+    assert response.json()["tool_calls"][0]["tool_id"] == "browser.extract"
+    assert result["mode"] == "http-fallback"
+    assert result["browser_available"] is False
+    assert "Browser fallback content" in result["text"]
 
 
 def test_design_patch_endpoint_stores_unified_diff(tmp_path):
