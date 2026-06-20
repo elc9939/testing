@@ -42,7 +42,7 @@ local API services to be running on the same machine:
 The Svelte app under `apps/hub` provides these main pages:
 
 - Today dashboard: command-center cockpit with a real attention queue derived from
-  calendar, Gmail, career, study, and local sync/service signals.
+  calendar, Gmail, career, study, local sync/service signals, and capability health.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls.
@@ -60,6 +60,11 @@ Today should show what needs attention, AI OS should become the intelligence/cap
 layer, Macro Lab should be the local action layer, Career and Study should become connected
 workflow systems, and the legacy games should remain available as playground/lab surfaces
 rather than the main identity of the app.
+
+The hub now has a browser-side Capability Registry v1. It normalizes existing service
+status from the Mini Hub API, AI OS, Macro Lab, Google connection state, and the local
+offline cache into one machine capability snapshot. Today uses that snapshot to show what
+is ready, running, needs setup, degraded, blocked, or offline without inventing fake data.
 
 ### Personal Data And Sync
 

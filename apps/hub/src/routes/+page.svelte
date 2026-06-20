@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
+    Activity,
     ArrowRight,
     BriefcaseBusiness,
     CalendarClock,
@@ -11,6 +12,13 @@
   import { launcherEntries, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
   import { attentionKindLabel, buildAttentionItems, type AttentionItem } from '$lib/attention';
+  import {
+    loadCapabilityRegistry,
+    selectCapabilityIssues,
+    type CapabilityRegistryEntry,
+    type CapabilityRegistrySnapshot,
+    type CapabilityState
+  } from '$lib/capability-registry';
   import { clientData } from '$lib/client-data';
   import { hubHref } from '$lib/routes';
   import {
@@ -35,6 +43,10 @@
   let visibleAgenda: CalendarEvent[] = [];
   let nextEvent: CalendarEvent | null = null;
   let attentionItems: AttentionItem[] = [];
+  let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
+  let capabilityIssues: CapabilityRegistryEntry[] = [];
+  let capabilityLoading = false;
+  let capabilityError = '';
 
   $: googleConnections = connections.filter(
     (connection) => connection.provider === 'google' && connection.status === 'connected'
@@ -55,6 +67,7 @@
     careerActions: $clientData.careerActions,
     studySessions: $clientData.studySessions
   }).slice(0, 8);
+  $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 4);
   $: applyQueue = $clientData.jobs
     .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
     .sort((a, b) => (a.nextActionAt ?? a.updatedAt).localeCompare(b.nextActionAt ?? b.updatedAt))
@@ -182,13 +195,40 @@
     return attentionKindLabel(item.kind);
   }
 
+  function capabilityStateLabel(state: CapabilityState): string {
+    if (state === 'needs_setup') return 'setup';
+    return state.replace('_', ' ');
+  }
+
+  function readyCapabilityCount(snapshot: CapabilityRegistrySnapshot): number {
+    return snapshot.summary.ready + snapshot.summary.running;
+  }
+
+  async function refreshCapabilities(nextGoogleConnected = googleConnected): Promise<void> {
+    capabilityLoading = true;
+    capabilityError = '';
+    try {
+      capabilitySnapshot = await loadCapabilityRegistry({
+        isOnline: $clientData.isOnline,
+        syncStatus: $clientData.status,
+        syncError: $clientData.error,
+        googleConnected: nextGoogleConnected
+      });
+    } catch (error) {
+      capabilityError = error instanceof Error ? error.message : 'Capability registry failed to load.';
+    } finally {
+      capabilityLoading = false;
+    }
+  }
+
   async function refreshDashboard(): Promise<void> {
     dashboardLoading = true;
     dashboardError = '';
+    let hasGoogle = googleConnected;
     try {
       const nextConnections = await getConnections();
       connections = nextConnections;
-      const hasGoogle = nextConnections.some(
+      hasGoogle = nextConnections.some(
         (connection) => connection.provider === 'google' && connection.status === 'connected'
       );
       if (hasGoogle) {
@@ -223,6 +263,7 @@
       dashboardError = error instanceof Error ? error.message : 'Today dashboard failed to load.';
     } finally {
       dashboardLoading = false;
+      void refreshCapabilities(hasGoogle);
     }
   }
 
@@ -273,8 +314,8 @@
     <strong>{agendaEvents.length}</strong>
   </div>
   <div>
-    <span>Important mail</span>
-    <strong>{importantMail.length}</strong>
+    <span>Capabilities ready</span>
+    <strong>{capabilitySnapshot ? `${readyCapabilityCount(capabilitySnapshot)}/${capabilitySnapshot.summary.total}` : capabilityLoading ? '...' : '0'}</strong>
   </div>
 </section>
 
@@ -411,6 +452,57 @@
         </div>
       {:else}
         <p class="empty-note">No mail was important enough for the home view. Good, honestly.</p>
+      {/if}
+    </article>
+
+    <article class="card panel capability-health-panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Activity size={16} /></span>
+          <strong>Capability Health</strong>
+        </div>
+        <a class="button compact" href={hubHref('/settings')}>
+          <span>Fix</span>
+          <ArrowRight size={15} />
+        </a>
+      </div>
+
+      {#if capabilitySnapshot}
+        <div class="capability-summary">
+          <div>
+            <strong>{readyCapabilityCount(capabilitySnapshot)}/{capabilitySnapshot.summary.total}</strong>
+            <span>usable now</span>
+          </div>
+          <div>
+            <strong>{capabilitySnapshot.summary.localReady}</strong>
+            <span>local ready</span>
+          </div>
+          <div>
+            <strong>{capabilitySnapshot.summary.offline + capabilitySnapshot.summary.degraded + capabilitySnapshot.summary.blocked}</strong>
+            <span>need repair</span>
+          </div>
+        </div>
+        {#if capabilityIssues.length}
+          <div class="capability-issue-list">
+            {#each capabilityIssues as capability}
+              <a class="capability-issue-row" href={hubHref(capability.route)}>
+                <span class={`capability-state ${capability.state}`}>{capabilityStateLabel(capability.state)}</span>
+                <span>
+                  <strong>{capability.label}</strong>
+                  <small>{capability.lastError ?? capability.description}</small>
+                </span>
+              </a>
+            {/each}
+          </div>
+        {:else}
+          <p class="empty-note">Core services look ready. The machine is in a usable state.</p>
+        {/if}
+      {:else if capabilityLoading}
+        <p class="empty-note">Checking local services and providers...</p>
+      {:else if capabilityError}
+        <p class="empty-note">{capabilityError}</p>
+      {:else}
+        <p class="empty-note">Capability status has not been checked yet.</p>
       {/if}
     </article>
 
@@ -767,6 +859,109 @@
   .reason {
     grid-column: 2 / 4;
     font-size: 12px;
+  }
+
+  .capability-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .capability-summary div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px;
+    border-right: 1px solid var(--border);
+  }
+
+  .capability-summary div:last-child {
+    border-right: 0;
+  }
+
+  .capability-summary strong {
+    overflow: hidden;
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .capability-summary span {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .capability-issue-list {
+    display: grid;
+  }
+
+  .capability-issue-row {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-height: 54px;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .capability-issue-row:hover {
+    background: var(--active);
+  }
+
+  .capability-issue-row > span:last-child {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .capability-issue-row strong,
+  .capability-issue-row small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .capability-issue-row small {
+    color: var(--muted);
+  }
+
+  .capability-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 64px;
+    min-height: 22px;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .capability-state.offline,
+  .capability-state.blocked {
+    border-color: var(--danger-border);
+    color: var(--danger-text);
+    background: var(--danger-bg);
+  }
+
+  .capability-state.degraded,
+  .capability-state.needs_setup {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
   }
 
   .career-row {

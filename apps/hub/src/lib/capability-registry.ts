@@ -1,0 +1,411 @@
+import { getHealth } from './api';
+import { getAiStatus, type AiCapabilityStatus, type AiProviderStatus, type AiStatus } from './ai-os-api';
+import { getMacroStatus, type MacroStatus } from './macro-lab-api';
+
+export type CapabilityState = 'ready' | 'running' | 'degraded' | 'needs_setup' | 'offline' | 'blocked';
+export type CapabilityService = 'hub' | 'productivity' | 'ai-os' | 'macro-lab' | 'browser';
+export type CapabilityLocality = 'local' | 'cloud' | 'hybrid' | 'browser';
+export type CapabilityCost = 'free' | 'paid' | 'mixed' | 'unknown';
+export type CapabilitySafety = 'read' | 'write' | 'system' | 'destructive';
+
+export interface CapabilityRegistryEntry {
+  id: string;
+  label: string;
+  description: string;
+  service: CapabilityService;
+  state: CapabilityState;
+  available: boolean;
+  locality: CapabilityLocality;
+  cost: CapabilityCost;
+  safety: CapabilitySafety;
+  route: string;
+  requiredService?: string;
+  lastError?: string;
+  metrics?: Record<string, string | number | boolean>;
+  tags?: string[];
+}
+
+export interface CapabilityRegistrySnapshot {
+  checkedAt: string;
+  capabilities: CapabilityRegistryEntry[];
+  summary: {
+    total: number;
+    ready: number;
+    running: number;
+    degraded: number;
+    needsSetup: number;
+    offline: number;
+    blocked: number;
+    localReady: number;
+    paidReady: number;
+  };
+}
+
+export interface CapabilityRegistryInput {
+  checkedAt?: string;
+  isOnline: boolean;
+  syncStatus: 'idle' | 'syncing' | 'offline-readonly' | 'error';
+  syncError?: string;
+  googleConnected: boolean;
+  hubHealth?: { ok: boolean; service: string };
+  hubError?: string;
+  aiStatus?: AiStatus;
+  aiError?: string;
+  macroStatus?: MacroStatus;
+  macroError?: string;
+}
+
+export interface LoadCapabilityRegistryInput {
+  isOnline: boolean;
+  syncStatus: CapabilityRegistryInput['syncStatus'];
+  syncError?: string;
+  googleConnected: boolean;
+}
+
+export async function loadCapabilityRegistry(input: LoadCapabilityRegistryInput): Promise<CapabilityRegistrySnapshot> {
+  const [hub, ai, macro] = await Promise.allSettled([getHealth(), getAiStatus(), getMacroStatus()]);
+  return buildCapabilityRegistry({
+    ...input,
+    hubHealth: hub.status === 'fulfilled' ? hub.value : undefined,
+    hubError: hub.status === 'rejected' ? errorMessage(hub.reason) : undefined,
+    aiStatus: ai.status === 'fulfilled' ? ai.value : undefined,
+    aiError: ai.status === 'rejected' ? errorMessage(ai.reason) : undefined,
+    macroStatus: macro.status === 'fulfilled' ? macro.value : undefined,
+    macroError: macro.status === 'rejected' ? errorMessage(macro.reason) : undefined
+  });
+}
+
+export function buildCapabilityRegistry(input: CapabilityRegistryInput): CapabilityRegistrySnapshot {
+  const capabilities: CapabilityRegistryEntry[] = [];
+
+  capabilities.push({
+    id: 'browser.offline-cache',
+    label: 'Offline cache',
+    description: input.isOnline ? 'Browser cache is available for local-first reads.' : 'Browser is offline; cached records stay visible read-only.',
+    service: 'browser',
+    state: input.syncStatus === 'error' ? 'degraded' : ['offline-readonly', 'syncing'].includes(input.syncStatus) ? 'running' : 'ready',
+    available: input.syncStatus !== 'error',
+    locality: 'browser',
+    cost: 'free',
+    safety: 'read',
+    route: '/settings',
+    requiredService: 'PGlite',
+    lastError: input.syncError || undefined,
+    tags: ['local-first', 'sync']
+  });
+
+  capabilities.push({
+    id: 'hub.api',
+    label: 'Mini Hub API',
+    description: 'Personal data, sync, career/study records, game state, and Google integration API.',
+    service: 'hub',
+    state: input.hubHealth?.ok ? 'ready' : 'offline',
+    available: Boolean(input.hubHealth?.ok),
+    locality: 'local',
+    cost: 'free',
+    safety: 'write',
+    route: '/settings',
+    requiredService: 'Mini Hub API',
+    lastError: input.hubError,
+    tags: ['sync', 'data']
+  });
+
+  capabilities.push({
+    id: 'productivity.google',
+    label: 'Google productivity',
+    description: 'Calendar and Gmail workflows for agenda, mail triage, and timeline signals.',
+    service: 'productivity',
+    state: input.googleConnected ? 'ready' : 'needs_setup',
+    available: input.googleConnected,
+    locality: 'cloud',
+    cost: 'free',
+    safety: 'write',
+    route: '/productivity',
+    requiredService: 'Mini Hub API + Google OAuth',
+    tags: ['calendar', 'gmail']
+  });
+
+  addAiCapabilities(capabilities, input.aiStatus, input.aiError);
+  addMacroCapabilities(capabilities, input.macroStatus, input.macroError);
+
+  return summarizeCapabilities(input.checkedAt ?? new Date().toISOString(), capabilities);
+}
+
+export function selectCapabilityIssues(snapshot: CapabilityRegistrySnapshot | null, limit = 5): CapabilityRegistryEntry[] {
+  if (!snapshot) return [];
+  return snapshot.capabilities
+    .filter((capability) => capability.state !== 'ready' && capability.state !== 'running')
+    .sort((a, b) => stateIssueRank(b.state) - stateIssueRank(a.state) || a.label.localeCompare(b.label))
+    .slice(0, limit);
+}
+
+function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiStatus | undefined, error: string | undefined): void {
+  const providers = status?.providers ?? [];
+  const localProviders = providers.filter((provider) => provider.local);
+  const paidProviders = providers.filter((provider) => provider.paid);
+  const availableLocal = localProviders.filter((provider) => provider.available);
+  const availablePaid = paidProviders.filter((provider) => provider.available);
+  const runningJobs = status?.jobs.filter((job) => ['queued', 'running'].includes(job.status)).length ?? 0;
+
+  capabilities.push({
+    id: 'ai-os.service',
+    label: 'AI OS API',
+    description: 'Model routing, jobs, memory, agents, media generation, backups, and telemetry.',
+    service: 'ai-os',
+    state: status ? 'ready' : 'offline',
+    available: Boolean(status),
+    locality: 'local',
+    cost: 'free',
+    safety: 'system',
+    route: '/ai-os',
+    requiredService: 'AI OS API',
+    lastError: error,
+    metrics: status
+      ? {
+          providers: providers.length,
+          tools: status.tools.length,
+          jobs: status.jobs.length
+        }
+      : undefined,
+    tags: ['ai', 'service']
+  });
+
+  capabilities.push({
+    id: 'ai.local-llm',
+    label: 'Local LLM route',
+    description: 'Private/free local inference through Ollama or compatible local model servers.',
+    service: 'ai-os',
+    state: status ? (availableLocal.length ? 'ready' : localProviders.length ? 'degraded' : 'needs_setup') : 'offline',
+    available: Boolean(availableLocal.length),
+    locality: 'local',
+    cost: 'free',
+    safety: 'read',
+    route: '/ai-os',
+    requiredService: 'Ollama or local OpenAI-compatible server',
+    lastError: firstProviderError(localProviders),
+    metrics: { ready: availableLocal.length, configured: localProviders.length },
+    tags: ['ai', 'local']
+  });
+
+  capabilities.push({
+    id: 'ai.paid-fallback',
+    label: 'Paid API fallback',
+    description: 'Optional frontier/provider API routes for harder or longer-context requests.',
+    service: 'ai-os',
+    state: status ? (availablePaid.length ? 'ready' : paidProviders.length ? 'needs_setup' : 'needs_setup') : 'offline',
+    available: Boolean(availablePaid.length),
+    locality: 'cloud',
+    cost: 'paid',
+    safety: 'read',
+    route: '/ai-os',
+    requiredService: 'OpenAI/Anthropic/specialist API key',
+    lastError: firstProviderError(paidProviders),
+    metrics: { ready: availablePaid.length, configured: paidProviders.length },
+    tags: ['ai', 'fallback']
+  });
+
+  capabilities.push({
+    id: 'ai.jobs',
+    label: 'AI job queue',
+    description: 'Long-running and many-call jobs for map, retry, summarize, benchmark, and background work.',
+    service: 'ai-os',
+    state: status ? (runningJobs ? 'running' : 'ready') : 'offline',
+    available: Boolean(status),
+    locality: 'local',
+    cost: 'mixed',
+    safety: 'system',
+    route: '/ai-os',
+    requiredService: 'AI OS API',
+    metrics: { running: runningJobs, total: status?.jobs.length ?? 0 },
+    tags: ['queue', 'background']
+  });
+
+  const memory = findAiCapability(status, 'memory.embedding');
+  capabilities.push(
+    aiCapabilityEntry(
+      'ai.memory',
+      'Semantic memory',
+      'Local RAG ingest, embeddings, and semantic search for personal data.',
+      memory,
+      Boolean(status),
+      '/ai-os'
+    )
+  );
+
+  const image = findAiCapability(status, 'multimodal.image');
+  const audio = findAiCapability(status, 'multimodal.audio');
+  const video = findAiCapability(status, 'multimodal.video');
+  const anyMedia = [image, audio, video].filter(Boolean) as AiCapabilityStatus[];
+  const mediaReady = anyMedia.some((capability) => capability.available);
+  capabilities.push({
+    id: 'ai.media',
+    label: 'Media generation',
+    description: 'Image, audio, and video generation adapters behind one AI OS interface.',
+    service: 'ai-os',
+    state: status ? (mediaReady ? 'ready' : 'needs_setup') : 'offline',
+    available: mediaReady,
+    locality: 'hybrid',
+    cost: 'mixed',
+    safety: 'write',
+    route: '/ai-os',
+    requiredService: 'AI OS media adapter',
+    lastError: firstCapabilityError(anyMedia),
+    metrics: { ready: anyMedia.filter((capability) => capability.available).length, configured: anyMedia.length },
+    tags: ['media', 'multimodal']
+  });
+
+  const hardware = status?.hardware;
+  const telemetryReady = Boolean(
+    hardware &&
+      !hardware.error &&
+      (typeof hardware.cpu_percent === 'number' || typeof hardware.memory_percent === 'number' || hardware.gpus.length)
+  );
+  capabilities.push({
+    id: 'machine.telemetry',
+    label: 'Machine telemetry',
+    description: 'CPU, RAM, GPU, VRAM, loaded model, and token-speed signals for routing and benchmarks.',
+    service: 'ai-os',
+    state: status ? (telemetryReady ? 'ready' : 'degraded') : 'offline',
+    available: telemetryReady,
+    locality: 'local',
+    cost: 'free',
+    safety: 'read',
+    route: '/ai-os',
+    requiredService: 'AI OS telemetry',
+    lastError: hardware?.error,
+    metrics: {
+      gpus: hardware?.gpus.length ?? 0,
+      loadedModels: hardware?.loaded_models?.length ?? 0
+    },
+    tags: ['machine', 'gpu']
+  });
+}
+
+function addMacroCapabilities(capabilities: CapabilityRegistryEntry[], status: MacroStatus | undefined, error: string | undefined): void {
+  capabilities.push({
+    id: 'macro-lab.service',
+    label: 'Macro Lab API',
+    description: 'Local Windows automation daemon for macros, triggers, input, windows, files, clipboard, and shell actions.',
+    service: 'macro-lab',
+    state: status ? (status.engine.panic ? 'blocked' : 'ready') : 'offline',
+    available: Boolean(status && !status.engine.panic),
+    locality: 'local',
+    cost: 'free',
+    safety: 'system',
+    route: '/macro-lab',
+    requiredService: 'Macro Lab API',
+    lastError: error,
+    metrics: status ? { running: status.engine.running, actions: status.engine.action_count } : undefined,
+    tags: ['automation', 'windows']
+  });
+
+  capabilities.push({
+    id: 'macro.automation',
+    label: 'Local automation',
+    description: 'Run and dry-run macros with panic protection, confirmations, trigger plumbing, and run history.',
+    service: 'macro-lab',
+    state: status ? (status.engine.panic ? 'blocked' : status.engine.running ? 'running' : 'ready') : 'offline',
+    available: Boolean(status && !status.engine.panic),
+    locality: 'local',
+    cost: 'free',
+    safety: 'system',
+    route: '/macro-lab',
+    requiredService: 'Macro Lab API',
+    metrics: status ? { running: status.engine.running, capabilities: status.capabilities.filter((item) => item.available).length } : undefined,
+    tags: ['automation', 'macros']
+  });
+
+  for (const capability of status?.capabilities ?? []) {
+    capabilities.push({
+      id: `macro.platform.${capability.id}`,
+      label: `Macro ${capability.id}`,
+      description: capability.detail,
+      service: 'macro-lab',
+      state: capability.available ? 'ready' : 'degraded',
+      available: capability.available,
+      locality: 'local',
+      cost: 'free',
+      safety: 'system',
+      route: '/macro-lab',
+      requiredService: 'Macro Lab platform adapter',
+      tags: ['automation', capability.id]
+    });
+  }
+}
+
+function aiCapabilityEntry(
+  id: string,
+  label: string,
+  description: string,
+  capability: AiCapabilityStatus | undefined,
+  serviceReachable: boolean,
+  route: string
+): CapabilityRegistryEntry {
+  return {
+    id,
+    label,
+    description,
+    service: 'ai-os',
+    state: serviceReachable ? (capability?.available ? 'ready' : 'needs_setup') : 'offline',
+    available: Boolean(capability?.available),
+    locality: 'local',
+    cost: 'free',
+    safety: 'read',
+    route,
+    requiredService: 'AI OS capability adapter',
+    lastError: capability?.error,
+    metrics: capability ? { adapters: capability.adapters.length, enabled: capability.enabled } : undefined,
+    tags: ['ai']
+  };
+}
+
+function summarizeCapabilities(checkedAt: string, capabilities: CapabilityRegistryEntry[]): CapabilityRegistrySnapshot {
+  const summary = {
+    total: capabilities.length,
+    ready: capabilities.filter((capability) => capability.state === 'ready').length,
+    running: capabilities.filter((capability) => capability.state === 'running').length,
+    degraded: capabilities.filter((capability) => capability.state === 'degraded').length,
+    needsSetup: capabilities.filter((capability) => capability.state === 'needs_setup').length,
+    offline: capabilities.filter((capability) => capability.state === 'offline').length,
+    blocked: capabilities.filter((capability) => capability.state === 'blocked').length,
+    localReady: capabilities.filter((capability) => capability.available && capability.locality === 'local').length,
+    paidReady: capabilities.filter((capability) => capability.available && capability.cost === 'paid').length
+  };
+  return { checkedAt, capabilities: capabilities.sort(compareCapabilities), summary };
+}
+
+function compareCapabilities(a: CapabilityRegistryEntry, b: CapabilityRegistryEntry): number {
+  const serviceOrder: Record<CapabilityService, number> = {
+    hub: 0,
+    browser: 1,
+    productivity: 2,
+    'ai-os': 3,
+    'macro-lab': 4
+  };
+  return serviceOrder[a.service] - serviceOrder[b.service] || a.label.localeCompare(b.label);
+}
+
+function stateIssueRank(state: CapabilityState): number {
+  if (state === 'offline') return 6;
+  if (state === 'blocked') return 5;
+  if (state === 'degraded') return 4;
+  if (state === 'needs_setup') return 3;
+  if (state === 'running') return 2;
+  return 1;
+}
+
+function findAiCapability(status: AiStatus | undefined, id: string): AiCapabilityStatus | undefined {
+  return status?.capabilities.find((capability) => capability.id === id);
+}
+
+function firstProviderError(providers: AiProviderStatus[]): string | undefined {
+  return providers.find((provider) => provider.error)?.error;
+}
+
+function firstCapabilityError(capabilities: AiCapabilityStatus[]): string | undefined {
+  return capabilities.find((capability) => capability.error)?.error;
+}
+
+function errorMessage(value: unknown): string {
+  return value instanceof Error ? value.message : String(value || 'unavailable');
+}
