@@ -53,7 +53,8 @@ The Svelte app under `apps/hub` provides these main pages:
 - AI OS: capability dashboard for local AI, tools, memory, jobs, agents, media, health,
   backups, telemetry, and web/browser access.
 - Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
-- Settings: endpoint configuration, theme, sync status, legacy import/export, dark mode.
+- Settings: service and machine control, capability health, endpoint configuration, theme,
+  sync status, legacy import/export, dark mode.
 
 The product direction is intentionally shifting toward a unified local-first Personal AI OS:
 Today should show what needs attention, AI OS should become the intelligence/capability
@@ -65,6 +66,8 @@ The hub now has a browser-side Capability Registry v1. It normalizes existing se
 status from the Mini Hub API, AI OS, Macro Lab, Google connection state, and the local
 offline cache into one machine capability snapshot. Today uses that snapshot to show what
 is ready, running, needs setup, degraded, blocked, or offline without inventing fake data.
+Settings uses the same snapshot as the service control surface, with per-service health
+links and routes into the panels that can fix or inspect each capability.
 
 ### Personal Data And Sync
 

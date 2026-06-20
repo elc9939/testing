@@ -151,6 +151,14 @@ export function capabilityStateLabel(state: CapabilityState): string {
   return state.replace('_', ' ');
 }
 
+export function capabilityServiceLabel(service: CapabilityService): string {
+  if (service === 'hub') return 'Mini Hub API';
+  if (service === 'productivity') return 'Productivity';
+  if (service === 'ai-os') return 'AI OS';
+  if (service === 'macro-lab') return 'Macro Lab';
+  return 'Browser Cache';
+}
+
 export function compactCapabilityRegistryContext(snapshot: CapabilityRegistrySnapshot, limit = 8): CompactCapabilityRegistryContext {
   return {
     checkedAt: snapshot.checkedAt,

@@ -3,6 +3,7 @@ import type { AiStatus } from './ai-os-api';
 import type { MacroStatus } from './macro-lab-api';
 import {
   buildCapabilityRegistry,
+  capabilityServiceLabel,
   compactCapabilityRegistryContext,
   formatCapabilityRegistrySummary,
   selectCapabilityIssues
@@ -102,6 +103,7 @@ describe('capability registry', () => {
     expect(snapshot.capabilities.find((capability) => capability.id === 'ai.local-llm')?.state).toBe('ready');
     expect(snapshot.capabilities.find((capability) => capability.id === 'macro.automation')?.state).toBe('ready');
     expect(snapshot.capabilities.find((capability) => capability.id === 'productivity.google')?.state).toBe('ready');
+    expect(capabilityServiceLabel('ai-os')).toBe('AI OS');
   });
 
   it('keeps setup needs separate from offline service failures', () => {
