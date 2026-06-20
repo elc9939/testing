@@ -66,6 +66,21 @@
     type AiUsageEntry
   } from '$lib/ai-os-api';
 
+  interface PlainCapability {
+    id: string;
+    label: string;
+    detail: string;
+    available: boolean;
+    state: string;
+  }
+
+  const commandExamples = [
+    'Summarize my current AI OS status and tell me what is ready to use.',
+    'Search memory for local AI notes and give me the useful bits.',
+    'Add a 25 minute study session for linear algebra.',
+    'List my available macros before running anything.'
+  ];
+
   let status: AiStatus | null = null;
   let usage: AiUsageEntry[] = [];
   let jobs: AiJobSnapshot[] = [];
@@ -132,6 +147,8 @@
   $: providerOptions = providers.map((provider) => provider.id);
   $: hardware = status?.hardware;
   $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
+  $: plainCapabilities = buildPlainCapabilities(status);
+  $: autoRouteText = autoRouteSummary(status);
   $: mediaProviderOptions = multimodalProviderOptions(status);
   $: connectedLocalAiOsHref = localConnectedAiOsHref();
 
@@ -219,6 +236,111 @@
     if (typeof value === 'string') return value;
     if (value === null || value === undefined) return 'n/a';
     return stringify(value);
+  }
+
+  function hasCapability(nextStatus: AiStatus | null, id: string): boolean {
+    return Boolean(nextStatus?.capabilities.find((capability) => capability.id === id)?.available);
+  }
+
+  function buildPlainCapabilities(nextStatus: AiStatus | null): PlainCapability[] {
+    const anyProvider = Boolean(nextStatus?.providers.some((provider) => provider.available));
+    const anyTool = Boolean(nextStatus?.tools.length);
+    return [
+      {
+        id: 'ask',
+        label: 'Ask for help or answers',
+        detail: 'Chat, summarize, rewrite, classify, reason, and stream answers.',
+        available: anyProvider,
+        state: anyProvider ? 'Ready' : 'Needs Ollama or an API'
+      },
+      {
+        id: 'act',
+        label: 'Use the app for you',
+        detail: 'Search memory, check Hub status, add study sessions, add career jobs, and run macros with confirmation.',
+        available: anyProvider && anyTool,
+        state: anyProvider && anyTool ? 'Ready' : 'Needs AI OS service'
+      },
+      {
+        id: 'memory',
+        label: 'Search your local memory',
+        detail: 'Ingest notes and retrieve related chunks for other AI tasks.',
+        available: hasCapability(nextStatus, 'memory.embedding'),
+        state: hasCapability(nextStatus, 'memory.embedding') ? 'Ready' : 'Needs embedding model'
+      },
+      {
+        id: 'media',
+        label: 'Generate images, audio, or video',
+        detail: 'Create local gallery artifacts or use paid/specialist adapters when configured.',
+        available:
+          hasCapability(nextStatus, 'multimodal.image') ||
+          hasCapability(nextStatus, 'multimodal.audio') ||
+          hasCapability(nextStatus, 'multimodal.video'),
+        state:
+          hasCapability(nextStatus, 'multimodal.image') ||
+          hasCapability(nextStatus, 'multimodal.audio') ||
+          hasCapability(nextStatus, 'multimodal.video')
+            ? 'Ready'
+            : 'Needs media adapter'
+      },
+      {
+        id: 'voice',
+        label: 'Speak or transcribe',
+        detail: 'Text-to-speech and speech-to-text become available when Piper, Whisper, or OpenAI audio is configured.',
+        available: hasCapability(nextStatus, 'multimodal.audio_tts') || hasCapability(nextStatus, 'multimodal.audio_stt'),
+        state:
+          hasCapability(nextStatus, 'multimodal.audio_tts') || hasCapability(nextStatus, 'multimodal.audio_stt')
+            ? 'Ready'
+            : 'Optional setup'
+      },
+      {
+        id: 'measure',
+        label: 'Test what this PC can do',
+        detail: 'Run benchmarks while watching CPU, RAM, GPU, latency, and tokens/sec.',
+        available: anyProvider,
+        state: anyProvider ? 'Ready' : 'Needs a model'
+      }
+    ];
+  }
+
+  function autoRouteSummary(nextStatus: AiStatus | null): string {
+    if (!nextStatus) return 'Auto mode will use the best reachable route, local first, as soon as status finishes loading.';
+    const available = nextStatus.providers.filter((provider) => provider.available);
+    const local = available.filter((provider) => provider.local).map((provider) => provider.label);
+    const paid = available.filter((provider) => provider.paid).map((provider) => provider.label);
+    if (local.length) return `Auto mode will try local first: ${local.join(', ')}${paid.length ? `; paid fallback: ${paid.join(', ')}` : ''}.`;
+    if (paid.length) return `No local provider is reachable, so auto mode can use paid fallback: ${paid.join(', ')}.`;
+    return 'No model provider is reachable yet.';
+  }
+
+  function useCommandExample(example: string): void {
+    commandObjective = example;
+  }
+
+  function toolLabel(toolId: string): string {
+    return status?.tools.find((tool) => tool.id === toolId)?.label ?? toolId;
+  }
+
+  function summarizeCommandResult(value: Record<string, unknown>): string {
+    const result = value.result && typeof value.result === 'object' ? (value.result as Record<string, unknown>) : {};
+    const statusText = typeof result.status === 'string' ? result.status.replace(/_/gu, ' ') : 'finished';
+    const output = typeof result.output === 'string' && result.output.trim() ? result.output.trim() : '';
+    const calls = Array.isArray(value.tool_calls) ? value.tool_calls : [];
+    const lines = [`Status: ${statusText}`];
+    if (output) lines.push('', output);
+    if (calls.length) lines.push('', `Actions used: ${calls.length}`);
+    if (!output && !calls.length) lines.push('', 'No app action was needed.');
+    return lines.join('\n');
+  }
+
+  function summarizeMediaResult(result: Record<string, unknown>, kind: string): string {
+    const provider = typeof result.provider === 'string' ? result.provider : multimodalProvider || 'auto';
+    const model = typeof result.model === 'string' ? result.model : '';
+    const contentType = typeof result.content_type === 'string' ? result.content_type : '';
+    const asset = result.asset && typeof result.asset === 'object' ? (result.asset as Record<string, unknown>) : {};
+    const lines = [`Created ${kind.replace('audio_', '').replace('_', ' ')} with ${provider}${model ? ` (${model})` : ''}.`];
+    if (contentType) lines.push(`Format: ${contentType}.`);
+    if (typeof asset.id === 'string') lines.push('Saved to the local generation gallery.');
+    return lines.join('\n');
   }
 
   async function refresh(): Promise<void> {
@@ -455,7 +577,7 @@
         max_steps: 4,
         context: { source: 'ai-os-dashboard' }
       });
-      commandResult = stringify(result);
+      commandResult = summarizeCommandResult(result);
       toolCalls = await listToolCalls(30);
     } catch (error) {
       setError(error, 'Command failed.');
@@ -528,7 +650,7 @@
         video_base64: videoBase64 || undefined
       });
       multimodalPreview = mediaPreview(result, multimodalKind);
-      multimodalResult = stringify(redactMediaPayloads(result));
+      multimodalResult = summarizeMediaResult(redactMediaPayloads(result) as Record<string, unknown>, multimodalKind);
       generationAssets = await listGenerationAssets(24);
     } catch (error) {
       setError(error, 'Multimodal invocation failed.');
@@ -582,7 +704,7 @@
 <section class="page-header">
   <div>
     <p class="eyebrow">Personal AI OS</p>
-    <h1>Capability Console</h1>
+    <h1>Ask AI OS</h1>
   </div>
   <button class="button" type="button" disabled={loading} on:click={refresh}>
     <RefreshCw size={17} />
@@ -611,17 +733,51 @@
 
 <section class="card card-pad plain-guide">
   <div>
-    <strong>What this page is</strong>
-    <p>AI OS is the control room for the local/API AI stack: providers, routed inference, jobs, memory, agents, tools, media adapters, benchmarks, health, and backups.</p>
+    <strong>Say what you want</strong>
+    <p>Ask in normal language. AI OS chooses the strongest reachable route for the request, prioritizing local models before paid APIs.</p>
   </div>
   <div>
-    <strong>Easier path</strong>
-    <p>Use the side assistant for normal-language requests. It opens pages, checks status, summarizes cached hub data, and sends tool-backed commands here when needed.</p>
+    <strong>It can use the app</strong>
+    <p>It can read status, search memory, add study or career records, and run macros. Anything that changes data or controls Windows asks first.</p>
   </div>
   <div>
-    <strong>Safety model</strong>
-    <p>Read-only actions can run directly. Writes, macro runs, and design changes require explicit confirmation before they change your app or machine.</p>
+    <strong>Power controls stay here</strong>
+    <p>The labs, benchmarks, provider logs, backups, and raw tools are still available below when you want to inspect the machinery.</p>
   </div>
+</section>
+
+<section class="card card-pad command-hero">
+  <div class="section-title">
+    <Zap size={18} />
+    <strong>What should it do?</strong>
+  </div>
+  <p class="auto-route-note">{autoRouteText}</p>
+  <div class="field">
+    <label for="command-objective">Request</label>
+    <textarea id="command-objective" bind:value={commandObjective} rows="4"></textarea>
+  </div>
+  <div class="example-row" aria-label="Example AI OS requests">
+    {#each commandExamples as example}
+      <button class="chip-button" type="button" on:click={() => useCommandExample(example)}>{example}</button>
+    {/each}
+  </div>
+  <label class="checkline" for="command-confirm">
+    <input id="command-confirm" type="checkbox" bind:checked={commandConfirm} />
+    <span>Allow confirmed write/system actions for this run</span>
+  </label>
+  <div class="action-row">
+    <button class="button primary" type="button" disabled={commandBusy} on:click={runCommandBar}>
+      <Play size={17} />
+      <span>{commandBusy ? 'Working' : 'Do it'}</span>
+    </button>
+    <button class="button" type="button" on:click={refresh}>
+      <RefreshCw size={17} />
+      <span>Refresh status</span>
+    </button>
+  </div>
+  {#if commandResult}
+    <pre class="friendly-result">{commandResult}</pre>
+  {/if}
 </section>
 
 <section class="metric-grid">
@@ -648,50 +804,105 @@
   </article>
 </section>
 
-<section class="grid two top-grid">
-  <div class="card card-pad providers-panel">
-    <div class="section-title">
-      <Cpu size={18} />
-      <strong>Providers</strong>
-    </div>
-    <div class="provider-list">
-      {#each providers as provider}
-        <article class:offline={!provider.available} class="provider-row">
-          <div>
-            <strong>{provider.label}</strong>
-            <span>{provider.local ? 'local' : provider.paid ? 'paid' : 'adapter'}</span>
-          </div>
-          <p>{provider.available ? `${provider.models.length} models` : provider.error}</p>
-          <small>{provider.capabilities.join(', ')}</small>
-        </article>
-      {:else}
-        <p class="muted">AI OS API is not reachable yet.</p>
-      {/each}
-    </div>
-  </div>
-
-  <div class="card card-pad capability-panel">
-    <div class="section-title">
-      <ListChecks size={18} />
-      <strong>Capabilities</strong>
-    </div>
-    <div class="capability-groups">
-      {#each capabilityGroups as group}
-        <div class="capability-group">
-          <span>{group.kind}</span>
-          {#each group.rows as capability}
-            <div class:off={!capability.available} class="capability-row">
-              <strong>{capability.label}</strong>
-              <small>{capability.available ? capability.adapters.join(', ') || capability.safety : 'unavailable'}</small>
-            </div>
-          {/each}
-        </div>
-      {/each}
-    </div>
-  </div>
+<section class="capability-showcase" aria-label="AI OS things you can do">
+  {#each plainCapabilities as capability}
+    <article class:ready={capability.available} class="card card-pad capability-card">
+      <div>
+        <strong>{capability.label}</strong>
+        <span>{capability.state}</span>
+      </div>
+      <p>{capability.detail}</p>
+    </article>
+  {/each}
 </section>
 
-<section class="grid two work-grid">
+<details class="card card-pad advanced-status">
+  <summary>
+    <span>Advanced details</span>
+    <small>Providers, adapters, app actions, and recent tool calls</small>
+  </summary>
+  <div class="advanced-grid">
+    <div class="providers-panel">
+      <div class="section-title">
+        <Cpu size={18} />
+        <strong>Model Routes</strong>
+      </div>
+      <div class="provider-list">
+        {#each providers as provider}
+          <article class:offline={!provider.available} class="provider-row">
+            <div>
+              <strong>{provider.label}</strong>
+              <span>{provider.local ? 'local' : provider.paid ? 'paid' : 'adapter'}</span>
+            </div>
+            <p>{provider.available ? `${provider.models.length} models` : provider.error}</p>
+          </article>
+        {:else}
+          <p class="muted">AI OS API is not reachable yet.</p>
+        {/each}
+      </div>
+    </div>
+
+    <div class="capability-panel">
+      <div class="section-title">
+        <ListChecks size={18} />
+        <strong>Detailed Capabilities</strong>
+      </div>
+      <div class="capability-groups">
+        {#each capabilityGroups as group}
+          <div class="capability-group">
+            <span>{group.kind}</span>
+            {#each group.rows as capability}
+              <div class:off={!capability.available} class="capability-row">
+                <strong>{capability.label}</strong>
+                <small>{capability.available ? capability.adapters.join(', ') || capability.safety : 'needs setup'}</small>
+              </div>
+            {/each}
+          </div>
+        {/each}
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">
+        <Wrench size={18} />
+        <strong>App Actions</strong>
+      </div>
+      <div class="tool-list">
+        {#each status?.tools ?? [] as tool}
+          <article class:armed={tool.requires_confirmation} class="tool-row">
+            <div>
+              <strong>{tool.label}</strong>
+              <span>{tool.requires_confirmation ? 'asks first' : tool.safety}</span>
+            </div>
+            <small>{tool.description}</small>
+          </article>
+        {:else}
+          <p class="muted">No tools registered.</p>
+        {/each}
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">
+        <Activity size={18} />
+        <strong>Recent Actions</strong>
+      </div>
+      <div class="call-list">
+        {#each toolCalls.slice(0, 6) as call}
+          <article class:failed={!call.ok} class="call-row">
+            <strong>{toolLabel(call.tool_id)}</strong>
+            <span>{call.ok ? 'OK' : call.error ?? 'blocked'}</span>
+            <small>{call.latency_ms.toFixed(0)} ms - {new Date(call.created_at).toLocaleTimeString()}</small>
+          </article>
+        {:else}
+          <p class="muted">No tool calls yet.</p>
+        {/each}
+      </div>
+    </div>
+  </div>
+</details>
+
+<section class="grid two work-grid legacy-command-grid">
   <div class="card card-pad panel command-panel">
     <div class="section-title">
       <Zap size={18} />
@@ -1091,24 +1302,24 @@
       {:else}
         <Eye size={18} />
       {/if}
-      <strong>Multimodal</strong>
+      <strong>Make Media</strong>
     </div>
     <div class="control-grid">
       <div class="field">
         <label for="multi-kind">Kind</label>
         <select id="multi-kind" bind:value={multimodalKind}>
-          <option value="image">image</option>
-          <option value="audio">audio generation</option>
-          <option value="video">video generation</option>
-          <option value="audio_tts">audio TTS</option>
-          <option value="audio_stt">audio STT</option>
-          <option value="vision">vision</option>
+          <option value="image">Create an image</option>
+          <option value="audio">Create audio</option>
+          <option value="video">Create a short animation/video</option>
+          <option value="audio_tts">Read text aloud</option>
+          <option value="audio_stt">Transcribe audio</option>
+          <option value="vision">Analyze an image</option>
         </select>
       </div>
       <div class="field">
         <label for="multi-provider">Provider</label>
         <select id="multi-provider" bind:value={multimodalProvider}>
-          <option value="">auto</option>
+          <option value="">auto, local first</option>
           {#each mediaProviderOptions as provider}
             <option value={provider}>{provider}</option>
           {/each}
@@ -1137,7 +1348,7 @@
     </div>
     <button class="button primary" type="button" disabled={multimodalBusy} on:click={invokeMedia}>
       <Play size={17} />
-      <span>Invoke</span>
+      <span>{multimodalBusy ? 'Creating' : 'Create'}</span>
     </button>
     {#if multimodalPreview}
       <div class="media-preview">
@@ -1286,6 +1497,115 @@
     line-height: 1.45;
   }
 
+  .command-hero {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .auto-route-note {
+    margin: 0;
+    color: var(--muted);
+    font-weight: 750;
+    line-height: 1.4;
+  }
+
+  .example-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip-button {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 10px;
+    color: var(--text);
+    background: var(--surface-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .chip-button:hover {
+    background: var(--active);
+  }
+
+  .friendly-result {
+    min-height: 72px;
+  }
+
+  .capability-showcase {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .capability-card {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    border-color: var(--border);
+  }
+
+  .capability-card.ready {
+    border-color: var(--accent);
+  }
+
+  .capability-card div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .capability-card span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .capability-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .advanced-status {
+    margin-bottom: 14px;
+  }
+
+  .advanced-status summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    font-weight: 900;
+  }
+
+  .advanced-status summary small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .legacy-command-grid,
+  .command-panel,
+  .command-panel + .panel {
+    display: none;
+  }
+
   .error-banner {
     border-color: var(--error-border);
     color: var(--error-text);
@@ -1329,7 +1649,6 @@
     color: var(--muted);
   }
 
-  .top-grid,
   .work-grid {
     margin-bottom: 14px;
   }
@@ -1438,7 +1757,6 @@
   }
 
   .provider-row p,
-  .provider-row small,
   .capability-row small,
   .tool-row small,
   .call-row small,
@@ -1601,6 +1919,8 @@
   @media (max-width: 1100px) {
     .metric-grid,
     .foundation-grid,
+    .capability-showcase,
+    .advanced-grid,
     .plain-guide,
     :global(.grid.two),
     .patch-list {
@@ -1611,6 +1931,8 @@
   @media (max-width: 760px) {
     .metric-grid,
     .foundation-grid,
+    .capability-showcase,
+    .advanced-grid,
     .plain-guide,
     :global(.grid.two),
     .control-grid,

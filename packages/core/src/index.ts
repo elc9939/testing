@@ -234,6 +234,7 @@ export const jobSchema = z.object({
   company: z.string().min(1),
   role: z.string().min(1),
   status: z.string().min(1).default('lead'),
+  applicationUrl: z.string().default(''),
   fitScore: z.number().min(0).max(100).optional(),
   nextActionAt: z.string().optional(),
   notes: z.string().default(''),

@@ -7,6 +7,7 @@ create table if not exists jobs (
   company text not null,
   role text not null,
   status text not null default 'lead',
+  application_url text not null default '',
   fit_score integer,
   next_action_at text,
   notes text not null default '',
@@ -105,6 +106,8 @@ create table if not exists sync_meta (
   key text primary key,
   value text not null
 );
+
+alter table jobs add column if not exists application_url text not null default '';
 `;
 
 export interface LocalDatabaseOptions {

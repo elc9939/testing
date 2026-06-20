@@ -67,6 +67,7 @@ export const jobs = pgTable('jobs', {
   company: text('company').notNull(),
   role: text('role').notNull(),
   status: text('status').notNull().default('lead'),
+  applicationUrl: text('application_url').notNull().default(''),
   fitScore: integer('fit_score'),
   nextActionAt: timestamp('next_action_at', { withTimezone: true }),
   notes: text('notes').notNull().default(''),

@@ -135,6 +135,7 @@ describe('legacy storage migration', () => {
       company: 'Acme',
       role: 'Quant Analyst',
       status: 'interview',
+      applicationUrl: 'https://example.com/job',
       nextActionAt: '2026-07-01'
     });
     expect(result.jobs[0]?.notes).toContain('Legacy Career Desk details');

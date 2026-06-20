@@ -139,9 +139,16 @@ describe('mini hub api', () => {
     const jobResponse = await app.request('/api/jobs', {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ workspaceId: 'personal', company: 'Acme', role: 'Analyst', status: 'lead' })
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        company: 'Acme',
+        role: 'Analyst',
+        status: 'lead',
+        applicationUrl: 'https://example.com/apply'
+      })
     });
     expect(jobResponse.status).toBe(201);
+    expect(await jobResponse.clone().json()).toMatchObject({ job: { applicationUrl: 'https://example.com/apply' } });
 
     const studyResponse = await app.request('/api/study', {
       method: 'POST',
@@ -212,13 +219,15 @@ describe('mini hub api', () => {
         company: 'Acme Labs',
         role: 'Senior Analyst',
         status: 'interview',
+        applicationUrl: 'https://example.com/acme-labs',
         notes: 'Panel scheduled',
         nextActionAt: '2026-07-01'
       })
     });
     expect(patchedJobResponse.status).toBe(200);
-    const patchedJob = (await patchedJobResponse.json()) as { job: { company: string; nextActionAt?: string } };
+    const patchedJob = (await patchedJobResponse.json()) as { job: { company: string; applicationUrl: string; nextActionAt?: string } };
     expect(patchedJob.job.company).toBe('Acme Labs');
+    expect(patchedJob.job.applicationUrl).toBe('https://example.com/acme-labs');
     expect(patchedJob.job.nextActionAt).toBe('2026-07-01');
 
     const deleteJobResponse = await app.request(`/api/jobs/${job.id}`, {

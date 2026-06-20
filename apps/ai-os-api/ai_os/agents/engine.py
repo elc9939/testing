@@ -215,6 +215,7 @@ def build_tool_registry(
             "company": str(payload.get("company") or "Unknown"),
             "role": str(payload.get("role") or "Opportunity"),
             "status": str(payload.get("status") or "lead"),
+            "applicationUrl": str(payload.get("applicationUrl") or payload.get("url") or ""),
             "notes": str(payload.get("notes") or ""),
             "nextActionAt": payload.get("nextActionAt"),
         }
@@ -302,6 +303,7 @@ def build_tool_registry(
                     "company": {"type": "string"},
                     "role": {"type": "string"},
                     "status": {"type": "string"},
+                    "applicationUrl": {"type": "string"},
                     "notes": {"type": "string"},
                     "nextActionAt": {"type": ["string", "null"]},
                 },

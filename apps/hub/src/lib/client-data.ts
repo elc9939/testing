@@ -14,7 +14,7 @@ import type { LegacyEntityImport, LegacyImportSummary } from '@mini-hub/db/migra
 import { requestApiJson } from './api';
 
 type PGliteDatabase = Awaited<ReturnType<typeof import('@mini-hub/db/local').createMiniHubPglite>>;
-type JobPatchInput = Partial<Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'>> & {
+type JobPatchInput = Partial<Pick<JobRecord, 'company' | 'role' | 'status' | 'applicationUrl' | 'notes'>> & {
   nextActionAt?: string | null;
 };
 type StudySessionPatchInput = Partial<Pick<StudySession, 'subject' | 'minutes' | 'source'>>;
@@ -135,13 +135,14 @@ export function createClientDataStore() {
   async function upsertJob(job: JobRecord): Promise<void> {
     const local = await getDb();
     await local.query(
-      `insert into jobs (id, workspace_id, company, role, status, fit_score, next_action_at, notes, device_id, updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      `insert into jobs (id, workspace_id, company, role, status, application_url, fit_score, next_action_at, notes, device_id, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        on conflict (id) do update set
        workspace_id=excluded.workspace_id,
        company=excluded.company,
        role=excluded.role,
        status=excluded.status,
+       application_url=excluded.application_url,
        fit_score=excluded.fit_score,
        next_action_at=excluded.next_action_at,
        notes=excluded.notes,
@@ -153,6 +154,7 @@ export function createClientDataStore() {
         job.company,
         job.role,
         job.status,
+        job.applicationUrl,
         job.fitScore ?? null,
         job.nextActionAt ?? null,
         job.notes,
@@ -304,6 +306,7 @@ export function createClientDataStore() {
       company: string;
       role: string;
       status: string;
+      application_url: string;
       fit_score: number | null;
       next_action_at: string | null;
       notes: string;
@@ -366,6 +369,7 @@ export function createClientDataStore() {
         company: row.company,
         role: row.role,
         status: row.status,
+        applicationUrl: row.application_url,
         fitScore: row.fit_score ?? undefined,
         nextActionAt: row.next_action_at ?? undefined,
         notes: row.notes,
@@ -514,7 +518,9 @@ export function createClientDataStore() {
     return initPromise;
   }
 
-  async function saveJob(input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'> & { nextActionAt?: string | null }): Promise<JobRecord> {
+  async function saveJob(
+    input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'> & { applicationUrl?: string; nextActionAt?: string | null }
+  ): Promise<JobRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');
     const result = await requestApiJson<{ job: JobRecord }>('/api/jobs', {

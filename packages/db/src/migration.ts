@@ -148,6 +148,10 @@ function dateAtNoonIso(value: unknown): string | undefined {
   return isoDateTime(raw);
 }
 
+function legacyApplicationUrl(job: Record<string, unknown>): string {
+  return text(job.applicationUrl) || text(job.applyUrl) || text(job.url) || text(job.link);
+}
+
 function readLegacyTheme(storage: ReadableStorage): string | undefined {
   const value = text(storage.getItem(legacyStorageKeys.theme));
   return value === 'light' || value === 'dark' || value === 'system' ? value : undefined;
@@ -235,7 +239,7 @@ function buildCareerNotes(job: Record<string, unknown>): string {
     noteLine('Work mode', job.workMode),
     noteLine('Job type', job.jobType),
     noteLine('Source', job.source),
-    noteLine('Link', job.link),
+    noteLine('Link', legacyApplicationUrl(job)),
     noteLine('Deadline', job.deadline),
     noteLine('Date applied', job.dateApplied),
     noteLine('Next action', job.nextAction),
@@ -282,6 +286,7 @@ function convertLegacyJob(value: unknown, index: number, options: Required<Legac
     company: text(job.company) || 'Unknown company',
     role: text(job.title) || text(job.role) || 'Untitled role',
     status: normalizeCareerStatus(job.stage),
+    applicationUrl: legacyApplicationUrl(job),
     fitScore: maybeNumber(job.fitScore),
     nextActionAt: dateValue(job.nextActionDate) ?? dateValue(job.deadline),
     notes: buildCareerNotes(job),
