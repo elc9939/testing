@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AiStatus } from './ai-os-api';
 import type { MacroStatus } from './macro-lab-api';
-import { buildCapabilityRegistry, selectCapabilityIssues } from './capability-registry';
+import {
+  buildCapabilityRegistry,
+  compactCapabilityRegistryContext,
+  formatCapabilityRegistrySummary,
+  selectCapabilityIssues
+} from './capability-registry';
 
 function aiStatus(partial: Partial<AiStatus> = {}): AiStatus {
   return {
@@ -125,5 +130,26 @@ describe('capability registry', () => {
 
     expect(snapshot.capabilities.find((capability) => capability.id === 'macro-lab.service')?.state).toBe('blocked');
     expect(selectCapabilityIssues(snapshot, 20).some((capability) => capability.id === 'macro-lab.service')).toBe(true);
+  });
+
+  it('formats a compact assistant-friendly capability context', () => {
+    const snapshot = buildCapabilityRegistry({
+      checkedAt: '2026-06-20T16:00:00.000Z',
+      isOnline: true,
+      syncStatus: 'idle',
+      googleConnected: true,
+      hubHealth: { ok: true, service: 'mini-hub-api' },
+      aiStatus: aiStatus(),
+      macroStatus: macroStatus()
+    });
+
+    const context = compactCapabilityRegistryContext(snapshot, 4);
+    const summary = formatCapabilityRegistrySummary(snapshot);
+
+    expect(context.ready.length).toBeGreaterThan(0);
+    expect(context.issues.length).toBeGreaterThan(0);
+    expect(summary).toContain('Capability registry:');
+    expect(summary).toContain('Ready now:');
+    expect(summary).toContain('Needs attention:');
   });
 });

@@ -18,6 +18,8 @@ describe('assistant intent resolver', () => {
 
   it('recognizes status and semantic memory requests', () => {
     expect(resolveAssistantIntent('which ollama models are available?')).toEqual({ kind: 'status' });
+    expect(resolveAssistantIntent('what capabilities are available on this pc?')).toEqual({ kind: 'capabilities' });
+    expect(resolveAssistantIntent('what can this machine do locally?')).toEqual({ kind: 'capabilities' });
     expect(resolveAssistantIntent('search memory for eigenvectors')).toEqual({
       kind: 'memory-search',
       query: 'eigenvectors'

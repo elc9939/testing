@@ -174,6 +174,9 @@ class AgentEngine:
             "do not use ai.infer for image generation. "
             "Use web.search for internet search, web.scrape for normal page extraction, and browser.extract "
             "for JavaScript/browser-rendered pages. Do not claim you browsed unless a web or browser tool ran. "
+            "If context includes capability_registry, treat it as the authoritative current machine/app capability "
+            "snapshot. Prefer ready local capabilities, mention blocked/offline prerequisites, and do not claim an "
+            "unavailable capability succeeded. "
             "For each step, respond with concise JSON using keys plan, tool_calls, done, output. "
             "tool_calls is an array of {tool_id, arguments}. Available tools: "
             + json.dumps(tool_specs)

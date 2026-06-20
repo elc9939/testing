@@ -130,7 +130,11 @@ The floating assistant in the hub is the friendlier front door for AI OS:
 - Summarizes cached hub data.
 - Searches semantic memory.
 - Checks AI/provider/hardware status.
+- Summarizes the hub Capability Registry so it can explain what is local, paid, ready,
+  offline, blocked, or still needs setup.
 - Runs AI OS tool-backed commands.
+- Sends a compact capability snapshot into AI OS command context so agent plans can prefer
+  ready local tools and report unavailable prerequisites instead of guessing.
 - Can search/scrape the web, use browser extraction, generate media files, and call app
   tools when AI OS is running.
 - Write/system actions remain confirmation-gated.

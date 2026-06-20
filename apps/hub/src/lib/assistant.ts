@@ -5,6 +5,7 @@ export type AssistantTopic = 'assistant' | 'ai-lab' | 'ai-os';
 export type AssistantIntent =
   | { kind: 'navigate'; route: string; label: string }
   | { kind: 'explain'; topic: AssistantTopic }
+  | { kind: 'capabilities' }
   | { kind: 'status' }
   | { kind: 'local-summary' }
   | { kind: 'memory-search'; query: string }
@@ -32,6 +33,7 @@ export function resolveAssistantIntent(rawInput: string, forceToolMode = false):
   if (asksAboutAssistant(normalized)) return { kind: 'explain', topic: 'assistant' };
   if (asksAboutAiLab(normalized)) return { kind: 'explain', topic: 'ai-lab' };
   if (asksAboutAiOs(normalized)) return { kind: 'explain', topic: 'ai-os' };
+  if (asksForCapabilities(normalized)) return { kind: 'capabilities' };
   if (asksForStatus(normalized)) return { kind: 'status' };
   if (asksForLocalSummary(normalized)) return { kind: 'local-summary' };
 
@@ -85,6 +87,13 @@ function asksForStatus(input: string): boolean {
   return (
     /\b(ai|model|provider|ollama|gpu|cpu|ram|vram|hardware)\b/u.test(input) &&
     /\b(status|available|reachable|online|health|tokens|benchmark|capabilities)\b/u.test(input)
+  );
+}
+
+function asksForCapabilities(input: string): boolean {
+  return (
+    /\b(capability|capabilities|machine profile|local tools|what'?s ready|ready to use|what can (this|my) (app|hub|computer|machine|pc)|what can you do locally)\b/u.test(input) ||
+    (/\b(can you|can this|ready)\b/u.test(input) && /\b(automation|macro|local ai|ollama|image|audio|gpu|desktop|machine)\b/u.test(input))
   );
 }
 

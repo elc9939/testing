@@ -41,6 +41,13 @@ export interface CapabilityRegistrySnapshot {
   };
 }
 
+export interface CompactCapabilityRegistryContext {
+  checkedAt: string;
+  summary: CapabilityRegistrySnapshot['summary'];
+  ready: Array<Pick<CapabilityRegistryEntry, 'id' | 'label' | 'service' | 'locality' | 'cost' | 'route'>>;
+  issues: Array<Pick<CapabilityRegistryEntry, 'id' | 'label' | 'service' | 'state' | 'route' | 'requiredService' | 'lastError'>>;
+}
+
 export interface CapabilityRegistryInput {
   checkedAt?: string;
   isOnline: boolean;
@@ -137,6 +144,70 @@ export function selectCapabilityIssues(snapshot: CapabilityRegistrySnapshot | nu
     .filter((capability) => capability.state !== 'ready' && capability.state !== 'running')
     .sort((a, b) => stateIssueRank(b.state) - stateIssueRank(a.state) || a.label.localeCompare(b.label))
     .slice(0, limit);
+}
+
+export function capabilityStateLabel(state: CapabilityState): string {
+  if (state === 'needs_setup') return 'needs setup';
+  return state.replace('_', ' ');
+}
+
+export function compactCapabilityRegistryContext(snapshot: CapabilityRegistrySnapshot, limit = 8): CompactCapabilityRegistryContext {
+  return {
+    checkedAt: snapshot.checkedAt,
+    summary: snapshot.summary,
+    ready: snapshot.capabilities
+      .filter((capability) => capability.available && ['ready', 'running'].includes(capability.state))
+      .sort((a, b) => readyCapabilityRank(b) - readyCapabilityRank(a) || a.label.localeCompare(b.label))
+      .slice(0, limit)
+      .map((capability) => ({
+        id: capability.id,
+        label: capability.label,
+        service: capability.service,
+        locality: capability.locality,
+        cost: capability.cost,
+        route: capability.route
+      })),
+    issues: selectCapabilityIssues(snapshot, limit).map((capability) => ({
+      id: capability.id,
+      label: capability.label,
+      service: capability.service,
+      state: capability.state,
+      route: capability.route,
+      requiredService: capability.requiredService,
+      lastError: capability.lastError
+    }))
+  };
+}
+
+export function formatCapabilityRegistrySummary(snapshot: CapabilityRegistrySnapshot): string {
+  const context = compactCapabilityRegistryContext(snapshot, 6);
+  const usable = snapshot.summary.ready + snapshot.summary.running;
+  const lines = [
+    `Capability registry: ${usable}/${snapshot.summary.total} usable now. Local ready: ${snapshot.summary.localReady}. Paid/API ready: ${snapshot.summary.paidReady}.`
+  ];
+
+  if (context.ready.length) {
+    lines.push(
+      `Ready now:\n${context.ready
+        .map((capability) => `- ${capability.label} (${capability.locality}, ${capability.cost})`)
+        .join('\n')}`
+    );
+  }
+
+  if (context.issues.length) {
+    lines.push(
+      `Needs attention:\n${context.issues
+        .map((capability) => {
+          const detail = capability.lastError || capability.requiredService || capability.route;
+          return `- ${capability.label}: ${capabilityStateLabel(capability.state)}${detail ? ` - ${detail}` : ''}`;
+        })
+        .join('\n')}`
+    );
+  } else {
+    lines.push('No capability blockers are currently visible from the hub.');
+  }
+
+  return lines.join('\n\n');
 }
 
 function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiStatus | undefined, error: string | undefined): void {
@@ -392,6 +463,15 @@ function stateIssueRank(state: CapabilityState): number {
   if (state === 'needs_setup') return 3;
   if (state === 'running') return 2;
   return 1;
+}
+
+function readyCapabilityRank(capability: CapabilityRegistryEntry): number {
+  let rank = 0;
+  if (capability.locality === 'local') rank += 4;
+  if (capability.state === 'running') rank += 3;
+  if (capability.service === 'ai-os') rank += 2;
+  if (capability.service === 'macro-lab') rank += 1;
+  return rank;
 }
 
 function findAiCapability(status: AiStatus | undefined, id: string): AiCapabilityStatus | undefined {

@@ -4,8 +4,15 @@
   import { Bot, ChevronRight, Cpu, MessageCircle, PanelRightClose, PanelRightOpen, Search, Send, ShieldCheck, Sparkles } from 'lucide-svelte';
   import { clientData } from '$lib/client-data';
   import { chatWithMiniHubAssistant } from '$lib/assistant-api';
+  import {
+    compactCapabilityRegistryContext,
+    formatCapabilityRegistrySummary,
+    loadCapabilityRegistry,
+    type CapabilityRegistrySnapshot
+  } from '$lib/capability-registry';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
+  import { getConnections } from '$lib/productivity-api';
   import {
     getAiStatus,
     queryMemory,
@@ -34,6 +41,7 @@
   let toolMode = false;
   let confirmActions = false;
   let aiStatus: AiStatus | null = null;
+  let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
   let logElement: HTMLDivElement | null = null;
   let messages: AssistantMessage[] = [
     {
@@ -47,10 +55,12 @@
     }
   ];
 
-  const examples = ['Explain AI OS', 'Check AI status', 'Open Career Desk', 'Summarize my hub'];
+  const examples = ['What can this PC do?', 'Check AI status', 'Open Career Desk', 'Summarize my hub'];
 
   $: availableProviderCount = aiStatus?.providers.filter((provider) => provider.available).length ?? 0;
   $: providerCount = aiStatus?.providers.length ?? 0;
+  $: capabilityReadyCount = capabilitySnapshot ? capabilitySnapshot.summary.ready + capabilitySnapshot.summary.running : 0;
+  $: capabilityTotal = capabilitySnapshot?.summary.total ?? 0;
 
   function newMessageId(): string {
     if (globalThis.crypto && 'randomUUID' in globalThis.crypto) return globalThis.crypto.randomUUID();
@@ -117,6 +127,11 @@
       return;
     }
 
+    if (intent.kind === 'capabilities') {
+      await loadCapabilities();
+      return;
+    }
+
     if (intent.kind === 'status') {
       await loadAiStatus();
       return;
@@ -169,6 +184,29 @@
     }
   }
 
+  async function loadCapabilities(): Promise<void> {
+    busy = true;
+    try {
+      const snapshot = await refreshCapabilitySnapshot();
+      addMessage({
+        role: 'assistant',
+        text: formatCapabilityRegistrySummary(snapshot),
+        actions: [
+          { id: 'open-today-capabilities', label: 'Open Today', kind: 'navigate', route: '/' },
+          { id: 'open-settings-capabilities', label: 'Open Settings', kind: 'navigate', route: '/settings' }
+        ]
+      });
+    } catch (error) {
+      addMessage({
+        role: 'assistant',
+        text: `I could not build the capability registry right now.\n\n${localNetworkHint()}\n\n${errorMessage(error)}`,
+        actions: [{ id: 'retry-capabilities', label: 'Retry', kind: 'retry', objective: 'What capabilities are available?' }]
+      });
+    } finally {
+      busy = false;
+    }
+  }
+
   async function searchMemory(query: string): Promise<void> {
     busy = true;
     try {
@@ -193,11 +231,15 @@
   async function runToolCommand(objective: string, confirmed: boolean): Promise<void> {
     busy = true;
     try {
+      const registryContext = await optionalCapabilityContext();
       const response = await runCommand({
         objective,
         confirm_actions: confirmed,
         max_steps: 4,
-        context: { source: 'assistant-popup' }
+        context: {
+          source: 'assistant-popup',
+          capability_registry: registryContext
+        }
       });
       const needsConfirmation = commandNeedsConfirmation(response);
       addMessage({
@@ -221,11 +263,13 @@
   async function chatWithAi(input: string): Promise<void> {
     busy = true;
     try {
+      const registryText = capabilitySnapshot ? `\n\nCurrent capability registry:\n${formatCapabilityRegistrySummary(capabilitySnapshot)}` : '';
       const result = await runInference({
         prompt: [
           'You are the Mini Hub side assistant for a private personal productivity and AI OS app.',
           'Be concise and practical. Explain how to use the app, AI Lab, AI OS, Macro Lab, Career Desk, Study Desk, and Productivity Hub when relevant.',
           'Do not claim you performed an action unless a tool/action was actually invoked by the UI.',
+          registryText,
           `User: ${input}`
         ].join('\n')
       });
@@ -245,6 +289,7 @@
         context: {
           source: 'assistant-popup',
           localSummary: localHubSummary(),
+          capabilitySummary: capabilitySnapshot ? formatCapabilityRegistrySummary(capabilitySnapshot) : '',
           aiOsUnavailable: errorMessage(aiOsError)
         }
       });
@@ -288,6 +333,35 @@
       nextJobs.length ? `Next job follow-ups:\n${nextJobs.join('\n')}` : 'No dated job follow-ups are currently cached.',
       nextActions.length ? `Open actions:\n${nextActions.join('\n')}` : 'No open career actions are currently cached.'
     ].join('\n\n');
+  }
+
+  async function refreshCapabilitySnapshot(): Promise<CapabilityRegistrySnapshot> {
+    const googleConnected = await loadGoogleConnected();
+    capabilitySnapshot = await loadCapabilityRegistry({
+      isOnline: $clientData.isOnline,
+      syncStatus: $clientData.status,
+      syncError: $clientData.error,
+      googleConnected
+    });
+    return capabilitySnapshot;
+  }
+
+  async function optionalCapabilityContext(): Promise<ReturnType<typeof compactCapabilityRegistryContext> | null> {
+    try {
+      const snapshot = await refreshCapabilitySnapshot();
+      return compactCapabilityRegistryContext(snapshot, 8);
+    } catch {
+      return capabilitySnapshot ? compactCapabilityRegistryContext(capabilitySnapshot, 8) : null;
+    }
+  }
+
+  async function loadGoogleConnected(): Promise<boolean> {
+    try {
+      const connections = await getConnections();
+      return connections.some((connection) => connection.provider === 'google' && connection.status === 'connected');
+    } catch {
+      return false;
+    }
   }
 
   function labelMetric(value: number | undefined, suffix = ''): string {
@@ -387,7 +461,15 @@
       <header>
         <div>
           <span class="title-row"><Bot size={17} /> Assistant</span>
-          <small>{providerCount ? `${availableProviderCount}/${providerCount} providers online` : 'App helper and AI OS bridge'}</small>
+          <small>
+            {#if capabilityTotal}
+              {capabilityReadyCount}/{capabilityTotal} capabilities ready
+            {:else if providerCount}
+              {availableProviderCount}/{providerCount} providers online
+            {:else}
+              App helper and AI OS bridge
+            {/if}
+          </small>
         </div>
         <button class="icon-button" type="button" aria-label="Close assistant" title="Close" on:click={() => (open = false)}>
           <PanelRightClose size={17} />
