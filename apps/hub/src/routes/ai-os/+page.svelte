@@ -28,6 +28,8 @@
   } from 'lucide-svelte';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
+  import { clientData } from '$lib/client-data';
+  import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import {
     cancelAiJob,
     cleanupAiOs,
@@ -153,6 +155,7 @@
   $: autoRouteText = autoRouteSummary(status);
   $: mediaProviderOptions = multimodalProviderOptions(status);
   $: connectedLocalAiOsHref = localConnectedAiOsHref();
+  $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -182,6 +185,10 @@
 
   function stringify(value: unknown): string {
     return JSON.stringify(value, null, 2);
+  }
+
+  function modeMetadata(): Record<string, unknown> {
+    return { machine_mode: machineModeContext(currentMachineMode.id) };
   }
 
   function redactMediaPayloads(value: unknown): unknown {
@@ -450,7 +457,8 @@
             prompt: inferPrompt,
             provider: inferProvider || undefined,
             model: inferModel || undefined,
-            task_type: 'dashboard.stream'
+            task_type: 'dashboard.stream',
+            metadata: modeMetadata()
           },
           (event, data) => {
             if (event === 'error') {
@@ -466,7 +474,8 @@
           prompt: inferPrompt,
           provider: inferProvider || undefined,
           model: inferModel || undefined,
-          task_type: 'dashboard.ad_hoc'
+          task_type: 'dashboard.ad_hoc',
+          metadata: modeMetadata()
         });
         inferResult = stringify(result);
       }
@@ -544,9 +553,10 @@
         model: inferModel || undefined,
         task_type: `dashboard.job.${jobPrimitive}`,
         allow_fallback: true,
-        local_first: true
+        local_first: true,
+        metadata: modeMetadata()
       };
-      const payload: Record<string, unknown> = { primitive: jobPrimitive, request };
+      const payload: Record<string, unknown> = { primitive: jobPrimitive, request, metadata: modeMetadata() };
       if (jobPrimitive === 'map') {
         payload.items = jobItems.split('\n').map((item) => item.trim()).filter(Boolean);
         payload.template = jobTemplate;
@@ -616,7 +626,8 @@
         provider: inferProvider || undefined,
         model: inferModel || undefined,
         max_steps: 3,
-        tools: ['memory.search']
+        tools: ['memory.search'],
+        context: { source: 'ai-os-dashboard', ...modeMetadata() }
       });
       agentResult = stringify(result);
     } catch (error) {
@@ -636,7 +647,7 @@
         provider: inferProvider || undefined,
         model: inferModel || undefined,
         max_steps: 4,
-        context: { source: 'ai-os-dashboard' }
+        context: { source: 'ai-os-dashboard', ...modeMetadata() }
       });
       commandResult = summarizeCommandResult(result);
       toolCalls = await listToolCalls(30);
@@ -708,7 +719,8 @@
         text: multimodalText,
         image_base64: imageBase64 || undefined,
         audio_base64: audioBase64 || undefined,
-        video_base64: videoBase64 || undefined
+        video_base64: videoBase64 || undefined,
+        options: modeMetadata()
       });
       multimodalPreview = mediaPreview(result, multimodalKind);
       multimodalResult = summarizeMediaResult(redactMediaPayloads(result) as Record<string, unknown>, multimodalKind);
@@ -760,6 +772,9 @@
   }
 
   onMount(refresh);
+  onMount(() => {
+    void clientData.init();
+  });
 </script>
 
 <section class="page-header">

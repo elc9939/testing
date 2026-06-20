@@ -205,6 +205,7 @@ export interface AiInferenceInput {
   max_tokens?: number;
   allow_fallback?: boolean;
   local_first?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -450,6 +451,7 @@ function toInferencePayload(input: AiInferenceInput): Record<string, unknown> {
     temperature: input.temperature ?? 0.2,
     max_tokens: input.max_tokens ?? 512,
     allow_fallback: input.allow_fallback ?? true,
-    local_first: input.local_first ?? true
+    local_first: input.local_first ?? true,
+    metadata: input.metadata ?? {}
   };
 }

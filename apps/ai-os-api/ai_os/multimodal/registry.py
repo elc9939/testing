@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
+from ..machine_modes import MachineModePolicy, machine_mode_policy
 from ..media_engine import BuiltinMediaEngine
 from ..models import ChatMessage, InferenceRequest, MultimodalInvokeRequest
 from ..providers.ollama import OllamaProvider
@@ -71,23 +72,31 @@ class MultimodalRegistry:
 
     async def invoke(self, kind: str, request: MultimodalInvokeRequest) -> dict[str, Any]:
         provider_id = request.provider or self._default_provider(kind)
+        policy = machine_mode_policy(request.options)
+        self._enforce_machine_mode(provider_id, request, policy)
+
+        def record(result: dict[str, Any]) -> dict[str, Any]:
+            enriched = dict(result)
+            enriched.setdefault("machine_mode", policy.metadata())
+            return self._record_asset(kind, provider_id, request, enriched)
+
         if provider_id == "comfyui":
             if kind not in {"image", "video"}:
                 raise ValueError("ComfyUI is available for image/video workflows.")
             result = await self._comfyui_media(request, kind)
-            return self._record_asset(kind, provider_id, request, result)
+            return record(result)
         if provider_id == "piper":
             result = await asyncio.to_thread(self._piper_tts, request)
-            return self._record_asset(kind, provider_id, request, result)
+            return record(result)
         if provider_id == "whisper":
             result = await asyncio.to_thread(self._whisper_stt, request)
-            return self._record_asset(kind, provider_id, request, result)
+            return record(result)
         if provider_id == "windows-tts":
             result = await asyncio.to_thread(self._windows_tts, request)
-            return self._record_asset(kind, provider_id, request, result)
+            return record(result)
         if provider_id == "windows-stt":
             result = await asyncio.to_thread(self._windows_stt, request)
-            return self._record_asset(kind, provider_id, request, result)
+            return record(result)
         if provider_id in {"builtin-image", "builtin-audio", "builtin-video"}:
             expected = provider_id.removeprefix("builtin-")
             if kind != expected:
@@ -95,13 +104,13 @@ class MultimodalRegistry:
             if not self.settings.builtin_media_enabled:
                 raise ValueError("Built-in local media generation is disabled.")
             result = await self.builtin.invoke(kind, request)
-            return self._record_asset(kind, provider_id, request, result)
+            return record(result)
         if provider_id in {"local-image", "local-audio", "local-video"}:
             expected = provider_id.removeprefix("local-")
             if kind != expected:
                 raise ValueError(f"Provider {provider_id} only handles kind='{expected}'.")
             result = await asyncio.to_thread(self._local_media_command, kind, request)
-            return self._record_asset(kind, provider_id, request, result)
+            return record(result)
 
         provider = self.providers.get(provider_id)
         if not provider:
@@ -109,8 +118,8 @@ class MultimodalRegistry:
 
         if kind == "image":
             if isinstance(provider, OpenAIProvider):
-                result = await provider.generate_image(request.prompt or "", request.model, request.options)
-                return self._record_asset(kind, provider_id, request, result)
+                result = await provider.generate_image(request.prompt or "", request.model, self._adapter_options(request.options))
+                return record(result)
             raise ValueError("This provider does not expose image generation. Use provider='comfyui' or provider='local-image' for local image generation.")
 
         if kind == "audio":
@@ -121,34 +130,71 @@ class MultimodalRegistry:
 
         if kind == "audio_tts":
             if isinstance(provider, OpenAIProvider):
-                result = await provider.tts(request.text or request.prompt or "", request.model, request.options)
-                return self._record_asset(kind, provider_id, request, result)
+                result = await provider.tts(request.text or request.prompt or "", request.model, self._adapter_options(request.options))
+                return record(result)
             raise ValueError(f"Provider {provider_id} does not expose text-to-speech. Use provider='piper' for local TTS.")
 
         if kind == "audio_stt":
             if isinstance(provider, OpenAIProvider):
                 if not request.audio_base64:
                     raise ValueError("audio_base64 is required for speech-to-text.")
-                result = await provider.stt(request.audio_base64, request.filename or "audio.webm", request.model, request.options)
-                return self._record_asset(kind, provider_id, request, result)
+                result = await provider.stt(
+                    request.audio_base64,
+                    request.filename or "audio.webm",
+                    request.model,
+                    self._adapter_options(request.options),
+                )
+                return record(result)
             raise ValueError(f"Provider {provider_id} does not expose speech-to-text. Use provider='whisper' for local STT.")
 
         if kind == "vision":
             if isinstance(provider, OllamaProvider):
                 result = await self._ollama_vision(provider, request)
-                return self._record_asset(kind, provider_id, request, result)
+                return record(result)
             result = await provider.complete(
                 InferenceRequest(
                     task_type="vision",
                     provider=provider_id,
                     model=request.model,
                     messages=[ChatMessage(role="user", content=request.prompt or "Describe this image.")],
-                    metadata={"image_base64_present": bool(request.image_base64)},
+                    metadata={"image_base64_present": bool(request.image_base64), "machine_mode": policy.metadata()},
                 )
             )
-            return self._record_asset(kind, provider_id, request, result.model_dump(mode="json"))
+            return record(result.model_dump(mode="json"))
 
         raise ValueError(f"Unknown multimodal kind: {kind}")
+
+    def _provider_traits(self, provider_id: str) -> tuple[bool, bool]:
+        local_providers = {
+            "builtin-image",
+            "builtin-audio",
+            "builtin-video",
+            "local-image",
+            "local-audio",
+            "local-video",
+            "comfyui",
+            "piper",
+            "whisper",
+            "windows-tts",
+            "windows-stt",
+            "ollama",
+        }
+        if provider_id in local_providers:
+            return True, False
+        provider = self.providers.get(provider_id)
+        if provider:
+            return provider.local, provider.paid
+        return False, provider_id == "openai"
+
+    def _adapter_options(self, options: dict[str, Any]) -> dict[str, Any]:
+        return {key: value for key, value in options.items() if key not in {"machine_mode", "machineMode"}}
+
+    def _enforce_machine_mode(self, provider_id: str, request: MultimodalInvokeRequest, policy: MachineModePolicy) -> None:
+        local, paid = self._provider_traits(provider_id)
+        if policy.local_only and (not local or paid):
+            raise ValueError(f"{policy.label} does not allow multimodal provider {provider_id}.")
+        if policy.avoid_paid_without_explicit_provider and paid and not request.provider:
+            raise ValueError(f"{policy.label} avoids paid multimodal providers unless one is explicitly selected.")
 
     def _default_provider(self, kind: str) -> str:
         if kind == "vision":

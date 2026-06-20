@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from ..machine_modes import machine_mode_policy, merged_machine_mode_metadata
 from ..models import JobCreateRequest, JobSnapshot, JobStatus, new_id, now_iso
 from ..storage import AppStorage
 
@@ -34,6 +35,16 @@ class JobQueue:
         self._handlers[primitive] = handler
 
     async def create(self, request: JobCreateRequest) -> JobSnapshot:
+        mode_metadata = merged_machine_mode_metadata(request.request.metadata, request.metadata)
+        policy = machine_mode_policy(mode_metadata)
+        if policy.max_job_concurrency is not None and request.concurrency is not None and request.concurrency > policy.max_job_concurrency:
+            request = request.model_copy(update={"concurrency": policy.max_job_concurrency})
+        request = request.model_copy(
+            update={
+                "request": request.request.model_copy(update={"metadata": mode_metadata}),
+                "metadata": mode_metadata,
+            }
+        )
         if request.primitive not in self._handlers:
             raise ValueError(f"Unknown job primitive: {request.primitive}")
         active = sum(1 for job in self._jobs.values() if job.status in {"queued", "running"})

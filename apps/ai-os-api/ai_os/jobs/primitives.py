@@ -4,14 +4,16 @@ import asyncio
 from typing import Any
 
 from ..inference import InferenceRouter
+from ..machine_modes import machine_mode_policy, merged_machine_mode_metadata
 from ..models import ChatMessage, InferenceRequest, JobCreateRequest
 from .queue import JobQueue
 
 
-def clone_request(request: InferenceRequest, prompt: str) -> InferenceRequest:
+def clone_request(request: InferenceRequest, prompt: str, metadata: dict[str, Any] | None = None) -> InferenceRequest:
     values = request.model_dump()
     values["prompt"] = prompt
     values["messages"] = [ChatMessage(role="user", content=prompt).model_dump()]
+    values["metadata"] = merged_machine_mode_metadata(request.metadata, metadata)
     return InferenceRequest(**values)
 
 
@@ -25,7 +27,11 @@ class JobPrimitives:
         self.router = router
 
     async def map(self, job_id: str, request: JobCreateRequest, queue: JobQueue) -> list[Any]:
-        semaphore = asyncio.Semaphore(request.concurrency or queue.max_concurrency)
+        policy = machine_mode_policy(merged_machine_mode_metadata(request.request.metadata, request.metadata))
+        desired_concurrency = request.concurrency or queue.max_concurrency
+        if policy.max_job_concurrency is not None:
+            desired_concurrency = min(desired_concurrency, policy.max_job_concurrency)
+        semaphore = asyncio.Semaphore(max(1, desired_concurrency))
         results: list[Any] = []
 
         async def run_one(index: int, item: str) -> None:
@@ -34,7 +40,7 @@ class JobPrimitives:
             async with semaphore:
                 try:
                     prompt = render_template(request.template, item, index)
-                    result = await self.router.infer(clone_request(request.request, prompt))
+                    result = await self.router.infer(clone_request(request.request, prompt, request.metadata))
                     payload = {"index": index, "item": item, "result": result.model_dump(mode="json")}
                     results.append(payload)
                     await queue.append_result(job_id, payload)
@@ -50,7 +56,7 @@ class JobPrimitives:
         for index in range(max(1, request.n)):
             if queue.cancel_requested(job_id):
                 break
-            result = await self.router.infer(request.request)
+            result = await self.router.infer(request.request.model_copy(update={"metadata": merged_machine_mode_metadata(request.request.metadata, request.metadata)}))
             payload = {"index": index, "candidate": result.model_dump(mode="json")}
             results.append(payload)
             await queue.append_result(job_id, payload)
@@ -67,11 +73,11 @@ class JobPrimitives:
             if queue.cancel_requested(job_id):
                 break
             prompt = f"Summarize this chunk without adding new claims:\n\n{chunk}"
-            result = await self.router.infer(clone_request(request.request, prompt))
+            result = await self.router.infer(clone_request(request.request, prompt, request.metadata))
             summaries.append(result.text)
             await queue.append_result(job_id, {"index": index, "summary": result.model_dump(mode="json")})
         final_prompt = "Combine these chunk summaries into one concise synthesis:\n\n" + "\n\n".join(summaries)
-        final = await self.router.infer(clone_request(request.request, final_prompt))
+        final = await self.router.infer(clone_request(request.request, final_prompt, request.metadata))
         payload = {"final": final.model_dump(mode="json")}
         await queue.append_result(job_id, payload)
         return [*queue.results(job_id), payload]
@@ -82,7 +88,7 @@ class JobPrimitives:
             if queue.cancel_requested(job_id):
                 break
             try:
-                result = await self.router.infer(request.request)
+                result = await self.router.infer(request.request.model_copy(update={"metadata": merged_machine_mode_metadata(request.request.metadata, request.metadata)}))
                 payload = {"attempt": attempt + 1, "result": result.model_dump(mode="json"), "errors": errors}
                 await queue.append_result(job_id, payload)
                 return [payload]

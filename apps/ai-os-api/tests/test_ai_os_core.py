@@ -72,6 +72,13 @@ class EchoProvider(ProviderAdapter):
         return [[float(len(text)), 1.0] for text in texts]
 
 
+class LocalEchoProvider(EchoProvider):
+    provider_id = "lmstudio"
+    label = "Local echo"
+    local = True
+    paid = False
+
+
 class JsonToolPlanProvider(EchoProvider):
     async def complete(self, request: InferenceRequest) -> InferenceResult:
         return InferenceResult(
@@ -136,6 +143,98 @@ async def test_router_falls_back_and_logs_usage(tmp_path):
     assert len(usage) == 2
     assert usage[0].ok is True
     assert usage[1].ok is False
+
+
+@pytest.mark.asyncio
+async def test_router_offline_mode_blocks_paid_fallback(tmp_path):
+    router, storage, _ = make_router(tmp_path)
+
+    with pytest.raises(Exception) as error:
+        await router.infer(
+            InferenceRequest(
+                prompt="hello",
+                allow_fallback=True,
+                metadata={"machine_mode": {"id": "offline"}},
+            )
+        )
+
+    assert "local offline" in str(error.value)
+    usage = storage.list_usage()
+    assert all(entry.provider != "openai" for entry in usage)
+    assert usage[0].metadata["machine_mode"]["id"] == "offline"
+
+
+@pytest.mark.asyncio
+async def test_router_beast_mode_prefers_local_even_when_request_prefers_paid(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai", "lmstudio"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider(), LocalEchoProvider()])
+    router = InferenceRouter(settings, registry, storage)
+
+    result = await router.infer(
+        InferenceRequest(
+            prompt="hello",
+            local_first=False,
+            metadata={"machine_mode": {"id": "beast"}},
+        )
+    )
+
+    assert result.provider == "lmstudio"
+    assert result.metadata["machine_mode"]["id"] == "beast"
+
+
+@pytest.mark.asyncio
+async def test_router_balanced_preserves_explicit_paid_preference(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai", "lmstudio"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider(), LocalEchoProvider()])
+    router = InferenceRouter(settings, registry, storage)
+
+    result = await router.infer(
+        InferenceRequest(
+            prompt="hello",
+            local_first=False,
+            metadata={"machine_mode": {"id": "balanced"}},
+        )
+    )
+
+    assert result.provider == "openai"
+    assert result.metadata["machine_mode"]["id"] == "balanced"
+
+
+@pytest.mark.asyncio
+async def test_quiet_mode_clamps_map_job_concurrency(tmp_path):
+    router, storage, _ = make_router(tmp_path)
+    queue = JobQueue(storage, max_concurrency=4)
+    JobPrimitives(router).register(queue)
+
+    job = await queue.create(
+        JobCreateRequest(
+            primitive="map",
+            request=InferenceRequest(prompt="placeholder"),
+            items=["a", "b"],
+            concurrency=4,
+            metadata={"machine_mode": {"id": "quiet"}},
+        )
+    )
+
+    assert queue.get(job.id).metadata["machine_mode"]["id"] == "quiet"
+    assert queue.get(job.id).metadata["machine_mode"]["max_job_concurrency"] == 1
+
+
+@pytest.mark.asyncio
+async def test_multimodal_offline_mode_blocks_paid_default(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, builtin_media_enabled=False)
+    storage = AppStorage(settings.database_path())
+    multimodal = MultimodalRegistry(settings, ProviderRegistry([EchoProvider()]), storage)
+
+    with pytest.raises(ValueError) as error:
+        await multimodal.invoke(
+            "image",
+            MultimodalInvokeRequest(prompt="offline image", options={"machine_mode": {"id": "offline"}}),
+        )
+
+    assert "Offline Mode" in str(error.value)
 
 
 @pytest.mark.asyncio

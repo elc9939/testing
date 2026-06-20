@@ -23,6 +23,7 @@ from .inference import InferenceRouter, sse
 from .jobs.primitives import JobPrimitives
 from .jobs.queue import JobQueue
 from .logging_setup import setup_logging
+from .machine_modes import machine_mode_policy
 from .maintenance import BackupManager, MaintenanceScheduler, cleanup_old_files, restore_backup_to_temp
 from .memory.store import SemanticMemory
 from .models import (
@@ -426,9 +427,11 @@ def create_app(
     async def command(request: CommandRequest) -> dict[str, Any]:
         try:
             run_id = new_id("cmd")
+            mode_payload = {"machine_mode": machine_mode_policy(request.context).metadata()}
             direct_web = _web_command_payload(request.objective)
             if direct_web:
                 tool_id, payload = direct_web
+                payload = {**payload, **mode_payload}
                 observation = await services.tools.call(tool_id, payload, confirmed=request.confirm_actions, run_id=run_id)
                 status = "succeeded" if observation.get("ok") else "failed"
                 if tool_id == "web.search" and observation.get("ok"):
@@ -475,6 +478,7 @@ def create_app(
                 }
             direct_image_payload = _image_file_command_payload(request.objective)
             if direct_image_payload:
+                direct_image_payload = {**direct_image_payload, **mode_payload}
                 if request.provider:
                     direct_image_payload["provider"] = request.provider
                 if request.model:

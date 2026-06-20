@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from .config import Settings
+from .machine_modes import MachineModePolicy, machine_mode_policy, merged_machine_mode_metadata
 from .models import InferenceRequest, InferenceResult, ProviderUsage, StreamChunk
 from .providers.base import ProviderAdapter, ProviderError, ProviderUnavailable
 from .providers.registry import ProviderRegistry
@@ -34,25 +35,58 @@ class InferenceRouter:
     def _request_input_estimate(self, request: InferenceRequest) -> int:
         return estimate_tokens("\n".join(message.content for message in request.as_messages()))
 
-    def _sort_key(self, adapter: ProviderAdapter, request: InferenceRequest) -> tuple[int, float, float, int]:
+    def _effective_request(self, request: InferenceRequest) -> InferenceRequest:
+        policy = machine_mode_policy(request.metadata)
+        updates: dict[str, Any] = {"metadata": merged_machine_mode_metadata(request.metadata)}
+        if policy.prefer_local:
+            updates["local_first"] = True
+        return request.model_copy(update=updates)
+
+    def _sort_key(self, adapter: ProviderAdapter, request: InferenceRequest, policy: MachineModePolicy) -> tuple[int, float, float, int]:
         priority = self.settings.provider_priority.index(adapter.provider_id) if adapter.provider_id in self.settings.provider_priority else 999
-        local_score = 0 if (request.local_first and adapter.local) else 1
+        local_first = request.local_first or policy.prefer_local
+        local_score = 0 if (local_first and adapter.local) else 1
         if request.local_first is False and adapter.paid:
+            local_score = 0
+        if policy.prefer_local and adapter.local:
             local_score = 0
         cost_rates = self.settings.provider_costs.get(adapter.provider_id, {})
         cost_score = float(cost_rates.get("input_per_1m", 0)) + float(cost_rates.get("output_per_1m", 0))
         latency = self.storage.recent_provider_latency(adapter.provider_id) or 999_999
         return (local_score, cost_score, latency, priority)
 
+    def _mode_allows_adapter(self, adapter: ProviderAdapter, request: InferenceRequest, policy: MachineModePolicy) -> bool:
+        explicit_provider = bool(request.provider)
+        if policy.local_only and not adapter.local:
+            return False
+        if policy.local_only and adapter.paid:
+            return False
+        if policy.avoid_paid_without_explicit_provider and adapter.paid and not explicit_provider:
+            return False
+        return True
+
     def candidates(self, request: InferenceRequest) -> list[ProviderAdapter]:
+        request = self._effective_request(request)
+        policy = machine_mode_policy(request.metadata)
         if request.provider:
             adapter = self.registry.get(request.provider)
             if not adapter:
                 raise ProviderUnavailable(f"Unknown provider: {request.provider}")
-            rest = [candidate for candidate in self.registry.all() if candidate.provider_id != request.provider]
-            return [adapter, *sorted(rest, key=lambda item: self._sort_key(item, request))] if request.allow_fallback else [adapter]
+            if not self._mode_allows_adapter(adapter, request, policy):
+                raise ProviderUnavailable(f"{policy.label} does not allow provider {adapter.provider_id}.")
+            rest = [
+                candidate
+                for candidate in self.registry.all()
+                if candidate.provider_id != request.provider and self._mode_allows_adapter(candidate, request, policy)
+            ]
+            return [adapter, *sorted(rest, key=lambda item: self._sort_key(item, request, policy))] if request.allow_fallback else [adapter]
 
-        candidates = sorted(self.registry.all(), key=lambda item: self._sort_key(item, request))
+        candidates = sorted(
+            [adapter for adapter in self.registry.all() if self._mode_allows_adapter(adapter, request, policy)],
+            key=lambda item: self._sort_key(item, request, policy),
+        )
+        if not candidates:
+            raise ProviderUnavailable(f"{policy.label} did not allow any configured providers for this request.")
         if request.cost_ceiling_usd is None:
             return candidates
 
@@ -65,6 +99,8 @@ class InferenceRouter:
         return filtered or candidates[:1]
 
     async def infer(self, request: InferenceRequest) -> InferenceResult:
+        request = self._effective_request(request)
+        policy_metadata = machine_mode_policy(request.metadata).metadata()
         fallback_chain: list[dict[str, Any]] = []
         last_error: Exception | None = None
         for adapter in self.candidates(request):
@@ -78,6 +114,7 @@ class InferenceRouter:
                 result.usage.total_tokens = result.usage.input_tokens + result.usage.output_tokens
                 result.cost_usd = self._estimate_cost(adapter.provider_id, result.usage)
                 result.fallback_chain = fallback_chain
+                result.metadata["machine_mode"] = policy_metadata
                 if result.usage.tokens_per_second:
                     result.metadata["tokens_per_second"] = result.usage.tokens_per_second
                 self.storage.log_usage(
@@ -108,6 +145,7 @@ class InferenceRouter:
                     latency_ms=latency_ms,
                     fallback_chain=fallback_chain,
                     error=str(error),
+                    metadata={"machine_mode": policy_metadata},
                 )
                 logger.warning("Provider failed", extra={"provider": adapter.provider_id, "error": str(error)})
                 if not request.allow_fallback:
@@ -115,6 +153,8 @@ class InferenceRouter:
         raise ProviderError(f"All providers failed: {last_error}")
 
     async def stream(self, request: InferenceRequest) -> AsyncIterator[StreamChunk]:
+        request = self._effective_request(request)
+        policy_metadata = machine_mode_policy(request.metadata).metadata()
         fallback_chain: list[dict[str, Any]] = []
         last_error: Exception | None = None
         for adapter in self.candidates(request):
@@ -145,7 +185,12 @@ class InferenceRouter:
                     cost_usd=self._estimate_cost(adapter.provider_id, usage),
                     latency_ms=latency_ms,
                     fallback_chain=fallback_chain,
-                    metadata={"streamed": True, "tokens_per_second": usage.tokens_per_second, "text_preview": text[:240]},
+                    metadata={
+                        "streamed": True,
+                        "tokens_per_second": usage.tokens_per_second,
+                        "text_preview": text[:240],
+                        "machine_mode": policy_metadata,
+                    },
                 )
                 return
             except Exception as error:
@@ -163,7 +208,7 @@ class InferenceRouter:
                     latency_ms=latency_ms,
                     fallback_chain=fallback_chain,
                     error=str(error),
-                    metadata={"streamed": True},
+                    metadata={"streamed": True, "machine_mode": policy_metadata},
                 )
                 if chunks or not request.allow_fallback:
                     yield StreamChunk(provider=adapter.provider_id, model=request.model or "", done=True, metadata={"error": str(error)})

@@ -88,6 +88,28 @@ local-first preference, cost ceiling, or fallback policy. LM Studio, llama.cpp, 
 share one OpenAI-compatible local adapter and differ by base URL/model/key settings.
 Adding another provider is a new adapter class or another OpenAI-compatible registration.
 
+### Machine Mode Policy
+
+Machine Modes are the first machine-adaptive routing policy shared by the hub and AI OS.
+The Svelte hub stores the selected mode in Settings and passes it as `machine_mode` metadata
+on dashboard inference, command, job, and media calls. The FastAPI service normalizes that
+metadata in `ai_os.machine_modes` and records the resolved policy in usage, job, and asset
+metadata.
+
+Current enforcement is intentionally small but real:
+
+- `Balanced`: preserves the request's `local_first` and fallback settings.
+- `Beast Mode`: forces local-first provider ordering, while still allowing configured fallback.
+- `Quiet Mode`: forces local-first routing, avoids paid providers unless an explicit provider
+  was selected, and clamps job concurrency to one.
+- `Offline Mode`: allows only local, non-paid providers and clamps job concurrency to one.
+- `Night Shift`: favors unattended local/batch-friendly work and avoids paid providers unless
+  explicitly selected.
+- `Maintenance Mode`: favors local diagnostics and clamps job concurrency to two.
+
+This is not yet a full resource scheduler. It is the policy layer that future idle detection,
+GPU queue limits, background windows, and maintenance presets should obey.
+
 ### Capability
 
 Capabilities are discoverable service surfaces, not workflows:

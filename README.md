@@ -69,8 +69,10 @@ is ready, running, needs setup, degraded, blocked, or offline without inventing 
 Settings uses the same snapshot as the service control surface, with per-service health
 links and routes into the panels that can fix or inspect each capability. Settings also
 stores Machine Modes v1: Balanced, Beast, Quiet, Offline, Night Shift, and Maintenance.
-These are advisory compute policies today, passed into assistant and AI OS command context
-so future routing, background queues, and local/GPU-heavy work can obey them consistently.
+These modes are now enforced by AI OS for routed text calls and queued jobs: Offline blocks
+paid/cloud providers, Quiet and Night Shift avoid paid providers unless explicitly selected,
+and Quiet/Maintenance clamp job concurrency. The assistant and AI OS dashboard both pass the
+current mode into command, inference, job, and media calls.
 
 ### Personal Data And Sync
 

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from ..config import Settings
 from ..inference import InferenceRouter
+from ..machine_modes import merged_machine_mode_metadata
 from ..memory.store import SemanticMemory
 from ..models import (
     AgentRunRequest,
@@ -199,6 +200,7 @@ class AgentEngine:
                 model=request.model,
                 temperature=0.1,
                 max_tokens=700,
+                metadata=merged_machine_mode_metadata(request.context),
                 messages=[
                     ChatMessage(role="system", content=self._system_prompt(request)),
                     ChatMessage(role="user", content=transcript),
@@ -269,7 +271,13 @@ def build_tool_registry(
             return response.json()
 
     async def infer_tool(payload: dict[str, Any]) -> dict[str, Any]:
-        result = await router.infer(InferenceRequest(prompt=str(payload.get("prompt") or ""), task_type="agent.tool.infer"))
+        result = await router.infer(
+            InferenceRequest(
+                prompt=str(payload.get("prompt") or ""),
+                task_type="agent.tool.infer",
+                metadata=merged_machine_mode_metadata(payload),
+            )
+        )
         return {"ok": True, "result": result.model_dump(mode="json")}
 
     async def media_generate_image_file_tool(payload: dict[str, Any]) -> dict[str, Any]:
