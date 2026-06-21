@@ -10,7 +10,7 @@
     RefreshCw,
     Settings
   } from 'lucide-svelte';
-  import { launcherEntries, type ActionLedgerEntry, type CalendarEvent, type JobRecord } from '@mini-hub/core';
+  import { launcherEntries, type ActionLedgerEntry, type ActionLedgerRisk, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
   import {
     actionLedgerDetail,
@@ -38,6 +38,7 @@
   import { clientData } from '$lib/client-data';
   import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import { buildModeRecommendations, type ModeRecommendation } from '$lib/mode-recommendations';
+  import { recordBrowserAction } from '$lib/browser-action-ledger';
   import { hubHref } from '$lib/routes';
   import {
     getConnections,
@@ -271,15 +272,70 @@
     return value.ok === true ? success : failure;
   }
 
+  function modeActionRisk(item: ModeRecommendation): ActionLedgerRisk {
+    if (item.action?.kind === 'run_text_benchmark') return 'read';
+    return 'system';
+  }
+
+  function logModeAction(
+    item: ModeRecommendation,
+    status: ActionLedgerEntry['status'],
+    detail: {
+      changed?: string[];
+      recoverability?: ActionLedgerEntry['recoverability'];
+      metadata?: Record<string, unknown>;
+    } = {}
+  ): void {
+    if (!item.action) return;
+    recordBrowserAction({
+      source: 'today',
+      actionType: `today.${item.action.kind}`,
+      summary: `Today recommendation "${item.label}" ${status.replace('_', ' ')}`,
+      status,
+      risk: modeActionRisk(item),
+      mode: currentMachineMode.id,
+      changed: detail.changed ?? [item.action.kind],
+      recoverability:
+        detail.recoverability ?? {
+          kind: status === 'blocked' ? 'dry_run' : 'none',
+          route: item.route,
+          description:
+            status === 'blocked'
+              ? 'Confirmation was cancelled before Today ran this action.'
+              : 'Cockpit action is logged; no rollback artifact is attached.',
+          reversible: status === 'blocked'
+        },
+      rawRef: {
+        kind: 'today_recommendation',
+        recommendationId: item.id,
+        capabilityId: item.capabilityId,
+        actionKind: item.action.kind
+      },
+      metadata: {
+        label: item.label,
+        route: item.route,
+        priority: item.priority,
+        ...detail.metadata
+      }
+    });
+  }
+
   async function runModeRecommendation(item: ModeRecommendation): Promise<void> {
     if (!item.action || modeActionBusyId) return;
-    if (item.action.confirm && typeof window !== 'undefined' && !window.confirm(item.action.confirm)) return;
+    if (item.action.confirm && typeof window !== 'undefined' && !window.confirm(item.action.confirm)) {
+      logModeAction(item, 'blocked');
+      await refreshActionLedger();
+      return;
+    }
 
     modeActionBusyId = item.id;
     modeActionMessage = '';
     modeActionError = '';
 
     try {
+      let changed: string[] = [];
+      let recoverability: ActionLedgerEntry['recoverability'] | undefined;
+      let metadata: Record<string, unknown> = {};
       if (item.action.kind === 'run_text_benchmark') {
         const run = await runBenchmark({
           kind: 'text',
@@ -291,6 +347,15 @@
         });
         const speed = typeof run.tokens_per_second === 'number' ? ` at ${run.tokens_per_second.toFixed(1)} tokens/sec` : '';
         modeActionMessage = `Benchmark logged on ${run.provider ?? 'auto'}${run.model ? `/${run.model}` : ''}${speed}.`;
+        changed = [`benchmark:${run.id}`];
+        recoverability = {
+          kind: 'snapshot',
+          referenceId: run.id,
+          route: '/ai-os',
+          description: 'Today triggered a persisted AI OS benchmark measurement.',
+          reversible: false
+        };
+        metadata = { provider: run.provider, model: run.model, tokens_per_second: run.tokens_per_second };
       } else if (item.action.kind === 'run_foundation_check') {
         const backup = await createAiBackup(`today-${currentMachineMode.id}-foundation-check`);
         const backupId = requireRecordId(backup, 'Backup');
@@ -301,6 +366,15 @@
           okLabel(verification, 'Checksum/integrity verification passed.', 'Checksum/integrity verification needs review.'),
           okLabel(restore, 'Restore test passed.', 'Restore test needs review.')
         ].join(' ');
+        changed = [`backup:${backupId}`];
+        recoverability = {
+          kind: 'backup',
+          referenceId: backupId,
+          route: '/ai-os',
+          description: 'Today created an AI OS backup and ran verification/restore-test artifacts.',
+          reversible: true
+        };
+        metadata = { backupId, verificationOk: verification.ok, restoreOk: restore.ok };
       } else if (item.action.kind === 'queue_local_summary_batch') {
         const snapshotSummary = capabilitySnapshot
           ? formatCapabilityRegistrySummary(capabilitySnapshot)
@@ -326,11 +400,27 @@
           metadata: { recommendation_id: item.id, ...modeMetadata() }
         });
         modeActionMessage = `Queued local ${job.primitive} job ${job.id}.`;
+        changed = [`job:${job.id}`];
+        recoverability = {
+          kind: 'artifact',
+          referenceId: job.id,
+          route: '/ai-os',
+          description: 'Today queued an AI OS job; job history and results are the recovery/audit artifact.',
+          reversible: false
+        };
+        metadata = { jobId: job.id, primitive: job.primitive };
       }
 
+      logModeAction(item, 'succeeded', { changed, recoverability, metadata });
       await Promise.all([refreshCapabilities(), refreshActionLedger()]);
     } catch (error) {
       modeActionError = error instanceof Error ? error.message : 'Recommendation action failed.';
+      logModeAction(item, 'failed', {
+        metadata: {
+          error: modeActionError
+        }
+      });
+      await refreshActionLedger();
     } finally {
       modeActionBusyId = '';
     }

@@ -83,11 +83,12 @@ backend already has a real endpoint, those recommendations can run the action di
 local compute benchmarks, fresh backup verification/restore-tests, and a small local summary
 batch through the AI OS job queue. Today also shows a compact Recent Actions ledger built
 from real Mini Hub sync events, AI OS jobs/tools/benchmarks/backups/profile snapshots,
-generation/design logs, and Macro Lab run history so actions have visible follow-through
-and recoverability notes. Settings exposes the same ledger as a recovery surface: Mini Hub
-actions with before-state snapshots can be restored from the UI with explicit confirmation,
-and AI OS file-writing actions with reversible pre-action snapshots can be restored from the
-same panel.
+generation/design logs, Macro Lab run history, and browser-side Today recommendation clicks
+so actions have visible follow-through, failures, and recoverability notes. Settings exposes
+the same ledger as a recovery surface: Mini Hub actions with before-state snapshots can be
+restored from the UI with explicit confirmation, AI OS file-writing actions with reversible
+pre-action snapshots can be restored, and Macro Lab file recovery artifacts can be replayed
+from the same panel.
 
 ### Personal Data And Sync
 

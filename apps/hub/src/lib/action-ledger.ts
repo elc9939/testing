@@ -1,6 +1,7 @@
 import type { ActionLedgerEntry, ActionLedgerRisk, ActionLedgerStatus, ActionRecoverability } from '@mini-hub/core';
 import { getHubActionLedger } from './api';
 import { getAiActionLedger, type AiActionLedgerEntry } from './ai-os-api';
+import { listBrowserActionLedger } from './browser-action-ledger';
 import { listMacroRuns, type MacroRun } from './macro-lab-api';
 
 export interface ActionLedgerSnapshot {
@@ -13,6 +14,7 @@ export interface ActionLedgerInput {
   hubActions?: ActionLedgerEntry[];
   aiActions?: AiActionLedgerEntry[];
   macroRuns?: MacroRun[];
+  browserActions?: ActionLedgerEntry[];
   errors?: string[];
   limit?: number;
 }
@@ -31,6 +33,7 @@ export async function loadActionLedger(limit = 12): Promise<ActionLedgerSnapshot
     hubActions: hub.status === 'fulfilled' ? hub.value : [],
     aiActions: ai.status === 'fulfilled' ? ai.value : [],
     macroRuns: macro.status === 'fulfilled' ? macro.value : [],
+    browserActions: listBrowserActionLedger(limit),
     errors,
     limit
   });
@@ -40,7 +43,8 @@ export function buildActionLedgerSnapshot(input: ActionLedgerInput): ActionLedge
   const actions = [
     ...(input.hubActions ?? []),
     ...(input.aiActions ?? []).map(normalizeAiAction),
-    ...(input.macroRuns ?? []).map(macroRunToAction)
+    ...(input.macroRuns ?? []).map(macroRunToAction),
+    ...(input.browserActions ?? [])
   ];
 
   return {

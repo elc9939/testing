@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionLedgerEntry } from '@mini-hub/core';
 import { actionLedgerDetail, buildActionLedgerSnapshot, macroRunToAction, normalizeAiAction } from './action-ledger';
+import { listBrowserActionLedger, recordBrowserAction } from './browser-action-ledger';
+
+class MemoryStorage {
+  private values = new Map<string, string>();
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.values.set(key, value);
+  }
+}
 
 const hubAction: ActionLedgerEntry = {
   id: 'hub:1',
@@ -132,6 +145,44 @@ describe('action ledger', () => {
 
     expect(action.changed).toEqual(['C:/tmp/delete-me.txt']);
     expect(action.recoverability.kind).toBe('artifact');
+  });
+
+  it('persists browser cockpit actions and merges them into the shared ledger', () => {
+    const storage = new MemoryStorage();
+    const entry = recordBrowserAction(
+      {
+        id: 'browser:today:1',
+        occurredAt: '2026-06-20T13:00:00.000Z',
+        source: 'today',
+        actionType: 'today.run_foundation_check',
+        summary: 'Today recommendation Run backup and restore checks succeeded',
+        status: 'succeeded',
+        risk: 'system',
+        mode: 'maintenance',
+        changed: ['backup:backup_1'],
+        recoverability: {
+          kind: 'backup',
+          referenceId: 'backup_1',
+          route: '/ai-os',
+          description: 'Cockpit action created an AI OS backup and restore-test artifact.',
+          reversible: true
+        },
+        rawRef: { recommendationId: 'maintenance:foundation' },
+        metadata: {}
+      },
+      storage
+    );
+
+    expect(entry?.system).toBe('browser');
+    const browserActions = listBrowserActionLedger(5, storage);
+    const snapshot = buildActionLedgerSnapshot({
+      hubActions: [hubAction],
+      browserActions,
+      limit: 5
+    });
+
+    expect(snapshot.actions.map((action) => action.id)).toEqual(['browser:today:1', 'hub:1']);
+    expect(snapshot.actions[0].recoverability.kind).toBe('backup');
   });
 
   it('merges all sources newest first and preserves service errors', () => {
