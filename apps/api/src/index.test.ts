@@ -295,6 +295,54 @@ describe('mini hub api', () => {
     );
   });
 
+  it('exposes sync writes through the action ledger with recoverability metadata', async () => {
+    const app = createApp({ useLogger: false, store: createMemoryStore() });
+    const authHeaders = { 'content-type': 'application/json' };
+
+    const jobResponse = await app.request('/api/jobs', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ workspaceId: 'personal', company: 'Acme', role: 'Analyst', status: 'lead' })
+    });
+    const { job } = (await jobResponse.json()) as { job: { id: string } };
+
+    const deleteResponse = await app.request(`/api/jobs/${job.id}`, { method: 'DELETE' });
+    expect(deleteResponse.status).toBe(200);
+
+    const response = await app.request('/api/action-ledger?limit=10');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      actions: Array<{
+        id: string;
+        actionType: string;
+        changed: string[];
+        recoverability: { kind: string; description: string };
+        risk: string;
+        status: string;
+      }>;
+    };
+
+    expect(body.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.stringContaining('mini-hub-sync:'),
+          actionType: 'job.insert',
+          changed: [`job:${job.id}`],
+          recoverability: expect.objectContaining({ kind: 'snapshot' }),
+          risk: 'write',
+          status: 'succeeded'
+        }),
+        expect.objectContaining({
+          actionType: 'job.delete',
+          changed: [`job:${job.id}`],
+          recoverability: expect.objectContaining({ kind: 'none' }),
+          risk: 'destructive',
+          status: 'succeeded'
+        })
+      ])
+    );
+  });
+
   it('upserts legacy imports by id without duplicating desk rows', async () => {
     const store = createMemoryStore();
     const app = createApp({ useLogger: false, store });

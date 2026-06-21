@@ -640,6 +640,33 @@ def test_autotune_endpoint_runs_probe_and_persists_snapshot(tmp_path):
     assert usage[0].metadata["machine_mode"]["id"] == "beast"
 
 
+def test_action_ledger_combines_ai_os_logs_and_recoverability(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([JsonToolPlanProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        command = client.post("/api/ai/command", json={"objective": "Add a study session", "confirm_actions": False})
+        benchmark = client.post("/api/ai/benchmarks", json={"kind": "text", "prompt": "bench"})
+        backup = client.post("/api/ai/backups", json={"reason": "ledger-test"})
+        snapshot = client.post("/api/ai/machine-profile/snapshots", json={"source": "ledger-test"})
+        ledger = client.get("/api/ai/action-ledger?limit=20")
+
+    assert command.status_code == 200
+    assert benchmark.status_code == 200
+    assert backup.status_code == 200
+    assert snapshot.status_code == 200
+    assert ledger.status_code == 200
+    actions = ledger.json()["actions"]
+    by_type = {action["action_type"]: action for action in actions}
+    assert by_type["study.add_session"]["status"] == "blocked"
+    assert by_type["study.add_session"]["recoverability"]["reversible"] is True
+    assert by_type["benchmark.text"]["recoverability"]["kind"] == "snapshot"
+    assert by_type["backup.create"]["recoverability"]["kind"] == "backup"
+    assert by_type["machine_profile.snapshot"]["recoverability"]["kind"] == "snapshot"
+
+
 def test_backup_verify_and_restore_to_target(tmp_path):
     settings = Settings(data_dir=tmp_path, backup_enabled=False, backup_retention_count=3)
     storage = AppStorage(settings.database_path())

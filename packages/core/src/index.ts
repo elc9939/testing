@@ -220,6 +220,45 @@ export const syncEventSchema = z.object({
   createdAt: z.string().min(1)
 });
 
+export const actionLedgerStatusSchema = z.enum([
+  'succeeded',
+  'failed',
+  'running',
+  'queued',
+  'cancelled',
+  'dry_run',
+  'blocked',
+  'info'
+]);
+
+export const actionLedgerRiskSchema = z.enum(['read', 'write', 'system', 'destructive']);
+
+export const actionLedgerSystemSchema = z.enum(['mini-hub', 'ai-os', 'macro-lab', 'browser']);
+
+export const actionRecoverabilitySchema = z.object({
+  kind: z.enum(['none', 'backup', 'snapshot', 'dry_run', 'patch', 'restore_test', 'artifact']).default('none'),
+  referenceId: z.string().optional(),
+  route: z.string().optional(),
+  description: z.string().default(''),
+  reversible: z.boolean().default(false)
+});
+
+export const actionLedgerEntrySchema = z.object({
+  id: z.string().min(1),
+  occurredAt: z.string().min(1),
+  system: actionLedgerSystemSchema,
+  source: z.string().min(1),
+  actionType: z.string().min(1),
+  summary: z.string().min(1),
+  status: actionLedgerStatusSchema,
+  risk: actionLedgerRiskSchema,
+  mode: z.string().optional(),
+  changed: z.array(z.string()).default([]),
+  recoverability: actionRecoverabilitySchema.default({ kind: 'none', description: '', reversible: false }),
+  rawRef: z.record(z.string(), z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
 export const workspaceSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -327,6 +366,11 @@ export type GmailThread = z.infer<typeof gmailThreadSchema>;
 export type GmailDraft = z.infer<typeof gmailDraftSchema>;
 export type TimelineItem = z.infer<typeof timelineItemSchema>;
 export type SyncEvent = z.infer<typeof syncEventSchema>;
+export type ActionLedgerStatus = z.infer<typeof actionLedgerStatusSchema>;
+export type ActionLedgerRisk = z.infer<typeof actionLedgerRiskSchema>;
+export type ActionLedgerSystem = z.infer<typeof actionLedgerSystemSchema>;
+export type ActionRecoverability = z.infer<typeof actionRecoverabilitySchema>;
+export type ActionLedgerEntry = z.infer<typeof actionLedgerEntrySchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type JobRecord = z.infer<typeof jobSchema>;
 export type StudySession = z.infer<typeof studySessionSchema>;

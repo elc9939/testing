@@ -332,6 +332,30 @@ class MachineProfileSnapshotRecord(BaseModel):
     autotune: dict[str, Any] = Field(default_factory=dict)
 
 
+class ActionRecoverability(BaseModel):
+    kind: Literal["none", "backup", "snapshot", "dry_run", "patch", "restore_test", "artifact"] = "none"
+    reference_id: str | None = None
+    route: str | None = None
+    description: str = ""
+    reversible: bool = False
+
+
+class ActionLedgerEntry(BaseModel):
+    id: str
+    occurred_at: str
+    system: Literal["mini-hub", "ai-os", "macro-lab", "browser"] = "ai-os"
+    source: str
+    action_type: str
+    summary: str
+    status: Literal["succeeded", "failed", "running", "queued", "cancelled", "dry_run", "blocked", "info"]
+    risk: Literal["read", "write", "system", "destructive"]
+    mode: str | None = None
+    changed: list[str] = Field(default_factory=list)
+    recoverability: ActionRecoverability = Field(default_factory=ActionRecoverability)
+    raw_ref: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class MachineProfileSnapshotRequest(BaseModel):
     source: str = Field(default="manual", max_length=80)
 

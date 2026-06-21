@@ -81,9 +81,10 @@ maintenance modes can respect real pressure instead of guessing. Today also turn
 mode and capability registry into concrete next actions without inventing data. Where the
 backend already has a real endpoint, those recommendations can run the action directly:
 local compute benchmarks, fresh backup verification/restore-tests, and a small local summary
-batch through the AI OS job queue. Today also shows a compact AI OS activity panel built from
-real job, tool-call, benchmark, backup, and generation logs so actions have visible
-follow-through.
+batch through the AI OS job queue. Today also shows a compact Recent Actions ledger built
+from real Mini Hub sync events, AI OS jobs/tools/benchmarks/backups/profile snapshots,
+generation/design logs, and Macro Lab run history so actions have visible follow-through
+and recoverability notes.
 
 ### Personal Data And Sync
 
@@ -105,6 +106,8 @@ Implemented now:
 - Google OAuth flow.
 - Google Calendar list/view/create/edit/delete/move/reminder support.
 - Gmail search/list/read/compose/draft/send/reply/archive/mark read/unread/label actions.
+- Mini Hub action ledger endpoint for synced personal data writes/deletes with risk and
+  recoverability metadata.
 
 Partially prepared:
 
@@ -136,6 +139,9 @@ Current capabilities include:
 - Machine Profile + Autotune v1: persisted profile snapshots, safe local text probes,
   recent benchmark summaries, resource-pressure summaries, and measured-route feedback
   into routing and machine-mode recommendations.
+- AI OS action ledger endpoint that normalizes tool calls, inference usage, jobs,
+  benchmarks, backups, machine-profile snapshots, generation assets, and design patches
+  into one audit/recoverability stream.
 
 More detail:
 

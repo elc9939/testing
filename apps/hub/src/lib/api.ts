@@ -1,4 +1,5 @@
 import { env as publicEnv } from '$env/dynamic/public';
+import type { ActionLedgerEntry } from '@mini-hub/core';
 import { requestServiceJson, resolveServiceUrl } from './service-config';
 
 export function getApiUrl(): string {
@@ -13,4 +14,9 @@ export async function requestApiJson<T>(path: string, init: RequestInit = {}): P
 
 export async function getHealth(): Promise<{ ok: boolean; service: string }> {
   return requestApiJson<{ ok: boolean; service: string }>('/api/health');
+}
+
+export async function getHubActionLedger(limit = 50): Promise<ActionLedgerEntry[]> {
+  const result = await requestApiJson<{ actions: ActionLedgerEntry[] }>(`/api/action-ledger?limit=${limit}`);
+  return result.actions;
 }

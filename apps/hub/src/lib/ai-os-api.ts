@@ -231,6 +231,28 @@ export interface AiMachineProfileSnapshot {
   autotune: AiAutotuneSummary;
 }
 
+export interface AiActionLedgerEntry {
+  id: string;
+  occurred_at: string;
+  system: 'mini-hub' | 'ai-os' | 'macro-lab' | 'browser';
+  source: string;
+  action_type: string;
+  summary: string;
+  status: 'succeeded' | 'failed' | 'running' | 'queued' | 'cancelled' | 'dry_run' | 'blocked' | 'info';
+  risk: 'read' | 'write' | 'system' | 'destructive';
+  mode?: string;
+  changed: string[];
+  recoverability: {
+    kind: 'none' | 'backup' | 'snapshot' | 'dry_run' | 'patch' | 'restore_test' | 'artifact';
+    reference_id?: string;
+    route?: string;
+    description: string;
+    reversible: boolean;
+  };
+  raw_ref: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+}
+
 export interface AiAutotuneResult {
   ok: boolean;
   benchmark?: AiBenchmarkRun | null;
@@ -505,6 +527,11 @@ export async function runAutotune(input: Record<string, unknown>): Promise<AiAut
 export async function listBenchmarks(limit = 25): Promise<AiBenchmarkRun[]> {
   const result = await requestJson<{ benchmarks: AiBenchmarkRun[] }>(`/api/ai/benchmarks?limit=${limit}`);
   return result.benchmarks;
+}
+
+export async function getAiActionLedger(limit = 50): Promise<AiActionLedgerEntry[]> {
+  const result = await requestJson<{ actions: AiActionLedgerEntry[] }>(`/api/ai/action-ledger?limit=${limit}`);
+  return result.actions;
 }
 
 export async function toggleBackgroundUnit(unitId: string, enabled: boolean): Promise<AiBackgroundUnit> {

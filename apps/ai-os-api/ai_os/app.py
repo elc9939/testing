@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .agents.engine import AgentEngine, build_tool_registry
+from .action_ledger import build_ai_action_ledger
 from .background.registry import BackgroundRegistry, build_background_registry
 from .benchmarks import run_benchmark
 from .capabilities import build_capabilities
@@ -451,6 +452,16 @@ def create_app(
     @app.get("/api/ai/usage")
     async def usage(limit: int = 50) -> dict[str, Any]:
         return {"usage": [entry.model_dump(mode="json") for entry in services.storage.list_usage(limit)]}
+
+    @app.get("/api/ai/action-ledger")
+    async def action_ledger(limit: int = 50) -> dict[str, Any]:
+        entries = build_ai_action_ledger(
+            storage=services.storage,
+            backups=[backup.as_dict() for backup in services.backups.list_backups()],
+            jobs=services.jobs.list(),
+            limit=limit,
+        )
+        return {"actions": [entry.model_dump(mode="json") for entry in entries]}
 
     @app.post("/api/ai/jobs")
     async def create_job(request: JobCreateRequest) -> dict[str, Any]:

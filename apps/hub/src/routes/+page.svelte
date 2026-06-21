@@ -10,9 +10,15 @@
     RefreshCw,
     Settings
   } from 'lucide-svelte';
-  import { launcherEntries, type CalendarEvent, type JobRecord } from '@mini-hub/core';
+  import { launcherEntries, type ActionLedgerEntry, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
-  import { aiActivityStateLabel, buildAiActivityItems, type AiActivityItem } from '$lib/ai-activity';
+  import {
+    actionLedgerDetail,
+    actionLedgerRiskLabel,
+    actionLedgerStatusLabel,
+    loadActionLedger,
+    type ActionLedgerSnapshot
+  } from '$lib/action-ledger';
   import { attentionKindLabel, buildAttentionItems, type AttentionItem } from '$lib/attention';
   import {
     formatCapabilityRegistrySummary,
@@ -25,11 +31,9 @@
   import {
     createAiBackup,
     createAiJob,
-    getAiStatus,
     restoreTestAiBackup,
     runBenchmark,
-    verifyAiBackup,
-    type AiStatus
+    verifyAiBackup
   } from '$lib/ai-os-api';
   import { clientData } from '$lib/client-data';
   import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
@@ -62,10 +66,10 @@
   let modeRecommendations: ModeRecommendation[] = [];
   let capabilityLoading = false;
   let capabilityError = '';
-  let aiStatus: AiStatus | null = null;
-  let aiActivityItems: AiActivityItem[] = [];
-  let aiActivityLoading = false;
-  let aiActivityError = '';
+  let actionLedgerSnapshot: ActionLedgerSnapshot | null = null;
+  let actionLedgerItems: ActionLedgerEntry[] = [];
+  let actionLedgerLoading = false;
+  let actionLedgerError = '';
   let modeActionBusyId = '';
   let modeActionMessage = '';
   let modeActionError = '';
@@ -96,7 +100,7 @@
     capabilitySnapshot,
     attentionCount: attentionItems.length
   });
-  $: aiActivityItems = buildAiActivityItems(aiStatus, 5);
+  $: actionLedgerItems = actionLedgerSnapshot?.actions.slice(0, 5) ?? [];
   $: applyQueue = $clientData.jobs
     .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
     .sort((a, b) => (a.nextActionAt ?? a.updatedAt).localeCompare(b.nextActionAt ?? b.updatedAt))
@@ -237,6 +241,20 @@
     return displayWhen(value);
   }
 
+  function actionStatusClass(action: ActionLedgerEntry): string {
+    if (action.status === 'succeeded') return 'success';
+    if (action.status === 'failed' || action.status === 'blocked') return 'failed';
+    if (action.status === 'running' || action.status === 'queued') return action.status;
+    return action.status;
+  }
+
+  function actionRoute(action: ActionLedgerEntry): string {
+    if (action.recoverability.route) return action.recoverability.route;
+    if (action.system === 'ai-os') return '/ai-os';
+    if (action.system === 'macro-lab') return '/macro-lab';
+    return '/settings';
+  }
+
   function modeMetadata(): Record<string, unknown> {
     return {
       source: 'today-mode-recommendation',
@@ -310,7 +328,7 @@
         modeActionMessage = `Queued local ${job.primitive} job ${job.id}.`;
       }
 
-      await Promise.all([refreshCapabilities(), refreshAiActivity()]);
+      await Promise.all([refreshCapabilities(), refreshActionLedger()]);
     } catch (error) {
       modeActionError = error instanceof Error ? error.message : 'Recommendation action failed.';
     } finally {
@@ -336,15 +354,15 @@
     }
   }
 
-  async function refreshAiActivity(): Promise<void> {
-    aiActivityLoading = true;
-    aiActivityError = '';
+  async function refreshActionLedger(): Promise<void> {
+    actionLedgerLoading = true;
+    actionLedgerError = '';
     try {
-      aiStatus = await getAiStatus(currentMachineMode.id);
+      actionLedgerSnapshot = await loadActionLedger(12);
     } catch (error) {
-      aiActivityError = error instanceof Error ? error.message : 'AI OS activity failed to load.';
+      actionLedgerError = error instanceof Error ? error.message : 'Action ledger failed to load.';
     } finally {
-      aiActivityLoading = false;
+      actionLedgerLoading = false;
     }
   }
 
@@ -391,7 +409,7 @@
     } finally {
       dashboardLoading = false;
       void refreshCapabilities(hasGoogle);
-      void refreshAiActivity();
+      void refreshActionLedger();
     }
   }
 
@@ -528,37 +546,41 @@
       {/if}
     </article>
 
-    <article class="card panel ai-activity-panel">
+    <article class="card panel action-ledger-panel">
       <div class="panel-title">
         <div>
           <span class="icon-chip"><Activity size={16} /></span>
-          <strong>AI OS Activity</strong>
+          <strong>Recent Actions</strong>
         </div>
-        <a class="button compact" href={hubHref('/ai-os')}>
-          <span>Logs</span>
+        <a class="button compact" href={hubHref('/settings')}>
+          <span>Ledger</span>
           <ArrowRight size={15} />
         </a>
       </div>
 
-      {#if aiActivityItems.length}
+      {#if actionLedgerItems.length}
         <div class="ai-activity-list">
-          {#each aiActivityItems as item}
-            <a class="ai-activity-row" href={hubHref(item.route)}>
-              <span class={`activity-state ${item.state}`}>{aiActivityStateLabel(item.state)}</span>
+          {#each actionLedgerItems as item}
+            <a class="ai-activity-row" href={hubHref(actionRoute(item))}>
+              <span class={`activity-state ${actionStatusClass(item)}`}>{actionLedgerStatusLabel(item.status)}</span>
               <span class="activity-main">
-                <strong>{item.title}</strong>
-                <small>{item.detail}</small>
+                <strong>{item.summary}</strong>
+                <small>{actionLedgerDetail(item)}</small>
               </span>
+              <span class={`risk-chip ${item.risk}`}>{actionLedgerRiskLabel(item.risk)}</span>
               <time datetime={item.occurredAt}>{displayActivityWhen(item.occurredAt)}</time>
             </a>
           {/each}
         </div>
-      {:else if aiActivityLoading}
-        <p class="empty-note">Loading recent AI OS jobs, tools, backups, and benchmarks...</p>
-      {:else if aiActivityError}
-        <p class="empty-note">{aiActivityError}</p>
+      {:else if actionLedgerLoading}
+        <p class="empty-note">Loading recent app actions, AI OS logs, and Macro Lab runs...</p>
+      {:else if actionLedgerError}
+        <p class="empty-note">{actionLedgerError}</p>
       {:else}
-        <p class="empty-note">No AI OS activity is logged yet. Runs from this cockpit will appear here after refresh.</p>
+        <p class="empty-note">No meaningful actions are logged yet. Saves, benchmarks, backups, tools, and macros will appear here.</p>
+      {/if}
+      {#if actionLedgerSnapshot?.errors.length}
+        <p class="ledger-warning">{actionLedgerSnapshot.errors[0]}</p>
       {/if}
     </article>
   </div>
@@ -1029,7 +1051,7 @@
 
   .ai-activity-row {
     display: grid;
-    grid-template-columns: 78px minmax(0, 1fr) 132px;
+    grid-template-columns: 78px minmax(0, 1fr) 82px 116px;
     gap: 10px;
     align-items: center;
     min-height: 58px;
@@ -1072,6 +1094,14 @@
     background: var(--warning-bg);
   }
 
+  .activity-state.dry_run,
+  .activity-state.info,
+  .activity-state.cancelled {
+    border-color: var(--border);
+    color: var(--muted);
+    background: var(--surface-muted);
+  }
+
   .activity-main {
     display: grid;
     gap: 3px;
@@ -1095,6 +1125,46 @@
     justify-self: end;
     font-size: 12px;
     font-weight: 700;
+  }
+
+  .risk-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 66px;
+    min-height: 22px;
+    justify-self: end;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .risk-chip.destructive {
+    border-color: var(--danger-border);
+    color: var(--danger-text);
+    background: var(--danger-bg);
+  }
+
+  .risk-chip.system {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .ledger-warning {
+    margin: 0;
+    padding: 9px 10px;
+    border-top: 1px solid var(--border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
   }
 
   .attention-meta {
@@ -1465,6 +1535,11 @@
     }
 
     .ai-activity-row time {
+      grid-column: 2;
+      justify-self: start;
+    }
+
+    .risk-chip {
       grid-column: 2;
       justify-self: start;
     }
