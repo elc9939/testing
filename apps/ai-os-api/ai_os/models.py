@@ -270,6 +270,19 @@ class GenerationAssetRecord(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ActionSnapshotRecord(BaseModel):
+    id: str
+    created_at: str
+    source: str
+    action_type: str
+    target: str
+    content_type: str
+    existed: bool = False
+    snapshot_path: str | None = None
+    size_bytes: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class DesignPatchRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=50_000)
     target_files: list[str] = Field(default_factory=list, max_length=20)

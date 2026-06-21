@@ -25,6 +25,7 @@ from ai_os.providers.base import ProviderAdapter, ProviderUnavailable
 from ai_os.providers.openai_compatible import OpenAICompatibleLocalProvider
 from ai_os.providers.ollama import OllamaProvider
 from ai_os.providers.registry import ProviderRegistry
+from ai_os.recoverability import capture_file_pre_action_snapshot
 from ai_os.storage import AppStorage
 from ai_os.telemetry import _parse_windows_gpu_payload
 from ai_os.web_access import WebAccess
@@ -341,7 +342,7 @@ def test_storage_migration_and_integrity_report(tmp_path):
 
     assert report["ok"] is True
     assert report["schema_version"] == report["expected_schema_version"]
-    assert report["counts"]["schema_migrations"] == 3
+    assert report["counts"]["schema_migrations"] == 4
 
 
 def test_command_endpoint_blocks_write_tools_without_confirmation(tmp_path):
@@ -418,9 +419,12 @@ def test_image_file_command_writes_to_configured_desktop_when_confirmed(monkeypa
             "/api/ai/command",
             json={"objective": "create an ai image of a cat and add it to my desktop", "confirm_actions": True},
         )
+        ledger_response = client.get("/api/ai/action-ledger?limit=10")
+        snapshots = storage.list_action_snapshots()
 
     body = response.json()
     assert response.status_code == 200
+    assert ledger_response.status_code == 200
     assert body["result"]["status"] == "succeeded"
     assert body["tool_calls"][0]["tool_id"] == "media.generate_image_file"
     assert body["tool_calls"][0]["ok"] is True
@@ -428,6 +432,36 @@ def test_image_file_command_writes_to_configured_desktop_when_confirmed(monkeypa
     assert image_path.parent == export_dir.resolve()
     assert image_path.name == "ai-cat.png"
     assert image_path.read_bytes().startswith(b"\x89PNG")
+    snapshot = snapshots[0]
+    assert snapshot.action_type == "media.generate_image_file"
+    assert snapshot.existed is False
+    assert snapshot.target == str(image_path)
+    assert body["tool_calls"][0]["result"]["pre_action_snapshot"]["id"] == snapshot.id
+    ledger_tool = next(action for action in ledger_response.json()["actions"] if action["action_type"] == "media.generate_image_file")
+    assert ledger_tool["recoverability"]["kind"] == "snapshot"
+    assert ledger_tool["recoverability"]["reference_id"] == snapshot.id
+    assert ledger_tool["recoverability"]["reversible"] is False
+
+
+def test_file_pre_action_snapshot_copies_existing_bytes(tmp_path):
+    settings = Settings(data_dir=tmp_path / "data", backup_enabled=False)
+    storage = AppStorage(settings.database_path())
+    target = tmp_path / "target.txt"
+    target.write_text("before", encoding="utf-8")
+
+    snapshot = capture_file_pre_action_snapshot(
+        settings=settings,
+        storage=storage,
+        source="test",
+        action_type="test.write",
+        target=target,
+        content_type="text/plain",
+    )
+
+    assert snapshot.existed is True
+    assert snapshot.snapshot_path is not None
+    assert Path(snapshot.snapshot_path).read_text(encoding="utf-8") == "before"
+    assert storage.get_action_snapshot(snapshot.id).snapshot_path == snapshot.snapshot_path
 
 
 def test_web_tools_are_registered_and_visible_as_capabilities(tmp_path):
@@ -671,15 +705,27 @@ def test_backup_verify_and_restore_to_target(tmp_path):
     settings = Settings(data_dir=tmp_path, backup_enabled=False, backup_retention_count=3)
     storage = AppStorage(settings.database_path())
     storage.log_job_event("job_test", "info", "seed")
+    target = tmp_path / "target.txt"
+    target.write_text("recover me", encoding="utf-8")
+    capture_file_pre_action_snapshot(
+        settings=settings,
+        storage=storage,
+        source="test",
+        action_type="test.write",
+        target=target,
+        content_type="text/plain",
+    )
     backups = BackupManager(settings, storage)
 
     manifest = backups.create_backup(reason="test")
     verification = backups.verify_backup(manifest["id"])
     restored = backups.restore_to(manifest["id"], tmp_path / "restored.sqlite3")
 
+    assert any(file["role"] == "action-snapshot" for file in manifest["files"])
     assert verification["ok"] is True
     assert restored["ok"] is True
     assert restored["restored"]["counts"]["job_events"] == 1
+    assert restored["restored"]["counts"]["action_snapshots"] == 1
 
 
 def test_request_bounds_reject_unbounded_jobs():

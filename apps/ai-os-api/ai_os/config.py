@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     log_max_bytes: int = Field(default=5_000_000, validation_alias="AI_OS_LOG_MAX_BYTES")
     temp_dir: Path | None = Field(default=None, validation_alias="AI_OS_TEMP_DIR")
     assets_dir: Path | None = Field(default=None, validation_alias="AI_OS_ASSETS_DIR")
+    action_snapshots_dir: Path | None = Field(default=None, validation_alias="AI_OS_ACTION_SNAPSHOTS_DIR")
     desktop_export_dir: Path | None = Field(default=None, validation_alias="AI_OS_DESKTOP_EXPORT_DIR")
     require_loopback: bool = Field(default=True, validation_alias="AI_OS_REQUIRE_LOOPBACK")
     max_request_bytes: int = Field(default=15_000_000, validation_alias="AI_OS_MAX_REQUEST_BYTES")
@@ -189,6 +190,9 @@ class Settings(BaseSettings):
 
     def resolved_assets_dir(self) -> Path:
         return self.assets_dir or self.data_dir / "assets"
+
+    def resolved_action_snapshots_dir(self) -> Path:
+        return self.action_snapshots_dir or self.data_dir / "action-snapshots"
 
     def resolved_desktop_export_dir(self) -> Path:
         if self.desktop_export_dir:

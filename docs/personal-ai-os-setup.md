@@ -201,6 +201,7 @@ AI_OS_LOG_DIR=.ai-os-data/logs
 AI_OS_LOG_LEVEL=INFO
 AI_OS_TEMP_DIR=.ai-os-data/tmp
 AI_OS_ASSETS_DIR=.ai-os-data/assets
+AI_OS_ACTION_SNAPSHOTS_DIR=.ai-os-data/action-snapshots
 AI_OS_MAX_REQUEST_BYTES=52428800
 AI_OS_MAX_PROMPT_CHARS=200000
 AI_OS_MAX_MEMORY_INGEST_CHARS=2000000
@@ -223,7 +224,9 @@ AI_OS_WEB_BROWSER_EXECUTABLE_PATH=
 ```
 
 Routine backups intentionally exclude giant model caches. Put generated files you care about
-under `AI_OS_ASSETS_DIR` if you want them included in AI OS backups.
+under `AI_OS_ASSETS_DIR` if you want them included in AI OS backups. Pre-action recovery
+snapshots for AI OS file-writing tools live under `AI_OS_ACTION_SNAPSHOTS_DIR` and are
+included in backup manifests.
 
 The web settings power the assistant tools `web.search`, `web.scrape`, and
 `browser.extract`. The default `AI_OS_WEB_ALLOW_PRIVATE_HOSTS=false` blocks localhost,

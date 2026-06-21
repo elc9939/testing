@@ -85,7 +85,9 @@ batch through the AI OS job queue. Today also shows a compact Recent Actions led
 from real Mini Hub sync events, AI OS jobs/tools/benchmarks/backups/profile snapshots,
 generation/design logs, and Macro Lab run history so actions have visible follow-through
 and recoverability notes. Settings exposes the same ledger as a recovery surface: Mini Hub
-actions with before-state snapshots can be restored from the UI with explicit confirmation.
+actions with before-state snapshots can be restored from the UI with explicit confirmation,
+and AI OS write tools can attach pre-action file snapshots or artifact references where a
+local rollback trail exists.
 
 ### Personal Data And Sync
 
@@ -145,6 +147,9 @@ Current capabilities include:
 - AI OS action ledger endpoint that normalizes tool calls, inference usage, jobs,
   benchmarks, backups, machine-profile snapshots, generation assets, and design patches
   into one audit/recoverability stream.
+- AI OS pre-action snapshots for file-writing tools, currently including assistant
+  image-to-Desktop exports. Snapshots record whether the target already existed and copy
+  previous bytes when there is something to preserve; backup manifests include those files.
 
 More detail:
 

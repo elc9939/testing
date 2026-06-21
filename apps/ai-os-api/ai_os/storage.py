@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import (
+    ActionSnapshotRecord,
     BenchmarkRunRecord,
     DesignPatchRecord,
     GenerationAssetRecord,
@@ -17,7 +18,7 @@ from .models import (
     now_iso,
 )
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 class AppStorage:
@@ -51,6 +52,8 @@ class AppStorage:
                 self._apply_0002_ai_layer()
             if current < 3:
                 self._apply_0003_machine_profile()
+            if current < 4:
+                self._apply_0004_action_snapshots()
 
     def _apply_0001_initial(self) -> None:
         self._conn.executescript(
@@ -210,6 +213,35 @@ class AppStorage:
             (3, "0003_machine_profile_snapshots", now_iso(), 0, "builtin:0003_machine_profile_snapshots"),
         )
 
+    def _apply_0004_action_snapshots(self) -> None:
+        self._conn.executescript(
+            """
+            create table if not exists action_snapshots (
+              id text primary key,
+              created_at text not null,
+              source text not null,
+              action_type text not null,
+              target text not null,
+              content_type text not null,
+              existed integer not null,
+              snapshot_path text,
+              size_bytes integer,
+              metadata text not null
+            );
+            create index if not exists idx_action_snapshots_created_at
+              on action_snapshots(created_at);
+            create index if not exists idx_action_snapshots_action_type
+              on action_snapshots(action_type);
+            """
+        )
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (4, "0004_action_snapshots", now_iso(), 0, "builtin:0004_action_snapshots"),
+        )
+
     def schema_version(self) -> int:
         with self._lock:
             row = self._conn.execute("select max(version) as version from schema_migrations").fetchone()
@@ -242,6 +274,7 @@ class AppStorage:
             "generation_assets",
             "benchmark_runs",
             "machine_profile_snapshots",
+            "action_snapshots",
             "schema_migrations",
         ]
         counts: dict[str, int] = {}
@@ -292,6 +325,7 @@ class AppStorage:
             ("benchmark_runs", "result"),
             ("machine_profile_snapshots", "profile"),
             ("machine_profile_snapshots", "autotune"),
+            ("action_snapshots", "metadata"),
         ]
         errors: list[dict[str, Any]] = []
         for table, column in checks:
@@ -758,6 +792,94 @@ class AppStorage:
                 prompt=row["prompt"],
                 content_type=row["content_type"],
                 asset_path=row["asset_path"],
+                metadata=json.loads(row["metadata"]),
+            )
+            for row in rows
+        ]
+
+    def log_action_snapshot(
+        self,
+        *,
+        snapshot_id: str | None = None,
+        source: str,
+        action_type: str,
+        target: str,
+        content_type: str,
+        existed: bool,
+        snapshot_path: str | None = None,
+        size_bytes: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ActionSnapshotRecord:
+        record = ActionSnapshotRecord(
+            id=snapshot_id or new_id("snapshot"),
+            created_at=now_iso(),
+            source=source,
+            action_type=action_type,
+            target=target,
+            content_type=content_type,
+            existed=existed,
+            snapshot_path=snapshot_path,
+            size_bytes=size_bytes,
+            metadata=metadata or {},
+        )
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert into action_snapshots (
+                  id, created_at, source, action_type, target, content_type,
+                  existed, snapshot_path, size_bytes, metadata
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.created_at,
+                    record.source,
+                    record.action_type,
+                    record.target,
+                    record.content_type,
+                    1 if record.existed else 0,
+                    record.snapshot_path,
+                    record.size_bytes,
+                    json.dumps(record.metadata),
+                ),
+            )
+        return record
+
+    def get_action_snapshot(self, snapshot_id: str) -> ActionSnapshotRecord | None:
+        with self._lock:
+            row = self._conn.execute("select * from action_snapshots where id = ?", (snapshot_id,)).fetchone()
+        if not row:
+            return None
+        return ActionSnapshotRecord(
+            id=row["id"],
+            created_at=row["created_at"],
+            source=row["source"],
+            action_type=row["action_type"],
+            target=row["target"],
+            content_type=row["content_type"],
+            existed=bool(row["existed"]),
+            snapshot_path=row["snapshot_path"],
+            size_bytes=row["size_bytes"],
+            metadata=json.loads(row["metadata"]),
+        )
+
+    def list_action_snapshots(self, limit: int = 50) -> list[ActionSnapshotRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from action_snapshots order by created_at desc limit ?",
+                (max(1, min(limit, 500)),),
+            ).fetchall()
+        return [
+            ActionSnapshotRecord(
+                id=row["id"],
+                created_at=row["created_at"],
+                source=row["source"],
+                action_type=row["action_type"],
+                target=row["target"],
+                content_type=row["content_type"],
+                existed=bool(row["existed"]),
+                snapshot_path=row["snapshot_path"],
+                size_bytes=row["size_bytes"],
                 metadata=json.loads(row["metadata"]),
             )
             for row in rows

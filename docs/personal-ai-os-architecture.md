@@ -201,7 +201,10 @@ rules, and logs as `POST /api/ai/agents/run`.
 Obvious file-producing media commands such as "generate an image and save it to my Desktop"
 are routed deterministically to `media.generate_image_file` before the planning model runs.
 That tool still uses the same multimodal adapters and write confirmation gate, but avoids
-local-model JSON drift for common one-shot commands.
+local-model JSON drift for common one-shot commands. Before a confirmed file write, it records
+a recoverability snapshot for the target path: if a previous file existed, its bytes are copied
+under `AI_OS_ACTION_SNAPSHOTS_DIR`; if the path was new, the ledger records that fact so the
+action still has an explicit artifact trail.
 
 Likewise, obvious internet commands such as "search the web for ..." or "scrape
 https://..." are routed directly to `web.search`, `web.scrape`, or `browser.extract`. These

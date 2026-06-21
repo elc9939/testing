@@ -23,6 +23,7 @@ from ..models import (
     InferenceRequest,
     MultimodalInvokeRequest,
 )
+from ..recoverability import capture_file_pre_action_snapshot
 from ..storage import AppStorage
 from ..web_access import WebAccess
 
@@ -303,6 +304,21 @@ def build_tool_registry(
             extension,
         )
         target = _unique_child_path(destination, filename)
+        snapshot = None
+        if storage:
+            snapshot = capture_file_pre_action_snapshot(
+                settings=configured,
+                storage=storage,
+                source="tool_call",
+                action_type="media.generate_image_file",
+                target=target,
+                content_type=content_type or "image/png",
+                metadata={
+                    "provider": media_result.get("provider"),
+                    "model": media_result.get("model"),
+                    "asset": media_result.get("asset"),
+                },
+            )
         target.write_bytes(image_bytes)
         return {
             "ok": True,
@@ -313,6 +329,7 @@ def build_tool_registry(
             "content_type": content_type or "image/png",
             "bytes": len(image_bytes),
             "asset": media_result.get("asset"),
+            "pre_action_snapshot": snapshot.model_dump(mode="json") if snapshot else None,
         }
 
     async def memory_tool(payload: dict[str, Any]) -> dict[str, Any]:

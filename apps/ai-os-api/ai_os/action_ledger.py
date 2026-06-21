@@ -69,15 +69,7 @@ def _tool_entry(call: ToolCallLogEntry) -> ActionLedgerEntry:
         status = "blocked"
     risk = "destructive" if call.safety == "destructive" else call.safety
     detail = call.error or f"{call.safety} tool completed in {_format_ms(call.latency_ms)}"
-    recoverability = ActionRecoverability(
-        kind="none",
-        description=(
-            "Confirmation gate blocked this tool before side effects."
-            if status == "blocked"
-            else "Tool call log is recorded, but no automatic rollback artifact is attached."
-        ),
-        reversible=status == "blocked",
-    )
+    recoverability = _recoverability_from_tool(call, status)
     return ActionLedgerEntry(
         id=f"ai-tool:{call.id}",
         occurred_at=call.created_at,
@@ -95,7 +87,44 @@ def _tool_entry(call: ToolCallLogEntry) -> ActionLedgerEntry:
             "requires_confirmation": call.requires_confirmation,
             "latency_ms": call.latency_ms,
             "detail": detail,
+            "pre_action_snapshot": _pre_action_snapshot(call),
         },
+    )
+
+
+def _pre_action_snapshot(call: ToolCallLogEntry) -> dict[str, Any] | None:
+    result = call.result if isinstance(call.result, dict) else {}
+    snapshot = result.get("pre_action_snapshot")
+    return snapshot if isinstance(snapshot, dict) else None
+
+
+def _recoverability_from_tool(call: ToolCallLogEntry, status: str) -> ActionRecoverability:
+    snapshot = _pre_action_snapshot(call)
+    if snapshot:
+        existed = bool(snapshot.get("existed"))
+        snapshot_id = str(snapshot.get("id") or "")
+        target = str(snapshot.get("target") or "").strip()
+        if existed:
+            description = "Pre-action file snapshot captured before this tool wrote to disk."
+        else:
+            description = "Pre-action snapshot recorded that this target did not exist before the tool wrote to disk."
+        if target:
+            description = f"{description} Target: {target}"
+        return ActionRecoverability(
+            kind="snapshot",
+            reference_id=snapshot_id or None,
+            route="/ai-os",
+            description=description,
+            reversible=existed and bool(snapshot.get("snapshot_path")),
+        )
+    return ActionRecoverability(
+        kind="none",
+        description=(
+            "Confirmation gate blocked this tool before side effects."
+            if status == "blocked"
+            else "Tool call log is recorded, but no automatic rollback artifact is attached."
+        ),
+        reversible=status == "blocked",
     )
 
 

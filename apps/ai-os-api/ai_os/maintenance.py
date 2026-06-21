@@ -99,6 +99,21 @@ class BackupManager:
                         }
                     )
 
+        snapshots_dir = self.settings.resolved_action_snapshots_dir()
+        if snapshots_dir.exists() and snapshots_dir.resolve() != assets_dir.resolve():
+            copied_snapshots = destination / "action-snapshots"
+            shutil.copytree(snapshots_dir, copied_snapshots)
+            for file in copied_snapshots.rglob("*"):
+                if file.is_file():
+                    files.append(
+                        {
+                            "role": "action-snapshot",
+                            "path": str(file.relative_to(destination)).replace("\\", "/"),
+                            "sha256": sha256_file(file),
+                            "size_bytes": file.stat().st_size,
+                        }
+                    )
+
         config_summary = redact_mapping(
             {
                 "host": self.settings.host,
@@ -107,6 +122,7 @@ class BackupManager:
                 "backup_dir": self.settings.resolved_backup_dir(),
                 "log_dir": self.settings.resolved_log_dir(),
                 "assets_dir": self.settings.resolved_assets_dir(),
+                "action_snapshots_dir": self.settings.resolved_action_snapshots_dir(),
                 "ollama_base_url": self.settings.ollama_base_url,
                 "ollama_chat_model": self.settings.ollama_chat_model,
                 "ollama_embedding_model": self.settings.ollama_embedding_model,
@@ -262,7 +278,15 @@ def verify_sqlite_file(path: Path) -> dict[str, Any]:
         ).fetchone()
         schema_version = int(schema_row["version"] or 0) if schema_row else 0
         counts: dict[str, int] = {}
-        for table in ("usage_log", "memory_documents", "memory_chunks", "job_events", "schema_migrations"):
+        for table in (
+            "usage_log",
+            "memory_documents",
+            "memory_chunks",
+            "job_events",
+            "tool_call_log",
+            "action_snapshots",
+            "schema_migrations",
+        ):
             counts[table] = int(conn.execute(f"select count(*) as count from {table}").fetchone()["count"])
         ok = integrity == ["ok"] and not foreign_keys and schema_version == CURRENT_SCHEMA_VERSION
         return {
