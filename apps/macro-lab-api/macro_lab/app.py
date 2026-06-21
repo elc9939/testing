@@ -14,8 +14,21 @@ from fastapi.responses import JSONResponse
 from . import __version__, platform
 from .config import Settings, get_settings
 from .engine import MacroEngine
-from .models import ActionDefinition, MacroDefinition, MacroPatch, RunRequest, TriggerDefinition, WindowLayoutRecord
+from .models import (
+    ActionDefinition,
+    MacroDefinition,
+    MacroPatch,
+    RestoreRunRequest,
+    RunRecord,
+    RunRequest,
+    StepResult,
+    TriggerDefinition,
+    WindowLayoutRecord,
+    new_id,
+    now_iso,
+)
 from .recorder import InputRecorder
+from .recoverability import restore_run_file_artifacts
 from .storage import MacroStorage
 from .triggers import TriggerManager
 
@@ -298,6 +311,80 @@ def create_app(settings: Settings | None = None, storage: MacroStorage | None = 
     @app.get("/api/macro-lab/runs")
     async def runs(limit: int = 100) -> dict[str, Any]:
         return {"runs": services.storage.list_runs(limit)}
+
+    @app.post("/api/macro-lab/runs/{run_id}/restore")
+    async def restore_run(run_id: str, request: RestoreRunRequest) -> dict[str, Any]:
+        source_run = services.storage.get_run(run_id)
+        if not source_run:
+            raise HTTPException(status_code=404, detail="Run not found.")
+
+        restore_record = RunRecord(
+            macro_id=str(source_run["macro_id"]),
+            macro_name=f"Restore {source_run['macro_name']}",
+            dry_run=False,
+            status="running",
+        )
+        services.storage.append_run(restore_record, services.settings.max_run_history)
+
+        started = now_iso()
+        if not request.confirm:
+            restore_record.status = "failed"
+            restore_record.error = "Restore requires confirm: true because it writes local files."
+            restore_record.steps.append(
+                StepResult(
+                    action_id=new_id("restore_step"),
+                    action_type="macro.restore",
+                    label="Restore macro run",
+                    safety="destructive",
+                    status="failed",
+                    message=restore_record.error,
+                    detail={"restored_run_id": run_id, "requires_confirmation": True},
+                    started_at=started,
+                    finished_at=now_iso(),
+                )
+            )
+            restore_record.finished_at = now_iso()
+            services.storage.append_run(restore_record, services.settings.max_run_history)
+            raise HTTPException(status_code=409, detail=restore_record.error)
+
+        try:
+            restore = restore_run_file_artifacts(settings=services.settings, run=source_run)
+            restore_record.status = "succeeded"
+            restore_record.steps.append(
+                StepResult(
+                    action_id=new_id("restore_step"),
+                    action_type="macro.restore",
+                    label="Restore macro run",
+                    safety="destructive",
+                    status="succeeded",
+                    message="Restored recorded file recovery artifacts.",
+                    detail=restore,
+                    started_at=started,
+                    finished_at=now_iso(),
+                )
+            )
+            restore_record.finished_at = now_iso()
+            services.storage.append_run(restore_record, services.settings.max_run_history)
+            return {"restore": restore, "run": restore_record.model_dump(mode="json")}
+        except Exception as error:
+            restore_record.status = "failed"
+            restore_record.error = str(error)
+            restore_record.steps.append(
+                StepResult(
+                    action_id=new_id("restore_step"),
+                    action_type="macro.restore",
+                    label="Restore macro run",
+                    safety="destructive",
+                    status="failed",
+                    message=str(error),
+                    detail={"restored_run_id": run_id},
+                    started_at=started,
+                    finished_at=now_iso(),
+                )
+            )
+            restore_record.finished_at = now_iso()
+            services.storage.append_run(restore_record, services.settings.max_run_history)
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post("/api/macro-lab/panic")
     async def panic() -> dict[str, Any]:

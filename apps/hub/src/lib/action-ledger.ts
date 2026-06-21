@@ -208,14 +208,23 @@ function macroStepChangedPaths(step: Record<string, unknown>): string[] {
     const value = detail[key];
     if (typeof value === 'string' && value.trim()) paths.push(value);
   }
-  const operations = detail.operations;
-  if (Array.isArray(operations)) {
+  for (const collectionKey of ['operations', 'applied']) {
+    const operations = detail[collectionKey];
+    if (!Array.isArray(operations)) continue;
     for (const operation of operations) {
       if (!isRecord(operation)) continue;
       for (const key of ['path', 'source', 'target']) {
         const value = operation[key];
         if (typeof value === 'string' && value.trim()) paths.push(value);
       }
+    }
+  }
+  const preRestoreSnapshots = detail.pre_restore_snapshots;
+  if (Array.isArray(preRestoreSnapshots)) {
+    for (const snapshot of preRestoreSnapshots) {
+      if (!isRecord(snapshot)) continue;
+      const target = snapshot.target;
+      if (typeof target === 'string' && target.trim()) paths.push(target);
     }
   }
   const recoverability = macroStepRecoverability(step);

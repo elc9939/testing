@@ -68,6 +68,10 @@ class RunRequest(BaseModel):
     trigger_context: dict[str, Any] = Field(default_factory=dict)
 
 
+class RestoreRunRequest(BaseModel):
+    confirm: bool = False
+
+
 class StepResult(BaseModel):
     action_id: str
     action_type: str

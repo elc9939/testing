@@ -73,6 +73,9 @@ GET http://127.0.0.1:8792/api/macro-lab/status
   the deleted path before removal; `file.move`, `file.copy`, and `file.batch_rename` record
   inverse-operation hints and snapshot any pre-existing target they might overwrite. Snapshot
   files live under `MACRO_LAB_ACTION_SNAPSHOTS_DIR` or `.macro-lab-data/action-snapshots`.
+- Reversible file recovery artifacts can be restored from Settings or with
+  `POST /api/macro-lab/runs/{run_id}/restore` and body `{"confirm": true}`. Restores write a
+  new Macro Lab run-history entry so the unified Action Ledger records the restore attempt too.
 
 ## Macro Shape
 

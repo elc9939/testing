@@ -145,3 +145,36 @@ def test_api_macro_run_and_panic(tmp_path):
     assert panic.json()["panic"] is True
     assert status.json()["engine"]["panic"] is True
     assert reset.json()["panic"] is False
+
+
+def test_api_restores_macro_file_recovery_artifacts(tmp_path):
+    settings = Settings(data_dir=tmp_path / "data", clipboard_poll_interval_s=60)
+    storage = MacroStorage(settings.database_path())
+    target = tmp_path / "restore-me.txt"
+    target.write_text("before delete", encoding="utf-8")
+    macro = storage.upsert_macro(
+        MacroDefinition(
+            name="Delete then restore",
+            dry_run_default=False,
+            armed=True,
+            actions=[ActionDefinition(type="file.delete", config={"path": str(target)})],
+        )
+    )
+    app = create_app(settings=settings, storage=storage)
+
+    with TestClient(app) as client:
+        run = client.post(f"/api/macro-lab/macros/{macro.id}/run", json={"dry_run": False})
+        run_id = run.json()["run"]["id"]
+        blocked = client.post(f"/api/macro-lab/runs/{run_id}/restore", json={})
+        restored = client.post(f"/api/macro-lab/runs/{run_id}/restore", json={"confirm": True})
+        runs = client.get("/api/macro-lab/runs?limit=5").json()["runs"]
+
+    assert run.status_code == 200
+    assert blocked.status_code == 409
+    assert restored.status_code == 200
+    assert target.read_text(encoding="utf-8") == "before delete"
+    restore_body = restored.json()["restore"]
+    assert restore_body["restored_run_id"] == run_id
+    assert restore_body["applied"][0]["operation"] == "restore_snapshot"
+    restore_runs = [item for item in runs if item["macro_name"] == "Restore Delete then restore"]
+    assert {item["status"] for item in restore_runs} == {"failed", "succeeded"}

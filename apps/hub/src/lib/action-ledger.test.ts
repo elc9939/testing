@@ -102,6 +102,38 @@ describe('action ledger', () => {
     expect(action.recoverability.description).toContain('1 snapshot');
   });
 
+  it('surfaces Macro Lab restore run targets in changed paths', () => {
+    const action = macroRunToAction({
+      id: 'run-restore',
+      macro_id: 'macro-2',
+      macro_name: 'Restore Delete temp',
+      status: 'succeeded',
+      dry_run: false,
+      started_at: '2026-06-20T09:02:00.000Z',
+      finished_at: '2026-06-20T09:03:00.000Z',
+      steps: [
+        {
+          action_type: 'macro.restore',
+          label: 'Restore macro run',
+          safety: 'destructive',
+          detail: {
+            restored_run_id: 'run-2',
+            applied: [{ operation: 'restore_snapshot', snapshot_id: 'snap-1', target: 'C:/tmp/delete-me.txt' }],
+            recoverability: {
+              kind: 'artifact',
+              reversible: false,
+              snapshots: [],
+              inverse_operations: []
+            }
+          }
+        }
+      ]
+    });
+
+    expect(action.changed).toEqual(['C:/tmp/delete-me.txt']);
+    expect(action.recoverability.kind).toBe('artifact');
+  });
+
   it('merges all sources newest first and preserves service errors', () => {
     const snapshot = buildActionLedgerSnapshot({
       hubActions: [hubAction],

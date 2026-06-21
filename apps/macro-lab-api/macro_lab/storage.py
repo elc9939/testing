@@ -168,26 +168,30 @@ class MacroStorage:
         )
         self._conn.commit()
 
+    def get_run(self, run_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute("select * from run_history where id = ?", (run_id,)).fetchone()
+        return self._row_to_run(row) if row else None
+
     def list_runs(self, limit: int = 100) -> list[dict[str, Any]]:
         rows = self._conn.execute(
             "select * from run_history order by started_at desc limit ?",
             (limit,),
         ).fetchall()
-        return [
-            {
-                "id": row["id"],
-                "macro_id": row["macro_id"],
-                "macro_name": row["macro_name"],
-                "trigger_id": row["trigger_id"],
-                "status": row["status"],
-                "dry_run": bool(row["dry_run"]),
-                "started_at": row["started_at"],
-                "finished_at": row["finished_at"],
-                "error": row["error"],
-                "steps": json.loads(row["steps_json"]),
-            }
-            for row in rows
-        ]
+        return [self._row_to_run(row) for row in rows]
+
+    def _row_to_run(self, row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "macro_id": row["macro_id"],
+            "macro_name": row["macro_name"],
+            "trigger_id": row["trigger_id"],
+            "status": row["status"],
+            "dry_run": bool(row["dry_run"]),
+            "started_at": row["started_at"],
+            "finished_at": row["finished_at"],
+            "error": row["error"],
+            "steps": json.loads(row["steps_json"]),
+        }
 
     def add_clipboard(self, value: str, limit: int = 100) -> None:
         if not value:

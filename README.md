@@ -194,7 +194,8 @@ Current scope:
 - Panic/armed safety controls.
 - File-action recoverability metadata: real `file.delete`, `file.move`, `file.copy`, and
   `file.batch_rename` runs record snapshots or inverse-operation hints in run history, and
-  the unified Action Ledger surfaces those artifacts.
+  the unified Action Ledger surfaces those artifacts. Settings can restore reversible file
+  recovery artifacts through the Macro Lab restore endpoint with explicit confirmation.
 
 More detail:
 

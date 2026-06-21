@@ -125,6 +125,16 @@ export async function listMacroRuns(limit = 30): Promise<MacroRun[]> {
   return result.runs;
 }
 
+export async function restoreMacroRun(runId: string): Promise<{ restore: Record<string, unknown>; run: MacroRun }> {
+  return requestJson<{ restore: Record<string, unknown>; run: MacroRun }>(
+    `/api/macro-lab/runs/${encodeURIComponent(runId)}/restore`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true })
+    }
+  );
+}
+
 export async function panicMacroLab(): Promise<Record<string, unknown>> {
   return requestJson<Record<string, unknown>>('/api/macro-lab/panic', { method: 'POST' });
 }

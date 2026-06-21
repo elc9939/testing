@@ -30,7 +30,7 @@
     type MachineModeDefinition,
     type MachineModeId
   } from '$lib/machine-mode';
-  import { getMacroLabApiUrl } from '$lib/macro-lab-api';
+  import { getMacroLabApiUrl, restoreMacroRun } from '$lib/macro-lab-api';
   import { getConnections } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint, setServiceEndpoints } from '$lib/service-config';
@@ -264,19 +264,23 @@
   }
 
   function canRestoreAction(action: ActionLedgerEntry): boolean {
-    if (action.recoverability.kind !== 'snapshot' || !action.recoverability.reversible) return false;
+    if (!action.recoverability.reversible) return false;
     if (action.system === 'mini-hub') return true;
-    return action.system === 'ai-os' && Boolean(action.recoverability.referenceId);
+    if (action.system === 'ai-os') return action.recoverability.kind === 'snapshot' && Boolean(action.recoverability.referenceId);
+    return action.system === 'macro-lab' && ['snapshot', 'artifact'].includes(action.recoverability.kind) && Boolean(action.recoverability.referenceId);
   }
 
   async function restoreAction(action: ActionLedgerEntry): Promise<void> {
     if (!canRestoreAction(action) || restoreBusyId) return;
     const isAiSnapshot = action.system === 'ai-os';
+    const isMacroRecovery = action.system === 'macro-lab';
     const confirmed =
       typeof window === 'undefined' ||
       window.confirm(
         isAiSnapshot
           ? `Restore the file snapshot for "${action.summary}"? This will overwrite the current local file target.`
+          : isMacroRecovery
+            ? `Restore the Macro Lab file recovery artifacts for "${action.summary}"? This will move, delete, or overwrite local files according to the recorded inverse operations.`
           : `Restore the before-state snapshot for "${action.summary}"? This will write synced Mini Hub data.`
       );
     if (!confirmed) return;
@@ -288,6 +292,10 @@
       if (isAiSnapshot) {
         await restoreAiActionSnapshot(action.recoverability.referenceId ?? '');
         actionLedgerMessage = 'AI OS file snapshot restored and the restore was added to the ledger.';
+        await refreshActionLedger();
+      } else if (isMacroRecovery) {
+        await restoreMacroRun(action.recoverability.referenceId ?? '');
+        actionLedgerMessage = 'Macro Lab file recovery artifacts restored and the restore was added to run history.';
         await refreshActionLedger();
       } else {
         await restoreHubActionLedgerEntry(action.id);
@@ -633,7 +641,7 @@
       </button>
     </div>
     <p class="helper-text">
-      Recent real actions from Mini Hub, AI OS, and Macro Lab. Reversible Mini Hub data snapshots and AI OS file snapshots can be restored from here.
+      Recent real actions from Mini Hub, AI OS, and Macro Lab. Reversible Mini Hub data, AI OS file snapshots, and Macro Lab file recovery artifacts can be restored from here.
     </p>
 
     {#if actionLedgerItems.length}
