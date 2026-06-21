@@ -10,13 +10,14 @@ from .models import (
     BenchmarkRunRecord,
     DesignPatchRecord,
     GenerationAssetRecord,
+    MachineProfileSnapshotRecord,
     ToolCallLogEntry,
     UsageLogEntry,
     new_id,
     now_iso,
 )
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 class AppStorage:
@@ -48,6 +49,8 @@ class AppStorage:
                 self._apply_0001_initial()
             if current < 2:
                 self._apply_0002_ai_layer()
+            if current < 3:
+                self._apply_0003_machine_profile()
 
     def _apply_0001_initial(self) -> None:
         self._conn.executescript(
@@ -185,6 +188,28 @@ class AppStorage:
             (2, "0002_ai_layer_capability_records", now_iso(), 0, "builtin:0002_ai_layer_capability_records"),
         )
 
+    def _apply_0003_machine_profile(self) -> None:
+        self._conn.executescript(
+            """
+            create table if not exists machine_profile_snapshots (
+              id text primary key,
+              created_at text not null,
+              source text not null,
+              profile text not null,
+              autotune text not null
+            );
+            create index if not exists idx_machine_profile_snapshots_created_at
+              on machine_profile_snapshots(created_at);
+            """
+        )
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (3, "0003_machine_profile_snapshots", now_iso(), 0, "builtin:0003_machine_profile_snapshots"),
+        )
+
     def schema_version(self) -> int:
         with self._lock:
             row = self._conn.execute("select max(version) as version from schema_migrations").fetchone()
@@ -216,6 +241,7 @@ class AppStorage:
             "design_patches",
             "generation_assets",
             "benchmark_runs",
+            "machine_profile_snapshots",
             "schema_migrations",
         ]
         counts: dict[str, int] = {}
@@ -264,6 +290,8 @@ class AppStorage:
             ("benchmark_runs", "hardware_before"),
             ("benchmark_runs", "hardware_after"),
             ("benchmark_runs", "result"),
+            ("machine_profile_snapshots", "profile"),
+            ("machine_profile_snapshots", "autotune"),
         ]
         errors: list[dict[str, Any]] = []
         for table, column in checks:
@@ -380,6 +408,36 @@ class AppStorage:
         if not values:
             return None
         return sum(values) / len(values)
+
+    def recent_provider_tokens_per_second(self, provider: str) -> float | None:
+        with self._lock:
+            benchmark_rows = self._conn.execute(
+                """
+                select avg(tokens_per_second) as avg_tokens_per_second
+                from (
+                  select tokens_per_second
+                  from benchmark_runs
+                  where provider = ? and ok = 1 and tokens_per_second is not null and tokens_per_second > 0
+                  order by created_at desc
+                  limit 20
+                )
+                """,
+                (provider,),
+            ).fetchone()
+        benchmark_value = benchmark_rows["avg_tokens_per_second"] if benchmark_rows else None
+        if benchmark_value is not None:
+            return float(benchmark_value)
+
+        entries = [
+            entry
+            for entry in self.list_usage(limit=100)
+            if entry.provider == provider
+            and isinstance(entry.metadata.get("tokens_per_second"), (int, float))
+            and entry.metadata["tokens_per_second"] > 0
+        ][:20]
+        if not entries:
+            return None
+        return sum(float(entry.metadata["tokens_per_second"]) for entry in entries) / len(entries)
 
     def upsert_document(self, source_type: str, source_id: str, title: str | None, metadata: dict[str, Any]) -> str:
         now = now_iso()
@@ -753,6 +811,47 @@ class AppStorage:
                 result=json.loads(row["result"]),
                 ok=bool(row["ok"]),
                 error=row["error"],
+            )
+            for row in rows
+        ]
+
+    def log_machine_profile_snapshot(
+        self,
+        *,
+        source: str,
+        profile: dict[str, Any],
+        autotune: dict[str, Any] | None = None,
+    ) -> MachineProfileSnapshotRecord:
+        record = MachineProfileSnapshotRecord(
+            id=new_id("profile"),
+            created_at=now_iso(),
+            source=source,
+            profile=profile,
+            autotune=autotune or {},
+        )
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert into machine_profile_snapshots (id, created_at, source, profile, autotune)
+                values (?, ?, ?, ?, ?)
+                """,
+                (record.id, record.created_at, record.source, json.dumps(record.profile), json.dumps(record.autotune)),
+            )
+        return record
+
+    def list_machine_profile_snapshots(self, limit: int = 10) -> list[MachineProfileSnapshotRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from machine_profile_snapshots order by created_at desc limit ?",
+                (max(1, min(limit, 100)),),
+            ).fetchall()
+        return [
+            MachineProfileSnapshotRecord(
+                id=row["id"],
+                created_at=row["created_at"],
+                source=row["source"],
+                profile=json.loads(row["profile"]),
+                autotune=json.loads(row["autotune"]),
             )
             for row in rows
         ]

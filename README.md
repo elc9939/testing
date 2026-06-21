@@ -52,7 +52,7 @@ The Svelte app under `apps/hub` provides these main pages:
 - Analytics: local dashboard surface for career/study/game data.
 - AI Lab: small browser-side local AI experiments such as classification and code parsing.
 - AI OS: capability dashboard for local AI, tools, memory, jobs, agents, media, health,
-  backups, telemetry, and web/browser access.
+  backups, telemetry, Machine Profile/Autotune, and web/browser access.
 - Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
 - Settings: service and machine control, capability health, endpoint configuration, theme,
   sync status, legacy import/export, dark mode.
@@ -72,13 +72,18 @@ links and routes into the panels that can fix or inspect each capability. Settin
 stores Machine Modes v1: Balanced, Beast, Quiet, Offline, Night Shift, and Maintenance.
 These modes are now enforced by AI OS for routed text calls and queued jobs: Offline blocks
 paid/cloud providers, Quiet and Night Shift avoid paid providers unless explicitly selected,
-and Quiet/Maintenance clamp job concurrency. The assistant and AI OS dashboard both pass the
-current mode into command, inference, job, and media calls. Today also turns the current mode
-and capability registry into concrete next actions without inventing data. Where the backend
-already has a real endpoint, those recommendations can run the action directly: local compute
-benchmarks, fresh backup verification/restore-tests, and a small local summary batch through
-the AI OS job queue. Today also shows a compact AI OS activity panel built from real job,
-tool-call, benchmark, backup, and generation logs so actions have visible follow-through.
+and Quiet/Maintenance clamp job concurrency. AI OS also exposes Machine Profile/Autotune v1:
+OS, CPU/RAM, GPU/VRAM telemetry when available, provider readiness, loaded models, health,
+benchmark history, snapshots, resource pressure, best measured text route, and suggested
+job concurrency. The assistant, Settings, Today, and AI OS dashboard pass the current mode
+into status/action calls so Beast Mode can prefer measured strong local routes and quiet or
+maintenance modes can respect real pressure instead of guessing. Today also turns the current
+mode and capability registry into concrete next actions without inventing data. Where the
+backend already has a real endpoint, those recommendations can run the action directly:
+local compute benchmarks, fresh backup verification/restore-tests, and a small local summary
+batch through the AI OS job queue. Today also shows a compact AI OS activity panel built from
+real job, tool-call, benchmark, backup, and generation logs so actions have visible
+follow-through.
 
 ### Personal Data And Sync
 
@@ -128,6 +133,9 @@ Current capabilities include:
   blocking by default.
 - Health, metrics, backup, restore-test, cleanup, dependency/model hygiene surfaces.
 - AMD/Windows GPU telemetry where the local machine exposes it.
+- Machine Profile + Autotune v1: persisted profile snapshots, safe local text probes,
+  recent benchmark summaries, resource-pressure summaries, and measured-route feedback
+  into routing and machine-mode recommendations.
 
 More detail:
 

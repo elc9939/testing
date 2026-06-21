@@ -38,6 +38,7 @@
     getAiOsApiUrl,
     getAiStatus,
     getAiUsage,
+    getMachineProfile,
     ingestMemory,
     invokeMultimodal,
     applyDesignPatch,
@@ -50,6 +51,7 @@
     queryMemory,
     revertDesignPatch,
     runAgent,
+    runAutotune,
     runBackgroundUnit,
     runBenchmark,
     runCommand,
@@ -63,6 +65,7 @@
     type AiDesignPatch,
     type AiGenerationAsset,
     type AiJobSnapshot,
+    type AiMachineProfileSnapshot,
     type AiStatus,
     type AiToolCallEntry,
     type AiUsageEntry
@@ -90,11 +93,14 @@
   let generationAssets: AiGenerationAsset[] = [];
   let designPatches: AiDesignPatch[] = [];
   let benchmarkRuns: AiBenchmarkRun[] = [];
+  let machineSnapshots: AiMachineProfileSnapshot[] = [];
   let loading = false;
   let actionError = '';
   let actionMessage = '';
   let foundationResult = '';
   let foundationBusy = false;
+  let autotuneBusy = false;
+  let autotuneResult = '';
 
   let inferPrompt = 'Return one sentence confirming which provider handled this ad hoc capability test.';
   let inferProvider = '';
@@ -148,6 +154,7 @@
   $: availableProviders = providers.filter((provider) => provider.available);
   $: providerOptions = providers.map((provider) => provider.id);
   $: hardware = status?.hardware;
+  $: machineProfile = status?.machine_profile;
   $: primaryGpu = hardware?.gpus?.[0];
   $: loadedModels = hardware?.loaded_models ?? [];
   $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
@@ -156,6 +163,9 @@
   $: mediaProviderOptions = multimodalProviderOptions(status);
   $: connectedLocalAiOsHref = localConnectedAiOsHref();
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
+  $: profilePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
+  $: profileBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: profileBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -280,6 +290,19 @@
     return source === 'unavailable' ? 'sensor unavailable' : 'temperature n/a';
   }
 
+  function routeLabel(route: Record<string, unknown> | null | undefined): string {
+    if (!route) return 'No measured route';
+    const provider = metricString(route, 'provider');
+    const model = metricString(route, 'model');
+    if (!provider) return 'No measured route';
+    return model ? `${provider}/${model}` : provider;
+  }
+
+  function routeSpeed(route: Record<string, unknown> | null | undefined): string {
+    const value = metricNumber(route ?? undefined, 'tokens_per_second');
+    return value !== undefined ? `${value.toFixed(1)} tok/s` : 'not measured';
+  }
+
   function modelName(model: Record<string, unknown>): string {
     return metricString(model, 'name') ?? metricString(model, 'model') ?? 'loaded model';
   }
@@ -372,6 +395,11 @@
 
   function autoRouteSummary(nextStatus: AiStatus | null): string {
     if (!nextStatus) return 'Auto mode will use the best reachable route, local first, as soon as status finishes loading.';
+    const measuredRoute = routeLabel(nextStatus.machine_profile?.autotune?.best_text_route ?? nextStatus.machine_profile?.benchmarks?.best_text_route);
+    const measuredSpeed = routeSpeed(nextStatus.machine_profile?.autotune?.best_text_route ?? nextStatus.machine_profile?.benchmarks?.best_text_route);
+    if (measuredRoute !== 'No measured route') {
+      return `Auto mode can use measured route ${measuredRoute}${measuredSpeed !== 'not measured' ? ` (${measuredSpeed})` : ''}, while keeping ${nextStatus.machine_profile?.autotune?.resource_pressure?.level ?? 'unknown'} pressure in view.`;
+    }
     const available = nextStatus.providers.filter((provider) => provider.available);
     const local = available.filter((provider) => provider.local).map((provider) => provider.label);
     const paid = available.filter((provider) => provider.paid).map((provider) => provider.label);
@@ -415,20 +443,22 @@
     loading = true;
     actionError = '';
     try {
-      const [nextStatus, nextUsage, nextToolCalls, nextAssets, nextPatches, nextBenchmarks] = await Promise.all([
-        getAiStatus(),
+      const [nextStatus, nextUsage, nextToolCalls, nextAssets, nextPatches, nextBenchmarks, nextProfile] = await Promise.all([
+        getAiStatus(currentMachineMode.id),
         getAiUsage(30),
         listToolCalls(30),
         listGenerationAssets(24),
         listDesignPatches(12),
-        listBenchmarks(12)
+        listBenchmarks(12),
+        getMachineProfile(currentMachineMode.id, 5).catch(() => null)
       ]);
-      status = nextStatus;
+      status = nextProfile ? { ...nextStatus, machine_profile: nextProfile.profile } : nextStatus;
       usage = nextUsage;
       toolCalls = nextToolCalls;
       generationAssets = nextAssets;
       designPatches = nextPatches;
       benchmarkRuns = nextBenchmarks;
+      machineSnapshots = nextProfile?.snapshots ?? machineSnapshots;
       jobs = status.jobs;
       actionMessage = 'AI OS status refreshed.';
     } catch (error) {
@@ -741,7 +771,8 @@
         prompt: benchmarkPrompt,
         provider: inferProvider || undefined,
         model: inferModel || undefined,
-        local_first: true
+        local_first: true,
+        metadata: modeMetadata()
       });
       benchmarkRuns = [run, ...benchmarkRuns.filter((item) => item.id !== run.id)].slice(0, 12);
       benchmarkResult = stringify(run);
@@ -750,6 +781,33 @@
       setError(error, 'Benchmark failed.');
     } finally {
       benchmarkBusy = false;
+    }
+  }
+
+  async function runMachineAutotune(): Promise<void> {
+    autotuneBusy = true;
+    actionError = '';
+    autotuneResult = 'Running autotune probe...';
+    try {
+      const result = await runAutotune({
+        mode: currentMachineMode.id,
+        provider: inferProvider || undefined,
+        model: inferModel || undefined
+      });
+      status = status ? { ...status, machine_profile: result.profile } : status;
+      if (result.snapshot) machineSnapshots = [result.snapshot, ...machineSnapshots.filter((item) => item.id !== result.snapshot?.id)].slice(0, 5);
+      if (result.benchmark) {
+        benchmarkRuns = [result.benchmark, ...benchmarkRuns.filter((item) => item.id !== result.benchmark?.id)].slice(0, 12);
+      }
+      const speed = typeof result.benchmark?.tokens_per_second === 'number' ? ` at ${result.benchmark.tokens_per_second.toFixed(1)} tok/s` : '';
+      autotuneResult = result.ok
+        ? `Autotune measured ${result.benchmark?.provider ?? 'auto'}${speed}. Suggested concurrency: ${result.profile.autotune.suggested_max_job_concurrency ?? 'n/a'}.`
+        : `Autotune could not complete: ${result.error ?? 'provider unavailable'}`;
+      await refresh();
+    } catch (error) {
+      setError(error, 'Autotune failed.');
+    } finally {
+      autotuneBusy = false;
     }
   }
 
@@ -890,6 +948,65 @@
     <span>Reachable</span>
     <strong>{availableProviders.length}/{providers.length}</strong>
   </article>
+</section>
+
+<section class="card card-pad machine-profile-card">
+  <div class="section-title">
+    <Cpu size={18} />
+    <strong>Machine Profile + Autotune</strong>
+  </div>
+  {#if machineProfile}
+    <div class="profile-grid">
+      <div>
+        <span>Mode</span>
+        <strong>{currentMachineMode.label}</strong>
+        <small>{machineProfile.autotune.confidence ?? 'limited'} confidence</small>
+      </div>
+      <div>
+        <span>Pressure</span>
+        <strong>{profilePressure}</strong>
+        <small>{machineProfile.autotune.resource_pressure?.drivers?.join(', ') || 'no pressure driver'}</small>
+      </div>
+      <div>
+        <span>Best text route</span>
+        <strong>{profileBestRoute}</strong>
+        <small>{profileBestSpeed}</small>
+      </div>
+      <div>
+        <span>Suggested concurrency</span>
+        <strong>{machineProfile.autotune.suggested_max_job_concurrency ?? 'n/a'}</strong>
+        <small>{machineProfile.benchmarks.text_samples ?? 0} text samples</small>
+      </div>
+      <div>
+        <span>OS</span>
+        <strong>{machineProfile.host.system ?? 'Unknown'} {machineProfile.host.release ?? ''}</strong>
+        <small>{machineProfile.host.machine ?? 'machine n/a'}</small>
+      </div>
+      <div>
+        <span>Snapshots</span>
+        <strong>{machineSnapshots.length}</strong>
+        <small>{machineSnapshots[0]?.created_at ? new Date(machineSnapshots[0].created_at).toLocaleString() : 'none saved'}</small>
+      </div>
+    </div>
+    {#if machineProfile.autotune.routing_notes?.length}
+      <p class="auto-route-note">{machineProfile.autotune.routing_notes.join(' ')}</p>
+    {/if}
+  {:else}
+    <p class="muted">Machine profile is unavailable. Start AI OS or refresh once providers and telemetry are reachable.</p>
+  {/if}
+  <div class="action-row">
+    <button class="button primary" type="button" disabled={autotuneBusy} on:click={runMachineAutotune}>
+      <Zap size={17} />
+      <span>{autotuneBusy ? 'Running' : 'Run Autotune'}</span>
+    </button>
+    <button class="button" type="button" on:click={refresh}>
+      <RefreshCw size={17} />
+      <span>Refresh Profile</span>
+    </button>
+  </div>
+  {#if autotuneResult}
+    <pre class="friendly-result">{autotuneResult}</pre>
+  {/if}
 </section>
 
 <section class="capability-showcase" aria-label="AI OS things you can do">
@@ -1768,6 +1885,46 @@
     color: var(--muted);
   }
 
+  .machine-profile-card {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .profile-grid div {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+  }
+
+  .profile-grid span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .profile-grid strong,
+  .profile-grid small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-grid small {
+    color: var(--muted);
+  }
+
   .work-grid {
     margin-bottom: 14px;
   }
@@ -2046,6 +2203,7 @@
 
   @media (max-width: 1100px) {
     .metric-grid,
+    .profile-grid,
     .foundation-grid,
     .capability-showcase,
     .advanced-grid,
@@ -2058,6 +2216,7 @@
 
   @media (max-width: 760px) {
     .metric-grid,
+    .profile-grid,
     .foundation-grid,
     .capability-showcase,
     .advanced-grid,

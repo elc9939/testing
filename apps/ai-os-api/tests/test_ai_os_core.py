@@ -19,7 +19,7 @@ from ai_os.jobs.queue import JobQueue
 from ai_os.maintenance import BackupManager
 from ai_os.media_engine import MediaPlan
 from ai_os.memory.store import SemanticMemory
-from ai_os.models import InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, StreamChunk
+from ai_os.models import BenchmarkRunRecord, InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, StreamChunk, now_iso
 from ai_os.multimodal.registry import MultimodalRegistry
 from ai_os.providers.base import ProviderAdapter, ProviderUnavailable
 from ai_os.providers.openai_compatible import OpenAICompatibleLocalProvider
@@ -75,6 +75,13 @@ class EchoProvider(ProviderAdapter):
 class LocalEchoProvider(EchoProvider):
     provider_id = "lmstudio"
     label = "Local echo"
+    local = True
+    paid = False
+
+
+class FastLocalEchoProvider(EchoProvider):
+    provider_id = "llamacpp"
+    label = "Fast local echo"
     local = True
     paid = False
 
@@ -181,6 +188,47 @@ async def test_router_beast_mode_prefers_local_even_when_request_prefers_paid(tm
 
     assert result.provider == "lmstudio"
     assert result.metadata["machine_mode"]["id"] == "beast"
+
+
+@pytest.mark.asyncio
+async def test_router_beast_mode_uses_measured_local_speed(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["lmstudio", "llamacpp"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([LocalEchoProvider(), FastLocalEchoProvider()])
+    router = InferenceRouter(settings, registry, storage)
+    storage.log_benchmark(
+        BenchmarkRunRecord(
+            id="bench_slow",
+            created_at=now_iso(),
+            kind="text",
+            provider="lmstudio",
+            model="slow",
+            prompt="seed",
+            latency_ms=1200,
+            tokens_per_second=5,
+        )
+    )
+    storage.log_benchmark(
+        BenchmarkRunRecord(
+            id="bench_fast",
+            created_at=now_iso(),
+            kind="text",
+            provider="llamacpp",
+            model="fast",
+            prompt="seed",
+            latency_ms=600,
+            tokens_per_second=60,
+        )
+    )
+
+    result = await router.infer(
+        InferenceRequest(
+            prompt="hello",
+            metadata={"machine_mode": {"id": "beast"}},
+        )
+    )
+
+    assert result.provider == "llamacpp"
 
 
 @pytest.mark.asyncio
@@ -293,7 +341,7 @@ def test_storage_migration_and_integrity_report(tmp_path):
 
     assert report["ok"] is True
     assert report["schema_version"] == report["expected_schema_version"]
-    assert report["counts"]["schema_migrations"] == 2
+    assert report["counts"]["schema_migrations"] == 3
 
 
 def test_command_endpoint_blocks_write_tools_without_confirmation(tmp_path):
@@ -540,6 +588,56 @@ def test_benchmark_endpoint_logs_run(tmp_path):
     assert response.status_code == 200
     assert response.json()["benchmark"]["ok"] is True
     assert listed.json()["benchmarks"][0]["prompt"] == "bench"
+
+
+def test_machine_profile_endpoint_records_snapshot(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        profile_response = client.get("/api/ai/machine-profile?mode=maintenance")
+        snapshot_response = client.post("/api/ai/machine-profile/snapshots", json={"source": "test"})
+        status_response = client.get("/api/ai/status?mode=maintenance")
+        integrity_ok = storage.integrity_report()["ok"]
+
+    profile = profile_response.json()["profile"]
+    snapshot = snapshot_response.json()["snapshot"]
+    status = status_response.json()
+    assert profile_response.status_code == 200
+    assert profile["host"]["system"]
+    assert profile["provider_summary"]["available"] == 1
+    assert profile["autotune"]["mode"] == "maintenance"
+    assert profile["autotune"]["suggested_max_job_concurrency"] <= 2
+    assert snapshot["source"] == "test"
+    assert snapshot["profile"]["provider_summary"]["available"] == 1
+    assert status["machine_profile"]["mode"] == "maintenance"
+    assert integrity_ok is True
+
+
+def test_autotune_endpoint_runs_probe_and_persists_snapshot(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/autotune", json={"mode": "beast", "provider": "openai", "max_tokens": 32})
+        usage = storage.list_usage(5)
+        snapshots = storage.list_machine_profile_snapshots()
+        benchmark_count = storage.data_counts()["benchmark_runs"]
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["benchmark"]["ok"] is True
+    assert body["profile"]["autotune"]["mode"] == "beast"
+    assert body["snapshot"]["source"] == "autotune:beast"
+    assert benchmark_count == 1
+    assert snapshots[0].autotune["ok"] is True
+    assert usage[0].metadata["autotune"] is True
+    assert usage[0].metadata["machine_mode"]["id"] == "beast"
 
 
 def test_backup_verify_and_restore_to_target(tmp_path):

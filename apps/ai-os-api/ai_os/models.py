@@ -305,6 +305,7 @@ class BenchmarkRequest(BaseModel):
     iterations: int = Field(default=1, ge=1, le=5)
     max_tokens: int = Field(default=256, ge=1, le=4096)
     local_first: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class BenchmarkRunRecord(BaseModel):
@@ -321,3 +322,23 @@ class BenchmarkRunRecord(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
     ok: bool = True
     error: str | None = None
+
+
+class MachineProfileSnapshotRecord(BaseModel):
+    id: str
+    created_at: str
+    source: str
+    profile: dict[str, Any]
+    autotune: dict[str, Any] = Field(default_factory=dict)
+
+
+class MachineProfileSnapshotRequest(BaseModel):
+    source: str = Field(default="manual", max_length=80)
+
+
+class AutotuneRequest(BaseModel):
+    mode: str = Field(default="balanced", max_length=40)
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
+    max_tokens: int = Field(default=96, ge=16, le=512)
+    persist_snapshot: bool = True

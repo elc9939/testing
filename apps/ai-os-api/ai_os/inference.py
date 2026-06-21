@@ -42,7 +42,7 @@ class InferenceRouter:
             updates["local_first"] = True
         return request.model_copy(update=updates)
 
-    def _sort_key(self, adapter: ProviderAdapter, request: InferenceRequest, policy: MachineModePolicy) -> tuple[int, float, float, int]:
+    def _sort_key(self, adapter: ProviderAdapter, request: InferenceRequest, policy: MachineModePolicy) -> tuple[int, float, float, float, int]:
         priority = self.settings.provider_priority.index(adapter.provider_id) if adapter.provider_id in self.settings.provider_priority else 999
         local_first = request.local_first or policy.prefer_local
         local_score = 0 if (local_first and adapter.local) else 1
@@ -53,7 +53,10 @@ class InferenceRouter:
         cost_rates = self.settings.provider_costs.get(adapter.provider_id, {})
         cost_score = float(cost_rates.get("input_per_1m", 0)) + float(cost_rates.get("output_per_1m", 0))
         latency = self.storage.recent_provider_latency(adapter.provider_id) or 999_999
-        return (local_score, cost_score, latency, priority)
+        tokens_per_second = self.storage.recent_provider_tokens_per_second(adapter.provider_id) or 0.0
+        if policy.id == "beast":
+            return (local_score, -tokens_per_second, cost_score, latency, priority)
+        return (local_score, cost_score, latency, -tokens_per_second, priority)
 
     def _mode_allows_adapter(self, adapter: ProviderAdapter, request: InferenceRequest, policy: MachineModePolicy) -> bool:
         explicit_provider = bool(request.provider)
@@ -114,6 +117,7 @@ class InferenceRouter:
                 result.usage.total_tokens = result.usage.input_tokens + result.usage.output_tokens
                 result.cost_usd = self._estimate_cost(adapter.provider_id, result.usage)
                 result.fallback_chain = fallback_chain
+                result.metadata = {**request.metadata, **result.metadata}
                 result.metadata["machine_mode"] = policy_metadata
                 if result.usage.tokens_per_second:
                     result.metadata["tokens_per_second"] = result.usage.tokens_per_second
@@ -145,7 +149,7 @@ class InferenceRouter:
                     latency_ms=latency_ms,
                     fallback_chain=fallback_chain,
                     error=str(error),
-                    metadata={"machine_mode": policy_metadata},
+                    metadata={**request.metadata, "machine_mode": policy_metadata},
                 )
                 logger.warning("Provider failed", extra={"provider": adapter.provider_id, "error": str(error)})
                 if not request.allow_fallback:
@@ -186,6 +190,7 @@ class InferenceRouter:
                     latency_ms=latency_ms,
                     fallback_chain=fallback_chain,
                     metadata={
+                        **request.metadata,
                         "streamed": True,
                         "tokens_per_second": usage.tokens_per_second,
                         "text_preview": text[:240],
@@ -208,7 +213,7 @@ class InferenceRouter:
                     latency_ms=latency_ms,
                     fallback_chain=fallback_chain,
                     error=str(error),
-                    metadata={"streamed": True, "machine_mode": policy_metadata},
+                    metadata={**request.metadata, "streamed": True, "machine_mode": policy_metadata},
                 )
                 if chunks or not request.allow_fallback:
                     yield StreamChunk(provider=adapter.provider_id, model=request.model or "", done=True, metadata={"error": str(error)})

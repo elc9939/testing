@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import time
@@ -23,11 +22,13 @@ from .inference import InferenceRouter, sse
 from .jobs.primitives import JobPrimitives
 from .jobs.queue import JobQueue
 from .logging_setup import setup_logging
-from .machine_modes import machine_mode_policy
+from .machine_modes import machine_mode_policy, normalize_machine_mode_id
+from .machine_profile import build_machine_profile, provider_statuses
 from .maintenance import BackupManager, MaintenanceScheduler, cleanup_old_files, restore_backup_to_temp
 from .memory.store import SemanticMemory
 from .models import (
     AgentRunRequest,
+    AutotuneRequest,
     BackgroundToggleRequest,
     BenchmarkRequest,
     CommandRequest,
@@ -35,6 +36,7 @@ from .models import (
     DesignPatchRequest,
     InferenceRequest,
     JobCreateRequest,
+    MachineProfileSnapshotRequest,
     MemoryIngestRequest,
     MemoryQueryRequest,
     MultimodalInvokeRequest,
@@ -224,18 +226,46 @@ def create_app(
                 detail=f"Prompt exceeds limit of {services.settings.max_prompt_chars} characters.",
             )
 
+    async def collect_machine_profile(mode: str = "balanced") -> dict[str, Any]:
+        statuses = await provider_statuses(services.providers)
+        capability_records = build_capabilities(list(statuses), _capability_adapters(services))
+        hardware_record = hardware_status(services.storage)
+        jobs = services.jobs.list()
+        background_units = [unit.model_dump(mode="json") for unit in services.background.list()]
+        tools = services.tools.specs()
+        return {
+            "providers": statuses,
+            "capabilities": capability_records,
+            "hardware": hardware_record,
+            "jobs": jobs,
+            "background": background_units,
+            "tools": tools,
+            "profile": build_machine_profile(
+                settings=services.settings,
+                storage=services.storage,
+                provider_statuses=list(statuses),
+                capabilities=capability_records,
+                hardware=hardware_record,
+                jobs_metrics=services.jobs.metrics(),
+                jobs_count=len(jobs),
+                background_units=background_units,
+                tool_count=len(tools),
+                mode=mode,
+            ),
+        }
+
     @app.get("/api/ai/health")
     async def health() -> dict[str, Any]:
         return {"ok": True, "service": "mini-hub-ai-os-api", "version": app.version}
 
     @app.get("/api/ai/providers")
     async def providers_status() -> dict[str, Any]:
-        statuses = await asyncio.gather(*(adapter.status() for adapter in services.providers.all()))
+        statuses = await provider_statuses(services.providers)
         return {"providers": [status.model_dump(mode="json") for status in statuses]}
 
     @app.get("/api/ai/capabilities")
     async def capabilities() -> dict[str, Any]:
-        statuses = await asyncio.gather(*(adapter.status() for adapter in services.providers.all()))
+        statuses = await provider_statuses(services.providers)
         return {
             "capabilities": [
                 capability.model_dump(mode="json")
@@ -244,21 +274,22 @@ def create_app(
         }
 
     @app.get("/api/ai/status")
-    async def status() -> dict[str, Any]:
-        statuses = await asyncio.gather(*(adapter.status() for adapter in services.providers.all()))
+    async def status(mode: str = "balanced") -> dict[str, Any]:
+        collected = await collect_machine_profile(mode)
+        statuses = collected["providers"]
+        capability_records = collected["capabilities"]
+        hardware_record = collected["hardware"]
         return {
             "providers": [provider.model_dump(mode="json") for provider in statuses],
-            "capabilities": [
-                capability.model_dump(mode="json")
-                for capability in build_capabilities(list(statuses), _capability_adapters(services))
-            ],
-            "hardware": hardware_status(services.storage).model_dump(mode="json"),
-            "jobs": [job.model_dump(mode="json") for job in services.jobs.list()],
-            "background": [unit.model_dump(mode="json") for unit in services.background.list()],
-            "tools": [tool.model_dump(mode="json") for tool in services.tools.specs()],
+            "capabilities": [capability.model_dump(mode="json") for capability in capability_records],
+            "hardware": hardware_record.model_dump(mode="json"),
+            "jobs": [job.model_dump(mode="json") for job in collected["jobs"]],
+            "background": collected["background"],
+            "tools": [tool.model_dump(mode="json") for tool in collected["tools"]],
             "tool_calls": [entry.model_dump(mode="json") for entry in services.storage.list_tool_calls(20)],
             "generation_assets": [asset.model_dump(mode="json") for asset in services.storage.list_generation_assets(12)],
             "benchmark_runs": [run.model_dump(mode="json") for run in services.storage.list_benchmarks(12)],
+            "machine_profile": collected["profile"],
             "integrity": services.storage.integrity_report(),
             "backups": [backup.as_dict() for backup in services.backups.list_backups()[:5]],
             "metrics": {
@@ -266,6 +297,78 @@ def create_app(
                 "queue": services.jobs.metrics(),
                 "database": services.storage.data_counts(),
             },
+        }
+
+    @app.get("/api/ai/machine-profile")
+    async def machine_profile(mode: str = "balanced", snapshots: int = 10) -> dict[str, Any]:
+        collected = await collect_machine_profile(mode)
+        return {
+            "profile": collected["profile"],
+            "snapshots": [
+                snapshot.model_dump(mode="json")
+                for snapshot in services.storage.list_machine_profile_snapshots(snapshots)
+            ],
+        }
+
+    @app.post("/api/ai/machine-profile/snapshots")
+    async def machine_profile_snapshot(request: MachineProfileSnapshotRequest) -> dict[str, Any]:
+        collected = await collect_machine_profile()
+        snapshot = services.storage.log_machine_profile_snapshot(
+            source=request.source,
+            profile=collected["profile"],
+            autotune=collected["profile"].get("autotune", {}),
+        )
+        return {"snapshot": snapshot.model_dump(mode="json")}
+
+    @app.post("/api/ai/autotune")
+    async def autotune(request: AutotuneRequest) -> dict[str, Any]:
+        mode_id = normalize_machine_mode_id(request.mode)
+        benchmark_record = None
+        benchmark_error = None
+        try:
+            benchmark_record = await run_benchmark(
+                services.router,
+                services.storage,
+                BenchmarkRequest(
+                    kind="text",
+                    prompt=(
+                        "Autotune probe. Reply with one short sentence describing whether this "
+                        "local AI route is responsive."
+                    ),
+                    provider=request.provider,
+                    model=request.model,
+                    max_tokens=request.max_tokens,
+                    iterations=1,
+                    local_first=True,
+                    metadata={"autotune": True, "machine_mode": {"id": mode_id}},
+                ),
+            )
+        except Exception as error:
+            benchmark_error = str(error)
+            recent = services.storage.list_benchmarks(1)
+            if recent and recent[0].prompt.startswith("Autotune probe."):
+                benchmark_record = recent[0]
+
+        collected = await collect_machine_profile(mode_id)
+        autotune_summary = {
+            **collected["profile"].get("autotune", {}),
+            "ok": benchmark_error is None,
+            "benchmark_id": benchmark_record.id if benchmark_record else None,
+            "error": benchmark_error,
+        }
+        snapshot = None
+        if request.persist_snapshot:
+            snapshot = services.storage.log_machine_profile_snapshot(
+                source=f"autotune:{mode_id}",
+                profile=collected["profile"],
+                autotune=autotune_summary,
+            )
+        return {
+            "ok": benchmark_error is None,
+            "benchmark": benchmark_record.model_dump(mode="json") if benchmark_record else None,
+            "error": benchmark_error,
+            "profile": collected["profile"],
+            "snapshot": snapshot.model_dump(mode="json") if snapshot else None,
         }
 
     @app.get("/api/ai/health/full")

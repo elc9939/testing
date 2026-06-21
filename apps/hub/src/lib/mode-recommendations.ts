@@ -38,6 +38,16 @@ function capability(snapshot: CapabilityRegistrySnapshot, id: string): Capabilit
   return snapshot.capabilities.find((item) => item.id === id);
 }
 
+function metricText(capability: CapabilityRegistryEntry | undefined, key: string): string | undefined {
+  const value = capability?.metrics?.[key];
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function metricNumber(capability: CapabilityRegistryEntry | undefined, key: string): number | undefined {
+  const value = capability?.metrics?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 function firstIssue(snapshot: CapabilityRegistrySnapshot): CapabilityRegistryEntry | undefined {
   return snapshot.capabilities
     .filter((item) => !['ready', 'running'].includes(item.state))
@@ -90,10 +100,15 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
   const memory = capability(capabilitySnapshot, 'ai.memory');
   const media = capability(capabilitySnapshot, 'ai.media');
   const telemetry = capability(capabilitySnapshot, 'machine.telemetry');
+  const machineProfile = capability(capabilitySnapshot, 'machine.profile');
   const offlineCache = capability(capabilitySnapshot, 'browser.offline-cache');
   const paidFallback = capability(capabilitySnapshot, 'ai.paid-fallback');
   const macro = capability(capabilitySnapshot, 'macro.automation');
   const macroService = capability(capabilitySnapshot, 'macro-lab.service');
+  const resourcePressure = metricText(machineProfile, 'pressure') ?? metricText(telemetry, 'pressure') ?? 'unknown';
+  const bestRoute = metricText(machineProfile, 'bestRoute') ?? metricText(localLlm, 'bestRoute');
+  const bestTokensPerSecond = metricNumber(localLlm, 'bestTokensPerSecond');
+  const suggestedConcurrency = metricNumber(machineProfile, 'suggestedConcurrency') ?? metricNumber(telemetry, 'suggestedConcurrency');
   const issueCount =
     capabilitySnapshot.summary.offline +
     capabilitySnapshot.summary.blocked +
@@ -150,8 +165,11 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
       );
     }
     if (ready(localLlm)) {
+      const measuredDetail = bestRoute
+        ? `Best measured route: ${bestRoute}${bestTokensPerSecond ? ` at ${bestTokensPerSecond.toFixed(1)} tokens/sec` : ''}.`
+        : '';
       const telemetryDetail = ready(telemetry)
-        ? 'Local LLM and machine telemetry are ready, so this is a good time to benchmark tokens/sec and GPU behavior.'
+        ? `${measuredDetail || 'Local LLM and machine telemetry are ready.'} Beast Mode will favor measured local routes when benchmark data exists.`
         : 'Local LLM is ready; open AI OS to benchmark or inspect why telemetry is limited.';
       recommendations.push(
         withAction(
@@ -180,6 +198,19 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
   }
 
   if (mode.id === 'quiet') {
+    if (resourcePressure === 'high') {
+      recommendations.push(
+        rec(
+          'quiet:pressure',
+          'Let the machine settle',
+          `Machine profile reports high pressure; keep new AI work to ${suggestedConcurrency ?? 1} concurrent job and inspect telemetry before starting heavy tasks.`,
+          '/ai-os',
+          'Pressure',
+          105,
+          'machine.profile'
+        )
+      );
+    }
     if (ready(aiJobs) && aiJobs?.state === 'running') {
       recommendations.push(
         rec('quiet:jobs', 'Review active jobs', 'Quiet Mode clamps new job concurrency, but already-running jobs may still be using local resources.', '/ai-os', 'Queue', 100, 'ai.jobs')
@@ -220,10 +251,30 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
   }
 
   if (mode.id === 'night') {
-    if (ready(aiJobs) && ready(localLlm)) {
+    if (resourcePressure === 'high') {
+      recommendations.push(
+        rec(
+          'night:pressure',
+          'Skip new overnight batches',
+          'Machine pressure is high right now, so Night Shift should avoid queueing fresh local batches until the profile cools down.',
+          '/ai-os',
+          'Pressure',
+          98,
+          'machine.profile'
+        )
+      );
+    } else if (ready(aiJobs) && ready(localLlm)) {
       recommendations.push(
         withAction(
-          rec('night:batch', 'Queue a local batch', 'The local model route and job queue are available for overnight map, retry, or summarization work.', '/ai-os', 'Batch', 95, 'ai.jobs'),
+          rec(
+            'night:batch',
+            'Queue a local batch',
+            `The local model route and job queue are available; current profile suggests ${suggestedConcurrency ?? 1} concurrent job${(suggestedConcurrency ?? 1) === 1 ? '' : 's'}.`,
+            '/ai-os',
+            'Batch',
+            95,
+            'ai.jobs'
+          ),
           { kind: 'queue_local_summary_batch', label: 'Queue' }
         )
       );
@@ -280,7 +331,15 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
     }
     if (!issueCount && ready(telemetry)) {
       recommendations.push(
-        rec('maintenance:baseline', 'Capture a clean machine baseline', 'Core services look healthy and telemetry is ready; use AI OS to record current machine status.', '/ai-os', 'Baseline', 70, 'machine.telemetry')
+        rec(
+          'maintenance:baseline',
+          'Capture a clean machine baseline',
+          `Core services look healthy and telemetry is ready; current resource pressure is ${resourcePressure}. Use AI OS to record current machine status.`,
+          '/ai-os',
+          'Baseline',
+          70,
+          'machine.telemetry'
+        )
       );
     }
   }

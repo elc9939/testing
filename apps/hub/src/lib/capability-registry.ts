@@ -67,10 +67,11 @@ export interface LoadCapabilityRegistryInput {
   syncStatus: CapabilityRegistryInput['syncStatus'];
   syncError?: string;
   googleConnected: boolean;
+  machineMode?: string;
 }
 
 export async function loadCapabilityRegistry(input: LoadCapabilityRegistryInput): Promise<CapabilityRegistrySnapshot> {
-  const [hub, ai, macro] = await Promise.allSettled([getHealth(), getAiStatus(), getMacroStatus()]);
+  const [hub, ai, macro] = await Promise.allSettled([getHealth(), getAiStatus(input.machineMode), getMacroStatus()]);
   return buildCapabilityRegistry({
     ...input,
     hubHealth: hub.status === 'fulfilled' ? hub.value : undefined,
@@ -225,6 +226,11 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
   const availableLocal = localProviders.filter((provider) => provider.available);
   const availablePaid = paidProviders.filter((provider) => provider.available);
   const runningJobs = status?.jobs.filter((job) => ['queued', 'running'].includes(job.status)).length ?? 0;
+  const profile = status?.machine_profile;
+  const pressure = profile?.autotune?.resource_pressure?.level ?? 'unknown';
+  const bestRoute = profile?.autotune?.best_text_route ?? profile?.benchmarks?.best_text_route ?? null;
+  const bestRouteLabel = routeLabel(bestRoute);
+  const bestRouteSpeed = routeTokensPerSecond(bestRoute);
 
   capabilities.push({
     id: 'ai-os.service',
@@ -262,7 +268,12 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     route: '/ai-os',
     requiredService: 'Ollama or local OpenAI-compatible server',
     lastError: firstProviderError(localProviders),
-    metrics: { ready: availableLocal.length, configured: localProviders.length },
+    metrics: {
+      ready: availableLocal.length,
+      configured: localProviders.length,
+      ...(bestRouteLabel ? { bestRoute: bestRouteLabel } : {}),
+      ...(bestRouteSpeed !== undefined ? { bestTokensPerSecond: bestRouteSpeed } : {})
+    },
     tags: ['ai', 'local']
   });
 
@@ -297,6 +308,30 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     requiredService: 'AI OS API',
     metrics: { running: runningJobs, total: status?.jobs.length ?? 0 },
     tags: ['queue', 'background']
+  });
+
+  capabilities.push({
+    id: 'machine.profile',
+    label: 'Machine profile',
+    description: 'OS, hardware, providers, local services, benchmark history, health, and autotune summary.',
+    service: 'ai-os',
+    state: status ? (profile ? 'ready' : 'degraded') : 'offline',
+    available: Boolean(profile),
+    locality: 'local',
+    cost: 'free',
+    safety: 'read',
+    route: '/ai-os',
+    requiredService: 'AI OS machine profile',
+    lastError: status && !profile ? 'AI OS status did not include a machine profile.' : error,
+    metrics: profile
+      ? {
+          pressure,
+          textSamples: numberMetric(profile.benchmarks?.text_samples) ?? 0,
+          suggestedConcurrency: profile.autotune?.suggested_max_job_concurrency ?? 0,
+          ...(bestRouteLabel ? { bestRoute: bestRouteLabel } : {})
+        }
+      : undefined,
+    tags: ['machine', 'autotune']
   });
 
   const memory = findAiCapability(status, 'memory.embedding');
@@ -354,7 +389,9 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     lastError: hardware?.error,
     metrics: {
       gpus: hardware?.gpus.length ?? 0,
-      loadedModels: hardware?.loaded_models?.length ?? 0
+      loadedModels: hardware?.loaded_models?.length ?? 0,
+      pressure,
+      suggestedConcurrency: profile?.autotune?.suggested_max_job_concurrency ?? 0
     },
     tags: ['machine', 'gpu']
   });
@@ -492,6 +529,27 @@ function firstProviderError(providers: AiProviderStatus[]): string | undefined {
 
 function firstCapabilityError(capabilities: AiCapabilityStatus[]): string | undefined {
   return capabilities.find((capability) => capability.error)?.error;
+}
+
+function routeLabel(route: Record<string, unknown> | null | undefined): string | undefined {
+  if (!route) return undefined;
+  const provider = stringMetric(route.provider);
+  const model = stringMetric(route.model);
+  if (!provider) return undefined;
+  return model ? `${provider}/${model}` : provider;
+}
+
+function routeTokensPerSecond(route: Record<string, unknown> | null | undefined): number | undefined {
+  const value = numberMetric(route?.tokens_per_second);
+  return value === undefined ? undefined : Math.round(value * 10) / 10;
+}
+
+function stringMetric(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function numberMetric(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function errorMessage(value: unknown): string {

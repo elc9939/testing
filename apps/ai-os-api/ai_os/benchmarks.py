@@ -32,7 +32,7 @@ async def run_benchmark(
                     text=request.prompt,
                     provider=request.provider,
                     model=request.model,
-                    options={"benchmark": True},
+                    options={"benchmark": True, **request.metadata},
                 )
             )
             latency_ms = round((time.perf_counter() - started) * 1000, 2)
@@ -65,7 +65,7 @@ async def run_benchmark(
                     max_tokens=request.max_tokens,
                     local_first=request.local_first,
                     allow_fallback=True,
-                    metadata={"benchmark_iteration": index + 1},
+                    metadata={**request.metadata, "benchmark_iteration": index + 1},
                 )
             )
             provider = result.provider

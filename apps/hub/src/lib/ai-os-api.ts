@@ -181,6 +181,64 @@ export interface AiBenchmarkRun {
   error?: string;
 }
 
+export interface AiAutotuneSummary {
+  mode?: string;
+  resource_pressure?: {
+    level?: string;
+    drivers?: string[];
+    cpu_percent?: number;
+    memory_percent?: number;
+    gpu_utilization_percent?: number;
+    vram_percent?: number;
+  };
+  best_text_route?: Record<string, unknown> | null;
+  measured_providers?: Array<Record<string, unknown>>;
+  suggested_max_job_concurrency?: number;
+  routing_notes?: string[];
+  confidence?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface AiMachineProfile {
+  created_at: string;
+  source: string;
+  mode: string;
+  host: Record<string, unknown>;
+  hardware: AiHardwareStatus;
+  providers: AiProviderStatus[];
+  provider_summary: Record<string, number>;
+  loaded_models: Array<Record<string, unknown>>;
+  local_services: Record<string, Record<string, unknown>>;
+  ai_os_health: Record<string, unknown>;
+  capabilities: AiCapabilityStatus[];
+  capability_readiness: Record<string, unknown>;
+  benchmarks: {
+    recent: AiBenchmarkRun[];
+    best_text_route?: Record<string, unknown> | null;
+    measured_providers?: Array<Record<string, unknown>>;
+    text_samples?: number;
+    [key: string]: unknown;
+  };
+  autotune: AiAutotuneSummary;
+}
+
+export interface AiMachineProfileSnapshot {
+  id: string;
+  created_at: string;
+  source: string;
+  profile: AiMachineProfile;
+  autotune: AiAutotuneSummary;
+}
+
+export interface AiAutotuneResult {
+  ok: boolean;
+  benchmark?: AiBenchmarkRun | null;
+  error?: string | null;
+  profile: AiMachineProfile;
+  snapshot?: AiMachineProfileSnapshot | null;
+}
+
 export interface AiStatus {
   providers: AiProviderStatus[];
   capabilities: AiCapabilityStatus[];
@@ -191,6 +249,7 @@ export interface AiStatus {
   tool_calls?: AiToolCallEntry[];
   generation_assets?: AiGenerationAsset[];
   benchmark_runs?: AiBenchmarkRun[];
+  machine_profile?: AiMachineProfile;
   integrity?: AiIntegrityStatus;
   backups?: AiBackupSummary[];
   metrics?: AiMetrics;
@@ -212,8 +271,9 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
   return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init);
 }
 
-export async function getAiStatus(): Promise<AiStatus> {
-  return requestJson<AiStatus>('/api/ai/status');
+export async function getAiStatus(mode?: string): Promise<AiStatus> {
+  const query = mode ? `?mode=${encodeURIComponent(mode)}` : '';
+  return requestJson<AiStatus>(`/api/ai/status${query}`);
 }
 
 export async function getAiUsage(limit = 50): Promise<AiUsageEntry[]> {
@@ -416,6 +476,30 @@ export async function runBenchmark(input: Record<string, unknown>): Promise<AiBe
     body: JSON.stringify(input)
   });
   return result.benchmark;
+}
+
+export async function getMachineProfile(mode?: string, snapshots = 10): Promise<{ profile: AiMachineProfile; snapshots: AiMachineProfileSnapshot[] }> {
+  const params = new URLSearchParams();
+  if (mode) params.set('mode', mode);
+  params.set('snapshots', String(snapshots));
+  return requestJson<{ profile: AiMachineProfile; snapshots: AiMachineProfileSnapshot[] }>(
+    `/api/ai/machine-profile?${params.toString()}`
+  );
+}
+
+export async function snapshotMachineProfile(source = 'hub'): Promise<AiMachineProfileSnapshot> {
+  const result = await requestJson<{ snapshot: AiMachineProfileSnapshot }>('/api/ai/machine-profile/snapshots', {
+    method: 'POST',
+    body: JSON.stringify({ source })
+  });
+  return result.snapshot;
+}
+
+export async function runAutotune(input: Record<string, unknown>): Promise<AiAutotuneResult> {
+  return requestJson<AiAutotuneResult>('/api/ai/autotune', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
 }
 
 export async function listBenchmarks(limit = 25): Promise<AiBenchmarkRun[]> {

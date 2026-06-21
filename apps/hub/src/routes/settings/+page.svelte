@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { Activity, ArrowRight, Cloud, Download, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
   import { getApiUrl, getHealth } from '$lib/api';
-  import { getAiOsApiUrl } from '$lib/ai-os-api';
+  import { getAiOsApiUrl, getMachineProfile, runAutotune, snapshotMachineProfile, type AiMachineProfile, type AiMachineProfileSnapshot } from '$lib/ai-os-api';
   import {
     capabilityServiceLabel,
     capabilityStateLabel,
@@ -50,11 +50,20 @@
   let capabilityGroups: CapabilityServiceGroup[] = [];
   let capabilityLoading = false;
   let capabilityError = '';
+  let machineProfile: AiMachineProfile | null = null;
+  let machineSnapshots: AiMachineProfileSnapshot[] = [];
+  let machineProfileLoading = false;
+  let machineProfileError = '';
+  let machineProfileMessage = '';
+  let autotuneBusy = false;
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: currentMachineModeDetails = formatMachineModeContext(currentMachineMode);
   $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 8);
   $: capabilityGroups = groupCapabilityServices(capabilitySnapshot?.capabilities ?? []);
+  $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
+  $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -67,7 +76,7 @@
   }
 
   async function checkServices(): Promise<void> {
-    await Promise.all([checkApi(), refreshCapabilities()]);
+    await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile()]);
   }
 
   async function syncNow(): Promise<void> {
@@ -124,6 +133,7 @@
           [machineModePreferenceKey]: mode
         }
       });
+      await refreshMachineProfile(mode);
     } catch (error) {
       settingsError = error instanceof Error ? error.message : 'Machine mode save failed';
     } finally {
@@ -150,7 +160,8 @@
         isOnline: $clientData.isOnline,
         syncStatus: $clientData.status,
         syncError: $clientData.error,
-        googleConnected
+        googleConnected,
+        machineMode: currentMachineMode.id
       });
     } catch (error) {
       capabilityError = error instanceof Error ? error.message : 'Capability registry failed to load.';
@@ -217,6 +228,65 @@
     return `${mode.label}: ${mode.summary}`;
   }
 
+  async function refreshMachineProfile(mode = currentMachineMode.id): Promise<void> {
+    machineProfileLoading = true;
+    machineProfileError = '';
+    try {
+      const result = await getMachineProfile(mode, 5);
+      machineProfile = result.profile;
+      machineSnapshots = result.snapshots;
+    } catch (error) {
+      machineProfileError = error instanceof Error ? error.message : 'Machine profile failed to load.';
+    } finally {
+      machineProfileLoading = false;
+    }
+  }
+
+  async function runMachineAutotune(): Promise<void> {
+    autotuneBusy = true;
+    machineProfileMessage = '';
+    machineProfileError = '';
+    try {
+      const result = await runAutotune({ mode: currentMachineMode.id });
+      machineProfile = result.profile;
+      if (result.snapshot) machineSnapshots = [result.snapshot, ...machineSnapshots.filter((item) => item.id !== result.snapshot?.id)].slice(0, 5);
+      const speed = typeof result.benchmark?.tokens_per_second === 'number' ? ` at ${result.benchmark.tokens_per_second.toFixed(1)} tokens/sec` : '';
+      machineProfileMessage = result.ok
+        ? `Autotune logged ${result.benchmark?.provider ?? 'auto'}${speed}.`
+        : `Autotune could not complete: ${result.error ?? 'provider unavailable'}`;
+      await refreshCapabilities();
+    } catch (error) {
+      machineProfileError = error instanceof Error ? error.message : 'Autotune failed.';
+    } finally {
+      autotuneBusy = false;
+    }
+  }
+
+  async function saveMachineSnapshot(): Promise<void> {
+    machineProfileMessage = '';
+    machineProfileError = '';
+    try {
+      const snapshot = await snapshotMachineProfile('settings');
+      machineSnapshots = [snapshot, ...machineSnapshots.filter((item) => item.id !== snapshot.id)].slice(0, 5);
+      machineProfileMessage = `Snapshot saved ${new Date(snapshot.created_at).toLocaleString()}.`;
+    } catch (error) {
+      machineProfileError = error instanceof Error ? error.message : 'Snapshot failed.';
+    }
+  }
+
+  function routeLabel(route: Record<string, unknown> | null | undefined): string {
+    if (!route) return 'No measured route';
+    const provider = typeof route.provider === 'string' ? route.provider : '';
+    const model = typeof route.model === 'string' ? route.model : '';
+    if (!provider) return 'No measured route';
+    return model ? `${provider}/${model}` : provider;
+  }
+
+  function routeSpeed(route: Record<string, unknown> | null | undefined): string {
+    const value = route?.tokens_per_second;
+    return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} tok/s` : 'not measured';
+  }
+
   onMount(() => {
     loadEndpointInputs();
     void clientData.init();
@@ -271,6 +341,73 @@
       {/each}
     </div>
     <pre class="mode-context">{currentMachineModeDetails}</pre>
+  </div>
+
+  <div class="machine-profile-panel">
+    <div class="mode-heading">
+      <div>
+        <strong>Machine Profile</strong>
+        <span>Real hardware, provider, benchmark, and health signals from AI OS.</span>
+      </div>
+      <small>{machineProfileLoading ? 'Loading' : machinePressure}</small>
+    </div>
+    {#if machineProfile}
+      <div class="machine-profile-grid">
+        <div>
+          <span>Host</span>
+          <strong>{machineProfile.host.system ?? 'OS'} {machineProfile.host.release ?? ''}</strong>
+        </div>
+        <div>
+          <span>CPU/RAM</span>
+          <strong>{machineProfile.hardware.cpu_percent ?? 'n/a'}% / {machineProfile.hardware.memory_percent ?? 'n/a'}%</strong>
+        </div>
+        <div>
+          <span>GPU</span>
+          <strong>{machineProfile.hardware.gpus.length ? String(machineProfile.hardware.gpus[0].name ?? 'GPU') : 'No telemetry'}</strong>
+        </div>
+        <div>
+          <span>Best Route</span>
+          <strong>{machineBestRoute}</strong>
+          <small>{machineBestSpeed}</small>
+        </div>
+        <div>
+          <span>Concurrency</span>
+          <strong>{machineProfile.autotune.suggested_max_job_concurrency ?? 'n/a'}</strong>
+        </div>
+        <div>
+          <span>Snapshots</span>
+          <strong>{machineSnapshots.length}</strong>
+          <small>{machineSnapshots[0]?.created_at ? new Date(machineSnapshots[0].created_at).toLocaleString() : 'none saved'}</small>
+        </div>
+      </div>
+      {#if machineProfile.autotune.routing_notes?.length}
+        <p class="helper-text">{machineProfile.autotune.routing_notes[0]}</p>
+      {/if}
+    {:else if machineProfileError}
+      <p class="sync-error">{machineProfileError}</p>
+    {:else}
+      <p class="helper-text">Machine profile has not been loaded yet. Start AI OS, then check services.</p>
+    {/if}
+    <div class="action-row tight">
+      <button class="button primary" type="button" disabled={autotuneBusy || machineProfileLoading} on:click={runMachineAutotune}>
+        <Activity size={17} />
+        <span>{autotuneBusy ? 'Running' : 'Run Autotune'}</span>
+      </button>
+      <button class="button" type="button" disabled={!machineProfile || machineProfileLoading} on:click={saveMachineSnapshot}>
+        <Save size={17} />
+        <span>Save Snapshot</span>
+      </button>
+      <button class="button" type="button" disabled={machineProfileLoading} on:click={() => refreshMachineProfile()}>
+        <RefreshCw size={17} />
+        <span>Refresh Profile</span>
+      </button>
+    </div>
+    {#if machineProfileMessage}
+      <p class="endpoint-message">{machineProfileMessage}</p>
+    {/if}
+    {#if machineProfileError && machineProfile}
+      <p class="sync-error">{machineProfileError}</p>
+    {/if}
   </div>
 
   {#if capabilitySnapshot}
@@ -474,13 +611,50 @@
     letter-spacing: 0;
   }
 
-  .machine-mode-panel {
+  .machine-mode-panel,
+  .machine-profile-panel {
     display: grid;
     gap: 10px;
     padding: 10px;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--surface-muted);
+  }
+
+  .machine-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .machine-profile-grid div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .machine-profile-grid span,
+  .machine-profile-grid small {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .machine-profile-grid span {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .machine-profile-grid strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mode-heading {
@@ -901,6 +1075,10 @@
 
     .capability-kpis {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .machine-profile-grid {
+      grid-template-columns: 1fr;
     }
 
     .capability-kpis div:nth-child(2n) {

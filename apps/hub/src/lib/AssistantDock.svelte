@@ -160,7 +160,8 @@
   async function loadAiStatus(): Promise<void> {
     busy = true;
     try {
-      aiStatus = await getAiStatus();
+      const mode = machineModeFromPreferences($clientData.settings?.preferences);
+      aiStatus = await getAiStatus(mode.id);
       const providers = aiStatus.providers
         .filter((provider) => provider.available)
         .map((provider) => `${provider.label}${provider.models.length ? ` (${provider.models.slice(0, 2).join(', ')})` : ''}`);
@@ -347,7 +348,8 @@
       isOnline: $clientData.isOnline,
       syncStatus: $clientData.status,
       syncError: $clientData.error,
-      googleConnected
+      googleConnected,
+      machineMode: machineModeFromPreferences($clientData.settings?.preferences).id
     });
     return capabilitySnapshot;
   }

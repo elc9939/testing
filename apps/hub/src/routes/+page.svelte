@@ -268,7 +268,8 @@
           prompt:
             'Today cockpit local compute benchmark. In one concise paragraph, state what model route is active and what this Mini Hub machine can help with. Do not claim access to data not provided.',
           max_tokens: 192,
-          local_first: true
+          local_first: true,
+          metadata: modeMetadata()
         });
         const speed = typeof run.tokens_per_second === 'number' ? ` at ${run.tokens_per_second.toFixed(1)} tokens/sec` : '';
         modeActionMessage = `Benchmark logged on ${run.provider ?? 'auto'}${run.model ? `/${run.model}` : ''}${speed}.`;
@@ -325,7 +326,8 @@
         isOnline: $clientData.isOnline,
         syncStatus: $clientData.status,
         syncError: $clientData.error,
-        googleConnected: nextGoogleConnected
+        googleConnected: nextGoogleConnected,
+        machineMode: currentMachineMode.id
       });
     } catch (error) {
       capabilityError = error instanceof Error ? error.message : 'Capability registry failed to load.';
@@ -338,7 +340,7 @@
     aiActivityLoading = true;
     aiActivityError = '';
     try {
-      aiStatus = await getAiStatus();
+      aiStatus = await getAiStatus(currentMachineMode.id);
     } catch (error) {
       aiActivityError = error instanceof Error ? error.message : 'AI OS activity failed to load.';
     } finally {
