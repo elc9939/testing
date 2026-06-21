@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     host: str = Field(default="127.0.0.1", validation_alias="MACRO_LAB_HOST")
     port: int = Field(default=8792, validation_alias="MACRO_LAB_PORT")
     data_dir: Path = Field(default=Path(".macro-lab-data"), validation_alias="MACRO_LAB_DATA_DIR")
+    action_snapshots_dir: Path | None = Field(default=None, validation_alias="MACRO_LAB_ACTION_SNAPSHOTS_DIR")
     log_level: str = Field(default="INFO", validation_alias="MACRO_LAB_LOG_LEVEL")
     require_loopback: bool = Field(default=True, validation_alias="MACRO_LAB_REQUIRE_LOOPBACK")
     max_request_bytes: int = Field(default=10_000_000, validation_alias="MACRO_LAB_MAX_REQUEST_BYTES")
@@ -53,6 +54,9 @@ class Settings(BaseSettings):
 
     def log_path(self) -> Path:
         return self.data_dir / "logs" / "macro-lab.jsonl"
+
+    def resolved_action_snapshots_dir(self) -> Path:
+        return self.action_snapshots_dir or self.data_dir / "action-snapshots"
 
 
 @lru_cache

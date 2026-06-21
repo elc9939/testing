@@ -89,6 +89,36 @@ async def test_file_batch_rename_real_when_armed(tmp_path):
     assert run.status == "succeeded"
     assert not source.exists()
     assert (work / "new-note.txt").exists()
+    recoverability = run.steps[0].detail["recoverability"]
+    assert recoverability["reversible"] is True
+    assert recoverability["inverse_operations"][0]["source"].endswith("new-note.txt")
+
+
+async def test_file_delete_real_records_recoverability_snapshot(tmp_path):
+    target = tmp_path / "delete-me.txt"
+    target.write_text("recoverable", encoding="utf-8")
+    _, storage, engine = make_services(tmp_path)
+    macro = storage.upsert_macro(
+        MacroDefinition(
+            name="Delete",
+            dry_run_default=False,
+            armed=True,
+            actions=[ActionDefinition(type="file.delete", config={"path": str(target)})],
+        )
+    )
+
+    run = await engine.run_macro(macro.id, RunRequest(dry_run=False))
+
+    assert run.status == "succeeded"
+    assert not target.exists()
+    recoverability = run.steps[0].detail["recoverability"]
+    snapshot = recoverability["snapshots"][0]
+    assert recoverability["kind"] == "snapshot"
+    assert recoverability["reversible"] is True
+    assert snapshot["target"] == str(target.resolve())
+    assert Path(snapshot["snapshot_path"]).read_text(encoding="utf-8") == "recoverable"
+    stored = storage.list_runs(1)[0]["steps"][0]["detail"]["recoverability"]
+    assert stored["snapshots"][0]["id"] == snapshot["id"]
 
 
 def test_api_macro_run_and_panic(tmp_path):

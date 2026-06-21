@@ -69,6 +69,10 @@ GET http://127.0.0.1:8792/api/macro-lab/status
 - Actions marked `input`, `system`, or `destructive` require either macro `armed=true` or
   one-shot API `confirm=true`.
 - Default macros are dry-run-first and their triggers are disabled.
+- Real file actions write recoverability metadata into each run step. `file.delete` snapshots
+  the deleted path before removal; `file.move`, `file.copy`, and `file.batch_rename` record
+  inverse-operation hints and snapshot any pre-existing target they might overwrite. Snapshot
+  files live under `MACRO_LAB_ACTION_SNAPSHOTS_DIR` or `.macro-lab-data/action-snapshots`.
 
 ## Macro Shape
 

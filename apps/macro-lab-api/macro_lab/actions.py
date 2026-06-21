@@ -10,6 +10,7 @@ import httpx
 
 from .config import Settings
 from .models import ActionDefinition, ActionSpec, SafetyLevel, WindowLayoutRecord
+from .recoverability import capture_path_snapshot, recovery_payload
 from .storage import MacroStorage
 from . import platform
 
@@ -232,21 +233,97 @@ def file_batch_rename(action: ActionDefinition, config: dict[str, Any], context:
         replace=str(config.get("replace", "")),
         prefix=str(config.get("prefix", "")),
         suffix=str(config.get("suffix", "")),
-        dry_run=context.dry_run,
+        dry_run=True,
     )
-    return {"operations": operations, "count": len(operations), "dry_run": context.dry_run}
+    if context.dry_run:
+        return {"operations": operations, "count": len(operations), "dry_run": True}
+
+    snapshots = [
+        capture_path_snapshot(
+            settings=context.settings,
+            action_type=action.type,
+            target=platform.safe_path(operation["target"]),
+            role="pre_existing_target",
+        )
+        for operation in operations
+        if platform.safe_path(operation["target"]).exists()
+    ]
+    applied = platform.batch_rename(
+        directory,
+        pattern=str(config.get("pattern", "*")),
+        find=str(config.get("find", "")),
+        replace=str(config.get("replace", "")),
+        prefix=str(config.get("prefix", "")),
+        suffix=str(config.get("suffix", "")),
+        dry_run=False,
+    )
+    inverse = [{"operation": "move", "source": operation["target"], "target": operation["source"]} for operation in operations]
+    return {
+        "operations": applied,
+        "count": len(applied),
+        "dry_run": False,
+        "recoverability": recovery_payload(
+            kind="snapshot" if snapshots else "artifact",
+            description="Batch rename recorded inverse rename operations and any overwritten target snapshots.",
+            snapshots=snapshots,
+            inverse_operations=inverse,
+            reversible=bool(inverse),
+        ),
+    }
 
 
 def file_move(action: ActionDefinition, config: dict[str, Any], context: ActionContext) -> dict[str, Any]:
-    return platform.file_move(platform.safe_path(str(config["source"])), platform.safe_path(str(config["target"])), dry_run=context.dry_run)
+    source = platform.safe_path(str(config["source"]))
+    target = platform.safe_path(str(config["target"]))
+    if context.dry_run:
+        return platform.file_move(source, target, dry_run=True)
+    snapshots = []
+    if target.exists():
+        snapshots.append(capture_path_snapshot(settings=context.settings, action_type=action.type, target=target, role="pre_existing_target"))
+    result = platform.file_move(source, target, dry_run=False)
+    result["recoverability"] = recovery_payload(
+        kind="snapshot" if snapshots else "artifact",
+        description="Move recorded an inverse move operation; any pre-existing target was snapshotted.",
+        snapshots=snapshots,
+        inverse_operations=[{"operation": "move", "source": str(target), "target": str(source)}],
+        reversible=True,
+    )
+    return result
 
 
 def file_copy(action: ActionDefinition, config: dict[str, Any], context: ActionContext) -> dict[str, Any]:
-    return platform.file_copy(platform.safe_path(str(config["source"])), platform.safe_path(str(config["target"])), dry_run=context.dry_run)
+    source = platform.safe_path(str(config["source"]))
+    target = platform.safe_path(str(config["target"]))
+    if context.dry_run:
+        return platform.file_copy(source, target, dry_run=True)
+    snapshots = []
+    if target.exists():
+        snapshots.append(capture_path_snapshot(settings=context.settings, action_type=action.type, target=target, role="pre_existing_target"))
+    result = platform.file_copy(source, target, dry_run=False)
+    result["recoverability"] = recovery_payload(
+        kind="snapshot" if snapshots else "artifact",
+        description="Copy recorded the copied target and any pre-existing target snapshot.",
+        snapshots=snapshots,
+        inverse_operations=[{"operation": "delete", "path": str(target)}],
+        reversible=True,
+    )
+    return result
 
 
 def file_delete(action: ActionDefinition, config: dict[str, Any], context: ActionContext) -> dict[str, Any]:
-    return platform.file_delete(platform.safe_path(str(config["path"])), dry_run=context.dry_run)
+    path = platform.safe_path(str(config["path"]))
+    if context.dry_run:
+        return platform.file_delete(path, dry_run=True)
+    snapshot = capture_path_snapshot(settings=context.settings, action_type=action.type, target=path, role="deleted_target")
+    result = platform.file_delete(path, dry_run=False)
+    result["recoverability"] = recovery_payload(
+        kind="snapshot",
+        description="Delete captured the removed path before deletion.",
+        snapshots=[snapshot],
+        inverse_operations=[{"operation": "restore_snapshot", "snapshot_id": snapshot["id"], "target": str(path)}],
+        reversible=bool(snapshot.get("snapshot_path")),
+    )
+    return result
 
 
 def window_save_layout(action: ActionDefinition, config: dict[str, Any], context: ActionContext) -> dict[str, Any]:

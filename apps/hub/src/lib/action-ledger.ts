@@ -148,12 +148,16 @@ function macroRunRisk(run: MacroRun): ActionLedgerRisk {
 }
 
 function macroRunChanged(run: MacroRun): string[] {
-  return run.steps
-    .map((step, index) => {
+  const changed: string[] = [];
+  for (const [index, step] of run.steps.entries()) {
+    const before = changed.length;
+    changed.push(...macroStepChangedPaths(step));
+    if (changed.length === before) {
       const label = step.label ?? step.action_label ?? step.action_type ?? step.type;
-      return typeof label === 'string' && label.trim() ? label : `step:${index + 1}`;
-    })
-    .slice(0, 6);
+      changed.push(typeof label === 'string' && label.trim() ? label : `step:${index + 1}`);
+    }
+  }
+  return unique(changed).slice(0, 6);
 }
 
 function macroRecoverability(run: MacroRun): ActionRecoverability {
@@ -166,12 +170,72 @@ function macroRecoverability(run: MacroRun): ActionRecoverability {
       reversible: true
     };
   }
+  const artifacts = run.steps.map(macroStepRecoverability).filter((item): item is Record<string, unknown> => Boolean(item));
+  if (artifacts.length) {
+    const snapshots = artifacts.flatMap((artifact) => (Array.isArray(artifact.snapshots) ? artifact.snapshots : []));
+    const inverseOperations = artifacts.flatMap((artifact) => (Array.isArray(artifact.inverse_operations) ? artifact.inverse_operations : []));
+    const hasSnapshot = artifacts.some((artifact) => artifact.kind === 'snapshot') || snapshots.length > 0;
+    const reversible = artifacts.some((artifact) => artifact.reversible === true);
+    const noun = artifacts.length === 1 ? 'step' : 'steps';
+    return {
+      kind: hasSnapshot ? 'snapshot' : 'artifact',
+      referenceId: run.id,
+      route: '/macro-lab',
+      description: `Macro Lab recorded recovery metadata for ${artifacts.length} ${noun}: ${snapshots.length} snapshot(s), ${inverseOperations.length} inverse operation(s).`,
+      reversible
+    };
+  }
   return {
     kind: 'none',
     route: '/macro-lab',
     description: 'Macro run history is recorded, but no automatic rollback artifact is attached.',
     reversible: false
   };
+}
+
+function macroStepRecoverability(step: Record<string, unknown>): Record<string, unknown> | null {
+  const detail = step.detail;
+  if (!isRecord(detail)) return null;
+  const recoverability = detail.recoverability;
+  return isRecord(recoverability) ? recoverability : null;
+}
+
+function macroStepChangedPaths(step: Record<string, unknown>): string[] {
+  const detail = step.detail;
+  if (!isRecord(detail)) return [];
+  const paths: string[] = [];
+  for (const key of ['path', 'source', 'target']) {
+    const value = detail[key];
+    if (typeof value === 'string' && value.trim()) paths.push(value);
+  }
+  const operations = detail.operations;
+  if (Array.isArray(operations)) {
+    for (const operation of operations) {
+      if (!isRecord(operation)) continue;
+      for (const key of ['path', 'source', 'target']) {
+        const value = operation[key];
+        if (typeof value === 'string' && value.trim()) paths.push(value);
+      }
+    }
+  }
+  const recoverability = macroStepRecoverability(step);
+  const snapshots = recoverability?.snapshots;
+  if (Array.isArray(snapshots)) {
+    for (const snapshot of snapshots) {
+      if (!isRecord(snapshot)) continue;
+      const target = snapshot.target;
+      if (typeof target === 'string' && target.trim()) paths.push(target);
+    }
+  }
+  return paths;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim()))];
 }
 
 function dateValue(value: string): number {

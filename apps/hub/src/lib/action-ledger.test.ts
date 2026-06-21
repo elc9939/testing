@@ -68,6 +68,40 @@ describe('action ledger', () => {
     expect(action.changed).toEqual(['Open notes']);
   });
 
+  it('surfaces Macro Lab file recovery metadata in ledger entries', () => {
+    const action = macroRunToAction({
+      id: 'run-2',
+      macro_id: 'macro-2',
+      macro_name: 'Delete temp',
+      status: 'succeeded',
+      dry_run: false,
+      started_at: '2026-06-20T09:00:00.000Z',
+      finished_at: '2026-06-20T09:01:00.000Z',
+      steps: [
+        {
+          action_type: 'file.delete',
+          label: 'Delete file',
+          safety: 'destructive',
+          detail: {
+            path: 'C:/tmp/delete-me.txt',
+            recoverability: {
+              kind: 'snapshot',
+              reversible: true,
+              snapshots: [{ id: 'snap-1', target: 'C:/tmp/delete-me.txt', snapshot_path: 'C:/snap/delete-me.txt' }],
+              inverse_operations: [{ operation: 'restore_snapshot', snapshot_id: 'snap-1', target: 'C:/tmp/delete-me.txt' }]
+            }
+          }
+        }
+      ]
+    });
+
+    expect(action.risk).toBe('destructive');
+    expect(action.changed).toEqual(['C:/tmp/delete-me.txt']);
+    expect(action.recoverability.kind).toBe('snapshot');
+    expect(action.recoverability.reversible).toBe(true);
+    expect(action.recoverability.description).toContain('1 snapshot');
+  });
+
   it('merges all sources newest first and preserves service errors', () => {
     const snapshot = buildActionLedgerSnapshot({
       hubActions: [hubAction],
