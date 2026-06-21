@@ -84,7 +84,8 @@ local compute benchmarks, fresh backup verification/restore-tests, and a small l
 batch through the AI OS job queue. Today also shows a compact Recent Actions ledger built
 from real Mini Hub sync events, AI OS jobs/tools/benchmarks/backups/profile snapshots,
 generation/design logs, and Macro Lab run history so actions have visible follow-through
-and recoverability notes.
+and recoverability notes. Settings exposes the same ledger as a recovery surface: Mini Hub
+actions with before-state snapshots can be restored from the UI with explicit confirmation.
 
 ### Personal Data And Sync
 

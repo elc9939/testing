@@ -20,3 +20,15 @@ export async function getHubActionLedger(limit = 50): Promise<ActionLedgerEntry[
   const result = await requestApiJson<{ actions: ActionLedgerEntry[] }>(`/api/action-ledger?limit=${limit}`);
   return result.actions;
 }
+
+export async function restoreHubActionLedgerEntry(
+  actionId: string
+): Promise<{ restored: unknown; syncEvent: unknown }> {
+  return requestApiJson<{ restored: unknown; syncEvent: unknown }>(
+    `/api/action-ledger/${encodeURIComponent(actionId)}/restore`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true })
+    }
+  );
+}

@@ -1,7 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Activity, ArrowRight, Cloud, Download, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
-  import { getApiUrl, getHealth } from '$lib/api';
+  import type { ActionLedgerEntry } from '@mini-hub/core';
+  import {
+    actionLedgerDetail,
+    actionLedgerRiskLabel,
+    actionLedgerStatusLabel,
+    actionLedgerSystemLabel,
+    loadActionLedger,
+    type ActionLedgerSnapshot
+  } from '$lib/action-ledger';
+  import { getApiUrl, getHealth, restoreHubActionLedgerEntry } from '$lib/api';
   import { getAiOsApiUrl, getMachineProfile, runAutotune, snapshotMachineProfile, type AiMachineProfile, type AiMachineProfileSnapshot } from '$lib/ai-os-api';
   import {
     capabilityServiceLabel,
@@ -56,6 +65,11 @@
   let machineProfileError = '';
   let machineProfileMessage = '';
   let autotuneBusy = false;
+  let actionLedgerSnapshot: ActionLedgerSnapshot | null = null;
+  let actionLedgerLoading = false;
+  let actionLedgerError = '';
+  let actionLedgerMessage = '';
+  let restoreBusyId = '';
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: currentMachineModeDetails = formatMachineModeContext(currentMachineMode);
@@ -64,6 +78,7 @@
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -76,13 +91,14 @@
   }
 
   async function checkServices(): Promise<void> {
-    await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile()]);
+    await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger()]);
   }
 
   async function syncNow(): Promise<void> {
     settingsError = '';
     try {
       await clientData.syncNow();
+      await refreshActionLedger();
     } catch (error) {
       settingsError = error instanceof Error ? error.message : 'Sync failed';
     }
@@ -222,6 +238,54 @@
       .slice(0, 3)
       .map(([key, value]) => `${key}: ${String(value)}`);
     return entries.join(' · ') || capability.requiredService || capability.locality;
+  }
+
+  async function refreshActionLedger(): Promise<void> {
+    actionLedgerLoading = true;
+    actionLedgerError = '';
+    try {
+      actionLedgerSnapshot = await loadActionLedger(20);
+    } catch (error) {
+      actionLedgerError = error instanceof Error ? error.message : 'Action ledger failed to load.';
+    } finally {
+      actionLedgerLoading = false;
+    }
+  }
+
+  function actionWhen(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  }
+
+  function canRestoreAction(action: ActionLedgerEntry): boolean {
+    return action.system === 'mini-hub' && action.recoverability.kind === 'snapshot' && action.recoverability.reversible;
+  }
+
+  async function restoreAction(action: ActionLedgerEntry): Promise<void> {
+    if (!canRestoreAction(action) || restoreBusyId) return;
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(`Restore the before-state snapshot for "${action.summary}"? This will write synced Mini Hub data.`);
+    if (!confirmed) return;
+
+    restoreBusyId = action.id;
+    actionLedgerMessage = '';
+    actionLedgerError = '';
+    try {
+      await restoreHubActionLedgerEntry(action.id);
+      actionLedgerMessage = 'Snapshot restored and a new sync event was recorded.';
+      await Promise.all([clientData.syncNow(), refreshActionLedger()]);
+    } catch (error) {
+      actionLedgerError = error instanceof Error ? error.message : 'Restore failed.';
+    } finally {
+      restoreBusyId = '';
+    }
   }
 
   function modeButtonTitle(mode: MachineModeDefinition): string {
@@ -541,6 +605,64 @@
     </div>
     {#if settingsError || $clientData.error}
       <p class="sync-error">{settingsError || $clientData.error}</p>
+    {/if}
+  </div>
+
+  <div class="panel-block action-ledger-block">
+    <div class="section-title split-title">
+      <span>
+        <Activity size={18} />
+        <strong>Action Ledger</strong>
+      </span>
+      <button class="button compact" type="button" disabled={actionLedgerLoading} on:click={refreshActionLedger}>
+        <RefreshCw size={15} />
+        <span>{actionLedgerLoading ? 'Loading' : 'Refresh'}</span>
+      </button>
+    </div>
+    <p class="helper-text">
+      Recent real actions from Mini Hub, AI OS, and Macro Lab. Mini Hub entries with a before-state snapshot can be restored from here.
+    </p>
+
+    {#if actionLedgerItems.length}
+      <div class="action-ledger-list">
+        {#each actionLedgerItems as action}
+          <article class="action-ledger-row">
+            <span class={`ledger-status ${action.status}`}>{actionLedgerStatusLabel(action.status)}</span>
+            <div class="ledger-main">
+              <strong>{action.summary}</strong>
+              <small>{actionLedgerSystemLabel(action.system)} - {actionLedgerDetail(action)}</small>
+              <small class="ledger-changed">{action.changed.length ? action.changed.slice(0, 3).join(', ') : action.actionType}</small>
+            </div>
+            <span class={`ledger-risk ${action.risk}`}>{actionLedgerRiskLabel(action.risk)}</span>
+            <time datetime={action.occurredAt}>{actionWhen(action.occurredAt)}</time>
+            {#if canRestoreAction(action)}
+              <button
+                class="button compact"
+                type="button"
+                disabled={Boolean(restoreBusyId)}
+                on:click={() => restoreAction(action)}
+              >
+                <span>{restoreBusyId === action.id ? 'Restoring' : 'Restore'}</span>
+              </button>
+            {:else}
+              <span class="restore-state">{action.recoverability.kind === 'none' ? 'No restore' : action.recoverability.kind}</span>
+            {/if}
+          </article>
+        {/each}
+      </div>
+    {:else if actionLedgerLoading}
+      <p class="helper-text">Loading action ledger...</p>
+    {:else if actionLedgerError}
+      <p class="sync-error">{actionLedgerError}</p>
+    {:else}
+      <p class="helper-text">No action ledger entries are available yet.</p>
+    {/if}
+
+    {#if actionLedgerMessage}
+      <p class="endpoint-message">{actionLedgerMessage}</p>
+    {/if}
+    {#if actionLedgerSnapshot?.errors.length}
+      <p class="sync-error">{actionLedgerSnapshot.errors[0]}</p>
     {/if}
   </div>
 
@@ -978,6 +1100,130 @@
     gap: 8px;
   }
 
+  .split-title {
+    justify-content: space-between;
+  }
+
+  .split-title span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .action-ledger-list {
+    display: grid;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .action-ledger-row {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) 82px 94px 84px;
+    gap: 9px;
+    align-items: center;
+    min-height: 62px;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .action-ledger-row:last-child {
+    border-bottom: 0;
+  }
+
+  .ledger-main {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .ledger-main strong,
+  .ledger-main small,
+  .action-ledger-row time,
+  .restore-state {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ledger-main small,
+  .action-ledger-row time,
+  .restore-state {
+    color: var(--muted);
+  }
+
+  .ledger-changed {
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 11px;
+  }
+
+  .ledger-status,
+  .ledger-risk,
+  .restore-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 64px;
+    min-height: 22px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .ledger-status.succeeded {
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
+  .ledger-status.failed,
+  .ledger-status.blocked {
+    border-color: var(--error-border);
+    color: var(--error-text);
+    background: var(--error-bg);
+  }
+
+  .ledger-status.running,
+  .ledger-status.queued {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .ledger-risk {
+    justify-self: end;
+    color: var(--muted);
+  }
+
+  .ledger-risk.system {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .ledger-risk.destructive {
+    border-color: var(--danger-border);
+    color: var(--danger-text);
+    background: var(--danger-bg);
+  }
+
+  .action-ledger-row time {
+    justify-self: end;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .restore-state {
+    justify-self: end;
+    max-width: 84px;
+  }
+
   .theme-segment {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1108,6 +1354,19 @@
     .capability-mini-list {
       grid-column: auto;
       grid-template-columns: 1fr;
+    }
+
+    .action-ledger-row {
+      grid-template-columns: 72px minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .ledger-risk,
+    .action-ledger-row time,
+    .action-ledger-row .button,
+    .restore-state {
+      grid-column: 2;
+      justify-self: start;
     }
 
     .endpoint-grid {
