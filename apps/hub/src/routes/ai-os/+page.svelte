@@ -79,6 +79,15 @@
     state: string;
   }
 
+  type StartupState = 'ready' | 'degraded' | 'offline' | 'unknown';
+
+  interface StartupCheck {
+    id: string;
+    label: string;
+    state: StartupState;
+    detail: string;
+  }
+
   const commandExamples = [
     'Summarize my current AI OS status and tell me what is ready to use.',
     'Search memory for local AI notes and give me the useful bits.',
@@ -166,6 +175,8 @@
   $: profilePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: profileBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: profileBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: startupChecks = buildStartupChecks(status, actionError);
+  $: startupSummary = summarizeStartupChecks(startupChecks);
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -327,6 +338,72 @@
     if (size !== undefined) pieces.push(`${size.toFixed(1)} GB model`);
     if (context !== undefined) pieces.push(`${context} ctx`);
     return pieces.join(' · ');
+  }
+
+  function providerById(nextStatus: AiStatus | null, id: string) {
+    return nextStatus?.providers.find((provider) => provider.id === id);
+  }
+
+  function buildStartupChecks(nextStatus: AiStatus | null, error: string): StartupCheck[] {
+    if (!nextStatus) {
+      const detail = error || `AI OS is not answering at ${getAiOsApiUrl()}. GPU telemetry needs the local AI OS API to be running.`;
+      return [
+        { id: 'service', label: 'AI OS service', state: 'offline', detail },
+        { id: 'ollama', label: 'Ollama provider', state: 'unknown', detail: 'Unknown until AI OS is reachable.' },
+        { id: 'gpu', label: 'GPU telemetry', state: 'unknown', detail: 'Unknown until AI OS can query Windows GPU counters.' },
+        { id: 'model', label: 'Model load', state: 'unknown', detail: 'Unknown until AI OS can query Ollama /api/ps.' }
+      ];
+    }
+
+    const ollama = providerById(nextStatus, 'ollama');
+    const gpus = nextStatus.hardware?.gpus ?? [];
+    const models = nextStatus.hardware?.loaded_models ?? [];
+    return [
+      {
+        id: 'service',
+        label: 'AI OS service',
+        state: 'ready',
+        detail: `Connected at ${getAiOsApiUrl()}.`
+      },
+      {
+        id: 'ollama',
+        label: 'Ollama provider',
+        state: ollama?.available ? 'ready' : 'degraded',
+        detail: ollama?.available
+          ? `${ollama.models.length} local model${ollama.models.length === 1 ? '' : 's'} visible.`
+          : ollama?.error ?? 'AI OS is running, but Ollama did not answer the provider check.'
+      },
+      {
+        id: 'gpu',
+        label: 'GPU telemetry',
+        state: gpus.length ? 'ready' : 'degraded',
+        detail: gpus.length
+          ? `${gpuName(gpus[0])} - ${gpuMemoryLabel(gpus[0])}.`
+          : nextStatus.hardware?.error ?? 'AI OS is running, but no Windows/NVIDIA GPU telemetry rows were returned.'
+      },
+      {
+        id: 'model',
+        label: 'Model load',
+        state: models.length ? 'ready' : 'unknown',
+        detail: models.length
+          ? modelLoadSummary(models)
+          : 'No model is resident yet. That is normal after boot until a local prompt, benchmark, or autotune run loads one.'
+      }
+    ];
+  }
+
+  function summarizeStartupChecks(checks: StartupCheck[]): string {
+    if (checks.some((check) => check.state === 'offline')) return 'AI OS offline';
+    if (checks.some((check) => check.state === 'degraded')) return 'Connected with setup items';
+    if (checks.some((check) => check.state === 'unknown')) return 'Connected, waiting for first local run';
+    return 'Connected';
+  }
+
+  function startupStateLabel(state: StartupState): string {
+    if (state === 'ready') return 'Ready';
+    if (state === 'degraded') return 'Needs attention';
+    if (state === 'offline') return 'Offline';
+    return 'Not checked';
   }
 
   function hasCapability(nextStatus: AiStatus | null, id: string): boolean {
@@ -864,6 +941,33 @@
 {:else if actionMessage}
   <section class="card card-pad success-banner">{actionMessage}</section>
 {/if}
+
+<section class="card card-pad startup-card">
+  <div class="startup-heading">
+    <div>
+      <strong>Local AI Startup</strong>
+      <span>{startupSummary}</span>
+    </div>
+    <button class="button" type="button" disabled={loading} on:click={refresh}>
+      <RefreshCw size={17} />
+      <span>{loading ? 'Checking' : 'Check Now'}</span>
+    </button>
+  </div>
+  <div class="startup-grid">
+    {#each startupChecks as check}
+      <article class={`startup-check ${check.state}`}>
+        <div>
+          <strong>{check.label}</strong>
+          <span>{startupStateLabel(check.state)}</span>
+        </div>
+        <p>{check.detail}</p>
+      </article>
+    {/each}
+  </div>
+  <p class="startup-note">
+    The website cannot start local Windows processes by itself. Use the local AI OS autostart task so this service is already awake after reboot.
+  </p>
+</section>
 
 <section class="card card-pad plain-guide">
   <div>
@@ -1721,6 +1825,83 @@
     background: var(--surface-muted);
   }
 
+  .startup-card {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .startup-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .startup-heading div {
+    display: grid;
+    gap: 4px;
+  }
+
+  .startup-heading span,
+  .startup-note {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .startup-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .startup-check {
+    display: grid;
+    gap: 7px;
+    min-height: 104px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+  }
+
+  .startup-check.ready {
+    border-color: var(--success-border);
+    background: var(--success-bg);
+  }
+
+  .startup-check.degraded {
+    border-color: var(--warning-border);
+    background: var(--warning-bg);
+  }
+
+  .startup-check.offline {
+    border-color: var(--error-border);
+    background: var(--error-bg);
+  }
+
+  .startup-check div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .startup-check span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 850;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .startup-check p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
   .plain-guide div {
     display: grid;
     gap: 5px;
@@ -2205,6 +2386,7 @@
     .metric-grid,
     .profile-grid,
     .foundation-grid,
+    .startup-grid,
     .capability-showcase,
     .advanced-grid,
     .plain-guide,
@@ -2218,6 +2400,7 @@
     .metric-grid,
     .profile-grid,
     .foundation-grid,
+    .startup-grid,
     .capability-showcase,
     .advanced-grid,
     .plain-guide,

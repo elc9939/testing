@@ -275,6 +275,18 @@ pnpm ai-os:start
 pnpm ai-os:status
 ```
 
+For reboot reliability on Windows, install the local AI OS supervisor as a logon task once:
+
+```powershell
+pnpm ai-os:autostart:install
+pnpm ai-os:autostart:status
+```
+
+That task starts the AI OS service after you sign in. The AI OS launcher and supervisor also
+try to start `ollama serve` when the Ollama CLI is installed but the Ollama API is asleep.
+The website itself cannot start local Windows processes, so GPU telemetry and loaded-model
+status only appear when this local service is already running.
+
 For Macro Lab:
 
 ```powershell

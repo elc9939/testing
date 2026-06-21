@@ -14,6 +14,7 @@ $OutLog = Join-Path $ApiDir 'dev-server.out.log'
 $ErrLog = Join-Path $ApiDir 'dev-server.err.log'
 $HealthUrl = 'http://127.0.0.1:8791/api/ai/health'
 $ServiceName = 'mini-hub-ai-os-api'
+$OllamaUrl = 'http://127.0.0.1:11434/api/tags'
 
 function Get-LanIPv4 {
   $address = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -57,8 +58,34 @@ function Assert-Python {
   }
 }
 
+function Test-Ollama {
+  try {
+    Invoke-RestMethod -Uri $OllamaUrl -TimeoutSec 2 | Out-Null
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Start-OllamaIfAvailable {
+  if (Test-Ollama) { return }
+  $ollama = Get-Command ollama -ErrorAction SilentlyContinue
+  if (-not $ollama) {
+    Write-Output 'Ollama is not reachable and the ollama command was not found. AI OS will start, but the local model provider will show offline.'
+    return
+  }
+  Start-Process -FilePath $ollama.Source -ArgumentList 'serve' -WindowStyle Hidden | Out-Null
+  Start-Sleep -Seconds 2
+  if (Test-Ollama) {
+    Write-Output 'Ollama started.'
+  } else {
+    Write-Output 'Tried to start Ollama, but http://127.0.0.1:11434 is still unavailable.'
+  }
+}
+
 function Start-AiOs {
   Assert-Python
+  Start-OllamaIfAvailable
   $aiOsPid = Get-AiOsPid
   if ($aiOsPid) {
     if (Test-AiOsApi) {

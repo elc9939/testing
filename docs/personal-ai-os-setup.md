@@ -320,6 +320,9 @@ pnpm ai-os:start
 pnpm ai-os:status
 pnpm ai-os:backup
 pnpm ai-os:stop
+pnpm ai-os:autostart:install
+pnpm ai-os:autostart:status
+pnpm ai-os:autostart:uninstall
 ```
 
 ## Hub
@@ -367,6 +370,12 @@ queue depth, recent failures, manual backup, backup verification, restore-test, 
 - VRAM is not required for the infrastructure itself. It matters only for the models you pull.
 - If `nvidia-smi` is absent or Ollama is offline, the dashboard shows degraded status instead of failing.
 - Tokens/sec is derived from recent usage logs when providers report or stream enough timing data.
+- After a reboot, GPU telemetry depends on the local AI OS API being awake. Install the
+  Windows logon task with `pnpm ai-os:autostart:install` so the dashboard can connect to
+  `http://127.0.0.1:8791` before you open the website.
+- A model can be installed but not loaded into VRAM yet. Ollama usually loads a model on the
+  first local prompt, benchmark, or autotune run; until then the dashboard can show GPU
+  telemetry while model load is still `No model loaded`.
 
 ## API Surfaces
 
@@ -553,9 +562,18 @@ powershell -ExecutionPolicy Bypass -File scripts/ai-os-supervisor.ps1
 ```
 
 Stop the supervisor by creating `apps/ai-os-api/.ai-os-supervisor.stop`, or by closing the
-terminal running the supervisor. To start it after reboot, create a Windows Task Scheduler
-task that runs the command above at logon. This is intentionally lighter than installing a
-service manager.
+terminal running the supervisor. For normal use, install the provided Windows Task Scheduler
+task instead of creating one by hand:
+
+```bash
+pnpm ai-os:autostart:install
+pnpm ai-os:autostart:status
+pnpm ai-os:autostart:uninstall
+```
+
+The installed task runs `scripts/ai-os-supervisor.ps1` at user logon. This is intentionally
+lighter than installing a service manager, but it keeps the local AI OS API available after
+reboot so the website can see GPU telemetry, Ollama provider status, and loaded models.
 
 ## Dependency And Model Hygiene
 
