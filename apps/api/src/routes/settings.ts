@@ -2,7 +2,7 @@ import { personalSettingsSchema, personalWorkspaceId } from '@mini-hub/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
-import { appendSyncEvent, ensurePersonalWorkspace, type MemoryStore } from '../store';
+import { appendSyncEvent, ensurePersonalWorkspace, type MemoryStore, withBeforeSnapshot } from '../store';
 
 const settingsBody = z.object({
   theme: z.string().optional(),
@@ -42,8 +42,9 @@ export function settingsRoutes(store: MemoryStore): Hono<AppBindings> {
     const parsed = settingsBody.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
 
+    const existing = store.settings ?? null;
     const settings = personalSettingsSchema.parse({
-      ...(store.settings ?? defaultSettings()),
+      ...(existing ?? defaultSettings()),
       ...parsed.data,
       workspaceId: personalWorkspaceId,
       deviceId: 'api',
@@ -55,7 +56,7 @@ export function settingsRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'settings',
       entityId: settings.workspaceId,
       operation: 'update',
-      payload: settings,
+      payload: existing ? withBeforeSnapshot(settings, existing, 'update') : settings,
       deviceId: settings.deviceId
     });
     return c.json({ settings });
@@ -63,4 +64,3 @@ export function settingsRoutes(store: MemoryStore): Hono<AppBindings> {
 
   return app;
 }
-

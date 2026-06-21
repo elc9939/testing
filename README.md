@@ -107,7 +107,9 @@ Implemented now:
 - Google Calendar list/view/create/edit/delete/move/reminder support.
 - Gmail search/list/read/compose/draft/send/reply/archive/mark read/unread/label actions.
 - Mini Hub action ledger endpoint for synced personal data writes/deletes with risk and
-  recoverability metadata.
+  recoverability metadata. Updates and deletes now attach before-state snapshots for
+  Career Desk, Study Desk, settings, and game state where possible, and
+  `/api/action-ledger/:id/restore` can restore those snapshots with explicit confirmation.
 
 Partially prepared:
 

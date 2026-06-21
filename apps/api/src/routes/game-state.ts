@@ -2,7 +2,7 @@ import { gameStateSchema, personalWorkspaceId } from '@mini-hub/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
-import { appendSyncEvent, ensurePersonalWorkspace, type MemoryStore } from '../store';
+import { appendSyncEvent, ensurePersonalWorkspace, type MemoryStore, withBeforeSnapshot } from '../store';
 
 const gameStateBody = z.object({
   state: z.record(z.string(), z.unknown()).default({})
@@ -28,6 +28,7 @@ export function gameStateRoutes(store: MemoryStore): Hono<AppBindings> {
     if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
 
     const gameId = c.req.param('gameId');
+    const existing = store.gameStates.get(gameId) ?? null;
     const state = gameStateSchema.parse({
       id: `${personalWorkspaceId}:${gameId}`,
       workspaceId: personalWorkspaceId,
@@ -42,7 +43,7 @@ export function gameStateRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'game_state',
       entityId: state.id,
       operation: 'update',
-      payload: state,
+      payload: existing ? withBeforeSnapshot(state, existing, 'update') : state,
       deviceId: state.deviceId
     });
     return c.json({ state });
@@ -50,4 +51,3 @@ export function gameStateRoutes(store: MemoryStore): Hono<AppBindings> {
 
   return app;
 }
-

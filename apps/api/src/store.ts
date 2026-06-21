@@ -85,6 +85,45 @@ export function persistIntegrationConnections(store: MemoryStore): void {
 }
 
 export const defaultStore = createMemoryStore();
+export const ledgerMetadataKey = '__miniHubLedger';
+
+export interface LedgerEventMetadata {
+  before?: unknown;
+  reason?: string;
+  restoredFrom?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+export function withLedgerMetadata<T extends object>(
+  payload: T,
+  metadata: LedgerEventMetadata
+): T & { [ledgerMetadataKey]: LedgerEventMetadata } {
+  return {
+    ...payload,
+    [ledgerMetadataKey]: metadata
+  };
+}
+
+export function withBeforeSnapshot<T extends object>(
+  payload: T,
+  before: unknown,
+  reason = 'pre-action'
+): T & { [ledgerMetadataKey]: LedgerEventMetadata } {
+  return withLedgerMetadata(payload, { before, reason });
+}
+
+export function ledgerMetadataFromPayload(payload: Record<string, unknown>): LedgerEventMetadata {
+  const metadata = payload[ledgerMetadataKey];
+  if (!isRecord(metadata)) return {};
+  const result: LedgerEventMetadata = {};
+  if ('before' in metadata) result.before = metadata.before;
+  if (typeof metadata.reason === 'string') result.reason = metadata.reason;
+  if (typeof metadata.restoredFrom === 'string') result.restoredFrom = metadata.restoredFrom;
+  return result;
+}
 
 export function userWorkspaceIds(store: MemoryStore, userId: string): Set<string> {
   return new Set(store.members.filter((member) => member.userId === userId).map((member) => member.workspaceId));

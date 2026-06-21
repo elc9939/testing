@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
-import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds } from '../store';
+import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds, withBeforeSnapshot } from '../store';
 
 const jobBody = z.object({
   id: z.string().min(1).optional(),
@@ -47,8 +47,9 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
 
     const now = new Date().toISOString();
     const existingIndex = parsed.data.id ? store.jobs.findIndex((job) => job.id === parsed.data.id) : -1;
+    const existingJob = existingIndex >= 0 ? store.jobs[existingIndex] : undefined;
     const job = jobSchema.parse({
-      ...(existingIndex >= 0 ? store.jobs[existingIndex] : {}),
+      ...(existingJob ?? {}),
       id: parsed.data.id ?? crypto.randomUUID(),
       workspaceId: parsed.data.workspaceId,
       company: parsed.data.company,
@@ -71,7 +72,7 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'job',
       entityId: job.id,
       operation: existingIndex >= 0 ? 'update' : 'insert',
-      payload: job,
+      payload: existingJob ? withBeforeSnapshot(job, existingJob, 'upsert-existing') : job,
       deviceId: job.deviceId
     });
     return c.json({ job }, existingIndex >= 0 ? 200 : 201);
@@ -109,7 +110,7 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'job',
       entityId: job.id,
       operation: 'update',
-      payload: job,
+      payload: withBeforeSnapshot(job, existing, 'update'),
       deviceId: job.deviceId
     });
     return c.json({ job });
@@ -130,7 +131,7 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'job',
       entityId: job.id,
       operation: 'delete',
-      payload: { id: job.id },
+      payload: withBeforeSnapshot({ id: job.id }, job, 'delete'),
       deviceId: 'api'
     });
     return c.json({ ok: true });

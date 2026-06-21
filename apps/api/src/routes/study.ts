@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
-import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds } from '../store';
+import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds, withBeforeSnapshot } from '../store';
 
 const studyBody = z.object({
   id: z.string().min(1).optional(),
@@ -44,8 +44,9 @@ export function studyRoutes(store: MemoryStore): Hono<AppBindings> {
 
     const now = new Date().toISOString();
     const existingIndex = parsed.data.id ? store.studySessions.findIndex((session) => session.id === parsed.data.id) : -1;
+    const existingSession = existingIndex >= 0 ? store.studySessions[existingIndex] : undefined;
     const session = studySessionSchema.parse({
-      ...(existingIndex >= 0 ? store.studySessions[existingIndex] : {}),
+      ...(existingSession ?? {}),
       id: parsed.data.id ?? crypto.randomUUID(),
       workspaceId: parsed.data.workspaceId,
       subject: parsed.data.subject,
@@ -65,7 +66,7 @@ export function studyRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'study_session',
       entityId: session.id,
       operation: existingIndex >= 0 ? 'update' : 'insert',
-      payload: session,
+      payload: existingSession ? withBeforeSnapshot(session, existingSession, 'upsert-existing') : session,
       deviceId: session.deviceId
     });
     return c.json({ session }, existingIndex >= 0 ? 200 : 201);
@@ -99,7 +100,7 @@ export function studyRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'study_session',
       entityId: session.id,
       operation: 'update',
-      payload: session,
+      payload: withBeforeSnapshot(session, existing, 'update'),
       deviceId: session.deviceId
     });
     return c.json({ session });
@@ -120,7 +121,7 @@ export function studyRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'study_session',
       entityId: session.id,
       operation: 'delete',
-      payload: { id: session.id },
+      payload: withBeforeSnapshot({ id: session.id }, session, 'delete'),
       deviceId: 'api'
     });
     return c.json({ ok: true });

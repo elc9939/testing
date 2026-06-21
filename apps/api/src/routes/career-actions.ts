@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
-import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds } from '../store';
+import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds, withBeforeSnapshot } from '../store';
 
 const careerActionBody = z.object({
   id: z.string().min(1).optional(),
@@ -44,8 +44,9 @@ export function careerActionRoutes(store: MemoryStore): Hono<AppBindings> {
 
     const now = new Date().toISOString();
     const existingIndex = parsed.data.id ? store.careerActions.findIndex((action) => action.id === parsed.data.id) : -1;
+    const existingAction = existingIndex >= 0 ? store.careerActions[existingIndex] : undefined;
     const action = careerActionSchema.parse({
-      ...(existingIndex >= 0 ? store.careerActions[existingIndex] : {}),
+      ...(existingAction ?? {}),
       id: parsed.data.id ?? crypto.randomUUID(),
       workspaceId: parsed.data.workspaceId,
       jobId: parsed.data.jobId,
@@ -67,7 +68,7 @@ export function careerActionRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'career_action',
       entityId: action.id,
       operation: existingIndex >= 0 ? 'update' : 'insert',
-      payload: action,
+      payload: existingAction ? withBeforeSnapshot(action, existingAction, 'upsert-existing') : action,
       deviceId: action.deviceId
     });
 
@@ -104,7 +105,7 @@ export function careerActionRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'career_action',
       entityId: action.id,
       operation: 'update',
-      payload: action,
+      payload: withBeforeSnapshot(action, existing, 'update'),
       deviceId: action.deviceId
     });
     return c.json({ action });
@@ -125,7 +126,7 @@ export function careerActionRoutes(store: MemoryStore): Hono<AppBindings> {
       entityType: 'career_action',
       entityId: action.id,
       operation: 'delete',
-      payload: { id: action.id },
+      payload: withBeforeSnapshot({ id: action.id }, action, 'delete'),
       deviceId: 'api'
     });
     return c.json({ ok: true });
