@@ -464,6 +464,43 @@ def test_file_pre_action_snapshot_copies_existing_bytes(tmp_path):
     assert storage.get_action_snapshot(snapshot.id).snapshot_path == snapshot.snapshot_path
 
 
+def test_action_snapshot_restore_requires_confirmation_and_logs_restore(tmp_path):
+    settings = Settings(data_dir=tmp_path / "data", backup_enabled=False, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    target = tmp_path / "Desktop" / "note.txt"
+    target.parent.mkdir(parents=True)
+    target.write_text("before", encoding="utf-8")
+    snapshot = capture_file_pre_action_snapshot(
+        settings=settings,
+        storage=storage,
+        source="test",
+        action_type="test.write",
+        target=target,
+        content_type="text/plain",
+    )
+    target.write_text("after", encoding="utf-8")
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        blocked = client.post(f"/api/ai/action-snapshots/{snapshot.id}/restore", json={})
+        restored = client.post(f"/api/ai/action-snapshots/{snapshot.id}/restore", json={"confirm": True})
+        ledger = client.get("/api/ai/action-ledger?limit=10")
+
+    assert blocked.status_code == 409
+    assert restored.status_code == 200
+    assert target.read_text(encoding="utf-8") == "before"
+    restore_body = restored.json()["restore"]
+    pre_restore = restore_body["pre_action_snapshot"]
+    assert Path(pre_restore["snapshot_path"]).read_text(encoding="utf-8") == "after"
+    restore_actions = [action for action in ledger.json()["actions"] if action["action_type"] == "action_snapshot.restore"]
+    assert any(action["status"] == "blocked" for action in restore_actions)
+    succeeded = next(action for action in restore_actions if action["status"] == "succeeded")
+    assert succeeded["recoverability"]["kind"] == "snapshot"
+    assert succeeded["recoverability"]["reference_id"] == pre_restore["id"]
+    assert succeeded["recoverability"]["reversible"] is True
+
+
 def test_web_tools_are_registered_and_visible_as_capabilities(tmp_path):
     settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
     storage = AppStorage(settings.database_path())

@@ -16,6 +16,12 @@ def _safe_snapshot_name(snapshot_id: str, target: Path) -> str:
     return f"{snapshot_id}-{safe_name}"
 
 
+def _is_within(path: Path, root: Path) -> bool:
+    resolved = path.resolve()
+    resolved_root = root.resolve()
+    return resolved == resolved_root or resolved_root in resolved.parents
+
+
 def capture_file_pre_action_snapshot(
     *,
     settings: Settings,
@@ -54,3 +60,46 @@ def capture_file_pre_action_snapshot(
         size_bytes=size_bytes,
         metadata=metadata or {},
     )
+
+
+def restore_file_action_snapshot(
+    *,
+    settings: Settings,
+    storage: AppStorage,
+    snapshot_id: str,
+) -> dict[str, Any]:
+    snapshot = storage.get_action_snapshot(snapshot_id)
+    if not snapshot:
+        raise KeyError(snapshot_id)
+    if not snapshot.existed or not snapshot.snapshot_path:
+        raise ValueError("Snapshot cannot be restored automatically because no previous file bytes were captured.")
+
+    source_path = Path(snapshot.snapshot_path).resolve()
+    snapshots_root = settings.resolved_action_snapshots_dir().resolve()
+    if not _is_within(source_path, snapshots_root):
+        raise ValueError("Snapshot file is outside the configured AI OS action snapshot directory.")
+    if not source_path.exists() or not source_path.is_file():
+        raise FileNotFoundError(f"Snapshot file is missing: {source_path}")
+
+    target = Path(snapshot.target).resolve()
+    pre_restore_snapshot = capture_file_pre_action_snapshot(
+        settings=settings,
+        storage=storage,
+        source="action_snapshot_restore",
+        action_type="action_snapshot.restore",
+        target=target,
+        content_type=snapshot.content_type,
+        metadata={"restoring_snapshot_id": snapshot.id},
+    )
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, target)
+    size_bytes = target.stat().st_size
+
+    return {
+        "ok": True,
+        "restored_snapshot": snapshot.model_dump(mode="json"),
+        "pre_action_snapshot": pre_restore_snapshot.model_dump(mode="json"),
+        "target": str(target),
+        "bytes": size_bytes,
+    }

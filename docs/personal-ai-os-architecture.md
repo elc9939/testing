@@ -206,6 +206,11 @@ a recoverability snapshot for the target path: if a previous file existed, its b
 under `AI_OS_ACTION_SNAPSHOTS_DIR`; if the path was new, the ledger records that fact so the
 action still has an explicit artifact trail.
 
+Reversible file snapshots can be restored through
+`POST /api/ai/action-snapshots/{snapshot_id}/restore` with `confirm: true`. The restore path
+copies the captured bytes back to the original target, first taking a new pre-action snapshot
+of the current target so the restore itself is visible and recoverable where possible.
+
 Likewise, obvious internet commands such as "search the web for ..." or "scrape
 https://..." are routed directly to `web.search`, `web.scrape`, or `browser.extract`. These
 are read-only tools, but they still go through the tool log so the assistant cannot silently

@@ -228,6 +228,16 @@ under `AI_OS_ASSETS_DIR` if you want them included in AI OS backups. Pre-action 
 snapshots for AI OS file-writing tools live under `AI_OS_ACTION_SNAPSHOTS_DIR` and are
 included in backup manifests.
 
+When a ledger entry points to a reversible AI OS file snapshot, Settings can restore it through
+the local AI OS API. The underlying endpoint is:
+
+```http
+POST /api/ai/action-snapshots/{snapshot_id}/restore
+```
+
+Send `{"confirm": true}`. Restores overwrite the original local target and take a new
+pre-action snapshot first, so the restore attempt itself appears in the action ledger.
+
 The web settings power the assistant tools `web.search`, `web.scrape`, and
 `browser.extract`. The default `AI_OS_WEB_ALLOW_PRIVATE_HOSTS=false` blocks localhost,
 private LAN ranges, link-local addresses, and `.local` hosts. Leave that default on for

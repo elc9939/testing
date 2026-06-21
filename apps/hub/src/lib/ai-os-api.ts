@@ -534,6 +534,17 @@ export async function getAiActionLedger(limit = 50): Promise<AiActionLedgerEntry
   return result.actions;
 }
 
+export async function restoreAiActionSnapshot(snapshotId: string): Promise<Record<string, unknown>> {
+  const result = await requestJson<{ restore: Record<string, unknown> }>(
+    `/api/ai/action-snapshots/${encodeURIComponent(snapshotId)}/restore`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true })
+    }
+  );
+  return result.restore;
+}
+
 export async function toggleBackgroundUnit(unitId: string, enabled: boolean): Promise<AiBackgroundUnit> {
   const result = await requestJson<{ unit: AiBackgroundUnit }>(
     `/api/ai/background/units/${encodeURIComponent(unitId)}/toggle`,

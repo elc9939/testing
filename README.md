@@ -86,8 +86,8 @@ from real Mini Hub sync events, AI OS jobs/tools/benchmarks/backups/profile snap
 generation/design logs, and Macro Lab run history so actions have visible follow-through
 and recoverability notes. Settings exposes the same ledger as a recovery surface: Mini Hub
 actions with before-state snapshots can be restored from the UI with explicit confirmation,
-and AI OS write tools can attach pre-action file snapshots or artifact references where a
-local rollback trail exists.
+and AI OS file-writing actions with reversible pre-action snapshots can be restored from the
+same panel.
 
 ### Personal Data And Sync
 
@@ -150,6 +150,9 @@ Current capabilities include:
 - AI OS pre-action snapshots for file-writing tools, currently including assistant
   image-to-Desktop exports. Snapshots record whether the target already existed and copy
   previous bytes when there is something to preserve; backup manifests include those files.
+- AI OS action snapshot restore endpoint and Settings restore button for reversible file
+  snapshots. Restores require explicit confirmation, snapshot the current target first, and
+  log the restore attempt back into the ledger.
 
 More detail:
 

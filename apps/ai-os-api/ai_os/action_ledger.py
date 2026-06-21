@@ -65,7 +65,8 @@ def _format_ms(value: float | int | None) -> str:
 
 def _tool_entry(call: ToolCallLogEntry) -> ActionLedgerEntry:
     status = "succeeded" if call.ok else "failed"
-    if not call.ok and call.requires_confirmation:
+    result = call.result if isinstance(call.result, dict) else {}
+    if not call.ok and call.requires_confirmation and result.get("requires_confirmation"):
         status = "blocked"
     risk = "destructive" if call.safety == "destructive" else call.safety
     detail = call.error or f"{call.safety} tool completed in {_format_ms(call.latency_ms)}"

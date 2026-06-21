@@ -283,6 +283,10 @@ class ActionSnapshotRecord(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ActionSnapshotRestoreRequest(BaseModel):
+    confirm: bool = False
+
+
 class DesignPatchRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=50_000)
     target_files: list[str] = Field(default_factory=list, max_length=20)

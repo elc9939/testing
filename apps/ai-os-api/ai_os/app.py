@@ -29,6 +29,7 @@ from .maintenance import BackupManager, MaintenanceScheduler, cleanup_old_files,
 from .memory.store import SemanticMemory
 from .models import (
     AgentRunRequest,
+    ActionSnapshotRestoreRequest,
     AutotuneRequest,
     BackgroundToggleRequest,
     BenchmarkRequest,
@@ -45,6 +46,7 @@ from .models import (
 )
 from .multimodal.registry import MultimodalRegistry
 from .providers.registry import ProviderRegistry, build_provider_registry
+from .recoverability import restore_file_action_snapshot
 from .security import is_loopback_host
 from .storage import AppStorage
 from .telemetry import hardware_status
@@ -462,6 +464,72 @@ def create_app(
             limit=limit,
         )
         return {"actions": [entry.model_dump(mode="json") for entry in entries]}
+
+    @app.post("/api/ai/action-snapshots/{snapshot_id}/restore")
+    async def restore_action_snapshot(snapshot_id: str, request: ActionSnapshotRestoreRequest) -> dict[str, Any]:
+        started = time.perf_counter()
+        arguments = {"snapshot_id": snapshot_id}
+        if not request.confirm:
+            result = {
+                "ok": False,
+                "tool_id": "action_snapshot.restore",
+                "requires_confirmation": True,
+                "snapshot_id": snapshot_id,
+                "message": "Restore requires confirm: true because it writes a local file.",
+            }
+            services.storage.log_tool_call(
+                tool_id="action_snapshot.restore",
+                ok=False,
+                safety="write",
+                requires_confirmation=True,
+                arguments=arguments,
+                result=result,
+                latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
+            raise HTTPException(status_code=409, detail=result["message"])
+        try:
+            result = restore_file_action_snapshot(
+                settings=services.settings,
+                storage=services.storage,
+                snapshot_id=snapshot_id,
+            )
+            result["tool_id"] = "action_snapshot.restore"
+            services.storage.log_tool_call(
+                tool_id="action_snapshot.restore",
+                ok=True,
+                safety="write",
+                requires_confirmation=True,
+                arguments=arguments,
+                result=result,
+                latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
+            return {"restore": result}
+        except KeyError as error:
+            result = {"ok": False, "tool_id": "action_snapshot.restore", "snapshot_id": snapshot_id, "error": "Action snapshot not found."}
+            services.storage.log_tool_call(
+                tool_id="action_snapshot.restore",
+                ok=False,
+                safety="write",
+                requires_confirmation=True,
+                arguments=arguments,
+                result=result,
+                error=result["error"],
+                latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
+            raise HTTPException(status_code=404, detail=result["error"]) from error
+        except (FileNotFoundError, ValueError) as error:
+            result = {"ok": False, "tool_id": "action_snapshot.restore", "snapshot_id": snapshot_id, "error": str(error)}
+            services.storage.log_tool_call(
+                tool_id="action_snapshot.restore",
+                ok=False,
+                safety="write",
+                requires_confirmation=True,
+                arguments=arguments,
+                result=result,
+                error=str(error),
+                latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post("/api/ai/jobs")
     async def create_job(request: JobCreateRequest) -> dict[str, Any]:

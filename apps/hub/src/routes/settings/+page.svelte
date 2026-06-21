@@ -11,7 +11,7 @@
     type ActionLedgerSnapshot
   } from '$lib/action-ledger';
   import { getApiUrl, getHealth, restoreHubActionLedgerEntry } from '$lib/api';
-  import { getAiOsApiUrl, getMachineProfile, runAutotune, snapshotMachineProfile, type AiMachineProfile, type AiMachineProfileSnapshot } from '$lib/ai-os-api';
+  import { getAiOsApiUrl, getMachineProfile, restoreAiActionSnapshot, runAutotune, snapshotMachineProfile, type AiMachineProfile, type AiMachineProfileSnapshot } from '$lib/ai-os-api';
   import {
     capabilityServiceLabel,
     capabilityStateLabel,
@@ -264,23 +264,36 @@
   }
 
   function canRestoreAction(action: ActionLedgerEntry): boolean {
-    return action.system === 'mini-hub' && action.recoverability.kind === 'snapshot' && action.recoverability.reversible;
+    if (action.recoverability.kind !== 'snapshot' || !action.recoverability.reversible) return false;
+    if (action.system === 'mini-hub') return true;
+    return action.system === 'ai-os' && Boolean(action.recoverability.referenceId);
   }
 
   async function restoreAction(action: ActionLedgerEntry): Promise<void> {
     if (!canRestoreAction(action) || restoreBusyId) return;
+    const isAiSnapshot = action.system === 'ai-os';
     const confirmed =
       typeof window === 'undefined' ||
-      window.confirm(`Restore the before-state snapshot for "${action.summary}"? This will write synced Mini Hub data.`);
+      window.confirm(
+        isAiSnapshot
+          ? `Restore the file snapshot for "${action.summary}"? This will overwrite the current local file target.`
+          : `Restore the before-state snapshot for "${action.summary}"? This will write synced Mini Hub data.`
+      );
     if (!confirmed) return;
 
     restoreBusyId = action.id;
     actionLedgerMessage = '';
     actionLedgerError = '';
     try {
-      await restoreHubActionLedgerEntry(action.id);
-      actionLedgerMessage = 'Snapshot restored and a new sync event was recorded.';
-      await Promise.all([clientData.syncNow(), refreshActionLedger()]);
+      if (isAiSnapshot) {
+        await restoreAiActionSnapshot(action.recoverability.referenceId ?? '');
+        actionLedgerMessage = 'AI OS file snapshot restored and the restore was added to the ledger.';
+        await refreshActionLedger();
+      } else {
+        await restoreHubActionLedgerEntry(action.id);
+        actionLedgerMessage = 'Snapshot restored and a new sync event was recorded.';
+        await Promise.all([clientData.syncNow(), refreshActionLedger()]);
+      }
     } catch (error) {
       actionLedgerError = error instanceof Error ? error.message : 'Restore failed.';
     } finally {
@@ -620,7 +633,7 @@
       </button>
     </div>
     <p class="helper-text">
-      Recent real actions from Mini Hub, AI OS, and Macro Lab. Mini Hub entries with a before-state snapshot can be restored from here.
+      Recent real actions from Mini Hub, AI OS, and Macro Lab. Reversible Mini Hub data snapshots and AI OS file snapshots can be restored from here.
     </p>
 
     {#if actionLedgerItems.length}
