@@ -28,9 +28,13 @@ Pipeline v1:
    exported later. Research runs are created as durable queued records before work starts and
    update with progress, current step, partial sources, cancellation state, and final report
    data.
-9. `build_ai_action_ledger()` emits research runs as `research.<mode>` AI OS actions with
+9. When `save_to_memory` is enabled, the completed report plus source excerpts are ingested
+   into AI OS semantic memory as a `research_run` document. The run stores
+   `memory_document_id` and `memory_chunks` so the Research Desk and Action Ledger can show
+   whether it became searchable local knowledge.
+10. `build_ai_action_ledger()` emits research runs as `research.<mode>` AI OS actions with
    source count, cached page count, runtime, progress, provider/model, tokens, and cost
-   metadata.
+   memory index metadata.
 
 ## API
 
@@ -49,9 +53,15 @@ while `status` is `queued` or `running`. Persisted run records include:
 - `completed_steps`
 - `current_step`
 - `cancel_requested`
+- `memory_document_id`
+- `memory_chunks`
 
 Cancellation v1 marks the stored run cancelled and sets `cancel_requested`; the crawler checks
 that flag between page fetches and major pipeline stages.
+
+The Research Desk exposes "Index into semantic memory" under advanced knobs. When enabled,
+semantic memory search can later retrieve the report and source excerpts through the existing
+`/api/ai/memory/query` endpoint and assistant memory search tool.
 
 Modes:
 
@@ -85,8 +95,9 @@ should prefer those over scraping.
 - Screenshots are represented in the request model but not yet captured into research source
   cards.
 - Citation mapping is deterministic and source-backed, but not a full claim graph yet.
-- The local archive is SQLite text/source-card storage; vector indexing into semantic memory
-  should be added when a research source is explicitly promoted or when a run opts in.
+- Semantic memory indexing is opt-in per run. It currently indexes a single research-run
+  document containing the report and source excerpts; individual reusable source-card
+  promotion can be added as a follow-up.
 
 ## Adding A Search Provider
 

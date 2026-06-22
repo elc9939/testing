@@ -453,6 +453,8 @@ class ResearchRunRecord(BaseModel):
     completed_steps: int = Field(default=0, ge=0)
     current_step: str = ""
     cancel_requested: bool = False
+    memory_document_id: str | None = None
+    memory_chunks: int = 0
     provider: str | None = None
     model: str | None = None
     total_tokens: int = 0

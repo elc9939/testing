@@ -22,7 +22,7 @@ from .models import (
     now_iso,
 )
 
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7
 
 
 class AppStorage:
@@ -62,6 +62,8 @@ class AppStorage:
                 self._apply_0005_research_engine()
             if current < 6:
                 self._apply_0006_research_run_progress()
+            if current < 7:
+                self._apply_0007_research_memory_index()
 
     def _apply_0001_initial(self) -> None:
         self._conn.executescript(
@@ -332,6 +334,26 @@ class AppStorage:
             values (?, ?, ?, ?, ?)
             """,
             (6, "0006_research_run_progress", now_iso(), 0, "builtin:0006_research_run_progress"),
+        )
+
+    def _apply_0007_research_memory_index(self) -> None:
+        columns = {
+            row["name"]
+            for row in self._conn.execute("pragma table_info(research_runs)").fetchall()
+        }
+        additions = {
+            "memory_document_id": "alter table research_runs add column memory_document_id text",
+            "memory_chunks": "alter table research_runs add column memory_chunks integer not null default 0",
+        }
+        for column, statement in additions.items():
+            if column not in columns:
+                self._conn.execute(statement)
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (7, "0007_research_memory_index", now_iso(), 0, "builtin:0007_research_memory_index"),
         )
 
     def schema_version(self) -> int:
@@ -1171,9 +1193,9 @@ class AppStorage:
                 insert or replace into research_runs (
                   id, created_at, updated_at, mode, goal, status, query_plan, sources,
                   report, citations, logs, progress, total_steps, completed_steps,
-                  current_step, cancel_requested, provider, model, total_tokens, cost_usd,
-                  runtime_ms, cached_pages, error, options
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  current_step, cancel_requested, memory_document_id, memory_chunks, provider,
+                  model, total_tokens, cost_usd, runtime_ms, cached_pages, error, options
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.id,
@@ -1192,6 +1214,8 @@ class AppStorage:
                     record.completed_steps,
                     record.current_step,
                     1 if record.cancel_requested else 0,
+                    record.memory_document_id,
+                    record.memory_chunks,
                     record.provider,
                     record.model,
                     record.total_tokens,
@@ -1267,6 +1291,8 @@ class AppStorage:
             completed_steps=int(row["completed_steps"]),
             current_step=row["current_step"],
             cancel_requested=bool(row["cancel_requested"]),
+            memory_document_id=row["memory_document_id"],
+            memory_chunks=int(row["memory_chunks"]),
             provider=row["provider"],
             model=row["model"],
             total_tokens=int(row["total_tokens"]),

@@ -369,6 +369,8 @@ export interface ResearchRun {
   completed_steps: number;
   current_step: string;
   cancel_requested: boolean;
+  memory_document_id?: string;
+  memory_chunks: number;
   provider?: string;
   model?: string;
   total_tokens: number;

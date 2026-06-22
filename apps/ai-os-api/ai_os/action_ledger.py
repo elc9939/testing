@@ -389,6 +389,8 @@ def _research_entry(run: ResearchRunRecord) -> ActionLedgerEntry:
             "total_steps": run.total_steps,
             "current_step": run.current_step,
             "cancel_requested": run.cancel_requested,
+            "memory_document_id": run.memory_document_id,
+            "memory_chunks": run.memory_chunks,
             "provider": run.provider,
             "model": run.model,
             "total_tokens": run.total_tokens,

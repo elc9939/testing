@@ -15,8 +15,10 @@ from bs4 import BeautifulSoup
 
 from .config import Settings
 from .inference import InferenceRouter
+from .memory.store import SemanticMemory
 from .models import (
     InferenceRequest,
+    MemoryIngestRequest,
     ResearchCitation,
     ResearchReport,
     ResearchRunRecord,
@@ -299,12 +301,14 @@ class ResearchEngine:
         storage: AppStorage,
         web: WebAccess,
         router: InferenceRouter,
+        memory: SemanticMemory | None = None,
         search_provider: SearchProvider | None = None,
     ):
         self.settings = settings
         self.storage = storage
         self.web = web
         self.router = router
+        self.memory = memory
         self.search_provider = search_provider or WebAccessSearchProvider(web)
         self.robots = RobotsCache(web)
 
@@ -451,7 +455,8 @@ class ResearchEngine:
                 cached_pages=cached_pages,
                 options=options,
             )
-            return self.storage.log_research_run(record)
+            record = self.storage.log_research_run(record)
+            return await self._save_to_memory_if_requested(record, request)
         except ResearchCancelled:
             existing = self.storage.get_research_run(run_id)
             if existing and existing.status == "cancelled":
@@ -562,6 +567,110 @@ class ResearchEngine:
             options=request.model_dump(mode="json"),
         )
         return self.storage.log_research_run(record)
+
+    async def _save_to_memory_if_requested(
+        self,
+        record: ResearchRunRecord,
+        request: ResearchRunRequest,
+    ) -> ResearchRunRecord:
+        if not request.save_to_memory or not self.memory:
+            return record
+        logs = list(record.logs)
+        try:
+            text = self._memory_text(record)
+            if len(text) > self.settings.max_memory_ingest_chars:
+                text = text[: self.settings.max_memory_ingest_chars]
+            result = await self.memory.ingest(
+                MemoryIngestRequest(
+                    source_type="research_run",
+                    source_id=record.id,
+                    title=record.report.title,
+                    text=text,
+                    metadata={
+                        "kind": "research_run",
+                        "research_run_id": record.id,
+                        "mode": record.mode,
+                        "goal": record.goal,
+                        "source_count": len(record.sources),
+                        "source_urls": [source.canonical_url for source in record.sources],
+                        "citation_count": len(record.citations),
+                    },
+                    embedding_provider=request.provider,
+                    embedding_model=request.model,
+                )
+            )
+            logs.append(
+                {
+                    "at": now_iso(),
+                    "level": "info",
+                    "message": "Research run saved to semantic memory.",
+                    "document_id": result.get("document_id"),
+                    "chunks": result.get("chunks"),
+                }
+            )
+            return self.storage.log_research_run(
+                record.model_copy(
+                    update={
+                        "updated_at": now_iso(),
+                        "logs": logs,
+                        "memory_document_id": result.get("document_id"),
+                        "memory_chunks": int(result.get("chunks") or 0),
+                    }
+                )
+            )
+        except Exception as error:
+            logs.append(
+                {
+                    "at": now_iso(),
+                    "level": "warning",
+                    "message": "Research memory save failed.",
+                    "error": str(error),
+                }
+            )
+            return self.storage.log_research_run(record.model_copy(update={"updated_at": now_iso(), "logs": logs}))
+
+    def _memory_text(self, record: ResearchRunRecord) -> str:
+        sections = [
+            f"Research run: {record.report.title}",
+            f"Mode: {record.mode}",
+            f"Goal: {record.goal}",
+            "",
+            "TLDR",
+            record.report.tldr,
+            "",
+            "Detailed Summary",
+            record.report.detailed_summary,
+            "",
+            "Key Facts",
+            "\n".join(f"- {fact}" for fact in record.report.key_facts),
+            "",
+            "Disagreements",
+            "\n".join(f"- {item}" for item in record.report.disagreements),
+            "",
+            "Open Questions",
+            "\n".join(f"- {item}" for item in record.report.open_questions),
+            "",
+            "Next Research Suggestions",
+            "\n".join(f"- {item}" for item in record.report.next_research_suggestions),
+            "",
+            "Citations",
+            "\n".join(f"- {citation.id}: {citation.claim}" for citation in record.citations),
+            "",
+            "Sources",
+        ]
+        for source in record.sources:
+            sections.extend(
+                [
+                    f"[{source.id}] {source.title or source.canonical_url}",
+                    f"URL: {source.canonical_url}",
+                    f"Author: {source.author or ''}",
+                    f"Published: {source.published_at or ''}",
+                    source.description,
+                    source.text[:8000],
+                    "",
+                ]
+            )
+        return "\n".join(part for part in sections if part is not None).strip()
 
     async def _search(
         self,

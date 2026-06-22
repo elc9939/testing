@@ -30,6 +30,7 @@
   let timeBudget = 90;
   let useAi = false;
   let useCloudAi = false;
+  let saveToMemory = false;
   let provider = '';
   let model = '';
   let advancedOpen = false;
@@ -83,6 +84,7 @@
         use_ai: useAi,
         use_cloud_ai: useCloudAi,
         local_first: !useCloudAi,
+        save_to_memory: saveToMemory,
         provider: provider.trim() || undefined,
         model: model.trim() || undefined
       });
@@ -147,6 +149,7 @@
       `${run.sources.length} source${run.sources.length === 1 ? '' : 's'}`,
       `${Math.round(run.runtime_ms)} ms`,
       run.cached_pages ? `${run.cached_pages} cached` : '',
+      run.memory_chunks ? `${run.memory_chunks} memory chunks` : '',
       providerLabel || 'extractive'
     ].filter(Boolean);
     return parts.join(' - ');
@@ -258,6 +261,10 @@
             <input bind:checked={useCloudAi} type="checkbox" />
             <span>Allow cloud fallback</span>
           </label>
+          <label class="check-row">
+            <input bind:checked={saveToMemory} type="checkbox" />
+            <span>Index into semantic memory</span>
+          </label>
         </div>
       {/if}
 
@@ -314,6 +321,10 @@
               </span>
               <small>{selectedRun.current_step || 'Working'} ({progressPercent(selectedRun)}%)</small>
             </div>
+          {:else if selectedRun.memory_chunks}
+            <p class="memory-note">
+              Indexed into semantic memory as {selectedRun.memory_chunks} chunk{selectedRun.memory_chunks === 1 ? '' : 's'}.
+            </p>
           {/if}
         </div>
         <div class="export-actions">
@@ -673,6 +684,13 @@
     gap: 5px;
     margin-top: 8px;
     max-width: 420px;
+  }
+
+  .memory-note {
+    margin-top: 8px;
+    color: var(--success-text);
+    font-size: 0.82rem;
+    font-weight: 700;
   }
 
   .run-list,

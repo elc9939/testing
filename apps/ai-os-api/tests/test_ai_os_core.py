@@ -343,7 +343,7 @@ def test_storage_migration_and_integrity_report(tmp_path):
 
     assert report["ok"] is True
     assert report["schema_version"] == report["expected_schema_version"]
-    assert report["counts"]["schema_migrations"] == 6
+    assert report["counts"]["schema_migrations"] == 7
     assert report["counts"]["research_runs"] == 0
     assert report["counts"]["research_pages"] == 0
 
@@ -743,7 +743,7 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
     with TestClient(app) as client:
         first = client.post(
             "/api/ai/research/runs",
-            json={"mode": "quick_search", "goal": "research engines cite evidence", "max_pages": 3},
+            json={"mode": "quick_search", "goal": "research engines cite evidence", "max_pages": 3, "save_to_memory": True},
         )
         second = client.post(
             "/api/ai/research/runs",
@@ -754,6 +754,7 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
         second_final = client.get(f"/api/ai/research/runs/{second.json()['run']['id']}")
         markdown = client.get(f"/api/ai/research/runs/{first.json()['run']['id']}/export?format=markdown")
         ledger = client.get("/api/ai/action-ledger?limit=20")
+        memory = client.post("/api/ai/memory/query", json={"query": "cite evidence", "limit": 1})
 
     first_run = first_final.json()["run"]
     second_run = second_final.json()["run"]
@@ -762,12 +763,16 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
     assert first_run["status"] == "succeeded"
     assert first_run["progress"] == 1
     assert first_run["completed_steps"] == first_run["total_steps"]
+    assert first_run["memory_document_id"]
+    assert first_run["memory_chunks"] > 0
     assert first_run["sources"][0]["title"] == "Research source"
     assert first_run["citations"][0]["source_ids"] == ["S1"]
     assert second_run["cached_pages"] == 1
     assert listed.json()["runs"][0]["id"] == second_run["id"]
     assert "# Quick Search: research engines cite evidence" in markdown.text
     assert any(action["action_type"].startswith("research.") for action in ledger.json()["actions"])
+    assert memory.json()["hits"][0]["source_type"] == "research_run"
+    assert memory.json()["hits"][0]["source_id"] == first_run["id"]
 
 
 def test_research_cancel_marks_running_run_and_ledger_metadata(tmp_path):

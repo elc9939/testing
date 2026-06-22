@@ -131,7 +131,7 @@ class Services:
             web_access=self.web,
         )
         self.agents = AgentEngine(self.router, self.tools)
-        self.research = ResearchEngine(settings=settings, storage=storage, web=self.web, router=self.router)
+        self.research = ResearchEngine(settings=settings, storage=storage, web=self.web, router=self.router, memory=self.memory)
         self.backups = BackupManager(settings, storage)
         self.maintenance = MaintenanceScheduler(settings, self.backups)
 
