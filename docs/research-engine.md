@@ -63,6 +63,26 @@ The Research Desk exposes "Index into semantic memory" under advanced knobs. Whe
 semantic memory search can later retrieve the report and source excerpts through the existing
 `/api/ai/memory/query` endpoint and assistant memory search tool.
 
+## Research Desk UI
+
+The hub route `/research` is the current Deep Research Report artifact viewer. A run can be
+reopened from the Reports rail and inspected without rerunning the crawl. The report view now
+shows:
+
+- final TLDR and detailed summary
+- key facts, contradictions, open questions, and next research suggestions
+- citation cards with links back to archived source URLs
+- reliability notes, dated source timeline, and source table
+- query plan search queries and crawl targets
+- run logs with raw JSON detail for troubleshooting
+- raw extracted source cards with canonical URL, author/date/fetch metadata, text preview,
+  links, tables, and metadata
+- Markdown, JSON, and HTML export links
+
+Advanced run knobs currently sent by the UI include depth, max pages, per-domain limit, time
+budget, date range, include/exclude domains, local AI synthesis, cloud fallback, explicit
+provider/model, screenshot preference, and opt-in semantic memory indexing.
+
 Modes:
 
 - `quick_search`

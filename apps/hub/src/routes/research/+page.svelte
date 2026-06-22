@@ -7,8 +7,10 @@
     getResearchRun,
     listResearchRuns,
     researchExportUrl,
+    type ResearchCitation,
     type ResearchMode,
-    type ResearchRun
+    type ResearchRun,
+    type ResearchSource
   } from '$lib/ai-os-api';
 
   const modes: Array<{ id: ResearchMode; label: string; hint: string }> = [
@@ -27,10 +29,14 @@
   let excludeDomainsText = '';
   let depth = 1;
   let maxPages = 6;
+  let perDomainLimit = 4;
   let timeBudget = 90;
+  let dateRangeStart = '';
+  let dateRangeEnd = '';
   let useAi = false;
   let useCloudAi = false;
   let saveToMemory = false;
+  let screenshot = false;
   let provider = '';
   let model = '';
   let advancedOpen = false;
@@ -80,10 +86,14 @@
         exclude_domains: excludeDomains,
         depth,
         max_pages: maxPages,
+        per_domain_limit: perDomainLimit,
         time_budget_s: timeBudget,
+        date_range_start: dateRangeStart || undefined,
+        date_range_end: dateRangeEnd || undefined,
         use_ai: useAi,
         use_cloud_ai: useCloudAi,
         local_first: !useCloudAi,
+        screenshot,
         save_to_memory: saveToMemory,
         provider: provider.trim() || undefined,
         model: model.trim() || undefined
@@ -168,6 +178,83 @@
     return run.status.replace('_', ' ');
   }
 
+  function sourceHost(source: ResearchSource): string {
+    try {
+      return new URL(source.canonical_url || source.url).hostname.replace(/^www\./u, '');
+    } catch {
+      return source.canonical_url || source.url;
+    }
+  }
+
+  function sourcePreview(source: ResearchSource): string {
+    const text = source.text.trim();
+    if (!text) return 'No extracted text was stored for this source.';
+    return text.length > 2600 ? `${text.slice(0, 2600).trim()}...` : text;
+  }
+
+  function sourceById(run: ResearchRun, sourceId: string): ResearchSource | undefined {
+    return run.sources.find((source) => source.id === sourceId);
+  }
+
+  function citationSources(run: ResearchRun, citation: ResearchCitation): ResearchSource[] {
+    return citation.source_ids.map((sourceId) => sourceById(run, sourceId)).filter((source): source is ResearchSource => Boolean(source));
+  }
+
+  function formatJson(value: unknown): string {
+    if (value === undefined || value === null || value === '') return 'None recorded.';
+    return JSON.stringify(value, null, 2);
+  }
+
+  function listFromPlan(run: ResearchRun, key: string): string[] {
+    const value = run.query_plan[key];
+    return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+  }
+
+  function searchQueries(run: ResearchRun): string[] {
+    return listFromPlan(run, 'search_queries');
+  }
+
+  function crawlTargets(run: ResearchRun): string[] {
+    return listFromPlan(run, 'crawl_targets');
+  }
+
+  function formatValue(value: unknown): string {
+    if (value === undefined || value === null || value === '') return 'n/a';
+    if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
+    if (typeof value === 'boolean') return value ? 'yes' : 'no';
+    if (Array.isArray(value)) return value.map((item) => formatValue(item)).join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  }
+
+  function sourceTableValue(row: Record<string, unknown>, key: string): string {
+    return formatValue(row[key]);
+  }
+
+  function sourceScore(source: ResearchSource): string {
+    return Number.isFinite(source.score) ? source.score.toFixed(2) : '0';
+  }
+
+  function linkLabel(link: Record<string, string>): string {
+    return link.text || link.title || link.href || link.url || 'link';
+  }
+
+  function linkHref(link: Record<string, string>): string {
+    return link.href || link.url || '';
+  }
+
+  function logLevel(log: Record<string, unknown>): string {
+    return typeof log.level === 'string' ? log.level : 'info';
+  }
+
+  function logMessage(log: Record<string, unknown>): string {
+    return typeof log.message === 'string' ? log.message : formatJson(log);
+  }
+
+  function logTime(log: Record<string, unknown>): string {
+    return typeof log.at === 'string' ? log.at : '';
+  }
+
   onMount(() => {
     const timer = window.setInterval(() => {
       void pollLiveRuns();
@@ -238,6 +325,18 @@
             <input bind:value={timeBudget} min="5" max="900" type="number" />
           </label>
           <label>
+            <span>Per-domain limit</span>
+            <input bind:value={perDomainLimit} min="1" max="20" type="number" />
+          </label>
+          <label>
+            <span>Date start</span>
+            <input bind:value={dateRangeStart} type="date" />
+          </label>
+          <label>
+            <span>Date end</span>
+            <input bind:value={dateRangeEnd} type="date" />
+          </label>
+          <label>
             <span>Include domains</span>
             <input bind:value={includeDomainsText} placeholder="example.com, docs.example.com" />
           </label>
@@ -264,6 +363,10 @@
           <label class="check-row">
             <input bind:checked={saveToMemory} type="checkbox" />
             <span>Index into semantic memory</span>
+          </label>
+          <label class="check-row">
+            <input bind:checked={screenshot} type="checkbox" />
+            <span>Request screenshots when useful</span>
           </label>
         </div>
       {/if}
@@ -348,19 +451,23 @@
       <div class="report-grid">
         <article>
           <h3>TLDR</h3>
-          <p>{selectedRun.report.tldr}</p>
+          <p>{selectedRun.report.tldr || 'No TLDR was generated yet.'}</p>
         </article>
         <article>
           <h3>Reliability</h3>
-          {#each selectedRun.report.reliability_notes as note}
-            <p>{note}</p>
-          {/each}
+          {#if selectedRun.report.reliability_notes.length}
+            {#each selectedRun.report.reliability_notes as note}
+              <p>{note}</p>
+            {/each}
+          {:else}
+            <p class="empty-note">No reliability notes were recorded.</p>
+          {/if}
         </article>
       </div>
 
       <article class="full-summary">
         <h3>Detailed Summary</h3>
-        <p>{selectedRun.report.detailed_summary}</p>
+        <p>{selectedRun.report.detailed_summary || 'The run has not produced a detailed summary yet.'}</p>
       </article>
 
       <div class="report-grid">
@@ -378,9 +485,132 @@
         </article>
         <article>
           <h3>Open Questions</h3>
-          {#each selectedRun.report.open_questions as item}
-            <p>{item}</p>
-          {/each}
+          {#if selectedRun.report.open_questions.length}
+            {#each selectedRun.report.open_questions as item}
+              <p>{item}</p>
+            {/each}
+          {:else}
+            <p class="empty-note">No open questions were extracted.</p>
+          {/if}
+        </article>
+      </div>
+
+      <div class="report-grid">
+        <article>
+          <h3>Contradictions</h3>
+          {#if selectedRun.report.disagreements.length}
+            <ul>
+              {#each selectedRun.report.disagreements as item}
+                <li>{item}</li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="empty-note">No source disagreements were detected.</p>
+          {/if}
+        </article>
+        <article>
+          <h3>Next Research</h3>
+          {#if selectedRun.report.next_research_suggestions.length}
+            <ul>
+              {#each selectedRun.report.next_research_suggestions as item}
+                <li>{item}</li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="empty-note">No follow-up suggestions were generated.</p>
+          {/if}
+        </article>
+      </div>
+
+      <div class="report-grid">
+        <article>
+          <h3>Timeline</h3>
+          {#if selectedRun.report.timeline.length}
+            <div class="timeline-list">
+              {#each selectedRun.report.timeline as item}
+                <div>
+                  <strong>{formatValue(item.title)}</strong>
+                  <span>{formatValue(item.date)}</span>
+                  <small>{formatValue(item.source_id)}</small>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="empty-note">No dated source timeline was available.</p>
+          {/if}
+        </article>
+        <article>
+          <h3>Source Table</h3>
+          {#if selectedRun.report.source_table.length}
+            <div class="compact-table" role="table" aria-label="Research source table">
+              <div class="compact-table-head" role="row">
+                <span>ID</span>
+                <span>Source</span>
+                <span>Score</span>
+                <span>Cached</span>
+              </div>
+              {#each selectedRun.report.source_table as row}
+                <div role="row">
+                  <span>{sourceTableValue(row, 'id')}</span>
+                  <span>{sourceTableValue(row, 'title') || sourceTableValue(row, 'url')}</span>
+                  <span>{sourceTableValue(row, 'score')}</span>
+                  <span>{sourceTableValue(row, 'cached')}</span>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="empty-note">No source table was recorded.</p>
+          {/if}
+        </article>
+      </div>
+
+      <div class="report-grid">
+        <article>
+          <h3>Query Plan</h3>
+          {#if searchQueries(selectedRun).length || crawlTargets(selectedRun).length}
+            {#if searchQueries(selectedRun).length}
+              <strong class="section-subhead">Search queries</strong>
+              <ul>
+                {#each searchQueries(selectedRun) as query}
+                  <li>{query}</li>
+                {/each}
+              </ul>
+            {/if}
+            {#if crawlTargets(selectedRun).length}
+              <strong class="section-subhead">Crawl targets</strong>
+              <ul>
+                {#each crawlTargets(selectedRun) as target}
+                  <li>{target}</li>
+                {/each}
+              </ul>
+            {/if}
+          {:else}
+            <p class="empty-note">No query-plan lists were recorded.</p>
+          {/if}
+          <details class="json-details">
+            <summary>Raw plan JSON</summary>
+            <pre>{formatJson(selectedRun.query_plan)}</pre>
+          </details>
+        </article>
+        <article>
+          <h3>Run Log</h3>
+          {#if selectedRun.logs.length}
+            <div class="log-list">
+              {#each selectedRun.logs as log}
+                <div>
+                  <span class={`log-level ${logLevel(log)}`}>{logLevel(log)}</span>
+                  <strong>{logMessage(log)}</strong>
+                  <small>{logTime(log)}</small>
+                  <details class="json-details compact">
+                    <summary>Details</summary>
+                    <pre>{formatJson(log)}</pre>
+                  </details>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="empty-note">No run logs were stored for this report.</p>
+          {/if}
         </article>
       </div>
 
@@ -393,6 +623,13 @@
                 <strong>{citation.id}</strong>
                 <p>{citation.claim}</p>
                 {#if citation.quote}<small>{citation.quote}</small>{/if}
+                {#if citationSources(selectedRun, citation).length}
+                  <div class="citation-sources">
+                    {#each citationSources(selectedRun, citation) as source}
+                      <a href={source.canonical_url} target="_blank" rel="noreferrer">{source.id}: {sourceHost(source)}</a>
+                    {/each}
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
@@ -402,15 +639,57 @@
       </article>
 
       <article>
-        <h3>Sources</h3>
+        <h3>Raw Extracted Sources</h3>
         <div class="source-list">
           {#each selectedRun.sources as source}
-            <a href={source.canonical_url} target="_blank" rel="noreferrer">
-              <span>{source.id}</span>
-              <strong>{source.title || source.canonical_url}</strong>
-              <small>{source.canonical_url}</small>
-              <small>{source.text_length} chars - score {source.score}{source.cached ? ' - cached' : ''}</small>
-            </a>
+            <details class="source-card">
+              <summary>
+                <span>{source.id}</span>
+                <strong>{source.title || source.canonical_url}</strong>
+                <small>{sourceHost(source)} - {source.text_length} chars - score {sourceScore(source)}{source.cached ? ' - cached' : ''}</small>
+              </summary>
+              <div class="source-card-body">
+                <a class="source-url" href={source.canonical_url} target="_blank" rel="noreferrer">{source.canonical_url}</a>
+                {#if source.description}<p>{source.description}</p>{/if}
+                <dl class="source-meta">
+                  <div><dt>Author</dt><dd>{source.author ?? 'n/a'}</dd></div>
+                  <div><dt>Published</dt><dd>{source.published_at ?? 'n/a'}</dd></div>
+                  <div><dt>Fetched</dt><dd>{source.fetched_at}</dd></div>
+                  <div><dt>Rank</dt><dd>{source.rank}</dd></div>
+                </dl>
+                <details class="json-details" open>
+                  <summary>Extracted text preview</summary>
+                  <pre>{sourcePreview(source)}</pre>
+                </details>
+                {#if source.links.length}
+                  <details class="json-details">
+                    <summary>Links ({source.links.length})</summary>
+                    <div class="link-list">
+                      {#each source.links.slice(0, 12) as link}
+                        {@const href = linkHref(link)}
+                        {#if href}
+                          <a href={href} target="_blank" rel="noreferrer">{linkLabel(link)}</a>
+                        {:else}
+                          <span>{linkLabel(link)}</span>
+                        {/if}
+                      {/each}
+                    </div>
+                  </details>
+                {/if}
+                {#if source.tables.length}
+                  <details class="json-details">
+                    <summary>Tables ({source.tables.length})</summary>
+                    <pre>{formatJson(source.tables.slice(0, 3))}</pre>
+                  </details>
+                {/if}
+                <details class="json-details">
+                  <summary>Metadata</summary>
+                  <pre>{formatJson(source.metadata)}</pre>
+                </details>
+              </div>
+            </details>
+          {:else}
+            <p class="empty-note">No raw sources were archived for this run.</p>
           {/each}
         </div>
       </article>
@@ -740,6 +1019,210 @@
     color: inherit;
   }
 
+  .source-card {
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+  }
+
+  .source-card summary {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 4px 10px;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+  }
+
+  .source-card summary span {
+    width: fit-content;
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .source-card summary strong,
+  .source-card summary small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .source-card summary small {
+    grid-column: 2;
+  }
+
+  .source-card-body {
+    display: grid;
+    gap: 10px;
+    padding: 0 10px 10px;
+  }
+
+  .source-url {
+    overflow-wrap: anywhere;
+    color: var(--accent);
+  }
+
+  .source-meta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+  }
+
+  .source-meta div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .source-meta dt {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .source-meta dd {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .timeline-list,
+  .log-list,
+  .link-list,
+  .citation-sources {
+    display: grid;
+    gap: 7px;
+  }
+
+  .timeline-list div,
+  .log-list div {
+    display: grid;
+    gap: 3px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .timeline-list span {
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+
+  .compact-table {
+    display: grid;
+    overflow: auto;
+    border: 1px solid var(--border);
+  }
+
+  .compact-table > div {
+    display: grid;
+    grid-template-columns: 72px minmax(160px, 1fr) 72px 72px;
+    gap: 8px;
+    min-width: 520px;
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compact-table > div:last-child {
+    border-bottom: 0;
+  }
+
+  .compact-table-head {
+    color: var(--muted);
+    background: var(--surface);
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .compact-table span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .section-subhead {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+  }
+
+  .json-details {
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .json-details summary {
+    padding: 7px 9px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .json-details.compact {
+    margin-top: 4px;
+  }
+
+  pre {
+    max-height: 360px;
+    margin: 0;
+    overflow: auto;
+    padding: 10px;
+    border-top: 1px solid var(--border);
+    background: var(--code-bg);
+    color: var(--text);
+    font: 0.78rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .log-level {
+    width: fit-content;
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .log-level.warning {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .log-level.error,
+  .log-level.failed {
+    border-color: var(--danger-border);
+    color: var(--danger-text);
+    background: var(--danger-bg);
+  }
+
+  .citation-sources {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .citation-sources a,
+  .link-list a,
+  .link-list span {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    color: var(--accent);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   ul {
     margin: 0;
     padding-left: 18px;
@@ -770,11 +1253,24 @@
       align-items: flex-start;
       flex-direction: column;
     }
+
+    .source-meta {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 540px) {
     .mode-grid {
       grid-template-columns: 1fr;
+    }
+
+    .source-card summary,
+    .source-meta {
+      grid-template-columns: 1fr;
+    }
+
+    .source-card summary small {
+      grid-column: 1;
     }
   }
 </style>
