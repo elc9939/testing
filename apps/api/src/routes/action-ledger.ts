@@ -11,6 +11,7 @@ import {
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
+import { env } from '../env';
 import type { MemoryStore } from '../store';
 import {
   appendActionLedgerEvent,
@@ -24,6 +25,79 @@ import {
 const restoreBody = z.object({
   confirm: z.boolean().default(false)
 });
+
+type FetchLike = typeof fetch;
+
+interface ActionLedgerRouteOptions {
+  externalFetch?: FetchLike;
+}
+
+interface FederatedSourceStatus {
+  id: 'mini-hub' | 'ai-os' | 'macro-lab';
+  label: string;
+  ok: boolean;
+  count: number;
+  error?: string;
+}
+
+interface AiActionLedgerEntry {
+  id: string;
+  occurred_at: string;
+  system: ActionLedgerEntry['system'];
+  source: string;
+  action_type: string;
+  summary: string;
+  status: ActionLedgerEntry['status'];
+  risk: ActionLedgerEntry['risk'];
+  mode?: string;
+  changed?: string[];
+  recoverability?: {
+    kind?: ActionLedgerEntry['recoverability']['kind'];
+    reference_id?: string;
+    route?: string;
+    description?: string;
+    reversible?: boolean;
+  };
+  raw_ref?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+interface MacroRun {
+  id: string;
+  macro_id: string;
+  macro_name: string;
+  trigger_id?: string;
+  status: string;
+  dry_run: boolean;
+  started_at: string;
+  finished_at?: string;
+  error?: string;
+  steps: Array<Record<string, unknown>>;
+}
+
+function parseLimit(value: string | undefined, fallback = 50): number {
+  return Math.max(1, Math.min(Number(value ?? fallback) || fallback, 200));
+}
+
+function dateValue(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortLedgerActions(actions: ActionLedgerEntry[], limit: number): ActionLedgerEntry[] {
+  return actions
+    .filter((action) => action.occurredAt)
+    .sort((a, b) => dateValue(b.occurredAt) - dateValue(a.occurredAt) || a.id.localeCompare(b.id))
+    .slice(0, limit);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim()))];
+}
 
 function titleCase(value: string): string {
   return value
@@ -105,6 +179,230 @@ function syncEventToLedgerEntry(event: SyncEvent): ActionLedgerEntry {
       restoredFrom: metadata.restoredFrom
     }
   });
+}
+
+function hubActionLedgerEntries(store: MemoryStore, workspaceIds: Set<string>, limit: number): ActionLedgerEntry[] {
+  const syncActions = store.syncEvents
+    .filter((event) => workspaceIds.has(event.workspaceId))
+    .map(syncEventToLedgerEntry);
+  const explicitActions = store.actionEvents.filter((event) => {
+    const workspaceId = event.metadata.workspaceId;
+    return typeof workspaceId !== 'string' || workspaceIds.has(workspaceId);
+  });
+  return sortLedgerActions([...syncActions, ...explicitActions], limit);
+}
+
+function normalizeStatus(status: unknown): ActionLedgerEntry['status'] {
+  if (typeof status !== 'string') return 'info';
+  if (['succeeded', 'failed', 'running', 'queued', 'cancelled', 'dry_run', 'blocked', 'info'].includes(status)) {
+    return status as ActionLedgerEntry['status'];
+  }
+  if (status === 'success' || status === 'ok') return 'succeeded';
+  if (status === 'error') return 'failed';
+  return 'info';
+}
+
+function normalizeAiAction(action: AiActionLedgerEntry): ActionLedgerEntry {
+  return actionLedgerEntrySchema.parse({
+    id: action.id,
+    occurredAt: action.occurred_at,
+    system: action.system,
+    source: action.source,
+    actionType: action.action_type,
+    summary: action.summary,
+    status: action.status,
+    risk: action.risk,
+    mode: action.mode,
+    changed: action.changed ?? [],
+    recoverability: {
+      kind: action.recoverability?.kind ?? 'none',
+      referenceId: action.recoverability?.reference_id,
+      route: action.recoverability?.route,
+      description: action.recoverability?.description ?? '',
+      reversible: action.recoverability?.reversible ?? false
+    },
+    rawRef: action.raw_ref ?? {},
+    metadata: action.metadata ?? {}
+  });
+}
+
+function macroRunToAction(run: MacroRun): ActionLedgerEntry {
+  return actionLedgerEntrySchema.parse({
+    id: `macro-lab-run:${run.id}`,
+    occurredAt: run.finished_at || run.started_at,
+    system: 'macro-lab',
+    source: 'run_history',
+    actionType: 'macro.run',
+    summary: `${run.dry_run ? 'Dry-run' : 'Ran'} ${run.macro_name}`,
+    status: run.dry_run ? 'dry_run' : normalizeStatus(run.status),
+    risk: macroRunRisk(run),
+    changed: macroRunChanged(run),
+    recoverability: macroRecoverability(run),
+    rawRef: {
+      kind: 'macro_run',
+      id: run.id,
+      macroId: run.macro_id,
+      triggerId: run.trigger_id
+    },
+    metadata: {
+      error: run.error,
+      step_count: run.steps.length
+    }
+  });
+}
+
+function macroRunRisk(run: MacroRun): ActionLedgerEntry['risk'] {
+  const safety = run.steps.map((step) => String(step.safety ?? step.action_safety ?? '')).join(' ');
+  if (/\bdestructive\b/iu.test(safety)) return 'destructive';
+  if (/\bwrite\b/iu.test(safety)) return 'write';
+  return 'system';
+}
+
+function macroRunChanged(run: MacroRun): string[] {
+  const changed: string[] = [];
+  for (const [index, step] of run.steps.entries()) {
+    const before = changed.length;
+    changed.push(...macroStepChangedPaths(step));
+    if (changed.length === before) {
+      const label = step.label ?? step.action_label ?? step.action_type ?? step.type;
+      changed.push(typeof label === 'string' && label.trim() ? label : `step:${index + 1}`);
+    }
+  }
+  return unique(changed).slice(0, 6);
+}
+
+function macroRecoverability(run: MacroRun): ActionLedgerEntry['recoverability'] {
+  if (run.dry_run) {
+    return {
+      kind: 'dry_run',
+      referenceId: run.id,
+      route: '/macro-lab',
+      description: 'Dry-run recorded the planned steps without side effects.',
+      reversible: true
+    };
+  }
+
+  const artifacts = run.steps.map(macroStepRecoverability).filter((item): item is Record<string, unknown> => Boolean(item));
+  if (!artifacts.length) {
+    return {
+      kind: 'none',
+      route: '/macro-lab',
+      description: 'Macro run history is recorded, but no automatic rollback artifact is attached.',
+      reversible: false
+    };
+  }
+
+  const snapshots = artifacts.flatMap((artifact) => (Array.isArray(artifact.snapshots) ? artifact.snapshots : []));
+  const inverseOperations = artifacts.flatMap((artifact) =>
+    Array.isArray(artifact.inverse_operations) ? artifact.inverse_operations : []
+  );
+  const hasSnapshot = artifacts.some((artifact) => artifact.kind === 'snapshot') || snapshots.length > 0;
+  const reversible = artifacts.some((artifact) => artifact.reversible === true);
+  const noun = artifacts.length === 1 ? 'step' : 'steps';
+  return {
+    kind: hasSnapshot ? 'snapshot' : 'artifact',
+    referenceId: run.id,
+    route: '/macro-lab',
+    description: `Macro Lab recorded recovery metadata for ${artifacts.length} ${noun}: ${snapshots.length} snapshot(s), ${inverseOperations.length} inverse operation(s).`,
+    reversible
+  };
+}
+
+function macroStepRecoverability(step: Record<string, unknown>): Record<string, unknown> | null {
+  const detail = step.detail;
+  if (!isRecord(detail)) return null;
+  const recoverability = detail.recoverability;
+  return isRecord(recoverability) ? recoverability : null;
+}
+
+function macroStepChangedPaths(step: Record<string, unknown>): string[] {
+  const detail = step.detail;
+  if (!isRecord(detail)) return [];
+  const paths: string[] = [];
+  for (const key of ['path', 'source', 'target']) {
+    const value = detail[key];
+    if (typeof value === 'string' && value.trim()) paths.push(value);
+  }
+  for (const collectionKey of ['operations', 'applied']) {
+    const operations = detail[collectionKey];
+    if (!Array.isArray(operations)) continue;
+    for (const operation of operations) {
+      if (!isRecord(operation)) continue;
+      for (const key of ['path', 'source', 'target']) {
+        const value = operation[key];
+        if (typeof value === 'string' && value.trim()) paths.push(value);
+      }
+    }
+  }
+  const preRestoreSnapshots = detail.pre_restore_snapshots;
+  if (Array.isArray(preRestoreSnapshots)) {
+    for (const snapshot of preRestoreSnapshots) {
+      if (!isRecord(snapshot)) continue;
+      const target = snapshot.target;
+      if (typeof target === 'string' && target.trim()) paths.push(target);
+    }
+  }
+  const recoverability = macroStepRecoverability(step);
+  const snapshots = recoverability?.snapshots;
+  if (Array.isArray(snapshots)) {
+    for (const snapshot of snapshots) {
+      if (!isRecord(snapshot)) continue;
+      const target = snapshot.target;
+      if (typeof target === 'string' && target.trim()) paths.push(target);
+    }
+  }
+  return paths;
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return String(error || 'Unknown error');
+}
+
+async function fetchJsonWithTimeout(
+  fetchImpl: FetchLike,
+  url: URL,
+  label: string,
+  timeoutMs: number
+): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(url, {
+      headers: { accept: 'application/json' },
+      signal: controller.signal
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`${label} returned ${response.status}: ${text.slice(0, 160) || response.statusText}`);
+    }
+    if (text.trimStart().startsWith('<')) {
+      throw new Error(`${label} returned HTML instead of JSON. Check the configured service URL.`);
+    }
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      throw new Error(`${label} returned invalid JSON.`);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchAiLedgerActions(fetchImpl: FetchLike, limit: number): Promise<ActionLedgerEntry[]> {
+  const url = new URL('/api/ai/action-ledger', env.aiOsApiUrl);
+  url.searchParams.set('limit', String(limit));
+  const payload = await fetchJsonWithTimeout(fetchImpl, url, 'AI OS', env.actionLedgerFederationTimeoutMs);
+  if (!isRecord(payload) || !Array.isArray(payload.actions)) throw new Error('AI OS action ledger response is missing actions.');
+  return payload.actions.map((action) => normalizeAiAction(action as AiActionLedgerEntry));
+}
+
+async function fetchMacroLedgerActions(fetchImpl: FetchLike, limit: number): Promise<ActionLedgerEntry[]> {
+  const url = new URL('/api/macro-lab/runs', env.macroLabApiUrl);
+  url.searchParams.set('limit', String(limit));
+  const payload = await fetchJsonWithTimeout(fetchImpl, url, 'Macro Lab', env.actionLedgerFederationTimeoutMs);
+  if (!isRecord(payload) || !Array.isArray(payload.runs)) throw new Error('Macro Lab run history response is missing runs.');
+  return payload.runs.map((run) => macroRunToAction(run as MacroRun));
 }
 
 function eventIdFromLedgerId(value: string): string {
@@ -290,27 +588,62 @@ function restoreSnapshot(store: MemoryStore, event: SyncEvent, before: unknown):
   throw new Error(`Restore is not supported for ${event.entityType}.`);
 }
 
-export function actionLedgerRoutes(store: MemoryStore): Hono<AppBindings> {
+export function actionLedgerRoutes(store: MemoryStore, options: ActionLedgerRouteOptions = {}): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
+  const externalFetch = options.externalFetch ?? fetch;
 
   app.get('/', (c) => {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     ensurePersonalWorkspace(store);
     const workspaceIds = userWorkspaceIds(store, user.id);
-    const limit = Math.max(1, Math.min(Number(c.req.query('limit') ?? 50) || 50, 200));
-    const syncActions = store.syncEvents
-      .filter((event) => workspaceIds.has(event.workspaceId))
-      .map(syncEventToLedgerEntry);
-    const explicitActions = store.actionEvents.filter((event) => {
-      const workspaceId = event.metadata.workspaceId;
-      return typeof workspaceId !== 'string' || workspaceIds.has(workspaceId);
-    });
-    const actions = [...syncActions, ...explicitActions]
-      .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || a.id.localeCompare(b.id))
-      .slice(0, limit);
+    const limit = parseLimit(c.req.query('limit'));
+    const actions = hubActionLedgerEntries(store, workspaceIds, limit);
 
     return c.json({ actions });
+  });
+
+  app.get('/unified', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    ensurePersonalWorkspace(store);
+    const workspaceIds = userWorkspaceIds(store, user.id);
+    const limit = parseLimit(c.req.query('limit'));
+    const sourceLimit = parseLimit(c.req.query('sourceLimit'), Math.max(limit * 2, 50));
+
+    const hubActions = hubActionLedgerEntries(store, workspaceIds, sourceLimit);
+    const sources: FederatedSourceStatus[] = [
+      { id: 'mini-hub', label: 'Mini Hub', ok: true, count: hubActions.length }
+    ];
+    const errors: string[] = [];
+    const externalResults = await Promise.allSettled([
+      fetchAiLedgerActions(externalFetch, sourceLimit),
+      fetchMacroLedgerActions(externalFetch, sourceLimit)
+    ]);
+
+    const aiActions = externalResults[0].status === 'fulfilled' ? externalResults[0].value : [];
+    const macroActions = externalResults[1].status === 'fulfilled' ? externalResults[1].value : [];
+    if (externalResults[0].status === 'rejected') {
+      const error = `AI OS: ${describeError(externalResults[0].reason)}`;
+      errors.push(error);
+      sources.push({ id: 'ai-os', label: 'AI OS', ok: false, count: 0, error });
+    } else {
+      sources.push({ id: 'ai-os', label: 'AI OS', ok: true, count: aiActions.length });
+    }
+    if (externalResults[1].status === 'rejected') {
+      const error = `Macro Lab: ${describeError(externalResults[1].reason)}`;
+      errors.push(error);
+      sources.push({ id: 'macro-lab', label: 'Macro Lab', ok: false, count: 0, error });
+    } else {
+      sources.push({ id: 'macro-lab', label: 'Macro Lab', ok: true, count: macroActions.length });
+    }
+
+    return c.json({
+      checkedAt: new Date().toISOString(),
+      actions: sortLedgerActions([...hubActions, ...aiActions, ...macroActions], limit),
+      errors,
+      sources
+    });
   });
 
   app.post('/:id/restore', async (c) => {

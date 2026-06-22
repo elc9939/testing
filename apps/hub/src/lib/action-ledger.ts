@@ -1,5 +1,5 @@
 import type { ActionLedgerEntry, ActionLedgerRisk, ActionLedgerStatus, ActionRecoverability } from '@mini-hub/core';
-import { getHubActionLedger } from './api';
+import { getHubActionLedger, getUnifiedActionLedger } from './api';
 import { getAiActionLedger, type AiActionLedgerEntry } from './ai-os-api';
 import { listBrowserActionLedger } from './browser-action-ledger';
 import { listMacroRuns, type MacroRun } from './macro-lab-api';
@@ -20,6 +20,19 @@ export interface ActionLedgerInput {
 }
 
 export async function loadActionLedger(limit = 12): Promise<ActionLedgerSnapshot> {
+  try {
+    const unified = await getUnifiedActionLedger(Math.max(limit * 2, 20));
+    return buildActionLedgerSnapshot({
+      hubActions: unified.actions,
+      browserActions: listBrowserActionLedger(limit),
+      errors: unified.errors,
+      limit
+    });
+  } catch {
+    // Older API deployments do not have the federated endpoint yet, so keep the
+    // browser-side federation path as the compatibility layer.
+  }
+
   const [hub, ai, macro] = await Promise.allSettled([
     getHubActionLedger(limit),
     getAiActionLedger(limit),

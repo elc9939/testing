@@ -28,6 +28,7 @@ import {
 
 export interface CreateAppOptions {
   authBypass?: boolean;
+  externalFetch?: typeof fetch;
   syncMode?: string;
   useLogger?: boolean;
   store?: MemoryStore;
@@ -108,7 +109,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route('/api/workspaces', workspaceRoutes(store));
   app.route('/api/sync', syncRoutes(store));
   app.route('/api/settings', settingsRoutes(store));
-  app.route('/api/action-ledger', actionLedgerRoutes(store));
+  app.route('/api/action-ledger', actionLedgerRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/integrations', integrationRoutes(store));
   app.route('/api/productivity', productivityRoutes(store));
   app.route('/api/assistant', assistantRoutes());

@@ -343,6 +343,146 @@ describe('mini hub api', () => {
     );
   });
 
+  it('federates Mini Hub, AI OS, and Macro Lab actions through the unified ledger', async () => {
+    const externalFetch = vi.fn(async (input: string | URL | Request) => {
+      const href = String(input);
+      if (href.includes('/api/ai/action-ledger')) {
+        return jsonResponse({
+          actions: [
+            {
+              id: 'ai-benchmark:bench-1',
+              occurred_at: '2026-06-20T14:00:00.000Z',
+              system: 'ai-os',
+              source: 'benchmark',
+              action_type: 'benchmark.text',
+              summary: 'Measured local text inference',
+              status: 'succeeded',
+              risk: 'read',
+              mode: 'beast',
+              changed: ['benchmark:bench-1'],
+              recoverability: {
+                kind: 'artifact',
+                reference_id: 'bench-1',
+                route: '/ai-os',
+                description: 'Benchmark sample is recorded.',
+                reversible: false
+              },
+              raw_ref: { kind: 'benchmark', id: 'bench-1' },
+              metadata: { provider: 'ollama' }
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/macro-lab/runs')) {
+        return jsonResponse({
+          runs: [
+            {
+              id: 'run-1',
+              macro_id: 'macro-1',
+              macro_name: 'Study Mode',
+              status: 'succeeded',
+              dry_run: true,
+              started_at: '2026-06-20T13:00:00.000Z',
+              finished_at: '2026-06-20T13:01:00.000Z',
+              steps: [{ label: 'Open notes', safety: 'write' }]
+            }
+          ]
+        });
+      }
+      return jsonResponse({ error: `Unexpected URL ${href}` }, 500);
+    });
+    const app = createApp({ externalFetch, useLogger: false, store: createMemoryStore() });
+    const authHeaders = { 'content-type': 'application/json' };
+    await app.request('/api/jobs', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ workspaceId: 'personal', company: 'Acme', role: 'Analyst', status: 'lead' })
+    });
+
+    const response = await app.request('/api/action-ledger/unified?limit=10');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      actions: Array<{
+        system: string;
+        source: string;
+        actionType: string;
+        status: string;
+        risk: string;
+        recoverability: { kind: string; referenceId?: string };
+      }>;
+      errors: string[];
+      sources: Array<{ id: string; ok: boolean; count: number }>;
+    };
+
+    expect(body.errors).toEqual([]);
+    expect(body.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'mini-hub', ok: true, count: 1 }),
+        expect.objectContaining({ id: 'ai-os', ok: true, count: 1 }),
+        expect.objectContaining({ id: 'macro-lab', ok: true, count: 1 })
+      ])
+    );
+    expect(body.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ system: 'mini-hub', actionType: 'job.insert' }),
+        expect.objectContaining({
+          system: 'ai-os',
+          actionType: 'benchmark.text',
+          recoverability: expect.objectContaining({ kind: 'artifact', referenceId: 'bench-1' })
+        }),
+        expect.objectContaining({
+          system: 'macro-lab',
+          source: 'run_history',
+          actionType: 'macro.run',
+          status: 'dry_run',
+          risk: 'write',
+          recoverability: expect.objectContaining({ kind: 'dry_run', referenceId: 'run-1' })
+        })
+      ])
+    );
+  });
+
+  it('keeps the unified ledger usable when a federated service is unavailable', async () => {
+    const externalFetch = vi.fn(async (input: string | URL | Request) => {
+      const href = String(input);
+      if (href.includes('/api/ai/action-ledger')) {
+        return jsonResponse({
+          actions: [
+            {
+              id: 'ai-tool:call-1',
+              occurred_at: '2026-06-20T14:00:00.000Z',
+              system: 'ai-os',
+              source: 'tool_call',
+              action_type: 'tool.call',
+              summary: 'Checked status',
+              status: 'succeeded',
+              risk: 'read',
+              changed: [],
+              recoverability: { kind: 'none', description: '', reversible: false },
+              raw_ref: {},
+              metadata: {}
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/macro-lab/runs')) throw new Error('connection refused');
+      return jsonResponse({ error: `Unexpected URL ${href}` }, 500);
+    });
+    const app = createApp({ externalFetch, useLogger: false, store: createMemoryStore() });
+
+    const response = await app.request('/api/action-ledger/unified?limit=10');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      actions: Array<{ system: string; actionType: string }>;
+      errors: string[];
+      sources: Array<{ id: string; ok: boolean; error?: string }>;
+    };
+
+    expect(body.actions).toEqual([expect.objectContaining({ system: 'ai-os', actionType: 'tool.call' })]);
+    expect(body.errors[0]).toContain('Macro Lab: connection refused');
+    expect(body.sources).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'macro-lab', ok: false })]));
+  });
+
   it('restores Mini Hub data from action ledger before-state snapshots', async () => {
     const store = createMemoryStore();
     const app = createApp({ useLogger: false, store });

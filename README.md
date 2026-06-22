@@ -150,7 +150,10 @@ Current capabilities include:
   into routing and machine-mode recommendations.
 - AI OS action ledger endpoint that normalizes tool calls, inference usage, jobs,
   benchmarks, backups, machine-profile snapshots, generation assets, and design patches
-  into one audit/recoverability stream.
+  into one audit/recoverability stream. The Mini Hub API also exposes
+  `/api/action-ledger/unified`, which federates Mini Hub sync/restore actions with AI OS
+  action logs and Macro Lab run history server-side; browser-only cockpit clicks are merged
+  by the hub client because they live only in local browser storage.
 - AI OS pre-action snapshots for file-writing tools, currently including assistant
   image-to-Desktop exports. Snapshots record whether the target already existed and copy
   previous bytes when there is something to preserve; backup manifests include those files.

@@ -21,6 +21,20 @@ export async function getHubActionLedger(limit = 50): Promise<ActionLedgerEntry[
   return result.actions;
 }
 
+export async function getUnifiedActionLedger(limit = 50): Promise<{
+  checkedAt: string;
+  actions: ActionLedgerEntry[];
+  errors: string[];
+  sources: Array<{ id: string; label: string; ok: boolean; count: number; error?: string }>;
+}> {
+  return requestApiJson<{
+    checkedAt: string;
+    actions: ActionLedgerEntry[];
+    errors: string[];
+    sources: Array<{ id: string; label: string; ok: boolean; count: number; error?: string }>;
+  }>(`/api/action-ledger/unified?limit=${limit}`);
+}
+
 export async function restoreHubActionLedgerEntry(
   actionId: string
 ): Promise<{ restored: unknown; syncEvent: unknown; action: ActionLedgerEntry }> {
