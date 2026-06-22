@@ -729,7 +729,7 @@ class ResearchEngine:
             if domain_counts.get(domain, 0) >= request.per_domain_limit:
                 logs.append({"at": now_iso(), "level": "info", "message": "Skipped URL by per-domain limit.", "url": url})
                 continue
-            source = await self._fetch_source(url, logs)
+            source = await self._fetch_source(url, request, logs)
             if not source:
                 continue
             domain_counts[domain] = domain_counts.get(domain, 0) + 1
@@ -756,22 +756,47 @@ class ResearchEngine:
             await asyncio.sleep(0.2)
         return sources
 
-    async def _fetch_source(self, url: str, logs: list[dict[str, Any]]) -> ResearchSourceRecord | None:
+    async def _fetch_source(self, url: str, request: ResearchRunRequest, logs: list[dict[str, Any]]) -> ResearchSourceRecord | None:
         cached = self.storage.get_research_page(url)
         if cached:
-            logs.append({"at": now_iso(), "level": "info", "message": "Used cached page.", "url": url})
-            return cached.model_copy(update={"cached": True})
+            has_screenshot = bool(cached.metadata.get("screenshot_base64"))
+            if not request.screenshot or has_screenshot:
+                logs.append({"at": now_iso(), "level": "info", "message": "Used cached page.", "url": url, "screenshot": has_screenshot})
+                return cached.model_copy(update={"cached": True})
+            logs.append({"at": now_iso(), "level": "info", "message": "Refreshing cached page to capture screenshot.", "url": url})
         allowed, robots_note = await self.robots.allowed(url)
         if not allowed:
             logs.append({"at": now_iso(), "level": "warning", "message": "Skipped by robots.txt.", "url": url, "robots": robots_note})
             return None
         for attempt in range(1, 3):
             try:
-                page = await self.web.scrape(url, max_text_chars=self.settings.web_max_text_chars, max_links=self.settings.web_max_links)
+                if request.screenshot:
+                    page = await self.web.browser_extract(
+                        url,
+                        wait_until="domcontentloaded",
+                        screenshot=True,
+                        max_text_chars=self.settings.web_max_text_chars,
+                        max_links=self.settings.web_max_links,
+                    )
+                else:
+                    page = await self.web.scrape(url, max_text_chars=self.settings.web_max_text_chars, max_links=self.settings.web_max_links)
                 source = source_from_scrape_result(page, requested_url=url)
                 text_hash = hashlib.sha256(source.text.encode("utf-8")).hexdigest()
                 stored = self.storage.upsert_research_page(source, text_hash=text_hash)
-                logs.append({"at": now_iso(), "level": "info", "message": "Fetched page.", "url": url, "attempt": attempt, "robots": robots_note})
+                logs.append(
+                    {
+                        "at": now_iso(),
+                        "level": "info",
+                        "message": "Fetched page.",
+                        "url": url,
+                        "attempt": attempt,
+                        "robots": robots_note,
+                        "tool_id": page.get("tool_id"),
+                        "mode": page.get("mode"),
+                        "screenshot": bool(page.get("screenshot_base64")),
+                        "browser_available": page.get("browser_available"),
+                    }
+                )
                 return stored.model_copy(update={"cached": False})
             except Exception as error:
                 logs.append({"at": now_iso(), "level": "warning", "message": "Fetch failed.", "url": url, "attempt": attempt, "error": str(error)})

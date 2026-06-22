@@ -448,6 +448,13 @@
     return source.text_preview || source.description || 'No preview text is available for this archived source.';
   }
 
+  function sourceScreenshotDataUrl(source: { metadata: Record<string, unknown> }): string {
+    const raw = source.metadata.screenshot_base64;
+    if (typeof raw !== 'string' || !raw) return '';
+    const contentType = typeof source.metadata.screenshot_content_type === 'string' ? source.metadata.screenshot_content_type : 'image/png';
+    return `data:${contentType};base64,${raw}`;
+  }
+
   function addSeedUrl(url: string): void {
     const next = normalizeTextUrl(url);
     if (!next) return;
@@ -755,6 +762,7 @@
               <span>First {displayDate(source.first_seen_at)}</span>
               <span>Last {displayDate(source.last_seen_at)}</span>
               {#if source.published_at}<span>Published {displayDate(source.published_at)}</span>{/if}
+              {#if sourceScreenshotDataUrl(source)}<span>Screenshot</span>{/if}
               {#if source.matched_terms.length}<span>Matched {source.matched_terms.join(', ')}</span>{/if}
             </div>
             <div class="source-library-actions">
@@ -1028,6 +1036,12 @@
                   <summary>Extracted text preview</summary>
                   <pre>{sourcePreview(source)}</pre>
                 </details>
+                {#if sourceScreenshotDataUrl(source)}
+                  <figure class="source-screenshot">
+                    <img src={sourceScreenshotDataUrl(source)} alt={`Screenshot captured for ${source.title || source.canonical_url}`} loading="lazy" />
+                    <figcaption>Captured browser screenshot</figcaption>
+                  </figure>
+                {/if}
                 {#if source.links.length}
                   <details class="json-details">
                     <summary>Links ({source.links.length})</summary>
@@ -1640,6 +1654,25 @@
     display: grid;
     gap: 10px;
     padding: 0 10px 10px;
+  }
+
+  .source-screenshot {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+  }
+
+  .source-screenshot img {
+    width: min(100%, 520px);
+    max-height: 320px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    object-fit: contain;
+  }
+
+  .source-screenshot figcaption {
+    color: var(--muted);
+    font-size: 0.78rem;
   }
 
   .source-url {

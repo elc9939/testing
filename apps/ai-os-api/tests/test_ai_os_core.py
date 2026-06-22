@@ -782,6 +782,63 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
     assert memory.json()["hits"][0]["source_id"] == first_run["id"]
 
 
+def test_research_screenshot_runs_use_browser_extract_and_archive_metadata(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://example.test/robots.txt": "User-agent: *\nAllow: /\n",
+        },
+    )
+
+    async def fake_browser_extract(self, url: str, **kwargs):
+        assert kwargs["screenshot"] is True
+        return {
+            "ok": True,
+            "tool_id": "browser.extract",
+            "mode": "browser",
+            "browser_available": True,
+            "url": url,
+            "final_url": url,
+            "title": "Screenshot source",
+            "description": "Rendered page with visual evidence.",
+            "text": "Screenshot research captures rendered pages when visual evidence is useful.",
+            "text_length": 74,
+            "links": [],
+            "tables": [],
+            "metadata": {"custom": "browser"},
+            "screenshot_base64": base64.b64encode(b"fake-png").decode("ascii"),
+            "screenshot_content_type": "image/png",
+        }
+
+    monkeypatch.setattr(WebAccess, "browser_extract", fake_browser_extract)
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True)
+    storage = AppStorage(settings.database_path())
+    app = create_app(settings=settings, storage=storage, providers=ProviderRegistry([EchoProvider()]))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/ai/research/runs",
+            json={
+                "mode": "url_scrape",
+                "goal": "capture screenshot evidence",
+                "seed_urls": ["https://example.test/visual"],
+                "max_pages": 1,
+                "screenshot": True,
+            },
+        )
+        run = client.get(f"/api/ai/research/runs/{response.json()['run']['id']}")
+        source_library = client.get("/api/ai/research/sources?q=screenshot&domain=example.test")
+
+    source = run.json()["run"]["sources"][0]
+    assert response.status_code == 200
+    assert run.json()["run"]["status"] == "succeeded"
+    assert source["title"] == "Screenshot source"
+    assert source["metadata"]["screenshot_base64"] == base64.b64encode(b"fake-png").decode("ascii")
+    assert source["metadata"]["screenshot_content_type"] == "image/png"
+    assert any(log.get("tool_id") == "browser.extract" and log.get("screenshot") for log in run.json()["run"]["logs"])
+    assert source_library.json()["sources"][0]["metadata"]["screenshot_base64"] == base64.b64encode(b"fake-png").decode("ascii")
+
+
 def test_research_monitors_persist_and_run_real_reports(monkeypatch, tmp_path):
     install_fake_web(
         monkeypatch,

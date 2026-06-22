@@ -18,7 +18,7 @@ Pipeline v1:
    include/exclude domains, URL normalization, retry, cache reuse, and robots.txt checks.
 4. Existing AI OS `WebAccess` performs network fetches and extraction limits. The extractor
    keeps title, author, published date, canonical URL, description, readable text, links,
-   tables, headings, and metadata.
+   tables, headings, metadata, and optional browser screenshots when the run asks for them.
 5. `dedupe_and_rank_sources()` picks canonical source cards and scores them against the goal.
 6. `build_extractive_report()` creates a source-backed report without requiring a model.
    Optional `use_ai` adds a local/cloud AI synthesis layer through the unified inference
@@ -92,7 +92,7 @@ shows:
 - query plan search queries and crawl targets
 - run logs with raw JSON detail for troubleshooting
 - raw extracted source cards with canonical URL, author/date/fetch metadata, text preview,
-  links, tables, and metadata
+  links, tables, optional screenshot thumbnails, and metadata
 - Markdown, JSON, and HTML export links
 
 The same route also includes a Source Library panel backed by the local `research_pages`
@@ -142,8 +142,9 @@ should prefer those over scraping.
 - Monitor Topic now has durable saved monitors, on-demand runs, a due-monitor sweep endpoint,
   and an off-by-default AI OS background unit. There is not yet an always-on wall-clock
   scheduler that wakes the sweep without you or the local supervisor invoking it.
-- Screenshots are represented in the request model but not yet captured into research source
-  cards.
+- Screenshot capture uses `browser.extract` when requested and stores the resulting image
+  payload in source metadata. If no browser is available, AI OS falls back to HTTP extraction
+  and records the browser error in metadata/logs.
 - Citation mapping is deterministic and source-backed, but not a full claim graph yet.
 - Semantic memory indexing is opt-in per run. It currently indexes a single research-run
   document containing the report and source excerpts; archived source cards are searchable in
