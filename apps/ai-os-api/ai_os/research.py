@@ -6,6 +6,7 @@ import html
 import re
 import time
 import urllib.robotparser
+import xml.etree.ElementTree as ET
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -33,6 +34,8 @@ from .web_access import WebAccess
 
 tracking_query_prefixes = ("utm_",)
 tracking_query_keys = {"fbclid", "gclid", "mc_cid", "mc_eid", "igshid", "ref"}
+structured_discovery_modes = {"deep_research", "site_crawl", "monitor_topic"}
+structured_discovery_limit = 24
 
 
 class SearchProvider(Protocol):
@@ -124,6 +127,140 @@ def domain_allowed(url: str, *, include_domains: list[str], exclude_domains: lis
     if normalized_include and not any(host == domain or host.endswith(f".{domain}") for domain in normalized_include):
         return False
     return not any(host == domain or host.endswith(f".{domain}") for domain in normalized_exclude)
+
+
+def origin_of(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def structured_discovery_candidates(url: str) -> list[str]:
+    origin = origin_of(url)
+    if not origin:
+        return []
+    candidates = [
+        f"{origin}/sitemap.xml",
+        f"{origin}/sitemap_index.xml",
+        f"{origin}/feed.xml",
+        f"{origin}/rss.xml",
+        f"{origin}/atom.xml",
+        f"{origin}/feed",
+    ]
+    lowered = url.lower()
+    if any(marker in lowered for marker in ("sitemap", "rss", "atom", "feed.xml", "/feed")):
+        candidates.insert(0, url)
+    return list(dict.fromkeys(normalize_url(candidate) for candidate in candidates if normalize_url(candidate)))
+
+
+def looks_like_structured_document_url(url: str) -> bool:
+    path = urlparse(url).path.lower()
+    name = path.rstrip("/").rsplit("/", 1)[-1]
+    return path.endswith(".xml") or name in {"sitemap", "sitemap_index", "feed", "rss", "atom"}
+
+
+def extract_structured_urls(text: str, *, base_url: str, limit: int = structured_discovery_limit) -> list[dict[str, str]]:
+    stripped = text.strip()
+    if not stripped:
+        return []
+    discovered: list[dict[str, str]] = []
+    parsed_xml = False
+    if "<" in stripped[:200]:
+        try:
+            root = ET.fromstring(stripped.encode("utf-8"))
+            discovered.extend(_urls_from_xml_tree(root, base_url=base_url, limit=limit))
+            parsed_xml = True
+        except ET.ParseError:
+            discovered.extend(_urls_from_html_feed_links(stripped, base_url=base_url, limit=limit))
+    if not parsed_xml:
+        discovered.extend(_urls_from_plain_text_feed(stripped, base_url=base_url, limit=limit))
+    deduped: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in discovered:
+        url = normalize_url(item.get("url", ""), base_url=base_url)
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        deduped.append({"url": url, "kind": item.get("kind", "structured")})
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def _local_xml_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1].lower()
+
+
+def _urls_from_xml_tree(root: ET.Element, *, base_url: str, limit: int) -> list[dict[str, str]]:
+    discovered: list[dict[str, str]] = []
+
+    def visit(element: ET.Element, parents: list[str]) -> None:
+        if len(discovered) >= limit:
+            return
+        name = _local_xml_name(element.tag)
+        parent = parents[-1] if parents else ""
+        if name == "loc" and element.text:
+            discovered.append({"url": element.text.strip(), "kind": "sitemap_index" if parent == "sitemap" else "sitemap_url"})
+        elif name == "link":
+            href = str(element.attrib.get("href") or "").strip()
+            text_href = (element.text or "").strip()
+            candidate = href or text_href
+            if candidate and (parent in {"entry", "item"} or "entry" in parents or "item" in parents):
+                discovered.append({"url": candidate, "kind": "feed"})
+        for child in list(element):
+            visit(child, [*parents, name])
+
+    visit(root, [])
+    return [
+        {"url": normalize_url(item["url"], base_url=base_url), "kind": item["kind"]}
+        for item in discovered
+        if normalize_url(item["url"], base_url=base_url)
+    ][:limit]
+
+
+def _urls_from_html_feed_links(text: str, *, base_url: str, limit: int) -> list[dict[str, str]]:
+    soup = BeautifulSoup(text, "html.parser")
+    discovered: list[dict[str, str]] = []
+    for tag in soup.find_all("link", href=True):
+        rel = " ".join(str(item).lower() for item in tag.get("rel", []))
+        media_type = str(tag.get("type") or "").lower()
+        href = str(tag.get("href") or "")
+        if any(marker in media_type for marker in ("rss", "atom", "xml")) or any(marker in rel for marker in ("alternate", "sitemap")):
+            kind = "sitemap" if "sitemap" in rel or "sitemap" in href.lower() else "feed"
+            discovered.append({"url": href, "kind": kind})
+    for anchor in soup.find_all("a", href=True):
+        href = str(anchor.get("href") or "")
+        label = f"{href} {anchor.get_text(' ', strip=True)}".lower()
+        if any(marker in label for marker in ("sitemap", "rss", "atom", "feed")):
+            kind = "sitemap" if "sitemap" in label else "feed"
+            discovered.append({"url": href, "kind": kind})
+        if len(discovered) >= limit:
+            break
+    return [
+        {"url": normalize_url(item["url"], base_url=base_url), "kind": item["kind"]}
+        for item in discovered
+        if normalize_url(item["url"], base_url=base_url)
+    ][:limit]
+
+
+def _urls_from_plain_text_feed(text: str, *, base_url: str, limit: int) -> list[dict[str, str]]:
+    discovered: list[dict[str, str]] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("sitemap:"):
+            discovered.append({"url": stripped.split(":", 1)[1].strip(), "kind": "sitemap"})
+    for url in extract_urls_from_text(text):
+        lowered = url.lower()
+        if any(marker in lowered for marker in ("sitemap", "rss", "atom", "/feed", "feed.xml")):
+            discovered.append({"url": url, "kind": "sitemap" if "sitemap" in lowered else "feed"})
+        if len(discovered) >= limit:
+            break
+    return [
+        {"url": normalize_url(item["url"], base_url=base_url), "kind": item["kind"]}
+        for item in discovered
+        if normalize_url(item["url"], base_url=base_url)
+    ][:limit]
 
 
 def plan_research(request: ResearchRunRequest) -> ResearchPlan:
@@ -707,8 +844,17 @@ class ResearchEngine:
             for result in search_results
             if result.get("url")
         ]
+        structured_targets: list[str] = []
+        if plan.crawl_targets and request.mode in structured_discovery_modes:
+            structured_targets = await self._discover_structured_targets(
+                plan.crawl_targets,
+                request,
+                logs,
+                started,
+                run_id=run_id,
+            )
         targets = [url for url in [*plan.crawl_targets, *targets] if url]
-        queue: deque[tuple[str, int]] = deque((url, 0) for url in dict.fromkeys(targets))
+        queue: deque[tuple[str, int]] = deque((url, 0) for url in dict.fromkeys([*structured_targets, *targets]))
         seen: set[str] = set()
         domain_counts: dict[str, int] = {}
         sources: list[ResearchSourceRecord] = []
@@ -755,6 +901,117 @@ class ResearchEngine:
                         queue.append((next_url, depth + 1))
             await asyncio.sleep(0.2)
         return sources
+
+    async def _discover_structured_targets(
+        self,
+        seeds: list[str],
+        request: ResearchRunRequest,
+        logs: list[dict[str, Any]],
+        started: float,
+        *,
+        run_id: str,
+    ) -> list[str]:
+        document_candidates: list[str] = []
+        for seed in seeds[:5]:
+            self._raise_if_cancelled(run_id)
+            if time.perf_counter() - started > request.time_budget_s:
+                break
+            seed = normalize_url(seed)
+            if not seed or not domain_allowed(seed, include_domains=request.include_domains, exclude_domains=request.exclude_domains):
+                continue
+            origin = origin_of(seed)
+            if not origin:
+                continue
+            robots_url = f"{origin}/robots.txt"
+            robots_text = await self._fetch_discovery_text(robots_url, logs, purpose="robots sitemap discovery")
+            if robots_text:
+                document_candidates.extend(item["url"] for item in _urls_from_plain_text_feed(robots_text, base_url=robots_url, limit=8))
+            document_candidates.extend(structured_discovery_candidates(seed))
+            allowed, robots_note = await self.robots.allowed(seed)
+            if allowed:
+                seed_text = await self._fetch_discovery_text(seed, logs, purpose="HTML feed discovery")
+                if seed_text:
+                    document_candidates.extend(item["url"] for item in _urls_from_html_feed_links(seed_text, base_url=seed, limit=8))
+            else:
+                logs.append({"at": now_iso(), "level": "info", "message": "Skipped HTML feed discovery by robots.txt.", "url": seed, "robots": robots_note})
+
+        discovered: list[str] = []
+        seen_documents: set[str] = set()
+        for document_url in dict.fromkeys(document_candidates):
+            self._raise_if_cancelled(run_id)
+            if len(discovered) >= structured_discovery_limit or time.perf_counter() - started > request.time_budget_s:
+                break
+            document_url = normalize_url(document_url)
+            if not document_url or document_url in seen_documents:
+                continue
+            seen_documents.add(document_url)
+            if not domain_allowed(document_url, include_domains=request.include_domains, exclude_domains=request.exclude_domains):
+                continue
+            allowed, robots_note = await self.robots.allowed(document_url)
+            if not allowed:
+                logs.append({"at": now_iso(), "level": "info", "message": "Skipped structured discovery document by robots.txt.", "url": document_url, "robots": robots_note})
+                continue
+            text = await self._fetch_discovery_text(document_url, logs, purpose="structured discovery document")
+            if not text:
+                continue
+            entries = extract_structured_urls(text, base_url=document_url, limit=structured_discovery_limit)
+            logs.append(
+                {
+                    "at": now_iso(),
+                    "level": "info",
+                    "message": "Structured discovery document parsed.",
+                    "url": document_url,
+                    "count": len(entries),
+                    "kinds": sorted({entry["kind"] for entry in entries}),
+                }
+            )
+            for entry in entries:
+                entry_url = entry["url"]
+                if entry["kind"] == "sitemap_index" or looks_like_structured_document_url(entry_url):
+                    discovered.extend(await self._expand_sitemap_index(entry_url, request, logs, run_id=run_id))
+                elif domain_allowed(entry_url, include_domains=request.include_domains, exclude_domains=request.exclude_domains):
+                    discovered.append(entry_url)
+                if len(discovered) >= structured_discovery_limit:
+                    break
+        deduped = list(dict.fromkeys(url for url in discovered if normalize_url(url)))[:structured_discovery_limit]
+        if deduped:
+            logs.append({"at": now_iso(), "level": "info", "message": "Structured source discovery added crawl targets.", "count": len(deduped), "targets": deduped[:10]})
+        return deduped
+
+    async def _expand_sitemap_index(
+        self,
+        sitemap_url: str,
+        request: ResearchRunRequest,
+        logs: list[dict[str, Any]],
+        *,
+        run_id: str,
+    ) -> list[str]:
+        self._raise_if_cancelled(run_id)
+        if not domain_allowed(sitemap_url, include_domains=request.include_domains, exclude_domains=request.exclude_domains):
+            return []
+        allowed, robots_note = await self.robots.allowed(sitemap_url)
+        if not allowed:
+            logs.append({"at": now_iso(), "level": "info", "message": "Skipped sitemap index child by robots.txt.", "url": sitemap_url, "robots": robots_note})
+            return []
+        text = await self._fetch_discovery_text(sitemap_url, logs, purpose="sitemap index child")
+        if not text:
+            return []
+        return [
+            entry["url"]
+            for entry in extract_structured_urls(text, base_url=sitemap_url, limit=structured_discovery_limit)
+            if entry["kind"] != "sitemap_index" and domain_allowed(entry["url"], include_domains=request.include_domains, exclude_domains=request.exclude_domains)
+        ]
+
+    async def _fetch_discovery_text(self, url: str, logs: list[dict[str, Any]], *, purpose: str) -> str:
+        try:
+            page = await self.web._fetch_bytes(url)
+            if int(page["status_code"]) >= 400:
+                logs.append({"at": now_iso(), "level": "info", "message": "Structured discovery fetch returned non-OK status.", "url": url, "status_code": page["status_code"], "purpose": purpose})
+                return ""
+            return page["body"].decode(page["encoding"], errors="replace")
+        except Exception as error:
+            logs.append({"at": now_iso(), "level": "info", "message": "Structured discovery fetch failed.", "url": url, "purpose": purpose, "error": str(error)})
+            return ""
 
     async def _fetch_source(self, url: str, request: ResearchRunRequest, logs: list[dict[str, Any]]) -> ResearchSourceRecord | None:
         cached = self.storage.get_research_page(url)

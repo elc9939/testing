@@ -26,7 +26,7 @@ from ai_os.providers.openai_compatible import OpenAICompatibleLocalProvider
 from ai_os.providers.ollama import OllamaProvider
 from ai_os.providers.registry import ProviderRegistry
 from ai_os.recoverability import capture_file_pre_action_snapshot
-from ai_os.research import dedupe_and_rank_sources, extract_clean_content, map_citations, normalize_url, plan_research
+from ai_os.research import dedupe_and_rank_sources, extract_clean_content, extract_structured_urls, map_citations, normalize_url, plan_research
 from ai_os.storage import AppStorage
 from ai_os.telemetry import _parse_windows_gpu_payload
 from ai_os.web_access import WebAccess
@@ -670,6 +670,33 @@ def test_research_extractor_keeps_metadata_tables_links_and_canonical():
     assert extracted["links"][0]["url"] == "https://example.com/next"
 
 
+def test_research_structured_discovery_extracts_sitemaps_and_feeds():
+    sitemap = extract_structured_urls(
+        """
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/posts.xml</loc></sitemap>
+        </sitemapindex>
+        """,
+        base_url="https://example.com/sitemap.xml",
+    )
+    rss = extract_structured_urls(
+        """
+        <rss><channel><item><title>Update</title><link>/updates/1</link></item></channel></rss>
+        """,
+        base_url="https://example.com/feed.xml",
+    )
+    html_links = extract_structured_urls(
+        """
+        <html><head><link rel="alternate" type="application/rss+xml" href="/rss.xml"></head></html>
+        """,
+        base_url="https://example.com/",
+    )
+
+    assert sitemap == [{"url": "https://example.com/posts.xml", "kind": "sitemap_index"}]
+    assert rss == [{"url": "https://example.com/updates/1", "kind": "feed"}]
+    assert html_links == [{"url": "https://example.com/rss.xml", "kind": "feed"}]
+
+
 def test_research_dedupes_ranks_and_maps_citations():
     sources = [
         ResearchSourceRecord(
@@ -780,6 +807,62 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
     assert any(action["action_type"].startswith("research.") for action in ledger.json()["actions"])
     assert memory.json()["hits"][0]["source_type"] == "research_run"
     assert memory.json()["hits"][0]["source_id"] == first_run["id"]
+
+
+def test_research_site_crawl_prefers_structured_sitemap_and_feed_targets(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://example.test/robots.txt": "User-agent: *\nAllow: /\nSitemap: https://example.test/sitemap.xml\n",
+            "https://example.test/": """
+            <html><head><title>Home</title>
+            <link rel="alternate" type="application/rss+xml" href="/feed.xml"></head>
+            <body><main><p>Home page with feed.</p></main></body></html>
+            """,
+            "https://example.test/sitemap.xml": """
+            <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <url><loc>https://example.test/sitemap-page</loc></url>
+            </urlset>
+            """,
+            "https://example.test/feed.xml": """
+            <rss><channel><item><title>Feed page</title><link>https://example.test/feed-page</link></item></channel></rss>
+            """,
+            "https://example.test/sitemap-page": """
+            <html><head><title>Sitemap Page</title><meta name="description" content="Official sitemap page"></head>
+            <body><main><p>Official sitemap pages should be crawled before generic site links.</p></main></body></html>
+            """,
+            "https://example.test/feed-page": """
+            <html><head><title>Feed Page</title><meta name="description" content="Official feed page"></head>
+            <body><main><p>Official feed pages provide updates for monitor topics.</p></main></body></html>
+            """,
+        },
+    )
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True)
+    storage = AppStorage(settings.database_path())
+    app = create_app(settings=settings, storage=storage, providers=ProviderRegistry([EchoProvider()]))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/ai/research/runs",
+            json={
+                "mode": "site_crawl",
+                "goal": "structured discovery",
+                "seed_urls": ["https://example.test/"],
+                "max_pages": 2,
+                "depth": 1,
+            },
+        )
+        run = client.get(f"/api/ai/research/runs/{response.json()['run']['id']}")
+        source_library = client.get("/api/ai/research/sources?q=official&domain=example.test")
+
+    body = run.json()["run"]
+    titles = [source["title"] for source in body["sources"]]
+    assert response.status_code == 200
+    assert body["status"] == "succeeded"
+    assert titles == ["Sitemap Page", "Feed Page"]
+    assert any(log.get("message") == "Structured discovery document parsed." for log in body["logs"])
+    assert any(log.get("message") == "Structured source discovery added crawl targets." for log in body["logs"])
+    assert {"Sitemap Page", "Feed Page"}.issubset({source["title"] for source in source_library.json()["sources"]})
 
 
 def test_research_screenshot_runs_use_browser_extract_and_archive_metadata(monkeypatch, tmp_path):

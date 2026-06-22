@@ -12,10 +12,13 @@ Pipeline v1:
 1. `plan_research()` normalizes the request into search queries, seed URLs, crawl targets,
    and run knobs.
 2. `SearchProvider` is an adapter interface. The built-in provider wraps the existing
-   DuckDuckGo HTML web search tool. Tavily, Brave, Bing, SearxNG, RSS, sitemap, and site API
-   adapters can be added behind the same interface.
+   DuckDuckGo HTML web search tool. Tavily, Brave, Bing, SearxNG, and site API adapters can
+   be added behind the same interface.
 3. `ResearchEngine` crawls with max pages, depth, time budget, per-domain limits,
    include/exclude domains, URL normalization, retry, cache reuse, and robots.txt checks.
+   Seeded deep/site/monitor runs also perform structured discovery through robots.txt
+   `Sitemap:` entries, common sitemap/feed URLs, and RSS/Atom links advertised by the seed
+   page, then enqueue discovered article/page URLs before generic same-site links.
 4. Existing AI OS `WebAccess` performs network fetches and extraction limits. The extractor
    keeps title, author, published date, canonical URL, description, readable text, links,
    tables, headings, metadata, and optional browser screenshots when the run asks for them.
@@ -131,8 +134,9 @@ The engine uses the existing AI OS web-access controls:
 - request byte limits, text limits, redirect limits, timeouts, and configured user agent
 - robots.txt awareness before page fetches
 
-When official APIs, RSS feeds, sitemaps, or exported files are available, future providers
-should prefer those over scraping.
+When official APIs, RSS feeds, sitemaps, or exported files are available, providers and crawl
+plans should prefer those over blind scraping. The current crawler already uses RSS/Atom and
+sitemap discovery for seeded deep/site/monitor runs.
 
 ## Current Limits
 
