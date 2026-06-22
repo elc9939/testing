@@ -22,6 +22,7 @@
     X
   } from 'lucide-svelte';
   import type { CalendarEvent, GmailLabel, GmailThread, TimelineItem } from '@mini-hub/core';
+  import { attentionStore } from '$lib/attention-store';
   import { canAutoSave, clientData } from '$lib/client-data';
   import {
     archiveGmailThread,
@@ -314,6 +315,10 @@
     actionError = error instanceof Error ? error.message : fallback;
   }
 
+  function notifyAttentionChanged(): void {
+    attentionStore.invalidate();
+  }
+
   function openNewEvent(): void {
     editingEventId = '';
     eventDraft = emptyDraft();
@@ -438,6 +443,7 @@
       await revokeGoogle(connection?.id);
       actionMessage = connection ? `${connection.accountLabel} revoked.` : 'Google connection revoked.';
       await loadOverview();
+      notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to revoke Google connection');
     }
@@ -458,6 +464,7 @@
       eventDraft = emptyDraft();
       eventDialogOpen = false;
       await refreshEvents();
+      notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to save event');
     }
@@ -488,6 +495,7 @@
       await deleteEvent(event.calendarId, event.id);
       actionMessage = 'Event deleted.';
       await refreshEvents();
+      notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to delete event');
     }
@@ -500,6 +508,7 @@
       await moveEvent(event.calendarId, event.id, moveTargetCalendarId);
       actionMessage = 'Event moved.';
       await refreshEvents();
+      notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to move event');
     }
@@ -565,6 +574,7 @@
       persistProductivityCache();
       actionMessage = 'Thread archived.';
       await refreshGmail();
+      notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to archive thread');
     }
@@ -585,6 +595,7 @@
       }
       persistProductivityCache();
       await refreshGmail();
+      notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to update read state');
     }
@@ -601,6 +612,7 @@
         actionMessage = 'Thread marked important.';
       }
       await refreshGmail();
+      notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to update important state');
     }

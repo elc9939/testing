@@ -75,6 +75,28 @@ describe('mini hub api', () => {
     };
   }
 
+  function quietAttentionFetch(): typeof fetch {
+    return vi.fn(async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/status')) {
+        return jsonResponse({
+          jobs: [],
+          backups: [],
+          benchmark_runs: [],
+          research_runs: [],
+          integrity: { ok: true }
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) return jsonResponse({ monitors: [] });
+      if (href.includes('/api/ai/research/runs')) return jsonResponse({ runs: [] });
+      if (href.includes('/api/macro-lab/status')) {
+        return jsonResponse({ ok: true, engine: { panic: false, running: 0, action_count: 0 } });
+      }
+      if (href.includes('/api/macro-lab/runs')) return jsonResponse({ runs: [] });
+      return jsonResponse({ error: `unexpected ${href}` }, 404);
+    }) as typeof fetch;
+  }
+
   it('serves health checks', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/health');
@@ -1077,5 +1099,140 @@ describe('mini hub api', () => {
 
     expect(insights[0]?.category).toBe('notification');
     expect(insights[0]?.priority ?? 100).toBeLessThan(60);
+  });
+
+  it('builds an attention snapshot from real local records without setup placeholders', async () => {
+    const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store: createMemoryStore() });
+
+    await app.request('/api/career-actions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        label: 'Send recruiter follow-up',
+        dueAt: '2026-06-21T16:00:00.000Z'
+      })
+    });
+    await app.request('/api/study', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        subject: 'Algorithms',
+        minutes: 45,
+        loggedAt: '2026-06-20T16:00:00.000Z'
+      })
+    });
+
+    const response = await app.request('/api/attention/snapshot');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: Array<{ id: string; source: string; title: string }>;
+      sources: Array<{ id: string; status: string; error?: string }>;
+    };
+
+    expect(body.items.some((item) => item.source === 'career_action' && item.title === 'Send recruiter follow-up')).toBe(true);
+    expect(body.items.every((item) => !item.id.startsWith('setup:'))).toBe(true);
+    expect(body.sources.find((source) => source.id === 'gmail')).toMatchObject({
+      status: 'unavailable',
+      error: 'No connected Google account.'
+    });
+  });
+
+  it('keeps attention source failures visible while returning partial data', async () => {
+    const failingFetch = vi.fn(async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/status')) return jsonResponse({ error: 'down' }, 503);
+      if (href.includes('/api/ai/research/monitors/due')) return jsonResponse({ monitors: [] });
+      if (href.includes('/api/ai/research/runs')) return jsonResponse({ runs: [] });
+      if (href.includes('/api/macro-lab/status')) {
+        return jsonResponse({ ok: true, engine: { panic: false, running: 0, action_count: 0 } });
+      }
+      if (href.includes('/api/macro-lab/runs')) return jsonResponse({ runs: [] });
+      return jsonResponse({});
+    }) as typeof fetch;
+    const app = createApp({ externalFetch: failingFetch, useLogger: false, store: createMemoryStore() });
+
+    const response = await app.request('/api/attention/snapshot');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: Array<{ id: string; source: string; status: string }>;
+      errors: string[];
+      sources: Array<{ id: string; status: string; error?: string }>;
+    };
+
+    expect(body.sources.find((source) => source.id === 'ai_os')).toMatchObject({ status: 'error' });
+    expect(body.errors.some((error) => error.startsWith('AI OS:'))).toBe(true);
+    expect(body.items).toContainEqual(expect.objectContaining({ id: 'service:ai-os-unavailable', status: 'blocked' }));
+  });
+
+  it('persists dismissed attention triage state through synced settings', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store });
+    const created = await app.request('/api/career-actions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        label: 'Prep interview notes',
+        dueAt: '2026-06-21T16:00:00.000Z'
+      })
+    });
+    const { action } = (await created.json()) as { action: { id: string } };
+    const itemId = `career-action:${action.id}`;
+
+    const actionResponse = await app.request(`/api/attention/items/${encodeURIComponent(itemId)}/actions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'dismiss' })
+    });
+
+    expect(actionResponse.status).toBe(200);
+    const body = (await actionResponse.json()) as {
+      snapshot: { items: Array<{ id: string }> };
+    };
+    expect(body.snapshot.items.some((item) => item.id === itemId)).toBe(false);
+    expect(store.settings?.preferences.attentionTriage).toMatchObject({
+      [itemId]: { itemId, status: 'dismissed' }
+    });
+    expect(store.syncEvents.at(-1)).toMatchObject({ entityType: 'settings', operation: 'update' });
+  });
+
+  it('maps attention Gmail read actions to the Google provider', async () => {
+    const store = connectedGoogleStore();
+    const modifyBodies: unknown[] = [];
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('oauth2.googleapis.com/token')) {
+        return jsonResponse({ access_token: 'fresh-access-token', expires_in: 3600, token_type: 'Bearer' });
+      }
+      if (href.includes('/api/tags')) return jsonResponse({ models: [] });
+      if (href.includes('/calendar/v3/users/me/calendarList')) return jsonResponse({ items: [] });
+      if (href.includes('/gmail/v1/users/me/threads?')) return jsonResponse({ threads: [{ id: 'thread-1' }] });
+      if (href.includes('/gmail/v1/users/me/threads/thread-1/modify')) {
+        modifyBodies.push(JSON.parse(String(init?.body ?? '{}')));
+        return jsonResponse({});
+      }
+      if (href.includes('/gmail/v1/users/me/threads/thread-1?')) {
+        return jsonResponse(gmailThreadResponse(modifyBodies.length ? ['INBOX'] : ['INBOX', 'UNREAD']));
+      }
+      return jsonResponse({ error: `unexpected ${href}` }, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store });
+
+    const snapshotResponse = await app.request('/api/attention/snapshot');
+    const snapshot = (await snapshotResponse.json()) as { items: Array<{ id: string; source: string }> };
+    const mailItem = snapshot.items.find((item) => item.source === 'gmail');
+    expect(mailItem).toBeTruthy();
+
+    const response = await app.request(`/api/attention/items/${encodeURIComponent(mailItem?.id ?? '')}/actions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'mark_read' })
+    });
+
+    expect(response.status).toBe(200);
+    expect(modifyBodies).toContainEqual({ addLabelIds: [], removeLabelIds: ['UNREAD'] });
   });
 });

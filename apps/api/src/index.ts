@@ -10,6 +10,7 @@ import { gameRunRoutes } from './routes/game-runs';
 import { gameStateRoutes } from './routes/game-state';
 import { integrationRoutes, productivityRoutes } from './routes/integrations';
 import { actionLedgerRoutes } from './routes/action-ledger';
+import { attentionRoutes } from './routes/attention';
 import { careerActionRoutes } from './routes/career-actions';
 import { assistantRoutes } from './routes/assistant';
 import { jobRoutes } from './routes/jobs';
@@ -110,6 +111,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route('/api/sync', syncRoutes(store));
   app.route('/api/settings', settingsRoutes(store));
   app.route('/api/action-ledger', actionLedgerRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
+  app.route('/api/attention', attentionRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/integrations', integrationRoutes(store));
   app.route('/api/productivity', productivityRoutes(store));
   app.route('/api/assistant', assistantRoutes());

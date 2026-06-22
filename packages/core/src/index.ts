@@ -252,6 +252,91 @@ export const actionRecoverabilitySchema = z.object({
   reversible: z.boolean().default(false)
 });
 
+export const attentionSourceSchema = z.enum([
+  'google_calendar',
+  'gmail',
+  'career_job',
+  'career_action',
+  'study_session',
+  'study_signal',
+  'ai_os',
+  'macro_lab',
+  'research',
+  'service_health',
+  'manual'
+]);
+
+export const attentionStatusSchema = z.enum(['active', 'done', 'dismissed', 'snoozed', 'archived', 'blocked']);
+
+export const attentionActionKindSchema = z.enum([
+  'open',
+  'mark_read',
+  'mark_important',
+  'archive',
+  'complete',
+  'snooze',
+  'dismiss',
+  'run',
+  'restore',
+  'inspect'
+]);
+
+export const attentionActionSchema = z.object({
+  kind: attentionActionKindSchema,
+  label: z.string().min(1),
+  available: z.boolean().default(true),
+  reason: z.string().optional(),
+  route: z.string().optional(),
+  requiresOnline: z.boolean().default(false),
+  risk: actionLedgerRiskSchema.default('read')
+});
+
+export const attentionItemSchema = z.object({
+  id: z.string().min(1),
+  source: attentionSourceSchema,
+  sourceId: z.string().min(1),
+  title: z.string().min(1),
+  detail: z.string().default(''),
+  route: z.string().min(1),
+  dueAt: z.string().optional(),
+  priority: z.number().min(0).max(100).default(50),
+  status: attentionStatusSchema.default('active'),
+  actionKind: attentionActionKindSchema.optional(),
+  actions: z.array(attentionActionSchema).default([]),
+  recoverability: actionRecoverabilitySchema.default({ kind: 'none', description: '', reversible: false }),
+  readOnly: z.boolean().default(false),
+  writable: z.boolean().default(true),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const attentionTriageStateSchema = z.object({
+  itemId: z.string().min(1),
+  status: attentionStatusSchema.optional(),
+  snoozedUntil: z.string().optional(),
+  manuallyImportant: z.boolean().optional(),
+  completedAt: z.string().optional(),
+  dismissedAt: z.string().optional(),
+  archivedAt: z.string().optional(),
+  updatedAt: z.string().min(1)
+});
+
+export const attentionSourceStatusSchema = z.object({
+  id: attentionSourceSchema,
+  label: z.string().min(1),
+  status: z.enum(['ok', 'unavailable', 'error']),
+  fetchedAt: z.string().optional(),
+  itemCount: z.number().int().nonnegative().default(0),
+  error: z.string().optional()
+});
+
+export const attentionSnapshotSchema = z.object({
+  checkedAt: z.string().min(1),
+  items: z.array(attentionItemSchema),
+  sources: z.array(attentionSourceStatusSchema),
+  triageState: z.record(z.string(), attentionTriageStateSchema).default({}),
+  errors: z.array(z.string()).default([])
+});
+
 export const actionLedgerEntrySchema = z.object({
   id: z.string().min(1),
   occurredAt: z.string().min(1),
@@ -379,6 +464,14 @@ export type ActionLedgerStatus = z.infer<typeof actionLedgerStatusSchema>;
 export type ActionLedgerRisk = z.infer<typeof actionLedgerRiskSchema>;
 export type ActionLedgerSystem = z.infer<typeof actionLedgerSystemSchema>;
 export type ActionRecoverability = z.infer<typeof actionRecoverabilitySchema>;
+export type AttentionSource = z.infer<typeof attentionSourceSchema>;
+export type AttentionStatus = z.infer<typeof attentionStatusSchema>;
+export type AttentionActionKind = z.infer<typeof attentionActionKindSchema>;
+export type AttentionAction = z.infer<typeof attentionActionSchema>;
+export type AttentionItem = z.infer<typeof attentionItemSchema>;
+export type AttentionTriageState = z.infer<typeof attentionTriageStateSchema>;
+export type AttentionSourceStatus = z.infer<typeof attentionSourceStatusSchema>;
+export type AttentionSnapshot = z.infer<typeof attentionSnapshotSchema>;
 export type ActionLedgerEntry = z.infer<typeof actionLedgerEntrySchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type JobRecord = z.infer<typeof jobSchema>;

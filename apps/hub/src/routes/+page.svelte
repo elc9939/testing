@@ -4,17 +4,32 @@
     Activity,
     Archive,
     ArrowRight,
+    Bell,
     BriefcaseBusiness,
     CalendarClock,
+    CheckCircle2,
+    Clock3,
     Cpu,
+    Eye,
     Inbox,
     MailCheck,
+    Play,
     RefreshCw,
+    RotateCcw,
     Settings,
     Star,
-    StarOff
+    XCircle
   } from 'lucide-svelte';
-  import { launcherEntries, type ActionLedgerEntry, type ActionLedgerRisk, type CalendarEvent, type JobRecord } from '@mini-hub/core';
+  import {
+    launcherEntries,
+    type ActionLedgerEntry,
+    type ActionLedgerRisk,
+    type AttentionAction,
+    type AttentionActionKind,
+    type AttentionItem,
+    type AttentionSnapshot,
+    type AttentionSource
+  } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
   import {
     actionLedgerDetail,
@@ -23,7 +38,12 @@
     loadActionLedger,
     type ActionLedgerSnapshot
   } from '$lib/action-ledger';
-  import { attentionKindLabel, buildAttentionItems, type AttentionItem } from '$lib/attention';
+  import {
+    attentionActionLabel,
+    attentionSourceLabel,
+    attentionSourceStatusLine,
+    attentionStore
+  } from '$lib/attention-store';
   import {
     formatCapabilityRegistrySummary,
     loadCapabilityRegistry,
@@ -44,160 +64,52 @@
   import { buildModeRecommendations, type ModeRecommendation } from '$lib/mode-recommendations';
   import { recordBrowserAction } from '$lib/browser-action-ledger';
   import { hubHref } from '$lib/routes';
-  import {
-    archiveGmailThread,
-    getConnections,
-    listCalendars,
-    listEvents,
-    listPriorityGmailThreads,
-    markGmailThreadRead,
-    modifyGmailThread,
-    type CalendarSummary,
-    type GmailThreadInsight,
-    type PublicConnection
-  } from '$lib/productivity-api';
 
-  let connections: PublicConnection[] = [];
-  let calendars: CalendarSummary[] = [];
-  let agendaEvents: CalendarEvent[] = [];
-  let priorityThreads: GmailThreadInsight[] = [];
-  let dashboardLoading = false;
-  let dashboardError = '';
-  let lastLoadedAt = '';
-  let calendarLabelMap = new Map<string, string>();
-  let importantMail: GmailThreadInsight[] = [];
-  let visibleAgenda: CalendarEvent[] = [];
-  let nextEvent: CalendarEvent | null = null;
-  let attentionItems: AttentionItem[] = [];
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
-  let capabilityIssues: CapabilityRegistryEntry[] = [];
-  let modeRecommendations: ModeRecommendation[] = [];
   let capabilityLoading = false;
   let capabilityError = '';
   let actionLedgerSnapshot: ActionLedgerSnapshot | null = null;
-  let actionLedgerItems: ActionLedgerEntry[] = [];
   let actionLedgerLoading = false;
   let actionLedgerError = '';
   let modeActionBusyId = '';
   let modeActionMessage = '';
   let modeActionError = '';
-  let mailActionBusyId = '';
-  let dashboardActionMessage = '';
-  let dashboardActionError = '';
+  let itemActionMessage = '';
 
-  $: googleConnections = connections.filter(
-    (connection) => connection.provider === 'google' && connection.status === 'connected'
-  );
-  $: googleConnected = googleConnections.length > 0;
-  $: googleAccountSummary = googleConnected
-    ? googleConnections.map((connection) => connection.accountLabel).join(', ')
-    : 'No Google account connected';
-  $: calendarLabelMap = new Map(calendars.map((calendar) => [calendar.id, calendar.summary]));
-  $: visibleAgenda = agendaEvents.slice(0, 12);
-  $: nextEvent = agendaEvents[0] ?? null;
-  $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 3);
+  $: attentionSnapshot = $attentionStore.snapshot;
+  $: attentionItems = attentionSnapshot?.items ?? [];
+  $: calendarItems = attentionItems.filter((item) => item.source === 'google_calendar').slice(0, 10);
+  $: nowNextItems = calendarItems.slice(0, 3);
+  $: priorityQueue = attentionItems
+    .filter((item) => item.source !== 'google_calendar')
+    .slice(0, 8);
+  $: mailItems = attentionItems.filter((item) => item.source === 'gmail').slice(0, 6);
+  $: focusItems = attentionItems
+    .filter((item) => ['career_action', 'career_job', 'study_signal', 'study_session'].includes(item.source))
+    .slice(0, 6);
+  $: systemItems = attentionItems
+    .filter((item) => ['service_health', 'ai_os', 'macro_lab', 'research'].includes(item.source) || item.status === 'blocked')
+    .slice(0, 7);
+  $: sourceIssues = attentionSnapshot?.sources.filter((source) => source.status !== 'ok') ?? [];
+  $: googleConnected = snapshotGoogleConnected(attentionSnapshot);
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
-  $: attentionItems = buildAttentionItems({
-    googleConnected,
-    dashboardError,
-    syncStatus: $clientData.status,
-    syncError: $clientData.error,
-    events: agendaEvents,
-    importantMail: [],
-    jobs: [],
-    careerActions: [],
-    studySessions: []
-  }).slice(0, 4);
-  $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 4);
+  $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 5);
   $: modeRecommendations = buildModeRecommendations({
     mode: currentMachineMode,
     capabilitySnapshot,
     attentionCount: attentionItems.length
   });
-  $: actionLedgerItems = actionLedgerSnapshot?.actions.slice(0, 5) ?? [];
-  $: applyQueue = $clientData.jobs
-    .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
-    .sort((a, b) => (a.nextActionAt ?? a.updatedAt).localeCompare(b.nextActionAt ?? b.updatedAt))
-    .slice(0, 4);
-  $: openCareerActions = $clientData.careerActions
-    .filter((action) => !action.completedAt)
-    .sort((a, b) => (a.dueAt ?? a.updatedAt).localeCompare(b.dueAt ?? b.updatedAt))
-    .slice(0, 4);
+  $: actionLedgerItems = actionLedgerSnapshot?.actions.slice(0, 6) ?? [];
 
-  function importantMailQuery(): string {
-    return [
-      'in:inbox is:unread newer_than:7d',
-      '-category:promotions',
-      '-category:social',
-      '-category:forums',
-      '-"received money"',
-      '-"you received money"',
-      '-"money transfer"',
-      '-"payment received"',
-      '-"statement available"',
-      '-"class cancellation"',
-      '-"class cancelled"',
-      '-"class canceled"',
-      '-receipt',
-      '-newsletter',
-      '-unsubscribe',
-      '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
-    ].join(' ');
-  }
-
-  function isImportantMailSignal(insight: GmailThreadInsight): boolean {
-    if (!insight.thread.unread) return false;
-    if (insight.category === 'noise' || insight.category === 'notification') return false;
-    if (isLikelyLowSignalMail(insight)) return false;
-    if (Boolean(insight.deadlineHint)) return true;
-    if (isThreadImportant(insight) && insight.priority >= 72) return true;
-    return insight.priority >= 86;
-  }
-
-  function isLikelyLowSignalMail(insight: GmailThreadInsight): boolean {
-    const text = [insight.thread.subject, insight.thread.from, insight.thread.snippet, insight.reason]
-      .join(' ')
-      .toLowerCase();
-    if (insight.thread.labelIds.some((label) => ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(label))) {
-      return !/\b(deadline|due|interview|appointment|reservation|flight|exam|assignment|security|verification|invoice|payment)\b/u.test(text);
-    }
-    const passiveMoney = /\b(received money|you received money|money transfer received|payment received|receipt|statement available)\b/u;
-    const actionWords = /\b(action required|verify|verification|security alert|failed|declined|overdue|due|deadline|reply|respond)\b/u;
-    if (passiveMoney.test(text) && !actionWords.test(text)) return true;
-    const passiveEventNotice = /\b(class cancellation|class cancelled|class canceled|class rescheduled|class rescheduling|event reminder|appointment reminder|booking confirmation|reservation confirmation)\b/u;
-    const eventActionWords = /\b(action required|reply|respond|rsvp|interview|exam|assignment|deadline|due|security|verification|payment failed|card declined|invoice|flight)\b/u;
-    if (passiveEventNotice.test(text) && !eventActionWords.test(text)) return true;
-    return /\b(unsubscribe|promo|promotion|newsletter|sale|discount|sponsored|advertisement|view web version|limited time|reward points|points balance)\b/u.test(text);
-  }
-
-  function passiveCalendar(calendar: CalendarSummary): boolean {
-    return /\b(holiday|birthdays?|contacts|moon|weather)\b/iu.test(calendar.summary);
-  }
-
-  function selectCalendarTargets(items: CalendarSummary[]): CalendarSummary[] {
-    const targets = new Map<string, CalendarSummary>();
-    for (const calendar of items.filter((item) => item.primary)) targets.set(calendar.id, calendar);
-    for (const calendar of items.filter((item) => !passiveCalendar(item))) targets.set(calendar.id, calendar);
-    return Array.from(targets.values()).slice(0, 6);
-  }
-
-  function eventTimeValue(event: CalendarEvent): number {
-    const parsed = Date.parse(event.start);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
-    const byKey = new Map<string, CalendarEvent>();
-    for (const event of events) byKey.set(`${event.calendarId}:${event.id}`, event);
-    return Array.from(byKey.values());
-  }
-
-  function sortEvents(events: CalendarEvent[]): CalendarEvent[] {
-    return events.slice().sort((a, b) => eventTimeValue(a) - eventTimeValue(b));
+  function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
+    if (!snapshot) return false;
+    return snapshot.sources.some(
+      (source) => ['google_calendar', 'gmail'].includes(source.id) && source.status === 'ok'
+    );
   }
 
   function displayWhen(value: string | undefined): string {
-    if (!value) return 'No date';
+    if (!value) return 'Anytime';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat(undefined, {
@@ -213,65 +125,92 @@
     if (!value) return 'Anytime';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric'
-    }).format(date);
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
   }
 
-  function displayEventDay(event: CalendarEvent): string {
-    const date = new Date(event.start);
-    if (Number.isNaN(date.getTime())) return event.start;
-    return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
+  function displayEventTime(item: AttentionItem): string {
+    const start = item.dueAt;
+    const end = typeof item.metadata.end === 'string' ? item.metadata.end : '';
+    if (!start) return 'Anytime';
+    if (!start.includes('T')) return 'All day';
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (Number.isNaN(startDate.getTime())) return start;
+    const formatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+    if (Number.isNaN(endDate.getTime())) return formatter.format(startDate);
+    return `${formatter.format(startDate)} - ${formatter.format(endDate)}`;
   }
 
-  function displayEventTime(event: CalendarEvent): string {
-    if (!event.start.includes('T')) return 'All day';
-    const start = new Date(event.start);
-    const end = new Date(event.end);
-    if (Number.isNaN(start.getTime())) return event.start;
-    const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
-    if (Number.isNaN(end.getTime())) return timeFormatter.format(start);
-    return `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
-  }
-
-  function calendarLabel(calendarId: string): string {
-    return calendarLabelMap.get(calendarId) ?? 'Google Calendar';
-  }
-
-  function threadWhen(insight: GmailThreadInsight): string {
-    return displayShortDate(insight.thread.date);
-  }
-
-  function careerJobLine(job: JobRecord): string {
-    return [job.company, job.role].filter(Boolean).join(' - ');
-  }
-
-  function attentionMeta(item: AttentionItem): string {
+  function itemMeta(item: AttentionItem): string {
     if (item.dueAt) return displayShortDate(item.dueAt);
-    return attentionKindLabel(item.kind);
+    return attentionSourceLabel(item.source);
   }
 
-  function attentionMailInsight(item: AttentionItem): GmailThreadInsight | null {
-    if (item.kind !== 'mail') return null;
-    return importantMail.find((insight) => insight.thread.id === item.actionId || `mail:${insight.thread.id}` === item.id) ?? null;
+  function priorityClass(item: AttentionItem): string {
+    if (item.status === 'blocked' || item.priority >= 85) return 'high';
+    if (item.priority >= 65) return 'medium';
+    return 'low';
   }
 
-  function mailActionDisabled(insight: GmailThreadInsight): boolean {
-    return Boolean(mailActionBusyId && (mailActionBusyId === 'bulk:read' || mailActionBusyId.startsWith(`${insight.thread.id}:`)));
+  function sourceClass(source: AttentionSource): string {
+    if (source === 'gmail') return 'mail';
+    if (source === 'google_calendar') return 'calendar';
+    if (source === 'career_action' || source === 'career_job') return 'career';
+    if (source === 'study_signal' || source === 'study_session') return 'study';
+    if (source === 'ai_os' || source === 'macro_lab' || source === 'research') return 'system';
+    return 'service';
   }
 
-  function isThreadImportant(insight: GmailThreadInsight): boolean {
-    return insight.thread.labelIds.includes('IMPORTANT');
+  function sourceLabel(item: AttentionItem): string {
+    return attentionSourceLabel(item.source);
   }
 
-  function mailActionLabel(insight: GmailThreadInsight): string {
-    if (insight.category === 'deadline') return 'Deadline';
-    if (insight.category === 'reply') return 'Needs reply';
-    if (insight.category === 'career') return 'Career';
-    if (insight.category === 'school') return 'School';
-    if (insight.category === 'travel') return 'Travel';
-    return 'Review';
+  function actionable(item: AttentionItem): AttentionAction[] {
+    const order: AttentionActionKind[] = [
+      'mark_read',
+      'archive',
+      'mark_important',
+      'complete',
+      'run',
+      'restore',
+      'snooze',
+      'dismiss'
+    ];
+    return item.actions
+      .filter((itemAction) => order.includes(itemAction.kind))
+      .sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))
+      .slice(0, 5);
+  }
+
+  function inspectAction(item: AttentionItem): AttentionAction | undefined {
+    return item.actions.find((itemAction) => itemAction.kind === 'inspect' || itemAction.kind === 'open');
+  }
+
+  function actionRoute(item: AttentionItem, itemAction?: AttentionAction): string {
+    return itemAction?.route ?? item.route;
+  }
+
+  function externalHref(route: string): boolean {
+    return /^https?:\/\//iu.test(route);
+  }
+
+  function actionDisabled(item: AttentionItem, itemAction: AttentionAction): boolean {
+    const pending = $attentionStore.pendingActionId;
+    if (pending && pending !== `${item.id}:${itemAction.kind}`) return true;
+    if (!itemAction.available) return true;
+    if ($attentionStore.readOnly && itemAction.requiresOnline) return true;
+    return false;
+  }
+
+  async function runAttentionAction(item: AttentionItem, itemAction: AttentionAction): Promise<void> {
+    if (itemAction.kind === 'open' || itemAction.kind === 'inspect') return;
+    itemActionMessage = '';
+    const snapshot = await attentionStore.performAction(item.id, { action: itemAction.kind });
+    if (snapshot) {
+      itemActionMessage = `${attentionActionLabel(itemAction.kind)} applied.`;
+      if (itemAction.kind === 'complete') void clientData.syncNow();
+      if (['run', 'restore', 'complete'].includes(itemAction.kind)) void refreshActionLedger();
+    }
   }
 
   function capabilityStateLabel(state: CapabilityState): string {
@@ -289,10 +228,6 @@
     );
   }
 
-  function displayActivityWhen(value: string): string {
-    return displayWhen(value);
-  }
-
   function actionStatusClass(action: ActionLedgerEntry): string {
     if (action.status === 'succeeded') return 'success';
     if (action.status === 'failed' || action.status === 'blocked') return 'failed';
@@ -300,7 +235,7 @@
     return action.status;
   }
 
-  function actionRoute(action: ActionLedgerEntry): string {
+  function ledgerRoute(action: ActionLedgerEntry): string {
     if (action.recoverability.route) return action.recoverability.route;
     if (action.system === 'ai-os') return '/ai-os';
     if (action.system === 'macro-lab') return '/macro-lab';
@@ -463,14 +398,10 @@
       }
 
       logModeAction(item, 'succeeded', { changed, recoverability, metadata });
-      await Promise.all([refreshCapabilities(), refreshActionLedger()]);
+      await Promise.all([refreshCapabilities(), refreshActionLedger(), attentionStore.refresh({ background: true })]);
     } catch (error) {
       modeActionError = error instanceof Error ? error.message : 'Recommendation action failed.';
-      logModeAction(item, 'failed', {
-        metadata: {
-          error: modeActionError
-        }
-      });
+      logModeAction(item, 'failed', { metadata: { error: modeActionError } });
       await refreshActionLedger();
     } finally {
       modeActionBusyId = '';
@@ -499,7 +430,7 @@
     actionLedgerLoading = true;
     actionLedgerError = '';
     try {
-      actionLedgerSnapshot = await loadActionLedger(12);
+      actionLedgerSnapshot = await loadActionLedger(16);
     } catch (error) {
       actionLedgerError = error instanceof Error ? error.message : 'Action ledger failed to load.';
     } finally {
@@ -507,134 +438,15 @@
     }
   }
 
-  async function runMailAction(
-    insight: GmailThreadInsight,
-    action: 'read' | 'important' | 'not-important' | 'archive'
-  ): Promise<void> {
-    if (mailActionBusyId) return;
-    mailActionBusyId = `${insight.thread.id}:${action}`;
-    dashboardActionMessage = '';
-    dashboardActionError = '';
-    try {
-      if (action === 'read') {
-        await markGmailThreadRead(insight.thread.id);
-        priorityThreads = priorityThreads.filter((item) => item.thread.id !== insight.thread.id);
-        dashboardActionMessage = 'Marked read and removed from Today.';
-      } else if (action === 'important') {
-        await modifyGmailThread(insight.thread.id, { addLabelIds: ['IMPORTANT'] });
-        priorityThreads = priorityThreads.map((item) =>
-          item.thread.id === insight.thread.id
-            ? {
-                ...item,
-                thread: {
-                  ...item.thread,
-                  labelIds: Array.from(new Set([...item.thread.labelIds, 'IMPORTANT']))
-                }
-              }
-            : item
-        );
-        dashboardActionMessage = 'Marked important in Gmail.';
-      } else if (action === 'not-important') {
-        await modifyGmailThread(insight.thread.id, { removeLabelIds: ['IMPORTANT'] });
-        priorityThreads = priorityThreads.map((item) =>
-          item.thread.id === insight.thread.id
-            ? {
-                ...item,
-                thread: {
-                  ...item.thread,
-                  labelIds: item.thread.labelIds.filter((label) => label !== 'IMPORTANT')
-                }
-              }
-            : item
-        );
-        dashboardActionMessage = 'Removed the Gmail important marker.';
-      } else {
-        if (typeof window !== 'undefined' && !window.confirm(`Archive "${insight.thread.subject}"?`)) {
-          return;
-        }
-        await archiveGmailThread(insight.thread.id);
-        priorityThreads = priorityThreads.filter((item) => item.thread.id !== insight.thread.id);
-        dashboardActionMessage = 'Archived and removed from Today.';
-      }
-      void refreshDashboard();
-    } catch (error) {
-      dashboardActionError = error instanceof Error ? error.message : 'Mail action failed.';
-    } finally {
-      mailActionBusyId = '';
-    }
-  }
-
-  async function markVisibleMailRead(): Promise<void> {
-    const targets = importantMail.filter((insight) => insight.thread.unread);
-    if (!targets.length || mailActionBusyId) return;
-    if (typeof window !== 'undefined' && !window.confirm(`Mark ${targets.length} visible mail signal${targets.length === 1 ? '' : 's'} read?`)) {
-      return;
-    }
-    mailActionBusyId = 'bulk:read';
-    dashboardActionMessage = '';
-    dashboardActionError = '';
-    try {
-      await Promise.all(targets.map((insight) => markGmailThreadRead(insight.thread.id)));
-      const targetIds = new Set(targets.map((insight) => insight.thread.id));
-      priorityThreads = priorityThreads.filter((item) => !targetIds.has(item.thread.id));
-      dashboardActionMessage = 'Marked visible mail signals read.';
-      void refreshDashboard();
-    } catch (error) {
-      dashboardActionError = error instanceof Error ? error.message : 'Bulk mail action failed.';
-    } finally {
-      mailActionBusyId = '';
-    }
-  }
-
-  async function refreshDashboard(): Promise<void> {
-    dashboardLoading = true;
-    dashboardError = '';
-    let hasGoogle = googleConnected;
-    try {
-      const nextConnections = await getConnections();
-      connections = nextConnections;
-      hasGoogle = nextConnections.some(
-        (connection) => connection.provider === 'google' && connection.status === 'connected'
-      );
-      if (hasGoogle) {
-        const now = new Date();
-        const end = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-        const nextCalendars = await listCalendars();
-        calendars = nextCalendars;
-
-        const [eventResults, nextPriorityThreads] = await Promise.all([
-          Promise.allSettled(
-            selectCalendarTargets(nextCalendars).map((calendar) =>
-              listEvents({
-                calendarId: calendar.id,
-                timeMin: now.toISOString(),
-                timeMax: end.toISOString()
-              })
-            )
-          ),
-          listPriorityGmailThreads({ maxResults: 8, q: importantMailQuery() }).catch(() => [])
-        ]);
-        priorityThreads = nextPriorityThreads;
-        agendaEvents = sortEvents(
-          dedupeEvents(eventResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : [])))
-        ).slice(0, 24);
-      } else {
-        calendars = [];
-        agendaEvents = [];
-        priorityThreads = [];
-      }
-      lastLoadedAt = new Date().toISOString();
-    } catch (error) {
-      dashboardError = error instanceof Error ? error.message : 'Today dashboard failed to load.';
-    } finally {
-      dashboardLoading = false;
-      void refreshCapabilities(hasGoogle);
-      void refreshActionLedger();
-    }
+  async function refreshToday(): Promise<void> {
+    const snapshot = await attentionStore.refresh();
+    await Promise.all([refreshCapabilities(snapshotGoogleConnected(snapshot)), refreshActionLedger()]);
   }
 
   onMount(() => {
-    void refreshDashboard();
+    void clientData.init();
+    void attentionStore.init().then(() => refreshCapabilities(snapshotGoogleConnected($attentionStore.snapshot)));
+    void refreshActionLedger();
     let retryCount = 0;
     const retry = window.setInterval(() => {
       retryCount += 1;
@@ -651,21 +463,23 @@
 <section class="page-header today-header">
   <div>
     <p class="eyebrow">Today</p>
-    <h1>Command Center</h1>
+    <h1>Attention Queue</h1>
   </div>
   <div class="header-actions">
     <span class="sync-note">
-      {#if dashboardLoading}
-        Loading calendar...
-      {:else if lastLoadedAt}
-        Updated {displayShortDate(lastLoadedAt)}
+      {#if $attentionStore.loading}
+        Loading attention...
+      {:else if attentionSnapshot?.checkedAt}
+        Updated {displayShortDate(attentionSnapshot.checkedAt)}
+      {:else if $attentionStore.cachedAt}
+        Cached {displayShortDate($attentionStore.cachedAt)}
       {:else}
         Ready
       {/if}
     </span>
-    <button class="button" type="button" disabled={dashboardLoading} on:click={refreshDashboard}>
+    <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} on:click={refreshToday}>
       <RefreshCw size={16} />
-      <span>Refresh</span>
+      <span>{$attentionStore.refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
     <a class="button" href={hubHref('/settings')}>
       <Settings size={16} />
@@ -674,200 +488,294 @@
   </div>
 </section>
 
-{#if dashboardError}
+{#if $attentionStore.readOnly}
   <section class="card card-pad warning-panel">
-    {dashboardError}
+    Cached attention is read-only until the hub reconnects.
   </section>
 {/if}
 
-<section class="signal-strip" aria-label="Today signals">
+{#if $attentionStore.error}
+  <section class="card card-pad warning-panel">
+    {$attentionStore.error}
+  </section>
+{/if}
+
+{#if itemActionMessage}
+  <section class="card card-pad success-panel">
+    {itemActionMessage}
+  </section>
+{/if}
+
+<section class="signal-strip" aria-label="Attention signals">
   <div>
-    <span>Needs attention</span>
+    <span>Queue</span>
     <strong>{attentionItems.length}</strong>
   </div>
   <div>
-    <span>Calendar events</span>
-    <strong>{agendaEvents.length}</strong>
+    <span>Mail</span>
+    <strong>{mailItems.length}</strong>
   </div>
   <div>
-    <span>Google accounts</span>
-    <strong>{googleConnections.length}</strong>
+    <span>Calendar</span>
+    <strong>{calendarItems.length}</strong>
   </div>
   <div>
-    <span>Capabilities ready</span>
-    <strong>{capabilitySnapshot ? `${readyCapabilityCount(capabilitySnapshot)}/${capabilitySnapshot.summary.total}` : capabilityLoading ? '...' : '0'}</strong>
+    <span>System</span>
+    <strong>{systemItems.length}</strong>
+  </div>
+  <div>
+    <span>Source issues</span>
+    <strong>{sourceIssues.length}</strong>
   </div>
 </section>
 
-<section class="home-grid" aria-label="Today command center">
+<section class="card now-strip" aria-label="Now and next calendar">
+  <div class="strip-title">
+    <span class="icon-chip"><CalendarClock size={16} /></span>
+    <strong>Now / Next</strong>
+  </div>
+  {#if nowNextItems.length}
+    <div class="now-items">
+      {#each nowNextItems as item}
+        {@const openAction = inspectAction(item)}
+        <a
+          class="now-item"
+          href={externalHref(actionRoute(item, openAction)) ? actionRoute(item, openAction) : hubHref(actionRoute(item, openAction))}
+          target={externalHref(actionRoute(item, openAction)) ? '_blank' : undefined}
+          rel={externalHref(actionRoute(item, openAction)) ? 'noreferrer' : undefined}
+        >
+          <time datetime={item.dueAt}>{displayEventTime(item)}</time>
+          <strong>{item.title}</strong>
+          <small>{item.detail || sourceLabel(item)}</small>
+        </a>
+      {/each}
+    </div>
+  {:else if attentionSnapshot}
+    <p class="empty-note">
+      {attentionSourceStatusLine(attentionSnapshot.sources.find((source) => source.id === 'google_calendar') ?? {
+        id: 'google_calendar',
+        label: 'Google Calendar',
+        status: 'unavailable',
+        itemCount: 0
+      })}
+    </p>
+  {:else}
+    <p class="empty-note">No attention snapshot has loaded yet.</p>
+  {/if}
+</section>
+
+<section class="cockpit-grid" aria-label="Unified attention cockpit">
   <div class="main-column">
-    <article class="card panel attention-panel">
+    <article class="card panel">
       <div class="panel-title">
         <div>
-          <span class="icon-chip"><Inbox size={16} /></span>
-          <strong>Calendar + Status</strong>
+          <span class="icon-chip"><Bell size={16} /></span>
+          <strong>Priority Action Queue</strong>
         </div>
-        <a class="button compact" href={hubHref('/productivity')}>
-          <span>Open Calendar</span>
-          <ArrowRight size={15} />
-        </a>
       </div>
-
-      {#if attentionItems.length}
-        <div class="attention-list">
-          {#each attentionItems as item}
-            {@const insight = attentionMailInsight(item)}
-            <div class="attention-row-shell">
-              <a class="attention-row" href={hubHref(item.route)}>
-                <span class:service={item.kind === 'service'} class="attention-kind">{attentionKindLabel(item.kind)}</span>
-                <span class="attention-main">
+      {#if priorityQueue.length}
+        <div class="queue-list">
+          {#each priorityQueue as item}
+            {@const openAction = inspectAction(item)}
+            <div class="queue-row">
+              <a class="queue-link" href={hubHref(item.route)}>
+                <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
+                <span class="queue-main">
                   <strong>{item.title}</strong>
                   <small>{item.detail}</small>
                 </span>
-                <span class="attention-meta">{attentionMeta(item)}</span>
+                <span class={`priority-pill ${priorityClass(item)}`}>{item.priority}</span>
+                <span class="queue-when">{itemMeta(item)}</span>
               </a>
-              {#if insight}
-                <div class="attention-actions" aria-label={`Quick actions for ${insight.thread.subject}`}>
-                  <button
-                    class="quick-mail-action"
-                    type="button"
-                    disabled={mailActionDisabled(insight)}
-                    title="Mark read"
-                    aria-label={`Mark ${insight.thread.subject} read`}
-                    on:click={() => runMailAction(insight, 'read')}
+              <div class="item-actions" aria-label={`Actions for ${item.title}`}>
+                {#if openAction}
+                  <a
+                    class="icon-action"
+                    title={attentionActionLabel(openAction.kind)}
+                    aria-label={`${attentionActionLabel(openAction.kind)} ${item.title}`}
+                    href={externalHref(actionRoute(item, openAction)) ? actionRoute(item, openAction) : hubHref(actionRoute(item, openAction))}
+                    target={externalHref(actionRoute(item, openAction)) ? '_blank' : undefined}
+                    rel={externalHref(actionRoute(item, openAction)) ? 'noreferrer' : undefined}
                   >
-                    <MailCheck size={15} />
-                    <span>Read</span>
-                  </button>
+                    <Eye size={15} />
+                  </a>
+                {/if}
+                {#each actionable(item) as itemAction}
                   <button
-                    class:active={isThreadImportant(insight)}
-                    class="quick-mail-action"
+                    class="icon-action text-action"
                     type="button"
-                    disabled={mailActionDisabled(insight) || isThreadImportant(insight)}
-                    title={isThreadImportant(insight) ? 'Already important' : 'Mark important'}
-                    aria-label={`Mark ${insight.thread.subject} important`}
-                    on:click={() => runMailAction(insight, 'important')}
+                    disabled={actionDisabled(item, itemAction)}
+                    title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}
+                    aria-label={`${attentionActionLabel(itemAction.kind)} ${item.title}`}
+                    on:click={() => runAttentionAction(item, itemAction)}
                   >
-                    <Star size={15} />
-                    <span>Important</span>
+                    {#if itemAction.kind === 'mark_read'}
+                      <MailCheck size={15} />
+                    {:else if itemAction.kind === 'archive'}
+                      <Archive size={15} />
+                    {:else if itemAction.kind === 'mark_important'}
+                      <Star size={15} />
+                    {:else if itemAction.kind === 'complete'}
+                      <CheckCircle2 size={15} />
+                    {:else if itemAction.kind === 'run'}
+                      <Play size={15} />
+                    {:else if itemAction.kind === 'restore'}
+                      <RotateCcw size={15} />
+                    {:else if itemAction.kind === 'snooze'}
+                      <Clock3 size={15} />
+                    {:else}
+                      <XCircle size={15} />
+                    {/if}
+                    <span>{attentionActionLabel(itemAction.kind)}</span>
                   </button>
-                  <button
-                    class="quick-mail-action"
-                    type="button"
-                    disabled={mailActionDisabled(insight)}
-                    title="Archive"
-                    aria-label={`Archive ${insight.thread.subject}`}
-                    on:click={() => runMailAction(insight, 'archive')}
-                  >
-                    <Archive size={15} />
-                    <span>Archive</span>
-                  </button>
-                </div>
-              {/if}
+                {/each}
+              </div>
             </div>
           {/each}
         </div>
-        {#if dashboardActionError}
-          <p class="panel-note error">{dashboardActionError}</p>
-        {:else if dashboardActionMessage}
-          <p class="panel-note success">{dashboardActionMessage}</p>
-        {/if}
+      {:else if $attentionStore.loading}
+        <p class="empty-note">Loading real attention sources...</p>
       {:else}
         <div class="empty-block">
-          <strong>No urgent signals right now.</strong>
-          <p>Today keeps this queue to service issues, setup items, and meaningful calendar items. Mail and career cleanup stay in their own panels.</p>
+          <strong>No active queue items.</strong>
+          <p>{sourceIssues.length ? 'Some sources are unavailable; check the source status panel.' : 'Connected sources do not have active actions right now.'}</p>
         </div>
       {/if}
     </article>
 
-    <article class="card panel agenda-panel">
+    <article class="card panel">
       <div class="panel-title">
         <div>
-          <span class="icon-chip"><CalendarClock size={16} /></span>
-          <strong>Upcoming Calendar</strong>
+          <span class="icon-chip"><Inbox size={16} /></span>
+          <strong>Mail Triage</strong>
         </div>
         <a class="button compact" href={hubHref('/productivity')}>
-          <span>Manage</span>
+          <span>Inbox</span>
           <ArrowRight size={15} />
         </a>
       </div>
-
-      {#if !googleConnected}
-        <div class="empty-block">
-          <strong>Connect Google to make this your live agenda.</strong>
-          <p>Calendar and Gmail signals become part of the attention queue once the Productivity Hub is connected.</p>
-          <a class="button compact" href={hubHref('/productivity')}>Open Productivity Hub</a>
-        </div>
-      {:else if dashboardLoading && !visibleAgenda.length}
-        <p class="empty-note">Loading your upcoming calendar...</p>
-      {:else if visibleAgenda.length}
-        <p class="panel-note">Connected: {googleAccountSummary}</p>
-        <div class="agenda-list">
-          {#each visibleAgenda as event}
-            <a
-              class="agenda-row"
-              href={event.htmlLink ?? hubHref('/productivity')}
-              target={event.htmlLink ? '_blank' : undefined}
-              rel={event.htmlLink ? 'noreferrer' : undefined}
-            >
-              <time datetime={event.start}>
-                <strong>{displayEventDay(event)}</strong>
-                <span>{displayEventTime(event)}</span>
-              </time>
-              <span class="agenda-main">
-                <strong>{event.title}</strong>
-                <small>{calendarLabel(event.calendarId)}{event.location ? ` - ${event.location}` : ''}</small>
-              </span>
-              <span class="agenda-meta">{event.status}</span>
-            </a>
+      {#if mailItems.length}
+        <div class="compact-list">
+          {#each mailItems as item}
+            <div class="compact-row">
+              <a class="compact-link" href={hubHref('/productivity')}>
+                <span class={`priority-pill ${priorityClass(item)}`}>{item.priority}</span>
+                <span class="compact-main">
+                  <strong>{item.title}</strong>
+                  <small>{item.detail}</small>
+                </span>
+                <span class="queue-when">{itemMeta(item)}</span>
+              </a>
+              <div class="item-actions compact-actions">
+                {#each actionable(item).filter((itemAction) => ['mark_read', 'archive', 'mark_important', 'snooze', 'dismiss'].includes(itemAction.kind)) as itemAction}
+                  <button
+                    class="icon-action text-action"
+                    type="button"
+                    disabled={actionDisabled(item, itemAction)}
+                    title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}
+                    on:click={() => runAttentionAction(item, itemAction)}
+                  >
+                    {#if itemAction.kind === 'mark_read'}
+                      <MailCheck size={15} />
+                    {:else if itemAction.kind === 'archive'}
+                      <Archive size={15} />
+                    {:else if itemAction.kind === 'mark_important'}
+                      <Star size={15} />
+                    {:else if itemAction.kind === 'snooze'}
+                      <Clock3 size={15} />
+                    {:else}
+                      <XCircle size={15} />
+                    {/if}
+                    <span>{attentionActionLabel(itemAction.kind)}</span>
+                  </button>
+                {/each}
+              </div>
+            </div>
           {/each}
         </div>
       {:else}
-        <p class="empty-note">No upcoming events found on your active Google calendars for the next two weeks.</p>
+        <p class="empty-note">{googleConnected ? 'No priority Gmail threads are active.' : 'Gmail is not connected or could not refresh.'}</p>
       {/if}
     </article>
 
-    <article class="card panel action-ledger-panel">
+    <article class="card panel">
       <div class="panel-title">
         <div>
-          <span class="icon-chip"><Activity size={16} /></span>
-          <strong>Recent Actions</strong>
+          <span class="icon-chip"><BriefcaseBusiness size={16} /></span>
+          <strong>Career / Study Focus</strong>
         </div>
-        <a class="button compact" href={hubHref('/settings')}>
-          <span>Ledger</span>
+        <a class="button compact" href={hubHref('/desk/career')}>
+          <span>Desk</span>
           <ArrowRight size={15} />
         </a>
       </div>
-
-      {#if actionLedgerItems.length}
-        <div class="ai-activity-list">
-          {#each actionLedgerItems as item}
-            <a class="ai-activity-row" href={hubHref(actionRoute(item))}>
-              <span class={`activity-state ${actionStatusClass(item)}`}>{actionLedgerStatusLabel(item.status)}</span>
-              <span class="activity-main">
-                <strong>{item.summary}</strong>
-                <small>{actionLedgerDetail(item)}</small>
-              </span>
-              <span class={`risk-chip ${item.risk}`}>{actionLedgerRiskLabel(item.risk)}</span>
-              <time datetime={item.occurredAt}>{displayActivityWhen(item.occurredAt)}</time>
-            </a>
+      {#if focusItems.length}
+        <div class="compact-list">
+          {#each focusItems as item}
+            <div class="compact-row">
+              <a class="compact-link" href={hubHref(item.route)}>
+                <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
+                <span class="compact-main">
+                  <strong>{item.title}</strong>
+                  <small>{item.detail}</small>
+                </span>
+                <span class="queue-when">{itemMeta(item)}</span>
+              </a>
+              <div class="item-actions compact-actions">
+                {#each actionable(item).filter((itemAction) => ['complete', 'snooze', 'dismiss'].includes(itemAction.kind)) as itemAction}
+                  <button
+                    class="icon-action text-action"
+                    type="button"
+                    disabled={actionDisabled(item, itemAction)}
+                    title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}
+                    on:click={() => runAttentionAction(item, itemAction)}
+                  >
+                    {#if itemAction.kind === 'complete'}
+                      <CheckCircle2 size={15} />
+                    {:else if itemAction.kind === 'snooze'}
+                      <Clock3 size={15} />
+                    {:else}
+                      <XCircle size={15} />
+                    {/if}
+                    <span>{attentionActionLabel(itemAction.kind)}</span>
+                  </button>
+                {/each}
+              </div>
+            </div>
           {/each}
         </div>
-      {:else if actionLedgerLoading}
-        <p class="empty-note">Loading recent app actions, AI OS logs, and Macro Lab runs...</p>
-      {:else if actionLedgerError}
-        <p class="empty-note">{actionLedgerError}</p>
       {:else}
-        <p class="empty-note">No meaningful actions are logged yet. Saves, benchmarks, backups, tools, and macros will appear here.</p>
-      {/if}
-      {#if actionLedgerSnapshot?.errors.length}
-        <p class="ledger-warning">{actionLedgerSnapshot.errors[0]}</p>
+        <p class="empty-note">No due career or study signals are active.</p>
       {/if}
     </article>
   </div>
 
   <aside class="side-rail">
-    <article class="card panel mode-panel">
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Activity size={16} /></span>
+          <strong>System / Services</strong>
+        </div>
+      </div>
+      {#if systemItems.length}
+        <div class="service-list">
+          {#each systemItems as item}
+            <a class="service-row" href={hubHref(item.route)}>
+              <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.detail}</small>
+              </span>
+            </a>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">No service, AI OS, Macro Lab, or Research issues are active.</p>
+      {/if}
+    </article>
+
+    <article class="card panel">
       <div class="panel-title">
         <div>
           <span class="icon-chip"><Cpu size={16} /></span>
@@ -884,7 +792,7 @@
       </div>
       {#if modeRecommendations.length}
         <div class="mode-rec-list">
-          {#each modeRecommendations as item}
+          {#each modeRecommendations.slice(0, 4) as item}
             <div class="mode-rec-row">
               <a class="mode-rec-link" href={hubHref(item.route)}>
                 <span class="mode-rec-tag">{item.tag}</span>
@@ -911,131 +819,13 @@
         <p class="empty-note">No mode-specific recommendation is available from the current capability snapshot.</p>
       {/if}
       {#if modeActionError}
-        <p class="mode-action-note error">{modeActionError}</p>
+        <p class="panel-note error">{modeActionError}</p>
       {:else if modeActionMessage}
-        <p class="mode-action-note success">{modeActionMessage}</p>
+        <p class="panel-note success">{modeActionMessage}</p>
       {/if}
     </article>
 
-    <article class="card panel next-panel">
-      <div class="panel-title">
-        <div>
-          <span class="icon-chip"><CalendarClock size={16} /></span>
-          <strong>Next Up</strong>
-        </div>
-      </div>
-      {#if nextEvent}
-        <div class="next-event">
-          <strong>{nextEvent.title}</strong>
-          <span>{displayWhen(nextEvent.start)}</span>
-          <small>{calendarLabel(nextEvent.calendarId)}{nextEvent.location ? ` - ${nextEvent.location}` : ''}</small>
-        </div>
-      {:else}
-        <p class="empty-note">No calendar item is currently queued.</p>
-      {/if}
-    </article>
-
-    <article class="card panel mail-panel">
-      <div class="panel-title">
-        <div>
-          <span class="icon-chip"><Inbox size={16} /></span>
-          <strong>Mail Triage</strong>
-        </div>
-        <div class="panel-actions">
-          {#if importantMail.length}
-            <button
-              class="button compact"
-              type="button"
-              disabled={Boolean(mailActionBusyId)}
-              on:click={markVisibleMailRead}
-            >
-              <MailCheck size={15} />
-              <span>Mark all shown read</span>
-            </button>
-          {/if}
-          <a class="button compact" href={hubHref('/productivity')}>
-            <span>Inbox</span>
-            <ArrowRight size={15} />
-          </a>
-        </div>
-      </div>
-
-      {#if !googleConnected}
-        <p class="empty-note">Connect Google before mail triage can run.</p>
-      {:else if dashboardLoading && !importantMail.length}
-        <p class="empty-note">Checking only action-heavy mail...</p>
-      {:else if importantMail.length}
-        <p class="panel-note">Only recent unread mail with strong action/deadline signals is shown here.</p>
-        <div class="mail-list">
-          {#each importantMail as insight}
-            <div class="mail-row">
-              <a class="mail-link" href={hubHref('/productivity')}>
-                <span class="mail-tag">{mailActionLabel(insight)}</span>
-                <span class="mail-main">
-                  <strong>{insight.thread.subject}</strong>
-                  <small>{insight.thread.from}</small>
-                </span>
-                <small class="mail-when">{threadWhen(insight)}</small>
-                <span class="reason">{insight.reason}{insight.deadlineHint ? ` - ${insight.deadlineHint}` : ''}</span>
-              </a>
-              <div class="mail-actions">
-                <button
-                  class="quick-mail-action"
-                  type="button"
-                  disabled={mailActionDisabled(insight)}
-                  title="Mark read"
-                  aria-label={`Mark ${insight.thread.subject} read`}
-                  on:click={() => runMailAction(insight, 'read')}
-                >
-                  <MailCheck size={15} />
-                  <span>Read</span>
-                </button>
-                {#if isThreadImportant(insight)}
-                  <button
-                    class="quick-mail-action active"
-                    type="button"
-                    disabled={mailActionDisabled(insight)}
-                    title="Remove important"
-                    aria-label={`Remove important from ${insight.thread.subject}`}
-                    on:click={() => runMailAction(insight, 'not-important')}
-                  >
-                    <StarOff size={15} />
-                    <span>Not important</span>
-                  </button>
-                {:else}
-                  <button
-                    class="quick-mail-action"
-                    type="button"
-                    disabled={mailActionDisabled(insight)}
-                    title="Mark important"
-                    aria-label={`Mark ${insight.thread.subject} important`}
-                    on:click={() => runMailAction(insight, 'important')}
-                  >
-                    <Star size={15} />
-                    <span>Important</span>
-                  </button>
-                {/if}
-                <button
-                  class="quick-mail-action"
-                  type="button"
-                  disabled={mailActionDisabled(insight)}
-                  title="Archive"
-                  aria-label={`Archive ${insight.thread.subject}`}
-                  on:click={() => runMailAction(insight, 'archive')}
-                >
-                  <Archive size={15} />
-                  <span>Archive</span>
-                </button>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <p class="empty-note">No unread mail is actionable enough for the home view.</p>
-      {/if}
-    </article>
-
-    <article class="card panel capability-health-panel">
+    <article class="card panel">
       <div class="panel-title">
         <div>
           <span class="icon-chip"><Activity size={16} /></span>
@@ -1046,26 +836,25 @@
           <ArrowRight size={15} />
         </a>
       </div>
-
       {#if capabilitySnapshot}
         <div class="capability-summary">
           <div>
             <strong>{readyCapabilityCount(capabilitySnapshot)}/{capabilitySnapshot.summary.total}</strong>
-            <span>usable now</span>
+            <span>usable</span>
           </div>
           <div>
             <strong>{capabilitySnapshot.summary.localReady}</strong>
-            <span>local ready</span>
+            <span>local</span>
           </div>
           <div>
             <strong>{capabilitySnapshot.summary.offline + capabilitySnapshot.summary.degraded + capabilitySnapshot.summary.blocked}</strong>
-            <span>need repair</span>
+            <span>repair</span>
           </div>
         </div>
         {#if capabilityIssues.length}
-          <div class="capability-issue-list">
+          <div class="service-list">
             {#each capabilityIssues as capability}
-              <a class="capability-issue-row" href={hubHref(capability.route)}>
+              <a class="service-row" href={hubHref(capability.route)}>
                 <span class={`capability-state ${capability.state}`}>{capabilityStateLabel(capability.state)}</span>
                 <span>
                   <strong>{capability.label}</strong>
@@ -1075,7 +864,7 @@
             {/each}
           </div>
         {:else}
-          <p class="empty-note">Core services look ready. The machine is in a usable state.</p>
+          <p class="empty-note">Core capabilities look ready.</p>
         {/if}
       {:else if capabilityLoading}
         <p class="empty-note">Checking local services and providers...</p>
@@ -1086,35 +875,60 @@
       {/if}
     </article>
 
-    <article class="card panel career-panel">
+    <article class="card panel">
       <div class="panel-title">
         <div>
-          <span class="icon-chip"><BriefcaseBusiness size={16} /></span>
-          <strong>Career Focus</strong>
+          <span class="icon-chip"><Activity size={16} /></span>
+          <strong>Recent Actions</strong>
         </div>
-        <a class="button compact" href={hubHref('/desk/career')}>
-          <span>Review</span>
+        <a class="button compact" href={hubHref('/settings')}>
+          <span>Ledger</span>
           <ArrowRight size={15} />
         </a>
       </div>
-
-      {#if applyQueue.length || openCareerActions.length}
-        <div class="career-list">
-          {#each openCareerActions as action}
-            <a class="career-row" href={hubHref('/desk/career')}>
-              <strong>{action.label}</strong>
-              <small>{action.dueAt ? displayShortDate(action.dueAt) : 'No due date'}</small>
-            </a>
-          {/each}
-          {#each applyQueue as job}
-            <a class="career-row" href={hubHref('/desk/career')}>
-              <strong>{careerJobLine(job)}</strong>
-              <small>{job.status}{job.nextActionAt ? ` - ${displayShortDate(job.nextActionAt)}` : ''}</small>
+      {#if actionLedgerItems.length}
+        <div class="ledger-list">
+          {#each actionLedgerItems as item}
+            <a class="ledger-row" href={hubHref(ledgerRoute(item))}>
+              <span class={`activity-state ${actionStatusClass(item)}`}>{actionLedgerStatusLabel(item.status)}</span>
+              <span class="ledger-main">
+                <strong>{item.summary}</strong>
+                <small>{actionLedgerDetail(item)}</small>
+              </span>
+              <span class={`risk-chip ${item.risk}`}>{actionLedgerRiskLabel(item.risk)}</span>
             </a>
           {/each}
         </div>
+      {:else if actionLedgerLoading}
+        <p class="empty-note">Loading recent app actions, AI OS logs, and Macro Lab runs...</p>
+      {:else if actionLedgerError}
+        <p class="empty-note">{actionLedgerError}</p>
       {:else}
-        <p class="empty-note">No dated career actions are queued in the new workspace yet.</p>
+        <p class="empty-note">No meaningful actions are logged yet.</p>
+      {/if}
+      {#if actionLedgerSnapshot?.errors.length}
+        <p class="panel-note error">{actionLedgerSnapshot.errors[0]}</p>
+      {/if}
+    </article>
+
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Settings size={16} /></span>
+          <strong>Source Status</strong>
+        </div>
+      </div>
+      {#if attentionSnapshot?.sources.length}
+        <div class="source-list">
+          {#each attentionSnapshot.sources as source}
+            <div class={`source-status ${source.status}`}>
+              <strong>{source.label}</strong>
+              <small>{attentionSourceStatusLine(source)}</small>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">No source snapshot has loaded yet.</p>
       {/if}
     </article>
   </aside>
@@ -1159,7 +973,7 @@
   .sync-note {
     color: var(--muted);
     font-size: 12px;
-    font-weight: 650;
+    font-weight: 700;
   }
 
   .warning-panel {
@@ -1169,9 +983,16 @@
     background: var(--warning-bg);
   }
 
+  .success-panel {
+    margin-bottom: 10px;
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
   .signal-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 10px;
   }
@@ -1196,19 +1017,69 @@
     font-size: 18px;
   }
 
-  .home-grid {
+  .now-strip {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.7fr);
+    grid-template-columns: 148px minmax(0, 1fr);
+    align-items: stretch;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .strip-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border-right: 1px solid var(--border);
+  }
+
+  .now-items {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .now-item {
+    display: grid;
+    gap: 3px;
+    min-height: 72px;
+    padding: 10px;
+    border-right: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .now-item:last-child {
+    border-right: 0;
+  }
+
+  .now-item:hover {
+    background: var(--active);
+  }
+
+  .now-item time,
+  .now-item small {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .now-item strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cockpit-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.75fr);
     gap: 10px;
     align-items: start;
   }
 
-  .main-column {
-    display: grid;
-    gap: 10px;
-    min-width: 0;
-  }
-
+  .main-column,
   .side-rail {
     display: grid;
     gap: 10px;
@@ -1239,14 +1110,6 @@
 
   .panel-title strong {
     font-size: 14px;
-  }
-
-  .panel-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 6px;
   }
 
   .icon-chip {
@@ -1283,13 +1146,9 @@
     padding: 14px;
   }
 
-  .empty-block strong {
-    font-size: 14px;
-  }
-
   .panel-note {
     padding: 8px 10px;
-    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
     font-size: 12px;
     font-weight: 700;
     line-height: 1.35;
@@ -1305,218 +1164,154 @@
     background: var(--error-bg);
   }
 
-  .attention-list,
-  .agenda-list,
-  .ai-activity-list,
-  .mail-list,
-  .career-list {
+  .queue-list,
+  .compact-list,
+  .service-list,
+  .ledger-list,
+  .source-list {
     display: grid;
   }
 
-  .attention-row-shell,
-  .agenda-row,
-  .ai-activity-row,
-  .mail-row,
-  .career-row {
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .attention-row-shell {
+  .queue-row,
+  .compact-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     border-bottom: 1px solid var(--border);
   }
 
-  .attention-row {
-    display: grid;
-    grid-template-columns: 86px minmax(0, 1fr) 76px;
-    gap: 10px;
-    align-items: center;
-    min-height: 62px;
-    padding: 10px;
+  .queue-link,
+  .compact-link,
+  .service-row,
+  .ledger-row {
     color: var(--text);
     text-decoration: none;
   }
 
-  .agenda-row {
+  .queue-link {
     display: grid;
-    grid-template-columns: 128px minmax(0, 1fr) 92px;
-    gap: 10px;
+    grid-template-columns: 96px minmax(0, 1fr) 48px 76px;
+    gap: 9px;
     align-items: center;
-    min-height: 68px;
+    min-height: 64px;
     padding: 10px;
-    border-bottom: 1px solid var(--border);
   }
 
-  .attention-row-shell:hover,
-  .agenda-row:hover,
-  .ai-activity-row:hover,
-  .mail-row:hover,
-  .career-row:hover {
-    background: var(--active);
-  }
-
-  .attention-actions,
-  .mail-actions {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding-right: 10px;
-  }
-
-  .attention-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    min-width: 224px;
-  }
-
-  .icon-action {
-    display: inline-grid;
-    width: 28px;
-    height: 28px;
-    place-items: center;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    background: var(--surface);
-    cursor: pointer;
-  }
-
-  .icon-action:hover:not(:disabled),
-  .icon-action.active {
-    color: var(--text);
-    background: var(--active);
-  }
-
-  .quick-mail-action {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    min-height: 28px;
-    padding: 4px 7px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    background: var(--surface);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 800;
-    white-space: nowrap;
-  }
-
-  .quick-mail-action:hover:not(:disabled),
-  .quick-mail-action.active {
-    color: var(--text);
-    background: var(--active);
-  }
-
-  .icon-action:disabled,
-  .quick-mail-action:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-
-  .attention-kind {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: fit-content;
-    min-width: 66px;
-    min-height: 22px;
-    padding: 2px 7px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--muted);
-    background: var(--surface-muted);
-    font-size: 12px;
-    font-weight: 750;
-  }
-
-  .attention-kind.service {
-    border-color: var(--warning-border);
-    color: var(--warning-text);
-    background: var(--warning-bg);
-  }
-
-  .agenda-row time {
+  .compact-link {
     display: grid;
-    gap: 3px;
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  .agenda-row time strong {
-    color: var(--text);
-    font-size: 13px;
-  }
-
-  .attention-main,
-  .agenda-main,
-  .mail-main {
-    display: grid;
-    min-width: 0;
-    gap: 3px;
-  }
-
-  .attention-main strong,
-  .agenda-main strong,
-  .mail-main strong,
-  .career-row strong,
-  .next-event strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .attention-main small,
-  .attention-meta,
-  .agenda-main small,
-  .agenda-meta,
-  .mail-main small,
-  .mail-when,
-  .reason,
-  .career-row small,
-  .next-event span,
-  .next-event small {
-    overflow: hidden;
-    color: var(--muted);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .agenda-meta {
-    justify-self: end;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: capitalize;
-  }
-
-  .ai-activity-row {
-    display: grid;
-    grid-template-columns: 78px minmax(0, 1fr) 82px 116px;
-    gap: 10px;
+    grid-template-columns: 88px minmax(0, 1fr) 72px;
+    gap: 9px;
     align-items: center;
     min-height: 58px;
     padding: 9px 10px;
-    border-bottom: 1px solid var(--border);
   }
 
-  .activity-state {
+  .queue-link:hover,
+  .compact-link:hover,
+  .service-row:hover,
+  .ledger-row:hover {
+    background: var(--active);
+  }
+
+  .queue-main,
+  .compact-main,
+  .ledger-main,
+  .service-row span:last-child {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .queue-main strong,
+  .queue-main small,
+  .compact-main strong,
+  .compact-main small,
+  .ledger-main strong,
+  .ledger-main small,
+  .service-row strong,
+  .service-row small,
+  .queue-when {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .queue-main small,
+  .compact-main small,
+  .ledger-main small,
+  .service-row small,
+  .queue-when {
+    color: var(--muted);
+  }
+
+  .queue-when {
+    justify-self: end;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .source-pill,
+  .priority-pill,
+  .activity-state,
+  .risk-chip,
+  .capability-state,
+  .mode-rec-tag {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: fit-content;
-    min-width: 66px;
+    min-width: 58px;
     min-height: 22px;
     padding: 2px 7px;
+    overflow: hidden;
     border: 1px solid var(--border);
     border-radius: 999px;
     color: var(--muted);
     background: var(--surface-muted);
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .source-pill.mail,
+  .source-pill.calendar {
+    border-color: var(--border-strong);
+  }
+
+  .source-pill.career,
+  .source-pill.study {
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
+  .source-pill.system,
+  .source-pill.service,
+  .priority-pill.high,
+  .activity-state.failed,
+  .capability-state.offline,
+  .capability-state.blocked {
+    border-color: var(--error-border);
+    color: var(--error-text);
+    background: var(--error-bg);
+  }
+
+  .priority-pill.medium,
+  .activity-state.running,
+  .activity-state.queued,
+  .capability-state.degraded,
+  .capability-state.needs_setup {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .priority-pill.low,
+  .activity-state.info,
+  .activity-state.dry_run {
+    border-color: var(--border);
+    color: var(--muted);
   }
 
   .activity-state.success {
@@ -1525,103 +1320,47 @@
     background: var(--success-bg);
   }
 
-  .activity-state.failed {
-    border-color: var(--error-border);
-    color: var(--error-text);
-    background: var(--error-bg);
+  .item-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-width: 290px;
+    padding: 8px 10px 8px 0;
   }
 
-  .activity-state.running,
-  .activity-state.queued,
-  .activity-state.paused {
-    border-color: var(--warning-border);
-    color: var(--warning-text);
-    background: var(--warning-bg);
+  .compact-actions {
+    min-width: 220px;
   }
 
-  .activity-state.dry_run,
-  .activity-state.info,
-  .activity-state.cancelled {
-    border-color: var(--border);
-    color: var(--muted);
-    background: var(--surface-muted);
-  }
-
-  .activity-main {
-    display: grid;
-    gap: 3px;
-    min-width: 0;
-  }
-
-  .activity-main strong,
-  .activity-main small,
-  .ai-activity-row time {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .activity-main small,
-  .ai-activity-row time {
-    color: var(--muted);
-  }
-
-  .ai-activity-row time {
-    justify-self: end;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .risk-chip {
+  .icon-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: fit-content;
-    min-width: 66px;
-    min-height: 22px;
-    justify-self: end;
-    padding: 2px 7px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--muted);
-    background: var(--surface-muted);
-    font-size: 11px;
-    font-weight: 800;
-  }
-
-  .risk-chip.destructive {
-    border-color: var(--danger-border);
-    color: var(--danger-text);
-    background: var(--danger-bg);
-  }
-
-  .risk-chip.system {
-    border-color: var(--warning-border);
-    color: var(--warning-text);
-    background: var(--warning-bg);
-  }
-
-  .ledger-warning {
-    margin: 0;
-    padding: 9px 10px;
-    border-top: 1px solid var(--border);
-    color: var(--warning-text);
-    background: var(--warning-bg);
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.35;
-  }
-
-  .attention-meta {
-    justify-self: end;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .next-event {
-    display: grid;
     gap: 5px;
-    padding: 12px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    background: var(--surface);
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .icon-action:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--active);
+  }
+
+  .icon-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 
   .mode-summary {
@@ -1648,7 +1387,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    min-height: 62px;
+    min-height: 58px;
     border-bottom: 1px solid var(--border);
   }
 
@@ -1657,56 +1396,14 @@
     grid-template-columns: 70px minmax(0, 1fr) 16px;
     gap: 8px;
     align-items: center;
-    min-height: 62px;
+    min-height: 58px;
     padding: 9px 10px;
     color: var(--text);
     text-decoration: none;
   }
 
-  .mode-rec-link:hover {
-    background: var(--active);
-  }
-
   .mode-action-button {
     margin-right: 10px;
-    white-space: nowrap;
-  }
-
-  .mode-action-note {
-    margin: 0;
-    padding: 10px;
-    border-top: 1px solid var(--border);
-    color: var(--muted);
-    font-weight: 700;
-    line-height: 1.35;
-  }
-
-  .mode-action-note.success {
-    color: var(--success-text);
-    background: var(--success-bg);
-  }
-
-  .mode-action-note.error {
-    color: var(--error-text);
-    background: var(--error-bg);
-  }
-
-  .mode-rec-tag {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: fit-content;
-    min-width: 58px;
-    min-height: 22px;
-    padding: 2px 6px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--muted);
-    background: var(--surface-muted);
-    font-size: 11px;
-    font-weight: 800;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
@@ -1727,56 +1424,19 @@
     color: var(--muted);
   }
 
-  .next-event strong {
-    font-size: 15px;
-  }
-
-  .mail-row {
+  .service-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 9px;
     align-items: center;
+    min-height: 54px;
+    padding: 9px 10px;
     border-bottom: 1px solid var(--border);
-  }
-
-  .mail-link {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) 54px;
-    gap: 5px 8px;
-    min-width: 0;
-    padding: 10px;
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .mail-tag {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: fit-content;
-    min-height: 22px;
-    padding: 2px 7px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--muted);
-    background: var(--surface-muted);
-    font-size: 12px;
-    font-weight: 750;
-  }
-
-  .mail-when {
-    justify-self: end;
-    font-size: 12px;
-  }
-
-  .reason {
-    grid-column: 2 / 4;
-    font-size: 12px;
   }
 
   .capability-summary {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0;
     border-bottom: 1px solid var(--border);
   }
 
@@ -1792,95 +1452,66 @@
     border-right: 0;
   }
 
-  .capability-summary strong {
+  .capability-summary strong,
+  .capability-summary span {
     overflow: hidden;
-    font-size: 15px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .capability-summary span {
-    overflow: hidden;
     color: var(--muted);
-    font-size: 11px;
-    font-weight: 750;
-    text-overflow: ellipsis;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .capability-issue-list {
-    display: grid;
-  }
-
-  .capability-issue-row {
-    display: grid;
-    grid-template-columns: 76px minmax(0, 1fr);
-    gap: 8px;
-    align-items: center;
-    min-height: 54px;
-    padding: 9px 10px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .capability-issue-row:hover {
-    background: var(--active);
-  }
-
-  .capability-issue-row > span:last-child {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .capability-issue-row strong,
-  .capability-issue-row small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .capability-issue-row small {
-    color: var(--muted);
-  }
-
-  .capability-state {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: fit-content;
-    min-width: 64px;
-    min-height: 22px;
-    padding: 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--muted);
-    background: var(--surface-muted);
     font-size: 11px;
     font-weight: 800;
+    text-transform: uppercase;
   }
 
-  .capability-state.offline,
-  .capability-state.blocked {
+  .ledger-row {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr) 74px;
+    gap: 9px;
+    align-items: center;
+    min-height: 56px;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .risk-chip {
+    justify-self: end;
+  }
+
+  .risk-chip.destructive {
     border-color: var(--danger-border);
     color: var(--danger-text);
     background: var(--danger-bg);
   }
 
-  .capability-state.degraded,
-  .capability-state.needs_setup {
+  .risk-chip.system {
     border-color: var(--warning-border);
     color: var(--warning-text);
     background: var(--warning-bg);
   }
 
-  .career-row {
+  .source-status {
     display: grid;
     gap: 3px;
     padding: 9px 10px;
     border-bottom: 1px solid var(--border);
+  }
+
+  .source-status small {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .source-status.error small {
+    color: var(--error-text);
+  }
+
+  .source-status.unavailable small {
+    color: var(--warning-text);
   }
 
   .launcher-panel {
@@ -1936,11 +1567,6 @@
     gap: 4px;
   }
 
-  .launch-card strong {
-    font-size: 14px;
-  }
-
-  .launch-card span,
   .launch-card p {
     margin: 0;
     color: var(--muted);
@@ -1951,91 +1577,70 @@
     justify-self: end;
   }
 
-  @media (max-width: 1040px) {
-    .home-grid {
+  @media (max-width: 1120px) {
+    .cockpit-grid,
+    .now-strip {
       grid-template-columns: 1fr;
+    }
+
+    .strip-title {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
     }
   }
 
-  @media (max-width: 820px) {
-    .today-header {
-      align-items: stretch;
-    }
-
-    .header-actions {
-      justify-content: flex-start;
-    }
-
+  @media (max-width: 880px) {
     .signal-strip {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .agenda-row {
-      grid-template-columns: 92px minmax(0, 1fr);
-    }
-
-    .ai-activity-row {
-      grid-template-columns: 72px minmax(0, 1fr);
-    }
-
-    .attention-row {
-      grid-template-columns: 76px minmax(0, 1fr);
-    }
-
-    .attention-row-shell {
+    .now-items {
       grid-template-columns: 1fr;
     }
 
-    .attention-meta {
-      grid-column: 2;
+    .now-item {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .queue-row,
+    .compact-row {
+      grid-template-columns: 1fr;
+    }
+
+    .queue-link {
+      grid-template-columns: 86px minmax(0, 1fr) 44px;
+    }
+
+    .queue-when {
+      grid-column: 2 / 4;
       justify-self: start;
     }
 
-    .attention-actions {
+    .compact-link {
+      grid-template-columns: 86px minmax(0, 1fr);
+    }
+
+    .item-actions,
+    .compact-actions {
       justify-content: flex-start;
-      padding: 0 10px 10px 86px;
-    }
-
-    .agenda-meta {
-      grid-column: 2;
-      justify-self: start;
-    }
-
-    .ai-activity-row time {
-      grid-column: 2;
-      justify-self: start;
-    }
-
-    .risk-chip {
-      grid-column: 2;
-      justify-self: start;
-    }
-
-    .mail-row {
-      grid-template-columns: 1fr;
-    }
-
-    .mail-link {
-      grid-template-columns: 66px minmax(0, 1fr);
-    }
-
-    .mail-actions {
-      padding: 0 10px 10px 84px;
-    }
-
-    .mail-when {
-      grid-column: 2;
-      justify-self: start;
-    }
-
-    .reason {
-      grid-column: 2;
+      min-width: 0;
+      padding: 0 10px 10px 104px;
     }
   }
 
   @media (max-width: 560px) {
     .signal-strip {
       grid-template-columns: 1fr;
+    }
+
+    .item-actions,
+    .compact-actions {
+      padding-left: 10px;
+    }
+
+    .text-action span {
+      display: none;
     }
   }
 </style>

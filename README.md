@@ -41,13 +41,13 @@ local API services to be running on the same machine:
 
 The Svelte app under `apps/hub` provides these main pages:
 
-- Today dashboard: command-center cockpit with a small service/setup/calendar-first
-  attention queue, separate Mail Triage and Career Focus panels, local sync/service
-  signals, capability health, and Machine Mode-aware next actions. The top queue now stays
-  out of ordinary mail and career cleanup; passive notifications, raw/stale leads,
-  birthdays/holidays, and obvious marketing are intentionally kept out. The mail panel uses
-  a stricter recent/action-heavy Gmail query and has direct Read, Important/Unimportant,
-  Archive, and Mark all shown read controls.
+- Today dashboard: unified attention cockpit backed by `/api/attention/snapshot`, with a
+  Now/Next calendar strip, priority action queue, Mail Triage, Career/Study Focus,
+  System/Service issues, source freshness, capability health, and Machine Mode-aware next
+  actions. It aggregates real Calendar, Gmail, Career, Study, AI OS, Macro Lab, Research,
+  service-health, and manual-item signals without setup placeholders or fake data. Actions
+  such as Read, Important, Archive, Complete, Snooze, Dismiss, Run, Restore, and Open Source
+  flow through the shared attention model where supported.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
@@ -73,7 +73,19 @@ layer, Macro Lab should be the local action layer, Career and Study should becom
 workflow systems, and the legacy games should remain available as playground/lab surfaces
 rather than the main identity of the app.
 
-The hub now has a browser-side Capability Registry v1. It normalizes existing service
+The hub now has a Unified Attention & Action Queue v1 in addition to the browser-side
+Capability Registry. The Mini Hub API exposes `/api/attention/snapshot`, which normalizes
+references plus display/action metadata from Google Calendar, Gmail priority threads,
+Career Desk jobs/actions, Study Desk signals, AI OS jobs/health/backups/benchmarks,
+Macro Lab status/run history, Research monitors/runs, local service health, and any
+manual attention items already stored in personal settings. Source freshness and source
+errors are returned alongside the items, so partial failures are visible instead of
+silently dropping data. User triage state, including dismissed, snoozed, manually
+important, completed, and archived items, is persisted through synced personal settings
+under the existing sync path. The hub client caches only the last successful real snapshot
+under `miniHub.attention.snapshot.v1`; cached attention is read-only while offline.
+
+The hub also has a browser-side Capability Registry v1. It normalizes existing service
 status from the Mini Hub API, AI OS, Macro Lab, Google connection state, and the local
 offline cache into one machine capability snapshot. Today uses that snapshot to show what
 is ready, running, needs setup, degraded, blocked, or offline without inventing fake data.
@@ -126,6 +138,8 @@ Implemented now:
   that explains this flow for personal plus school accounts.
 - Google Calendar list/view/create/edit/delete/move/reminder support.
 - Gmail search/list/read/compose/draft/send/reply/archive/mark read/unread/label actions.
+- Productivity mutations invalidate the unified attention cache, so Calendar changes and
+  Gmail read/archive/important actions are reflected in Today's queue after refresh.
 - Productivity page stores only the last successful real Google response in browser
   local storage under `miniHub.productivity.cache.v1`; it is a display cache, not a
   source of invented data, and live API refreshes replace it.
