@@ -996,4 +996,45 @@ describe('mini hub api', () => {
     expect(insights[0]).toMatchObject({ category: 'noise' });
     expect(insights[0]?.priority ?? 100).toBeLessThan(45);
   });
+
+  it('keeps passive received-payment notifications below attention priority', async () => {
+    const message = {
+      id: 'zelle-message',
+      threadId: 'zelle-thread',
+      labelIds: ['INBOX', 'UNREAD', 'IMPORTANT'],
+      snippet: 'You received money with Zelle from a contact.',
+      subject: 'You received money with Zelle',
+      from: 'Bank <alerts@example.com>',
+      to: 'me@example.com',
+      cc: '',
+      date: 'Wed, 17 Jun 2026 11:00:00 +0000',
+      internalDate: '1781708400000',
+      messageIdHeader: '<zelle-message@example.com>',
+      references: '',
+      inReplyTo: '',
+      bodyText: 'You received money transfer from a contact. No action is required.',
+      bodyHtml: '',
+      headers: {}
+    };
+
+    const insights = await triageGmailThreads(
+      [
+        {
+          id: 'zelle-thread',
+          historyId: 'h3',
+          snippet: message.snippet,
+          labelIds: message.labelIds,
+          subject: message.subject,
+          from: message.from,
+          date: message.date,
+          unread: true,
+          messages: [message]
+        }
+      ],
+      { maxResults: 1, minPriority: 0 }
+    );
+
+    expect(insights[0]?.category).toMatch(/notification|noise/);
+    expect(insights[0]?.priority ?? 100).toBeLessThan(60);
+  });
 });

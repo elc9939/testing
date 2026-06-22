@@ -140,4 +140,43 @@ describe('buildAttentionItems', () => {
 
     expect(items.some((item) => item.kind === 'study')).toBe(false);
   });
+
+  it('keeps passive calendar, passive money mail, stale jobs, and cleanup actions out of Today', () => {
+    const items = buildAttentionItems({
+      now,
+      googleConnected: true,
+      syncStatus: 'idle',
+      events: [
+        event({
+          id: 'birthday',
+          title: 'Friend Birthday',
+          start: '2026-06-21',
+          end: '2026-06-22',
+          raw: { transparency: 'transparent' }
+        })
+      ],
+      importantMail: [
+        mail({
+          priority: 92,
+          category: 'finance',
+          reason: 'passive account notification',
+          thread: {
+            ...mail({}).thread,
+            id: 'zelle',
+            subject: 'You received money with Zelle',
+            snippet: 'You received money transfer from someone.',
+            from: 'Bank <alerts@example.com>'
+          }
+        })
+      ],
+      jobs: [job({ id: 'old-lead', nextActionAt: '2026-06-01T16:00:00.000Z' })],
+      careerActions: [action({ id: 'archive-sweep', label: 'Archive stale application confirmations' })],
+      studySessions: []
+    });
+
+    expect(items.some((item) => item.id.includes('birthday'))).toBe(false);
+    expect(items.some((item) => item.id === 'mail:zelle')).toBe(false);
+    expect(items.some((item) => item.id === 'job:old-lead')).toBe(false);
+    expect(items.some((item) => item.id === 'career-action:archive-sweep')).toBe(false);
+  });
 });

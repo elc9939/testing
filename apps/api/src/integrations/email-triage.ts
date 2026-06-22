@@ -54,7 +54,9 @@ const highSignalTerms = [
   'invoice',
   'payment',
   'security',
-  'verification'
+  'verification',
+  'payment failed',
+  'card declined'
 ];
 
 const careerTerms = ['interview', 'application', 'recruiter', 'hiring', 'offer', 'resume', 'career', 'job'];
@@ -77,7 +79,12 @@ const noiseTerms = [
   'exclusive offer',
   'reward points',
   'points balance',
-  'digest'
+  'digest',
+  'received money',
+  'you received money',
+  'money transfer received',
+  'payment received',
+  'statement available'
 ];
 
 function clampPriority(value: number): number {
@@ -149,6 +156,15 @@ export function heuristicTriage(thread: GmailThread): EmailThreadInsight {
     priority += 12;
     category = 'finance';
     reasons.push('account/payment signal');
+  }
+
+  if (/\b(received money|you received money|money transfer received|payment received|receipt|statement available)\b/iu.test(lower)) {
+    const needsAction = /\b(action required|verify|verification|security alert|failed|declined|overdue|due|deadline)\b/iu.test(lower);
+    if (!needsAction) {
+      priority -= 28;
+      category = 'notification';
+      reasons.push('passive account notification');
+    }
   }
 
   const deadline = dateHint(text);

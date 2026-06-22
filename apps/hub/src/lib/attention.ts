@@ -15,6 +15,7 @@ export interface AttentionItem {
   source: string;
   priority: number;
   dueAt?: string;
+  actionId?: string;
 }
 
 export interface BuildAttentionItemsInput {
@@ -94,6 +95,7 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
 
   const activeEvents = input.events
     .filter((event) => event.status.toLowerCase() !== 'cancelled')
+    .filter(isAttentionWorthyEvent)
     .sort((a, b) => timeValue(a.start) - timeValue(b.start));
   const nextEvent = activeEvents.find((event) => timeValue(event.start) >= nowMs - 15 * 60 * 1000);
   if (nextEvent) {
@@ -105,12 +107,12 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
       detail: eventDetail(nextEvent),
       route: '/productivity',
       source: 'google_calendar',
-      priority: eventMs <= nowMs + dayMs ? 88 : 62,
+      priority: eventMs <= nowMs + dayMs ? 92 : 70,
       dueAt: nextEvent.start
     });
   }
 
-  for (const insight of input.importantMail.slice(0, 3)) {
+  for (const insight of input.importantMail.filter(isAttentionWorthyMail).slice(0, 1)) {
     items.push({
       id: `mail:${insight.thread.id}`,
       kind: 'mail',
@@ -119,14 +121,17 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
       route: '/productivity',
       source: 'gmail',
       priority: mailPriority(insight),
-      dueAt: insight.thread.date || insight.deadlineHint
+      dueAt: insight.thread.date || insight.deadlineHint,
+      actionId: insight.thread.id
     });
   }
 
   const openCareerActions = input.careerActions
     .filter((action) => !action.completedAt)
+    .filter((action) => isActionDueSoon(action.dueAt, nowMs))
+    .filter((action) => !isMaintenanceCareerAction(action.label))
     .sort((a, b) => nullableTime(a.dueAt ?? a.updatedAt) - nullableTime(b.dueAt ?? b.updatedAt));
-  for (const action of openCareerActions.slice(0, 3)) {
+  for (const action of uniqueCareerActions(openCareerActions).slice(0, 2)) {
     items.push({
       id: `career-action:${action.id}`,
       kind: 'career',
@@ -141,8 +146,9 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
 
   const activeJobs = input.jobs
     .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
+    .filter((job) => isActionDueSoon(job.nextActionAt, nowMs))
     .sort((a, b) => nullableTime(a.nextActionAt ?? a.updatedAt) - nullableTime(b.nextActionAt ?? b.updatedAt));
-  for (const job of activeJobs.slice(0, 3)) {
+  for (const job of activeJobs.slice(0, 2)) {
     items.push({
       id: `job:${job.id}`,
       kind: 'career',
@@ -198,12 +204,38 @@ function eventDetail(event: CalendarEvent): string {
   return [event.provider === 'google' ? 'Google Calendar' : event.provider, event.location].filter(Boolean).join(' - ');
 }
 
+function isAttentionWorthyEvent(event: CalendarEvent): boolean {
+  const title = event.title.toLowerCase();
+  const transparency = typeof event.raw.transparency === 'string' ? event.raw.transparency.toLowerCase() : '';
+  if (transparency === 'transparent' && !event.start.includes('T')) return false;
+  if (/\b(birthday|holiday|moon phase|weather)\b/u.test(title)) return false;
+  return true;
+}
+
+function isAttentionWorthyMail(insight: GmailThreadInsight): boolean {
+  if (!insight.thread.unread) return false;
+  if (insight.category === 'noise' || insight.category === 'notification' || insight.category === 'personal') return false;
+  if (isLowSignalNotification(insight)) return false;
+  return insight.priority >= 74 || Boolean(insight.deadlineHint);
+}
+
+function isLowSignalNotification(insight: GmailThreadInsight): boolean {
+  const text = [insight.thread.subject, insight.thread.from, insight.thread.snippet, insight.reason]
+    .join(' ')
+    .toLowerCase();
+  const passiveMoney = /\b(received money|you received money|money transfer received|payment received|receipt|statement available)\b/u;
+  const actionWords = /\b(action required|verify|verification|security alert|failed|declined|overdue|due|deadline|reply|respond)\b/u;
+  if (passiveMoney.test(text) && !actionWords.test(text)) return true;
+  if (/\b(unsubscribe|newsletter|promotion|sale|discount|reward points|points balance)\b/u.test(text)) return true;
+  return false;
+}
+
 function mailPriority(insight: GmailThreadInsight): number {
-  let priority = Math.max(55, Math.min(88, Math.round(insight.priority)));
+  let priority = Math.max(50, Math.min(78, Math.round(insight.priority)));
   if (insight.deadlineHint) priority += 6;
   if (insight.category === 'reply') priority += 4;
   if (insight.category === 'deadline') priority += 5;
-  return Math.min(92, priority);
+  return Math.min(84, priority);
 }
 
 function datedPriority(value: string | undefined, nowMs: number, overdue: number, soon: number, undated: number): number {
@@ -213,6 +245,29 @@ function datedPriority(value: string | undefined, nowMs: number, overdue: number
   if (parsed < nowMs) return overdue;
   if (parsed <= nowMs + 3 * dayMs) return soon;
   return Math.max(undated, soon - 18);
+}
+
+function isActionDueSoon(value: string | undefined, nowMs: number): boolean {
+  if (!value) return false;
+  const parsed = timeValue(value);
+  if (!Number.isFinite(parsed)) return false;
+  return parsed >= nowMs - 14 * dayMs && parsed <= nowMs + 14 * dayMs;
+}
+
+function isMaintenanceCareerAction(label: string): boolean {
+  return /\b(archive|dedupe|cleanup|sweep|import)\b/iu.test(label);
+}
+
+function uniqueCareerActions(actions: CareerActionRecord[]): CareerActionRecord[] {
+  const seen = new Set<string>();
+  const unique: CareerActionRecord[] = [];
+  for (const action of actions) {
+    const key = `${action.jobId ?? 'general'}:${action.label.trim().toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(action);
+  }
+  return unique;
 }
 
 function nullableTime(value: string | undefined): number {

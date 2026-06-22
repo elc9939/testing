@@ -2,13 +2,16 @@
   import { onMount } from 'svelte';
   import {
     Activity,
+    Archive,
     ArrowRight,
     BriefcaseBusiness,
     CalendarClock,
     Cpu,
     Inbox,
+    MailCheck,
     RefreshCw,
-    Settings
+    Settings,
+    Star
   } from 'lucide-svelte';
   import { launcherEntries, type ActionLedgerEntry, type ActionLedgerRisk, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
@@ -41,10 +44,13 @@
   import { recordBrowserAction } from '$lib/browser-action-ledger';
   import { hubHref } from '$lib/routes';
   import {
+    archiveGmailThread,
     getConnections,
     listCalendars,
     listEvents,
     listPriorityGmailThreads,
+    markGmailThreadRead,
+    modifyGmailThread,
     type CalendarSummary,
     type GmailThreadInsight,
     type PublicConnection
@@ -74,15 +80,21 @@
   let modeActionBusyId = '';
   let modeActionMessage = '';
   let modeActionError = '';
+  let mailActionBusyId = '';
+  let dashboardActionMessage = '';
+  let dashboardActionError = '';
 
   $: googleConnections = connections.filter(
     (connection) => connection.provider === 'google' && connection.status === 'connected'
   );
   $: googleConnected = googleConnections.length > 0;
+  $: googleAccountSummary = googleConnected
+    ? googleConnections.map((connection) => connection.accountLabel).join(', ')
+    : 'No Google account connected';
   $: calendarLabelMap = new Map(calendars.map((calendar) => [calendar.id, calendar.summary]));
   $: visibleAgenda = agendaEvents.slice(0, 12);
   $: nextEvent = agendaEvents[0] ?? null;
-  $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 5);
+  $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 4);
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: attentionItems = buildAttentionItems({
     googleConnected,
@@ -113,18 +125,19 @@
 
   function importantMailQuery(): string {
     return [
-      'in:inbox newer_than:30d',
+      'in:inbox is:unread newer_than:21d',
       '-category:promotions',
       '-category:social',
       '-category:forums',
-      '(deadline OR due OR "action required" OR "please reply" OR interview OR appointment OR reservation OR flight OR exam OR assignment OR security OR verification)'
+      '(deadline OR due OR "action required" OR "please reply" OR interview OR appointment OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
     ].join(' ');
   }
 
   function isImportantMailSignal(insight: GmailThreadInsight): boolean {
+    if (!insight.thread.unread) return false;
     if (insight.category === 'noise' || insight.category === 'notification') return false;
     if (isLikelyLowSignalMail(insight)) return false;
-    return insight.priority >= 65 || Boolean(insight.deadlineHint);
+    return insight.priority >= 74 || Boolean(insight.deadlineHint);
   }
 
   function isLikelyLowSignalMail(insight: GmailThreadInsight): boolean {
@@ -134,7 +147,10 @@
     if (insight.thread.labelIds.some((label) => ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(label))) {
       return !/\b(deadline|due|interview|appointment|reservation|flight|exam|assignment|security|verification|invoice|payment)\b/u.test(text);
     }
-    return /\b(unsubscribe|promo|promotion|newsletter|sale|discount|sponsored|advertisement|view web version|limited time)\b/u.test(text);
+    const passiveMoney = /\b(received money|you received money|money transfer received|payment received|receipt|statement available)\b/u;
+    const actionWords = /\b(action required|verify|verification|security alert|failed|declined|overdue|due|deadline|reply|respond)\b/u;
+    if (passiveMoney.test(text) && !actionWords.test(text)) return true;
+    return /\b(unsubscribe|promo|promotion|newsletter|sale|discount|sponsored|advertisement|view web version|limited time|reward points|points balance)\b/u.test(text);
   }
 
   function passiveCalendar(calendar: CalendarSummary): boolean {
@@ -227,6 +243,19 @@
   function attentionMeta(item: AttentionItem): string {
     if (item.dueAt) return displayShortDate(item.dueAt);
     return attentionKindLabel(item.kind);
+  }
+
+  function attentionMailInsight(item: AttentionItem): GmailThreadInsight | null {
+    if (item.kind !== 'mail') return null;
+    return importantMail.find((insight) => insight.thread.id === item.actionId || `mail:${insight.thread.id}` === item.id) ?? null;
+  }
+
+  function mailActionDisabled(insight: GmailThreadInsight): boolean {
+    return Boolean(mailActionBusyId && mailActionBusyId.startsWith(`${insight.thread.id}:`));
+  }
+
+  function isThreadImportant(insight: GmailThreadInsight): boolean {
+    return insight.thread.labelIds.includes('IMPORTANT');
   }
 
   function capabilityStateLabel(state: CapabilityState): string {
@@ -462,6 +491,49 @@
     }
   }
 
+  async function runMailAction(
+    insight: GmailThreadInsight,
+    action: 'read' | 'important' | 'archive'
+  ): Promise<void> {
+    if (mailActionBusyId) return;
+    mailActionBusyId = `${insight.thread.id}:${action}`;
+    dashboardActionMessage = '';
+    dashboardActionError = '';
+    try {
+      if (action === 'read') {
+        await markGmailThreadRead(insight.thread.id);
+        priorityThreads = priorityThreads.filter((item) => item.thread.id !== insight.thread.id);
+        dashboardActionMessage = 'Marked read and removed from Today.';
+      } else if (action === 'important') {
+        await modifyGmailThread(insight.thread.id, { addLabelIds: ['IMPORTANT'] });
+        priorityThreads = priorityThreads.map((item) =>
+          item.thread.id === insight.thread.id
+            ? {
+                ...item,
+                thread: {
+                  ...item.thread,
+                  labelIds: Array.from(new Set([...item.thread.labelIds, 'IMPORTANT']))
+                }
+              }
+            : item
+        );
+        dashboardActionMessage = 'Marked important in Gmail.';
+      } else {
+        if (typeof window !== 'undefined' && !window.confirm(`Archive "${insight.thread.subject}"?`)) {
+          return;
+        }
+        await archiveGmailThread(insight.thread.id);
+        priorityThreads = priorityThreads.filter((item) => item.thread.id !== insight.thread.id);
+        dashboardActionMessage = 'Archived and removed from Today.';
+      }
+      void refreshDashboard();
+    } catch (error) {
+      dashboardActionError = error instanceof Error ? error.message : 'Mail action failed.';
+    } finally {
+      mailActionBusyId = '';
+    }
+  }
+
   async function refreshDashboard(): Promise<void> {
     dashboardLoading = true;
     dashboardError = '';
@@ -556,7 +628,7 @@
   </section>
 {/if}
 
-<section class="grid three signal-strip" aria-label="Today signals">
+<section class="signal-strip" aria-label="Today signals">
   <div>
     <span>Needs attention</span>
     <strong>{attentionItems.length}</strong>
@@ -564,6 +636,10 @@
   <div>
     <span>Calendar events</span>
     <strong>{agendaEvents.length}</strong>
+  </div>
+  <div>
+    <span>Google accounts</span>
+    <strong>{googleConnections.length}</strong>
   </div>
   <div>
     <span>Capabilities ready</span>
@@ -588,16 +664,49 @@
       {#if attentionItems.length}
         <div class="attention-list">
           {#each attentionItems as item}
-            <a class="attention-row" href={hubHref(item.route)}>
-              <span class:service={item.kind === 'service'} class="attention-kind">{attentionKindLabel(item.kind)}</span>
-              <span class="attention-main">
-                <strong>{item.title}</strong>
-                <small>{item.detail}</small>
-              </span>
-              <span class="attention-meta">{attentionMeta(item)}</span>
-            </a>
+            {@const insight = attentionMailInsight(item)}
+            <div class="attention-row-shell">
+              <a class="attention-row" href={hubHref(item.route)}>
+                <span class:service={item.kind === 'service'} class="attention-kind">{attentionKindLabel(item.kind)}</span>
+                <span class="attention-main">
+                  <strong>{item.title}</strong>
+                  <small>{item.detail}</small>
+                </span>
+                <span class="attention-meta">{attentionMeta(item)}</span>
+              </a>
+              {#if insight}
+                <div class="attention-actions" aria-label={`Quick actions for ${insight.thread.subject}`}>
+                  <button
+                    class="icon-action"
+                    type="button"
+                    disabled={mailActionDisabled(insight)}
+                    title="Mark read"
+                    aria-label={`Mark ${insight.thread.subject} read`}
+                    on:click={() => runMailAction(insight, 'read')}
+                  >
+                    <MailCheck size={15} />
+                  </button>
+                  <button
+                    class:active={isThreadImportant(insight)}
+                    class="icon-action"
+                    type="button"
+                    disabled={mailActionDisabled(insight) || isThreadImportant(insight)}
+                    title={isThreadImportant(insight) ? 'Already important' : 'Mark important'}
+                    aria-label={`Mark ${insight.thread.subject} important`}
+                    on:click={() => runMailAction(insight, 'important')}
+                  >
+                    <Star size={15} />
+                  </button>
+                </div>
+              {/if}
+            </div>
           {/each}
         </div>
+        {#if dashboardActionError}
+          <p class="panel-note error">{dashboardActionError}</p>
+        {:else if dashboardActionMessage}
+          <p class="panel-note success">{dashboardActionMessage}</p>
+        {/if}
       {:else}
         <div class="empty-block">
           <strong>No urgent signals right now.</strong>
@@ -627,6 +736,7 @@
       {:else if dashboardLoading && !visibleAgenda.length}
         <p class="empty-note">Loading your upcoming calendar...</p>
       {:else if visibleAgenda.length}
+        <p class="panel-note">Connected: {googleAccountSummary}</p>
         <div class="agenda-list">
           {#each visibleAgenda as event}
             <a
@@ -764,7 +874,7 @@
       <div class="panel-title">
         <div>
           <span class="icon-chip"><Inbox size={16} /></span>
-          <strong>Important Mail</strong>
+          <strong>Unread Actions</strong>
         </div>
         <a class="button compact" href={hubHref('/productivity')}>
           <span>Inbox</span>
@@ -779,19 +889,54 @@
       {:else if importantMail.length}
         <div class="mail-list">
           {#each importantMail as insight}
-            <a class="mail-row" href={hubHref('/productivity')}>
-              <span class="mail-tag">{mailCategoryLabel(insight.category)}</span>
-              <span class="mail-main">
-                <strong>{insight.thread.subject}</strong>
-                <small>{insight.thread.from}</small>
-              </span>
-              <small class="mail-when">{threadWhen(insight)}</small>
-              <span class="reason">{insight.reason}{insight.deadlineHint ? ` - ${insight.deadlineHint}` : ''}</span>
-            </a>
+            <div class="mail-row">
+              <a class="mail-link" href={hubHref('/productivity')}>
+                <span class="mail-tag">{mailCategoryLabel(insight.category)}</span>
+                <span class="mail-main">
+                  <strong>{insight.thread.subject}</strong>
+                  <small>{insight.thread.from}</small>
+                </span>
+                <small class="mail-when">{threadWhen(insight)}</small>
+                <span class="reason">{insight.reason}{insight.deadlineHint ? ` - ${insight.deadlineHint}` : ''}</span>
+              </a>
+              <div class="mail-actions">
+                <button
+                  class="icon-action"
+                  type="button"
+                  disabled={mailActionDisabled(insight)}
+                  title="Mark read"
+                  aria-label={`Mark ${insight.thread.subject} read`}
+                  on:click={() => runMailAction(insight, 'read')}
+                >
+                  <MailCheck size={15} />
+                </button>
+                <button
+                  class:active={isThreadImportant(insight)}
+                  class="icon-action"
+                  type="button"
+                  disabled={mailActionDisabled(insight) || isThreadImportant(insight)}
+                  title={isThreadImportant(insight) ? 'Already important' : 'Mark important'}
+                  aria-label={`Mark ${insight.thread.subject} important`}
+                  on:click={() => runMailAction(insight, 'important')}
+                >
+                  <Star size={15} />
+                </button>
+                <button
+                  class="icon-action"
+                  type="button"
+                  disabled={mailActionDisabled(insight)}
+                  title="Archive"
+                  aria-label={`Archive ${insight.thread.subject}`}
+                  on:click={() => runMailAction(insight, 'archive')}
+                >
+                  <Archive size={15} />
+                </button>
+              </div>
+            </div>
           {/each}
         </div>
       {:else}
-        <p class="empty-note">No mail was important enough for the home view. Good, honestly.</p>
+        <p class="empty-note">No unread mail is actionable enough for the home view.</p>
       {/if}
     </article>
 
@@ -930,6 +1075,9 @@
   }
 
   .signal-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
     margin-bottom: 10px;
   }
 
@@ -1016,7 +1164,8 @@
   }
 
   .empty-note,
-  .empty-block p {
+  .empty-block p,
+  .panel-note {
     margin: 0;
     color: var(--muted);
   }
@@ -1035,6 +1184,24 @@
     font-size: 14px;
   }
 
+  .panel-note {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .panel-note.success {
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
+  .panel-note.error {
+    color: var(--error-text);
+    background: var(--error-bg);
+  }
+
   .attention-list,
   .agenda-list,
   .ai-activity-list,
@@ -1043,13 +1210,20 @@
     display: grid;
   }
 
-  .attention-row,
+  .attention-row-shell,
   .agenda-row,
   .ai-activity-row,
   .mail-row,
   .career-row {
     color: var(--text);
     text-decoration: none;
+  }
+
+  .attention-row-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
   }
 
   .attention-row {
@@ -1059,7 +1233,8 @@
     align-items: center;
     min-height: 62px;
     padding: 10px;
-    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
   }
 
   .agenda-row {
@@ -1072,12 +1247,43 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .attention-row:hover,
+  .attention-row-shell:hover,
   .agenda-row:hover,
   .ai-activity-row:hover,
   .mail-row:hover,
   .career-row:hover {
     background: var(--active);
+  }
+
+  .attention-actions,
+  .mail-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding-right: 10px;
+  }
+
+  .icon-action {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    background: var(--surface);
+    cursor: pointer;
+  }
+
+  .icon-action:hover:not(:disabled),
+  .icon-action.active {
+    color: var(--text);
+    background: var(--active);
+  }
+
+  .icon-action:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .attention-kind {
@@ -1394,10 +1600,19 @@
 
   .mail-row {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mail-link {
+    display: grid;
     grid-template-columns: 72px minmax(0, 1fr) 54px;
     gap: 5px 8px;
+    min-width: 0;
     padding: 10px;
-    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
   }
 
   .mail-tag {
@@ -1618,6 +1833,10 @@
       justify-content: flex-start;
     }
 
+    .signal-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .agenda-row {
       grid-template-columns: 92px minmax(0, 1fr);
     }
@@ -1633,6 +1852,10 @@
     .attention-meta {
       grid-column: 2;
       justify-self: start;
+    }
+
+    .attention-actions {
+      padding: 0 10px 10px 86px;
     }
 
     .agenda-meta {
@@ -1651,7 +1874,15 @@
     }
 
     .mail-row {
+      grid-template-columns: 1fr;
+    }
+
+    .mail-link {
       grid-template-columns: 66px minmax(0, 1fr);
+    }
+
+    .mail-actions {
+      padding: 0 10px 10px 84px;
     }
 
     .mail-when {
@@ -1661,6 +1892,12 @@
 
     .reason {
       grid-column: 2;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .signal-strip {
+      grid-template-columns: 1fr;
     }
   }
 </style>
