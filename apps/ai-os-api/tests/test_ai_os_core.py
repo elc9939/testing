@@ -1234,6 +1234,22 @@ def test_machine_profile_endpoint_records_snapshot(tmp_path):
     storage = AppStorage(settings.database_path())
     registry = ProviderRegistry([EchoProvider()])
     app = create_app(settings=settings, storage=storage, providers=registry)
+    storage.log_research_run(
+        ResearchRunRecord(
+            id="research_status_test",
+            created_at=now_iso(),
+            updated_at=now_iso(),
+            mode="deep_research",
+            goal="status should include research",
+            status="paused",
+            report=ResearchReport(title="Deep Research: status should include research", tldr="Paused"),
+            logs=[],
+            progress=0.5,
+            total_steps=8,
+            completed_steps=4,
+            current_step="Paused",
+        )
+    )
 
     with TestClient(app) as client:
         profile_response = client.get("/api/ai/machine-profile?mode=maintenance")
@@ -1252,6 +1268,8 @@ def test_machine_profile_endpoint_records_snapshot(tmp_path):
     assert snapshot["source"] == "test"
     assert snapshot["profile"]["provider_summary"]["available"] == 1
     assert status["machine_profile"]["mode"] == "maintenance"
+    assert status["research_runs"][0]["id"] == "research_status_test"
+    assert status["research_runs"][0]["status"] == "paused"
     assert integrity_ok is True
 
 

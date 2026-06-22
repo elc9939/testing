@@ -15,7 +15,7 @@ function status(partial: Partial<AiStatus>): AiStatus {
 }
 
 describe('buildAiActivityItems', () => {
-  it('normalizes AI OS jobs, tools, benchmarks, backups, and generations by recency', () => {
+  it('normalizes AI OS jobs, tools, benchmarks, backups, generations, and research by recency', () => {
     const items = buildAiActivityItems(
       status({
         jobs: [
@@ -81,13 +81,69 @@ describe('buildAiActivityItems', () => {
             content_type: 'image/png',
             metadata: {}
           }
+        ],
+        research_runs: [
+          {
+            id: 'research_1',
+            created_at: '2026-06-20T10:04:00.000Z',
+            updated_at: '2026-06-20T10:10:00.000Z',
+            mode: 'deep_research',
+            goal: 'research status visibility',
+            status: 'paused',
+            query_plan: {},
+            sources: [
+              {
+                id: 'source_1',
+                url: 'https://example.com',
+                canonical_url: 'https://example.com',
+                title: 'Example source',
+                description: '',
+                text: 'Example source text',
+                text_length: 19,
+                fetched_at: '2026-06-20T10:04:00.000Z',
+                links: [],
+                tables: [],
+                metadata: {},
+                score: 0.8,
+                rank: 1,
+                cached: true
+              }
+            ],
+            report: {
+              title: 'Deep Research: status visibility',
+              tldr: 'Paused research can be resumed.',
+              detailed_summary: '',
+              key_facts: [],
+              disagreements: [],
+              source_table: [],
+              open_questions: [],
+              next_research_suggestions: [],
+              reliability_notes: [],
+              timeline: []
+            },
+            citations: [],
+            logs: [],
+            progress: 0.45,
+            total_steps: 8,
+            completed_steps: 3,
+            current_step: 'Paused',
+            cancel_requested: false,
+            memory_chunks: 0,
+            total_tokens: 0,
+            cost_usd: 0,
+            runtime_ms: 321,
+            cached_pages: 1,
+            options: {}
+          }
         ]
       })
     );
 
-    expect(items.map((item) => item.kind)).toEqual(['generation', 'backup', 'benchmark', 'tool', 'job']);
-    expect(items[2].detail).toContain('18.5 tokens/sec');
-    expect(items[4].state).toBe('running');
+    expect(items.map((item) => item.kind)).toEqual(['research', 'generation', 'backup', 'benchmark', 'tool', 'job']);
+    expect(items[0]).toMatchObject({ state: 'paused', route: '/research' });
+    expect(items[0].detail).toContain('1 source, 1 cached, 45%');
+    expect(items[3].detail).toContain('18.5 tokens/sec');
+    expect(items[5].state).toBe('running');
   });
 
   it('surfaces failed records with errors before generic detail text', () => {

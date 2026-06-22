@@ -46,6 +46,8 @@ Pipeline v1:
    source count, cached page count, runtime, progress, provider/model, tokens, and cost
    memory index metadata. Runs created from a monitor include `research_monitor_id` and
    `research_monitor_name` in ledger metadata.
+13. `/api/ai/status` includes recent `research_runs`, and the AI OS dashboard's Recent
+    Actions feed normalizes them beside jobs, tools, benchmarks, backups, and generations.
 
 ## API
 
@@ -83,6 +85,10 @@ the same run ID, restarting the pipeline from the beginning while reusing cached
 available; it is a durable resume, not an exact in-memory stack checkpoint. Cancellation
 marks the stored run cancelled and sets `cancel_requested`; the crawler checks stop state
 between page fetches, progress writes, structured discovery, and major pipeline stages.
+
+AI OS status includes recent research runs so cockpit/activity surfaces can show queued,
+running, paused, succeeded, failed, and cancelled research without fetching the full Research
+Desk archive first.
 
 The Research Desk exposes "Index into semantic memory" under advanced knobs. When enabled,
 semantic memory search can later retrieve the report and source excerpts through the existing

@@ -29,6 +29,7 @@
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
   import { clientData } from '$lib/client-data';
+  import { aiActivityStateLabel, buildAiActivityItems } from '$lib/ai-activity';
   import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import {
     cancelAiJob,
@@ -170,6 +171,7 @@
   $: loadedModels = hardware?.loaded_models ?? [];
   $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
   $: plainCapabilities = buildPlainCapabilities(status);
+  $: recentActivity = buildAiActivityItems(status, 8);
   $: autoRouteText = autoRouteSummary(status);
   $: mediaProviderOptions = multimodalProviderOptions(status);
   $: connectedLocalAiOsHref = localConnectedAiOsHref();
@@ -517,6 +519,11 @@
     if (contentType) lines.push(`Format: ${contentType}.`);
     if (typeof asset.id === 'string') lines.push('Saved to the local generation gallery.');
     return lines.join('\n');
+  }
+
+  function activityWhen(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
   }
 
   async function refresh(): Promise<void> {
@@ -1272,14 +1279,19 @@
         <strong>Recent Actions</strong>
       </div>
       <div class="call-list">
-        {#each toolCalls.slice(0, 6) as call}
-          <article class:failed={!call.ok} class="call-row">
-            <strong>{toolLabel(call.tool_id)}</strong>
-            <span>{call.ok ? 'OK' : call.error ?? 'blocked'}</span>
-            <small>{call.latency_ms.toFixed(0)} ms - {new Date(call.created_at).toLocaleTimeString()}</small>
-          </article>
+        {#each recentActivity as item}
+          <a
+            class:failed={item.state === 'failed'}
+            class:paused={item.state === 'paused'}
+            class="call-row"
+            href={hubHref(item.route)}
+          >
+            <strong>{item.title}</strong>
+            <span>{aiActivityStateLabel(item.state)}</span>
+            <small>{item.detail} - {activityWhen(item.occurredAt)}</small>
+          </a>
         {:else}
-          <p class="muted">No tool calls yet.</p>
+          <p class="muted">No AI OS activity yet.</p>
         {/each}
       </div>
     </div>
@@ -2363,6 +2375,17 @@
 
   .call-row {
     grid-template-columns: minmax(0, 1fr) auto;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .call-row:hover {
+    background: var(--active);
+  }
+
+  .call-row.paused {
+    border-color: var(--warning-border);
+    background: var(--warning-bg);
   }
 
   .patch-history {

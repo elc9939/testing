@@ -271,6 +271,7 @@ export interface AiStatus {
   tool_calls?: AiToolCallEntry[];
   generation_assets?: AiGenerationAsset[];
   benchmark_runs?: AiBenchmarkRun[];
+  research_runs?: ResearchRun[];
   machine_profile?: AiMachineProfile;
   integrity?: AiIntegrityStatus;
   backups?: AiBackupSummary[];

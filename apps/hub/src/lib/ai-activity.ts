@@ -1,7 +1,7 @@
 import type { AiStatus } from './ai-os-api';
 
-export type AiActivityKind = 'job' | 'tool' | 'benchmark' | 'backup' | 'generation';
-export type AiActivityState = 'running' | 'queued' | 'success' | 'failed' | 'cancelled' | 'info';
+export type AiActivityKind = 'job' | 'tool' | 'benchmark' | 'backup' | 'generation' | 'research';
+export type AiActivityState = 'running' | 'queued' | 'paused' | 'success' | 'failed' | 'cancelled' | 'info';
 
 export interface AiActivityItem {
   id: string;
@@ -60,6 +60,15 @@ export function buildAiActivityItems(status: AiStatus | null | undefined, limit 
       state: 'success' as const,
       occurredAt: asset.created_at,
       route: '/ai-os'
+    })),
+    ...(status.research_runs ?? []).map((run) => ({
+      id: `research:${run.id}`,
+      kind: 'research' as const,
+      title: `${titleCase(run.mode)} ${researchStatusLabel(run.status)}`,
+      detail: run.error || researchDetail(run),
+      state: researchState(run.status),
+      occurredAt: run.updated_at || run.created_at,
+      route: '/research'
     }))
   ];
 
@@ -77,10 +86,15 @@ export function aiActivityStateLabel(state: AiActivityState): string {
 function jobState(status: string): AiActivityState {
   if (status === 'running') return 'running';
   if (status === 'queued') return 'queued';
+  if (status === 'paused') return 'paused';
   if (status === 'succeeded') return 'success';
   if (status === 'cancelled') return 'cancelled';
   if (status === 'failed') return 'failed';
   return 'info';
+}
+
+function researchState(status: string): AiActivityState {
+  return jobState(status);
 }
 
 function jobProgress(job: NonNullable<AiStatus['jobs']>[number]): string {
@@ -108,6 +122,22 @@ function benchmarkDetail(run: NonNullable<AiStatus['benchmark_runs']>[number]): 
 function generationDetail(asset: NonNullable<AiStatus['generation_assets']>[number]): string {
   const provider = [asset.provider, asset.model].filter(Boolean).join('/');
   return [provider || 'generation adapter', asset.asset_path || asset.content_type || 'metadata logged'].join(' - ');
+}
+
+function researchDetail(run: NonNullable<AiStatus['research_runs']>[number]): string {
+  const provider = [run.provider, run.model].filter(Boolean).join('/');
+  const sourceText = `${run.sources.length} source${run.sources.length === 1 ? '' : 's'}`;
+  const cachedText = run.cached_pages ? `, ${run.cached_pages} cached` : '';
+  const progressText = run.status === 'running' || run.status === 'queued' || run.status === 'paused'
+    ? `, ${Math.round((run.progress ?? 0) * 100)}%`
+    : '';
+  const runtimeText = run.runtime_ms ? `, ${Math.round(run.runtime_ms)} ms` : '';
+  return `${sourceText}${cachedText}${progressText}${runtimeText}${provider ? `, ${provider}` : ', extractive'}.`;
+}
+
+function researchStatusLabel(status: string): string {
+  if (status === 'succeeded') return 'saved';
+  return status.replace('_', ' ');
 }
 
 function titleCase(value: string): string {

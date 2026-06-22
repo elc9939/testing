@@ -160,7 +160,8 @@ Current capabilities include:
   RSS/Atom/sitemap discovery for seeded site/monitor runs, extraction, dedupe/ranking,
   citation mapping, archived reports, Markdown/JSON/HTML export, live
   progress/pause/resume/cancel state, opt-in semantic memory indexing, and action-ledger
-  entries. The Research Desk can reopen
+  entries. AI OS status includes recent research runs so dashboard activity surfaces can
+  show them next to jobs/tools/benchmarks/backups/generations. The Research Desk can reopen
   report artifacts with citations, reliability notes, contradictions, timeline, query plan,
   run logs, raw extracted source cards, and a searchable local Source Library for reusing
   archived pages as follow-up seeds. Screenshot runs use browser extraction and show captured

@@ -303,6 +303,7 @@ def create_app(
             "tool_calls": [entry.model_dump(mode="json") for entry in services.storage.list_tool_calls(20)],
             "generation_assets": [asset.model_dump(mode="json") for asset in services.storage.list_generation_assets(12)],
             "benchmark_runs": [run.model_dump(mode="json") for run in services.storage.list_benchmarks(12)],
+            "research_runs": [run.model_dump(mode="json") for run in services.storage.list_research_runs(12)],
             "machine_profile": collected["profile"],
             "integrity": services.storage.integrity_report(),
             "backups": [backup.as_dict() for backup in services.backups.list_backups()[:5]],
