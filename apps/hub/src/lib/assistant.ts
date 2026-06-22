@@ -18,6 +18,7 @@ const appDestinations: Array<{ route: string; label: string; terms: string[] }> 
   { route: routeMap.careerDesk, label: 'Career Desk', terms: ['career', 'job', 'jobs', 'applications', 'apply list'] },
   { route: routeMap.studyDesk, label: 'Study Desk', terms: ['study', 'coursework', 'school', 'homework'] },
   { route: routeMap.analytics, label: 'Analytics', terms: ['analytics', 'charts', 'data'] },
+  { route: routeMap.research, label: 'Research Desk', terms: ['research', 'web intelligence', 'deep research', 'scrape', 'crawl', 'sources'] },
   { route: routeMap.aiLab, label: 'AI Lab', terms: ['ai lab', 'local intelligence', 'transformers', 'tree sitter', 'tree-sitter'] },
   { route: routeMap.aiOs, label: 'AI OS', terms: ['ai os', 'capability', 'capabilities', 'providers', 'agents'] },
   { route: routeMap.macroLab, label: 'Macro Lab', terms: ['macro', 'macros', 'automation'] },

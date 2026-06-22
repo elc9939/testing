@@ -44,6 +44,16 @@ function aiStatus(partial: Partial<AiStatus> = {}): AiStatus {
         description: 'Local embeddings'
       },
       {
+        id: 'research.web_intelligence',
+        label: 'Research engine',
+        kind: 'web',
+        available: true,
+        enabled: true,
+        safety: 'read',
+        adapters: ['research-engine'],
+        description: 'Research runs'
+      },
+      {
         id: 'multimodal.image',
         label: 'Image generation',
         kind: 'multimodal',
@@ -101,6 +111,7 @@ describe('capability registry', () => {
     expect(snapshot.summary.ready).toBeGreaterThan(5);
     expect(snapshot.summary.localReady).toBeGreaterThan(4);
     expect(snapshot.capabilities.find((capability) => capability.id === 'ai.local-llm')?.state).toBe('ready');
+    expect(snapshot.capabilities.find((capability) => capability.id === 'ai.research')?.route).toBe('/research');
     expect(snapshot.capabilities.find((capability) => capability.id === 'macro.automation')?.state).toBe('ready');
     expect(snapshot.capabilities.find((capability) => capability.id === 'productivity.google')?.state).toBe('ready');
     expect(capabilityServiceLabel('ai-os')).toBe('AI OS');

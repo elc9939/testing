@@ -11,6 +11,7 @@ from .models import (
     GenerationAssetRecord,
     JobSnapshot,
     MachineProfileSnapshotRecord,
+    ResearchRunRecord,
     ToolCallLogEntry,
     UsageLogEntry,
 )
@@ -357,6 +358,41 @@ def _job_entry(job: JobSnapshot) -> ActionLedgerEntry:
     )
 
 
+def _research_entry(run: ResearchRunRecord) -> ActionLedgerEntry:
+    status = run.status if run.status in {"queued", "running", "succeeded", "failed", "cancelled"} else "info"
+    provider = "/".join(part for part in [run.provider, run.model] if part)
+    return ActionLedgerEntry(
+        id=f"ai-research:{run.id}",
+        occurred_at=run.updated_at or run.created_at,
+        system="ai-os",
+        source="research",
+        action_type=f"research.{run.mode}",
+        summary=f"Research {run.mode.replace('_', ' ')} {run.status}",
+        status=status,  # type: ignore[arg-type]
+        risk="read",
+        mode=_find_machine_mode(run.options),
+        changed=[f"research:{run.id}", *[f"source:{source.id}" for source in run.sources[:5]]],
+        recoverability=ActionRecoverability(
+            kind="artifact",
+            reference_id=run.id,
+            route="/research",
+            description="Deep Research Report is archived with sources, citations, logs, and exportable artifacts.",
+            reversible=False,
+        ),
+        raw_ref={"kind": "research_run", "id": run.id},
+        metadata={
+            "source_count": len(run.sources),
+            "cached_pages": run.cached_pages,
+            "runtime_ms": run.runtime_ms,
+            "provider": run.provider,
+            "model": run.model,
+            "total_tokens": run.total_tokens,
+            "cost_usd": run.cost_usd,
+            "detail": run.error or f"{len(run.sources)} source(s), {round(run.runtime_ms)} ms, {provider or 'extractive'}",
+        },
+    )
+
+
 def build_ai_action_ledger(
     *,
     storage: AppStorage,
@@ -373,6 +409,7 @@ def build_ai_action_ledger(
     entries.extend(_machine_profile_entry(snapshot) for snapshot in storage.list_machine_profile_snapshots(read_limit))
     entries.extend(_generation_entry(asset) for asset in storage.list_generation_assets(read_limit))
     entries.extend(_design_patch_entry(patch) for patch in storage.list_design_patches(read_limit))
+    entries.extend(_research_entry(run) for run in storage.list_research_runs(read_limit))
     entries.extend(
         usage
         for usage in (_usage_entry(entry) for entry in storage.list_usage(read_limit))

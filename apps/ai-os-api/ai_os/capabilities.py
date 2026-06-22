@@ -29,6 +29,7 @@ def build_capabilities(
         ("web.search", "Web search", "web", "Search the public internet through a configured read-only search adapter.", "passive"),
         ("web.scrape", "Web scraping", "web", "Fetch pages and extract readable text, metadata, headings, and links.", "passive"),
         ("browser.extract", "Browser extraction", "web", "Use a headless browser for rendered pages, with HTTP extraction fallback.", "passive"),
+        ("research.web_intelligence", "Research engine", "web", "Plan, search, crawl, extract, cite, archive, and reopen source-backed research runs.", "passive"),
         ("multimodal.image", "Image generation", "multimodal", "Invoke configured local or paid image generation adapters.", "active"),
         ("multimodal.audio", "Audio generation", "multimodal", "Generate local sound, music, or arbitrary audio through configured command adapters.", "active"),
         ("multimodal.audio_tts", "Text to speech", "multimodal", "Generate speech through configured local or paid adapters.", "active"),

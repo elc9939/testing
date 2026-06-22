@@ -262,6 +262,11 @@ class WebAccess:
         for tag in soup(["script", "style", "noscript", "svg", "canvas", "template"]):
             tag.decompose()
         title = self._clean_text(soup.title.get_text(" ", strip=True) if soup.title else "")
+        metadata = self._extract_metadata(soup)
+        canonical_url = ""
+        canonical_tag = soup.find("link", attrs={"rel": lambda value: value and "canonical" in value})
+        if canonical_tag and canonical_tag.get("href"):
+            canonical_url = urljoin(base_url, str(canonical_tag["href"]))
         description = ""
         description_tag = soup.find("meta", attrs={"name": re.compile("^description$", re.I)}) or soup.find(
             "meta",
@@ -279,11 +284,16 @@ class WebAccess:
         payload = {
             "title": title,
             "description": description,
+            "author": metadata.get("author") or metadata.get("article:author"),
+            "published_at": metadata.get("article:published_time") or metadata.get("date") or metadata.get("datePublished"),
+            "canonical_url": canonical_url,
             "headings": [heading for heading in headings if heading],
             "text": normalized["text"],
             "text_length": len(text_source),
             "text_truncated": normalized["truncated"],
             "links": self._normalize_links(links, base_url, max_links=max_links),
+            "tables": self._extract_tables(soup),
+            "metadata": metadata,
         }
         if include_html:
             html_limit = min(self.settings.web_max_text_chars, max_text_chars or self.settings.web_max_text_chars)
@@ -388,6 +398,27 @@ class WebAccess:
     def _encoding_from_content_type(self, content_type: str) -> str:
         match = re.search(r"charset=([^;]+)", content_type, re.I)
         return match.group(1).strip() if match else "utf-8"
+
+    def _extract_metadata(self, soup: BeautifulSoup) -> dict[str, str]:
+        metadata: dict[str, str] = {}
+        for tag in soup.find_all("meta"):
+            key = tag.get("name") or tag.get("property") or tag.get("itemprop")
+            value = tag.get("content")
+            if key and value:
+                metadata[str(key)] = self._clean_text(str(value))
+        return metadata
+
+    def _extract_tables(self, soup: BeautifulSoup) -> list[dict[str, Any]]:
+        tables: list[dict[str, Any]] = []
+        for index, table in enumerate(soup.find_all("table")[:8], start=1):
+            rows: list[list[str]] = []
+            for tr in table.find_all("tr")[:40]:
+                cells = [self._clean_text(cell.get_text(" ", strip=True)) for cell in tr.find_all(["th", "td"])[:12]]
+                if cells:
+                    rows.append(cells)
+            if rows:
+                tables.append({"index": index, "rows": rows})
+        return tables
 
     def _clean_text(self, text: str) -> str:
         return re.sub(r"\s+", " ", text or "").strip()

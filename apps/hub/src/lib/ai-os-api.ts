@@ -289,6 +289,91 @@ export interface AiInferenceInput {
   metadata?: Record<string, unknown>;
 }
 
+export type ResearchMode = 'quick_search' | 'deep_research' | 'url_scrape' | 'site_crawl' | 'compare_sources' | 'monitor_topic';
+
+export interface ResearchRunInput {
+  mode: ResearchMode;
+  goal: string;
+  seed_urls?: string[];
+  depth?: number;
+  max_pages?: number;
+  per_domain_limit?: number;
+  time_budget_s?: number;
+  date_range_start?: string;
+  date_range_end?: string;
+  include_domains?: string[];
+  exclude_domains?: string[];
+  use_ai?: boolean;
+  use_cloud_ai?: boolean;
+  local_first?: boolean;
+  provider?: string;
+  model?: string;
+  screenshot?: boolean;
+  save_to_memory?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ResearchSource {
+  id: string;
+  url: string;
+  canonical_url: string;
+  title: string;
+  author?: string;
+  published_at?: string;
+  description: string;
+  text: string;
+  text_length: number;
+  links: Array<Record<string, string>>;
+  tables: Array<Record<string, unknown>>;
+  metadata: Record<string, unknown>;
+  score: number;
+  rank: number;
+  cached: boolean;
+  fetched_at: string;
+}
+
+export interface ResearchCitation {
+  id: string;
+  claim: string;
+  source_ids: string[];
+  quote?: string;
+}
+
+export interface ResearchReport {
+  title: string;
+  tldr: string;
+  detailed_summary: string;
+  key_facts: string[];
+  disagreements: string[];
+  source_table: Array<Record<string, unknown>>;
+  open_questions: string[];
+  next_research_suggestions: string[];
+  reliability_notes: string[];
+  timeline: Array<Record<string, unknown>>;
+}
+
+export interface ResearchRun {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  mode: ResearchMode;
+  goal: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  query_plan: Record<string, unknown>;
+  sources: ResearchSource[];
+  report: ResearchReport;
+  citations: ResearchCitation[];
+  logs: Array<Record<string, unknown>>;
+  provider?: string;
+  model?: string;
+  total_tokens: number;
+  cost_usd: number;
+  runtime_ms: number;
+  cached_pages: number;
+  error?: string;
+  options: Record<string, unknown>;
+}
+
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init);
 }
@@ -527,6 +612,28 @@ export async function runAutotune(input: Record<string, unknown>): Promise<AiAut
 export async function listBenchmarks(limit = 25): Promise<AiBenchmarkRun[]> {
   const result = await requestJson<{ benchmarks: AiBenchmarkRun[] }>(`/api/ai/benchmarks?limit=${limit}`);
   return result.benchmarks;
+}
+
+export async function listResearchRuns(limit = 25): Promise<ResearchRun[]> {
+  const result = await requestJson<{ runs: ResearchRun[] }>(`/api/ai/research/runs?limit=${limit}`);
+  return result.runs;
+}
+
+export async function getResearchRun(runId: string): Promise<ResearchRun> {
+  const result = await requestJson<{ run: ResearchRun }>(`/api/ai/research/runs/${encodeURIComponent(runId)}`);
+  return result.run;
+}
+
+export async function createResearchRun(input: ResearchRunInput): Promise<ResearchRun> {
+  const result = await requestJson<{ run: ResearchRun }>('/api/ai/research/runs', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+  return result.run;
+}
+
+export function researchExportUrl(runId: string, format: 'markdown' | 'html' | 'json' = 'markdown'): string {
+  return `${getAiOsApiUrl()}/api/ai/research/runs/${encodeURIComponent(runId)}/export?format=${encodeURIComponent(format)}`;
 }
 
 export async function getAiActionLedger(limit = 50): Promise<AiActionLedgerEntry[]> {

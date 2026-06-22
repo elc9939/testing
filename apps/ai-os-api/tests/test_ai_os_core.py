@@ -19,13 +19,14 @@ from ai_os.jobs.queue import JobQueue
 from ai_os.maintenance import BackupManager
 from ai_os.media_engine import MediaPlan
 from ai_os.memory.store import SemanticMemory
-from ai_os.models import BenchmarkRunRecord, InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, StreamChunk, now_iso
+from ai_os.models import BenchmarkRunRecord, InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, ResearchReport, ResearchRunRequest, ResearchSourceRecord, StreamChunk, now_iso
 from ai_os.multimodal.registry import MultimodalRegistry
 from ai_os.providers.base import ProviderAdapter, ProviderUnavailable
 from ai_os.providers.openai_compatible import OpenAICompatibleLocalProvider
 from ai_os.providers.ollama import OllamaProvider
 from ai_os.providers.registry import ProviderRegistry
 from ai_os.recoverability import capture_file_pre_action_snapshot
+from ai_os.research import dedupe_and_rank_sources, extract_clean_content, map_citations, normalize_url, plan_research
 from ai_os.storage import AppStorage
 from ai_os.telemetry import _parse_windows_gpu_payload
 from ai_os.web_access import WebAccess
@@ -342,7 +343,9 @@ def test_storage_migration_and_integrity_report(tmp_path):
 
     assert report["ok"] is True
     assert report["schema_version"] == report["expected_schema_version"]
-    assert report["counts"]["schema_migrations"] == 4
+    assert report["counts"]["schema_migrations"] == 5
+    assert report["counts"]["research_runs"] == 0
+    assert report["counts"]["research_pages"] == 0
 
 
 def test_command_endpoint_blocks_write_tools_without_confirmation(tmp_path):
@@ -616,6 +619,150 @@ def test_browser_extract_command_falls_back_to_http_scraper(monkeypatch, tmp_pat
     assert result["mode"] == "http-fallback"
     assert result["browser_available"] is False
     assert "Browser fallback content" in result["text"]
+
+
+def test_research_planner_normalizes_urls_and_knobs():
+    request = ResearchRunRequest(
+        mode="deep_research",
+        goal="Compare https://Example.com:443/path/?utm_source=x&b=2&a=1#frag for quant research",
+        depth=3,
+        max_pages=12,
+        include_domains=["example.com"],
+    )
+
+    plan = plan_research(request)
+
+    assert plan.crawl_targets == ["https://example.com/path?a=1&b=2"]
+    assert plan.search_queries[0] == "Compare for quant research"
+    assert plan.knobs["depth"] == 3
+    assert normalize_url("HTTPS://Example.com:443/path/?utm_campaign=x&b=2&a=1#frag") == "https://example.com/path?a=1&b=2"
+
+
+def test_research_extractor_keeps_metadata_tables_links_and_canonical():
+    extracted = extract_clean_content(
+        """
+        <html>
+          <head>
+            <title>Source Title</title>
+            <link rel="canonical" href="/canonical">
+            <meta name="author" content="Ada Lovelace">
+            <meta property="article:published_time" content="2026-06-20">
+            <meta name="description" content="A compact source">
+          </head>
+          <body>
+            <nav>Skip me</nav>
+            <main><h1>Main Claim</h1><p>Important research claim with evidence.</p>
+            <table><tr><th>Metric</th><th>Value</th></tr><tr><td>Speed</td><td>42</td></tr></table>
+            <a href="/next">Next</a></main>
+          </body>
+        </html>
+        """,
+        base_url="https://example.com/page",
+    )
+
+    assert extracted["title"] == "Source Title"
+    assert extracted["author"] == "Ada Lovelace"
+    assert extracted["published_at"] == "2026-06-20"
+    assert extracted["canonical_url"] == "https://example.com/canonical"
+    assert "Skip me" not in extracted["text"]
+    assert extracted["tables"][0]["rows"][1] == ["Speed", "42"]
+    assert extracted["links"][0]["url"] == "https://example.com/next"
+
+
+def test_research_dedupes_ranks_and_maps_citations():
+    sources = [
+        ResearchSourceRecord(
+            id="source_a",
+            url="https://example.com/a",
+            canonical_url="https://example.com/a",
+            title="Quant research role",
+            description="Quant research uses statistics and modeling.",
+            text="Quant research uses statistics and modeling. Follow-up detail.",
+            text_length=80,
+            fetched_at=now_iso(),
+        ),
+        ResearchSourceRecord(
+            id="source_b",
+            url="https://example.com/a?utm_source=dup",
+            canonical_url="https://example.com/a",
+            title="Duplicate",
+            description="Short duplicate",
+            text="Short duplicate",
+            text_length=15,
+            fetched_at=now_iso(),
+        ),
+        ResearchSourceRecord(
+            id="source_c",
+            url="https://other.example/report",
+            canonical_url="https://other.example/report",
+            title="Software engineering",
+            description="Different topic",
+            text="Software engineering source.",
+            text_length=28,
+            fetched_at=now_iso(),
+        ),
+    ]
+
+    ranked = dedupe_and_rank_sources(sources, "quant research statistics modeling", 5)
+    report = ResearchReport(title="Research", key_facts=["Quant research uses statistics and modeling. [S1]"])
+    citations = map_citations(report, ranked)
+
+    assert [source.canonical_url for source in ranked] == ["https://example.com/a", "https://other.example/report"]
+    assert ranked[0].id == "S1"
+    assert citations[0].source_ids == ["S1"]
+    assert "statistics and modeling" in (citations[0].quote or "")
+
+
+def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://duckduckgo.com/html/": """
+            <html><body>
+              <div class="result">
+                <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.test%2Fresearch">Research source</a>
+                <a class="result__snippet">Useful source snippet.</a>
+              </div>
+            </body></html>
+            """,
+            "https://example.test/research": """
+            <html><head><title>Research source</title>
+            <meta name="author" content="Researcher">
+            <meta name="description" content="Important source description"></head>
+            <body><main><p>Research engines gather sources, extract claims, and cite evidence.</p>
+            <a href="/more">More</a></main></body></html>
+            """,
+            "https://example.test/robots.txt": "User-agent: *\nAllow: /\n",
+        },
+    )
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True, provider_priority=["openai"])
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/ai/research/runs",
+            json={"mode": "quick_search", "goal": "research engines cite evidence", "max_pages": 3},
+        )
+        second = client.post(
+            "/api/ai/research/runs",
+            json={"mode": "url_scrape", "goal": "cache check", "seed_urls": ["https://example.test/research"], "max_pages": 1},
+        )
+        listed = client.get("/api/ai/research/runs")
+        markdown = client.get(f"/api/ai/research/runs/{first.json()['run']['id']}/export?format=markdown")
+        ledger = client.get("/api/ai/action-ledger?limit=20")
+
+    first_run = first.json()["run"]
+    second_run = second.json()["run"]
+    assert first.status_code == 200
+    assert first_run["status"] == "succeeded"
+    assert first_run["sources"][0]["title"] == "Research source"
+    assert first_run["citations"][0]["source_ids"] == ["S1"]
+    assert second_run["cached_pages"] == 1
+    assert listed.json()["runs"][0]["id"] == second_run["id"]
+    assert "# Quick Search: research engines cite evidence" in markdown.text
+    assert any(action["action_type"].startswith("research.") for action in ledger.json()["actions"])
 
 
 def test_design_patch_endpoint_stores_unified_diff(tmp_path):

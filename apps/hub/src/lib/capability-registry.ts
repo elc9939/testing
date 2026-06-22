@@ -346,6 +346,18 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     )
   );
 
+  const research = findAiCapability(status, 'research.web_intelligence');
+  capabilities.push(
+    aiCapabilityEntry(
+      'ai.research',
+      'Research engine',
+      'Search, scrape, crawl, cite, and archive web intelligence reports through AI OS.',
+      research,
+      Boolean(status),
+      '/research'
+    )
+  );
+
   const image = findAiCapability(status, 'multimodal.image');
   const audio = findAiCapability(status, 'multimodal.audio');
   const video = findAiCapability(status, 'multimodal.video');

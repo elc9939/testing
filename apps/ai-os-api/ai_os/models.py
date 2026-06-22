@@ -130,6 +130,8 @@ class HardwareStatus(BaseModel):
 
 JobPrimitive = Literal["map", "self_consistency", "chunk_summarize", "retry_loop"]
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
+ResearchMode = Literal["quick_search", "deep_research", "url_scrape", "site_crawl", "compare_sources", "monitor_topic"]
+ResearchStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 
 
 class JobCreateRequest(BaseModel):
@@ -371,6 +373,89 @@ class ActionLedgerEntry(BaseModel):
     recoverability: ActionRecoverability = Field(default_factory=ActionRecoverability)
     raw_ref: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResearchRunRequest(BaseModel):
+    mode: ResearchMode = "quick_search"
+    goal: str = Field(min_length=1, max_length=50_000)
+    seed_urls: list[str] = Field(default_factory=list, max_length=50)
+    depth: int = Field(default=1, ge=1, le=5)
+    max_pages: int = Field(default=6, ge=1, le=50)
+    per_domain_limit: int = Field(default=4, ge=1, le=20)
+    time_budget_s: int = Field(default=90, ge=5, le=900)
+    date_range_start: str | None = Field(default=None, max_length=40)
+    date_range_end: str | None = Field(default=None, max_length=40)
+    include_domains: list[str] = Field(default_factory=list, max_length=50)
+    exclude_domains: list[str] = Field(default_factory=list, max_length=50)
+    use_ai: bool = False
+    use_cloud_ai: bool = False
+    local_first: bool = True
+    provider: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=160)
+    screenshot: bool = False
+    save_to_memory: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResearchSourceRecord(BaseModel):
+    id: str
+    url: str
+    canonical_url: str
+    title: str = ""
+    author: str | None = None
+    published_at: str | None = None
+    description: str = ""
+    text: str = ""
+    text_length: int = 0
+    links: list[dict[str, str]] = Field(default_factory=list)
+    tables: list[dict[str, Any]] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    score: float = 0.0
+    rank: int = 0
+    cached: bool = False
+    fetched_at: str
+
+
+class ResearchCitation(BaseModel):
+    id: str
+    claim: str
+    source_ids: list[str] = Field(default_factory=list)
+    quote: str | None = None
+
+
+class ResearchReport(BaseModel):
+    title: str
+    tldr: str = ""
+    detailed_summary: str = ""
+    key_facts: list[str] = Field(default_factory=list)
+    disagreements: list[str] = Field(default_factory=list)
+    source_table: list[dict[str, Any]] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    next_research_suggestions: list[str] = Field(default_factory=list)
+    reliability_notes: list[str] = Field(default_factory=list)
+    timeline: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ResearchRunRecord(BaseModel):
+    id: str
+    created_at: str
+    updated_at: str
+    mode: ResearchMode
+    goal: str
+    status: ResearchStatus
+    query_plan: dict[str, Any] = Field(default_factory=dict)
+    sources: list[ResearchSourceRecord] = Field(default_factory=list)
+    report: ResearchReport
+    citations: list[ResearchCitation] = Field(default_factory=list)
+    logs: list[dict[str, Any]] = Field(default_factory=list)
+    provider: str | None = None
+    model: str | None = None
+    total_tokens: int = 0
+    cost_usd: float = 0.0
+    runtime_ms: float = 0.0
+    cached_pages: int = 0
+    error: str | None = None
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class MachineProfileSnapshotRequest(BaseModel):

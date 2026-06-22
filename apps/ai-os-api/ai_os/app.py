@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
 from .agents.engine import AgentEngine, build_tool_registry
 from .action_ledger import build_ai_action_ledger
@@ -42,11 +42,13 @@ from .models import (
     MemoryIngestRequest,
     MemoryQueryRequest,
     MultimodalInvokeRequest,
+    ResearchRunRequest,
     new_id,
 )
 from .multimodal.registry import MultimodalRegistry
 from .providers.registry import ProviderRegistry, build_provider_registry
 from .recoverability import restore_file_action_snapshot
+from .research import ResearchEngine, export_research_html, export_research_markdown
 from .security import is_loopback_host
 from .storage import AppStorage
 from .telemetry import hardware_status
@@ -56,7 +58,11 @@ logger = logging.getLogger("ai_os")
 
 
 def _capability_adapters(services: "Services") -> dict[str, dict[str, bool]]:
-    return {**services.multimodal.capability_adapters(), **services.web.capability_adapters()}
+    return {
+        **services.multimodal.capability_adapters(),
+        **services.web.capability_adapters(),
+        "research.web_intelligence": {"research-engine": services.settings.web_access_enabled},
+    }
 
 
 def _image_file_command_payload(objective: str) -> dict[str, Any] | None:
@@ -125,6 +131,7 @@ class Services:
             web_access=self.web,
         )
         self.agents = AgentEngine(self.router, self.tools)
+        self.research = ResearchEngine(settings=settings, storage=storage, web=self.web, router=self.router)
         self.backups = BackupManager(settings, storage)
         self.maintenance = MaintenanceScheduler(settings, self.backups)
 
@@ -464,6 +471,53 @@ def create_app(
             limit=limit,
         )
         return {"actions": [entry.model_dump(mode="json") for entry in entries]}
+
+    @app.get("/api/ai/research/runs")
+    async def research_runs(limit: int = 25) -> dict[str, Any]:
+        return {"runs": [run.model_dump(mode="json") for run in services.storage.list_research_runs(limit)]}
+
+    @app.get("/api/ai/research/runs/{run_id}")
+    async def research_run(run_id: str) -> dict[str, Any]:
+        run = services.storage.get_research_run(run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Research run not found.")
+        return {"run": run.model_dump(mode="json")}
+
+    @app.get("/api/ai/research/runs/{run_id}/export")
+    async def research_export(run_id: str, format: str = "markdown"):
+        run = services.storage.get_research_run(run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Research run not found.")
+        normalized = format.lower().strip()
+        if normalized in {"json", "application/json"}:
+            return {"run": run.model_dump(mode="json")}
+        if normalized in {"html", "text/html"}:
+            return HTMLResponse(export_research_html(run))
+        if normalized not in {"markdown", "md", "text/markdown"}:
+            raise HTTPException(status_code=400, detail="Supported formats: markdown, html, json.")
+        return PlainTextResponse(export_research_markdown(run), media_type="text/markdown")
+
+    @app.post("/api/ai/research/runs")
+    async def create_research_run(request: ResearchRunRequest) -> dict[str, Any]:
+        try:
+            run = await services.research.run(request)
+            return {"run": run.model_dump(mode="json")}
+        except Exception as error:
+            logger.exception("Research run failed")
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post("/api/ai/research/runs/{run_id}/cancel")
+    async def cancel_research_run(run_id: str) -> dict[str, Any]:
+        try:
+            run = services.storage.get_research_run(run_id)
+            if not run:
+                raise KeyError(run_id)
+            if run.status in {"succeeded", "failed", "cancelled"}:
+                return {"run": run.model_dump(mode="json"), "message": "Run is already terminal."}
+            cancelled = services.storage.update_research_run_status(run_id, "cancelled")
+            return {"run": cancelled.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Research run not found.") from error
 
     @app.post("/api/ai/action-snapshots/{snapshot_id}/restore")
     async def restore_action_snapshot(snapshot_id: str, request: ActionSnapshotRestoreRequest) -> dict[str, Any]:

@@ -8,6 +8,7 @@ export const routeMap = {
   careerDesk: '/desk/career',
   studyDesk: '/desk/study',
   analytics: '/analytics',
+  research: '/research',
   aiLab: '/ai-lab',
   aiOs: '/ai-os',
   macroLab: '/macro-lab',
@@ -62,6 +63,13 @@ export const launcherEntries = [
     route: routeMap.analytics,
     group: 'insight',
     status: 'duckdb-plot'
+  },
+  {
+    id: 'research-desk',
+    name: 'Research Desk',
+    route: routeMap.research,
+    group: 'insight',
+    status: 'web-intelligence'
   },
   {
     id: 'ai-lab',

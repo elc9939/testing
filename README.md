@@ -50,6 +50,8 @@ The Svelte app under `apps/hub` provides these main pages:
 - Games: new game surfaces plus a link to the legacy arcade.
 - Stick Arena Lab: Pixi/Rapier-style game-engine slice and saved run metadata.
 - Analytics: local dashboard surface for career/study/game data.
+- Research Desk: AI OS-backed web intelligence workbench for quick search, deep research,
+  URL scrape, site crawl, source comparison, and topic-monitor shaped runs.
 - AI Lab: small browser-side local AI experiments such as classification and code parsing.
 - AI OS: capability dashboard for local AI, tools, memory, jobs, agents, media, health,
   backups, telemetry, Machine Profile/Autotune, and web/browser access.
@@ -143,6 +145,10 @@ Current capabilities include:
 - Image-to-Desktop tool exposed to the assistant.
 - Web tools: `web.search`, `web.scrape`, and `browser.extract` with private-network
   blocking by default.
+- Research Engine v1: query planning, DuckDuckGo HTML search adapter, polite page
+  fetching through the AI OS web tools, robots-aware crawl checks, source caching,
+  extraction, dedupe/ranking, citation mapping, archived reports, Markdown/JSON/HTML
+  export, and action-ledger entries.
 - Health, metrics, backup, restore-test, cleanup, dependency/model hygiene surfaces.
 - AMD/Windows GPU telemetry where the local machine exposes it.
 - Machine Profile + Autotune v1: persisted profile snapshots, safe local text probes,
@@ -166,6 +172,7 @@ More detail:
 - `docs/personal-ai-os-architecture.md`
 - `docs/personal-ai-os-setup.md`
 - `docs/personal-ai-os-infrastructure-audit.md`
+- `docs/research-engine.md`
 
 ### Assistant Popup
 

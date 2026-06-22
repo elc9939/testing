@@ -13,6 +13,7 @@
     Keyboard,
     Monitor,
     Moon,
+    Search,
     Settings,
     Sun
   } from 'lucide-svelte';
@@ -29,6 +30,7 @@
     { href: routeMap.careerDesk, label: 'Career', icon: BriefcaseBusiness },
     { href: routeMap.studyDesk, label: 'Study', icon: GraduationCap },
     { href: routeMap.analytics, label: 'Analytics', icon: BarChart3 },
+    { href: routeMap.research, label: 'Research', icon: Search },
     { href: routeMap.aiLab, label: 'AI Lab', icon: BrainCircuit },
     { href: routeMap.aiOs, label: 'AI OS', icon: Cpu },
     { href: routeMap.macroLab, label: 'Macros', icon: Keyboard },

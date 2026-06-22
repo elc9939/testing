@@ -12,13 +12,17 @@ from .models import (
     DesignPatchRecord,
     GenerationAssetRecord,
     MachineProfileSnapshotRecord,
+    ResearchCitation,
+    ResearchReport,
+    ResearchRunRecord,
+    ResearchSourceRecord,
     ToolCallLogEntry,
     UsageLogEntry,
     new_id,
     now_iso,
 )
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 
 
 class AppStorage:
@@ -54,6 +58,8 @@ class AppStorage:
                 self._apply_0003_machine_profile()
             if current < 4:
                 self._apply_0004_action_snapshots()
+            if current < 5:
+                self._apply_0005_research_engine()
 
     def _apply_0001_initial(self) -> None:
         self._conn.executescript(
@@ -242,6 +248,67 @@ class AppStorage:
             (4, "0004_action_snapshots", now_iso(), 0, "builtin:0004_action_snapshots"),
         )
 
+    def _apply_0005_research_engine(self) -> None:
+        self._conn.executescript(
+            """
+            create table if not exists research_pages (
+              id text primary key,
+              first_seen_at text not null,
+              last_seen_at text not null,
+              url text not null,
+              canonical_url text not null unique,
+              title text not null,
+              author text,
+              published_at text,
+              description text not null,
+              text text not null,
+              text_length integer not null,
+              text_hash text not null,
+              links text not null,
+              tables text not null,
+              metadata text not null,
+              fetch_count integer not null default 1
+            );
+            create index if not exists idx_research_pages_last_seen_at
+              on research_pages(last_seen_at);
+            create index if not exists idx_research_pages_text_hash
+              on research_pages(text_hash);
+
+            create table if not exists research_runs (
+              id text primary key,
+              created_at text not null,
+              updated_at text not null,
+              mode text not null,
+              goal text not null,
+              status text not null,
+              query_plan text not null,
+              sources text not null,
+              report text not null,
+              citations text not null,
+              logs text not null,
+              provider text,
+              model text,
+              total_tokens integer not null default 0,
+              cost_usd real not null default 0,
+              runtime_ms real not null default 0,
+              cached_pages integer not null default 0,
+              error text,
+              options text not null
+            );
+            create index if not exists idx_research_runs_created_at
+              on research_runs(created_at);
+            create index if not exists idx_research_runs_status
+              on research_runs(status);
+            """
+        )
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (5, "0005_research_engine", now_iso(), 0, "builtin:0005_research_engine"),
+        )
+
     def schema_version(self) -> int:
         with self._lock:
             row = self._conn.execute("select max(version) as version from schema_migrations").fetchone()
@@ -275,6 +342,8 @@ class AppStorage:
             "benchmark_runs",
             "machine_profile_snapshots",
             "action_snapshots",
+            "research_pages",
+            "research_runs",
             "schema_migrations",
         ]
         counts: dict[str, int] = {}
@@ -326,6 +395,15 @@ class AppStorage:
             ("machine_profile_snapshots", "profile"),
             ("machine_profile_snapshots", "autotune"),
             ("action_snapshots", "metadata"),
+            ("research_pages", "links"),
+            ("research_pages", "tables"),
+            ("research_pages", "metadata"),
+            ("research_runs", "query_plan"),
+            ("research_runs", "sources"),
+            ("research_runs", "report"),
+            ("research_runs", "citations"),
+            ("research_runs", "logs"),
+            ("research_runs", "options"),
         ]
         errors: list[dict[str, Any]] = []
         for table, column in checks:
@@ -977,6 +1055,166 @@ class AppStorage:
             )
             for row in rows
         ]
+
+    def get_research_page(self, canonical_url: str) -> ResearchSourceRecord | None:
+        with self._lock:
+            row = self._conn.execute("select * from research_pages where canonical_url = ?", (canonical_url,)).fetchone()
+        return self._research_page_from_row(row, cached=True) if row else None
+
+    def upsert_research_page(self, source: ResearchSourceRecord, *, text_hash: str) -> ResearchSourceRecord:
+        existing = self.get_research_page(source.canonical_url)
+        now = now_iso()
+        record = source.model_copy(update={"fetched_at": source.fetched_at or now, "cached": False})
+        with self._lock, self._conn:
+            if existing:
+                self._conn.execute(
+                    """
+                    update research_pages
+                    set last_seen_at = ?, url = ?, title = ?, author = ?, published_at = ?,
+                        description = ?, text = ?, text_length = ?, text_hash = ?, links = ?,
+                        tables = ?, metadata = ?, fetch_count = fetch_count + 1
+                    where canonical_url = ?
+                    """,
+                    (
+                        now,
+                        record.url,
+                        record.title,
+                        record.author,
+                        record.published_at,
+                        record.description,
+                        record.text,
+                        record.text_length,
+                        text_hash,
+                        json.dumps(record.links),
+                        json.dumps(record.tables),
+                        json.dumps(record.metadata),
+                        record.canonical_url,
+                    ),
+                )
+            else:
+                self._conn.execute(
+                    """
+                    insert into research_pages (
+                      id, first_seen_at, last_seen_at, url, canonical_url, title, author,
+                      published_at, description, text, text_length, text_hash, links, tables,
+                      metadata, fetch_count
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record.id,
+                        now,
+                        now,
+                        record.url,
+                        record.canonical_url,
+                        record.title,
+                        record.author,
+                        record.published_at,
+                        record.description,
+                        record.text,
+                        record.text_length,
+                        text_hash,
+                        json.dumps(record.links),
+                        json.dumps(record.tables),
+                        json.dumps(record.metadata),
+                        1,
+                    ),
+                )
+        return self.get_research_page(record.canonical_url) or record
+
+    def _research_page_from_row(self, row: sqlite3.Row, *, cached: bool) -> ResearchSourceRecord:
+        return ResearchSourceRecord(
+            id=row["id"],
+            url=row["url"],
+            canonical_url=row["canonical_url"],
+            title=row["title"],
+            author=row["author"],
+            published_at=row["published_at"],
+            description=row["description"],
+            text=row["text"],
+            text_length=int(row["text_length"]),
+            links=json.loads(row["links"]),
+            tables=json.loads(row["tables"]),
+            metadata=json.loads(row["metadata"]),
+            cached=cached,
+            fetched_at=row["last_seen_at"],
+        )
+
+    def log_research_run(self, record: ResearchRunRecord) -> ResearchRunRecord:
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert or replace into research_runs (
+                  id, created_at, updated_at, mode, goal, status, query_plan, sources,
+                  report, citations, logs, provider, model, total_tokens, cost_usd,
+                  runtime_ms, cached_pages, error, options
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.created_at,
+                    record.updated_at,
+                    record.mode,
+                    record.goal,
+                    record.status,
+                    json.dumps(record.query_plan),
+                    json.dumps([source.model_dump(mode="json") for source in record.sources]),
+                    json.dumps(record.report.model_dump(mode="json")),
+                    json.dumps([citation.model_dump(mode="json") for citation in record.citations]),
+                    json.dumps(record.logs),
+                    record.provider,
+                    record.model,
+                    record.total_tokens,
+                    record.cost_usd,
+                    record.runtime_ms,
+                    record.cached_pages,
+                    record.error,
+                    json.dumps(record.options),
+                ),
+            )
+        return record
+
+    def list_research_runs(self, limit: int = 25) -> list[ResearchRunRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from research_runs order by created_at desc limit ?",
+                (max(1, min(limit, 200)),),
+            ).fetchall()
+        return [self._research_run_from_row(row) for row in rows]
+
+    def get_research_run(self, run_id: str) -> ResearchRunRecord | None:
+        with self._lock:
+            row = self._conn.execute("select * from research_runs where id = ?", (run_id,)).fetchone()
+        return self._research_run_from_row(row) if row else None
+
+    def update_research_run_status(self, run_id: str, status: str, error: str | None = None) -> ResearchRunRecord:
+        existing = self.get_research_run(run_id)
+        if not existing:
+            raise KeyError(run_id)
+        updated = existing.model_copy(update={"status": status, "updated_at": now_iso(), "error": error or existing.error})
+        return self.log_research_run(updated)
+
+    def _research_run_from_row(self, row: sqlite3.Row) -> ResearchRunRecord:
+        return ResearchRunRecord(
+            id=row["id"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            mode=row["mode"],
+            goal=row["goal"],
+            status=row["status"],
+            query_plan=json.loads(row["query_plan"]),
+            sources=[ResearchSourceRecord.model_validate(source) for source in json.loads(row["sources"])],
+            report=ResearchReport.model_validate(json.loads(row["report"])),
+            citations=[ResearchCitation.model_validate(citation) for citation in json.loads(row["citations"])],
+            logs=json.loads(row["logs"]),
+            provider=row["provider"],
+            model=row["model"],
+            total_tokens=int(row["total_tokens"]),
+            cost_usd=float(row["cost_usd"]),
+            runtime_ms=float(row["runtime_ms"]),
+            cached_pages=int(row["cached_pages"]),
+            error=row["error"],
+            options=json.loads(row["options"]),
+        )
 
     def usage_metrics(self) -> dict[str, Any]:
         with self._lock:
