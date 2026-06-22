@@ -149,7 +149,7 @@ export function actionLedgerDetail(action: ActionLedgerEntry): string {
 }
 
 function normalizeStatus(status: string): ActionLedgerStatus {
-  if (['succeeded', 'failed', 'running', 'queued', 'cancelled', 'dry_run', 'blocked', 'info'].includes(status)) {
+  if (['succeeded', 'failed', 'running', 'queued', 'paused', 'cancelled', 'dry_run', 'blocked', 'info'].includes(status)) {
     return status as ActionLedgerStatus;
   }
   if (status === 'success' || status === 'ok') return 'succeeded';

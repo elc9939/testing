@@ -1095,6 +1095,97 @@ def test_research_cancel_marks_running_run_and_ledger_metadata(tmp_path):
     assert research_action["metadata"]["cancel_requested"] is True
 
 
+def test_research_pause_marks_running_run_and_ledger_metadata(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False)
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+    storage.log_research_run(
+        ResearchRunRecord(
+            id="research_pause_test",
+            created_at=now_iso(),
+            updated_at=now_iso(),
+            mode="deep_research",
+            goal="pause this research run",
+            status="running",
+            report=ResearchReport(title="Deep Research: pause this research run", tldr="Running"),
+            logs=[],
+            progress=0.55,
+            total_steps=10,
+            completed_steps=5,
+            current_step="Fetching sources",
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/research/runs/research_pause_test/pause")
+        ledger = client.get("/api/ai/action-ledger?limit=20")
+
+    body = response.json()["run"]
+    assert response.status_code == 200
+    assert body["status"] == "paused"
+    assert body["cancel_requested"] is False
+    assert body["current_step"] == "Paused"
+    research_action = next(action for action in ledger.json()["actions"] if action["id"] == "ai-research:research_pause_test")
+    assert research_action["status"] == "paused"
+    assert research_action["metadata"]["progress"] == 0.55
+    assert research_action["metadata"]["cancel_requested"] is False
+
+
+def test_research_resume_requeues_paused_run_with_saved_request(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://example.test/robots.txt": "User-agent: *\nAllow: /\n",
+            "https://example.test/resume": """
+            <html><head><title>Resumed Research</title><meta name="description" content="Resume source"></head>
+            <body><main><p>Resumed research should reuse the same archived run and fetch sources.</p></main></body></html>
+            """,
+        },
+    )
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True)
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+    request = ResearchRunRequest(
+        mode="url_scrape",
+        goal="resume saved research",
+        seed_urls=["https://example.test/resume"],
+        max_pages=1,
+        use_ai=False,
+    )
+    storage.log_research_run(
+        ResearchRunRecord(
+            id="research_resume_test",
+            created_at=now_iso(),
+            updated_at=now_iso(),
+            mode=request.mode,
+            goal=request.goal,
+            status="paused",
+            query_plan=plan_research(request).as_dict(),
+            report=ResearchReport(title="URL Scrape: resume saved research", tldr="Paused"),
+            logs=[],
+            progress=0.25,
+            total_steps=5,
+            completed_steps=1,
+            current_step="Paused",
+            options=request.model_dump(mode="json"),
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/research/runs/research_resume_test/resume")
+        run = client.get("/api/ai/research/runs/research_resume_test")
+
+    body = run.json()["run"]
+    assert response.status_code == 200
+    assert response.json()["run"]["id"] == "research_resume_test"
+    assert body["id"] == "research_resume_test"
+    assert body["status"] == "succeeded"
+    assert body["sources"][0]["title"] == "Resumed Research"
+    assert any(log.get("message") == "Resume requested by user." for log in body["logs"])
+
+
 def test_design_patch_endpoint_stores_unified_diff(tmp_path):
     settings = Settings(data_dir=tmp_path, backup_enabled=False, provider_priority=["openai"])
     storage = AppStorage(settings.database_path())

@@ -233,6 +233,7 @@ export const actionLedgerStatusSchema = z.enum([
   'failed',
   'running',
   'queued',
+  'paused',
   'cancelled',
   'dry_run',
   'blocked',

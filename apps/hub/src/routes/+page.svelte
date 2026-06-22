@@ -1521,7 +1521,8 @@
   }
 
   .activity-state.running,
-  .activity-state.queued {
+  .activity-state.queued,
+  .activity-state.paused {
     border-color: var(--warning-border);
     color: var(--warning-text);
     background: var(--warning-bg);

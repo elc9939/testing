@@ -430,6 +430,10 @@ class ResearchCancelled(RuntimeError):
     pass
 
 
+class ResearchPaused(RuntimeError):
+    pass
+
+
 class ResearchEngine:
     def __init__(
         self,
@@ -485,6 +489,8 @@ class ResearchEngine:
         existing = self.storage.get_research_run(run_id)
         if existing and existing.status == "cancelled":
             return existing
+        if existing and existing.status == "paused":
+            return existing
         created_at = existing.created_at if existing else now_iso()
         logs: list[dict[str, Any]] = list(existing.logs if existing else [])
         plan = ResearchPlan.from_dict(existing.query_plan) if existing and existing.query_plan else plan_research(request)
@@ -494,7 +500,7 @@ class ResearchEngine:
         total_tokens = 0
         cost_usd = 0.0
         try:
-            self._raise_if_cancelled(run_id)
+            self._raise_if_stopped(run_id)
             logs.append({"at": now_iso(), "level": "info", "message": "Research run started.", "plan": plan.as_dict()})
             self._persist_progress(
                 run_id,
@@ -509,7 +515,7 @@ class ResearchEngine:
                 started=started,
             )
             search_results = await self._search(plan, request, logs)
-            self._raise_if_cancelled(run_id)
+            self._raise_if_stopped(run_id)
             self._persist_progress(
                 run_id,
                 request,
@@ -523,7 +529,7 @@ class ResearchEngine:
                 started=started,
             )
             sources = await self._crawl(plan, request, search_results, logs, started, run_id=run_id, created_at=created_at)
-            self._raise_if_cancelled(run_id)
+            self._raise_if_stopped(run_id)
             self._persist_progress(
                 run_id,
                 request,
@@ -628,6 +634,39 @@ class ResearchEngine:
                 options=options,
             )
             return self.storage.log_research_run(record)
+        except ResearchPaused:
+            existing = self.storage.get_research_run(run_id)
+            if existing and existing.status == "paused":
+                return self.storage.log_research_run(
+                    existing.model_copy(
+                        update={
+                            "runtime_ms": round((time.perf_counter() - started) * 1000, 2),
+                            "updated_at": now_iso(),
+                        }
+                    )
+                )
+            record = ResearchRunRecord(
+                id=run_id,
+                created_at=created_at,
+                updated_at=now_iso(),
+                mode=request.mode,
+                goal=request.goal,
+                status="paused",
+                query_plan=plan.as_dict(),
+                sources=existing.sources if existing else [],
+                report=(existing.report if existing else ResearchReport(title=f"{_mode_label(request.mode)}: {plan.goal}", tldr="Research run was paused.")),
+                citations=existing.citations if existing else [],
+                logs=[*logs, {"at": now_iso(), "level": "info", "message": "Research run paused."}],
+                progress=existing.progress if existing else 0.0,
+                total_steps=self._estimated_steps(request),
+                completed_steps=existing.completed_steps if existing else 0,
+                current_step="Paused",
+                provider=provider,
+                model=model,
+                runtime_ms=round((time.perf_counter() - started) * 1000, 2),
+                options=options,
+            )
+            return self.storage.log_research_run(record)
         except Exception as error:
             record = ResearchRunRecord(
                 id=run_id,
@@ -660,6 +699,14 @@ class ResearchEngine:
         if self.storage.research_run_cancel_requested(run_id):
             raise ResearchCancelled("Research run cancelled.")
 
+    def _raise_if_paused(self, run_id: str) -> None:
+        if self.storage.research_run_pause_requested(run_id):
+            raise ResearchPaused("Research run paused.")
+
+    def _raise_if_stopped(self, run_id: str) -> None:
+        self._raise_if_cancelled(run_id)
+        self._raise_if_paused(run_id)
+
     def _persist_progress(
         self,
         run_id: str,
@@ -680,6 +727,8 @@ class ResearchEngine:
         existing = self.storage.get_research_run(run_id)
         if existing and existing.status == "cancelled":
             raise ResearchCancelled("Research run cancelled.")
+        if existing and existing.status == "paused":
+            raise ResearchPaused("Research run paused.")
         record = ResearchRunRecord(
             id=run_id,
             created_at=created_at,
@@ -859,7 +908,7 @@ class ResearchEngine:
         domain_counts: dict[str, int] = {}
         sources: list[ResearchSourceRecord] = []
         while queue and len(sources) < request.max_pages:
-            self._raise_if_cancelled(run_id)
+            self._raise_if_stopped(run_id)
             if time.perf_counter() - started > request.time_budget_s:
                 logs.append({"at": now_iso(), "level": "warning", "message": "Time budget reached.", "source_count": len(sources)})
                 break
@@ -913,7 +962,7 @@ class ResearchEngine:
     ) -> list[str]:
         document_candidates: list[str] = []
         for seed in seeds[:5]:
-            self._raise_if_cancelled(run_id)
+            self._raise_if_stopped(run_id)
             if time.perf_counter() - started > request.time_budget_s:
                 break
             seed = normalize_url(seed)
@@ -938,7 +987,7 @@ class ResearchEngine:
         discovered: list[str] = []
         seen_documents: set[str] = set()
         for document_url in dict.fromkeys(document_candidates):
-            self._raise_if_cancelled(run_id)
+            self._raise_if_stopped(run_id)
             if len(discovered) >= structured_discovery_limit or time.perf_counter() - started > request.time_budget_s:
                 break
             document_url = normalize_url(document_url)
@@ -986,7 +1035,7 @@ class ResearchEngine:
         *,
         run_id: str,
     ) -> list[str]:
-        self._raise_if_cancelled(run_id)
+        self._raise_if_stopped(run_id)
         if not domain_allowed(sitemap_url, include_domains=request.include_domains, exclude_domains=request.exclude_domains):
             return []
         allowed, robots_note = await self.robots.allowed(sitemap_url)

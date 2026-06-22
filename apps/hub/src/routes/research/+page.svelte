@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Bell, Database, Download, ExternalLink, FileText, Play, RefreshCw, Search, Trash2, X } from 'lucide-svelte';
+  import { Bell, Database, Download, ExternalLink, FileText, Pause, Play, RefreshCw, Search, Trash2, X } from 'lucide-svelte';
   import {
     cancelResearchRun,
     createResearchMonitor,
@@ -10,7 +10,9 @@
     listResearchMonitors,
     listResearchRuns,
     listResearchSources,
+    pauseResearchRun,
     researchExportUrl,
+    resumeResearchRun,
     runDueResearchMonitors,
     runResearchMonitor,
     updateResearchMonitor,
@@ -326,6 +328,42 @@
     await cancelRun(selectedRun);
   }
 
+  async function pauseRun(run: ResearchRun): Promise<void> {
+    error = '';
+    message = '';
+    try {
+      const paused = await pauseResearchRun(run.id);
+      runs = [paused, ...runs.filter((item) => item.id !== paused.id)].slice(0, 20);
+      if (selectedRun?.id === paused.id) selectedRun = paused;
+      message = 'Research run paused.';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Could not pause research run.';
+    }
+  }
+
+  async function resumeRun(run: ResearchRun): Promise<void> {
+    error = '';
+    message = '';
+    try {
+      const resumed = await resumeResearchRun(run.id);
+      runs = [resumed, ...runs.filter((item) => item.id !== resumed.id)].slice(0, 20);
+      if (selectedRun?.id === resumed.id) selectedRun = resumed;
+      message = 'Research run resumed.';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Could not resume research run.';
+    }
+  }
+
+  async function pauseSelectedRun(): Promise<void> {
+    if (!selectedRun) return;
+    await pauseRun(selectedRun);
+  }
+
+  async function resumeSelectedRun(): Promise<void> {
+    if (!selectedRun) return;
+    await resumeRun(selectedRun);
+  }
+
   function splitList(value: string): string[] {
     return value
       .split(/[\n,]/u)
@@ -349,6 +387,10 @@
 
   function isLiveRun(run: ResearchRun): boolean {
     return run.status === 'queued' || run.status === 'running';
+  }
+
+  function isPausedRun(run: ResearchRun): boolean {
+    return run.status === 'paused';
   }
 
   function progressPercent(run: ResearchRun): number {
@@ -620,6 +662,11 @@
                   <span style={`width: ${progressPercent(run)}%`}></span>
                 </span>
                 <small>{run.current_step || 'Working'}</small>
+              {:else if isPausedRun(run)}
+                <span class="progress-track paused" aria-label={`Research paused at ${progressPercent(run)}%`}>
+                  <span style={`width: ${progressPercent(run)}%`}></span>
+                </span>
+                <small>{run.current_step || 'Paused'}</small>
               {/if}
             </button>
           {/each}
@@ -799,6 +846,13 @@
               </span>
               <small>{selectedRun.current_step || 'Working'} ({progressPercent(selectedRun)}%)</small>
             </div>
+          {:else if isPausedRun(selectedRun)}
+            <div class="report-progress">
+              <span class="progress-track paused" aria-label={`Research paused at ${progressPercent(selectedRun)}%`}>
+                <span style={`width: ${progressPercent(selectedRun)}%`}></span>
+              </span>
+              <small>{selectedRun.current_step || 'Paused'} ({progressPercent(selectedRun)}%)</small>
+            </div>
           {:else if selectedRun.memory_chunks}
             <p class="memory-note">
               Indexed into semantic memory as {selectedRun.memory_chunks} chunk{selectedRun.memory_chunks === 1 ? '' : 's'}.
@@ -807,6 +861,16 @@
         </div>
         <div class="export-actions">
           {#if isLiveRun(selectedRun)}
+            <button type="button" on:click={pauseSelectedRun}>
+              <Pause size={15} /> Pause
+            </button>
+            <button type="button" on:click={cancelSelectedRun}>
+              <X size={15} /> Cancel
+            </button>
+          {:else if isPausedRun(selectedRun)}
+            <button type="button" on:click={resumeSelectedRun}>
+              <Play size={15} /> Resume
+            </button>
             <button type="button" on:click={cancelSelectedRun}>
               <X size={15} /> Cancel
             </button>
@@ -1555,6 +1619,10 @@
     background: var(--accent);
   }
 
+  .progress-track.paused span {
+    background: var(--warning-text);
+  }
+
   .report-progress {
     display: grid;
     gap: 5px;
@@ -1597,6 +1665,11 @@
   .status.succeeded {
     border-color: var(--success-border);
     color: var(--success-text);
+  }
+
+  .status.paused {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
   }
 
   .status.failed {

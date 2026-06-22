@@ -29,8 +29,8 @@ Pipeline v1:
 7. `map_citations()` links key claims to source IDs and quotes where possible.
 8. `AppStorage` persists `research_pages` and `research_runs`, so reports can be reopened and
    exported later. Research runs are created as durable queued records before work starts and
-   update with progress, current step, partial sources, cancellation state, and final report
-   data.
+   update with progress, current step, partial sources, pause/resume/cancel state, and
+   final report data.
 9. `research_monitors` stores reusable topic-watch templates. A monitor records the saved
    request knobs, enabled state, manual/daily/weekly cadence hint, run count, last run ID,
    last status, and last error. "Run Now" creates a normal archived research run with monitor
@@ -61,6 +61,8 @@ Pipeline v1:
 - `POST /api/ai/research/monitors/:id/run`
 - `GET /api/ai/research/runs/:id`
 - `GET /api/ai/research/runs/:id/export?format=markdown|json|html`
+- `POST /api/ai/research/runs/:id/pause`
+- `POST /api/ai/research/runs/:id/resume`
 - `POST /api/ai/research/runs/:id/cancel`
 
 `POST /api/ai/research/runs` returns the initial queued run immediately. AI OS then executes
@@ -75,8 +77,12 @@ while `status` is `queued` or `running`. Persisted run records include:
 - `memory_document_id`
 - `memory_chunks`
 
-Cancellation v1 marks the stored run cancelled and sets `cancel_requested`; the crawler checks
-that flag between page fetches and major pipeline stages.
+Pause marks the stored run `paused` at the next safe checkpoint and preserves the archived
+run record, partial sources, logs, and progress. Resume uses the saved request options and
+the same run ID, restarting the pipeline from the beginning while reusing cached pages where
+available; it is a durable resume, not an exact in-memory stack checkpoint. Cancellation
+marks the stored run cancelled and sets `cancel_requested`; the crawler checks stop state
+between page fetches, progress writes, structured discovery, and major pipeline stages.
 
 The Research Desk exposes "Index into semantic memory" under advanced knobs. When enabled,
 semantic memory search can later retrieve the report and source excerpts through the existing
@@ -97,6 +103,7 @@ shows:
 - raw extracted source cards with canonical URL, author/date/fetch metadata, text preview,
   links, tables, optional screenshot thumbnails, and metadata
 - Markdown, JSON, and HTML export links
+- Pause, Resume, and Cancel controls for long-running reports
 
 The same route also includes a Source Library panel backed by the local `research_pages`
 archive. It can search archived source cards by text, filter by domain, show preview text and
@@ -140,9 +147,10 @@ sitemap discovery for seeded deep/site/monitor runs.
 
 ## Current Limits
 
-- Runs now have persisted progress and cancel state, but they still execute in-process as
+- Runs now have persisted progress plus pause/resume/cancel state, but they still execute in-process as
   FastAPI background tasks. A dedicated queue/worker can come later if research workloads
-  need process isolation, concurrency caps across restarts, pause/resume, or scheduling.
+  need process isolation, concurrency caps across restarts, exact checkpoint resume, or
+  scheduling.
 - Monitor Topic now has durable saved monitors, on-demand runs, a due-monitor sweep endpoint,
   and an off-by-default AI OS background unit. There is not yet an always-on wall-clock
   scheduler that wakes the sweep without you or the local supervisor invoking it.

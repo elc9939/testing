@@ -158,8 +158,9 @@ Current capabilities include:
 - Research Engine v1: query planning, DuckDuckGo HTML search adapter, polite page
   fetching through the AI OS web tools, robots-aware crawl checks, source caching,
   RSS/Atom/sitemap discovery for seeded site/monitor runs, extraction, dedupe/ranking,
-  citation mapping, archived reports, Markdown/JSON/HTML export, live progress/cancel state,
-  opt-in semantic memory indexing, and action-ledger entries. The Research Desk can reopen
+  citation mapping, archived reports, Markdown/JSON/HTML export, live
+  progress/pause/resume/cancel state, opt-in semantic memory indexing, and action-ledger
+  entries. The Research Desk can reopen
   report artifacts with citations, reliability notes, contradictions, timeline, query plan,
   run logs, raw extracted source cards, and a searchable local Source Library for reusing
   archived pages as follow-up seeds. Screenshot runs use browser extraction and show captured

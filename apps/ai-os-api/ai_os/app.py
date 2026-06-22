@@ -691,6 +691,39 @@ def create_app(
         except KeyError as error:
             raise HTTPException(status_code=404, detail="Research run not found.") from error
 
+    @app.post("/api/ai/research/runs/{run_id}/pause")
+    async def pause_research_run(run_id: str) -> dict[str, Any]:
+        try:
+            run = services.storage.get_research_run(run_id)
+            if not run:
+                raise KeyError(run_id)
+            if run.status in {"succeeded", "failed", "cancelled"}:
+                return {"run": run.model_dump(mode="json"), "message": "Run is already terminal."}
+            paused = services.storage.request_research_run_pause(run_id)
+            return {"run": paused.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Research run not found.") from error
+
+    @app.post("/api/ai/research/runs/{run_id}/resume")
+    async def resume_research_run(run_id: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
+        try:
+            run = services.storage.get_research_run(run_id)
+            if not run:
+                raise KeyError(run_id)
+            if run.status != "paused":
+                return {"run": run.model_dump(mode="json"), "message": "Run is not paused."}
+            resumed = services.storage.request_research_run_resume(run_id)
+            try:
+                run_request = ResearchRunRequest.model_validate(resumed.options)
+            except Exception as error:
+                raise HTTPException(status_code=409, detail=f"Paused run does not have a restorable request: {error}") from error
+            metadata = run_request.metadata if isinstance(run_request.metadata, dict) else {}
+            monitor_id = metadata.get("research_monitor_id") if isinstance(metadata.get("research_monitor_id"), str) else None
+            background_tasks.add_task(execute_research_run, resumed.id, run_request, monitor_id)
+            return {"run": resumed.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Research run not found.") from error
+
     @app.post("/api/ai/action-snapshots/{snapshot_id}/restore")
     async def restore_action_snapshot(snapshot_id: str, request: ActionSnapshotRestoreRequest) -> dict[str, Any]:
         started = time.perf_counter()

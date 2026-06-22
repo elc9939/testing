@@ -1211,7 +1211,8 @@
   }
 
   .ledger-status.running,
-  .ledger-status.queued {
+  .ledger-status.queued,
+  .ledger-status.paused {
     border-color: var(--warning-border);
     color: var(--warning-text);
     background: var(--warning-bg);

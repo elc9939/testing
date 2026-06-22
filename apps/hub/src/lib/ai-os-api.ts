@@ -238,7 +238,7 @@ export interface AiActionLedgerEntry {
   source: string;
   action_type: string;
   summary: string;
-  status: 'succeeded' | 'failed' | 'running' | 'queued' | 'cancelled' | 'dry_run' | 'blocked' | 'info';
+  status: 'succeeded' | 'failed' | 'running' | 'queued' | 'paused' | 'cancelled' | 'dry_run' | 'blocked' | 'info';
   risk: 'read' | 'write' | 'system' | 'destructive';
   mode?: string;
   changed: string[];
@@ -379,7 +379,7 @@ export interface ResearchRun {
   updated_at: string;
   mode: ResearchMode;
   goal: string;
-  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  status: 'queued' | 'running' | 'paused' | 'succeeded' | 'failed' | 'cancelled';
   query_plan: Record<string, unknown>;
   sources: ResearchSource[];
   report: ResearchReport;
@@ -767,6 +767,22 @@ export async function runDueResearchMonitors(input: { limit?: number; dry_run?: 
 export async function cancelResearchRun(runId: string): Promise<ResearchRun> {
   const result = await requestJson<{ run: ResearchRun }>(
     `/api/ai/research/runs/${encodeURIComponent(runId)}/cancel`,
+    { method: 'POST' }
+  );
+  return result.run;
+}
+
+export async function pauseResearchRun(runId: string): Promise<ResearchRun> {
+  const result = await requestJson<{ run: ResearchRun }>(
+    `/api/ai/research/runs/${encodeURIComponent(runId)}/pause`,
+    { method: 'POST' }
+  );
+  return result.run;
+}
+
+export async function resumeResearchRun(runId: string): Promise<ResearchRun> {
+  const result = await requestJson<{ run: ResearchRun }>(
+    `/api/ai/research/runs/${encodeURIComponent(runId)}/resume`,
     { method: 'POST' }
   );
   return result.run;

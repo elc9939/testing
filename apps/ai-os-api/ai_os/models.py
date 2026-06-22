@@ -131,7 +131,7 @@ class HardwareStatus(BaseModel):
 JobPrimitive = Literal["map", "self_consistency", "chunk_summarize", "retry_loop"]
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 ResearchMode = Literal["quick_search", "deep_research", "url_scrape", "site_crawl", "compare_sources", "monitor_topic"]
-ResearchStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
+ResearchStatus = Literal["queued", "running", "paused", "succeeded", "failed", "cancelled"]
 ResearchMonitorSchedule = Literal["manual", "daily", "weekly"]
 
 
@@ -367,7 +367,7 @@ class ActionLedgerEntry(BaseModel):
     source: str
     action_type: str
     summary: str
-    status: Literal["succeeded", "failed", "running", "queued", "cancelled", "dry_run", "blocked", "info"]
+    status: Literal["succeeded", "failed", "running", "queued", "paused", "cancelled", "dry_run", "blocked", "info"]
     risk: Literal["read", "write", "system", "destructive"]
     mode: str | None = None
     changed: list[str] = Field(default_factory=list)

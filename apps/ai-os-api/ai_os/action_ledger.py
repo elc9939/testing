@@ -359,7 +359,7 @@ def _job_entry(job: JobSnapshot) -> ActionLedgerEntry:
 
 
 def _research_entry(run: ResearchRunRecord) -> ActionLedgerEntry:
-    status = run.status if run.status in {"queued", "running", "succeeded", "failed", "cancelled"} else "info"
+    status = run.status if run.status in {"queued", "running", "paused", "succeeded", "failed", "cancelled"} else "info"
     provider = "/".join(part for part in [run.provider, run.model] if part)
     research_metadata = run.options.get("metadata") if isinstance(run.options.get("metadata"), dict) else {}
     return ActionLedgerEntry(

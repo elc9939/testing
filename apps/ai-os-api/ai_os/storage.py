@@ -1563,6 +1563,49 @@ class AppStorage:
         updated = existing.model_copy(update={"status": status, "updated_at": now_iso(), "error": error or existing.error})
         return self.log_research_run(updated)
 
+    def request_research_run_pause(self, run_id: str) -> ResearchRunRecord:
+        existing = self.get_research_run(run_id)
+        if not existing:
+            raise KeyError(run_id)
+        if existing.status in {"succeeded", "failed", "cancelled", "paused"}:
+            return existing
+        now = now_iso()
+        logs = [
+            *existing.logs,
+            {"at": now, "level": "info", "message": "Pause requested by user."},
+        ]
+        updated = existing.model_copy(
+            update={
+                "status": "paused",
+                "updated_at": now,
+                "current_step": "Paused",
+                "logs": logs,
+            }
+        )
+        return self.log_research_run(updated)
+
+    def request_research_run_resume(self, run_id: str) -> ResearchRunRecord:
+        existing = self.get_research_run(run_id)
+        if not existing:
+            raise KeyError(run_id)
+        if existing.status != "paused":
+            return existing
+        now = now_iso()
+        logs = [
+            *existing.logs,
+            {"at": now, "level": "info", "message": "Resume requested by user."},
+        ]
+        updated = existing.model_copy(
+            update={
+                "status": "queued",
+                "updated_at": now,
+                "cancel_requested": False,
+                "current_step": "Queued for resume",
+                "logs": logs,
+            }
+        )
+        return self.log_research_run(updated)
+
     def request_research_run_cancel(self, run_id: str) -> ResearchRunRecord:
         existing = self.get_research_run(run_id)
         if not existing:
@@ -1587,6 +1630,10 @@ class AppStorage:
     def research_run_cancel_requested(self, run_id: str) -> bool:
         existing = self.get_research_run(run_id)
         return bool(existing and (existing.cancel_requested or existing.status == "cancelled"))
+
+    def research_run_pause_requested(self, run_id: str) -> bool:
+        existing = self.get_research_run(run_id)
+        return bool(existing and existing.status == "paused")
 
     def _research_run_from_row(self, row: sqlite3.Row) -> ResearchRunRecord:
         return ResearchRunRecord(
