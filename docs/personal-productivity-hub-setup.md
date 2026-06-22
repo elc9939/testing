@@ -90,9 +90,15 @@ Calendar and Gmail are implemented now. Drive, Docs, and Sheets scopes are inclu
 1. Open `http://127.0.0.1:5173/productivity`.
 2. Select `Connect Google`.
 3. Complete Google OAuth.
-4. Use the Productivity Hub to list events, create events, edit events, delete events, move events between calendars, set reminders, and pass recurrence rules such as `RRULE:FREQ=WEEKLY;COUNT=6`.
+4. To connect a second account, return to Productivity Hub and select `Add Google Account`.
+   Google's account picker is forced during OAuth, so choose the other identity, such as a
+   school account, and approve the same grant.
+5. Use the Productivity Hub to list events, create events, edit events, delete events, move events between calendars, set reminders, and pass recurrence rules such as `RRULE:FREQ=WEEKLY;COUNT=6`.
 
 The app sends all Google Calendar calls through `apps/api`; the browser never stores the Google refresh token.
+Calendar and Gmail resource ids are scoped to the account that produced them, so the UI can
+show personal and school calendars/mail together while still sending edits back to the
+correct Google account.
 
 ## Using Gmail
 
@@ -100,7 +106,9 @@ After the same Google OAuth connection is complete, open `http://127.0.0.1:5173/
 
 The Gmail panel supports:
 
-- search with Gmail query syntax, for example `in:inbox newer_than:30d`
+- search with Gmail query syntax. The default query is action-heavy and excludes common
+  promotional/newsletter noise; use the search control to broaden it back to something like
+  `in:inbox newer_than:30d` when you want a raw inbox sweep.
 - optional label filtering
 - opening threads and reading normalized full message bodies
 - composing and saving a draft
@@ -108,6 +116,7 @@ The Gmail panel supports:
 - replying to an existing thread after confirmation
 - archiving a thread
 - marking a thread read or unread
+- marking or unmarking a thread as important
 - applying a selected label to a thread
 
 The API builds RFC 2822-style plain-text MIME messages and sends them through Gmail's `raw` base64url message field. Send actions are confirmed in the UI because they have external side effects.

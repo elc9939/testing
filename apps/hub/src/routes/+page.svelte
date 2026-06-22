@@ -11,7 +11,8 @@
     MailCheck,
     RefreshCw,
     Settings,
-    Star
+    Star,
+    StarOff
   } from 'lucide-svelte';
   import { launcherEntries, type ActionLedgerEntry, type ActionLedgerRisk, type CalendarEvent, type JobRecord } from '@mini-hub/core';
   import { statusLabel } from '@mini-hub/ui';
@@ -102,11 +103,11 @@
     syncStatus: $clientData.status,
     syncError: $clientData.error,
     events: agendaEvents,
-    importantMail,
-    jobs: $clientData.jobs,
-    careerActions: $clientData.careerActions,
-    studySessions: $clientData.studySessions
-  }).slice(0, 6);
+    importantMail: [],
+    jobs: [],
+    careerActions: [],
+    studySessions: []
+  }).slice(0, 4);
   $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 4);
   $: modeRecommendations = buildModeRecommendations({
     mode: currentMachineMode,
@@ -125,15 +126,19 @@
 
   function importantMailQuery(): string {
     return [
-      'in:inbox is:unread newer_than:21d',
+      'in:inbox is:unread newer_than:14d',
       '-category:promotions',
       '-category:social',
       '-category:forums',
       '-"received money"',
+      '-"you received money"',
+      '-"money transfer"',
       '-"payment received"',
       '-"statement available"',
+      '-receipt',
+      '-newsletter',
       '-unsubscribe',
-      '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR appointment OR cancelled OR rescheduled OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
+      '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR appointment OR rescheduled OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
     ].join(' ');
   }
 
@@ -232,16 +237,6 @@
     return displayShortDate(insight.thread.date);
   }
 
-  function mailCategoryLabel(category: GmailThreadInsight['category']): string {
-    if (category === 'reply') return 'Reply';
-    if (category === 'deadline') return 'Deadline';
-    if (category === 'career') return 'Career';
-    if (category === 'school') return 'School';
-    if (category === 'finance') return 'Money';
-    if (category === 'travel') return 'Travel';
-    return 'Personal';
-  }
-
   function careerJobLine(job: JobRecord): string {
     return [job.company, job.role].filter(Boolean).join(' - ');
   }
@@ -257,11 +252,20 @@
   }
 
   function mailActionDisabled(insight: GmailThreadInsight): boolean {
-    return Boolean(mailActionBusyId && mailActionBusyId.startsWith(`${insight.thread.id}:`));
+    return Boolean(mailActionBusyId && (mailActionBusyId === 'bulk:read' || mailActionBusyId.startsWith(`${insight.thread.id}:`)));
   }
 
   function isThreadImportant(insight: GmailThreadInsight): boolean {
     return insight.thread.labelIds.includes('IMPORTANT');
+  }
+
+  function mailActionLabel(insight: GmailThreadInsight): string {
+    if (insight.category === 'deadline') return 'Deadline';
+    if (insight.category === 'reply') return 'Needs reply';
+    if (insight.category === 'career') return 'Career';
+    if (insight.category === 'school') return 'School';
+    if (insight.category === 'travel') return 'Travel';
+    return 'Review';
   }
 
   function capabilityStateLabel(state: CapabilityState): string {
@@ -499,7 +503,7 @@
 
   async function runMailAction(
     insight: GmailThreadInsight,
-    action: 'read' | 'important' | 'archive'
+    action: 'read' | 'important' | 'not-important' | 'archive'
   ): Promise<void> {
     if (mailActionBusyId) return;
     mailActionBusyId = `${insight.thread.id}:${action}`;
@@ -524,6 +528,20 @@
             : item
         );
         dashboardActionMessage = 'Marked important in Gmail.';
+      } else if (action === 'not-important') {
+        await modifyGmailThread(insight.thread.id, { removeLabelIds: ['IMPORTANT'] });
+        priorityThreads = priorityThreads.map((item) =>
+          item.thread.id === insight.thread.id
+            ? {
+                ...item,
+                thread: {
+                  ...item.thread,
+                  labelIds: item.thread.labelIds.filter((label) => label !== 'IMPORTANT')
+                }
+              }
+            : item
+        );
+        dashboardActionMessage = 'Removed the Gmail important marker.';
       } else {
         if (typeof window !== 'undefined' && !window.confirm(`Archive "${insight.thread.subject}"?`)) {
           return;
@@ -535,6 +553,28 @@
       void refreshDashboard();
     } catch (error) {
       dashboardActionError = error instanceof Error ? error.message : 'Mail action failed.';
+    } finally {
+      mailActionBusyId = '';
+    }
+  }
+
+  async function markVisibleMailRead(): Promise<void> {
+    const targets = importantMail.filter((insight) => insight.thread.unread);
+    if (!targets.length || mailActionBusyId) return;
+    if (typeof window !== 'undefined' && !window.confirm(`Mark ${targets.length} visible mail signal${targets.length === 1 ? '' : 's'} read?`)) {
+      return;
+    }
+    mailActionBusyId = 'bulk:read';
+    dashboardActionMessage = '';
+    dashboardActionError = '';
+    try {
+      await Promise.all(targets.map((insight) => markGmailThreadRead(insight.thread.id)));
+      const targetIds = new Set(targets.map((insight) => insight.thread.id));
+      priorityThreads = priorityThreads.filter((item) => !targetIds.has(item.thread.id));
+      dashboardActionMessage = 'Marked visible mail signals read.';
+      void refreshDashboard();
+    } catch (error) {
+      dashboardActionError = error instanceof Error ? error.message : 'Bulk mail action failed.';
     } finally {
       mailActionBusyId = '';
     }
@@ -661,8 +701,8 @@
           <span class="icon-chip"><Inbox size={16} /></span>
           <strong>Needs Attention</strong>
         </div>
-        <a class="button compact" href={hubHref('/settings')}>
-          <span>Status</span>
+        <a class="button compact" href={hubHref('/productivity')}>
+          <span>Calendar</span>
           <ArrowRight size={15} />
         </a>
       </div>
@@ -729,7 +769,7 @@
       {:else}
         <div class="empty-block">
           <strong>No urgent signals right now.</strong>
-          <p>Today will fill from real calendar, mail, career, study, and local service data as those systems have something actionable.</p>
+          <p>Today keeps this queue to service issues, setup items, and the next meaningful calendar item. Mail and career cleanup live in their own panels.</p>
         </div>
       {/if}
     </article>
@@ -895,10 +935,23 @@
           <span class="icon-chip"><Inbox size={16} /></span>
           <strong>Unread Actions</strong>
         </div>
-        <a class="button compact" href={hubHref('/productivity')}>
-          <span>Inbox</span>
-          <ArrowRight size={15} />
-        </a>
+        <div class="panel-actions">
+          {#if importantMail.length}
+            <button
+              class="button compact"
+              type="button"
+              disabled={Boolean(mailActionBusyId)}
+              on:click={markVisibleMailRead}
+            >
+              <MailCheck size={15} />
+              <span>Mark Visible Read</span>
+            </button>
+          {/if}
+          <a class="button compact" href={hubHref('/productivity')}>
+            <span>Inbox</span>
+            <ArrowRight size={15} />
+          </a>
+        </div>
       </div>
 
       {#if !googleConnected}
@@ -910,7 +963,7 @@
           {#each importantMail as insight}
             <div class="mail-row">
               <a class="mail-link" href={hubHref('/productivity')}>
-                <span class="mail-tag">{mailCategoryLabel(insight.category)}</span>
+                <span class="mail-tag">{mailActionLabel(insight)}</span>
                 <span class="mail-main">
                   <strong>{insight.thread.subject}</strong>
                   <small>{insight.thread.from}</small>
@@ -929,17 +982,29 @@
                 >
                   <MailCheck size={15} />
                 </button>
-                <button
-                  class:active={isThreadImportant(insight)}
-                  class="icon-action"
-                  type="button"
-                  disabled={mailActionDisabled(insight) || isThreadImportant(insight)}
-                  title={isThreadImportant(insight) ? 'Already important' : 'Mark important'}
-                  aria-label={`Mark ${insight.thread.subject} important`}
-                  on:click={() => runMailAction(insight, 'important')}
-                >
-                  <Star size={15} />
-                </button>
+                {#if isThreadImportant(insight)}
+                  <button
+                    class="icon-action active"
+                    type="button"
+                    disabled={mailActionDisabled(insight)}
+                    title="Remove important"
+                    aria-label={`Remove important from ${insight.thread.subject}`}
+                    on:click={() => runMailAction(insight, 'not-important')}
+                  >
+                    <StarOff size={15} />
+                  </button>
+                {:else}
+                  <button
+                    class="icon-action"
+                    type="button"
+                    disabled={mailActionDisabled(insight)}
+                    title="Mark important"
+                    aria-label={`Mark ${insight.thread.subject} important`}
+                    on:click={() => runMailAction(insight, 'important')}
+                  >
+                    <Star size={15} />
+                  </button>
+                {/if}
                 <button
                   class="icon-action"
                   type="button"
@@ -1163,6 +1228,14 @@
 
   .panel-title strong {
     font-size: 14px;
+  }
+
+  .panel-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .icon-chip {

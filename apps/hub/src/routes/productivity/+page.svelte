@@ -12,6 +12,8 @@
     Save,
     Send,
     Sparkles,
+    Star,
+    StarOff,
     Tag,
     Trash2,
     Unlink,
@@ -50,6 +52,15 @@
   } from '$lib/productivity-api';
 
   const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles';
+  const defaultGmailQuery = [
+    'in:inbox newer_than:14d',
+    '-category:promotions',
+    '-category:social',
+    '-category:forums',
+    '-newsletter',
+    '-unsubscribe',
+    '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR appointment OR rescheduled OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
+  ].join(' ');
 
   let catalog: ConnectorCatalogEntry[] = [];
   let connections: PublicConnection[] = [];
@@ -62,7 +73,7 @@
   let selectedGmailThread: GmailThread | null = null;
   let selectedCalendarId = 'primary';
   let moveTargetCalendarId = '';
-  let gmailQuery = 'in:inbox newer_than:30d';
+  let gmailQuery = defaultGmailQuery;
   let selectedGmailLabelId = '';
   let query = '';
   let loading = false;
@@ -135,6 +146,10 @@
   function accountLabelForResource(resourceId: string): string {
     const connectionId = scopedConnectionId(resourceId);
     return connections.find((connection) => connection.id === connectionId)?.accountLabel ?? googleConnection?.accountLabel ?? 'Google';
+  }
+
+  function isThreadImportant(thread: GmailThread): boolean {
+    return thread.labelIds.includes('IMPORTANT');
   }
 
   function priorityClass(priority: number): string {
@@ -425,6 +440,22 @@
     }
   }
 
+  async function toggleImportant(thread: GmailThread): Promise<void> {
+    actionError = '';
+    try {
+      if (isThreadImportant(thread)) {
+        await modifyGmailThread(thread.id, { removeLabelIds: ['IMPORTANT'] });
+        actionMessage = 'Thread removed from important.';
+      } else {
+        await modifyGmailThread(thread.id, { addLabelIds: ['IMPORTANT'] });
+        actionMessage = 'Thread marked important.';
+      }
+      await refreshGmail();
+    } catch (error) {
+      setError(error, 'Failed to update important state');
+    }
+  }
+
   async function toggleSelectedRead(): Promise<void> {
     if (!selectedGmailThread) return;
     await toggleRead(selectedGmailThread);
@@ -433,6 +464,11 @@
   async function archiveSelectedThread(): Promise<void> {
     if (!selectedGmailThread) return;
     await archiveThread(selectedGmailThread);
+  }
+
+  async function toggleSelectedImportant(): Promise<void> {
+    if (!selectedGmailThread) return;
+    await toggleImportant(selectedGmailThread);
   }
 
   async function applySelectedLabel(): Promise<void> {
@@ -506,6 +542,20 @@
   <div><span>Calendars</span><strong>{calendars.length}</strong></div>
   <div><span>Priority Mail</span><strong>{priorityThreads.length}</strong></div>
   <div><span>Timeline</span><strong>{timeline.length}</strong></div>
+</section>
+
+<section class="google-setup-panel" aria-label="Google account setup">
+  <div>
+    <strong>Google account setup</strong>
+    <p>
+      Use Add Google Account once for each account you want Mini Hub to control. The OAuth flow opens Google's
+      account picker, so connect your personal account, return here, then add your school account.
+    </p>
+  </div>
+  <button class="button compact" type="button" disabled={!canAct} on:click={connectGoogle}>
+    <Link size={15} />
+    <span>{googleConnected ? 'Add Another' : 'Connect Google'}</span>
+  </button>
 </section>
 
 {#if googleConnected}
@@ -674,6 +724,20 @@
               <button class="icon-button" type="button" aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={thread.unread ? 'Mark read' : 'Mark unread'} on:click={() => toggleRead(thread)}>
                 <MailOpen size={16} />
               </button>
+              <button
+                class:active={isThreadImportant(thread)}
+                class="icon-button"
+                type="button"
+                aria-label={isThreadImportant(thread) ? `Remove important from ${thread.subject}` : `Mark ${thread.subject} important`}
+                title={isThreadImportant(thread) ? 'Remove important' : 'Mark important'}
+                on:click={() => toggleImportant(thread)}
+              >
+                {#if isThreadImportant(thread)}
+                  <StarOff size={16} />
+                {:else}
+                  <Star size={16} />
+                {/if}
+              </button>
               <button class="icon-button" type="button" aria-label={`Archive ${thread.subject}`} title="Archive" on:click={() => archiveThread(thread)}>
                 <Archive size={16} />
               </button>
@@ -696,6 +760,15 @@
         <button class="button" type="button" disabled={!googleConnected} on:click={toggleSelectedRead}>
           <MailOpen size={17} />
           <span>{selectedGmailThread.unread ? 'Mark Read' : 'Mark Unread'}</span>
+        </button>
+        <button class="button" type="button" disabled={!googleConnected} on:click={toggleSelectedImportant}>
+          {#if isThreadImportant(selectedGmailThread)}
+            <StarOff size={17} />
+            <span>Unmark Important</span>
+          {:else}
+            <Star size={17} />
+            <span>Mark Important</span>
+          {/if}
         </button>
         <button class="button" type="button" disabled={!googleConnected} on:click={archiveSelectedThread}>
           <Archive size={17} />
@@ -955,6 +1028,24 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .google-setup-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    margin: 0 0 10px;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .google-setup-panel p {
+    margin: 3px 0 0;
+    color: var(--muted);
+    line-height: 1.35;
   }
 
   .account-panel {
@@ -1232,6 +1323,11 @@
     text-decoration: none;
   }
 
+  .icon-button.active {
+    color: var(--text);
+    background: var(--active);
+  }
+
   .icon-button.danger {
     color: var(--danger-text);
   }
@@ -1314,6 +1410,7 @@
 
   @media (max-width: 760px) {
     .status-strip,
+    .google-setup-panel,
     .connector-list article,
     .table-header,
     .modal-grid,
