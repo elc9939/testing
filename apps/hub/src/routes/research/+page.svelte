@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Database, Download, ExternalLink, FileText, RefreshCw, Search } from 'lucide-svelte';
+  import { Database, Download, ExternalLink, FileText, RefreshCw, Search, X } from 'lucide-svelte';
   import {
+    cancelResearchRun,
     createResearchRun,
+    getResearchRun,
     listResearchRuns,
     researchExportUrl,
     type ResearchMode,
@@ -86,12 +88,48 @@
       });
       selectedRun = run;
       runs = [run, ...runs.filter((item) => item.id !== run.id)].slice(0, 20);
-      message = `Saved ${run.sources.length} source-backed result${run.sources.length === 1 ? '' : 's'}.`;
+      message = `Queued ${currentMode?.label ?? 'research'} run. The report will update as sources arrive.`;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Research run failed.';
     } finally {
       loading = false;
     }
+  }
+
+  async function pollLiveRuns(): Promise<void> {
+    const liveIds = new Set(runs.filter(isLiveRun).map((run) => run.id));
+    if (selectedRun && isLiveRun(selectedRun)) liveIds.add(selectedRun.id);
+    if (!liveIds.size) return;
+    try {
+      const updates = (await Promise.all(Array.from(liveIds).map((id) => getResearchRun(id).catch(() => null)))).filter(
+        (run): run is ResearchRun => Boolean(run)
+      );
+      if (!updates.length) return;
+      for (const update of updates) {
+        runs = [update, ...runs.filter((item) => item.id !== update.id)].slice(0, 20);
+        if (selectedRun?.id === update.id) selectedRun = update;
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Research run refresh failed.';
+    }
+  }
+
+  async function cancelRun(run: ResearchRun): Promise<void> {
+    error = '';
+    message = '';
+    try {
+      const cancelled = await cancelResearchRun(run.id);
+      runs = [cancelled, ...runs.filter((item) => item.id !== cancelled.id)].slice(0, 20);
+      if (selectedRun?.id === cancelled.id) selectedRun = cancelled;
+      message = 'Research run cancelled.';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Could not cancel research run.';
+    }
+  }
+
+  async function cancelSelectedRun(): Promise<void> {
+    if (!selectedRun) return;
+    await cancelRun(selectedRun);
   }
 
   function splitList(value: string): string[] {
@@ -105,6 +143,7 @@
     const providerLabel = [run.provider, run.model].filter(Boolean).join('/');
     const parts = [
       run.mode.replace('_', ' '),
+      isLiveRun(run) ? `${progressPercent(run)}%` : '',
       `${run.sources.length} source${run.sources.length === 1 ? '' : 's'}`,
       `${Math.round(run.runtime_ms)} ms`,
       run.cached_pages ? `${run.cached_pages} cached` : '',
@@ -113,10 +152,25 @@
     return parts.join(' - ');
   }
 
+  function isLiveRun(run: ResearchRun): boolean {
+    return run.status === 'queued' || run.status === 'running';
+  }
+
+  function progressPercent(run: ResearchRun): number {
+    return Math.max(0, Math.min(100, Math.round((run.progress ?? 0) * 100)));
+  }
+
   function statusLabel(run: ResearchRun): string {
     if (run.status === 'succeeded') return 'saved';
     return run.status.replace('_', ' ');
   }
+
+  onMount(() => {
+    const timer = window.setInterval(() => {
+      void pollLiveRuns();
+    }, 1500);
+    return () => window.clearInterval(timer);
+  });
 </script>
 
 <svelte:head>
@@ -210,7 +264,7 @@
       <div class="form-actions">
         <button class="primary-button" type="submit" disabled={loading}>
           <Search size={17} />
-          <span>{loading ? 'Running' : `Run ${currentMode?.label ?? 'Research'}`}</span>
+          <span>{loading ? 'Queueing' : `Run ${currentMode?.label ?? 'Research'}`}</span>
         </button>
         {#if message}<p class="ok-message">{message}</p>{/if}
         {#if error}<p class="error-message">{error}</p>{/if}
@@ -229,6 +283,12 @@
               <span class={`status ${run.status}`}>{statusLabel(run)}</span>
               <strong>{run.report.title}</strong>
               <small>{runMeta(run)}</small>
+              {#if isLiveRun(run)}
+                <span class="progress-track" aria-label={`Research progress ${progressPercent(run)}%`}>
+                  <span style={`width: ${progressPercent(run)}%`}></span>
+                </span>
+                <small>{run.current_step || 'Working'}</small>
+              {/if}
             </button>
           {/each}
         </div>
@@ -247,8 +307,21 @@
           <span class={`status ${selectedRun.status}`}>{statusLabel(selectedRun)}</span>
           <h2>{selectedRun.report.title}</h2>
           <p>{runMeta(selectedRun)}</p>
+          {#if isLiveRun(selectedRun)}
+            <div class="report-progress">
+              <span class="progress-track" aria-label={`Research progress ${progressPercent(selectedRun)}%`}>
+                <span style={`width: ${progressPercent(selectedRun)}%`}></span>
+              </span>
+              <small>{selectedRun.current_step || 'Working'} ({progressPercent(selectedRun)}%)</small>
+            </div>
+          {/if}
         </div>
         <div class="export-actions">
+          {#if isLiveRun(selectedRun)}
+            <button type="button" on:click={cancelSelectedRun}>
+              <X size={15} /> Cancel
+            </button>
+          {/if}
           <a href={researchExportUrl(selectedRun.id, 'markdown')} target="_blank" rel="noreferrer">
             <Download size={15} /> Markdown
           </a>
@@ -325,7 +398,7 @@
               <span>{source.id}</span>
               <strong>{source.title || source.canonical_url}</strong>
               <small>{source.canonical_url}</small>
-              <small>{source.text_length} chars · score {source.score}{source.cached ? ' · cached' : ''}</small>
+              <small>{source.text_length} chars - score {source.score}{source.cached ? ' - cached' : ''}</small>
             </a>
           {/each}
         </div>
@@ -494,7 +567,8 @@
   .link-button,
   .icon-button,
   .primary-button,
-  .export-actions a {
+  .export-actions a,
+  .export-actions button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -569,9 +643,36 @@
     flex-wrap: wrap;
   }
 
-  .export-actions a {
+  .export-actions a,
+  .export-actions button {
     min-height: 34px;
     padding: 0 10px;
+  }
+
+  .export-actions button {
+    font: inherit;
+  }
+
+  .progress-track {
+    display: block;
+    width: 100%;
+    height: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .progress-track span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+
+  .report-progress {
+    display: grid;
+    gap: 5px;
+    margin-top: 8px;
+    max-width: 420px;
   }
 
   .run-list,

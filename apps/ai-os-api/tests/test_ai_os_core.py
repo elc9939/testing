@@ -19,7 +19,7 @@ from ai_os.jobs.queue import JobQueue
 from ai_os.maintenance import BackupManager
 from ai_os.media_engine import MediaPlan
 from ai_os.memory.store import SemanticMemory
-from ai_os.models import BenchmarkRunRecord, InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, ResearchReport, ResearchRunRequest, ResearchSourceRecord, StreamChunk, now_iso
+from ai_os.models import BenchmarkRunRecord, InferenceRequest, InferenceResult, JobCreateRequest, MemoryIngestRequest, MemoryQueryRequest, MultimodalInvokeRequest, ProviderStatus, ProviderUsage, ResearchReport, ResearchRunRecord, ResearchRunRequest, ResearchSourceRecord, StreamChunk, now_iso
 from ai_os.multimodal.registry import MultimodalRegistry
 from ai_os.providers.base import ProviderAdapter, ProviderUnavailable
 from ai_os.providers.openai_compatible import OpenAICompatibleLocalProvider
@@ -343,7 +343,7 @@ def test_storage_migration_and_integrity_report(tmp_path):
 
     assert report["ok"] is True
     assert report["schema_version"] == report["expected_schema_version"]
-    assert report["counts"]["schema_migrations"] == 5
+    assert report["counts"]["schema_migrations"] == 6
     assert report["counts"]["research_runs"] == 0
     assert report["counts"]["research_pages"] == 0
 
@@ -750,19 +750,61 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
             json={"mode": "url_scrape", "goal": "cache check", "seed_urls": ["https://example.test/research"], "max_pages": 1},
         )
         listed = client.get("/api/ai/research/runs")
+        first_final = client.get(f"/api/ai/research/runs/{first.json()['run']['id']}")
+        second_final = client.get(f"/api/ai/research/runs/{second.json()['run']['id']}")
         markdown = client.get(f"/api/ai/research/runs/{first.json()['run']['id']}/export?format=markdown")
         ledger = client.get("/api/ai/action-ledger?limit=20")
 
-    first_run = first.json()["run"]
-    second_run = second.json()["run"]
+    first_run = first_final.json()["run"]
+    second_run = second_final.json()["run"]
     assert first.status_code == 200
+    assert first.json()["run"]["status"] == "queued"
     assert first_run["status"] == "succeeded"
+    assert first_run["progress"] == 1
+    assert first_run["completed_steps"] == first_run["total_steps"]
     assert first_run["sources"][0]["title"] == "Research source"
     assert first_run["citations"][0]["source_ids"] == ["S1"]
     assert second_run["cached_pages"] == 1
     assert listed.json()["runs"][0]["id"] == second_run["id"]
     assert "# Quick Search: research engines cite evidence" in markdown.text
     assert any(action["action_type"].startswith("research.") for action in ledger.json()["actions"])
+
+
+def test_research_cancel_marks_running_run_and_ledger_metadata(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False)
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+    storage.log_research_run(
+        ResearchRunRecord(
+            id="research_cancel_test",
+            created_at=now_iso(),
+            updated_at=now_iso(),
+            mode="deep_research",
+            goal="cancel this research run",
+            status="running",
+            report=ResearchReport(title="Deep Research: cancel this research run", tldr="Running"),
+            logs=[],
+            progress=0.4,
+            total_steps=10,
+            completed_steps=4,
+            current_step="Fetching sources",
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.post("/api/ai/research/runs/research_cancel_test/cancel")
+        ledger = client.get("/api/ai/action-ledger?limit=20")
+
+    body = response.json()["run"]
+    assert response.status_code == 200
+    assert body["status"] == "cancelled"
+    assert body["cancel_requested"] is True
+    assert body["current_step"] == "Cancelled"
+    research_action = next(action for action in ledger.json()["actions"] if action["id"] == "ai-research:research_cancel_test")
+    assert research_action["status"] == "cancelled"
+    assert research_action["metadata"]["progress"] == 0.4
+    assert research_action["metadata"]["cancel_requested"] is True
 
 
 def test_design_patch_endpoint_stores_unified_diff(tmp_path):

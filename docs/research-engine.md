@@ -25,9 +25,12 @@ Pipeline v1:
    router, while keeping source citations mapped separately.
 7. `map_citations()` links key claims to source IDs and quotes where possible.
 8. `AppStorage` persists `research_pages` and `research_runs`, so reports can be reopened and
-   exported later.
+   exported later. Research runs are created as durable queued records before work starts and
+   update with progress, current step, partial sources, cancellation state, and final report
+   data.
 9. `build_ai_action_ledger()` emits research runs as `research.<mode>` AI OS actions with
-   source count, cached page count, runtime, provider/model, tokens, and cost metadata.
+   source count, cached page count, runtime, progress, provider/model, tokens, and cost
+   metadata.
 
 ## API
 
@@ -36,6 +39,19 @@ Pipeline v1:
 - `GET /api/ai/research/runs/:id`
 - `GET /api/ai/research/runs/:id/export?format=markdown|json|html`
 - `POST /api/ai/research/runs/:id/cancel`
+
+`POST /api/ai/research/runs` returns the initial queued run immediately. AI OS then executes
+the crawl in a FastAPI background task and the Research Desk polls `GET /api/ai/research/runs/:id`
+while `status` is `queued` or `running`. Persisted run records include:
+
+- `progress`
+- `total_steps`
+- `completed_steps`
+- `current_step`
+- `cancel_requested`
+
+Cancellation v1 marks the stored run cancelled and sets `cancel_requested`; the crawler checks
+that flag between page fetches and major pipeline stages.
 
 Modes:
 
@@ -62,9 +78,9 @@ should prefer those over scraping.
 
 ## Current Limits
 
-- Runs are currently synchronous from the UI perspective. They are archived and cancelable
-  only before/while a stored non-terminal run exists; full pause/resume belongs in the next
-  queue-backed pass.
+- Runs now have persisted progress and cancel state, but they still execute in-process as
+  FastAPI background tasks. A dedicated queue/worker can come later if research workloads
+  need process isolation, concurrency caps across restarts, pause/resume, or scheduling.
 - Monitor Topic is a run mode now, not yet a recurring background monitor.
 - Screenshots are represented in the request model but not yet captured into research source
   cards.

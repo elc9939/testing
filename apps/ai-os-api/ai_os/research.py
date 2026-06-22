@@ -76,6 +76,16 @@ class ResearchPlan:
             "knobs": self.knobs,
         }
 
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ResearchPlan":
+        return cls(
+            mode=str(value.get("mode") or "quick_search"),
+            goal=str(value.get("goal") or ""),
+            search_queries=[str(item) for item in value.get("search_queries", []) if item],
+            crawl_targets=[str(item) for item in value.get("crawl_targets", []) if item],
+            knobs=value.get("knobs") if isinstance(value.get("knobs"), dict) else {},
+        )
+
 
 def normalize_url(value: str, *, base_url: str | None = None) -> str:
     raw = urljoin(base_url or "", value.strip())
@@ -277,6 +287,10 @@ class RobotsCache:
         return allowed, "robots.txt allows fetch" if allowed else "robots.txt disallows fetch"
 
 
+class ResearchCancelled(RuntimeError):
+    pass
+
+
 class ResearchEngine:
     def __init__(
         self,
@@ -294,26 +308,114 @@ class ResearchEngine:
         self.search_provider = search_provider or WebAccessSearchProvider(web)
         self.robots = RobotsCache(web)
 
-    async def run(self, request: ResearchRunRequest) -> ResearchRunRecord:
-        started = time.perf_counter()
+    def create_run(self, request: ResearchRunRequest) -> ResearchRunRecord:
         run_id = new_id("research")
-        created_at = now_iso()
-        logs: list[dict[str, Any]] = []
         plan = plan_research(request)
+        now = now_iso()
+        total_steps = self._estimated_steps(request)
+        record = ResearchRunRecord(
+            id=run_id,
+            created_at=now,
+            updated_at=now,
+            mode=request.mode,
+            goal=request.goal,
+            status="queued",
+            query_plan=plan.as_dict(),
+            report=ResearchReport(
+                title=f"{_mode_label(request.mode)}: {plan.goal}",
+                tldr="Research run is queued.",
+                detailed_summary="The run has been accepted and will update as sources are searched, fetched, ranked, and summarized.",
+            ),
+            logs=[{"at": now, "level": "info", "message": "Research run queued.", "plan": plan.as_dict()}],
+            progress=0.0,
+            total_steps=total_steps,
+            completed_steps=0,
+            current_step="Queued",
+            options=request.model_dump(mode="json"),
+        )
+        return self.storage.log_research_run(record)
+
+    async def run(self, request: ResearchRunRequest) -> ResearchRunRecord:
+        record = self.create_run(request)
+        return await self.run_existing(record.id, request)
+
+    async def run_existing(self, run_id: str, request: ResearchRunRequest) -> ResearchRunRecord:
+        started = time.perf_counter()
+        existing = self.storage.get_research_run(run_id)
+        if existing and existing.status == "cancelled":
+            return existing
+        created_at = existing.created_at if existing else now_iso()
+        logs: list[dict[str, Any]] = list(existing.logs if existing else [])
+        plan = ResearchPlan.from_dict(existing.query_plan) if existing and existing.query_plan else plan_research(request)
         options = request.model_dump(mode="json")
         provider = request.provider
         model = request.model
         total_tokens = 0
         cost_usd = 0.0
         try:
-            logs.append({"at": now_iso(), "level": "info", "message": "Research run planned.", "plan": plan.as_dict()})
+            self._raise_if_cancelled(run_id)
+            logs.append({"at": now_iso(), "level": "info", "message": "Research run started.", "plan": plan.as_dict()})
+            self._persist_progress(
+                run_id,
+                request,
+                created_at,
+                plan,
+                logs,
+                status="running",
+                current_step="Planning searches",
+                progress=0.04,
+                completed_steps=1,
+                started=started,
+            )
             search_results = await self._search(plan, request, logs)
-            sources = await self._crawl(plan, request, search_results, logs, started)
+            self._raise_if_cancelled(run_id)
+            self._persist_progress(
+                run_id,
+                request,
+                created_at,
+                plan,
+                logs,
+                status="running",
+                current_step=f"Search complete: {len(search_results)} candidate URL(s)",
+                progress=0.16,
+                completed_steps=2,
+                started=started,
+            )
+            sources = await self._crawl(plan, request, search_results, logs, started, run_id=run_id, created_at=created_at)
+            self._raise_if_cancelled(run_id)
+            self._persist_progress(
+                run_id,
+                request,
+                created_at,
+                plan,
+                logs,
+                status="running",
+                sources=sources,
+                current_step=f"Ranking {len(sources)} source(s)",
+                progress=0.82,
+                completed_steps=max(3, min(self._estimated_steps(request) - 2, len(sources) + 3)),
+                started=started,
+            )
             ranked_sources = dedupe_and_rank_sources(sources, plan.goal, request.max_pages)
             report = build_extractive_report(plan.goal, request.mode, ranked_sources)
             citations = map_citations(report, ranked_sources)
             if request.use_ai and ranked_sources:
                 try:
+                    self._persist_progress(
+                        run_id,
+                        request,
+                        created_at,
+                        plan,
+                        logs,
+                        status="running",
+                        sources=ranked_sources,
+                        report=report,
+                        citations=citations,
+                        current_step="Synthesizing with AI",
+                        progress=0.9,
+                        completed_steps=max(1, self._estimated_steps(request) - 1),
+                        started=started,
+                    )
                     ai_report = await self._ai_summarize(request, plan, ranked_sources, report, run_id)
                     report = ai_report["report"]
                     provider = ai_report.get("provider") or provider
@@ -337,12 +439,50 @@ class ResearchEngine:
                 report=report,
                 citations=citations,
                 logs=logs,
+                progress=1.0,
+                total_steps=self._estimated_steps(request),
+                completed_steps=self._estimated_steps(request),
+                current_step="Complete",
                 provider=provider,
                 model=model,
                 total_tokens=total_tokens,
                 cost_usd=cost_usd,
                 runtime_ms=round((time.perf_counter() - started) * 1000, 2),
                 cached_pages=cached_pages,
+                options=options,
+            )
+            return self.storage.log_research_run(record)
+        except ResearchCancelled:
+            existing = self.storage.get_research_run(run_id)
+            if existing and existing.status == "cancelled":
+                return self.storage.log_research_run(
+                    existing.model_copy(
+                        update={
+                            "runtime_ms": round((time.perf_counter() - started) * 1000, 2),
+                            "updated_at": now_iso(),
+                        }
+                    )
+                )
+            record = ResearchRunRecord(
+                id=run_id,
+                created_at=created_at,
+                updated_at=now_iso(),
+                mode=request.mode,
+                goal=request.goal,
+                status="cancelled",
+                query_plan=plan.as_dict(),
+                sources=existing.sources if existing else [],
+                report=(existing.report if existing else ResearchReport(title=f"{_mode_label(request.mode)}: {plan.goal}", tldr="Research run was cancelled.")),
+                citations=existing.citations if existing else [],
+                logs=[*logs, {"at": now_iso(), "level": "warning", "message": "Research run cancelled."}],
+                progress=existing.progress if existing else 0.0,
+                total_steps=self._estimated_steps(request),
+                completed_steps=existing.completed_steps if existing else 0,
+                current_step="Cancelled",
+                cancel_requested=True,
+                provider=provider,
+                model=model,
+                runtime_ms=round((time.perf_counter() - started) * 1000, 2),
                 options=options,
             )
             return self.storage.log_research_run(record)
@@ -358,6 +498,10 @@ class ResearchEngine:
                 report=ResearchReport(title=f"Research failed: {plan.goal}", tldr=str(error)),
                 citations=[],
                 logs=[*logs, {"at": now_iso(), "level": "error", "message": "Research run failed.", "error": str(error)}],
+                progress=0.0,
+                total_steps=self._estimated_steps(request),
+                completed_steps=0,
+                current_step="Failed",
                 provider=provider,
                 model=model,
                 runtime_ms=round((time.perf_counter() - started) * 1000, 2),
@@ -366,6 +510,58 @@ class ResearchEngine:
             )
             self.storage.log_research_run(record)
             raise
+
+    def _estimated_steps(self, request: ResearchRunRequest) -> int:
+        return max(4, 3 + request.max_pages + (1 if request.use_ai else 0))
+
+    def _raise_if_cancelled(self, run_id: str) -> None:
+        if self.storage.research_run_cancel_requested(run_id):
+            raise ResearchCancelled("Research run cancelled.")
+
+    def _persist_progress(
+        self,
+        run_id: str,
+        request: ResearchRunRequest,
+        created_at: str,
+        plan: ResearchPlan,
+        logs: list[dict[str, Any]],
+        *,
+        status: str,
+        current_step: str,
+        progress: float,
+        completed_steps: int,
+        started: float,
+        sources: list[ResearchSourceRecord] | None = None,
+        report: ResearchReport | None = None,
+        citations: list[ResearchCitation] | None = None,
+    ) -> ResearchRunRecord:
+        existing = self.storage.get_research_run(run_id)
+        if existing and existing.status == "cancelled":
+            raise ResearchCancelled("Research run cancelled.")
+        record = ResearchRunRecord(
+            id=run_id,
+            created_at=created_at,
+            updated_at=now_iso(),
+            mode=request.mode,
+            goal=request.goal,
+            status=status,  # type: ignore[arg-type]
+            query_plan=plan.as_dict(),
+            sources=sources if sources is not None else (existing.sources if existing else []),
+            report=report or (existing.report if existing else ResearchReport(title=f"{_mode_label(request.mode)}: {plan.goal}")),
+            citations=citations if citations is not None else (existing.citations if existing else []),
+            logs=logs,
+            progress=max(0.0, min(1.0, progress)),
+            total_steps=self._estimated_steps(request),
+            completed_steps=max(0, min(self._estimated_steps(request), completed_steps)),
+            current_step=current_step,
+            cancel_requested=bool(existing.cancel_requested if existing else False),
+            provider=request.provider,
+            model=request.model,
+            runtime_ms=round((time.perf_counter() - started) * 1000, 2),
+            cached_pages=sum(1 for source in (sources if sources is not None else (existing.sources if existing else [])) if source.cached),
+            options=request.model_dump(mode="json"),
+        )
+        return self.storage.log_research_run(record)
 
     async def _search(
         self,
@@ -393,6 +589,9 @@ class ResearchEngine:
         search_results: list[dict[str, str]],
         logs: list[dict[str, Any]],
         started: float,
+        *,
+        run_id: str,
+        created_at: str,
     ) -> list[ResearchSourceRecord]:
         targets = [
             normalize_url(result["url"])
@@ -405,6 +604,7 @@ class ResearchEngine:
         domain_counts: dict[str, int] = {}
         sources: list[ResearchSourceRecord] = []
         while queue and len(sources) < request.max_pages:
+            self._raise_if_cancelled(run_id)
             if time.perf_counter() - started > request.time_budget_s:
                 logs.append({"at": now_iso(), "level": "warning", "message": "Time budget reached.", "source_count": len(sources)})
                 break
@@ -425,6 +625,20 @@ class ResearchEngine:
                 continue
             domain_counts[domain] = domain_counts.get(domain, 0) + 1
             sources.append(source)
+            crawl_progress = 0.18 + (0.58 * min(len(sources), request.max_pages) / max(1, request.max_pages))
+            self._persist_progress(
+                run_id,
+                request,
+                created_at,
+                plan,
+                logs,
+                status="running",
+                sources=sources,
+                current_step=f"Fetched {len(sources)} of up to {request.max_pages} source(s)",
+                progress=crawl_progress,
+                completed_steps=min(self._estimated_steps(request) - 2, 2 + len(sources)),
+                started=started,
+            )
             if request.mode == "site_crawl" and depth + 1 < request.depth:
                 for link in source.links:
                     next_url = normalize_url(link.get("url", ""))

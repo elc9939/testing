@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
@@ -498,12 +498,20 @@ def create_app(
         return PlainTextResponse(export_research_markdown(run), media_type="text/markdown")
 
     @app.post("/api/ai/research/runs")
-    async def create_research_run(request: ResearchRunRequest) -> dict[str, Any]:
+    async def create_research_run(request: ResearchRunRequest, background_tasks: BackgroundTasks) -> dict[str, Any]:
         try:
-            run = await services.research.run(request)
+            run = services.research.create_run(request)
+
+            async def execute_research_run(run_id: str, run_request: ResearchRunRequest) -> None:
+                try:
+                    await services.research.run_existing(run_id, run_request)
+                except Exception:
+                    logger.exception("Background research run failed")
+
+            background_tasks.add_task(execute_research_run, run.id, request)
             return {"run": run.model_dump(mode="json")}
         except Exception as error:
-            logger.exception("Research run failed")
+            logger.exception("Research run failed to queue")
             raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/api/ai/research/runs/{run_id}/cancel")
@@ -514,7 +522,7 @@ def create_app(
                 raise KeyError(run_id)
             if run.status in {"succeeded", "failed", "cancelled"}:
                 return {"run": run.model_dump(mode="json"), "message": "Run is already terminal."}
-            cancelled = services.storage.update_research_run_status(run_id, "cancelled")
+            cancelled = services.storage.request_research_run_cancel(run_id)
             return {"run": cancelled.model_dump(mode="json")}
         except KeyError as error:
             raise HTTPException(status_code=404, detail="Research run not found.") from error

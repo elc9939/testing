@@ -22,7 +22,7 @@ from .models import (
     now_iso,
 )
 
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 
 
 class AppStorage:
@@ -60,6 +60,8 @@ class AppStorage:
                 self._apply_0004_action_snapshots()
             if current < 5:
                 self._apply_0005_research_engine()
+            if current < 6:
+                self._apply_0006_research_run_progress()
 
     def _apply_0001_initial(self) -> None:
         self._conn.executescript(
@@ -307,6 +309,29 @@ class AppStorage:
             values (?, ?, ?, ?, ?)
             """,
             (5, "0005_research_engine", now_iso(), 0, "builtin:0005_research_engine"),
+        )
+
+    def _apply_0006_research_run_progress(self) -> None:
+        columns = {
+            row["name"]
+            for row in self._conn.execute("pragma table_info(research_runs)").fetchall()
+        }
+        additions = {
+            "progress": "alter table research_runs add column progress real not null default 0",
+            "total_steps": "alter table research_runs add column total_steps integer not null default 0",
+            "completed_steps": "alter table research_runs add column completed_steps integer not null default 0",
+            "current_step": "alter table research_runs add column current_step text not null default ''",
+            "cancel_requested": "alter table research_runs add column cancel_requested integer not null default 0",
+        }
+        for column, statement in additions.items():
+            if column not in columns:
+                self._conn.execute(statement)
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (6, "0006_research_run_progress", now_iso(), 0, "builtin:0006_research_run_progress"),
         )
 
     def schema_version(self) -> int:
@@ -1145,9 +1170,10 @@ class AppStorage:
                 """
                 insert or replace into research_runs (
                   id, created_at, updated_at, mode, goal, status, query_plan, sources,
-                  report, citations, logs, provider, model, total_tokens, cost_usd,
+                  report, citations, logs, progress, total_steps, completed_steps,
+                  current_step, cancel_requested, provider, model, total_tokens, cost_usd,
                   runtime_ms, cached_pages, error, options
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.id,
@@ -1161,6 +1187,11 @@ class AppStorage:
                     json.dumps(record.report.model_dump(mode="json")),
                     json.dumps([citation.model_dump(mode="json") for citation in record.citations]),
                     json.dumps(record.logs),
+                    record.progress,
+                    record.total_steps,
+                    record.completed_steps,
+                    record.current_step,
+                    1 if record.cancel_requested else 0,
                     record.provider,
                     record.model,
                     record.total_tokens,
@@ -1193,6 +1224,31 @@ class AppStorage:
         updated = existing.model_copy(update={"status": status, "updated_at": now_iso(), "error": error or existing.error})
         return self.log_research_run(updated)
 
+    def request_research_run_cancel(self, run_id: str) -> ResearchRunRecord:
+        existing = self.get_research_run(run_id)
+        if not existing:
+            raise KeyError(run_id)
+        if existing.status in {"succeeded", "failed", "cancelled"}:
+            return existing
+        logs = [
+            *existing.logs,
+            {"at": now_iso(), "level": "warning", "message": "Cancellation requested by user."},
+        ]
+        updated = existing.model_copy(
+            update={
+                "status": "cancelled",
+                "updated_at": now_iso(),
+                "cancel_requested": True,
+                "current_step": "Cancelled",
+                "logs": logs,
+            }
+        )
+        return self.log_research_run(updated)
+
+    def research_run_cancel_requested(self, run_id: str) -> bool:
+        existing = self.get_research_run(run_id)
+        return bool(existing and (existing.cancel_requested or existing.status == "cancelled"))
+
     def _research_run_from_row(self, row: sqlite3.Row) -> ResearchRunRecord:
         return ResearchRunRecord(
             id=row["id"],
@@ -1206,6 +1262,11 @@ class AppStorage:
             report=ResearchReport.model_validate(json.loads(row["report"])),
             citations=[ResearchCitation.model_validate(citation) for citation in json.loads(row["citations"])],
             logs=json.loads(row["logs"]),
+            progress=float(row["progress"]),
+            total_steps=int(row["total_steps"]),
+            completed_steps=int(row["completed_steps"]),
+            current_step=row["current_step"],
+            cancel_requested=bool(row["cancel_requested"]),
             provider=row["provider"],
             model=row["model"],
             total_tokens=int(row["total_tokens"]),

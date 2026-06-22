@@ -364,6 +364,11 @@ export interface ResearchRun {
   report: ResearchReport;
   citations: ResearchCitation[];
   logs: Array<Record<string, unknown>>;
+  progress: number;
+  total_steps: number;
+  completed_steps: number;
+  current_step: string;
+  cancel_requested: boolean;
   provider?: string;
   model?: string;
   total_tokens: number;
@@ -629,6 +634,14 @@ export async function createResearchRun(input: ResearchRunInput): Promise<Resear
     method: 'POST',
     body: JSON.stringify(input)
   });
+  return result.run;
+}
+
+export async function cancelResearchRun(runId: string): Promise<ResearchRun> {
+  const result = await requestJson<{ run: ResearchRun }>(
+    `/api/ai/research/runs/${encodeURIComponent(runId)}/cancel`,
+    { method: 'POST' }
+  );
   return result.run;
 }
 

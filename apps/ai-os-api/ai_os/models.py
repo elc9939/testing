@@ -448,6 +448,11 @@ class ResearchRunRecord(BaseModel):
     report: ResearchReport
     citations: list[ResearchCitation] = Field(default_factory=list)
     logs: list[dict[str, Any]] = Field(default_factory=list)
+    progress: float = Field(default=0.0, ge=0.0, le=1.0)
+    total_steps: int = Field(default=0, ge=0)
+    completed_steps: int = Field(default=0, ge=0)
+    current_step: str = ""
+    cancel_requested: bool = False
     provider: str | None = None
     model: str | None = None
     total_tokens: int = 0
