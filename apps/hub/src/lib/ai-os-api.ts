@@ -332,6 +332,27 @@ export interface ResearchSource {
   fetched_at: string;
 }
 
+export interface ResearchSourceCard {
+  id: string;
+  url: string;
+  canonical_url: string;
+  title: string;
+  author?: string;
+  published_at?: string;
+  description: string;
+  text_preview: string;
+  text_length: number;
+  links: Array<Record<string, string>>;
+  tables: Array<Record<string, unknown>>;
+  metadata: Record<string, unknown>;
+  first_seen_at: string;
+  last_seen_at: string;
+  fetch_count: number;
+  rank: number;
+  score: number;
+  matched_terms: string[];
+}
+
 export interface ResearchCitation {
   id: string;
   claim: string;
@@ -624,6 +645,16 @@ export async function listBenchmarks(limit = 25): Promise<AiBenchmarkRun[]> {
 export async function listResearchRuns(limit = 25): Promise<ResearchRun[]> {
   const result = await requestJson<{ runs: ResearchRun[] }>(`/api/ai/research/runs?limit=${limit}`);
   return result.runs;
+}
+
+export async function listResearchSources(input: { q?: string; domain?: string; limit?: number } = {}): Promise<ResearchSourceCard[]> {
+  const params = new URLSearchParams();
+  if (input.q?.trim()) params.set('q', input.q.trim());
+  if (input.domain?.trim()) params.set('domain', input.domain.trim());
+  if (input.limit) params.set('limit', String(input.limit));
+  const query = params.toString();
+  const result = await requestJson<{ sources: ResearchSourceCard[] }>(`/api/ai/research/sources${query ? `?${query}` : ''}`);
+  return result.sources;
 }
 
 export async function getResearchRun(runId: string): Promise<ResearchRun> {

@@ -40,6 +40,7 @@ Pipeline v1:
 
 - `POST /api/ai/research/runs`
 - `GET /api/ai/research/runs?limit=25`
+- `GET /api/ai/research/sources?q=<text>&domain=<host>&limit=25`
 - `GET /api/ai/research/runs/:id`
 - `GET /api/ai/research/runs/:id/export?format=markdown|json|html`
 - `POST /api/ai/research/runs/:id/cancel`
@@ -79,6 +80,11 @@ shows:
   links, tables, and metadata
 - Markdown, JSON, and HTML export links
 
+The same route also includes a Source Library panel backed by the local `research_pages`
+archive. It can search archived source cards by text, filter by domain, show preview text and
+first/last seen metadata, open the original URL, or add an archived source URL back into the
+Seed URLs box for a follow-up run.
+
 Advanced run knobs currently sent by the UI include depth, max pages, per-domain limit, time
 budget, date range, include/exclude domains, local AI synthesis, cloud fallback, explicit
 provider/model, screenshot preference, and opt-in semantic memory indexing.
@@ -116,8 +122,9 @@ should prefer those over scraping.
   cards.
 - Citation mapping is deterministic and source-backed, but not a full claim graph yet.
 - Semantic memory indexing is opt-in per run. It currently indexes a single research-run
-  document containing the report and source excerpts; individual reusable source-card
-  promotion can be added as a follow-up.
+  document containing the report and source excerpts; archived source cards are searchable in
+  the Research Desk Source Library, but source-card promotion into separate semantic-memory
+  documents can be added as a follow-up.
 
 ## Adding A Search Provider
 

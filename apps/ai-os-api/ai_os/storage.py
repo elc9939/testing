@@ -14,6 +14,7 @@ from .models import (
     MachineProfileSnapshotRecord,
     ResearchCitation,
     ResearchReport,
+    ResearchSourceCard,
     ResearchRunRecord,
     ResearchSourceRecord,
     ToolCallLogEntry,
@@ -1108,6 +1109,40 @@ class AppStorage:
             row = self._conn.execute("select * from research_pages where canonical_url = ?", (canonical_url,)).fetchone()
         return self._research_page_from_row(row, cached=True) if row else None
 
+    def search_research_pages(self, query: str = "", *, limit: int = 25, domain: str = "") -> list[ResearchSourceCard]:
+        query = query.strip()
+        domain = domain.strip().lower().removeprefix("https://").removeprefix("http://").removeprefix("www.")
+        terms = [term.casefold() for term in query.split() if term.strip()]
+        row_limit = max(1, min(limit, 100))
+        params: list[Any] = []
+        clauses: list[str] = []
+        if terms:
+            for term in terms:
+                like = f"%{term}%"
+                clauses.append(
+                    "(lower(title) like ? or lower(description) like ? or lower(text) like ? or lower(canonical_url) like ? or lower(coalesce(author, '')) like ?)"
+                )
+                params.extend([like, like, like, like, like])
+        if domain:
+            clauses.append("lower(canonical_url) like ?")
+            params.append(f"%{domain}%")
+        where = f"where {' and '.join(clauses)}" if clauses else ""
+        sql_limit = row_limit * (4 if terms else 1)
+        with self._lock:
+            rows = self._conn.execute(
+                f"""
+                select * from research_pages
+                {where}
+                order by last_seen_at desc
+                limit ?
+                """,
+                (*params, sql_limit),
+            ).fetchall()
+        cards = [self._research_source_card_from_row(row, terms=terms) for row in rows]
+        if terms:
+            cards.sort(key=lambda card: (-card.score, card.last_seen_at, card.title.casefold()))
+        return [card.model_copy(update={"rank": index + 1}) for index, card in enumerate(cards[:row_limit])]
+
     def upsert_research_page(self, source: ResearchSourceRecord, *, text_hash: str) -> ResearchSourceRecord:
         existing = self.get_research_page(source.canonical_url)
         now = now_iso()
@@ -1184,6 +1219,45 @@ class AppStorage:
             metadata=json.loads(row["metadata"]),
             cached=cached,
             fetched_at=row["last_seen_at"],
+        )
+
+    def _research_source_card_from_row(self, row: sqlite3.Row, *, terms: list[str]) -> ResearchSourceCard:
+        haystacks = {
+            "title": str(row["title"] or "").casefold(),
+            "description": str(row["description"] or "").casefold(),
+            "url": str(row["canonical_url"] or "").casefold(),
+            "author": str(row["author"] or "").casefold(),
+            "text": str(row["text"] or "").casefold(),
+        }
+        matched_terms = [term for term in terms if any(term in value for value in haystacks.values())]
+        score = 0.0
+        for term in matched_terms:
+            score += 5.0 if term in haystacks["title"] else 0.0
+            score += 3.0 if term in haystacks["description"] else 0.0
+            score += 2.0 if term in haystacks["url"] or term in haystacks["author"] else 0.0
+            score += min(haystacks["text"].count(term), 5) * 0.5
+        text = str(row["text"] or "").strip()
+        preview = text[:700].strip()
+        if len(text) > len(preview):
+            preview = f"{preview}..."
+        return ResearchSourceCard(
+            id=row["id"],
+            url=row["url"],
+            canonical_url=row["canonical_url"],
+            title=row["title"],
+            author=row["author"],
+            published_at=row["published_at"],
+            description=row["description"],
+            text_preview=preview,
+            text_length=int(row["text_length"]),
+            links=json.loads(row["links"]),
+            tables=json.loads(row["tables"]),
+            metadata=json.loads(row["metadata"]),
+            first_seen_at=row["first_seen_at"],
+            last_seen_at=row["last_seen_at"],
+            fetch_count=int(row["fetch_count"]),
+            score=score,
+            matched_terms=matched_terms,
         )
 
     def log_research_run(self, record: ResearchRunRecord) -> ResearchRunRecord:

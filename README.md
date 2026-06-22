@@ -158,7 +158,8 @@ Current capabilities include:
   extraction, dedupe/ranking, citation mapping, archived reports, Markdown/JSON/HTML
   export, live progress/cancel state, opt-in semantic memory indexing, and action-ledger
   entries. The Research Desk can reopen report artifacts with citations, reliability notes,
-  contradictions, timeline, query plan, run logs, and raw extracted source cards.
+  contradictions, timeline, query plan, run logs, raw extracted source cards, and a
+  searchable local Source Library for reusing archived pages as follow-up seeds.
 - Health, metrics, backup, restore-test, cleanup, dependency/model hygiene surfaces.
 - AMD/Windows GPU telemetry where the local machine exposes it.
 - Machine Profile + Autotune v1: persisted profile snapshots, safe local text probes,

@@ -6,12 +6,16 @@
     createResearchRun,
     getResearchRun,
     listResearchRuns,
+    listResearchSources,
     researchExportUrl,
     type ResearchCitation,
     type ResearchMode,
     type ResearchRun,
-    type ResearchSource
+    type ResearchSource,
+    type ResearchSourceCard
   } from '$lib/ai-os-api';
+
+  type SourceLike = Pick<ResearchSource, 'url' | 'canonical_url'>;
 
   const modes: Array<{ id: ResearchMode; label: string; hint: string }> = [
     { id: 'quick_search', label: 'Quick Search', hint: 'Search, rank, summarize.' },
@@ -42,10 +46,16 @@
   let advancedOpen = false;
   let loading = false;
   let refreshing = false;
+  let sourceLibraryLoading = false;
   let error = '';
   let message = '';
+  let sourceLibraryError = '';
+  let sourceLibraryMessage = '';
   let runs: ResearchRun[] = [];
   let selectedRun: ResearchRun | null = null;
+  let sourceLibrary: ResearchSourceCard[] = [];
+  let sourceQuery = '';
+  let sourceDomain = '';
 
   $: currentMode = modes.find((item) => item.id === mode) ?? modes[0];
   $: seedUrls = splitList(seedUrlsText);
@@ -54,6 +64,7 @@
 
   onMount(() => {
     void refreshRuns();
+    void refreshSourceLibrary();
   });
 
   async function refreshRuns(): Promise<void> {
@@ -66,6 +77,22 @@
       error = err instanceof Error ? err.message : 'Research runs failed to load.';
     } finally {
       refreshing = false;
+    }
+  }
+
+  async function refreshSourceLibrary(): Promise<void> {
+    sourceLibraryLoading = true;
+    sourceLibraryError = '';
+    try {
+      sourceLibrary = await listResearchSources({
+        q: sourceQuery,
+        domain: sourceDomain,
+        limit: 20
+      });
+    } catch (err) {
+      sourceLibraryError = err instanceof Error ? err.message : 'Source library failed to load.';
+    } finally {
+      sourceLibraryLoading = false;
     }
   }
 
@@ -178,7 +205,7 @@
     return run.status.replace('_', ' ');
   }
 
-  function sourceHost(source: ResearchSource): string {
+  function sourceHost(source: SourceLike): string {
     try {
       return new URL(source.canonical_url || source.url).hostname.replace(/^www\./u, '');
     } catch {
@@ -253,6 +280,33 @@
 
   function logTime(log: Record<string, unknown>): string {
     return typeof log.at === 'string' ? log.at : '';
+  }
+
+  function displayDate(value: string | undefined): string {
+    if (!value) return 'n/a';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+  }
+
+  function sourceCardPreview(source: ResearchSourceCard): string {
+    return source.text_preview || source.description || 'No preview text is available for this archived source.';
+  }
+
+  function addSeedUrl(url: string): void {
+    const next = normalizeTextUrl(url);
+    if (!next) return;
+    const existing = new Set(seedUrls.map(normalizeTextUrl));
+    if (existing.has(next)) {
+      sourceLibraryMessage = 'That source is already in Seed URLs.';
+      return;
+    }
+    seedUrlsText = [seedUrlsText.trim(), next].filter(Boolean).join('\n');
+    sourceLibraryMessage = 'Added archived source to Seed URLs for the next run.';
+  }
+
+  function normalizeTextUrl(url: string): string {
+    return url.trim();
   }
 
   onMount(() => {
@@ -408,6 +462,78 @@
         <p class="empty-note">No archived research yet.</p>
       {/if}
     </aside>
+  </section>
+
+  <section class="source-library-panel">
+    <div class="source-library-heading">
+      <div>
+        <span class="eyebrow">Local Archive</span>
+        <h2>Source Library</h2>
+        <p>Search reusable source cards already fetched by Research Desk runs.</p>
+      </div>
+      <button class="icon-button" type="button" disabled={sourceLibraryLoading} title="Refresh source library" on:click={refreshSourceLibrary}>
+        <RefreshCw size={17} />
+      </button>
+    </div>
+
+    <form class="source-library-controls" on:submit|preventDefault={refreshSourceLibrary}>
+      <label>
+        <span>Search archived text</span>
+        <input bind:value={sourceQuery} placeholder="evidence, company, model, benchmark..." />
+      </label>
+      <label>
+        <span>Domain filter</span>
+        <input bind:value={sourceDomain} placeholder="example.com" />
+      </label>
+      <button class="link-button" type="submit" disabled={sourceLibraryLoading}>
+        <Search size={15} />
+        <span>{sourceLibraryLoading ? 'Searching' : 'Search Sources'}</span>
+      </button>
+    </form>
+
+    {#if sourceLibraryError}
+      <p class="error-message source-library-note">{sourceLibraryError}</p>
+    {:else if sourceLibraryMessage}
+      <p class="ok-message source-library-note">{sourceLibraryMessage}</p>
+    {/if}
+
+    {#if sourceLibrary.length}
+      <div class="source-library-list">
+        {#each sourceLibrary as source}
+          <article class="source-library-card">
+            <div class="source-library-card-main">
+              <span class="source-rank">#{source.rank}</span>
+              <div>
+                <strong>{source.title || source.canonical_url}</strong>
+                <small>{sourceHost(source)} - {source.text_length} chars - seen {source.fetch_count} time{source.fetch_count === 1 ? '' : 's'}</small>
+              </div>
+              <span class="source-score">score {source.score.toFixed(1)}</span>
+            </div>
+            <p>{sourceCardPreview(source)}</p>
+            <div class="source-library-meta">
+              <span>First {displayDate(source.first_seen_at)}</span>
+              <span>Last {displayDate(source.last_seen_at)}</span>
+              {#if source.published_at}<span>Published {displayDate(source.published_at)}</span>{/if}
+              {#if source.matched_terms.length}<span>Matched {source.matched_terms.join(', ')}</span>{/if}
+            </div>
+            <div class="source-library-actions">
+              <a href={source.canonical_url} target="_blank" rel="noreferrer">
+                <ExternalLink size={15} />
+                <span>Open</span>
+              </a>
+              <button type="button" on:click={() => addSeedUrl(source.canonical_url)}>
+                <Search size={15} />
+                <span>Use as Seed</span>
+              </button>
+            </div>
+          </article>
+        {/each}
+      </div>
+    {:else if sourceLibraryLoading}
+      <p class="empty-note">Searching archived source cards...</p>
+    {:else}
+      <p class="empty-note">No archived sources matched. Run a research job first, or relax the search/domain filter.</p>
+    {/if}
   </section>
 
   {#if selectedRun}
@@ -705,6 +831,7 @@
 
   .desk-header,
   .workbench,
+  .source-library-panel,
   .report-panel {
     border: 1px solid var(--border);
     background: var(--surface);
@@ -913,6 +1040,7 @@
 
   .panel-heading,
   .report-heading,
+  .source-library-heading,
   .export-actions {
     display: flex;
     align-items: center;
@@ -927,6 +1055,123 @@
   .report-heading {
     justify-content: space-between;
     gap: 14px;
+  }
+
+  .source-library-panel {
+    display: grid;
+    gap: 12px;
+    padding: 18px;
+  }
+
+  .source-library-heading {
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .source-library-heading p {
+    margin-top: 4px;
+    color: var(--muted);
+  }
+
+  .source-library-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .source-library-controls .link-button {
+    min-height: 40px;
+    margin-top: 0;
+    padding: 0 12px;
+  }
+
+  .source-library-note {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+  }
+
+  .source-library-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .source-library-card {
+    gap: 8px;
+  }
+
+  .source-library-card-main {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) 82px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .source-library-card-main div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .source-library-card-main strong,
+  .source-library-card-main small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .source-rank,
+  .source-score {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 46px;
+    min-height: 24px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--surface);
+    font-size: 0.72rem;
+    font-weight: 900;
+  }
+
+  .source-score {
+    justify-self: end;
+    min-width: 72px;
+  }
+
+  .source-library-meta,
+  .source-library-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .source-library-meta span {
+    border: 1px solid var(--border);
+    padding: 3px 7px;
+    color: var(--muted);
+    background: var(--surface);
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .source-library-actions a,
+  .source-library-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 9px;
+    border: 1px solid var(--border);
+    color: var(--text);
+    background: var(--surface);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-decoration: none;
   }
 
   .export-actions {
@@ -1236,6 +1481,7 @@
     .workbench,
     .report-grid,
     .inline-fields,
+    .source-library-controls,
     .advanced-grid {
       grid-template-columns: 1fr;
     }
@@ -1254,6 +1500,10 @@
       flex-direction: column;
     }
 
+    .source-library-heading {
+      align-items: flex-start;
+    }
+
     .source-meta {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1265,12 +1515,17 @@
     }
 
     .source-card summary,
+    .source-library-card-main,
     .source-meta {
       grid-template-columns: 1fr;
     }
 
     .source-card summary small {
       grid-column: 1;
+    }
+
+    .source-score {
+      justify-self: start;
     }
   }
 </style>

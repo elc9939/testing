@@ -416,6 +416,27 @@ class ResearchSourceRecord(BaseModel):
     fetched_at: str
 
 
+class ResearchSourceCard(BaseModel):
+    id: str
+    url: str
+    canonical_url: str
+    title: str = ""
+    author: str | None = None
+    published_at: str | None = None
+    description: str = ""
+    text_preview: str = ""
+    text_length: int = 0
+    links: list[dict[str, str]] = Field(default_factory=list)
+    tables: list[dict[str, Any]] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    first_seen_at: str
+    last_seen_at: str
+    fetch_count: int = 0
+    rank: int = 0
+    score: float = 0.0
+    matched_terms: list[str] = Field(default_factory=list)
+
+
 class ResearchCitation(BaseModel):
     id: str
     claim: str

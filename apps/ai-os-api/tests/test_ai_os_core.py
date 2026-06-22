@@ -753,6 +753,7 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
         first_final = client.get(f"/api/ai/research/runs/{first.json()['run']['id']}")
         second_final = client.get(f"/api/ai/research/runs/{second.json()['run']['id']}")
         markdown = client.get(f"/api/ai/research/runs/{first.json()['run']['id']}/export?format=markdown")
+        source_library = client.get("/api/ai/research/sources?q=evidence&domain=example.test")
         ledger = client.get("/api/ai/action-ledger?limit=20")
         memory = client.post("/api/ai/memory/query", json={"query": "cite evidence", "limit": 1})
 
@@ -770,6 +771,11 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
     assert second_run["cached_pages"] == 1
     assert listed.json()["runs"][0]["id"] == second_run["id"]
     assert "# Quick Search: research engines cite evidence" in markdown.text
+    assert source_library.status_code == 200
+    assert source_library.json()["sources"][0]["title"] == "Research source"
+    assert "Research engines gather sources" in source_library.json()["sources"][0]["text_preview"]
+    assert source_library.json()["sources"][0]["matched_terms"] == ["evidence"]
+    assert source_library.json()["sources"][0]["fetch_count"] >= 1
     assert any(action["action_type"].startswith("research.") for action in ledger.json()["actions"])
     assert memory.json()["hits"][0]["source_type"] == "research_run"
     assert memory.json()["hits"][0]["source_id"] == first_run["id"]

@@ -476,6 +476,15 @@ def create_app(
     async def research_runs(limit: int = 25) -> dict[str, Any]:
         return {"runs": [run.model_dump(mode="json") for run in services.storage.list_research_runs(limit)]}
 
+    @app.get("/api/ai/research/sources")
+    async def research_sources(q: str = "", domain: str = "", limit: int = 25) -> dict[str, Any]:
+        return {
+            "sources": [
+                source.model_dump(mode="json")
+                for source in services.storage.search_research_pages(q, domain=domain, limit=limit)
+            ]
+        }
+
     @app.get("/api/ai/research/runs/{run_id}")
     async def research_run(run_id: str) -> dict[str, Any]:
         run = services.storage.get_research_run(run_id)
