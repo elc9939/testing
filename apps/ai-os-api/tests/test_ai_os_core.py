@@ -343,9 +343,10 @@ def test_storage_migration_and_integrity_report(tmp_path):
 
     assert report["ok"] is True
     assert report["schema_version"] == report["expected_schema_version"]
-    assert report["counts"]["schema_migrations"] == 7
+    assert report["counts"]["schema_migrations"] == 8
     assert report["counts"]["research_runs"] == 0
     assert report["counts"]["research_pages"] == 0
+    assert report["counts"]["research_monitors"] == 0
 
 
 def test_command_endpoint_blocks_write_tools_without_confirmation(tmp_path):
@@ -779,6 +780,65 @@ def test_research_endpoint_archives_caches_exports_and_logs(monkeypatch, tmp_pat
     assert any(action["action_type"].startswith("research.") for action in ledger.json()["actions"])
     assert memory.json()["hits"][0]["source_type"] == "research_run"
     assert memory.json()["hits"][0]["source_id"] == first_run["id"]
+
+
+def test_research_monitors_persist_and_run_real_reports(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://duckduckgo.com/html/": """
+            <html><body>
+              <div class="result">
+                <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.test%2Fmonitor">Monitor source</a>
+                <a class="result__snippet">Topic update snippet.</a>
+              </div>
+            </body></html>
+            """,
+            "https://example.test/monitor": """
+            <html><head><title>Monitor source</title>
+            <meta name="description" content="Monitor topic source"></head>
+            <body><main><p>Monitor topics collect recurring web intelligence with citations.</p></main></body></html>
+            """,
+            "https://example.test/robots.txt": "User-agent: *\nAllow: /\n",
+        },
+    )
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True)
+    storage = AppStorage(settings.database_path())
+    app = create_app(settings=settings, storage=storage, providers=ProviderRegistry([EchoProvider()]))
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/ai/research/monitors",
+            json={
+                "name": "Web intelligence watch",
+                "schedule": "weekly",
+                "request": {
+                    "mode": "monitor_topic",
+                    "goal": "monitor topics web intelligence",
+                    "max_pages": 2,
+                },
+            },
+        )
+        monitor_id = created.json()["monitor"]["id"]
+        toggled = client.patch(f"/api/ai/research/monitors/{monitor_id}", json={"enabled": False})
+        started = client.post(f"/api/ai/research/monitors/{monitor_id}/run")
+        listed = client.get("/api/ai/research/monitors")
+        run = client.get(f"/api/ai/research/runs/{started.json()['run']['id']}")
+        ledger = client.get("/api/ai/action-ledger?limit=20")
+
+    assert created.status_code == 200
+    assert created.json()["monitor"]["run_count"] == 0
+    assert toggled.json()["monitor"]["enabled"] is False
+    assert started.status_code == 200
+    assert listed.json()["monitors"][0]["last_run_id"] == started.json()["run"]["id"]
+    assert listed.json()["monitors"][0]["last_status"] == "succeeded"
+    assert listed.json()["monitors"][0]["run_count"] == 1
+    assert run.json()["run"]["status"] == "succeeded"
+    assert run.json()["run"]["options"]["metadata"]["research_monitor_id"] == monitor_id
+    assert run.json()["run"]["sources"][0]["title"] == "Monitor source"
+    monitor_action = next(action for action in ledger.json()["actions"] if action["id"] == f"ai-research:{run.json()['run']['id']}")
+    assert monitor_action["metadata"]["research_monitor_id"] == monitor_id
+    assert monitor_action["metadata"]["research_monitor_name"] == "Web intelligence watch"
 
 
 def test_research_cancel_marks_running_run_and_ledger_metadata(tmp_path):

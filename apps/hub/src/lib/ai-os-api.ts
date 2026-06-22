@@ -402,6 +402,40 @@ export interface ResearchRun {
   options: Record<string, unknown>;
 }
 
+export type ResearchMonitorSchedule = 'manual' | 'daily' | 'weekly';
+
+export interface ResearchMonitor {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  name: string;
+  enabled: boolean;
+  schedule: ResearchMonitorSchedule;
+  request: ResearchRunInput;
+  last_run_id?: string;
+  last_run_at?: string;
+  last_status?: ResearchRun['status'];
+  last_error?: string;
+  run_count: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface ResearchMonitorCreateInput {
+  name?: string;
+  enabled?: boolean;
+  schedule?: ResearchMonitorSchedule;
+  request: ResearchRunInput;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ResearchMonitorUpdateInput {
+  name?: string;
+  enabled?: boolean;
+  schedule?: ResearchMonitorSchedule;
+  request?: ResearchRunInput;
+  metadata?: Record<string, unknown>;
+}
+
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init);
 }
@@ -668,6 +702,40 @@ export async function createResearchRun(input: ResearchRunInput): Promise<Resear
     body: JSON.stringify(input)
   });
   return result.run;
+}
+
+export async function listResearchMonitors(limit = 50): Promise<ResearchMonitor[]> {
+  const result = await requestJson<{ monitors: ResearchMonitor[] }>(`/api/ai/research/monitors?limit=${limit}`);
+  return result.monitors;
+}
+
+export async function createResearchMonitor(input: ResearchMonitorCreateInput): Promise<ResearchMonitor> {
+  const result = await requestJson<{ monitor: ResearchMonitor }>('/api/ai/research/monitors', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+  return result.monitor;
+}
+
+export async function updateResearchMonitor(monitorId: string, input: ResearchMonitorUpdateInput): Promise<ResearchMonitor> {
+  const result = await requestJson<{ monitor: ResearchMonitor }>(`/api/ai/research/monitors/${encodeURIComponent(monitorId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input)
+  });
+  return result.monitor;
+}
+
+export async function deleteResearchMonitor(monitorId: string): Promise<ResearchMonitor> {
+  const result = await requestJson<{ monitor: ResearchMonitor }>(`/api/ai/research/monitors/${encodeURIComponent(monitorId)}`, {
+    method: 'DELETE'
+  });
+  return result.monitor;
+}
+
+export async function runResearchMonitor(monitorId: string): Promise<{ monitor: ResearchMonitor; run: ResearchRun }> {
+  return requestJson<{ monitor: ResearchMonitor; run: ResearchRun }>(`/api/ai/research/monitors/${encodeURIComponent(monitorId)}/run`, {
+    method: 'POST'
+  });
 }
 
 export async function cancelResearchRun(runId: string): Promise<ResearchRun> {

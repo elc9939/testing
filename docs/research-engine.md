@@ -28,19 +28,29 @@ Pipeline v1:
    exported later. Research runs are created as durable queued records before work starts and
    update with progress, current step, partial sources, cancellation state, and final report
    data.
-9. When `save_to_memory` is enabled, the completed report plus source excerpts are ingested
+9. `research_monitors` stores reusable topic-watch templates. A monitor records the saved
+   request knobs, enabled state, manual/daily/weekly cadence hint, run count, last run ID,
+   last status, and last error. "Run Now" creates a normal archived research run with monitor
+   metadata attached.
+10. When `save_to_memory` is enabled, the completed report plus source excerpts are ingested
    into AI OS semantic memory as a `research_run` document. The run stores
    `memory_document_id` and `memory_chunks` so the Research Desk and Action Ledger can show
    whether it became searchable local knowledge.
-10. `build_ai_action_ledger()` emits research runs as `research.<mode>` AI OS actions with
+11. `build_ai_action_ledger()` emits research runs as `research.<mode>` AI OS actions with
    source count, cached page count, runtime, progress, provider/model, tokens, and cost
-   memory index metadata.
+   memory index metadata. Runs created from a monitor include `research_monitor_id` and
+   `research_monitor_name` in ledger metadata.
 
 ## API
 
 - `POST /api/ai/research/runs`
 - `GET /api/ai/research/runs?limit=25`
 - `GET /api/ai/research/sources?q=<text>&domain=<host>&limit=25`
+- `GET /api/ai/research/monitors?limit=50`
+- `POST /api/ai/research/monitors`
+- `PATCH /api/ai/research/monitors/:id`
+- `DELETE /api/ai/research/monitors/:id`
+- `POST /api/ai/research/monitors/:id/run`
 - `GET /api/ai/research/runs/:id`
 - `GET /api/ai/research/runs/:id/export?format=markdown|json|html`
 - `POST /api/ai/research/runs/:id/cancel`
@@ -85,6 +95,12 @@ archive. It can search archived source cards by text, filter by domain, show pre
 first/last seen metadata, open the original URL, or add an archived source URL back into the
 Seed URLs box for a follow-up run.
 
+The route also includes a Topic Watch / Monitors panel. It saves the current workbench goal
+and knobs as a durable monitor, lists saved monitors, enables/disables them, reloads a monitor
+into the form, deletes a monitor without deleting archived reports, and runs a monitor on
+demand. A monitor run is just a normal report artifact, so exports, citations, source cache,
+Action Ledger visibility, and semantic-memory opt-in all continue to work.
+
 Advanced run knobs currently sent by the UI include depth, max pages, per-domain limit, time
 budget, date range, include/exclude domains, local AI synthesis, cloud fallback, explicit
 provider/model, screenshot preference, and opt-in semantic memory indexing.
@@ -117,7 +133,9 @@ should prefer those over scraping.
 - Runs now have persisted progress and cancel state, but they still execute in-process as
   FastAPI background tasks. A dedicated queue/worker can come later if research workloads
   need process isolation, concurrency caps across restarts, pause/resume, or scheduling.
-- Monitor Topic is a run mode now, not yet a recurring background monitor.
+- Monitor Topic now has durable saved monitors and on-demand runs. The `daily` and `weekly`
+  cadence fields are stored as scheduling intent, but no automatic background scheduler runs
+  monitors yet.
 - Screenshots are represented in the request model but not yet captured into research source
   cards.
 - Citation mapping is deterministic and source-backed, but not a full claim graph yet.

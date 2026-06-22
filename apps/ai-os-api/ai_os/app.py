@@ -42,6 +42,8 @@ from .models import (
     MemoryIngestRequest,
     MemoryQueryRequest,
     MultimodalInvokeRequest,
+    ResearchMonitorCreateRequest,
+    ResearchMonitorUpdateRequest,
     ResearchRunRequest,
     new_id,
 )
@@ -472,6 +474,31 @@ def create_app(
         )
         return {"actions": [entry.model_dump(mode="json") for entry in entries]}
 
+    async def execute_research_run(run_id: str, run_request: ResearchRunRequest, monitor_id: str | None = None) -> None:
+        try:
+            result = await services.research.run_existing(run_id, run_request)
+            if monitor_id:
+                services.storage.mark_research_monitor_run_finished(monitor_id, result)
+        except Exception as error:
+            logger.exception("Background research run failed")
+            if monitor_id:
+                try:
+                    services.storage.mark_research_monitor_run_failed(monitor_id, run_id, str(error))
+                except Exception:
+                    logger.exception("Failed to mark research monitor run failure")
+
+    def queue_research_run(
+        run_request: ResearchRunRequest,
+        background_tasks: BackgroundTasks,
+        *,
+        monitor_id: str | None = None,
+    ):
+        run = services.research.create_run(run_request)
+        if monitor_id:
+            services.storage.mark_research_monitor_run_started(monitor_id, run)
+        background_tasks.add_task(execute_research_run, run.id, run_request, monitor_id)
+        return run
+
     @app.get("/api/ai/research/runs")
     async def research_runs(limit: int = 25) -> dict[str, Any]:
         return {"runs": [run.model_dump(mode="json") for run in services.storage.list_research_runs(limit)]}
@@ -484,6 +511,60 @@ def create_app(
                 for source in services.storage.search_research_pages(q, domain=domain, limit=limit)
             ]
         }
+
+    @app.get("/api/ai/research/monitors")
+    async def research_monitors(limit: int = 50) -> dict[str, Any]:
+        return {"monitors": [monitor.model_dump(mode="json") for monitor in services.storage.list_research_monitors(limit)]}
+
+    @app.post("/api/ai/research/monitors")
+    async def create_research_monitor(request: ResearchMonitorCreateRequest) -> dict[str, Any]:
+        try:
+            monitor = services.storage.create_research_monitor(request)
+            return {"monitor": monitor.model_dump(mode="json")}
+        except Exception as error:
+            logger.exception("Research monitor failed to create")
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.patch("/api/ai/research/monitors/{monitor_id}")
+    async def update_research_monitor(monitor_id: str, request: ResearchMonitorUpdateRequest) -> dict[str, Any]:
+        try:
+            monitor = services.storage.update_research_monitor(monitor_id, request)
+            return {"monitor": monitor.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Research monitor not found.") from error
+        except Exception as error:
+            logger.exception("Research monitor failed to update")
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.delete("/api/ai/research/monitors/{monitor_id}")
+    async def delete_research_monitor(monitor_id: str) -> dict[str, Any]:
+        try:
+            monitor = services.storage.delete_research_monitor(monitor_id)
+            return {"monitor": monitor.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Research monitor not found.") from error
+
+    @app.post("/api/ai/research/monitors/{monitor_id}/run")
+    async def run_research_monitor(monitor_id: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
+        try:
+            monitor = services.storage.get_research_monitor(monitor_id)
+            if not monitor:
+                raise KeyError(monitor_id)
+            metadata = {
+                **monitor.request.metadata,
+                "research_monitor_id": monitor.id,
+                "research_monitor_name": monitor.name,
+                "research_monitor_schedule": monitor.schedule,
+            }
+            request = monitor.request.model_copy(update={"metadata": metadata})
+            run = queue_research_run(request, background_tasks, monitor_id=monitor.id)
+            refreshed = services.storage.get_research_monitor(monitor.id) or monitor
+            return {"monitor": refreshed.model_dump(mode="json"), "run": run.model_dump(mode="json")}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Research monitor not found.") from error
+        except Exception as error:
+            logger.exception("Research monitor failed to run")
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.get("/api/ai/research/runs/{run_id}")
     async def research_run(run_id: str) -> dict[str, Any]:
@@ -509,15 +590,7 @@ def create_app(
     @app.post("/api/ai/research/runs")
     async def create_research_run(request: ResearchRunRequest, background_tasks: BackgroundTasks) -> dict[str, Any]:
         try:
-            run = services.research.create_run(request)
-
-            async def execute_research_run(run_id: str, run_request: ResearchRunRequest) -> None:
-                try:
-                    await services.research.run_existing(run_id, run_request)
-                except Exception:
-                    logger.exception("Background research run failed")
-
-            background_tasks.add_task(execute_research_run, run.id, request)
+            run = queue_research_run(request, background_tasks)
             return {"run": run.model_dump(mode="json")}
         except Exception as error:
             logger.exception("Research run failed to queue")

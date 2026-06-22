@@ -13,6 +13,9 @@ from .models import (
     GenerationAssetRecord,
     MachineProfileSnapshotRecord,
     ResearchCitation,
+    ResearchMonitorCreateRequest,
+    ResearchMonitorRecord,
+    ResearchMonitorUpdateRequest,
     ResearchReport,
     ResearchSourceCard,
     ResearchRunRecord,
@@ -23,7 +26,7 @@ from .models import (
     now_iso,
 )
 
-CURRENT_SCHEMA_VERSION = 7
+CURRENT_SCHEMA_VERSION = 8
 
 
 class AppStorage:
@@ -65,6 +68,8 @@ class AppStorage:
                 self._apply_0006_research_run_progress()
             if current < 7:
                 self._apply_0007_research_memory_index()
+            if current < 8:
+                self._apply_0008_research_monitors()
 
     def _apply_0001_initial(self) -> None:
         self._conn.executescript(
@@ -357,6 +362,40 @@ class AppStorage:
             (7, "0007_research_memory_index", now_iso(), 0, "builtin:0007_research_memory_index"),
         )
 
+    def _apply_0008_research_monitors(self) -> None:
+        self._conn.executescript(
+            """
+            create table if not exists research_monitors (
+              id text primary key,
+              created_at text not null,
+              updated_at text not null,
+              name text not null,
+              enabled integer not null,
+              schedule text not null,
+              request text not null,
+              last_run_id text,
+              last_run_at text,
+              last_status text,
+              last_error text,
+              run_count integer not null default 0,
+              metadata text not null
+            );
+            create index if not exists idx_research_monitors_updated_at
+              on research_monitors(updated_at);
+            create index if not exists idx_research_monitors_enabled
+              on research_monitors(enabled);
+            create index if not exists idx_research_monitors_last_run
+              on research_monitors(last_run_at);
+            """
+        )
+        self._conn.execute(
+            """
+            insert or ignore into schema_migrations (version, name, applied_at, reversible, checksum)
+            values (?, ?, ?, ?, ?)
+            """,
+            (8, "0008_research_monitors", now_iso(), 0, "builtin:0008_research_monitors"),
+        )
+
     def schema_version(self) -> int:
         with self._lock:
             row = self._conn.execute("select max(version) as version from schema_migrations").fetchone()
@@ -392,6 +431,7 @@ class AppStorage:
             "action_snapshots",
             "research_pages",
             "research_runs",
+            "research_monitors",
             "schema_migrations",
         ]
         counts: dict[str, int] = {}
@@ -452,6 +492,8 @@ class AppStorage:
             ("research_runs", "citations"),
             ("research_runs", "logs"),
             ("research_runs", "options"),
+            ("research_monitors", "request"),
+            ("research_monitors", "metadata"),
         ]
         errors: list[dict[str, Any]] = []
         for table, column in checks:
@@ -1103,6 +1145,158 @@ class AppStorage:
             )
             for row in rows
         ]
+
+    def create_research_monitor(self, request: ResearchMonitorCreateRequest) -> ResearchMonitorRecord:
+        now = now_iso()
+        name = (request.name or "").strip() or self._research_monitor_name(request.request.goal)
+        record = ResearchMonitorRecord(
+            id=new_id("monitor"),
+            created_at=now,
+            updated_at=now,
+            name=name,
+            enabled=request.enabled,
+            schedule=request.schedule,
+            request=request.request,
+            metadata=request.metadata,
+        )
+        return self._write_research_monitor(record)
+
+    def list_research_monitors(self, limit: int = 50) -> list[ResearchMonitorRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "select * from research_monitors order by updated_at desc limit ?",
+                (max(1, min(limit, 200)),),
+            ).fetchall()
+        return [self._research_monitor_from_row(row) for row in rows]
+
+    def get_research_monitor(self, monitor_id: str) -> ResearchMonitorRecord | None:
+        with self._lock:
+            row = self._conn.execute("select * from research_monitors where id = ?", (monitor_id,)).fetchone()
+        return self._research_monitor_from_row(row) if row else None
+
+    def update_research_monitor(self, monitor_id: str, request: ResearchMonitorUpdateRequest) -> ResearchMonitorRecord:
+        existing = self.get_research_monitor(monitor_id)
+        if not existing:
+            raise KeyError(monitor_id)
+        update: dict[str, Any] = {"updated_at": now_iso()}
+        if request.name is not None:
+            update["name"] = request.name.strip() or self._research_monitor_name((request.request or existing.request).goal)
+        if request.enabled is not None:
+            update["enabled"] = request.enabled
+        if request.schedule is not None:
+            update["schedule"] = request.schedule
+        if request.request is not None:
+            update["request"] = request.request
+            if request.name is None and not existing.name:
+                update["name"] = self._research_monitor_name(request.request.goal)
+        if request.metadata is not None:
+            update["metadata"] = request.metadata
+        return self._write_research_monitor(existing.model_copy(update=update))
+
+    def delete_research_monitor(self, monitor_id: str) -> ResearchMonitorRecord:
+        existing = self.get_research_monitor(monitor_id)
+        if not existing:
+            raise KeyError(monitor_id)
+        with self._lock, self._conn:
+            self._conn.execute("delete from research_monitors where id = ?", (monitor_id,))
+        return existing
+
+    def mark_research_monitor_run_started(self, monitor_id: str, run: ResearchRunRecord) -> ResearchMonitorRecord:
+        existing = self.get_research_monitor(monitor_id)
+        if not existing:
+            raise KeyError(monitor_id)
+        return self._write_research_monitor(
+            existing.model_copy(
+                update={
+                    "updated_at": now_iso(),
+                    "last_run_id": run.id,
+                    "last_run_at": run.created_at,
+                    "last_status": run.status,
+                    "last_error": run.error,
+                    "run_count": existing.run_count + 1,
+                }
+            )
+        )
+
+    def mark_research_monitor_run_finished(self, monitor_id: str, run: ResearchRunRecord) -> ResearchMonitorRecord:
+        existing = self.get_research_monitor(monitor_id)
+        if not existing:
+            raise KeyError(monitor_id)
+        return self._write_research_monitor(
+            existing.model_copy(
+                update={
+                    "updated_at": now_iso(),
+                    "last_run_id": run.id,
+                    "last_run_at": run.updated_at or run.created_at,
+                    "last_status": run.status,
+                    "last_error": run.error,
+                }
+            )
+        )
+
+    def mark_research_monitor_run_failed(self, monitor_id: str, run_id: str, error: str) -> ResearchMonitorRecord:
+        existing = self.get_research_monitor(monitor_id)
+        if not existing:
+            raise KeyError(monitor_id)
+        return self._write_research_monitor(
+            existing.model_copy(
+                update={
+                    "updated_at": now_iso(),
+                    "last_run_id": run_id,
+                    "last_run_at": now_iso(),
+                    "last_status": "failed",
+                    "last_error": error,
+                }
+            )
+        )
+
+    def _write_research_monitor(self, record: ResearchMonitorRecord) -> ResearchMonitorRecord:
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                insert or replace into research_monitors (
+                  id, created_at, updated_at, name, enabled, schedule, request,
+                  last_run_id, last_run_at, last_status, last_error, run_count, metadata
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.created_at,
+                    record.updated_at,
+                    record.name,
+                    1 if record.enabled else 0,
+                    record.schedule,
+                    json.dumps(record.request.model_dump(mode="json")),
+                    record.last_run_id,
+                    record.last_run_at,
+                    record.last_status,
+                    record.last_error,
+                    record.run_count,
+                    json.dumps(record.metadata),
+                ),
+            )
+        return record
+
+    def _research_monitor_from_row(self, row: sqlite3.Row) -> ResearchMonitorRecord:
+        return ResearchMonitorRecord(
+            id=row["id"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            name=row["name"],
+            enabled=bool(row["enabled"]),
+            schedule=row["schedule"],
+            request=json.loads(row["request"]),
+            last_run_id=row["last_run_id"],
+            last_run_at=row["last_run_at"],
+            last_status=row["last_status"],
+            last_error=row["last_error"],
+            run_count=int(row["run_count"]),
+            metadata=json.loads(row["metadata"]),
+        )
+
+    def _research_monitor_name(self, goal: str) -> str:
+        compact = " ".join(goal.split())
+        return compact[:80] or "Untitled monitor"
 
     def get_research_page(self, canonical_url: str) -> ResearchSourceRecord | None:
         with self._lock:

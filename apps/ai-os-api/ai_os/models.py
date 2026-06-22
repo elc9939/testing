@@ -132,6 +132,7 @@ JobPrimitive = Literal["map", "self_consistency", "chunk_summarize", "retry_loop
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 ResearchMode = Literal["quick_search", "deep_research", "url_scrape", "site_crawl", "compare_sources", "monitor_topic"]
 ResearchStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
+ResearchMonitorSchedule = Literal["manual", "daily", "weekly"]
 
 
 class JobCreateRequest(BaseModel):
@@ -394,6 +395,38 @@ class ResearchRunRequest(BaseModel):
     model: str | None = Field(default=None, max_length=160)
     screenshot: bool = False
     save_to_memory: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResearchMonitorCreateRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=160)
+    enabled: bool = True
+    schedule: ResearchMonitorSchedule = "manual"
+    request: ResearchRunRequest
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResearchMonitorUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=160)
+    enabled: bool | None = None
+    schedule: ResearchMonitorSchedule | None = None
+    request: ResearchRunRequest | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class ResearchMonitorRecord(BaseModel):
+    id: str
+    created_at: str
+    updated_at: str
+    name: str
+    enabled: bool = True
+    schedule: ResearchMonitorSchedule = "manual"
+    request: ResearchRunRequest
+    last_run_id: str | None = None
+    last_run_at: str | None = None
+    last_status: ResearchStatus | None = None
+    last_error: str | None = None
+    run_count: int = 0
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

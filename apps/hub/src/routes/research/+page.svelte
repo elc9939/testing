@@ -1,16 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Database, Download, ExternalLink, FileText, RefreshCw, Search, X } from 'lucide-svelte';
+  import { Bell, Database, Download, ExternalLink, FileText, Play, RefreshCw, Search, Trash2, X } from 'lucide-svelte';
   import {
     cancelResearchRun,
+    createResearchMonitor,
     createResearchRun,
+    deleteResearchMonitor,
     getResearchRun,
+    listResearchMonitors,
     listResearchRuns,
     listResearchSources,
     researchExportUrl,
+    runResearchMonitor,
+    updateResearchMonitor,
     type ResearchCitation,
+    type ResearchMonitor,
+    type ResearchMonitorSchedule,
     type ResearchMode,
     type ResearchRun,
+    type ResearchRunInput,
     type ResearchSource,
     type ResearchSourceCard
   } from '$lib/ai-os-api';
@@ -51,11 +59,18 @@
   let message = '';
   let sourceLibraryError = '';
   let sourceLibraryMessage = '';
+  let monitorError = '';
+  let monitorMessage = '';
   let runs: ResearchRun[] = [];
   let selectedRun: ResearchRun | null = null;
   let sourceLibrary: ResearchSourceCard[] = [];
+  let monitors: ResearchMonitor[] = [];
   let sourceQuery = '';
   let sourceDomain = '';
+  let monitorName = '';
+  let monitorSchedule: ResearchMonitorSchedule = 'manual';
+  let monitorsLoading = false;
+  let monitorActionId = '';
 
   $: currentMode = modes.find((item) => item.id === mode) ?? modes[0];
   $: seedUrls = splitList(seedUrlsText);
@@ -65,6 +80,7 @@
   onMount(() => {
     void refreshRuns();
     void refreshSourceLibrary();
+    void refreshMonitors();
   });
 
   async function refreshRuns(): Promise<void> {
@@ -96,6 +112,41 @@
     }
   }
 
+  async function refreshMonitors(): Promise<void> {
+    monitorsLoading = true;
+    monitorError = '';
+    try {
+      monitors = await listResearchMonitors(30);
+    } catch (err) {
+      monitorError = err instanceof Error ? err.message : 'Research monitors failed to load.';
+    } finally {
+      monitorsLoading = false;
+    }
+  }
+
+  function currentResearchInput(modeOverride: ResearchMode = mode): ResearchRunInput {
+    return {
+      mode: modeOverride,
+      goal: goal.trim(),
+      seed_urls: seedUrls,
+      include_domains: includeDomains,
+      exclude_domains: excludeDomains,
+      depth,
+      max_pages: maxPages,
+      per_domain_limit: perDomainLimit,
+      time_budget_s: timeBudget,
+      date_range_start: dateRangeStart || undefined,
+      date_range_end: dateRangeEnd || undefined,
+      use_ai: useAi,
+      use_cloud_ai: useCloudAi,
+      local_first: !useCloudAi,
+      screenshot,
+      save_to_memory: saveToMemory,
+      provider: provider.trim() || undefined,
+      model: model.trim() || undefined
+    };
+  }
+
   async function runResearch(): Promise<void> {
     if (!goal.trim()) {
       error = 'Type a research goal, question, topic, company, person, site, or seed URL.';
@@ -105,26 +156,7 @@
     error = '';
     message = '';
     try {
-      const run = await createResearchRun({
-        mode,
-        goal: goal.trim(),
-        seed_urls: seedUrls,
-        include_domains: includeDomains,
-        exclude_domains: excludeDomains,
-        depth,
-        max_pages: maxPages,
-        per_domain_limit: perDomainLimit,
-        time_budget_s: timeBudget,
-        date_range_start: dateRangeStart || undefined,
-        date_range_end: dateRangeEnd || undefined,
-        use_ai: useAi,
-        use_cloud_ai: useCloudAi,
-        local_first: !useCloudAi,
-        screenshot,
-        save_to_memory: saveToMemory,
-        provider: provider.trim() || undefined,
-        model: model.trim() || undefined
-      });
+      const run = await createResearchRun(currentResearchInput());
       selectedRun = run;
       runs = [run, ...runs.filter((item) => item.id !== run.id)].slice(0, 20);
       message = `Queued ${currentMode?.label ?? 'research'} run. The report will update as sources arrive.`;
@@ -133,6 +165,105 @@
     } finally {
       loading = false;
     }
+  }
+
+  async function saveCurrentMonitor(): Promise<void> {
+    if (!goal.trim()) {
+      monitorError = 'Type a topic or goal before saving a monitor.';
+      return;
+    }
+    monitorsLoading = true;
+    monitorError = '';
+    monitorMessage = '';
+    try {
+      const monitor = await createResearchMonitor({
+        name: monitorName.trim() || undefined,
+        enabled: true,
+        schedule: monitorSchedule,
+        request: {
+          ...currentResearchInput('monitor_topic'),
+          metadata: { created_from: 'research_desk' }
+        }
+      });
+      monitors = [monitor, ...monitors.filter((item) => item.id !== monitor.id)].slice(0, 30);
+      monitorName = '';
+      monitorMessage = 'Saved topic monitor. Use Run Now whenever you want a fresh report.';
+    } catch (err) {
+      monitorError = err instanceof Error ? err.message : 'Could not save research monitor.';
+    } finally {
+      monitorsLoading = false;
+    }
+  }
+
+  async function toggleMonitor(monitor: ResearchMonitor): Promise<void> {
+    monitorActionId = monitor.id;
+    monitorError = '';
+    monitorMessage = '';
+    try {
+      const updated = await updateResearchMonitor(monitor.id, { enabled: !monitor.enabled });
+      monitors = monitors.map((item) => (item.id === updated.id ? updated : item));
+    } catch (err) {
+      monitorError = err instanceof Error ? err.message : 'Could not update monitor.';
+    } finally {
+      monitorActionId = '';
+    }
+  }
+
+  async function runMonitor(monitor: ResearchMonitor): Promise<void> {
+    monitorActionId = monitor.id;
+    monitorError = '';
+    monitorMessage = '';
+    try {
+      const result = await runResearchMonitor(monitor.id);
+      monitors = [result.monitor, ...monitors.filter((item) => item.id !== result.monitor.id)].slice(0, 30);
+      selectedRun = result.run;
+      runs = [result.run, ...runs.filter((item) => item.id !== result.run.id)].slice(0, 20);
+      monitorMessage = `Queued monitor run for ${result.monitor.name}.`;
+    } catch (err) {
+      monitorError = err instanceof Error ? err.message : 'Could not run monitor.';
+    } finally {
+      monitorActionId = '';
+    }
+  }
+
+  async function removeMonitor(monitor: ResearchMonitor): Promise<void> {
+    if (!window.confirm(`Delete research monitor "${monitor.name}"? Archived reports stay saved.`)) return;
+    monitorActionId = monitor.id;
+    monitorError = '';
+    monitorMessage = '';
+    try {
+      await deleteResearchMonitor(monitor.id);
+      monitors = monitors.filter((item) => item.id !== monitor.id);
+      monitorMessage = 'Deleted monitor. Archived reports were left intact.';
+    } catch (err) {
+      monitorError = err instanceof Error ? err.message : 'Could not delete monitor.';
+    } finally {
+      monitorActionId = '';
+    }
+  }
+
+  function loadMonitorIntoForm(monitor: ResearchMonitor): void {
+    const request = monitor.request;
+    mode = request.mode ?? 'monitor_topic';
+    goal = request.goal ?? '';
+    seedUrlsText = (request.seed_urls ?? []).join('\n');
+    includeDomainsText = (request.include_domains ?? []).join(', ');
+    excludeDomainsText = (request.exclude_domains ?? []).join(', ');
+    depth = request.depth ?? 1;
+    maxPages = request.max_pages ?? 6;
+    perDomainLimit = request.per_domain_limit ?? 4;
+    timeBudget = request.time_budget_s ?? 90;
+    dateRangeStart = request.date_range_start ?? '';
+    dateRangeEnd = request.date_range_end ?? '';
+    useAi = Boolean(request.use_ai);
+    useCloudAi = Boolean(request.use_cloud_ai);
+    saveToMemory = Boolean(request.save_to_memory);
+    screenshot = Boolean(request.screenshot);
+    provider = request.provider ?? '';
+    model = request.model ?? '';
+    monitorName = monitor.name;
+    monitorSchedule = monitor.schedule;
+    monitorMessage = 'Loaded monitor settings into the workbench.';
   }
 
   async function pollLiveRuns(): Promise<void> {
@@ -309,6 +440,12 @@
     return url.trim();
   }
 
+  function monitorMeta(monitor: ResearchMonitor): string {
+    const last = monitor.last_run_at ? `last ${displayDate(monitor.last_run_at)}` : 'never run';
+    const status = monitor.last_status ? monitor.last_status.replace('_', ' ') : 'idle';
+    return `${monitor.schedule} - ${monitor.run_count} run${monitor.run_count === 1 ? '' : 's'} - ${status} - ${last}`;
+  }
+
   onMount(() => {
     const timer = window.setInterval(() => {
       void pollLiveRuns();
@@ -462,6 +599,80 @@
         <p class="empty-note">No archived research yet.</p>
       {/if}
     </aside>
+  </section>
+
+  <section class="monitor-panel">
+    <div class="monitor-heading">
+      <div>
+        <span class="eyebrow">Topic Watch</span>
+        <h2>Monitors</h2>
+        <p>Save a reusable research setup, then run it again when you want a fresh report.</p>
+      </div>
+      <button class="icon-button" type="button" disabled={monitorsLoading} title="Refresh monitors" on:click={refreshMonitors}>
+        <RefreshCw size={17} />
+      </button>
+    </div>
+
+    <div class="monitor-create-row">
+      <label>
+        <span>Monitor name</span>
+        <input bind:value={monitorName} placeholder="Optional name for this topic watch" />
+      </label>
+      <label>
+        <span>Cadence</span>
+        <select bind:value={monitorSchedule}>
+          <option value="manual">Manual</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </label>
+      <button class="link-button" type="button" disabled={monitorsLoading || !goal.trim()} on:click={saveCurrentMonitor}>
+        <Bell size={15} />
+        <span>Save Current Setup</span>
+      </button>
+    </div>
+
+    {#if monitorError}
+      <p class="error-message monitor-note">{monitorError}</p>
+    {:else if monitorMessage}
+      <p class="ok-message monitor-note">{monitorMessage}</p>
+    {/if}
+
+    {#if monitors.length}
+      <div class="monitor-list">
+        {#each monitors as monitor}
+          <article class="monitor-card">
+            <div class="monitor-card-main">
+              <span class={`status ${monitor.last_status ?? (monitor.enabled ? 'queued' : 'cancelled')}`}>{monitor.enabled ? 'on' : 'off'}</span>
+              <div>
+                <strong>{monitor.name}</strong>
+                <small>{monitorMeta(monitor)}</small>
+              </div>
+            </div>
+            <p>{monitor.request.goal}</p>
+            {#if monitor.last_error}<p class="error-message compact-message">{monitor.last_error}</p>{/if}
+            <div class="monitor-actions">
+              <button type="button" disabled={monitorActionId === monitor.id} on:click={() => runMonitor(monitor)}>
+                <Play size={15} />
+                <span>Run Now</span>
+              </button>
+              <button type="button" on:click={() => loadMonitorIntoForm(monitor)}>Load</button>
+              <button type="button" disabled={monitorActionId === monitor.id} on:click={() => toggleMonitor(monitor)}>
+                {monitor.enabled ? 'Disable' : 'Enable'}
+              </button>
+              <button class="danger-button" type="button" disabled={monitorActionId === monitor.id} on:click={() => removeMonitor(monitor)}>
+                <Trash2 size={15} />
+                <span>Delete</span>
+              </button>
+            </div>
+          </article>
+        {/each}
+      </div>
+    {:else if monitorsLoading}
+      <p class="empty-note">Loading research monitors...</p>
+    {:else}
+      <p class="empty-note">No topic monitors yet. Fill in a goal and knobs above, then save the setup here.</p>
+    {/if}
   </section>
 
   <section class="source-library-panel">
@@ -831,6 +1042,7 @@
 
   .desk-header,
   .workbench,
+  .monitor-panel,
   .source-library-panel,
   .report-panel {
     border: 1px solid var(--border);
@@ -941,7 +1153,8 @@
   }
 
   textarea,
-  input {
+  input,
+  select {
     width: 100%;
     border: 1px solid var(--border);
     background: var(--surface);
@@ -981,9 +1194,66 @@
     width: auto;
   }
 
+  .monitor-panel {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+  }
+
+  .monitor-heading,
+  .monitor-card-main,
+  .monitor-actions,
+  .monitor-create-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .monitor-heading {
+    justify-content: space-between;
+  }
+
+  .monitor-card-main {
+    justify-content: flex-start;
+  }
+
+  .monitor-create-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 160px auto;
+  }
+
+  .monitor-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .monitor-card {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .monitor-card p {
+    font-size: 0.9rem;
+  }
+
+  .monitor-actions {
+    flex-wrap: wrap;
+  }
+
+  .monitor-actions button {
+    min-height: 34px;
+  }
+
+  .monitor-note,
+  .compact-message {
+    font-size: 0.85rem;
+  }
+
   .link-button,
   .icon-button,
   .primary-button,
+  .monitor-actions button,
   .export-actions a,
   .export-actions button {
     display: inline-flex;
@@ -1000,6 +1270,29 @@
   .link-button {
     margin-top: 12px;
     padding: 8px 10px;
+  }
+
+  .monitor-create-row .link-button {
+    align-self: end;
+    min-height: 40px;
+    margin-top: 0;
+    padding: 0 12px;
+  }
+
+  .monitor-actions button {
+    padding: 0 10px;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .monitor-actions button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+
+  .danger-button {
+    color: var(--danger-text);
   }
 
   .icon-button {
@@ -1069,6 +1362,11 @@
   }
 
   .source-library-heading p {
+    margin-top: 4px;
+    color: var(--muted);
+  }
+
+  .monitor-heading p {
     margin-top: 4px;
     color: var(--muted);
   }
@@ -1482,6 +1780,7 @@
     .report-grid,
     .inline-fields,
     .source-library-controls,
+    .monitor-create-row,
     .advanced-grid {
       grid-template-columns: 1fr;
     }
@@ -1500,7 +1799,8 @@
       flex-direction: column;
     }
 
-    .source-library-heading {
+    .source-library-heading,
+    .monitor-heading {
       align-items: flex-start;
     }
 

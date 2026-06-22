@@ -361,6 +361,7 @@ def _job_entry(job: JobSnapshot) -> ActionLedgerEntry:
 def _research_entry(run: ResearchRunRecord) -> ActionLedgerEntry:
     status = run.status if run.status in {"queued", "running", "succeeded", "failed", "cancelled"} else "info"
     provider = "/".join(part for part in [run.provider, run.model] if part)
+    research_metadata = run.options.get("metadata") if isinstance(run.options.get("metadata"), dict) else {}
     return ActionLedgerEntry(
         id=f"ai-research:{run.id}",
         occurred_at=run.updated_at or run.created_at,
@@ -395,6 +396,8 @@ def _research_entry(run: ResearchRunRecord) -> ActionLedgerEntry:
             "model": run.model,
             "total_tokens": run.total_tokens,
             "cost_usd": run.cost_usd,
+            "research_monitor_id": research_metadata.get("research_monitor_id"),
+            "research_monitor_name": research_metadata.get("research_monitor_name"),
             "detail": run.error or f"{len(run.sources)} source(s), {round(run.runtime_ms)} ms, {provider or 'extractive'}",
         },
     )
