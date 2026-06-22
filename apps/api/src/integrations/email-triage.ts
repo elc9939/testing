@@ -87,6 +87,36 @@ const noiseTerms = [
   'statement available'
 ];
 
+const passiveEventNoticeTerms = [
+  'class cancelled',
+  'class canceled',
+  'class cancellation',
+  'class rescheduled',
+  'class rescheduling',
+  'event reminder',
+  'appointment reminder',
+  'booking confirmation',
+  'reservation confirmation'
+];
+
+const eventNoticeActionTerms = [
+  'action required',
+  'please reply',
+  'respond',
+  'rsvp',
+  'interview',
+  'exam',
+  'assignment',
+  'deadline',
+  'due',
+  'security',
+  'verification',
+  'payment failed',
+  'card declined',
+  'invoice',
+  'flight'
+];
+
 function clampPriority(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -122,6 +152,9 @@ export function heuristicTriage(thread: GmailThread): EmailThreadInsight {
     ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(label)
   );
   const hasNoiseTerm = includesAny(lower, noiseTerms);
+  const hasPassiveEventNotice = includesAny(lower, passiveEventNoticeTerms);
+  const hasEventNoticeAction = includesAny(lower, eventNoticeActionTerms);
+  const suppressPassiveEventNotice = hasPassiveEventNotice && !hasEventNoticeAction;
   const hasHighSignalTerm = includesAny(lower, highSignalTerms);
 
   if (thread.unread) {
@@ -167,8 +200,14 @@ export function heuristicTriage(thread: GmailThread): EmailThreadInsight {
     }
   }
 
-  const deadline = dateHint(text);
-  if (deadline || /\b(deadline|due|by midnight|expires|appointment)\b/iu.test(lower)) {
+  if (suppressPassiveEventNotice) {
+    priority -= 32;
+    category = 'notification';
+    reasons.push('passive calendar/event notice');
+  }
+
+  const deadline = suppressPassiveEventNotice ? undefined : dateHint(text);
+  if (!suppressPassiveEventNotice && (deadline || /\b(deadline|due|by midnight|expires|appointment)\b/iu.test(lower))) {
     priority += 18;
     category = 'deadline';
     reasons.push(deadline ? `date hint: ${deadline}` : 'deadline hint');

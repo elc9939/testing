@@ -126,7 +126,7 @@
 
   function importantMailQuery(): string {
     return [
-      'in:inbox is:unread newer_than:14d',
+      'in:inbox is:unread newer_than:7d',
       '-category:promotions',
       '-category:social',
       '-category:forums',
@@ -135,10 +135,13 @@
       '-"money transfer"',
       '-"payment received"',
       '-"statement available"',
+      '-"class cancellation"',
+      '-"class cancelled"',
+      '-"class canceled"',
       '-receipt',
       '-newsletter',
       '-unsubscribe',
-      '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR appointment OR rescheduled OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
+      '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
     ].join(' ');
   }
 
@@ -161,6 +164,9 @@
     const passiveMoney = /\b(received money|you received money|money transfer received|payment received|receipt|statement available)\b/u;
     const actionWords = /\b(action required|verify|verification|security alert|failed|declined|overdue|due|deadline|reply|respond)\b/u;
     if (passiveMoney.test(text) && !actionWords.test(text)) return true;
+    const passiveEventNotice = /\b(class cancellation|class cancelled|class canceled|class rescheduled|class rescheduling|event reminder|appointment reminder|booking confirmation|reservation confirmation)\b/u;
+    const eventActionWords = /\b(action required|reply|respond|rsvp|interview|exam|assignment|deadline|due|security|verification|payment failed|card declined|invoice|flight)\b/u;
+    if (passiveEventNotice.test(text) && !eventActionWords.test(text)) return true;
     return /\b(unsubscribe|promo|promotion|newsletter|sale|discount|sponsored|advertisement|view web version|limited time|reward points|points balance)\b/u.test(text);
   }
 
@@ -699,10 +705,10 @@
       <div class="panel-title">
         <div>
           <span class="icon-chip"><Inbox size={16} /></span>
-          <strong>Needs Attention</strong>
+          <strong>Calendar + Status</strong>
         </div>
         <a class="button compact" href={hubHref('/productivity')}>
-          <span>Calendar</span>
+          <span>Open Calendar</span>
           <ArrowRight size={15} />
         </a>
       </div>
@@ -769,7 +775,7 @@
       {:else}
         <div class="empty-block">
           <strong>No urgent signals right now.</strong>
-          <p>Today keeps this queue to service issues, setup items, and the next meaningful calendar item. Mail and career cleanup live in their own panels.</p>
+          <p>Today keeps this queue to service issues, setup items, and meaningful calendar items. Mail and career cleanup stay in their own panels.</p>
         </div>
       {/if}
     </article>
@@ -933,7 +939,7 @@
       <div class="panel-title">
         <div>
           <span class="icon-chip"><Inbox size={16} /></span>
-          <strong>Unread Actions</strong>
+          <strong>Mail Triage</strong>
         </div>
         <div class="panel-actions">
           {#if importantMail.length}
@@ -944,7 +950,7 @@
               on:click={markVisibleMailRead}
             >
               <MailCheck size={15} />
-              <span>Mark Visible Read</span>
+              <span>Mark all shown read</span>
             </button>
           {/if}
           <a class="button compact" href={hubHref('/productivity')}>
@@ -959,6 +965,7 @@
       {:else if dashboardLoading && !importantMail.length}
         <p class="empty-note">Checking only action-heavy mail...</p>
       {:else if importantMail.length}
+        <p class="panel-note">Only recent unread mail with strong action/deadline signals is shown here.</p>
         <div class="mail-list">
           {#each importantMail as insight}
             <div class="mail-row">
@@ -973,7 +980,7 @@
               </a>
               <div class="mail-actions">
                 <button
-                  class="icon-action"
+                  class="quick-mail-action"
                   type="button"
                   disabled={mailActionDisabled(insight)}
                   title="Mark read"
@@ -981,10 +988,11 @@
                   on:click={() => runMailAction(insight, 'read')}
                 >
                   <MailCheck size={15} />
+                  <span>Read</span>
                 </button>
                 {#if isThreadImportant(insight)}
                   <button
-                    class="icon-action active"
+                    class="quick-mail-action active"
                     type="button"
                     disabled={mailActionDisabled(insight)}
                     title="Remove important"
@@ -992,10 +1000,11 @@
                     on:click={() => runMailAction(insight, 'not-important')}
                   >
                     <StarOff size={15} />
+                    <span>Not important</span>
                   </button>
                 {:else}
                   <button
-                    class="icon-action"
+                    class="quick-mail-action"
                     type="button"
                     disabled={mailActionDisabled(insight)}
                     title="Mark important"
@@ -1003,10 +1012,11 @@
                     on:click={() => runMailAction(insight, 'important')}
                   >
                     <Star size={15} />
+                    <span>Important</span>
                   </button>
                 {/if}
                 <button
-                  class="icon-action"
+                  class="quick-mail-action"
                   type="button"
                   disabled={mailActionDisabled(insight)}
                   title="Archive"
@@ -1014,6 +1024,7 @@
                   on:click={() => runMailAction(insight, 'archive')}
                 >
                   <Archive size={15} />
+                  <span>Archive</span>
                 </button>
               </div>
             </div>

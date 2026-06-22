@@ -1037,4 +1037,45 @@ describe('mini hub api', () => {
     expect(insights[0]?.category).toMatch(/notification|noise/);
     expect(insights[0]?.priority ?? 100).toBeLessThan(60);
   });
+
+  it('keeps passive class cancellation notices below attention priority', async () => {
+    const message = {
+      id: 'class-message',
+      threadId: 'class-thread',
+      labelIds: ['INBOX', 'UNREAD'],
+      snippet: 'Class cancellation and rescheduling notice for Tuesday.',
+      subject: 'Order #59238 - Class Cancelled',
+      from: 'The Pottery Studio Costa Mesa <costamesa@thepotterystudio.com>',
+      to: 'me@example.com',
+      cc: '',
+      date: 'Wed, 17 Jun 2026 11:00:00 +0000',
+      internalDate: '1781708400000',
+      messageIdHeader: '<class-message@example.com>',
+      references: '',
+      inReplyTo: '',
+      bodyText: 'Class cancellation and rescheduling notice for Tuesday. View your booking for details.',
+      bodyHtml: '',
+      headers: {}
+    };
+
+    const insights = await triageGmailThreads(
+      [
+        {
+          id: 'class-thread',
+          historyId: 'h4',
+          snippet: message.snippet,
+          labelIds: message.labelIds,
+          subject: message.subject,
+          from: message.from,
+          date: message.date,
+          unread: true,
+          messages: [message]
+        }
+      ],
+      { maxResults: 1, minPriority: 0 }
+    );
+
+    expect(insights[0]?.category).toBe('notification');
+    expect(insights[0]?.priority ?? 100).toBeLessThan(60);
+  });
 });

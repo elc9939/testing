@@ -42,12 +42,12 @@ local API services to be running on the same machine:
 The Svelte app under `apps/hub` provides these main pages:
 
 - Today dashboard: command-center cockpit with a small service/setup/calendar-first
-  attention queue, separate Unread Actions and Career Focus panels, local sync/service
+  attention queue, separate Mail Triage and Career Focus panels, local sync/service
   signals, capability health, and Machine Mode-aware next actions. The top queue now stays
   out of ordinary mail and career cleanup; passive notifications, raw/stale leads,
   birthdays/holidays, and obvious marketing are intentionally kept out. The mail panel uses
-  a stricter action-heavy Gmail query and has direct Read, Important/Unimportant, Archive,
-  and Mark Visible Read controls.
+  a stricter recent/action-heavy Gmail query and has direct Read, Important/Unimportant,
+  Archive, and Mark all shown read controls.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls.
