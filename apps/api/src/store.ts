@@ -1,7 +1,9 @@
 import {
   personalUserId,
   personalWorkspaceId,
+  actionLedgerEntrySchema,
   integrationConnectionSchema,
+  type ActionLedgerEntry,
   type Achievement,
   type CareerActionRecord,
   type GameRun,
@@ -38,6 +40,7 @@ export interface MemoryStore {
   integrationConnections: Map<string, IntegrationConnection>;
   integrationPersistencePath?: string;
   syncEvents: SyncEvent[];
+  actionEvents: ActionLedgerEntry[];
 }
 
 export function createMemoryStore(): MemoryStore {
@@ -53,7 +56,8 @@ export function createMemoryStore(): MemoryStore {
     achievements: [],
     notes: [],
     integrationConnections: new Map(),
-    syncEvents: []
+    syncEvents: [],
+    actionEvents: []
   };
 }
 
@@ -165,5 +169,18 @@ export function appendSyncEvent(
     createdAt: new Date().toISOString()
   };
   store.syncEvents.push(event);
+  return event;
+}
+
+export function appendActionLedgerEvent(
+  store: MemoryStore,
+  input: Omit<ActionLedgerEntry, 'id' | 'occurredAt'> & Partial<Pick<ActionLedgerEntry, 'id' | 'occurredAt'>>
+): ActionLedgerEntry {
+  const event = actionLedgerEntrySchema.parse({
+    ...input,
+    id: input.id ?? `mini-hub-action:${crypto.randomUUID()}`,
+    occurredAt: input.occurredAt ?? new Date().toISOString()
+  });
+  store.actionEvents.push(event);
   return event;
 }

@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
 import {
+  appendActionLedgerEvent,
   appendSyncEvent,
   ensurePersonalWorkspace,
   ledgerMetadataFromPayload,
@@ -47,7 +48,7 @@ function actionMode(event: SyncEvent): string | undefined {
 
 function recoverability(event: SyncEvent): ActionLedgerEntry['recoverability'] {
   const metadata = ledgerMetadataFromPayload(event.payload);
-  if (metadata.before) {
+  if (metadata.before !== undefined && metadata.before !== null) {
     return {
       kind: 'snapshot',
       referenceId: event.id,
@@ -108,6 +109,82 @@ function syncEventToLedgerEntry(event: SyncEvent): ActionLedgerEntry {
 
 function eventIdFromLedgerId(value: string): string {
   return value.startsWith('mini-hub-sync:') ? value.slice('mini-hub-sync:'.length) : value;
+}
+
+function entityLabel(event: SyncEvent): string {
+  return titleCase(event.entityType);
+}
+
+function restoreAttemptAction(
+  store: MemoryStore,
+  event: SyncEvent,
+  input: {
+    status: ActionLedgerEntry['status'];
+    detail: string;
+    restoredSyncEvent?: SyncEvent;
+    error?: string;
+  }
+): ActionLedgerEntry {
+  const restoredSyncMetadata = input.restoredSyncEvent
+    ? ledgerMetadataFromPayload(input.restoredSyncEvent.payload)
+    : {};
+  const hasRestorablePreRestoreState =
+    restoredSyncMetadata.before !== undefined && restoredSyncMetadata.before !== null;
+  return appendActionLedgerEvent(store, {
+    system: 'mini-hub',
+    source: 'action_ledger_restore',
+    actionType: 'action_ledger.restore',
+    summary:
+      input.status === 'succeeded'
+        ? `Restored ${entityLabel(event)} snapshot`
+        : input.status === 'blocked'
+          ? `Restore ${entityLabel(event)} snapshot blocked`
+          : `Restore ${entityLabel(event)} snapshot failed`,
+    status: input.status,
+    risk: 'destructive',
+    changed: [`${event.entityType}:${event.entityId}`],
+    recoverability:
+      input.status === 'succeeded' && input.restoredSyncEvent
+        ? {
+            kind: hasRestorablePreRestoreState ? 'snapshot' : 'artifact',
+            referenceId: input.restoredSyncEvent.id,
+            route: '/settings',
+            description:
+              hasRestorablePreRestoreState
+                ? 'Restore wrote synced data and captured the pre-restore state in a follow-up sync event.'
+                : 'Restore wrote synced data; the follow-up sync event is the audit artifact.',
+            reversible: hasRestorablePreRestoreState
+          }
+        : input.status === 'blocked'
+          ? {
+              kind: 'dry_run',
+              referenceId: event.id,
+              route: '/settings',
+              description: 'Restore was blocked before side effects because confirmation was not provided.',
+              reversible: true
+            }
+          : {
+              kind: 'none',
+              referenceId: event.id,
+              route: '/settings',
+              description: input.detail,
+              reversible: false
+            },
+    rawRef: {
+      kind: 'action_ledger_restore',
+      sourceEventId: event.id,
+      restoredSyncEventId: input.restoredSyncEvent?.id
+    },
+    metadata: {
+      workspaceId: event.workspaceId,
+      entityType: event.entityType,
+      entityId: event.entityId,
+      operation: event.operation,
+      restoredFrom: event.id,
+      detail: input.detail,
+      error: input.error
+    }
+  });
 }
 
 function currentEntitySnapshot(store: MemoryStore, event: SyncEvent): unknown {
@@ -222,9 +299,14 @@ export function actionLedgerRoutes(store: MemoryStore): Hono<AppBindings> {
     ensurePersonalWorkspace(store);
     const workspaceIds = userWorkspaceIds(store, user.id);
     const limit = Math.max(1, Math.min(Number(c.req.query('limit') ?? 50) || 50, 200));
-    const actions = store.syncEvents
+    const syncActions = store.syncEvents
       .filter((event) => workspaceIds.has(event.workspaceId))
-      .map(syncEventToLedgerEntry)
+      .map(syncEventToLedgerEntry);
+    const explicitActions = store.actionEvents.filter((event) => {
+      const workspaceId = event.metadata.workspaceId;
+      return typeof workspaceId !== 'string' || workspaceIds.has(workspaceId);
+    });
+    const actions = [...syncActions, ...explicitActions]
       .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || a.id.localeCompare(b.id))
       .slice(0, limit);
 
@@ -238,22 +320,43 @@ export function actionLedgerRoutes(store: MemoryStore): Hono<AppBindings> {
 
     const parsed = restoreBody.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
-    if (!parsed.data.confirm) {
-      return c.json({ error: 'Restore requires confirm: true because it writes synced data.' }, 409);
-    }
-
     const eventId = eventIdFromLedgerId(c.req.param('id'));
     const workspaceIds = userWorkspaceIds(store, user.id);
     const event = store.syncEvents.find((candidate) => candidate.id === eventId && workspaceIds.has(candidate.workspaceId));
     if (!event) return c.json({ error: 'Action ledger entry not found' }, 404);
 
     const metadata = ledgerMetadataFromPayload(event.payload);
-    if (!metadata.before) return c.json({ error: 'Action does not have a restore snapshot.' }, 409);
+    if (!metadata.before) {
+      restoreAttemptAction(store, event, {
+        status: 'failed',
+        detail: 'Action does not have a restore snapshot.',
+        error: 'Action does not have a restore snapshot.'
+      });
+      return c.json({ error: 'Action does not have a restore snapshot.' }, 409);
+    }
+    if (!parsed.data.confirm) {
+      restoreAttemptAction(store, event, {
+        status: 'blocked',
+        detail: 'Restore requires confirm: true because it writes synced data.'
+      });
+      return c.json({ error: 'Restore requires confirm: true because it writes synced data.' }, 409);
+    }
 
     try {
       const { restored, syncEvent } = restoreSnapshot(store, event, metadata.before);
-      return c.json({ restored, syncEvent });
+      const action = restoreAttemptAction(store, event, {
+        status: 'succeeded',
+        detail: 'Restore completed and wrote a follow-up sync event.',
+        restoredSyncEvent: syncEvent
+      });
+      return c.json({ restored, syncEvent, action });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Restore failed';
+      restoreAttemptAction(store, event, {
+        status: 'failed',
+        detail: message,
+        error: message
+      });
       return c.json({ error: error instanceof Error ? error.message : 'Restore failed' }, 400);
     }
   });

@@ -23,8 +23,8 @@ export async function getHubActionLedger(limit = 50): Promise<ActionLedgerEntry[
 
 export async function restoreHubActionLedgerEntry(
   actionId: string
-): Promise<{ restored: unknown; syncEvent: unknown }> {
-  return requestApiJson<{ restored: unknown; syncEvent: unknown }>(
+): Promise<{ restored: unknown; syncEvent: unknown; action: ActionLedgerEntry }> {
+  return requestApiJson<{ restored: unknown; syncEvent: unknown; action: ActionLedgerEntry }>(
     `/api/action-ledger/${encodeURIComponent(actionId)}/restore`,
     {
       method: 'POST',

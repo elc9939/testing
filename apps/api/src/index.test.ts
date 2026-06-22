@@ -377,6 +377,24 @@ describe('mini hub api', () => {
       body: JSON.stringify({ confirm: false })
     });
     expect(blockedRestore.status).toBe(409);
+    let restoreLedgerResponse = await app.request('/api/action-ledger?limit=10');
+    let restoreLedger = (await restoreLedgerResponse.json()) as {
+      actions: Array<{
+        actionType: string;
+        status: string;
+        summary: string;
+        recoverability: { kind: string; reversible: boolean };
+      }>;
+    };
+    expect(restoreLedger.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionType: 'action_ledger.restore',
+          status: 'blocked',
+          recoverability: expect.objectContaining({ kind: 'dry_run', reversible: true })
+        })
+      ])
+    );
 
     const restoreResponse = await app.request(`/api/action-ledger/${encodeURIComponent(deleteAction?.id ?? '')}/restore`, {
       method: 'POST',
@@ -387,14 +405,86 @@ describe('mini hub api', () => {
     const restore = (await restoreResponse.json()) as {
       restored: { id: string; company: string; notes: string };
       syncEvent: { operation: string; payload: Record<string, unknown> };
+      action: { actionType: string; status: string; changed: string[]; recoverability: { kind: string; referenceId?: string } };
     };
     expect(restore.restored).toMatchObject({ id: job.id, company: 'Acme', notes: 'restore me' });
     expect(restore.syncEvent.operation).toBe('insert');
+    expect(restore.action).toMatchObject({
+      actionType: 'action_ledger.restore',
+      status: 'succeeded',
+      changed: [`job:${job.id}`],
+      recoverability: { kind: 'artifact', referenceId: expect.any(String) }
+    });
     expect(store.jobs).toEqual([expect.objectContaining({ id: job.id, notes: 'restore me' })]);
 
     const jobsResponse = await app.request('/api/jobs');
     const jobs = (await jobsResponse.json()) as { jobs: Array<{ id: string }> };
     expect(jobs.jobs.map((row) => row.id)).toContain(job.id);
+
+    restoreLedgerResponse = await app.request('/api/action-ledger?limit=10');
+    restoreLedger = (await restoreLedgerResponse.json()) as {
+      actions: Array<{
+        actionType: string;
+        status: string;
+        summary: string;
+        recoverability: { kind: string; reversible: boolean };
+      }>;
+    };
+    expect(restoreLedger.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionType: 'action_ledger.restore',
+          status: 'succeeded',
+          summary: 'Restored Job snapshot'
+        })
+      ])
+    );
+  });
+
+  it('records failed Mini Hub restore attempts for non-restorable actions', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ useLogger: false, store });
+    const authHeaders = { 'content-type': 'application/json' };
+
+    const jobResponse = await app.request('/api/jobs', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        company: 'Acme',
+        role: 'Analyst',
+        status: 'lead'
+      })
+    });
+    const { job } = (await jobResponse.json()) as { job: { id: string } };
+    const ledgerResponse = await app.request('/api/action-ledger?limit=5');
+    const ledger = (await ledgerResponse.json()) as {
+      actions: Array<{ id: string; actionType: string }>;
+    };
+    const insertAction = ledger.actions.find((action) => action.actionType === 'job.insert');
+
+    const restoreResponse = await app.request(`/api/action-ledger/${encodeURIComponent(insertAction?.id ?? '')}/restore`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ confirm: true })
+    });
+    expect(restoreResponse.status).toBe(409);
+    expect(store.jobs.map((row) => row.id)).toContain(job.id);
+
+    const afterResponse = await app.request('/api/action-ledger?limit=10');
+    const after = (await afterResponse.json()) as {
+      actions: Array<{ actionType: string; status: string; summary: string; changed: string[] }>;
+    };
+    expect(after.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionType: 'action_ledger.restore',
+          status: 'failed',
+          summary: 'Restore Job snapshot failed',
+          changed: [`job:${job.id}`]
+        })
+      ])
+    );
   });
 
   it('upserts legacy imports by id without duplicating desk rows', async () => {
