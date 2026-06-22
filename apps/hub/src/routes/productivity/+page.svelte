@@ -3,6 +3,8 @@
   import {
     Archive,
     CalendarPlus,
+    ChevronLeft,
+    ChevronRight,
     ExternalLink,
     Link,
     Mail,
@@ -50,8 +52,17 @@
     type GmailThreadInsight,
     type PublicConnection
   } from '$lib/productivity-api';
+  import {
+    addDays,
+    buildCalendarWeek,
+    eventBlockStyle,
+    localDateKey,
+    startOfLocalDay,
+    summarizeEmailThread
+  } from '$lib/productivity-view';
 
   const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles';
+  const productivityCacheKey = 'miniHub.productivity.cache.v1';
   const defaultGmailQuery = [
     'in:inbox newer_than:14d',
     '-category:promotions',
@@ -61,6 +72,22 @@
     '-unsubscribe',
     '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR appointment OR rescheduled OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
   ].join(' ');
+
+  interface ProductivityCache {
+    version: 1;
+    cachedAt: string;
+    catalog: ConnectorCatalogEntry[];
+    connections: PublicConnection[];
+    calendars: CalendarSummary[];
+    events: CalendarEvent[];
+    timeline: TimelineItem[];
+    priorityThreads: GmailThreadInsight[];
+    gmailLabels: GmailLabel[];
+    selectedCalendarId: string;
+    query: string;
+    gmailQuery: string;
+    selectedGmailLabelId: string;
+  }
 
   let catalog: ConnectorCatalogEntry[] = [];
   let connections: PublicConnection[] = [];
@@ -72,12 +99,15 @@
   let gmailLabels: GmailLabel[] = [];
   let selectedGmailThread: GmailThread | null = null;
   let selectedCalendarId = 'primary';
+  let calendarCursor = startOfLocalDay(new Date());
   let moveTargetCalendarId = '';
   let gmailQuery = defaultGmailQuery;
   let selectedGmailLabelId = '';
   let query = '';
   let loading = false;
   let gmailLoading = false;
+  let backgroundRefreshing = false;
+  let cacheLoadedAt = '';
   let actionError = '';
   let actionMessage = '';
   let editingEventId = '';
@@ -91,6 +121,10 @@
   $: googleConnections = connections.filter((connection) => connection.provider === 'google' && connection.status === 'connected');
   $: googleConnection = googleConnections[0];
   $: googleConnected = googleConnections.length > 0;
+  $: selectedCalendar = calendars.find((calendar) => calendar.id === selectedCalendarId);
+  $: calendarWeek = buildCalendarWeek(events, calendarCursor);
+  $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
+  $: cacheStatus = cacheLoadedAt ? `Cached ${displayTime(cacheLoadedAt)}` : 'No local cache yet';
 
   function emptyDraft(): CalendarEventDraft {
     const start = new Date(Date.now() + 60 * 60 * 1000);
@@ -134,10 +168,6 @@
     return (event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
   }
 
-  function threadPreview(thread: GmailThread): string {
-    return thread.messages[thread.messages.length - 1]?.snippet || thread.snippet || 'No preview';
-  }
-
   function scopedConnectionId(resourceId: string): string {
     const separator = resourceId.indexOf('::');
     return separator === -1 ? '' : resourceId.slice(0, separator);
@@ -172,6 +202,101 @@
   function displayTime(value: string): string {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  }
+
+  function displayShortDate(value: string): string {
+    const date = value.includes('T') ? new Date(value) : localDateFromKey(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
+  }
+
+  function localDateFromKey(value: string): Date {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+    if (!match) return new Date(value);
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  function eventTimeRange(event: CalendarEvent): string {
+    if (!event.start.includes('T')) return 'All day';
+    const start = new Date(event.start);
+    const end = new Date(event.end);
+    if (Number.isNaN(start.getTime())) return event.start;
+    const formatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+    if (Number.isNaN(end.getTime())) return formatter.format(start);
+    return `${formatter.format(start)} - ${formatter.format(end)}`;
+  }
+
+  function calendarName(calendarId: string): string {
+    return calendars.find((calendar) => calendar.id === calendarId)?.summary ?? calendarId;
+  }
+
+  function readProductivityCache(): ProductivityCache | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(productivityCacheKey) ?? 'null') as Partial<ProductivityCache> | null;
+      if (!parsed || parsed.version !== 1 || !parsed.cachedAt) return null;
+      return {
+        version: 1,
+        cachedAt: parsed.cachedAt,
+        catalog: Array.isArray(parsed.catalog) ? parsed.catalog : [],
+        connections: Array.isArray(parsed.connections) ? parsed.connections : [],
+        calendars: Array.isArray(parsed.calendars) ? parsed.calendars : [],
+        events: Array.isArray(parsed.events) ? parsed.events : [],
+        timeline: Array.isArray(parsed.timeline) ? parsed.timeline : [],
+        priorityThreads: Array.isArray(parsed.priorityThreads) ? parsed.priorityThreads : [],
+        gmailLabels: Array.isArray(parsed.gmailLabels) ? parsed.gmailLabels : [],
+        selectedCalendarId: typeof parsed.selectedCalendarId === 'string' ? parsed.selectedCalendarId : 'primary',
+        query: typeof parsed.query === 'string' ? parsed.query : '',
+        gmailQuery: typeof parsed.gmailQuery === 'string' ? parsed.gmailQuery : defaultGmailQuery,
+        selectedGmailLabelId: typeof parsed.selectedGmailLabelId === 'string' ? parsed.selectedGmailLabelId : ''
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function hydrateProductivityCache(): void {
+    const cached = readProductivityCache();
+    if (!cached) return;
+    catalog = cached.catalog;
+    connections = cached.connections;
+    calendars = cached.calendars;
+    events = cached.events;
+    timeline = cached.timeline;
+    priorityThreads = cached.priorityThreads;
+    gmailThreads = cached.priorityThreads.map((insight) => insight.thread);
+    gmailLabels = cached.gmailLabels;
+    selectedCalendarId = cached.calendars.some((calendar) => calendar.id === cached.selectedCalendarId)
+      ? cached.selectedCalendarId
+      : (cached.calendars.find((calendar) => calendar.primary)?.id ?? cached.calendars[0]?.id ?? 'primary');
+    moveTargetCalendarId = cached.calendars.find((calendar) => calendar.id !== selectedCalendarId)?.id ?? '';
+    query = cached.query;
+    gmailQuery = cached.gmailQuery;
+    selectedGmailLabelId = cached.selectedGmailLabelId;
+    selectedGmailThread = gmailThreads[0] ?? null;
+    cacheLoadedAt = cached.cachedAt;
+  }
+
+  function persistProductivityCache(): void {
+    if (typeof localStorage === 'undefined') return;
+    const cachedAt = new Date().toISOString();
+    const payload: ProductivityCache = {
+      version: 1,
+      cachedAt,
+      catalog,
+      connections,
+      calendars,
+      events,
+      timeline,
+      priorityThreads,
+      gmailLabels,
+      selectedCalendarId,
+      query,
+      gmailQuery,
+      selectedGmailLabelId
+    };
+    localStorage.setItem(productivityCacheKey, JSON.stringify(payload));
+    cacheLoadedAt = cachedAt;
   }
 
   function draftForApi(): CalendarEventDraft {
@@ -211,40 +336,56 @@
     composeDialogOpen = false;
   }
 
-  async function loadOverview(): Promise<void> {
-    loading = true;
+  async function loadOverview(options: { background?: boolean } = {}): Promise<void> {
+    const isBackground = options.background === true;
+    if (isBackground) {
+      backgroundRefreshing = true;
+    } else {
+      loading = true;
+    }
     actionError = '';
     try {
       catalog = await getCatalog();
       connections = await getConnections();
       if (connections.some((connection) => connection.provider === 'google' && connection.status === 'connected')) {
         calendars = await listCalendars();
-        selectedCalendarId = calendars.find((calendar) => calendar.primary)?.id ?? calendars[0]?.id ?? 'primary';
+        const nextSelectedCalendar = calendars.some((calendar) => calendar.id === selectedCalendarId)
+          ? calendars.find((calendar) => calendar.id === selectedCalendarId)
+          : (calendars.find((calendar) => calendar.primary) ?? calendars[0]);
+        selectedCalendarId = nextSelectedCalendar?.id ?? 'primary';
         moveTargetCalendarId = calendars.find((calendar) => calendar.id !== selectedCalendarId)?.id ?? '';
-        eventDraft = { ...eventDraft, calendarId: selectedCalendarId, timeZone: calendars[0]?.timeZone ?? localTimeZone };
+        eventDraft = { ...eventDraft, calendarId: selectedCalendarId, timeZone: nextSelectedCalendar?.timeZone ?? localTimeZone };
         await refreshEvents();
         await refreshGmail();
+        persistProductivityCache();
+      } else {
+        persistProductivityCache();
       }
     } catch (error) {
-      setError(error, 'Failed to load productivity hub');
+      if (!isBackground) setError(error, 'Failed to load productivity hub');
     } finally {
-      loading = false;
+      if (isBackground) {
+        backgroundRefreshing = false;
+      } else {
+        loading = false;
+      }
     }
   }
 
   async function refreshEvents(): Promise<void> {
     if (!googleConnected) return;
     actionError = '';
-    const now = new Date();
-    const rangeEnd = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
+    const rangeStart = startOfLocalDay(calendarCursor);
+    const rangeEnd = addDays(rangeStart, 21);
     try {
       events = await listEvents({
         calendarId: selectedCalendarId,
-        timeMin: now.toISOString(),
+        timeMin: rangeStart.toISOString(),
         timeMax: rangeEnd.toISOString(),
         q: query.trim() || undefined
       });
-      timeline = await getTimeline({ timeMin: now.toISOString(), timeMax: rangeEnd.toISOString() });
+      timeline = await getTimeline({ timeMin: rangeStart.toISOString(), timeMax: rangeEnd.toISOString() });
+      persistProductivityCache();
     } catch (error) {
       setError(error, 'Failed to refresh events');
     }
@@ -271,6 +412,7 @@
       } else {
         selectedGmailThread = gmailThreads[0] ?? null;
       }
+      persistProductivityCache();
     } catch (error) {
       setError(error, 'Failed to refresh Gmail');
     } finally {
@@ -417,6 +559,10 @@
     actionError = '';
     try {
       await archiveGmailThread(thread.id);
+      priorityThreads = priorityThreads.filter((insight) => insight.thread.id !== thread.id);
+      gmailThreads = gmailThreads.filter((item) => item.id !== thread.id);
+      if (selectedGmailThread?.id === thread.id) selectedGmailThread = gmailThreads[0] ?? null;
+      persistProductivityCache();
       actionMessage = 'Thread archived.';
       await refreshGmail();
     } catch (error) {
@@ -429,11 +575,15 @@
     try {
       if (thread.unread) {
         await markGmailThreadRead(thread.id);
+        priorityThreads = priorityThreads.filter((insight) => insight.thread.id !== thread.id);
+        gmailThreads = gmailThreads.filter((item) => item.id !== thread.id);
+        if (selectedGmailThread?.id === thread.id) selectedGmailThread = gmailThreads[0] ?? null;
         actionMessage = 'Thread marked read.';
       } else {
         await markGmailThreadUnread(thread.id);
         actionMessage = 'Thread marked unread.';
       }
+      persistProductivityCache();
       await refreshGmail();
     } catch (error) {
       setError(error, 'Failed to update read state');
@@ -483,9 +633,34 @@
     }
   }
 
+  function shiftCalendar(days: number): void {
+    calendarCursor = addDays(calendarCursor, days);
+    void refreshEvents();
+  }
+
+  function jumpToToday(): void {
+    calendarCursor = startOfLocalDay(new Date());
+    void refreshEvents();
+  }
+
+  function refreshIfVisible(): void {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    if (loading || backgroundRefreshing) return;
+    void loadOverview({ background: true });
+  }
+
   onMount(() => {
+    hydrateProductivityCache();
     void clientData.init();
     void loadOverview();
+    const interval = window.setInterval(refreshIfVisible, 120_000);
+    window.addEventListener('focus', refreshIfVisible);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshIfVisible);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
   });
 </script>
 
@@ -503,9 +678,9 @@
       <Send size={17} />
       <span>Compose</span>
     </button>
-    <button class="button" type="button" disabled={!canAct || loading} on:click={loadOverview}>
+    <button class="button" type="button" disabled={!canAct || loading} on:click={() => loadOverview()}>
       <RefreshCw size={17} />
-      <span>Refresh</span>
+      <span>{backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
     {#if googleConnected}
       <button class="button" type="button" disabled={!canAct} on:click={connectGoogle}>
@@ -542,6 +717,7 @@
   <div><span>Calendars</span><strong>{calendars.length}</strong></div>
   <div><span>Priority Mail</span><strong>{priorityThreads.length}</strong></div>
   <div><span>Timeline</span><strong>{timeline.length}</strong></div>
+  <div><span>Local snapshot</span><strong>{cacheStatus}</strong></div>
 </section>
 
 <section class="google-setup-panel" aria-label="Google account setup">
@@ -600,10 +776,34 @@
 
 <section class="workspace-grid">
   <section class="card table-card">
-    <div class="table-header">
+    <div class="table-title-row">
+      <div class="form-title">
+        <CalendarPlus size={18} />
+        <strong>Calendar</strong>
+      </div>
+      <div class="calendar-controls">
+        <button class="icon-button" type="button" disabled={!googleConnected} aria-label="Previous week" on:click={() => shiftCalendar(-7)}>
+          <ChevronLeft size={16} />
+        </button>
+        <button class="button compact" type="button" disabled={!googleConnected} on:click={jumpToToday}>Today</button>
+        <button class="icon-button" type="button" disabled={!googleConnected} aria-label="Next week" on:click={() => shiftCalendar(7)}>
+          <ChevronRight size={16} />
+        </button>
+        <span>{calendarRangeLabel}</span>
+      </div>
+    </div>
+    <div class="calendar-filter-row">
       <div class="field">
         <label for="event-search">Search events</label>
         <input id="event-search" bind:value={query} disabled={!googleConnected} on:change={refreshEvents} />
+      </div>
+      <div class="field">
+        <label for="calendar-source">Calendar</label>
+        <select id="calendar-source" bind:value={selectedCalendarId} disabled={!googleConnected} on:change={refreshEvents}>
+          {#each calendars as calendar}
+            <option value={calendar.id}>{calendar.summary}</option>
+          {/each}
+        </select>
       </div>
       <div class="field">
         <label for="move-target">Move target</label>
@@ -614,6 +814,37 @@
           {/each}
         </select>
       </div>
+    </div>
+    <section class="calendar-board" aria-label="Visual calendar">
+      {#each calendarWeek as day}
+        <article class:today={day.isToday} class="calendar-day">
+          <header>
+            <span>{day.label}</span>
+            <strong>{day.dateLabel}</strong>
+          </header>
+          <div class="day-lane">
+            {#each day.events.slice(0, 5) as event}
+              <button
+                class="event-block"
+                type="button"
+                style={eventBlockStyle(event)}
+                title={`${event.title} / ${eventTimeRange(event)}`}
+                on:click={() => editEvent(event)}
+              >
+                <span>{eventTimeRange(event)}</span>
+                <strong>{event.title}</strong>
+              </button>
+            {/each}
+            {#if day.events.length > 5}
+              <small class="more-events">+{day.events.length - 5} more</small>
+            {/if}
+          </div>
+        </article>
+      {/each}
+    </section>
+    <div class="table-caption">
+      <strong>{selectedCalendar?.summary ?? 'Calendar'}</strong>
+      <span>{events.length ? `${events.length} events loaded from this window.` : 'No events loaded for this window yet.'}</span>
     </div>
     <table>
       <thead>
@@ -632,7 +863,7 @@
               {#if event.location}<div class="muted">{event.location}</div>{/if}
             </td>
             <td>{displayTime(event.start)}</td>
-            <td>{event.calendarId}</td>
+            <td>{calendarName(event.calendarId)}</td>
             <td class="row-actions">
               {#if event.htmlLink}
                 <a class="icon-button" href={event.htmlLink} target="_blank" rel="noreferrer" aria-label="Open in Google Calendar" title="Open">
@@ -706,23 +937,25 @@
             <td>
               <span class={`priority-pill ${priorityClass(insight.priority)}`}>{insight.priority}</span>
               <div class="muted">{insight.category}</div>
-              <small class="triage-reason">{insight.reason}{insight.deadlineHint ? ` · ${insight.deadlineHint}` : ''}</small>
+              <small class="triage-reason">{insight.reason}{insight.deadlineHint ? ` / ${insight.deadlineHint}` : ''}</small>
             </td>
             <td>
               <button class="link-button" type="button" on:click={() => openGmailThread(thread)}>
                 <strong>{thread.subject}</strong>
               </button>
-              <div class="muted">{threadPreview(thread)}</div>
+              <p class="mail-summary">{summarizeEmailThread(thread)}</p>
             </td>
             <td>{accountLabelForResource(thread.id)}</td>
             <td>{thread.from}</td>
             <td>{thread.date}</td>
-            <td class="row-actions">
+            <td class="row-actions quick-row-actions">
               <button class="icon-button" type="button" aria-label={`Open ${thread.subject}`} title="Open" on:click={() => openGmailThread(thread)}>
                 <Mail size={16} />
+                <span>Open</span>
               </button>
               <button class="icon-button" type="button" aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={thread.unread ? 'Mark read' : 'Mark unread'} on:click={() => toggleRead(thread)}>
                 <MailOpen size={16} />
+                <span>{thread.unread ? 'Read' : 'Unread'}</span>
               </button>
               <button
                 class:active={isThreadImportant(thread)}
@@ -734,12 +967,15 @@
               >
                 {#if isThreadImportant(thread)}
                   <StarOff size={16} />
+                  <span>Unmark</span>
                 {:else}
                   <Star size={16} />
+                  <span>Important</span>
                 {/if}
               </button>
               <button class="icon-button" type="button" aria-label={`Archive ${thread.subject}`} title="Archive" on:click={() => archiveThread(thread)}>
                 <Archive size={16} />
+                <span>Archive</span>
               </button>
             </td>
           </tr>
@@ -996,7 +1232,7 @@
 
   .status-strip {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0;
     margin: 0 0 10px;
     border: 1px solid var(--border);
@@ -1145,6 +1381,137 @@
     align-items: start;
   }
 
+  .calendar-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  .calendar-filter-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(180px, 280px) minmax(180px, 260px);
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .calendar-board {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(120px, 1fr));
+    min-height: 280px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .calendar-day {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-width: 120px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .calendar-day:last-child {
+    border-right: 0;
+  }
+
+  .calendar-day.today {
+    background: var(--surface-soft);
+  }
+
+  .calendar-day header {
+    display: grid;
+    gap: 2px;
+    min-height: 48px;
+    padding: 8px 9px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .calendar-day header span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+  }
+
+  .calendar-day header strong {
+    font-size: 13px;
+  }
+
+  .day-lane {
+    position: relative;
+    min-height: 226px;
+    padding: 6px;
+    background:
+      linear-gradient(to bottom, transparent 0, transparent calc(25% - 1px), var(--border) 25%, transparent calc(25% + 1px)),
+      linear-gradient(to bottom, transparent 0, transparent calc(50% - 1px), var(--border) 50%, transparent calc(50% + 1px)),
+      linear-gradient(to bottom, transparent 0, transparent calc(75% - 1px), var(--border) 75%, transparent calc(75% + 1px));
+  }
+
+  .event-block {
+    position: absolute;
+    inset: var(--event-top) 6px auto 6px;
+    display: grid;
+    align-content: start;
+    min-height: var(--event-height);
+    max-height: 86px;
+    padding: 6px 7px;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    color: var(--text);
+    background: var(--surface-muted);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .event-block:hover {
+    background: var(--active);
+  }
+
+  .event-block span,
+  .event-block strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .event-block span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .event-block strong {
+    font-size: 12px;
+  }
+
+  .more-events {
+    position: absolute;
+    right: 8px;
+    bottom: 6px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  .table-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .table-caption strong {
+    color: var(--text);
+  }
+
   .gmail-workspace {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
@@ -1218,6 +1585,42 @@
     max-width: 160px;
     color: var(--muted);
     line-height: 1.25;
+  }
+
+  .mail-summary {
+    margin: 5px 0 0;
+    max-width: 460px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .quick-row-actions {
+    min-width: 310px;
+    opacity: 0.34;
+    transform: translateX(8px);
+    transition:
+      opacity 140ms ease,
+      transform 140ms ease;
+  }
+
+  tr:hover .quick-row-actions,
+  tr:focus-within .quick-row-actions {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .quick-row-actions .icon-button {
+    display: inline-flex;
+    width: auto;
+    min-width: 0;
+    padding: 0 8px;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .quick-row-actions .icon-button span {
+    font-size: 12px;
+    font-weight: 850;
   }
 
   .mail-panel {
@@ -1412,10 +1815,26 @@
     .status-strip,
     .google-setup-panel,
     .connector-list article,
+    .calendar-filter-row,
     .table-header,
     .modal-grid,
     .compose-grid {
       grid-template-columns: 1fr;
+    }
+
+    .table-title-row,
+    .table-caption {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .calendar-controls {
+      justify-content: flex-start;
+    }
+
+    .quick-row-actions {
+      opacity: 1;
+      transform: none;
     }
 
     .status-strip div {

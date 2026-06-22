@@ -50,7 +50,11 @@ The Svelte app under `apps/hub` provides these main pages:
   Archive, and Mark all shown read controls.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
-- Productivity Hub: Google Calendar and Gmail actions through real API calls.
+- Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
+  browser-side last-good snapshot so calendar/mail views show cached real data while
+  the local API refreshes in the background. Calendar has both a visual week board and
+  detailed text table; priority mail shows summaries with hover/focus quick actions
+  for read/unread, important, and archive.
 - Games: new game surfaces plus a link to the legacy arcade.
 - Stick Arena Lab: Pixi/Rapier-style game-engine slice and saved run metadata.
 - Analytics: local dashboard surface for career/study/game data.
@@ -122,6 +126,9 @@ Implemented now:
   that explains this flow for personal plus school accounts.
 - Google Calendar list/view/create/edit/delete/move/reminder support.
 - Gmail search/list/read/compose/draft/send/reply/archive/mark read/unread/label actions.
+- Productivity page stores only the last successful real Google response in browser
+  local storage under `miniHub.productivity.cache.v1`; it is a display cache, not a
+  source of invented data, and live API refreshes replace it.
 - Mini Hub action ledger endpoint for synced personal data writes/deletes with risk and
   recoverability metadata. Updates and deletes now attach before-state snapshots for
   Career Desk, Study Desk, settings, and game state where possible, and
