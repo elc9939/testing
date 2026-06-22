@@ -112,7 +112,7 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
     });
   }
 
-  for (const insight of input.importantMail.filter(isAttentionWorthyMail).slice(0, 1)) {
+  for (const insight of input.importantMail.filter(isCriticalMailSignal).slice(0, 1)) {
     items.push({
       id: `mail:${insight.thread.id}`,
       kind: 'mail',
@@ -128,10 +128,10 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
 
   const openCareerActions = input.careerActions
     .filter((action) => !action.completedAt)
-    .filter((action) => isActionDueSoon(action.dueAt, nowMs))
+    .filter((action) => isActionDueNow(action.dueAt, nowMs))
     .filter((action) => !isMaintenanceCareerAction(action.label))
     .sort((a, b) => nullableTime(a.dueAt ?? a.updatedAt) - nullableTime(b.dueAt ?? b.updatedAt));
-  for (const action of uniqueCareerActions(openCareerActions).slice(0, 2)) {
+  for (const action of uniqueCareerActions(openCareerActions).slice(0, 1)) {
     items.push({
       id: `career-action:${action.id}`,
       kind: 'career',
@@ -144,24 +144,11 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
     });
   }
 
-  const activeJobs = input.jobs
-    .filter((job) => ['lead', 'saved', 'watching'].includes(job.status))
-    .filter((job) => isActionDueSoon(job.nextActionAt, nowMs))
-    .sort((a, b) => nullableTime(a.nextActionAt ?? a.updatedAt) - nullableTime(b.nextActionAt ?? b.updatedAt));
-  for (const job of activeJobs.slice(0, 2)) {
-    items.push({
-      id: `job:${job.id}`,
-      kind: 'career',
-      title: [job.company, job.role].filter(Boolean).join(' - '),
-      detail: `Application status: ${job.status}`,
-      route: '/desk/career',
-      source: 'job',
-      priority: datedPriority(job.nextActionAt, nowMs, 82, 72, 46),
-      dueAt: job.nextActionAt
-    });
-  }
+  const activeAppliedJobs = input.jobs
+    .filter((job) => ['applied', 'interview', 'offer'].includes(job.status))
+    .filter((job) => isActionDueNow(job.nextActionAt, nowMs));
 
-  const hasCareerFocus = openCareerActions.length > 0 || activeJobs.length > 0;
+  const hasCareerFocus = openCareerActions.length > 0 || activeAppliedJobs.length > 0;
   if (hasCareerFocus) {
     const recentStudyMinutes = input.studySessions
       .filter((session) => timeValue(session.loggedAt) >= nowMs - 7 * dayMs)
@@ -212,11 +199,14 @@ function isAttentionWorthyEvent(event: CalendarEvent): boolean {
   return true;
 }
 
-function isAttentionWorthyMail(insight: GmailThreadInsight): boolean {
+function isCriticalMailSignal(insight: GmailThreadInsight): boolean {
   if (!insight.thread.unread) return false;
   if (insight.category === 'noise' || insight.category === 'notification' || insight.category === 'personal') return false;
   if (isLowSignalNotification(insight)) return false;
-  return insight.priority >= 74 || Boolean(insight.deadlineHint);
+  const manuallyImportant = insight.thread.labelIds.includes('IMPORTANT');
+  if (Boolean(insight.deadlineHint)) return true;
+  if (manuallyImportant && insight.priority >= 72) return true;
+  return insight.priority >= 88;
 }
 
 function isLowSignalNotification(insight: GmailThreadInsight): boolean {
@@ -247,11 +237,11 @@ function datedPriority(value: string | undefined, nowMs: number, overdue: number
   return Math.max(undated, soon - 18);
 }
 
-function isActionDueSoon(value: string | undefined, nowMs: number): boolean {
+function isActionDueNow(value: string | undefined, nowMs: number): boolean {
   if (!value) return false;
   const parsed = timeValue(value);
   if (!Number.isFinite(parsed)) return false;
-  return parsed >= nowMs - 14 * dayMs && parsed <= nowMs + 14 * dayMs;
+  return parsed >= nowMs - 7 * dayMs && parsed <= nowMs + 3 * dayMs;
 }
 
 function isMaintenanceCareerAction(label: string): boolean {

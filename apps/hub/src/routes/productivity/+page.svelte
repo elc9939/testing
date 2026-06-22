@@ -273,12 +273,13 @@
     }
   }
 
-  async function disconnectGoogle(): Promise<void> {
-    if (!confirm('Revoke the stored Google OAuth grant for this hub?')) return;
+  async function disconnectGoogle(connection?: PublicConnection): Promise<void> {
+    const label = connection?.accountLabel ?? 'the stored Google OAuth grant';
+    if (!confirm(`Revoke ${label} for this hub?`)) return;
     actionError = '';
     try {
-      await revokeGoogle();
-      actionMessage = 'Google connection revoked.';
+      await revokeGoogle(connection?.id);
+      actionMessage = connection ? `${connection.accountLabel} revoked.` : 'Google connection revoked.';
       await loadOverview();
     } catch (error) {
       setError(error, 'Failed to revoke Google connection');
@@ -473,12 +474,14 @@
     {#if googleConnected}
       <button class="button" type="button" disabled={!canAct} on:click={connectGoogle}>
         <Link size={17} />
-        <span>Add Account</span>
+        <span>Add Google Account</span>
       </button>
-      <button class="button" type="button" disabled={!canAct} on:click={disconnectGoogle}>
-        <Unlink size={17} />
-        <span>Revoke Google</span>
-      </button>
+      {#if googleConnections.length === 1}
+        <button class="button" type="button" disabled={!canAct} on:click={() => disconnectGoogle(googleConnection)}>
+          <Unlink size={17} />
+          <span>Revoke</span>
+        </button>
+      {/if}
     {:else}
       <button class="button primary" type="button" disabled={!canAct} on:click={connectGoogle}>
         <Link size={17} />
@@ -504,6 +507,31 @@
   <div><span>Priority Mail</span><strong>{priorityThreads.length}</strong></div>
   <div><span>Timeline</span><strong>{timeline.length}</strong></div>
 </section>
+
+{#if googleConnected}
+  <section class="account-panel" aria-label="Connected Google accounts">
+    <div class="account-panel-title">
+      <strong>Connected Google Accounts</strong>
+      <button class="button compact" type="button" disabled={!canAct} on:click={connectGoogle}>
+        <Link size={15} />
+        <span>Add</span>
+      </button>
+    </div>
+    <div class="account-list">
+      {#each googleConnections as connection}
+        <article>
+          <span>
+            <strong>{connection.accountLabel}</strong>
+            <small>{connection.status}{connection.lastSyncAt ? ` - ${displayTime(connection.lastSyncAt)}` : ''}</small>
+          </span>
+          <button class="icon-button" type="button" disabled={!canAct} title="Revoke account" aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
+            <Unlink size={16} />
+          </button>
+        </article>
+      {/each}
+    </div>
+  </section>
+{/if}
 
 {#if catalog.length}
   <details class="connector-details">
@@ -869,6 +897,12 @@
     font-weight: 800;
   }
 
+  .button.compact {
+    min-height: 28px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
   .offline-banner {
     border-color: var(--warning-border);
     color: var(--warning-text);
@@ -921,6 +955,59 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .account-panel {
+    margin: 0 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .account-panel-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 38px;
+    padding: 8px 11px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .account-list {
+    display: grid;
+  }
+
+  .account-list article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 48px;
+    padding: 8px 11px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .account-list article:last-child {
+    border-bottom: 0;
+  }
+
+  .account-list span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .account-list strong,
+  .account-list small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .account-list small {
+    color: var(--muted);
   }
 
   .connector-details {

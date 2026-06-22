@@ -94,7 +94,7 @@
   $: calendarLabelMap = new Map(calendars.map((calendar) => [calendar.id, calendar.summary]));
   $: visibleAgenda = agendaEvents.slice(0, 12);
   $: nextEvent = agendaEvents[0] ?? null;
-  $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 4);
+  $: importantMail = priorityThreads.filter(isImportantMailSignal).slice(0, 3);
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: attentionItems = buildAttentionItems({
     googleConnected,
@@ -106,7 +106,7 @@
     jobs: $clientData.jobs,
     careerActions: $clientData.careerActions,
     studySessions: $clientData.studySessions
-  }).slice(0, 8);
+  }).slice(0, 6);
   $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 4);
   $: modeRecommendations = buildModeRecommendations({
     mode: currentMachineMode,
@@ -129,7 +129,11 @@
       '-category:promotions',
       '-category:social',
       '-category:forums',
-      '(deadline OR due OR "action required" OR "please reply" OR interview OR appointment OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
+      '-"received money"',
+      '-"payment received"',
+      '-"statement available"',
+      '-unsubscribe',
+      '(deadline OR due OR "action required" OR "please reply" OR rsvp OR interview OR appointment OR cancelled OR rescheduled OR reservation OR flight OR exam OR assignment OR "security alert" OR verification OR "payment failed" OR invoice)'
     ].join(' ');
   }
 
@@ -137,7 +141,9 @@
     if (!insight.thread.unread) return false;
     if (insight.category === 'noise' || insight.category === 'notification') return false;
     if (isLikelyLowSignalMail(insight)) return false;
-    return insight.priority >= 74 || Boolean(insight.deadlineHint);
+    if (Boolean(insight.deadlineHint)) return true;
+    if (isThreadImportant(insight) && insight.priority >= 72) return true;
+    return insight.priority >= 86;
   }
 
   function isLikelyLowSignalMail(insight: GmailThreadInsight): boolean {
@@ -677,7 +683,7 @@
               {#if insight}
                 <div class="attention-actions" aria-label={`Quick actions for ${insight.thread.subject}`}>
                   <button
-                    class="icon-action"
+                    class="quick-mail-action"
                     type="button"
                     disabled={mailActionDisabled(insight)}
                     title="Mark read"
@@ -685,10 +691,11 @@
                     on:click={() => runMailAction(insight, 'read')}
                   >
                     <MailCheck size={15} />
+                    <span>Read</span>
                   </button>
                   <button
                     class:active={isThreadImportant(insight)}
-                    class="icon-action"
+                    class="quick-mail-action"
                     type="button"
                     disabled={mailActionDisabled(insight) || isThreadImportant(insight)}
                     title={isThreadImportant(insight) ? 'Already important' : 'Mark important'}
@@ -696,6 +703,18 @@
                     on:click={() => runMailAction(insight, 'important')}
                   >
                     <Star size={15} />
+                    <span>Important</span>
+                  </button>
+                  <button
+                    class="quick-mail-action"
+                    type="button"
+                    disabled={mailActionDisabled(insight)}
+                    title="Archive"
+                    aria-label={`Archive ${insight.thread.subject}`}
+                    on:click={() => runMailAction(insight, 'archive')}
+                  >
+                    <Archive size={15} />
+                    <span>Archive</span>
                   </button>
                 </div>
               {/if}
@@ -1263,6 +1282,12 @@
     padding-right: 10px;
   }
 
+  .attention-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 224px;
+  }
+
   .icon-action {
     display: inline-grid;
     width: 28px;
@@ -1281,7 +1306,30 @@
     background: var(--active);
   }
 
-  .icon-action:disabled {
+  .quick-mail-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 28px;
+    padding: 4px 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .quick-mail-action:hover:not(:disabled),
+  .quick-mail-action.active {
+    color: var(--text);
+    background: var(--active);
+  }
+
+  .icon-action:disabled,
+  .quick-mail-action:disabled {
     opacity: 0.55;
     cursor: not-allowed;
   }
@@ -1849,12 +1897,17 @@
       grid-template-columns: 76px minmax(0, 1fr);
     }
 
+    .attention-row-shell {
+      grid-template-columns: 1fr;
+    }
+
     .attention-meta {
       grid-column: 2;
       justify-self: start;
     }
 
     .attention-actions {
+      justify-content: flex-start;
       padding: 0 10px 10px 86px;
     }
 

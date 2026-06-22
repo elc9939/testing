@@ -90,8 +90,11 @@ export async function getGoogleOAuthUrl(): Promise<string> {
   return result.url;
 }
 
-export async function revokeGoogle(): Promise<void> {
-  await requestApiJson<{ ok: true }>('/api/integrations/google/revoke', { method: 'POST' });
+export async function revokeGoogle(connectionId?: string): Promise<void> {
+  await requestApiJson<{ ok: true }>('/api/integrations/google/revoke', {
+    method: 'POST',
+    body: JSON.stringify(connectionId ? { connectionId } : {})
+  });
 }
 
 export async function listCalendars(): Promise<CalendarSummary[]> {

@@ -83,9 +83,10 @@ function Write-AiOsReadiness {
   }
 }
 
-function Format-TaskResult([int]$Code) {
+function Format-TaskResult([long]$Code) {
   if ($Code -eq 0) { return '0 (success)' }
   if ($Code -eq 267009) { return '267009 (currently running)' }
+  if ($Code -eq 3221225786) { return '3221225786 (previous run was interrupted/closed)' }
   return [string]$Code
 }
 

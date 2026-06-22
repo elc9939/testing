@@ -41,12 +41,12 @@ local API services to be running on the same machine:
 
 The Svelte app under `apps/hub` provides these main pages:
 
-- Today dashboard: command-center cockpit with a filtered attention queue derived from
-  real calendar, unread action-heavy Gmail, dated career/study work, local sync/service
+- Today dashboard: command-center cockpit with a calendar/service-first attention queue.
+  It uses real calendar, critical Gmail, explicit dated career actions, local sync/service
   signals, capability health, and Machine Mode-aware next actions. It intentionally keeps
-  passive notifications, stale leads, cleanup chores, birthdays/holidays, and obvious
-  marketing out of the top queue. Gmail items on Today have direct mark-read, mark-important,
-  and archive controls.
+  passive notifications, ordinary unread mail, raw/stale leads, cleanup chores,
+  birthdays/holidays, and obvious marketing out of the top queue. Gmail items that do make
+  it onto Today have direct Read, Important, and Archive controls.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls.
@@ -114,9 +114,10 @@ Implemented now:
 
 - Google OAuth flow.
 - Multiple Google accounts can be connected by running the OAuth flow again from
-  Productivity Hub -> Add Account. Calendar and Gmail resources are scoped to the account
-  that produced them, and Today shows connected account counts/labels instead of assuming
-  a single Google identity.
+  Productivity Hub -> Add Google Account. The Productivity Hub shows a connected-account
+  panel with per-account revoke controls. Calendar and Gmail resources are scoped to the
+  account that produced them, and Today shows connected account counts/labels instead of
+  assuming a single Google identity.
 - Google Calendar list/view/create/edit/delete/move/reminder support.
 - Gmail search/list/read/compose/draft/send/reply/archive/mark read/unread/label actions.
 - Mini Hub action ledger endpoint for synced personal data writes/deletes with risk and

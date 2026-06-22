@@ -114,7 +114,13 @@ describe('buildAttentionItems', () => {
       googleConnected: true,
       syncStatus: 'idle',
       events: [event({ id: 'standup' })],
-      importantMail: [mail({ thread: { ...mail({}).thread, id: 'mail-1' } })],
+      importantMail: [
+        mail({
+          priority: 92,
+          deadlineHint: 'Friday',
+          thread: { ...mail({}).thread, id: 'mail-1' }
+        })
+      ],
       jobs: [job({ id: 'job-soon' })],
       careerActions: [action({ id: 'overdue-action' })],
       studySessions: []
@@ -124,6 +130,22 @@ describe('buildAttentionItems', () => {
     expect(items.some((item) => item.id === 'mail:mail-1')).toBe(true);
     expect(items.some((item) => item.id === 'career-action:overdue-action')).toBe(true);
     expect(items.some((item) => item.id === 'study:no-recent-sessions')).toBe(true);
+  });
+
+  it('keeps normal unread mail and raw lead jobs out of the main attention queue', () => {
+    const items = buildAttentionItems({
+      now,
+      googleConnected: true,
+      syncStatus: 'idle',
+      events: [],
+      importantMail: [mail({ priority: 78, category: 'reply' })],
+      jobs: [job({ id: 'lead-job', status: 'lead', nextActionAt: '2026-06-20T16:00:00.000Z' })],
+      careerActions: [],
+      studySessions: []
+    });
+
+    expect(items.some((item) => item.id === 'mail:thread-1')).toBe(false);
+    expect(items.some((item) => item.id === 'job:lead-job')).toBe(false);
   });
 
   it('does not create a study attention item when recent study exists', () => {
