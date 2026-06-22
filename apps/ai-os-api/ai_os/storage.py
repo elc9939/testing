@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -1169,6 +1170,43 @@ class AppStorage:
             ).fetchall()
         return [self._research_monitor_from_row(row) for row in rows]
 
+    def list_due_research_monitors(
+        self,
+        *,
+        limit: int = 10,
+        now: datetime | None = None,
+        include_manual: bool = False,
+    ) -> list[ResearchMonitorRecord]:
+        due: list[ResearchMonitorRecord] = []
+        for monitor in self.list_research_monitors(200):
+            if self.research_monitor_due(monitor, now=now, include_manual=include_manual):
+                due.append(monitor)
+            if len(due) >= max(1, min(limit, 50)):
+                break
+        return due
+
+    def research_monitor_due(
+        self,
+        monitor: ResearchMonitorRecord,
+        *,
+        now: datetime | None = None,
+        include_manual: bool = False,
+    ) -> bool:
+        if not monitor.enabled:
+            return False
+        if monitor.last_status in {"queued", "running"}:
+            return False
+        if monitor.schedule == "manual" and not include_manual:
+            return False
+        if not monitor.last_run_at:
+            return monitor.schedule != "manual" or include_manual
+        interval = timedelta(days=7 if monitor.schedule == "weekly" else 1)
+        current = now or datetime.now(timezone.utc)
+        last_run = self._parse_iso_datetime(monitor.last_run_at)
+        if not last_run:
+            return True
+        return current - last_run >= interval
+
     def get_research_monitor(self, monitor_id: str) -> ResearchMonitorRecord | None:
         with self._lock:
             row = self._conn.execute("select * from research_monitors where id = ?", (monitor_id,)).fetchone()
@@ -1297,6 +1335,15 @@ class AppStorage:
     def _research_monitor_name(self, goal: str) -> str:
         compact = " ".join(goal.split())
         return compact[:80] or "Untitled monitor"
+
+    def _parse_iso_datetime(self, value: str) -> datetime | None:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
 
     def get_research_page(self, canonical_url: str) -> ResearchSourceRecord | None:
         with self._lock:

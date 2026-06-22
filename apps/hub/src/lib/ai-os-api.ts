@@ -436,6 +436,16 @@ export interface ResearchMonitorUpdateInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface ResearchMonitorSweepResult {
+  ok: boolean;
+  dry_run: boolean;
+  include_manual: boolean;
+  due_count: number;
+  queued_count: number;
+  monitors: ResearchMonitor[];
+  runs: ResearchRun[];
+}
+
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init);
 }
@@ -735,6 +745,22 @@ export async function deleteResearchMonitor(monitorId: string): Promise<Research
 export async function runResearchMonitor(monitorId: string): Promise<{ monitor: ResearchMonitor; run: ResearchRun }> {
   return requestJson<{ monitor: ResearchMonitor; run: ResearchRun }>(`/api/ai/research/monitors/${encodeURIComponent(monitorId)}/run`, {
     method: 'POST'
+  });
+}
+
+export async function listDueResearchMonitors(limit = 10): Promise<ResearchMonitor[]> {
+  const result = await requestJson<{ monitors: ResearchMonitor[] }>(`/api/ai/research/monitors/due?limit=${limit}`);
+  return result.monitors;
+}
+
+export async function runDueResearchMonitors(input: { limit?: number; dry_run?: boolean; include_manual?: boolean } = {}): Promise<ResearchMonitorSweepResult> {
+  return requestJson<ResearchMonitorSweepResult>('/api/ai/research/monitors/run-due', {
+    method: 'POST',
+    body: JSON.stringify({
+      limit: input.limit ?? 5,
+      dry_run: input.dry_run ?? false,
+      include_manual: input.include_manual ?? false
+    })
   });
 }
 

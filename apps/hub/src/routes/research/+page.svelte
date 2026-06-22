@@ -11,6 +11,7 @@
     listResearchRuns,
     listResearchSources,
     researchExportUrl,
+    runDueResearchMonitors,
     runResearchMonitor,
     updateResearchMonitor,
     type ResearchCitation,
@@ -223,6 +224,29 @@
       monitorError = err instanceof Error ? err.message : 'Could not run monitor.';
     } finally {
       monitorActionId = '';
+    }
+  }
+
+  async function runDueMonitors(): Promise<void> {
+    monitorsLoading = true;
+    monitorActionId = 'due-sweep';
+    monitorError = '';
+    monitorMessage = '';
+    try {
+      const result = await runDueResearchMonitors({ limit: 8 });
+      if (result.runs.length) {
+        runs = [...result.runs, ...runs.filter((run) => !result.runs.some((item) => item.id === run.id))].slice(0, 20);
+        selectedRun = result.runs[0];
+      }
+      await refreshMonitors();
+      monitorMessage = result.queued_count
+        ? `Queued ${result.queued_count} due monitor run${result.queued_count === 1 ? '' : 's'}.`
+        : 'No enabled daily or weekly monitors are due right now.';
+    } catch (err) {
+      monitorError = err instanceof Error ? err.message : 'Could not run due monitors.';
+    } finally {
+      monitorActionId = '';
+      monitorsLoading = false;
     }
   }
 
@@ -608,9 +632,15 @@
         <h2>Monitors</h2>
         <p>Save a reusable research setup, then run it again when you want a fresh report.</p>
       </div>
-      <button class="icon-button" type="button" disabled={monitorsLoading} title="Refresh monitors" on:click={refreshMonitors}>
-        <RefreshCw size={17} />
-      </button>
+      <div class="monitor-heading-actions">
+        <button class="link-button compact" type="button" disabled={monitorsLoading} on:click={runDueMonitors}>
+          <Play size={15} />
+          <span>Run Due</span>
+        </button>
+        <button class="icon-button" type="button" disabled={monitorsLoading} title="Refresh monitors" on:click={refreshMonitors}>
+          <RefreshCw size={17} />
+        </button>
+      </div>
     </div>
 
     <div class="monitor-create-row">
@@ -1203,6 +1233,7 @@
   .monitor-heading,
   .monitor-card-main,
   .monitor-actions,
+  .monitor-heading-actions,
   .monitor-create-row {
     display: flex;
     align-items: center;
@@ -1241,6 +1272,10 @@
     flex-wrap: wrap;
   }
 
+  .monitor-heading-actions {
+    justify-content: flex-end;
+  }
+
   .monitor-actions button {
     min-height: 34px;
   }
@@ -1270,6 +1305,11 @@
   .link-button {
     margin-top: 12px;
     padding: 8px 10px;
+  }
+
+  .link-button.compact {
+    min-height: 38px;
+    margin-top: 0;
   }
 
   .monitor-create-row .link-button {

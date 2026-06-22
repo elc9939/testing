@@ -32,11 +32,14 @@ Pipeline v1:
    request knobs, enabled state, manual/daily/weekly cadence hint, run count, last run ID,
    last status, and last error. "Run Now" creates a normal archived research run with monitor
    metadata attached.
-10. When `save_to_memory` is enabled, the completed report plus source excerpts are ingested
+10. A real off-by-default AI OS background unit, `research.monitors.sweep`, can sweep enabled
+   daily/weekly monitors and queue the ones that are due. The same sweep is exposed directly
+   through the Research API and Research Desk.
+11. When `save_to_memory` is enabled, the completed report plus source excerpts are ingested
    into AI OS semantic memory as a `research_run` document. The run stores
    `memory_document_id` and `memory_chunks` so the Research Desk and Action Ledger can show
    whether it became searchable local knowledge.
-11. `build_ai_action_ledger()` emits research runs as `research.<mode>` AI OS actions with
+12. `build_ai_action_ledger()` emits research runs as `research.<mode>` AI OS actions with
    source count, cached page count, runtime, progress, provider/model, tokens, and cost
    memory index metadata. Runs created from a monitor include `research_monitor_id` and
    `research_monitor_name` in ledger metadata.
@@ -47,6 +50,8 @@ Pipeline v1:
 - `GET /api/ai/research/runs?limit=25`
 - `GET /api/ai/research/sources?q=<text>&domain=<host>&limit=25`
 - `GET /api/ai/research/monitors?limit=50`
+- `GET /api/ai/research/monitors/due?limit=10`
+- `POST /api/ai/research/monitors/run-due`
 - `POST /api/ai/research/monitors`
 - `PATCH /api/ai/research/monitors/:id`
 - `DELETE /api/ai/research/monitors/:id`
@@ -97,9 +102,10 @@ Seed URLs box for a follow-up run.
 
 The route also includes a Topic Watch / Monitors panel. It saves the current workbench goal
 and knobs as a durable monitor, lists saved monitors, enables/disables them, reloads a monitor
-into the form, deletes a monitor without deleting archived reports, and runs a monitor on
-demand. A monitor run is just a normal report artifact, so exports, citations, source cache,
-Action Ledger visibility, and semantic-memory opt-in all continue to work.
+into the form, deletes a monitor without deleting archived reports, runs a monitor on demand,
+and runs any due daily/weekly monitors. A monitor run is just a normal report artifact, so
+exports, citations, source cache, Action Ledger visibility, and semantic-memory opt-in all
+continue to work.
 
 Advanced run knobs currently sent by the UI include depth, max pages, per-domain limit, time
 budget, date range, include/exclude domains, local AI synthesis, cloud fallback, explicit
@@ -133,9 +139,9 @@ should prefer those over scraping.
 - Runs now have persisted progress and cancel state, but they still execute in-process as
   FastAPI background tasks. A dedicated queue/worker can come later if research workloads
   need process isolation, concurrency caps across restarts, pause/resume, or scheduling.
-- Monitor Topic now has durable saved monitors and on-demand runs. The `daily` and `weekly`
-  cadence fields are stored as scheduling intent, but no automatic background scheduler runs
-  monitors yet.
+- Monitor Topic now has durable saved monitors, on-demand runs, a due-monitor sweep endpoint,
+  and an off-by-default AI OS background unit. There is not yet an always-on wall-clock
+  scheduler that wakes the sweep without you or the local supervisor invoking it.
 - Screenshots are represented in the request model but not yet captured into research source
   cards.
 - Citation mapping is deterministic and source-backed, but not a full claim graph yet.

@@ -841,6 +841,83 @@ def test_research_monitors_persist_and_run_real_reports(monkeypatch, tmp_path):
     assert monitor_action["metadata"]["research_monitor_name"] == "Web intelligence watch"
 
 
+def test_research_monitor_sweep_queues_due_scheduled_monitors(monkeypatch, tmp_path):
+    install_fake_web(
+        monkeypatch,
+        {
+            "https://duckduckgo.com/html/": """
+            <html><body>
+              <div class="result">
+                <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.test%2Fsweep">Sweep source</a>
+                <a class="result__snippet">Scheduled topic snippet.</a>
+              </div>
+            </body></html>
+            """,
+            "https://example.test/sweep": """
+            <html><head><title>Sweep source</title>
+            <meta name="description" content="Scheduled monitor source"></head>
+            <body><main><p>Scheduled monitors can collect topic updates into archived reports.</p></main></body></html>
+            """,
+            "https://example.test/robots.txt": "User-agent: *\nAllow: /\n",
+        },
+    )
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, web_allow_private_hosts=True)
+    storage = AppStorage(settings.database_path())
+    app = create_app(settings=settings, storage=storage, providers=ProviderRegistry([EchoProvider()]))
+
+    with TestClient(app) as client:
+        daily = client.post(
+            "/api/ai/research/monitors",
+            json={
+                "name": "Daily intelligence",
+                "schedule": "daily",
+                "request": {
+                    "mode": "monitor_topic",
+                    "goal": "scheduled monitor topic",
+                    "max_pages": 1,
+                },
+            },
+        )
+        manual = client.post(
+            "/api/ai/research/monitors",
+            json={
+                "name": "Manual intelligence",
+                "schedule": "manual",
+                "request": {
+                    "mode": "monitor_topic",
+                    "goal": "manual monitor topic",
+                    "max_pages": 1,
+                },
+            },
+        )
+        due = client.get("/api/ai/research/monitors/due?limit=10")
+        units = client.get("/api/ai/background/units")
+        dry_unit = client.post(
+            "/api/ai/background/units/research.monitors.sweep/run",
+            json={"dry_run": True, "include_manual": True, "limit": 10},
+        )
+        sweep = client.post("/api/ai/research/monitors/run-due", json={"limit": 10})
+        monitors = client.get("/api/ai/research/monitors")
+        run = client.get(f"/api/ai/research/runs/{sweep.json()['runs'][0]['id']}")
+
+    assert daily.status_code == 200
+    assert manual.status_code == 200
+    assert due.status_code == 200
+    assert [monitor["id"] for monitor in due.json()["monitors"]] == [daily.json()["monitor"]["id"]]
+    assert any(unit["id"] == "research.monitors.sweep" and unit["demo"] is False for unit in units.json()["units"])
+    assert dry_unit.status_code == 200
+    assert dry_unit.json()["unit"]["last_result"]["due_count"] == 2
+    assert dry_unit.json()["unit"]["last_result"]["queued_count"] == 0
+    assert sweep.status_code == 200
+    assert sweep.json()["due_count"] == 1
+    assert sweep.json()["queued_count"] == 1
+    monitor_by_id = {monitor["id"]: monitor for monitor in monitors.json()["monitors"]}
+    assert monitor_by_id[daily.json()["monitor"]["id"]]["run_count"] == 1
+    assert monitor_by_id[manual.json()["monitor"]["id"]]["run_count"] == 0
+    assert run.json()["run"]["status"] == "succeeded"
+    assert run.json()["run"]["sources"][0]["title"] == "Sweep source"
+
+
 def test_research_cancel_marks_running_run_and_ledger_metadata(tmp_path):
     settings = Settings(data_dir=tmp_path, backup_enabled=False)
     storage = AppStorage(settings.database_path())

@@ -414,6 +414,12 @@ class ResearchMonitorUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class ResearchMonitorSweepRequest(BaseModel):
+    limit: int = Field(default=5, ge=1, le=20)
+    dry_run: bool = False
+    include_manual: bool = False
+
+
 class ResearchMonitorRecord(BaseModel):
     id: str
     created_at: str

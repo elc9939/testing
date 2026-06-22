@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -13,7 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Str
 
 from .agents.engine import AgentEngine, build_tool_registry
 from .action_ledger import build_ai_action_ledger
-from .background.registry import BackgroundRegistry, build_background_registry
+from .background.registry import BackgroundRegistry, BackgroundUnit, build_background_registry
 from .benchmarks import run_benchmark
 from .capabilities import build_capabilities
 from .config import Settings, get_settings
@@ -43,6 +44,7 @@ from .models import (
     MemoryQueryRequest,
     MultimodalInvokeRequest,
     ResearchMonitorCreateRequest,
+    ResearchMonitorSweepRequest,
     ResearchMonitorUpdateRequest,
     ResearchRunRequest,
     new_id,
@@ -489,15 +491,79 @@ def create_app(
 
     def queue_research_run(
         run_request: ResearchRunRequest,
-        background_tasks: BackgroundTasks,
+        background_tasks: BackgroundTasks | None = None,
         *,
         monitor_id: str | None = None,
     ):
         run = services.research.create_run(run_request)
         if monitor_id:
             services.storage.mark_research_monitor_run_started(monitor_id, run)
-        background_tasks.add_task(execute_research_run, run.id, run_request, monitor_id)
+
+        if background_tasks:
+            background_tasks.add_task(execute_research_run, run.id, run_request, monitor_id)
+        else:
+            task = asyncio.create_task(execute_research_run(run.id, run_request, monitor_id))
+
+            def log_task_failure(finished_task: asyncio.Task[Any]) -> None:
+                try:
+                    finished_task.result()
+                except Exception:
+                    logger.exception("Detached research run task failed")
+
+            task.add_done_callback(log_task_failure)
         return run
+
+    def monitor_run_request(monitor) -> ResearchRunRequest:
+        metadata = {
+            **monitor.request.metadata,
+            "research_monitor_id": monitor.id,
+            "research_monitor_name": monitor.name,
+            "research_monitor_schedule": monitor.schedule,
+        }
+        return monitor.request.model_copy(update={"metadata": metadata})
+
+    def sweep_due_research_monitors(
+        request: ResearchMonitorSweepRequest,
+        *,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
+        monitors = services.storage.list_due_research_monitors(
+            limit=request.limit,
+            include_manual=request.include_manual,
+        )
+        runs = []
+        if not request.dry_run:
+            for monitor in monitors:
+                run = queue_research_run(monitor_run_request(monitor), background_tasks, monitor_id=monitor.id)
+                runs.append(run)
+        return {
+            "ok": True,
+            "dry_run": request.dry_run,
+            "include_manual": request.include_manual,
+            "due_count": len(monitors),
+            "queued_count": len(runs),
+            "monitors": [monitor.model_dump(mode="json") for monitor in monitors],
+            "runs": [run.model_dump(mode="json") for run in runs],
+        }
+
+    async def run_research_monitor_sweep_unit(payload: dict[str, Any]) -> dict[str, Any]:
+        request = ResearchMonitorSweepRequest(
+            limit=int(payload.get("limit") or 5),
+            dry_run=bool(payload.get("dry_run") or False),
+            include_manual=bool(payload.get("include_manual") or False),
+        )
+        return sweep_due_research_monitors(request)
+
+    services.background.register(
+        BackgroundUnit(
+            id="research.monitors.sweep",
+            label="Research monitor sweep",
+            trigger="schedule",
+            demo=False,
+            description="Off-by-default sweep that queues enabled daily/weekly Research monitors when they are due.",
+        ),
+        run_research_monitor_sweep_unit,
+    )
 
     @app.get("/api/ai/research/runs")
     async def research_runs(limit: int = 25) -> dict[str, Any]:
@@ -515,6 +581,29 @@ def create_app(
     @app.get("/api/ai/research/monitors")
     async def research_monitors(limit: int = 50) -> dict[str, Any]:
         return {"monitors": [monitor.model_dump(mode="json") for monitor in services.storage.list_research_monitors(limit)]}
+
+    @app.get("/api/ai/research/monitors/due")
+    async def due_research_monitors(limit: int = 10, include_manual: bool = False) -> dict[str, Any]:
+        return {
+            "monitors": [
+                monitor.model_dump(mode="json")
+                for monitor in services.storage.list_due_research_monitors(
+                    limit=limit,
+                    include_manual=include_manual,
+                )
+            ]
+        }
+
+    @app.post("/api/ai/research/monitors/run-due")
+    async def run_due_research_monitors(
+        request: ResearchMonitorSweepRequest,
+        background_tasks: BackgroundTasks,
+    ) -> dict[str, Any]:
+        try:
+            return sweep_due_research_monitors(request, background_tasks=background_tasks)
+        except Exception as error:
+            logger.exception("Research monitor sweep failed")
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/api/ai/research/monitors")
     async def create_research_monitor(request: ResearchMonitorCreateRequest) -> dict[str, Any]:
@@ -550,14 +639,7 @@ def create_app(
             monitor = services.storage.get_research_monitor(monitor_id)
             if not monitor:
                 raise KeyError(monitor_id)
-            metadata = {
-                **monitor.request.metadata,
-                "research_monitor_id": monitor.id,
-                "research_monitor_name": monitor.name,
-                "research_monitor_schedule": monitor.schedule,
-            }
-            request = monitor.request.model_copy(update={"metadata": metadata})
-            run = queue_research_run(request, background_tasks, monitor_id=monitor.id)
+            run = queue_research_run(monitor_run_request(monitor), background_tasks, monitor_id=monitor.id)
             refreshed = services.storage.get_research_monitor(monitor.id) or monitor
             return {"monitor": refreshed.model_dump(mode="json"), "run": run.model_dump(mode="json")}
         except KeyError as error:

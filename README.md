@@ -161,7 +161,7 @@ Current capabilities include:
   contradictions, timeline, query plan, run logs, raw extracted source cards, and a
   searchable local Source Library for reusing archived pages as follow-up seeds. It also
   has durable Topic Monitors that save reusable research setups and run them on demand as
-  normal archived reports.
+  normal archived reports, plus a due-monitor sweep for enabled daily/weekly monitors.
 - Health, metrics, backup, restore-test, cleanup, dependency/model hygiene surfaces.
 - AMD/Windows GPU telemetry where the local machine exposes it.
 - Machine Profile + Autotune v1: persisted profile snapshots, safe local text probes,
