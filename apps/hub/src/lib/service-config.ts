@@ -22,6 +22,12 @@ const serviceLabels: Record<ServiceId, string> = {
   macroLab: 'Macro Lab API'
 };
 
+const desktopFallbacks: Record<ServiceId, string> = {
+  hubApi: 'http://127.0.0.1:8787',
+  aiOs: 'http://127.0.0.1:8791',
+  macroLab: 'http://127.0.0.1:8792'
+};
+
 function readStoredEndpoints(): Partial<Record<ServiceId, string>> {
   if (!browser) return {};
   try {
@@ -56,6 +62,12 @@ export function normalizeServiceUrl(value: string): string {
   } catch {
     return trimmed;
   }
+}
+
+export function clearServiceEndpoint(id: ServiceId): void {
+  const stored = readStoredEndpoints();
+  delete stored[id];
+  writeStoredEndpoints(stored);
 }
 
 export function resolveServiceUrl(id: ServiceId, envValue: string | undefined, fallback: string): string {
@@ -117,11 +129,30 @@ function messageFromJson(body: unknown): string {
   return typeof message === 'string' ? message.trim() : '';
 }
 
-export async function requestServiceJson<T>(
+function looksLikeCurrentStaticSite(baseUrl: string): boolean {
+  if (!browser) return false;
+  const normalized = normalizeServiceUrl(baseUrl);
+  try {
+    const url = new URL(normalized);
+    return normalized === window.location.origin || /github\.io$/iu.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function retryFallbackUrl(serviceId: ServiceId, baseUrl: string): string {
+  const fallback = normalizeServiceUrl(desktopFallbacks[serviceId]);
+  const normalized = normalizeServiceUrl(baseUrl);
+  if (!fallback || fallback === normalized) return '';
+  if (serviceId === 'aiOs' || serviceId === 'macroLab') return fallback;
+  return looksLikeCurrentStaticSite(baseUrl) ? fallback : '';
+}
+
+async function fetchServiceJson<T>(
   serviceId: ServiceId,
   baseUrl: string,
   path: string,
-  init: RequestInit = {},
+  init: RequestInit,
   options: { credentials?: RequestCredentials } = {}
 ): Promise<T> {
   let response: Response;
@@ -162,4 +193,23 @@ export async function requestServiceJson<T>(
   }
 
   return body as T;
+}
+
+export async function requestServiceJson<T>(
+  serviceId: ServiceId,
+  baseUrl: string,
+  path: string,
+  init: RequestInit = {},
+  options: { credentials?: RequestCredentials } = {}
+): Promise<T> {
+  try {
+    return await fetchServiceJson<T>(serviceId, baseUrl, path, init, options);
+  } catch (error) {
+    const fallback = retryFallbackUrl(serviceId, baseUrl);
+    if (fallback) {
+      clearServiceEndpoint(serviceId);
+      return fetchServiceJson<T>(serviceId, fallback, path, init, options);
+    }
+    throw error;
+  }
 }

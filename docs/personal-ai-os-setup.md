@@ -265,6 +265,17 @@ ollama pull llava
 for a desktop GPU. Larger values are allowed, but they use more memory and may push models
 partly back to CPU.
 
+The Windows AI OS supervisor can also warm the configured chat model once after logon:
+
+```env
+OLLAMA_STARTUP_WARMUP=true
+OLLAMA_STARTUP_KEEP_ALIVE=30m
+```
+
+That warmup is intentionally tiny; it exists so `/api/ps` and the dashboard can show model
+residency instead of `No model loaded` immediately after startup. Set
+`OLLAMA_STARTUP_WARMUP=false` if you prefer Ollama to stay unloaded until the first prompt.
+
 Ollama's API defaults to `http://localhost:11434/api`, and its current docs cover chat,
 model listing, embeddings through `/api/embed`, context length, and vision/image-capable generation:
 https://docs.ollama.com/api/introduction and https://github.com/ollama/ollama/blob/main/docs/api.md
@@ -373,9 +384,11 @@ queue depth, recent failures, manual backup, backup verification, restore-test, 
 - After a reboot, GPU telemetry depends on the local AI OS API being awake. Install the
   Windows logon task with `pnpm ai-os:autostart:install` so the dashboard can connect to
   `http://127.0.0.1:8791` before you open the website.
-- A model can be installed but not loaded into VRAM yet. Ollama usually loads a model on the
-  first local prompt, benchmark, or autotune run; until then the dashboard can show GPU
-  telemetry while model load is still `No model loaded`.
+- A model can be installed but not loaded into VRAM yet. The supervisor now runs a tiny
+  Ollama warmup after AI OS becomes healthy, so the configured model should usually show as
+  loaded after logon. If warmup is disabled or fails, the dashboard can still show GPU
+  telemetry while model load is `No model loaded`; press **Warm Model** in AI OS or run a
+  local prompt/benchmark to load it.
 
 ## API Surfaces
 
@@ -573,7 +586,9 @@ pnpm ai-os:autostart:uninstall
 
 The installed task runs `scripts/ai-os-supervisor.ps1` at user logon. This is intentionally
 lighter than installing a service manager, but it keeps the local AI OS API available after
-reboot so the website can see GPU telemetry, Ollama provider status, and loaded models.
+reboot so the website can see GPU telemetry, Ollama provider status, and loaded models. The
+supervisor also waits for AI OS health before warmup, and `pnpm ai-os:autostart:status`
+prints a compact readiness report for service, Ollama, GPU, and model residency.
 
 ## Dependency And Model Hygiene
 

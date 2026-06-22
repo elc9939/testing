@@ -110,6 +110,8 @@
   let foundationBusy = false;
   let autotuneBusy = false;
   let autotuneResult = '';
+  let startupRetryCount = 0;
+  let warmupBusy = false;
 
   let inferPrompt = 'Return one sentence confirming which provider handled this ad hoc capability test.';
   let inferProvider = '';
@@ -177,6 +179,7 @@
   $: profileBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: startupChecks = buildStartupChecks(status, actionError);
   $: startupSummary = summarizeStartupChecks(startupChecks);
+  $: canWarmLocalModel = Boolean(providerById(status, 'ollama')?.available && !loadedModels.length);
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -545,6 +548,28 @@
     }
   }
 
+  async function warmLocalModel(): Promise<void> {
+    warmupBusy = true;
+    actionError = '';
+    try {
+      await runInference({
+        prompt: 'Mini Hub local model warmup. Reply OK.',
+        provider: 'ollama',
+        task_type: 'startup.warmup',
+        max_tokens: 8,
+        allow_fallback: false,
+        local_first: true,
+        metadata: modeMetadata()
+      });
+      actionMessage = 'Local Ollama model warmed; GPU/model telemetry refreshed.';
+      await refresh();
+    } catch (error) {
+      setError(error, 'Model warmup failed.');
+    } finally {
+      warmupBusy = false;
+    }
+  }
+
   async function refreshJobs(): Promise<void> {
     try {
       jobs = await listAiJobs();
@@ -906,9 +931,18 @@
     }
   }
 
-  onMount(refresh);
   onMount(() => {
     void clientData.init();
+    void refresh();
+    const retry = window.setInterval(() => {
+      startupRetryCount += 1;
+      if (startupRetryCount > 20 || status) {
+        window.clearInterval(retry);
+        return;
+      }
+      if (!loading) void refresh();
+    }, 3000);
+    return () => window.clearInterval(retry);
   });
 </script>
 
@@ -964,8 +998,18 @@
       </article>
     {/each}
   </div>
+  <div class="action-row tight startup-actions">
+    <button class="button" type="button" disabled={loading} on:click={refresh}>
+      <RefreshCw size={17} />
+      <span>Reconnect</span>
+    </button>
+    <button class="button primary" type="button" disabled={!canWarmLocalModel || warmupBusy} on:click={warmLocalModel}>
+      <Zap size={17} />
+      <span>{warmupBusy ? 'Warming' : 'Warm Model'}</span>
+    </button>
+  </div>
   <p class="startup-note">
-    The website cannot start local Windows processes by itself. Use the local AI OS autostart task so this service is already awake after reboot.
+    The local supervisor starts AI OS after Windows sign-in and warms Ollama once. If this page opens first, it retries for about a minute before giving up.
   </p>
 </section>
 

@@ -238,6 +238,12 @@
     return snapshot.summary.ready + snapshot.summary.running;
   }
 
+  function aiOsServiceReady(): boolean {
+    return Boolean(
+      capabilitySnapshot?.capabilities.find((capability) => capability.id === 'ai-os.service' && capability.available)
+    );
+  }
+
   function displayActivityWhen(value: string): string {
     return displayWhen(value);
   }
@@ -505,6 +511,16 @@
 
   onMount(() => {
     void refreshDashboard();
+    let retryCount = 0;
+    const retry = window.setInterval(() => {
+      retryCount += 1;
+      if (retryCount > 20 || aiOsServiceReady()) {
+        window.clearInterval(retry);
+        return;
+      }
+      if (!capabilityLoading) void refreshCapabilities();
+    }, 3000);
+    return () => window.clearInterval(retry);
   });
 </script>
 

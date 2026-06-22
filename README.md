@@ -284,8 +284,11 @@ pnpm ai-os:autostart:status
 
 That task starts the AI OS service after you sign in. The AI OS launcher and supervisor also
 try to start `ollama serve` when the Ollama CLI is installed but the Ollama API is asleep.
-The website itself cannot start local Windows processes, so GPU telemetry and loaded-model
-status only appear when this local service is already running.
+The supervisor waits for AI OS health, then sends one tiny Ollama warmup prompt so the
+configured local model can become resident after boot. `pnpm ai-os:autostart:status`
+prints the same service, Ollama, GPU, and model-load readiness that the website depends on.
+The website itself cannot start local Windows processes, so GPU telemetry appears only when
+this local service is already running; the AI OS and Today pages retry briefly during startup.
 
 For Macro Lab:
 

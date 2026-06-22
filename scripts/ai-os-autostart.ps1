@@ -11,6 +11,7 @@ $Python = Join-Path $ApiDir '.venv\Scripts\python.exe'
 $SupervisorScript = Join-Path $PSScriptRoot 'ai-os-supervisor.ps1'
 $TaskName = 'Mini Hub AI OS Supervisor'
 $HealthUrl = 'http://127.0.0.1:8791/api/ai/health'
+$StatusUrl = 'http://127.0.0.1:8791/api/ai/status'
 $ServiceName = 'mini-hub-ai-os-api'
 
 function Assert-Windows {
@@ -41,6 +42,47 @@ function Test-AiOsApi {
   }
 }
 
+function Write-AiOsReadiness {
+  try {
+    $status = Invoke-RestMethod -Uri $StatusUrl -TimeoutSec 15
+    $ollama = @($status.providers | Where-Object { $_.id -eq 'ollama' } | Select-Object -First 1)
+    if ($ollama.Count -and $ollama[0].available) {
+      $models = @($ollama[0].models)
+      $suffix = if ($models.Count -eq 1) { '' } else { 's' }
+      Write-Output "Ollama: ready ($($models.Count) model$suffix)"
+    } elseif ($ollama.Count) {
+      Write-Output "Ollama: not ready ($($ollama[0].error))"
+    } else {
+      Write-Output 'Ollama: not reported by AI OS'
+    }
+
+    $gpus = @($status.hardware.gpus)
+    if ($gpus.Count) {
+      $gpu = $gpus[0]
+      $used = if ($null -ne $gpu.memory_used_mb) { [math]::Round([double]$gpu.memory_used_mb / 1024, 1) } else { $null }
+      $total = if ($null -ne $gpu.memory_total_mb) { [math]::Round([double]$gpu.memory_total_mb / 1024, 1) } else { $null }
+      $vram = if ($null -ne $used -and $null -ne $total) { "$used / $total GB VRAM" } else { 'VRAM n/a' }
+      Write-Output "GPU: $($gpu.name) ($vram)"
+    } else {
+      $detail = if ($status.hardware.error) { $status.hardware.error } else { 'no GPU telemetry rows returned' }
+      Write-Output "GPU: not ready ($detail)"
+    }
+
+    $loadedModels = @($status.hardware.loaded_models)
+    if ($loadedModels.Count) {
+      $modelSummary = ($loadedModels | ForEach-Object {
+          $processor = if ($_.processor) { " - $($_.processor)" } else { '' }
+          "$($_.name)$processor"
+        }) -join ', '
+      Write-Output "Model load: $modelSummary"
+    } else {
+      Write-Output 'Model load: none resident yet. The supervisor warmup should load the configured Ollama model after the next task restart/logon.'
+    }
+  } catch {
+    Write-Output "Readiness detail unavailable: $($_.Exception.Message)"
+  }
+}
+
 function Format-TaskResult([int]$Code) {
   if ($Code -eq 0) { return '0 (success)' }
   if ($Code -eq 267009) { return '267009 (currently running)' }
@@ -63,6 +105,7 @@ function Write-Status {
 
   if (Test-AiOsApi) {
     Write-Output 'AI OS API is reachable at http://127.0.0.1:8791'
+    Write-AiOsReadiness
   } else {
     Write-Output 'AI OS API is not reachable at http://127.0.0.1:8791'
   }
