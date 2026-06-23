@@ -1441,7 +1441,23 @@ describe('passive task engine', () => {
     expect(run.metadata.recentResearch).toMatchObject({
       recentRunsChecked: 1,
       monitorRunsChecked: 1,
+      skippedAlreadySurfaced: 0,
       surfacedResearchRuns: 1
+    });
+
+    const secondRun = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'completed-monitor-repeat-test' }
+    });
+
+    expect(secondRun.cards.some((item) => item.title === 'Clay GTM update')).toBe(false);
+    expect(secondRun.changed).not.toContain('research-run:research-clay-1');
+    expect(secondRun.metadata.recentResearch).toMatchObject({
+      recentRunsChecked: 1,
+      monitorRunsChecked: 1,
+      skippedAlreadySurfaced: 1,
+      surfacedResearchRuns: 0
     });
   });
 

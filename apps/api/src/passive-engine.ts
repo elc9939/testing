@@ -2247,7 +2247,33 @@ function researchRunCard(task: PassiveTask, passiveRunId: string, researchRun: R
   });
 }
 
+function passiveResultResearchRunId(item: PassiveResultCard): string | undefined {
+  for (const ref of item.sourceRefs) {
+    const researchRunId = ref.metadata.researchRunId;
+    if (typeof researchRunId === 'string' && researchRunId.trim()) return researchRunId;
+  }
+  return undefined;
+}
+
+function surfacedResearchMonitorRunIds(store: MemoryStore): Set<string> {
+  const ids = new Set<string>();
+  for (const result of store.passiveResults) {
+    if (result.family !== 'research_monitor') continue;
+    const researchRunId = passiveResultResearchRunId(result);
+    if (researchRunId) ids.add(researchRunId);
+  }
+  for (const run of store.passiveRuns) {
+    for (const cardItem of run.cards) {
+      if (cardItem.family !== 'research_monitor') continue;
+      const researchRunId = passiveResultResearchRunId(cardItem);
+      if (researchRunId) ids.add(researchRunId);
+    }
+  }
+  return ids;
+}
+
 async function recentResearchMonitorRunCards(
+  store: MemoryStore,
   task: PassiveTask,
   passiveRunId: string,
   fetchImpl: FetchLike,
@@ -2260,7 +2286,9 @@ async function recentResearchMonitorRunCards(
   );
   const runs = isRecord(payload) && Array.isArray(payload.runs) ? payload.runs.filter(isRecord) : [];
   const monitorRuns = runs.filter((run) => run.mode === 'monitor_topic');
-  const cards = monitorRuns
+  const alreadySurfaced = surfacedResearchMonitorRunIds(store);
+  const freshMonitorRuns = monitorRuns.filter((run) => typeof run.id !== 'string' || !alreadySurfaced.has(run.id));
+  const cards = freshMonitorRuns
     .map((run) => researchRunCard(task, passiveRunId, run))
     .filter((item): item is PassiveResultCard => Boolean(item))
     .slice(0, budget.researchMonitorRunLimit);
@@ -2273,6 +2301,7 @@ async function recentResearchMonitorRunCards(
     metadata: {
       recentRunsChecked: runs.length,
       monitorRunsChecked: monitorRuns.length,
+      skippedAlreadySurfaced: monitorRuns.length - freshMonitorRuns.length,
       surfacedResearchRuns: cards.length
     }
   };
@@ -2283,7 +2312,7 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
   const budget = resourceBudget(settings);
   try {
     const createdMonitors = await ensureWatchedDomainResearchMonitors(settings, fetchImpl);
-    const recent = await recentResearchMonitorRunCards(task, runId, fetchImpl, budget).catch((error: unknown) => ({
+    const recent = await recentResearchMonitorRunCards(store, task, runId, fetchImpl, budget).catch((error: unknown) => ({
       cards: [
         serviceIssueCard(
           task,

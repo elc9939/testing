@@ -162,7 +162,8 @@ normal API startup.
   queued, so changing the setting affects the next run without editing task definitions.
 - Completed AI OS monitor-topic research runs are surfaced only when their reports or source
   list contain real content. The passive engine links back to the research run and source URLs
-  rather than inventing change summaries.
+  rather than inventing change summaries. Once a research run id has been surfaced in passive
+  results, later sweeps skip it to avoid repeating the same completed monitor report.
 - Backup snapshots redact encrypted token payloads from Mini Hub connection metadata, and the
   snapshot task fails visibly if the newly-written restore point cannot be parsed or if an
   unredacted token payload is detected. Action Ledger token/secret-looking fields are also

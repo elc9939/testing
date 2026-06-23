@@ -124,7 +124,9 @@ real-data only:
   delete them.
 - Background Research Monitor reads AI OS saved monitor due-state, prepares daily AI OS
   monitor templates from configured watched domains, queues due monitor runs through AI OS,
-  and surfaces completed `monitor_topic` reports as source-backed passive cards.
+  and surfaces completed `monitor_topic` reports as source-backed passive cards. Already
+  surfaced research run ids are skipped on later sweeps so completed monitor reports do not
+  repeat endlessly.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
 - Local File Intelligence scans only configured watched folders for recent document,
   note/data, and image metadata; text-like files get bounded previews, suggested tags,
