@@ -133,7 +133,9 @@ real-data only:
   and surfaces completed `monitor_topic` reports as source-backed passive cards. Already
   surfaced research run ids are skipped on later sweeps so completed monitor reports do not
   repeat endlessly.
-- Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
+- Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
+  including submitted applications, interviews, and offers that have gone quiet without a
+  next action.
 - Local File Intelligence scans only configured watched folders for recent document,
   note/data, and image metadata; text-like files get bounded previews, suggested tags,
   cleanup hints, and optional AI OS semantic-memory indexing from debounced folder events

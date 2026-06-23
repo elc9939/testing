@@ -2856,11 +2856,18 @@ function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): F
   const soonMs = now + 14 * dayMs;
   const overdueActions = store.careerActions.filter((item) => !item.completedAt && item.dueAt && parseTime(item.dueAt) <= now);
   const dueActions = store.careerActions.filter((item) => !item.completedAt && item.dueAt && parseTime(item.dueAt) > now && parseTime(item.dueAt) <= soonMs);
-  const staleJobs = store.jobs.filter((job) => {
-    if (!['lead', 'saved', 'watching', 'applied', 'interview'].includes(job.status)) return false;
+  const leadJobs = store.jobs.filter((job) => {
+    if (!['lead', 'saved', 'watching'].includes(job.status)) return false;
     const nextAction = parseTime(job.nextActionAt);
     if (Number.isFinite(nextAction)) return nextAction <= soonMs;
     return parseTime(job.updatedAt) <= now - 21 * dayMs;
+  });
+  const submittedJobs = store.jobs.filter((job) => {
+    if (!['applied', 'interview', 'offer'].includes(job.status)) return false;
+    const nextAction = parseTime(job.nextActionAt);
+    if (Number.isFinite(nextAction)) return nextAction <= soonMs;
+    const thresholdDays = job.status === 'applied' ? 14 : 7;
+    return parseTime(job.updatedAt) <= now - thresholdDays * dayMs;
   });
   const cards: PassiveResultCard[] = [];
 
@@ -2890,28 +2897,78 @@ function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): F
     );
   }
 
-  if (staleJobs.length) {
+  if (leadJobs.length) {
     cards.push(
       card({
         id: id('passive-card'),
         taskId: task.id,
         runId,
         family: task.family,
-        title: `${staleJobs.length} career lead${staleJobs.length === 1 ? '' : 's'} need follow-up`,
-        summary: staleJobs.slice(0, 4).map((job) => `${job.company} - ${job.role}`).join('; '),
-        urgency: staleJobs.some((job) => Number.isFinite(parseTime(job.nextActionAt)) && parseTime(job.nextActionAt) <= now) ? 80 : 62,
+        title: `${leadJobs.length} career lead${leadJobs.length === 1 ? '' : 's'} need follow-up`,
+        summary: leadJobs.slice(0, 4).map((job) => `${job.company} - ${job.role}`).join('; '),
+        urgency: leadJobs.some((job) => Number.isFinite(parseTime(job.nextActionAt)) && parseTime(job.nextActionAt) <= now) ? 80 : 62,
         confidence: 0.78,
         route: routeMap.careerDesk,
-        sourceRefs: staleJobs.slice(0, 8).map((job) =>
+        sourceRefs: leadJobs.slice(0, 8).map((job) =>
           stableSourceRef('record', `${job.company} - ${job.role}`, {
             id: job.id,
             route: routeMap.careerDesk,
-            metadata: { status: job.status, nextActionAt: job.nextActionAt }
+            metadata: {
+              status: job.status,
+              nextActionAt: job.nextActionAt,
+              updatedAt: job.updatedAt,
+              reason: Number.isFinite(parseTime(job.nextActionAt)) ? 'scheduled-follow-up' : 'stale-lead'
+            }
           })
         ),
         suggestedAction: 'Review job status',
         actionKind: 'inspect',
         why: 'Saved job records have overdue next-action dates or have gone stale without a next action.'
+      })
+    );
+  }
+
+  if (submittedJobs.length) {
+    cards.push(
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: `${submittedJobs.length} submitted application${submittedJobs.length === 1 ? '' : 's'} need status review`,
+        summary: submittedJobs
+          .slice(0, 4)
+          .map((job) => `${job.company} - ${job.role} (${job.status})`)
+          .join('; '),
+        urgency: submittedJobs.some((job) => Number.isFinite(parseTime(job.nextActionAt)) && parseTime(job.nextActionAt) <= now)
+          ? 82
+          : submittedJobs.some((job) => ['interview', 'offer'].includes(job.status))
+            ? 76
+            : 68,
+        confidence: 0.8,
+        route: routeMap.careerDesk,
+        sourceRefs: submittedJobs.slice(0, 8).map((job) => {
+          const nextAction = parseTime(job.nextActionAt);
+          const hasScheduledFollowUp = Number.isFinite(nextAction);
+          const thresholdDays = job.status === 'applied' ? 14 : 7;
+          const daysSinceUpdate = Math.max(0, Math.floor((now - parseTime(job.updatedAt)) / dayMs));
+          return stableSourceRef('record', `${job.company} - ${job.role}`, {
+            id: job.id,
+            route: routeMap.careerDesk,
+            metadata: compactRecord({
+              status: job.status,
+              nextActionAt: job.nextActionAt,
+              updatedAt: job.updatedAt,
+              reason: hasScheduledFollowUp ? 'scheduled-follow-up' : 'quiet-submitted-application',
+              thresholdDays,
+              daysSinceUpdate,
+              applicationUrl: job.applicationUrl || undefined
+            })
+          });
+        }),
+        suggestedAction: 'Review application pipeline',
+        actionKind: 'inspect',
+        why: 'Submitted Career Desk applications or interview-stage records have an overdue/upcoming follow-up or have gone quiet without a next action.'
       })
     );
   }
@@ -2936,7 +2993,16 @@ function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): F
     );
   }
 
-  return { status: 'succeeded', cards };
+  return {
+    status: 'succeeded',
+    cards,
+    metadata: {
+      overdueCareerActions: overdueActions.length,
+      upcomingCareerActions: dueActions.length,
+      leadFollowUps: leadJobs.length,
+      submittedApplicationFollowUps: submittedJobs.length
+    }
+  };
 }
 
 function safeConfiguredFolders(settings: PassiveEngineSettings, budget = resourceBudget(settings)): string[] {

@@ -140,7 +140,9 @@ normal API startup.
   templates from configured watched domains, queues due monitor runs, and surfaces completed
   `monitor_topic` reports as source-backed passive cards with research-run and source URL
   references.
-- Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
+- Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
+  including submitted applications, interviews, and offers that have gone quiet without a
+  next action.
 - Local File Intelligence: scans only configured watched folders for recent document,
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
   task. It adds bounded text previews for text-like files, source-backed metadata summaries

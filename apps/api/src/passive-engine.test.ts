@@ -1410,6 +1410,50 @@ describe('passive task engine', () => {
     expect(attention[0]?.title).toContain('career action');
   });
 
+  it('surfaces submitted applications that have gone quiet without a next action', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-submitted-quiet',
+      workspaceId: personalWorkspaceId,
+      company: 'Pipeline Co',
+      role: 'Quant Research Intern',
+      status: 'applied',
+      applicationUrl: 'https://jobs.example.com/pipeline-co',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2020-01-01T10:00:00.000Z'
+    });
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'submitted-application-follow-up-test' }
+    });
+
+    const applicationCard = run.cards.find((card) => card.title === '1 submitted application need status review');
+    expect(run.status).toBe('succeeded');
+    expect(applicationCard?.summary).toContain('Pipeline Co - Quant Research Intern (applied)');
+    expect(applicationCard?.urgency).toBeGreaterThanOrEqual(68);
+    expect(applicationCard?.sourceRefs[0]).toMatchObject({
+      id: 'job-submitted-quiet',
+      route: '/desk/career',
+      metadata: {
+        status: 'applied',
+        reason: 'quiet-submitted-application',
+        thresholdDays: 14,
+        applicationUrl: 'https://jobs.example.com/pipeline-co'
+      }
+    });
+    expect(Number(applicationCard?.sourceRefs[0]?.metadata.daysSinceUpdate)).toBeGreaterThan(14);
+    expect(run.metadata).toMatchObject({
+      leadFollowUps: 0,
+      submittedApplicationFollowUps: 1
+    });
+    expect(buildPassiveDigest(store)[0]?.id).toBe(applicationCard?.id);
+  });
+
   it('dedupes repeated non-urgent passive notifications while keeping run history', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
