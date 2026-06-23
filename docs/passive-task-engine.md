@@ -104,7 +104,8 @@ The shared core model includes:
   Notification style is enforced at write time: `digest` stores notable notifications,
   `urgent_only` stores only urgent ones, and `off` stores none. Repeated non-urgent
   notifications with the same family/title/body are de-duplicated for 24 hours; run history
-  and digest cards still record the repeated work.
+  and digest cards still record the repeated work. Notification dismissals are persisted and
+  audited in the Action Ledger; the source run and cards remain available for inspection.
 - Passive card triage: persisted per-card state for important, reviewed, snoozed, and
   dismissed findings. The digest filters reviewed/dismissed/future-snoozed cards and lets
   important cards remain visible even when they would otherwise be below the digest cutoff.
@@ -176,6 +177,8 @@ normal API startup.
   behave like a quiet digest; urgent findings can still surface immediately.
 - Notification style only controls stored notifications; passive runs, source cards, digest
   cards, errors, and Action Ledger events are still recorded for inspection.
+- Notification dismissal is a write action: it is persisted, logged to the Action Ledger, and
+  does not delete the original passive run or source-backed cards.
 - Passive card triage is reversible from the source state: reviewed, dismissed, snoozed,
   important, and clear actions are logged to the Action Ledger and do not alter source files
   or remote services.

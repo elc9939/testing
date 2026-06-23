@@ -155,7 +155,8 @@ Repeated non-urgent passive notifications with the same family/title/body are de
 for a day so recurring findings stay digest-like instead of noisy. Notification style is
 enforced when notifications are stored: `digest` keeps notable findings, `urgent_only` keeps
 only urgent findings, and `off` keeps none; run history and source cards still record the
-work.
+work. Notification dismissals are persisted and logged to the Action Ledger, while the
+underlying run and source-backed cards remain available for inspection.
 The Passive Tasks dashboard exposes the same practical controls for day-to-day use, including
 idle-only scheduling, AI preference, family toggles, tick limits, watcher toggles, manual
 ticks, source scope edits, first-class trigger/result state, and live worker state such as

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
 import {
   buildPassiveSnapshot,
+  dismissPassiveNotification,
   type PassiveRunInput,
   runDuePassiveTasks,
   runPassiveEvent,
@@ -13,7 +14,7 @@ import {
   updatePassiveCardTriage,
   updatePassiveTaskStatus
 } from '../passive-engine';
-import { ensurePersonalWorkspace, persistPassiveTasks, type MemoryStore } from '../store';
+import { ensurePersonalWorkspace, type MemoryStore } from '../store';
 
 type FetchLike = typeof fetch;
 
@@ -265,17 +266,12 @@ export function passiveTaskRoutes(store: MemoryStore, options: PassiveTaskRouteO
     const user = requireUser(c);
     if (user instanceof Response) return user;
     ensurePersonalWorkspace(store);
-    const id = c.req.param('id');
-    const now = new Date().toISOString();
-    let found = false;
-    store.passiveNotifications = store.passiveNotifications.map((notification) => {
-      if (notification.id !== id) return notification;
-      found = true;
-      return { ...notification, dismissedAt: now };
-    });
-    if (!found) return c.json({ error: 'Notification not found.' }, 404);
-    persistPassiveTasks(store);
-    return c.json({ ok: true, snapshot: buildPassiveSnapshot(store) });
+    try {
+      const notification = dismissPassiveNotification(store, c.req.param('id'));
+      return c.json({ ok: true, notification, snapshot: buildPassiveSnapshot(store) });
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, 404);
+    }
   });
 
   return app;

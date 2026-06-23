@@ -3574,6 +3574,46 @@ export function updatePassiveCardTriage(
   return next;
 }
 
+export function dismissPassiveNotification(store: MemoryStore, notificationId: string): PassiveNotification {
+  ensurePassiveDefaults(store);
+  const dismissedAt = nowIso();
+  const index = store.passiveNotifications.findIndex((notification) => notification.id === notificationId);
+  if (index < 0) throw new Error('Passive notification not found.');
+  const dismissed = passiveNotificationSchema.parse({
+    ...store.passiveNotifications[index]!,
+    dismissedAt
+  });
+  store.passiveNotifications = store.passiveNotifications.map((notification, notificationIndex) =>
+    notificationIndex === index ? dismissed : notification
+  );
+  appendActionLedgerEvent(store, {
+    system: 'mini-hub',
+    source: 'passive-tasks',
+    actionType: 'passive.notification.dismiss',
+    summary: `Dismissed passive notification: ${dismissed.title}`,
+    status: 'succeeded',
+    risk: 'write',
+    changed: [`passive-notification:${notificationId}`, ...dismissed.cardIds.map((cardId) => `passive-card:${cardId}`)],
+    recoverability: {
+      kind: 'snapshot',
+      route: routeMap.passiveTasks,
+      description: 'Notification dismissal is persisted locally; the source run and cards remain available for inspection.',
+      reversible: false
+    },
+    rawRef: { kind: 'passive_notification', id: notificationId },
+    metadata: {
+      family: dismissed.family,
+      level: dismissed.level,
+      taskId: dismissed.taskId,
+      runId: dismissed.runId,
+      cardIds: dismissed.cardIds,
+      dismissedAt
+    }
+  });
+  persistPassiveTasks(store);
+  return dismissed;
+}
+
 export function buildPassiveDigest(store: MemoryStore, limit = 12): PassiveResultCard[] {
   const seen = new Set<string>();
   const cards: PassiveResultCard[] = [];

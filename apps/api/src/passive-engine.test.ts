@@ -7,6 +7,7 @@ import {
   buildPassiveDigest,
   buildPassiveSnapshot,
   collectPassiveAttentionItems,
+  dismissPassiveNotification,
   duePassiveTasks,
   ensurePassiveDefaults,
   startPassiveTaskWorker,
@@ -1132,6 +1133,69 @@ describe('passive task engine', () => {
     expect(offStore.passiveRuns).toHaveLength(1);
     expect(offStore.passiveRuns[0]?.cards[0]?.urgency).toBeGreaterThanOrEqual(85);
     expect(offStore.passiveNotifications).toEqual([]);
+  });
+
+  it('audits and persists passive notification dismissals', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-notification-dismiss-'));
+    try {
+      const passivePath = passiveTasksPath(dir);
+      const ledgerPath = actionLedgerPath(dir);
+      const first = createMemoryStore();
+      enablePassiveTaskPersistence(first, passivePath);
+      enableActionLedgerPersistence(first, ledgerPath);
+      ensurePassiveDefaults(first);
+      first.jobs.push({
+        id: 'job-dismiss',
+        workspaceId: personalWorkspaceId,
+        company: 'Quiet Co',
+        role: 'Research Analyst',
+        status: 'lead',
+        applicationUrl: '',
+        notes: '',
+        deviceId: 'test',
+        updatedAt: '2026-05-01T10:00:00.000Z'
+      });
+      const task = first.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+      await runPassiveTask(first, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'notification-dismiss-test' }
+      });
+
+      const notificationId = first.passiveNotifications[0]!.id;
+      const dismissed = dismissPassiveNotification(first, notificationId);
+
+      expect(dismissed.dismissedAt).toBeTruthy();
+      expect(first.passiveNotifications[0]).toMatchObject({
+        id: notificationId,
+        dismissedAt: dismissed.dismissedAt
+      });
+      expect(first.actionEvents.at(-1)).toMatchObject({
+        source: 'passive-tasks',
+        actionType: 'passive.notification.dismiss',
+        risk: 'write',
+        changed: expect.arrayContaining([`passive-notification:${notificationId}`]),
+        metadata: {
+          family: 'career_radar',
+          taskId: task.id,
+          runId: dismissed.runId,
+          dismissedAt: dismissed.dismissedAt
+        }
+      });
+
+      const persistedLedger = JSON.parse(readFileSync(ledgerPath, 'utf8')) as { events: Array<{ actionType?: string }> };
+      expect(persistedLedger.events.at(-1)?.actionType).toBe('passive.notification.dismiss');
+
+      const second = createMemoryStore();
+      enablePassiveTaskPersistence(second, passivePath);
+      enableActionLedgerPersistence(second, ledgerPath);
+
+      expect(second.passiveNotifications.find((item) => item.id === notificationId)?.dismissedAt).toBe(dismissed.dismissedAt);
+      expect(second.actionEvents.at(-1)?.actionType).toBe('passive.notification.dismiss');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('prepares AI OS research monitors from configured watched domains', async () => {
