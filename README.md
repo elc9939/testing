@@ -175,6 +175,9 @@ Passive source health records schedule state, last-run age, schedule lag, next r
 deferral, and idle deferral; enabled scheduled work that misses its run window beyond the
 worker grace period becomes a visible source issue, while idle-only work waiting for an
 active machine stays quiet with `waiting_for_idle` evidence.
+App Health also actively probes the configured Mini Hub public page and the local Mini Hub
+API `/api/health` endpoint, records `serviceChecks` evidence on the run, and raises
+source-backed cards when either surface is unavailable.
 Watched accounts now scope integration-account health findings: if the list is empty,
 App Health reports every broken connection, and if it is set, only matching account labels,
 connection ids, `provider:account` tokens, or account domains appear in source-backed cards.

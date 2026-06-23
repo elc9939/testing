@@ -393,6 +393,65 @@ describe('passive task engine', () => {
     }
   });
 
+  it('actively checks Mini Hub public page and API health endpoints', async () => {
+    const previousHubPublicUrl = env.hubPublicUrl;
+    const previousPort = env.port;
+    try {
+      env.hubPublicUrl = 'https://elc9939.github.io/testing';
+      env.port = 8787;
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+      const fetchWithHubFailures = (async (input: unknown, init?: RequestInit) => {
+        const href = String(input);
+        if (href === 'https://elc9939.github.io/testing') {
+          return new Response('pages deploy unavailable', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'content-type': 'text/html' }
+          });
+        }
+        if (href === 'http://127.0.0.1:8787/api/health') {
+          return jsonResponse({ error: 'api not listening' }, false);
+        }
+        return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+      }) as typeof fetch;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: fetchWithHubFailures,
+        force: true,
+        input: { reason: 'hub-api-health-test' }
+      });
+
+      const hubCard = run.cards.find((card) => card.title === 'Mini Hub public page is unavailable');
+      const apiCard = run.cards.find((card) => card.title === 'Mini Hub API health check failed');
+      expect(run.status).toBe('blocked');
+      expect(hubCard?.summary).toContain('503');
+      expect(hubCard?.sourceRefs[0]?.metadata.check).toMatchObject({
+        ok: false,
+        status: 503,
+        contentType: 'text/html'
+      });
+      expect(apiCard?.summary).toContain('500');
+      expect(apiCard?.sourceRefs[0]?.metadata).toMatchObject({
+        host: '127.0.0.1',
+        port: '8787',
+        check: {
+          ok: false,
+          status: 500,
+          contentType: 'application/json'
+        }
+      });
+      expect(run.metadata.serviceChecks).toMatchObject({
+        hub: { ok: false, status: 503 },
+        miniHubApi: { ok: false, status: 500 }
+      });
+    } finally {
+      env.hubPublicUrl = previousHubPublicUrl;
+      env.port = previousPort;
+    }
+  });
+
   it('surfaces measured AI OS machine profile pressure in app health', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

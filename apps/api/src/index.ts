@@ -139,8 +139,8 @@ if (process.env.NODE_ENV !== 'test') {
   enablePassiveTaskPersistence(defaultStore, passiveTasksPath(env.dataDir));
   ensurePassiveDefaults(defaultStore);
   const app = createApp();
-  startPassiveTaskWorker(defaultStore);
   serve({ fetch: app.fetch, port: env.port });
+  startPassiveTaskWorker(defaultStore);
   console.log(`Mini Hub API listening on http://localhost:${env.port}`);
 }
 

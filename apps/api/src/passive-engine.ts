@@ -1296,6 +1296,55 @@ async function fetchJsonWithTimeout(
   }
 }
 
+async function fetchReachabilityWithTimeout(
+  fetchImpl: FetchLike,
+  url: URL,
+  label: string,
+  timeoutMs = 2200
+): Promise<Record<string, unknown>> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const checkedAt = nowIso();
+  try {
+    const response = await fetchImpl(url, {
+      signal: controller.signal,
+      headers: {
+        accept: 'text/html,application/json;q=0.9,*/*;q=0.8'
+      }
+    });
+    const contentType = response.headers.get('content-type') ?? undefined;
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return compactRecord({
+        ok: false,
+        url: url.toString(),
+        checkedAt,
+        status: response.status,
+        statusText: response.statusText || undefined,
+        contentType,
+        error: `${label} returned ${response.status}: ${text.slice(0, 180) || response.statusText}`
+      });
+    }
+    return compactRecord({
+      ok: true,
+      url: url.toString(),
+      checkedAt,
+      status: response.status,
+      statusText: response.statusText || undefined,
+      contentType
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      url: url.toString(),
+      checkedAt,
+      error: describeError(error)
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function latestRunForTask(store: MemoryStore, taskId: string): PassiveRun | undefined {
   return store.passiveRuns
     .filter((run) => run.taskId === taskId)
@@ -1566,6 +1615,7 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     macroLab: endpointMetadata(env.macroLabApiUrl),
     ollama: endpointMetadata(env.ollamaBaseUrl)
   };
+  const serviceChecks: Record<string, Record<string, unknown>> = {};
   let ollamaModels: string[] = [];
   let aiOsMachineProfile: Record<string, unknown> = { checked: false, available: false, reason: 'not checked yet' };
   if (!existsSync(dataDir)) {
@@ -1577,6 +1627,73 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         `Expected data directory was not found at ${dataDir}.`,
         88,
         stableSourceRef('file', 'Mini Hub data directory', { id: 'mini-hub-data-dir', filePath: dataDir })
+      )
+    );
+  }
+
+  try {
+    const hubUrl = new URL(env.hubPublicUrl);
+    const hubCheck = await fetchReachabilityWithTimeout(fetchImpl, hubUrl, 'Mini Hub public page');
+    serviceChecks.hub = hubCheck;
+    if (hubCheck.ok !== true) {
+      cards.push(
+        serviceIssueCard(
+          task,
+          runId,
+          'Mini Hub public page is unavailable',
+          optionalString(hubCheck.error) ?? 'The configured Mini Hub public page did not respond successfully.',
+          76,
+          stableSourceRef('service', 'Mini Hub public page', {
+            id: 'mini-hub-public-page',
+            route: routeMap.settings,
+            url: env.hubPublicUrl,
+            metadata: { ...endpoints.hub, check: hubCheck }
+          })
+        )
+      );
+    }
+  } catch (error) {
+    const hubCheck = {
+      ok: false,
+      url: env.hubPublicUrl,
+      checkedAt: nowIso(),
+      error: `Invalid Mini Hub public URL: ${describeError(error)}`
+    };
+    serviceChecks.hub = hubCheck;
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'Mini Hub public page is unavailable',
+        hubCheck.error,
+        76,
+        stableSourceRef('service', 'Mini Hub public page', {
+          id: 'mini-hub-public-page',
+          route: routeMap.settings,
+          url: env.hubPublicUrl,
+          metadata: { ...endpoints.hub, check: hubCheck }
+        })
+      )
+    );
+  }
+
+  const miniHubApiHealthUrl = new URL('/api/health', `http://127.0.0.1:${env.port}`);
+  const miniHubApiCheck = await fetchReachabilityWithTimeout(fetchImpl, miniHubApiHealthUrl, 'Mini Hub API health', 1600);
+  serviceChecks.miniHubApi = miniHubApiCheck;
+  if (miniHubApiCheck.ok !== true) {
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'Mini Hub API health check failed',
+        optionalString(miniHubApiCheck.error) ?? 'The local Mini Hub API health endpoint did not respond successfully.',
+        88,
+        stableSourceRef('service', 'Mini Hub API health', {
+          id: 'mini-hub-api-health',
+          route: routeMap.settings,
+          url: miniHubApiHealthUrl.toString(),
+          metadata: { ...endpoints.miniHubApi, check: miniHubApiCheck }
+        })
       )
     );
   }
@@ -1813,15 +1930,22 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         runId,
         family: task.family,
         title: 'App health checks passed',
-        summary: 'Mini Hub data directory exists and local service checks did not surface blockers.',
+        summary: 'Mini Hub public page, API health, data directory, and local service checks did not surface blockers.',
         urgency: 22,
         confidence: 0.82,
         route: routeMap.settings,
         sourceRefs: [
+          stableSourceRef('service', 'Mini Hub public page', {
+            id: 'mini-hub-public-page',
+            route: routeMap.settings,
+            url: env.hubPublicUrl,
+            metadata: { ...endpoints.hub, check: serviceChecks.hub }
+          }),
           stableSourceRef('service', 'Mini Hub API', {
             id: 'mini-hub-api',
             route: routeMap.settings,
-            metadata: endpoints.miniHubApi
+            url: miniHubApiHealthUrl.toString(),
+            metadata: { ...endpoints.miniHubApi, check: serviceChecks.miniHubApi }
           }),
           stableSourceRef('service', 'Ollama models', {
             id: 'ollama-models',
@@ -1847,6 +1971,7 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     cards,
     metadata: {
       serviceEndpoints: endpoints,
+      serviceChecks,
       watchedAccounts,
       totalIntegrationConnectionIssues: disconnectedConnections.length,
       integrationConnectionIssues: disconnected.length,

@@ -46,6 +46,9 @@ Watched accounts are matched against integration connection labels/ids. When the
 empty, App Health reports all broken integration connections; when it is set, only matching
 accounts surface as health findings and ignored connection issues are recorded in run
 metadata.
+App Health actively probes the configured Mini Hub public page and the local
+`/api/health` endpoint, records the reachability evidence in `serviceChecks`, and emits
+source-backed cards when either surface is down or returning an error.
 
 State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Action Ledger events emitted
 by passive runs, watcher toggles, settings changes, and card triage persist separately to the
