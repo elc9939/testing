@@ -44,6 +44,18 @@ import { appendActionLedgerEvent, persistPassiveTasks, type MemoryStore } from '
 type FetchLike = typeof fetch;
 const execFileAsync = promisify(execFile);
 
+interface FileInsight {
+  path: string;
+  size: number;
+  mtimeMs: number;
+  extension: string;
+  kind: 'document' | 'image' | 'data' | 'note' | 'other';
+  tags: string[];
+  cleanupHints: string[];
+  preview?: string;
+  indexableText?: string;
+}
+
 export interface PassiveRunInput {
   idle?: boolean;
   reason?: string;
@@ -1187,7 +1199,22 @@ function safeConfiguredFolders(settings: PassiveEngineSettings): string[] {
   return Array.from(new Set(settings.watchedFolders.map((folder) => folder.trim()).filter(Boolean))).slice(0, 16);
 }
 
-const interestingFileExtensions = new Set(['.pdf', '.doc', '.docx', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp']);
+const interestingFileExtensions = new Set([
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.txt',
+  '.md',
+  '.csv',
+  '.json',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp'
+]);
+const textPreviewExtensions = new Set(['.txt', '.md', '.csv', '.json']);
+const maxPreviewBytes = 96_000;
+const maxIndexedFileChars = 80_000;
 
 function pathWithinFolder(folder: string, target: string): boolean {
   const relativePath = relative(resolve(folder), resolve(target));
@@ -1200,8 +1227,84 @@ function passiveEventFilePath(input: PassiveRunInput, folders: string[]): string
   return folders.some((folder) => pathWithinFolder(folder, eventPath)) ? eventPath : undefined;
 }
 
-function recentInterestingFiles(folder: string): Array<{ path: string; size: number; mtimeMs: number }> {
-  const entries: Array<{ path: string; size: number; mtimeMs: number }> = [];
+function fileKind(extension: string): FileInsight['kind'] {
+  if (['.png', '.jpg', '.jpeg', '.webp'].includes(extension)) return 'image';
+  if (['.csv', '.json'].includes(extension)) return 'data';
+  if (['.txt', '.md'].includes(extension)) return 'note';
+  if (['.pdf', '.doc', '.docx'].includes(extension)) return 'document';
+  return 'other';
+}
+
+function suggestFileTags(filePath: string, extension: string): string[] {
+  const name = basename(filePath).toLowerCase();
+  const tags = new Set<string>([fileKind(extension)]);
+  if (/\b(resume|cv|cover[-_\s]?letter|application|recruiter|interview)\b/iu.test(name)) tags.add('career');
+  if (/\b(homework|assignment|exam|quiz|lecture|notes?|study|course)\b/iu.test(name)) tags.add('study');
+  if (/\b(invoice|receipt|statement|tax|payment)\b/iu.test(name)) tags.add('finance');
+  if (/\b(screenshot|screen shot|capture)\b/iu.test(name)) tags.add('screenshot');
+  if (/\b(research|paper|source|citation|report)\b/iu.test(name)) tags.add('research');
+  if (extension === '.md') tags.add('markdown');
+  if (extension === '.json') tags.add('structured-data');
+  return Array.from(tags).filter(Boolean).slice(0, 6);
+}
+
+function cleanupHintsForFile(filePath: string, size: number, mtimeMs: number): string[] {
+  const hints: string[] = [];
+  const name = basename(filePath);
+  if (size >= 25 * 1024 * 1024) hints.push('large file');
+  if (/\(\d+\)| copy\b|duplicate/iu.test(name)) hints.push('possible duplicate');
+  if (/\b(download|untitled|scan|screenshot)\b/iu.test(name) && Date.now() - mtimeMs > 14 * dayMs) hints.push('review or file away');
+  return hints.slice(0, 4);
+}
+
+function compactPreviewText(value: string): string {
+  return value
+    .replace(/\u0000/gu, '')
+    .replace(/[^\S\r\n]+/gu, ' ')
+    .replace(/\n{3,}/gu, '\n\n')
+    .trim();
+}
+
+function readTextPreview(filePath: string, size: number, extension: string): { preview?: string; indexableText?: string } {
+  if (!textPreviewExtensions.has(extension) || size > maxPreviewBytes) return {};
+  try {
+    const text = compactPreviewText(readFileSync(filePath, 'utf8').slice(0, maxIndexedFileChars));
+    if (!text) return {};
+    return {
+      preview: text.slice(0, 360),
+      indexableText: text
+    };
+  } catch {
+    return {};
+  }
+}
+
+function insightForFile(filePath: string, size: number, mtimeMs: number): FileInsight {
+  const extension = extname(filePath).toLowerCase();
+  return {
+    path: filePath,
+    size,
+    mtimeMs,
+    extension,
+    kind: fileKind(extension),
+    tags: suggestFileTags(filePath, extension),
+    cleanupHints: cleanupHintsForFile(filePath, size, mtimeMs),
+    ...readTextPreview(filePath, size, extension)
+  };
+}
+
+function safeInsightForExistingFile(filePath: string): FileInsight | undefined {
+  try {
+    const stat = statSync(filePath);
+    if (!stat.isFile()) return undefined;
+    return insightForFile(filePath, stat.size, stat.mtimeMs);
+  } catch {
+    return undefined;
+  }
+}
+
+function recentInterestingFiles(folder: string): FileInsight[] {
+  const entries: FileInsight[] = [];
   const cutoff = Date.now() - 7 * dayMs;
   for (const entry of readdirSync(folder, { withFileTypes: true }).slice(0, 500)) {
     if (!entry.isFile()) continue;
@@ -1210,12 +1313,83 @@ function recentInterestingFiles(folder: string): Array<{ path: string; size: num
     if (!interestingFileExtensions.has(extension)) continue;
     const stat = statSync(fullPath);
     if (stat.mtimeMs < cutoff) continue;
-    entries.push({ path: fullPath, size: stat.size, mtimeMs: stat.mtimeMs });
+    entries.push(insightForFile(fullPath, stat.size, stat.mtimeMs));
   }
   return entries.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, 20);
 }
 
-function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: string, input: PassiveRunInput): FamilyRunResult {
+async function indexFileInsightsToMemory(
+  fetchImpl: FetchLike,
+  settings: PassiveEngineSettings,
+  insights: FileInsight[]
+): Promise<{ changed: string[]; metadata: Record<string, unknown>; error?: string }> {
+  const unique = Array.from(new Map(insights.map((file) => [file.path, file])).values());
+  const indexable = unique.filter((file) => file.indexableText).slice(0, 3);
+  if (!indexable.length) return { changed: [], metadata: { indexedFiles: 0 } };
+  const changed: string[] = [];
+  const indexed: Array<Record<string, unknown>> = [];
+  const failed: Array<Record<string, unknown>> = [];
+  for (const file of indexable) {
+    try {
+      const payload = await fetchJsonWithTimeout(
+        fetchImpl,
+        new URL('/api/ai/memory/ingest', env.aiOsApiUrl),
+        'AI OS memory ingest',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            source_type: 'local_file',
+            source_id: file.path,
+            title: basename(file.path),
+            text: file.indexableText,
+            metadata: {
+              source: 'passive-file-intelligence',
+              file_path: file.path,
+              extension: file.extension,
+              kind: file.kind,
+              size: file.size,
+              modified_at: new Date(file.mtimeMs).toISOString(),
+              tags: file.tags,
+              cleanup_hints: file.cleanupHints
+            },
+            chunk_size: 1200,
+            overlap: 120,
+            ...(settings.localAiPreference === 'cloud_allowed' ? {} : { embedding_provider: 'ollama' })
+          })
+        },
+        12000
+      );
+      const result = isRecord(payload) && isRecord(payload.result) ? payload.result : {};
+      const documentId = typeof result.document_id === 'string' ? result.document_id : '';
+      if (documentId) changed.push(`memory:${documentId}`);
+      indexed.push({
+        path: file.path,
+        documentId,
+        chunks: typeof result.chunks === 'number' ? result.chunks : undefined
+      });
+    } catch (error) {
+      failed.push({ path: file.path, error: describeError(error) });
+    }
+  }
+  return {
+    changed,
+    metadata: {
+      indexedFiles: indexed.length,
+      indexFailures: failed.length,
+      indexed,
+      ...(failed.length ? { failed } : {})
+    },
+    ...(failed.length ? { error: `AI OS memory ingest failed for ${failed.length} file${failed.length === 1 ? '' : 's'}.` } : {})
+  };
+}
+
+async function runFileIntelligence(
+  store: MemoryStore,
+  task: PassiveTask,
+  runId: string,
+  fetchImpl: FetchLike,
+  input: PassiveRunInput
+): Promise<FamilyRunResult> {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
   const folders = safeConfiguredFolders(settings);
   if (!folders.length) {
@@ -1242,8 +1416,11 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
   }
 
   const cards: PassiveResultCard[] = [];
+  const allInsights: FileInsight[] = [];
   const eventFilePath = passiveEventFilePath(input, folders);
   const eventFileName = input.eventFileName || (eventFilePath ? basename(eventFilePath) : '');
+  const eventInsight = eventFilePath ? safeInsightForExistingFile(eventFilePath) : undefined;
+  if (eventInsight) allInsights.push(eventInsight);
   if (eventFilePath && (!eventFileName || interestingFileExtensions.has(extname(eventFileName).toLowerCase()))) {
     cards.push(
       card({
@@ -1263,11 +1440,21 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
             metadata: {
               eventName: input.eventName,
               eventKind: input.eventKind,
-              eventFolder: input.eventFolder
+              eventFolder: input.eventFolder,
+              ...(eventInsight
+                ? {
+                    size: eventInsight.size,
+                    modifiedAt: new Date(eventInsight.mtimeMs).toISOString(),
+                    kind: eventInsight.kind,
+                    tags: eventInsight.tags,
+                    cleanupHints: eventInsight.cleanupHints,
+                    preview: eventInsight.preview
+                  }
+                : {})
             }
           })
         ],
-        suggestedAction: 'Inspect file',
+        suggestedAction: eventInsight?.indexableText ? 'Inspect indexed file' : 'Inspect file',
         actionKind: 'inspect',
         why: 'A configured watched folder emitted a file change event.'
       })
@@ -1291,7 +1478,10 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
         continue;
       }
       const files = recentInterestingFiles(resolved);
+      allInsights.push(...files);
       if (files.length) {
+        const tagText = Array.from(new Set(files.flatMap((file) => file.tags))).slice(0, 6).join(', ');
+        const cleanupText = Array.from(new Set(files.flatMap((file) => file.cleanupHints))).slice(0, 4).join(', ');
         cards.push(
           card({
             id: id('passive-card'),
@@ -1299,7 +1489,11 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
             runId,
             family: task.family,
             title: `${files.length} recent file${files.length === 1 ? '' : 's'} in ${basename(resolved) || resolved}`,
-            summary: files.slice(0, 5).map((file) => basename(file.path)).join('; '),
+            summary: [
+              files.slice(0, 5).map((file) => basename(file.path)).join('; '),
+              tagText ? `Tags: ${tagText}.` : '',
+              cleanupText ? `Hints: ${cleanupText}.` : ''
+            ].filter(Boolean).join(' '),
             urgency: files.length >= 8 ? 60 : 46,
             confidence: 0.72,
             route: routeMap.passiveTasks,
@@ -1307,12 +1501,21 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
               stableSourceRef('file', basename(file.path), {
                 id: file.path,
                 filePath: file.path,
-                metadata: { size: file.size, modifiedAt: new Date(file.mtimeMs).toISOString() }
+                metadata: {
+                  size: file.size,
+                  modifiedAt: new Date(file.mtimeMs).toISOString(),
+                  extension: file.extension,
+                  kind: file.kind,
+                  tags: file.tags,
+                  cleanupHints: file.cleanupHints,
+                  preview: file.preview,
+                  indexable: Boolean(file.indexableText)
+                }
               })
             ),
-            suggestedAction: 'Inspect files',
+            suggestedAction: files.some((file) => file.indexableText) ? 'Inspect indexed files' : 'Inspect files',
             actionKind: 'inspect',
-            why: 'Configured folder metadata shows recently changed document or image files.'
+            why: 'Configured folder metadata shows recently changed document, data, note, or image files.'
           })
         );
       }
@@ -1338,7 +1541,7 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
         runId,
         family: task.family,
         title: 'Watched folders are quiet',
-        summary: 'No recently changed document or image files were found in configured folders.',
+        summary: 'No recently changed document, data, note, or image files were found in configured folders.',
         urgency: 20,
         confidence: 0.76,
         route: routeMap.passiveTasks,
@@ -1350,15 +1553,30 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
     );
   }
 
+  const memory = await indexFileInsightsToMemory(fetchImpl, settings, allInsights);
+  if (memory.error) {
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'File memory indexing partially failed',
+        memory.error,
+        56,
+        stableSourceRef('service', 'AI OS memory', { id: 'ai-os-memory', route: routeMap.aiOs })
+      )
+    );
+  }
+  const changed = [...(eventFilePath ? [`file:${eventFilePath}`] : []), ...memory.changed];
   return {
     status: cards.some((item) => item.urgency >= 80) ? 'blocked' : 'succeeded',
     cards,
-    changed: eventFilePath ? [`file:${eventFilePath}`] : [],
+    changed,
     metadata: {
       ...(eventFilePath ? { eventFilePath } : {}),
       ...(input.eventFolder ? { eventFolder: input.eventFolder } : {}),
       ...(input.eventFileName ? { eventFileName: input.eventFileName } : {}),
-      ...(input.eventKind ? { eventKind: input.eventKind } : {})
+      ...(input.eventKind ? { eventKind: input.eventKind } : {}),
+      ...memory.metadata
     }
   };
 }
@@ -1506,7 +1724,7 @@ async function executeFamily(
   if (task.family === 'idle_compute') return runIdleCompute(task, runId, fetchImpl, input);
   if (task.family === 'research_monitor') return runResearchMonitor(task, runId, fetchImpl);
   if (task.family === 'career_radar') return runCareerRadar(store, task, runId);
-  if (task.family === 'file_intelligence') return runFileIntelligence(store, task, runId, input);
+  if (task.family === 'file_intelligence') return runFileIntelligence(store, task, runId, fetchImpl, input);
   return runProjectDrift(store, task, runId);
 }
 

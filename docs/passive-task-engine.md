@@ -29,7 +29,9 @@ The API worker also creates non-recursive file watchers for configured watched f
 the engine and Local File Intelligence family are enabled. File changes are debounced into a
 `file.changed` event and routed through the same passive event pipeline as startup/reconnect
 events. The event task scans configured folders only and records changed-file context in run
-metadata and source-backed cards.
+metadata and source-backed cards. Text-like files (`.txt`, `.md`, `.csv`, `.json`) receive
+bounded previews and can be indexed into AI OS semantic memory; by default the passive engine
+asks AI OS to use Ollama embeddings unless the passive AI preference is `cloud_allowed`.
 
 Scheduled worker ticks also try to detect whether the desktop is idle. On Windows, the API
 reads the OS last-input timer and marks a tick idle only after the idle trigger threshold
@@ -64,8 +66,10 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   reports a real idle window.
 - Background Research Monitor: reads AI OS due monitors and queues due monitor runs.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
-- Local File Intelligence: scans only configured watched folders for recent document/image
-  metadata, with a scheduled task and a debounced `file.changed` event task.
+- Local File Intelligence: scans only configured watched folders for recent document,
+  note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
+  task. It adds bounded text previews, suggested tags, cleanup hints, and semantic-memory
+  artifacts for safe text-like files when AI OS is reachable.
 - Project Drift Detector: scans only configured project folders for stale READMEs,
   TODO/FIXME buildup, and missing test/check scripts.
 
@@ -75,6 +79,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - File and project scans respect the configured folder list; no default broad filesystem scan.
 - File event watchers are created only for configured folders, are non-recursive, and close
   when the folder is removed or the file-intelligence watcher is disabled.
+- Text previews and indexing are bounded; PDFs, Word documents, and images are not given fake
+  content summaries until a real extractor/OCR path is added.
 - Backup snapshots redact encrypted token payloads from Mini Hub connection metadata.
 - Idle compute is gated by worker-measured or manually requested idle ticks. Probe failures
   do not allow heavy work to run.

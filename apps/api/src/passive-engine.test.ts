@@ -37,6 +37,9 @@ function healthyServiceFetch(): typeof fetch {
     if (href.includes('/api/macro-lab/status')) {
       return jsonResponse({ ok: true, engine: { panic: false, running: 0, action_count: 0 } });
     }
+    if (href.includes('/api/ai/memory/ingest')) {
+      return jsonResponse({ result: { document_id: 'memory-doc-1', chunks: 1, embedding_dimensions: 256 } });
+    }
     if (href.includes('/api/tags')) {
       return jsonResponse({ models: [{ name: 'llama3.1:8b' }] });
     }
@@ -185,8 +188,8 @@ describe('passive task engine', () => {
   it('runs local file intelligence from configured folder watch events', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-watch-'));
     try {
-      const watchedFile = join(dir, 'notes.pdf');
-      writeFileSync(watchedFile, 'source-backed test file', 'utf8');
+      const watchedFile = join(dir, 'study-notes.md');
+      writeFileSync(watchedFile, '# Study notes\n\nMatrix review and assignment checklist.', 'utf8');
       const store = createMemoryStore();
       ensurePassiveDefaults(store);
       store.passiveSettings = { ...store.passiveSettings!, watchedFolders: [dir] };
@@ -210,7 +213,7 @@ describe('passive task engine', () => {
       try {
         const watchedFolder = resolve(dir);
         await waitForCondition(() => listeners.has(watchedFolder));
-        listeners.get(watchedFolder)?.('rename', 'notes.pdf');
+        listeners.get(watchedFolder)?.('rename', 'study-notes.md');
         await waitForCondition(() => store.passiveRuns.some((run) => run.taskId === 'passive-task:file-intelligence-event'));
       } finally {
         stop();
@@ -222,13 +225,18 @@ describe('passive task engine', () => {
         metadata: {
           eventName: 'file.changed',
           eventFolder: resolve(dir),
-          eventFileName: 'notes.pdf',
+          eventFileName: 'study-notes.md',
           eventFilePath: watchedFile,
-          eventKind: 'rename'
+          eventKind: 'rename',
+          indexedFiles: 1
         }
       });
       expect(run?.changed).toContain(`file:${watchedFile}`);
+      expect(run?.changed).toContain('memory:memory-doc-1');
       expect(run?.cards.some((card) => card.sourceRefs.some((ref) => ref.filePath === watchedFile))).toBe(true);
+      const fileRef = run?.cards.flatMap((card) => card.sourceRefs).find((ref) => ref.filePath === watchedFile);
+      expect(fileRef?.metadata.preview).toContain('Matrix review');
+      expect(fileRef?.metadata.tags).toContain('study');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

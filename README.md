@@ -114,8 +114,10 @@ real-data only:
 - Background Research Monitor reads AI OS saved monitor due-state and queues due monitor
   runs through AI OS.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
-- Local File Intelligence scans only configured watched folders for recent document/image
-  metadata and can run from debounced configured-folder change events.
+- Local File Intelligence scans only configured watched folders for recent document,
+  note/data, and image metadata; text-like files get bounded previews, suggested tags,
+  cleanup hints, and optional AI OS semantic-memory indexing from debounced folder events
+  or scheduled scans.
 - Project Drift Detector scans only configured project folders for stale README files,
   TODO/FIXME buildup, and missing `test`/`check` scripts.
 
