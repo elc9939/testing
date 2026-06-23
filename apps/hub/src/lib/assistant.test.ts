@@ -8,6 +8,11 @@ describe('assistant intent resolver', () => {
       route: '/desk/career',
       label: 'Career Desk'
     });
+    expect(resolveAssistantIntent('show me where did my task go')).toEqual({
+      kind: 'navigate',
+      route: '/activity',
+      label: 'Activity'
+    });
   });
 
   it('explains the lab and OS surfaces directly', () => {

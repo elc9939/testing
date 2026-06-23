@@ -1,6 +1,7 @@
 <script lang="ts">
   import { BrainCircuit, FileCode2, Play } from 'lucide-svelte';
   import javascriptGrammarUrl from 'tree-sitter-javascript/tree-sitter-javascript.wasm?url';
+  import { aiLabResultCopy, parseAiLabLabels, type AiLabResultState } from '$lib/ai-lab-state';
 
   let text = 'Follow up with two high-fit roles, summarize the study backlog, and classify today as focused work.';
   let labels = 'career, study, games, admin';
@@ -9,21 +10,37 @@
   return tags.includes('ai') && role.remote ? 0.95 : 0.62;
 }`;
   let grammarUrl = javascriptGrammarUrl;
-  let result = 'Idle';
+  let resultText = '';
+  let resultState: AiLabResultState = 'idle';
   let busy = false;
+  $: resultCopy = aiLabResultCopy(resultState, resultText);
+  $: grammarAssetState = grammarUrl.trim()
+    ? 'Tree-sitter grammar URL is configured.'
+    : 'Tree-sitter needs a WASM grammar URL before parsing can run.';
+
+  function setResult(state: AiLabResultState, detail = ''): void {
+    resultState = state;
+    resultText = detail;
+  }
 
   async function classify(): Promise<void> {
+    const parsedLabels = parseAiLabLabels(labels);
+    if (!text.trim()) {
+      setResult('error', 'Add text before running the classifier.');
+      return;
+    }
+    if (!parsedLabels.length) {
+      setResult('error', 'Add at least one comma-separated label.');
+      return;
+    }
     busy = true;
-    result = 'Loading local model';
+    setResult('loading', 'Loading Transformers.js and the local classification model.');
     try {
       const ai = await import('@mini-hub/ai');
-      const rows = await ai.classifyTextLocally(
-        text,
-        labels.split(',').map((label) => label.trim()).filter(Boolean)
-      );
-      result = rows.map((row) => `${row.label}: ${row.score.toFixed(3)}`).join('\n');
+      const rows = await ai.classifyTextLocally(text, parsedLabels);
+      setResult('success', rows.length ? rows.map((row) => `${row.label}: ${row.score.toFixed(3)}`).join('\n') : 'Classifier returned no labels.');
     } catch (error) {
-      result = error instanceof Error ? error.message : 'Classification failed';
+      setResult('error', error instanceof Error ? error.message : 'Classification failed.');
     } finally {
       busy = false;
     }
@@ -31,22 +48,30 @@
 
   async function parseCode(): Promise<void> {
     if (!grammarUrl.trim()) {
-      result = 'Provide a Tree-sitter WASM grammar URL first.';
+      setResult('error', 'Provide a Tree-sitter WASM grammar URL first.');
+      return;
+    }
+    if (!codeText.trim()) {
+      setResult('error', 'Add code before running the parser.');
       return;
     }
     busy = true;
-    result = 'Loading parser';
+    setResult('loading', 'Loading Tree-sitter and the configured grammar.');
     try {
       const ai = await import('@mini-hub/ai');
       const parsed = await ai.parseWithTreeSitter(codeText, grammarUrl.trim() || javascriptGrammarUrl);
-      result = JSON.stringify(parsed, null, 2);
+      setResult('success', JSON.stringify(parsed, null, 2));
     } catch (error) {
-      result = error instanceof Error ? error.message : 'Parse failed';
+      setResult('error', error instanceof Error ? error.message : 'Parse failed.');
     } finally {
       busy = false;
     }
   }
 </script>
+
+<svelte:head>
+  <title>AI Lab - Mini Hub</title>
+</svelte:head>
 
 <section class="page-header">
   <div>
@@ -94,6 +119,7 @@
     <div class="field">
       <label for="grammar">Grammar WASM URL</label>
       <input id="grammar" bind:value={grammarUrl} />
+      <small class:warning={!grammarUrl.trim()}>{grammarAssetState}</small>
     </div>
     <div class="field">
       <label for="code-text">Code</label>
@@ -106,12 +132,17 @@
   </div>
 </section>
 
-<section class="card card-pad result-panel">
+<section class={`card card-pad result-panel ${resultState}`}>
   <div class="section-title">
     <BrainCircuit size={18} />
-    <strong>Result</strong>
+    <strong>{resultCopy.title}</strong>
   </div>
-  <pre>{result}</pre>
+  <p>{resultCopy.detail}</p>
+  {#if resultState === 'success'}
+    <pre>{resultText}</pre>
+  {:else if resultState === 'error' && resultText}
+    <pre class="error-output">{resultText}</pre>
+  {/if}
 </section>
 
 <style>
@@ -140,6 +171,15 @@
     align-content: start;
   }
 
+  .field small {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .field small.warning {
+    color: var(--warning-text);
+  }
+
   .section-title {
     display: flex;
     align-items: center;
@@ -162,6 +202,24 @@
     display: grid;
     gap: 12px;
     margin-top: 10px;
+  }
+
+  .result-panel p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .result-panel.error {
+    border-color: var(--error-border);
+  }
+
+  .result-panel.loading {
+    border-color: var(--warning-border);
+  }
+
+  .error-output {
+    color: var(--error-text);
   }
 
   @media (max-width: 760px) {

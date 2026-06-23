@@ -8,6 +8,18 @@ export interface ServiceEndpoint {
   url: string;
 }
 
+export type ServiceEndpointState = 'ready' | 'defaulted' | 'misconfigured' | 'empty';
+
+export interface ServiceEndpointResolution {
+  id: ServiceId;
+  label: string;
+  requestedUrl: string;
+  resolvedUrl: string;
+  state: ServiceEndpointState;
+  detail: string;
+  fixAction: string;
+}
+
 const storageKey = 'miniHub.serviceEndpoints.v1';
 
 const queryNames: Record<ServiceId, string[]> = {
@@ -26,6 +38,12 @@ const desktopFallbacks: Record<ServiceId, string> = {
   hubApi: 'http://127.0.0.1:8787',
   aiOs: 'http://127.0.0.1:8791',
   macroLab: 'http://127.0.0.1:8792'
+};
+
+const serviceHealthPaths: Record<ServiceId, string> = {
+  hubApi: '/api/health',
+  aiOs: '/api/ai/health',
+  macroLab: '/api/macro-lab/health'
 };
 
 function readStoredEndpoints(): Partial<Record<ServiceId, string>> {
@@ -64,6 +82,71 @@ export function normalizeServiceUrl(value: string): string {
   }
 }
 
+export function serviceLabel(id: ServiceId): string {
+  return serviceLabels[id];
+}
+
+export function serviceFallbackUrl(id: ServiceId): string {
+  return desktopFallbacks[id];
+}
+
+export function serviceHealthPath(id: ServiceId): string {
+  return serviceHealthPaths[id];
+}
+
+export function looksLikeHostedStaticEndpoint(value: string, currentOrigin = ''): boolean {
+  const normalized = normalizeServiceUrl(value);
+  if (!normalized) return false;
+  try {
+    const url = new URL(normalized);
+    if (/github\.io$/iu.test(url.hostname)) return true;
+    return Boolean(currentOrigin && normalized === normalizeServiceUrl(currentOrigin));
+  } catch {
+    return false;
+  }
+}
+
+export function serviceEndpointResolution(
+  id: ServiceId,
+  requestedValue: string | undefined,
+  fallback = desktopFallbacks[id],
+  currentOrigin = ''
+): ServiceEndpointResolution {
+  const requestedUrl = normalizeServiceUrl(requestedValue ?? '');
+  const fallbackUrl = normalizeServiceUrl(fallback);
+  if (requestedUrl && looksLikeHostedStaticEndpoint(requestedUrl, currentOrigin)) {
+    return {
+      id,
+      label: serviceLabels[id],
+      requestedUrl,
+      resolvedUrl: fallbackUrl,
+      state: 'misconfigured',
+      detail: `${requestedUrl} is the Mini Hub website, not the ${serviceLabels[id]}.`,
+      fixAction: `Start the desktop service and use ${fallbackUrl}, or save the LAN URL printed by the launcher.`
+    };
+  }
+  if (requestedUrl) {
+    return {
+      id,
+      label: serviceLabels[id],
+      requestedUrl,
+      resolvedUrl: requestedUrl,
+      state: 'ready',
+      detail: `Requests will use ${requestedUrl}.`,
+      fixAction: 'No endpoint fix needed.'
+    };
+  }
+  return {
+    id,
+    label: serviceLabels[id],
+    requestedUrl: '',
+    resolvedUrl: fallbackUrl,
+    state: fallbackUrl ? 'defaulted' : 'empty',
+    detail: fallbackUrl ? `No saved endpoint; using ${fallbackUrl}.` : 'No endpoint is configured.',
+    fixAction: fallbackUrl ? 'Start the matching desktop service.' : 'Save an endpoint in Settings.'
+  };
+}
+
 export function clearServiceEndpoint(id: ServiceId): void {
   const stored = readStoredEndpoints();
   delete stored[id];
@@ -71,18 +154,32 @@ export function clearServiceEndpoint(id: ServiceId): void {
 }
 
 export function resolveServiceUrl(id: ServiceId, envValue: string | undefined, fallback: string): string {
+  const currentOrigin = browser && typeof window !== 'undefined' ? window.location.origin : '';
   const fromQuery = queryEndpoint(id);
   if (fromQuery) {
     const stored = readStoredEndpoints();
-    writeStoredEndpoints({ ...stored, [id]: fromQuery });
-    return fromQuery;
+    const resolved = serviceEndpointResolution(id, fromQuery, fallback, currentOrigin);
+    if (resolved.state === 'misconfigured') {
+      delete stored[id];
+      writeStoredEndpoints(stored);
+      return resolved.resolvedUrl;
+    }
+    writeStoredEndpoints({ ...stored, [id]: resolved.resolvedUrl });
+    return resolved.resolvedUrl;
   }
 
   const stored = normalizeServiceUrl(readStoredEndpoints()[id] ?? '');
-  if (stored) return stored;
+  if (stored) {
+    const resolved = serviceEndpointResolution(id, stored, fallback, currentOrigin);
+    if (resolved.state === 'misconfigured') {
+      clearServiceEndpoint(id);
+      return resolved.resolvedUrl;
+    }
+    return resolved.resolvedUrl;
+  }
 
   const fromEnv = normalizeServiceUrl(envValue ?? '');
-  if (fromEnv) return fromEnv;
+  if (fromEnv) return serviceEndpointResolution(id, fromEnv, fallback, currentOrigin).resolvedUrl;
 
   return normalizeServiceUrl(fallback);
 }
@@ -114,12 +211,41 @@ export function getStoredServiceEndpoints(): ServiceEndpoint[] {
     .filter((endpoint) => endpoint.url);
 }
 
+export function serviceEndpointResolutions(): ServiceEndpointResolution[] {
+  const currentOrigin = browser && typeof window !== 'undefined' ? window.location.origin : '';
+  const stored = readStoredEndpoints();
+  return (Object.keys(serviceLabels) as ServiceId[]).map((id) =>
+    serviceEndpointResolution(id, stored[id], desktopFallbacks[id], currentOrigin)
+  );
+}
+
 export function localNetworkHint(): string {
   return 'For full phone access, double-click Start Mini Hub Phone Mode.cmd on the desktop and keep that window open. It starts the API, AI OS, Macro Lab, and hub, then prints/copies a phone URL with the desktop service addresses already filled in.';
 }
 
 export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string): string {
   return `${serviceLabels[serviceId]} request ${path} returned the web app HTML instead of JSON. The app is pointed at ${baseUrl}, but that address is serving the static website, not the ${serviceLabels[serviceId]}. ${localNetworkHint()}`;
+}
+
+function missingRouteMessage(serviceId: ServiceId, path: string, baseUrl: string): string {
+  const expected = desktopFallbacks[serviceId];
+  const servicePath = serviceHealthPaths[serviceId];
+  const staticHint = looksLikeHostedStaticEndpoint(baseUrl, browser && typeof window !== 'undefined' ? window.location.origin : '')
+    ? ' That URL is the hosted Mini Hub website, so browser pages under /api are static-site routes.'
+    : '';
+  return `${serviceLabels[serviceId]} route ${path} was not found at ${baseUrl}.${staticHint} Check Settings -> Desktop Services and set ${serviceLabels[serviceId]} to ${expected}; its health endpoint should be ${expected}${servicePath}.`;
+}
+
+function networkFailureMessage(serviceId: ServiceId, baseUrl: string, detail: string): string {
+  const mixedOrCors =
+    browser &&
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'https:' &&
+    /^http:\/\//iu.test(baseUrl) &&
+    !/^http:\/\/(?:127\.0\.0\.1|localhost)(?::|\/|$)/iu.test(baseUrl)
+      ? ' This can happen when the hosted HTTPS page is blocked from calling an insecure LAN HTTP endpoint; open the local hub URL printed by the launcher or use a browser-allowed local endpoint.'
+      : ' This can also be a CORS, firewall, service-offline, or mixed-content block.';
+  return `${serviceLabels[serviceId]} unavailable at ${baseUrl}: ${detail}.${mixedOrCors} ${localNetworkHint()}`;
 }
 
 function messageFromJson(body: unknown): string {
@@ -168,7 +294,7 @@ async function fetchServiceJson<T>(
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'network request failed';
-    throw new Error(`${serviceLabels[serviceId]} unavailable at ${baseUrl}: ${detail}. ${localNetworkHint()}`);
+    throw new Error(networkFailureMessage(serviceId, baseUrl, detail));
   }
 
   const contentType = response.headers.get('content-type') ?? '';
@@ -178,6 +304,7 @@ async function fetchServiceJson<T>(
   if (text.trim()) {
     if (!contentType.includes('application/json') && !contentType.includes('+json')) {
       if (text.trimStart().startsWith('<')) throw new Error(serviceHtmlFallbackMessage(serviceId, path, baseUrl));
+      if (response.status === 404 || /^not found$/iu.test(text.trim())) throw new Error(missingRouteMessage(serviceId, path, baseUrl));
       throw new Error(`${serviceLabels[serviceId]} request ${path} returned ${contentType || 'non-JSON'} instead of JSON.`);
     }
 
@@ -189,7 +316,9 @@ async function fetchServiceJson<T>(
   }
 
   if (!response.ok) {
-    throw new Error(messageFromJson(body) || `${serviceLabels[serviceId]} request ${path} failed with ${response.status}`);
+    const message = messageFromJson(body);
+    if (response.status === 404 || /^not found$/iu.test(message)) throw new Error(missingRouteMessage(serviceId, path, baseUrl));
+    throw new Error(message || `${serviceLabels[serviceId]} request ${path} failed with ${response.status}`);
   }
 
   return body as T;

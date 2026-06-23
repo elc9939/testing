@@ -24,6 +24,10 @@
   onMount(render);
 </script>
 
+<svelte:head>
+  <title>Analytics - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header">
   <div>
     <p class="eyebrow">Analytics</p>

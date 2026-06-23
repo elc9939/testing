@@ -953,6 +953,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>AI OS - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header">
   <div>
     <p class="eyebrow">Personal AI OS</p>

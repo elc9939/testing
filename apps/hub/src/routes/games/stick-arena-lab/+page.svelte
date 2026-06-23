@@ -61,6 +61,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Stick Arena Ability Lab - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header">
   <div>
     <p class="eyebrow">Stick Arena</p>

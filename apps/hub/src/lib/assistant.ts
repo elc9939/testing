@@ -14,6 +14,7 @@ export type AssistantIntent =
 
 const appDestinations: Array<{ route: string; label: string; terms: string[] }> = [
   { route: routeMap.today, label: 'Today', terms: ['today', 'home', 'dashboard', 'command center'] },
+  { route: routeMap.activity, label: 'Activity', terms: ['activity', 'handoff', 'tasks', 'runs', 'where did my task go'] },
   { route: routeMap.productivity, label: 'Productivity Hub', terms: ['productivity', 'gmail', 'email', 'calendar', 'drive', 'hub'] },
   { route: routeMap.careerDesk, label: 'Career Desk', terms: ['career', 'job', 'jobs', 'applications', 'apply list'] },
   { route: routeMap.studyDesk, label: 'Study Desk', terms: ['study', 'coursework', 'school', 'homework'] },

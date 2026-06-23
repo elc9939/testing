@@ -808,6 +808,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Productivity Hub - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header">
   <div>
     <p class="eyebrow">Command Center</p>

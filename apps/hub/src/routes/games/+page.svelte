@@ -3,6 +3,10 @@
   import { hubHref, legacyHref } from '$lib/routes';
 </script>
 
+<svelte:head>
+  <title>Games - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header">
   <div>
     <p class="eyebrow">Games</p>

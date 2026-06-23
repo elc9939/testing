@@ -23,6 +23,11 @@
   } from '$lib/capability-registry';
   import { clientData } from '$lib/client-data';
   import {
+    buildFeatureWiringRows,
+    featureWiringStatusLabel,
+    type FeatureWiringRow
+  } from '$lib/feature-wiring';
+  import {
     formatMachineModeContext,
     machineModeFromPreferences,
     machineModePreferenceKey,
@@ -34,7 +39,7 @@
   import { getPassiveSnapshot, passiveFamilyLabel, patchPassiveSettings } from '$lib/passive-tasks-api';
   import { getConnections } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
-  import { localNetworkHint, setServiceEndpoints } from '$lib/service-config';
+  import { localNetworkHint, serviceEndpointResolution, serviceFallbackUrl, setServiceEndpoints } from '$lib/service-config';
   import { setTheme, theme, type ThemeMode } from '$lib/theme';
 
   const watchedResearchPlaceholder = [
@@ -57,10 +62,12 @@
 
   let apiStatus = 'Not checked';
   let settingsError = '';
+  let serviceCheckedAt = '';
   let endpointMessage = '';
   let hubApiInput = '';
   let aiOsInput = '';
   let macroLabInput = '';
+  let googleConnected = false;
   let themeSaving = false;
   let modeSaving = false;
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
@@ -108,6 +115,55 @@
     familyEnabled: passiveSettings?.enabledFamilies[watcher.family] !== false,
     taskCount: watcher.taskIds.length
   })) ?? [];
+  $: endpointResolutions = [
+    serviceEndpointResolution('hubApi', hubApiInput, serviceFallbackUrl('hubApi'), currentOrigin()),
+    serviceEndpointResolution('aiOs', aiOsInput, serviceFallbackUrl('aiOs'), currentOrigin()),
+    serviceEndpointResolution('macroLab', macroLabInput, serviceFallbackUrl('macroLab'), currentOrigin())
+  ];
+  $: featureWiringRows = buildFeatureWiringRows({
+    checkedAt: serviceCheckedAt,
+    endpoints: endpointResolutions,
+    hubApi: {
+      ready: apiStatusReady(apiStatus),
+      loading: apiStatus === 'Checking',
+      error: apiStatusError(apiStatus),
+      detail: apiStatusReady(apiStatus) ? `Health check passed: ${apiStatus}` : undefined
+    },
+    aiOs: {
+      ready: Boolean(machineProfile) || capabilityServiceReady('ai-os'),
+      loading: machineProfileLoading || capabilityLoading,
+      error: machineProfileError || capabilityServiceError('ai-os'),
+      detail: machineProfile
+        ? `Machine profile loaded. Best measured route: ${machineBestRoute}.`
+        : capabilityServiceReady('ai-os')
+          ? 'AI OS capabilities are reachable.'
+          : undefined
+    },
+    macroLab: {
+      ready: capabilityServiceReady('macro-lab'),
+      loading: capabilityLoading,
+      error: capabilityServiceError('macro-lab'),
+      detail: capabilityServiceReady('macro-lab') ? 'Macro status, run history, and actions are reachable.' : undefined
+    },
+    google: {
+      ready: googleConnected,
+      loading: capabilityLoading,
+      error: apiStatusError(apiStatus),
+      setupNeeded: !googleConnected,
+      detail: googleConnected ? 'At least one Google account is connected.' : 'No Google account is connected in this browser session.',
+      fixAction: googleConnected ? undefined : 'Open Productivity Hub and connect Google.'
+    },
+    passiveTasks: {
+      ready: Boolean(passiveSnapshot && !passiveError),
+      loading: passiveLoading,
+      error: passiveError || capabilityServiceError('passive-tasks'),
+      detail: passiveSnapshot ? `${passiveSnapshot.watchers.length} watcher${passiveSnapshot.watchers.length === 1 ? '' : 's'} loaded.` : undefined
+    },
+    browserStorage: {
+      ready: browserStorageAvailable(),
+      detail: 'Browser storage is used for drafts, endpoint settings, cached activity, and offline-readable data.'
+    }
+  } satisfies Parameters<typeof buildFeatureWiringRows>[0]);
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -121,6 +177,7 @@
 
   async function checkServices(): Promise<void> {
     await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger(), refreshPassiveSettings()]);
+    serviceCheckedAt = new Date().toISOString();
   }
 
   function syncPassiveEditor(next: PassiveSnapshot): void {
@@ -265,7 +322,7 @@
     capabilityLoading = true;
     capabilityError = '';
     try {
-      const googleConnected = await loadGoogleConnected();
+      googleConnected = await loadGoogleConnected();
       capabilitySnapshot = await loadCapabilityRegistry({
         isOnline: $clientData.isOnline,
         syncStatus: $clientData.status,
@@ -278,6 +335,48 @@
     } finally {
       capabilityLoading = false;
     }
+  }
+
+  function currentOrigin(): string {
+    return typeof window === 'undefined' ? '' : window.location.origin;
+  }
+
+  function apiStatusReady(value: string): boolean {
+    return /:\s*ok\b/iu.test(value) && !/\bnot ok\b/iu.test(value);
+  }
+
+  function apiStatusError(value: string): string {
+    if (!value || value === 'Not checked' || value === 'Checking' || apiStatusReady(value)) return '';
+    return value;
+  }
+
+  function capabilityServiceReady(service: CapabilityService): boolean {
+    const group = capabilityGroups.find((item) => item.service === service);
+    return Boolean(group && group.ready > 0 && group.issues === 0);
+  }
+
+  function capabilityServiceError(service: CapabilityService): string {
+    const issue = capabilitySnapshot?.capabilities.find((capability) => capability.service === service && capability.lastError);
+    return issue?.lastError ?? '';
+  }
+
+  function browserStorageAvailable(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      const key = 'miniHub.storageCheck';
+      localStorage.setItem(key, '1');
+      localStorage.removeItem(key);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function featureWiringWhen(row: FeatureWiringRow): string {
+    if (!row.lastCheckedAt) return 'Not checked';
+    const date = new Date(row.lastCheckedAt);
+    if (Number.isNaN(date.getTime())) return row.lastCheckedAt;
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
   async function loadGoogleConnected(): Promise<boolean> {
@@ -514,6 +613,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Settings - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header">
   <div>
     <p class="eyebrow">Settings</p>
@@ -710,6 +813,48 @@
   {:else}
     <p class="helper-text">Capability status has not been checked yet.</p>
   {/if}
+
+  <div class="feature-wiring-panel" aria-label="Feature wiring diagnostics">
+    <div class="section-title split-title">
+      <span>
+        <Monitor size={18} />
+        <strong>Feature Wiring</strong>
+      </span>
+      <small>{serviceCheckedAt ? `Checked ${new Date(serviceCheckedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Not checked yet'}</small>
+    </div>
+    <p class="helper-text">
+      Shows what each visible feature depends on from this browser. If the hosted site is accidentally pointed at GitHub Pages /api routes, it will show as misconfigured here instead of failing as raw Not Found.
+    </p>
+    <div class="feature-wiring-list">
+      {#each featureWiringRows as row}
+        <article class="feature-wiring-row">
+          <span class={`state-chip ${row.status}`}>{featureWiringStatusLabel(row.status)}</span>
+          <div class="feature-wiring-main">
+            <strong>{row.feature}</strong>
+            <small>{row.requiredService}</small>
+            <span>{row.detail}</span>
+            <code>{row.endpoint}</code>
+          </div>
+          <div class="feature-wiring-fix">
+            <small>{row.fixAction}</small>
+            <small>{featureWiringWhen(row)}</small>
+          </div>
+          <div class="feature-wiring-actions">
+            <a class="button compact" href={hubHref(row.route)}>
+              <span>Open</span>
+              <ArrowRight size={15} />
+            </a>
+            {#if row.healthUrl}
+              <a class="button compact" href={row.healthUrl} target="_blank" rel="noreferrer">
+                <span>Health</span>
+                <ArrowRight size={15} />
+              </a>
+            {/if}
+          </div>
+        </article>
+      {/each}
+    </div>
+  </div>
 </section>
 
 <section class="card card-pad passive-settings-panel">
@@ -1241,24 +1386,28 @@
 
   .issue-strip,
   .service-list,
+  .feature-wiring-list,
   .capability-mini-list {
     display: grid;
   }
 
   .issue-strip,
-  .service-list {
+  .service-list,
+  .feature-wiring-list {
     border: 1px solid var(--border);
     border-radius: 6px;
     overflow: hidden;
   }
 
   .issue-row,
-  .service-row {
+  .service-row,
+  .feature-wiring-row {
     border-bottom: 1px solid var(--border);
   }
 
   .issue-row:last-child,
-  .service-row:last-child {
+  .service-row:last-child,
+  .feature-wiring-row:last-child {
     border-bottom: 0;
   }
 
@@ -1309,8 +1458,22 @@
     font-weight: 800;
   }
 
+  .state-chip.ready {
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
+  .state-chip.checking,
+  .state-chip.unknown {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
   .state-chip.offline,
-  .state-chip.blocked {
+  .state-chip.blocked,
+  .state-chip.misconfigured {
     border-color: var(--danger-border);
     color: var(--danger-text);
     background: var(--danger-bg);
@@ -1328,6 +1491,60 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     padding: 12px;
+  }
+
+  .feature-wiring-panel {
+    display: grid;
+    gap: 10px;
+  }
+
+  .feature-wiring-row {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1.4fr) minmax(160px, 0.8fr) auto;
+    gap: 10px;
+    align-items: start;
+    min-height: 72px;
+    padding: 10px;
+    background: var(--surface);
+  }
+
+  .feature-wiring-main,
+  .feature-wiring-fix {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .feature-wiring-main strong,
+  .feature-wiring-main small,
+  .feature-wiring-main span,
+  .feature-wiring-main code,
+  .feature-wiring-fix small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .feature-wiring-main small,
+  .feature-wiring-main span,
+  .feature-wiring-fix small {
+    color: var(--muted);
+  }
+
+  .feature-wiring-main code {
+    display: block;
+    color: var(--code-text);
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 3px 5px;
+    font-size: 11px;
+  }
+
+  .feature-wiring-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
   .service-main {
@@ -1839,7 +2056,15 @@
       grid-template-columns: 1fr;
     }
 
+    .feature-wiring-row {
+      grid-template-columns: 1fr;
+    }
+
     .service-actions {
+      justify-content: flex-start;
+    }
+
+    .feature-wiring-actions {
       justify-content: flex-start;
     }
 

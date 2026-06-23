@@ -429,6 +429,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Career Desk - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header">
   <div>
     <p class="eyebrow">Desk</p>

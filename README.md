@@ -35,6 +35,23 @@ local API services to be running on the same machine:
 | AI OS API | `http://127.0.0.1:8791` | Local/API model routing, tools, RAG, jobs, multimodal generation, backups, health, web/browser access. |
 | Macro Lab API | `http://127.0.0.1:8792` | Local Windows macro automation daemon. |
 
+### Hosted Pages vs. Local Services
+
+The hosted GitHub Pages app is only the static web UI. It must not use
+`https://elc9939.github.io/testing/api/...` as a backend. Settings now includes a
+**Feature Wiring** diagnostic table that shows the current endpoint, required service,
+last check, state, and fix action for Mini Hub API, AI OS API, Research Desk, Macro Lab,
+Google integrations, Passive Tasks, and browser storage.
+
+If a feature is pointed at the hosted web page instead of a local service, Mini Hub marks it
+`Misconfigured` and falls back to the default local service URL where safe. If a service is
+not running or the browser blocks the request because of CORS/firewall/mixed-content rules,
+the feature should show an actionable offline/setup state instead of raw `Not Found`.
+
+Use Settings -> Desktop Services to save LAN or localhost service URLs for this browser.
+Use Settings -> Feature Wiring to verify what the hosted page will actually call before
+debugging individual features.
+
 ## What The App Does Now
 
 ### Hub UI
@@ -99,6 +116,9 @@ link to `/research?run=<id>`, AI jobs/backups/benchmarks link to AI OS, passive 
 Passive Tasks, and Macro Lab runs link to Macro Lab. The Activity page loads a last-good
 browser cache first, then refreshes AI OS, Passive Tasks, and Macro Lab independently so one
 offline service creates a partial-data warning rather than wiping out the rest of the list.
+If a task seems to disappear after switching pages or refreshing, open Activity first: active
+and recent durable work should be recoverable there, while purely visual drafts stay in
+browser storage on their owning page.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,

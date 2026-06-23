@@ -460,6 +460,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Today - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header today-header">
   <div>
     <p class="eyebrow">Today</p>

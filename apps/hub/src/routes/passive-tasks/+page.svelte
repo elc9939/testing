@@ -482,6 +482,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Passive Tasks - Mini Hub</title>
+</svelte:head>
+
 <section class="page-header passive-header">
   <div>
     <p class="eyebrow">Personal AI OS</p>
