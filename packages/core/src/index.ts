@@ -12,6 +12,7 @@ export const routeMap = {
   aiLab: '/ai-lab',
   aiOs: '/ai-os',
   macroLab: '/macro-lab',
+  passiveTasks: '/passive-tasks',
   settings: '/settings'
 } as const;
 
@@ -91,6 +92,13 @@ export const launcherEntries = [
     route: routeMap.macroLab,
     group: 'automation',
     status: 'local-control'
+  },
+  {
+    id: 'passive-tasks',
+    name: 'Passive Tasks',
+    route: routeMap.passiveTasks,
+    group: 'automation',
+    status: 'background-engine'
   }
 ] as const;
 
@@ -108,7 +116,11 @@ export const entityTypeSchema = z.enum([
   'game_state',
   'achievement',
   'note',
-  'asset'
+  'asset',
+  'passive_watcher',
+  'passive_task',
+  'passive_run',
+  'passive_notification'
 ]);
 
 export const connectorKindSchema = z.enum(['google', 'brightspace', 'manual']);
@@ -262,6 +274,7 @@ export const attentionSourceSchema = z.enum([
   'ai_os',
   'macro_lab',
   'research',
+  'passive_task',
   'service_health',
   'manual'
 ]);
@@ -351,6 +364,194 @@ export const actionLedgerEntrySchema = z.object({
   recoverability: actionRecoverabilitySchema.default({ kind: 'none', description: '', reversible: false }),
   rawRef: z.record(z.string(), z.unknown()).default({}),
   metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveTaskFamilySchema = z.enum([
+  'app_health',
+  'backup_snapshot',
+  'idle_compute',
+  'research_monitor',
+  'career_radar',
+  'file_intelligence',
+  'project_drift'
+]);
+
+export const passiveTriggerKindSchema = z.enum(['schedule', 'event', 'idle', 'manual']);
+
+export const passiveTaskStatusSchema = z.enum([
+  'active',
+  'paused',
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+  'blocked',
+  'cancelled'
+]);
+
+export const passiveRunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'skipped', 'cancelled', 'blocked']);
+
+export const passiveNotificationLevelSchema = z.enum(['info', 'success', 'warning', 'error', 'urgent']);
+
+export const passiveSourceRefSchema = z.object({
+  kind: z.enum(['route', 'url', 'file', 'record', 'service']).default('record'),
+  id: z.string().min(1),
+  label: z.string().min(1),
+  route: z.string().optional(),
+  url: z.string().optional(),
+  filePath: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveTriggerSchema = z.object({
+  id: z.string().min(1),
+  kind: passiveTriggerKindSchema,
+  label: z.string().min(1),
+  intervalMinutes: z.number().int().positive().optional(),
+  eventName: z.string().optional(),
+  idleMinutes: z.number().int().positive().optional(),
+  nextRunAt: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveWatcherSchema = z.object({
+  id: z.string().min(1),
+  family: passiveTaskFamilySchema,
+  title: z.string().min(1),
+  description: z.string().default(''),
+  enabled: z.boolean().default(true),
+  triggerIds: z.array(z.string()).default([]),
+  taskIds: z.array(z.string()).default([]),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  lastRunAt: z.string().optional(),
+  nextRunAt: z.string().optional(),
+  pausedAt: z.string().optional(),
+  error: z.string().optional(),
+  settings: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveRetryStateSchema = z.object({
+  maxAttempts: z.number().int().positive().default(3),
+  attempts: z.number().int().nonnegative().default(0),
+  backoffMinutes: z.number().int().positive().default(15),
+  nextRetryAt: z.string().optional()
+});
+
+export const passiveTaskSchema = z.object({
+  id: z.string().min(1),
+  watcherId: z.string().min(1),
+  family: passiveTaskFamilySchema,
+  title: z.string().min(1),
+  detail: z.string().default(''),
+  trigger: passiveTriggerSchema,
+  priority: z.number().min(0).max(100).default(50),
+  machineMode: z.string().optional(),
+  idleOnly: z.boolean().default(false),
+  status: passiveTaskStatusSchema.default('active'),
+  retry: passiveRetryStateSchema.default({ maxAttempts: 3, attempts: 0, backoffMinutes: 15 }),
+  route: z.string().min(1).default('/passive-tasks'),
+  sourceRefs: z.array(passiveSourceRefSchema).default([]),
+  lastRunAt: z.string().optional(),
+  nextRunAt: z.string().optional(),
+  lastError: z.string().optional(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  settings: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveResultCardSchema = z.object({
+  id: z.string().min(1),
+  taskId: z.string().min(1),
+  runId: z.string().min(1),
+  family: passiveTaskFamilySchema,
+  title: z.string().min(1),
+  summary: z.string().default(''),
+  urgency: z.number().min(0).max(100).default(40),
+  confidence: z.number().min(0).max(1).default(0.7),
+  route: z.string().min(1).default('/passive-tasks'),
+  sourceRefs: z.array(passiveSourceRefSchema).default([]),
+  suggestedAction: z.string().default('Inspect'),
+  actionKind: attentionActionKindSchema.optional(),
+  why: z.string().default('Passive task output matched configured watch criteria.'),
+  createdAt: z.string().min(1),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveRunSchema = z.object({
+  id: z.string().min(1),
+  taskId: z.string().min(1),
+  watcherId: z.string().min(1),
+  family: passiveTaskFamilySchema,
+  status: passiveRunStatusSchema,
+  startedAt: z.string().min(1),
+  finishedAt: z.string().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
+  attempt: z.number().int().nonnegative().default(1),
+  error: z.string().optional(),
+  cards: z.array(passiveResultCardSchema).default([]),
+  changed: z.array(z.string()).default([]),
+  nextRunAt: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveNotificationSchema = z.object({
+  id: z.string().min(1),
+  runId: z.string().min(1),
+  taskId: z.string().min(1),
+  family: passiveTaskFamilySchema,
+  title: z.string().min(1),
+  body: z.string().default(''),
+  level: passiveNotificationLevelSchema.default('info'),
+  route: z.string().min(1).default('/passive-tasks'),
+  cardIds: z.array(z.string()).default([]),
+  createdAt: z.string().min(1),
+  readAt: z.string().optional(),
+  dismissedAt: z.string().optional()
+});
+
+export const passiveEngineSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  notificationStyle: z.enum(['digest', 'urgent_only', 'off']).default('digest'),
+  idleOnly: z.boolean().default(false),
+  resourceLimit: z.enum(['light', 'balanced', 'heavy']).default('balanced'),
+  localAiPreference: z.enum(['local_first', 'local_only', 'cloud_allowed']).default('local_first'),
+  maxRunsPerTick: z.number().int().positive().max(10).default(3),
+  watchedFolders: z.array(z.string()).default([]),
+  watchedDomains: z.array(z.string()).default([]),
+  watchedAccounts: z.array(z.string()).default([]),
+  enabledFamilies: z.record(z.string(), z.boolean()).default({}),
+  updatedAt: z.string().min(1)
+});
+
+export const passiveSourceStatusSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  status: z.enum(['ok', 'unavailable', 'error']),
+  fetchedAt: z.string().optional(),
+  error: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).default({})
+});
+
+export const passiveSnapshotSchema = z.object({
+  checkedAt: z.string().min(1),
+  settings: passiveEngineSettingsSchema,
+  watchers: z.array(passiveWatcherSchema),
+  tasks: z.array(passiveTaskSchema),
+  runs: z.array(passiveRunSchema),
+  notifications: z.array(passiveNotificationSchema),
+  digest: z.array(passiveResultCardSchema),
+  sources: z.array(passiveSourceStatusSchema),
+  errors: z.array(z.string()).default([])
+});
+
+export const passiveEnginePersistedStateSchema = z.object({
+  version: z.literal(1),
+  settings: passiveEngineSettingsSchema.nullable().default(null),
+  watchers: z.array(passiveWatcherSchema).default([]),
+  tasks: z.array(passiveTaskSchema).default([]),
+  runs: z.array(passiveRunSchema).default([]),
+  notifications: z.array(passiveNotificationSchema).default([])
 });
 
 export const workspaceSchema = z.object({
@@ -473,6 +674,23 @@ export type AttentionTriageState = z.infer<typeof attentionTriageStateSchema>;
 export type AttentionSourceStatus = z.infer<typeof attentionSourceStatusSchema>;
 export type AttentionSnapshot = z.infer<typeof attentionSnapshotSchema>;
 export type ActionLedgerEntry = z.infer<typeof actionLedgerEntrySchema>;
+export type PassiveTaskFamily = z.infer<typeof passiveTaskFamilySchema>;
+export type PassiveTriggerKind = z.infer<typeof passiveTriggerKindSchema>;
+export type PassiveTaskStatus = z.infer<typeof passiveTaskStatusSchema>;
+export type PassiveRunStatus = z.infer<typeof passiveRunStatusSchema>;
+export type PassiveNotificationLevel = z.infer<typeof passiveNotificationLevelSchema>;
+export type PassiveSourceRef = z.infer<typeof passiveSourceRefSchema>;
+export type PassiveTrigger = z.infer<typeof passiveTriggerSchema>;
+export type PassiveWatcher = z.infer<typeof passiveWatcherSchema>;
+export type PassiveRetryState = z.infer<typeof passiveRetryStateSchema>;
+export type PassiveTask = z.infer<typeof passiveTaskSchema>;
+export type PassiveResultCard = z.infer<typeof passiveResultCardSchema>;
+export type PassiveRun = z.infer<typeof passiveRunSchema>;
+export type PassiveNotification = z.infer<typeof passiveNotificationSchema>;
+export type PassiveEngineSettings = z.infer<typeof passiveEngineSettingsSchema>;
+export type PassiveSourceStatus = z.infer<typeof passiveSourceStatusSchema>;
+export type PassiveSnapshot = z.infer<typeof passiveSnapshotSchema>;
+export type PassiveEnginePersistedState = z.infer<typeof passiveEnginePersistedStateSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type JobRecord = z.infer<typeof jobSchema>;
 export type StudySession = z.infer<typeof studySessionSchema>;

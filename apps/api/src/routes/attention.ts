@@ -25,6 +25,7 @@ import { triageGmailThreads } from '../integrations/email-triage';
 import { GoogleCalendarConnector, GoogleGmailConnector } from '../integrations/google';
 import { getConnections as getStoredConnections } from '../integrations/token-vault';
 import type { CalendarConnector } from '../integrations/types';
+import { buildPassiveSourceStatuses, collectPassiveAttentionItems, runPassiveTask } from '../passive-engine';
 import {
   appendSyncEvent,
   ensurePersonalWorkspace,
@@ -1123,6 +1124,30 @@ function manualItems(store: MemoryStore): SourceResult {
   };
 }
 
+function collectPassiveTaskItems(store: MemoryStore): SourceResult {
+  const sourceStatuses = buildPassiveSourceStatuses(store);
+  const fetchedAt =
+    sourceStatuses
+      .map((source) => source.fetchedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => timeValue(b) - timeValue(a))[0] ?? new Date().toISOString();
+  const firstError = sourceStatuses.find((source) => source.status === 'error')?.error;
+  const allUnavailable = sourceStatuses.length > 0 && sourceStatuses.every((source) => source.status === 'unavailable');
+  const items = collectPassiveAttentionItems(store);
+  return {
+    items,
+    source: sourceStatus({
+      id: 'passive_task',
+      label: 'Passive Tasks',
+      status: firstError ? 'error' : allUnavailable ? 'unavailable' : 'ok',
+      fetchedAt,
+      itemCount: items.length,
+      ...(firstError ? { error: firstError } : allUnavailable ? { error: 'Passive task engine is disabled.' } : {})
+    }),
+    ...(firstError ? { error: `Passive Tasks: ${firstError}` } : {})
+  };
+}
+
 function applyTriage(items: AttentionItem[], triage: Record<string, AttentionTriageState>, now: Date): AttentionItem[] {
   const nowMs = now.getTime();
   return items
@@ -1162,6 +1187,7 @@ async function buildAttentionSnapshot(
   const career = collectCareerItems(store, workspaceIds, now);
   const study = collectStudyItems(store, workspaceIds, now, career.items);
   const manual = manualItems(store);
+  const passive = collectPassiveTaskItems(store);
   const [calendar, gmail, ai, research, macro] = await Promise.all([
     collectCalendarItems(store, now),
     collectGmailItems(store),
@@ -1170,13 +1196,13 @@ async function buildAttentionSnapshot(
     collectMacroItems(externalFetch)
   ]);
 
-  for (const result of [calendar, gmail, career, study, ai, research, macro, manual]) {
+  for (const result of [calendar, gmail, career, study, ai, research, macro, passive, manual]) {
     if (result.error) errors.push(result.error);
   }
 
   const triageState = readTriageState(store);
   const items = applyTriage(
-    [calendar, gmail, career, study, ai, research, macro, manual].flatMap((result) => result.items),
+    [calendar, gmail, career, study, ai, research, macro, passive, manual].flatMap((result) => result.items),
     triageState,
     now
   );
@@ -1200,6 +1226,7 @@ async function buildAttentionSnapshot(
       ai.source,
       research.source,
       macro.source,
+      passive.source,
       manual.source
     ],
     triageState,
@@ -1310,6 +1337,17 @@ async function restoreMacroRun(fetchImpl: FetchLike, runId: string): Promise<voi
   }
 }
 
+async function runPassiveAttentionTask(store: MemoryStore, externalFetch: FetchLike, itemId: string): Promise<void> {
+  const cardId = itemId.slice('passive-task:'.length);
+  const match = store.passiveRuns.flatMap((run) => run.cards).find((card) => card.id === cardId);
+  if (!match) throw new Error('Passive task card not found.');
+  await runPassiveTask(store, match.taskId, {
+    externalFetch,
+    force: true,
+    input: { reason: 'attention-run', idle: false }
+  });
+}
+
 async function performAttentionAction(input: {
   store: MemoryStore;
   workspaceIds: Set<string>;
@@ -1366,6 +1404,11 @@ async function performAttentionAction(input: {
   if (actionKind === 'run' && itemId.startsWith('research-monitor:')) {
     await runResearchMonitor(externalFetch, itemId.slice('research-monitor:'.length));
     setTriageState(store, itemId, { status: 'done', completedAt: new Date().toISOString() });
+    return;
+  }
+  if (actionKind === 'run' && itemId.startsWith('passive-task:')) {
+    await runPassiveAttentionTask(store, externalFetch, itemId);
+    clearTriageState(store, itemId);
     return;
   }
   if (actionKind === 'open' || actionKind === 'inspect') return;

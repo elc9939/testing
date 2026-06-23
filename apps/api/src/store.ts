@@ -3,6 +3,7 @@ import {
   personalWorkspaceId,
   actionLedgerEntrySchema,
   integrationConnectionSchema,
+  passiveEnginePersistedStateSchema,
   type ActionLedgerEntry,
   type Achievement,
   type CareerActionRecord,
@@ -11,6 +12,11 @@ import {
   type IntegrationConnection,
   type JobRecord,
   type NoteRecord,
+  type PassiveEngineSettings,
+  type PassiveNotification,
+  type PassiveRun,
+  type PassiveTask,
+  type PassiveWatcher,
   type PersonalSettings,
   type StudySession,
   type SyncEvent,
@@ -41,6 +47,12 @@ export interface MemoryStore {
   integrationPersistencePath?: string;
   syncEvents: SyncEvent[];
   actionEvents: ActionLedgerEntry[];
+  passiveSettings: PassiveEngineSettings | null;
+  passiveWatchers: PassiveWatcher[];
+  passiveTasks: PassiveTask[];
+  passiveRuns: PassiveRun[];
+  passiveNotifications: PassiveNotification[];
+  passivePersistencePath?: string;
 }
 
 export function createMemoryStore(): MemoryStore {
@@ -57,12 +69,21 @@ export function createMemoryStore(): MemoryStore {
     notes: [],
     integrationConnections: new Map(),
     syncEvents: [],
-    actionEvents: []
+    actionEvents: [],
+    passiveSettings: null,
+    passiveWatchers: [],
+    passiveTasks: [],
+    passiveRuns: [],
+    passiveNotifications: []
   };
 }
 
 export function integrationConnectionsPath(dataDir: string): string {
   return join(dataDir, 'integration-connections.json');
+}
+
+export function passiveTasksPath(dataDir: string): string {
+  return join(dataDir, 'passive-tasks.json');
 }
 
 export function enableIntegrationPersistence(store: MemoryStore, path: string): void {
@@ -86,6 +107,37 @@ export function persistIntegrationConnections(store: MemoryStore): void {
   mkdirSync(dirname(store.integrationPersistencePath), { recursive: true });
   const connections = Array.from(store.integrationConnections.values());
   writeFileSync(store.integrationPersistencePath, JSON.stringify(connections, null, 2), 'utf8');
+}
+
+export function enablePassiveTaskPersistence(store: MemoryStore, path: string): void {
+  store.passivePersistencePath = path;
+  mkdirSync(dirname(path), { recursive: true });
+  if (!existsSync(path)) return;
+
+  try {
+    const parsed = passiveEnginePersistedStateSchema.parse(JSON.parse(readFileSync(path, 'utf8')) as unknown);
+    store.passiveSettings = parsed.settings;
+    store.passiveWatchers = parsed.watchers;
+    store.passiveTasks = parsed.tasks;
+    store.passiveRuns = parsed.runs;
+    store.passiveNotifications = parsed.notifications;
+  } catch (error) {
+    console.warn(`Could not load persisted passive tasks: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
+export function persistPassiveTasks(store: MemoryStore): void {
+  if (!store.passivePersistencePath) return;
+  mkdirSync(dirname(store.passivePersistencePath), { recursive: true });
+  const state = passiveEnginePersistedStateSchema.parse({
+    version: 1,
+    settings: store.passiveSettings,
+    watchers: store.passiveWatchers,
+    tasks: store.passiveTasks,
+    runs: store.passiveRuns.slice(0, 200),
+    notifications: store.passiveNotifications.slice(0, 200)
+  });
+  writeFileSync(store.passivePersistencePath, JSON.stringify(state, null, 2), 'utf8');
 }
 
 export const defaultStore = createMemoryStore();

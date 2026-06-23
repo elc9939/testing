@@ -11,6 +11,7 @@ import { gameStateRoutes } from './routes/game-state';
 import { integrationRoutes, productivityRoutes } from './routes/integrations';
 import { actionLedgerRoutes } from './routes/action-ledger';
 import { attentionRoutes } from './routes/attention';
+import { passiveTaskRoutes } from './routes/passive-tasks';
 import { careerActionRoutes } from './routes/career-actions';
 import { assistantRoutes } from './routes/assistant';
 import { jobRoutes } from './routes/jobs';
@@ -22,10 +23,13 @@ import {
   createMemoryStore,
   defaultStore,
   enableIntegrationPersistence,
+  enablePassiveTaskPersistence,
   ensurePersonalWorkspace,
   integrationConnectionsPath,
+  passiveTasksPath,
   type MemoryStore
 } from './store';
+import { ensurePassiveDefaults, startPassiveTaskWorker } from './passive-engine';
 
 export interface CreateAppOptions {
   authBypass?: boolean;
@@ -112,6 +116,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route('/api/settings', settingsRoutes(store));
   app.route('/api/action-ledger', actionLedgerRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/attention', attentionRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
+  app.route('/api/passive-tasks', passiveTaskRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/integrations', integrationRoutes(store));
   app.route('/api/productivity', productivityRoutes(store));
   app.route('/api/assistant', assistantRoutes());
@@ -128,7 +133,10 @@ export type AppType = ReturnType<typeof createApp>;
 
 if (process.env.NODE_ENV !== 'test') {
   enableIntegrationPersistence(defaultStore, integrationConnectionsPath(env.dataDir));
+  enablePassiveTaskPersistence(defaultStore, passiveTasksPath(env.dataDir));
+  ensurePassiveDefaults(defaultStore);
   const app = createApp();
+  startPassiveTaskWorker(defaultStore);
   serve({ fetch: app.fetch, port: env.port });
   console.log(`Mini Hub API listening on http://localhost:${env.port}`);
 }

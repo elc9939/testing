@@ -73,6 +73,7 @@ function emptySourceLabel(source: AttentionSource): string {
   if (source === 'ai_os') return 'AI OS';
   if (source === 'macro_lab') return 'Macro Lab';
   if (source === 'research') return 'Research';
+  if (source === 'passive_task') return 'Passive Tasks';
   if (source === 'service_health') return 'Service Health';
   return 'Manual';
 }

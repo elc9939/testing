@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { PassiveSnapshot } from '@mini-hub/core';
 import type { AiStatus } from './ai-os-api';
 import type { MacroStatus } from './macro-lab-api';
 import {
@@ -96,6 +97,46 @@ function macroStatus(partial: Partial<MacroStatus> = {}): MacroStatus {
   };
 }
 
+function passiveSnapshot(partial: Partial<PassiveSnapshot> = {}): PassiveSnapshot {
+  return {
+    checkedAt: '2026-06-20T16:00:00.000Z',
+    settings: {
+      enabled: true,
+      notificationStyle: 'digest',
+      idleOnly: false,
+      resourceLimit: 'balanced',
+      localAiPreference: 'local_first',
+      maxRunsPerTick: 3,
+      watchedFolders: [],
+      watchedDomains: [],
+      watchedAccounts: [],
+      enabledFamilies: { app_health: true },
+      updatedAt: '2026-06-20T16:00:00.000Z'
+    },
+    watchers: [
+      {
+        id: 'passive-watcher:app-health',
+        family: 'app_health',
+        title: 'App Health Watchdog',
+        description: 'Checks services.',
+        enabled: true,
+        triggerIds: ['passive-trigger:app_health'],
+        taskIds: ['passive-task:app-health'],
+        createdAt: '2026-06-20T16:00:00.000Z',
+        updatedAt: '2026-06-20T16:00:00.000Z',
+        settings: {}
+      }
+    ],
+    tasks: [],
+    runs: [],
+    notifications: [],
+    digest: [],
+    sources: [],
+    errors: [],
+    ...partial
+  };
+}
+
 describe('capability registry', () => {
   it('summarizes ready local capabilities across hub, AI OS, Macro Lab, Google, and cache', () => {
     const snapshot = buildCapabilityRegistry({
@@ -143,6 +184,18 @@ describe('capability registry', () => {
 
     expect(snapshot.capabilities.find((capability) => capability.id === 'macro-lab.service')?.state).toBe('blocked');
     expect(selectCapabilityIssues(snapshot, 20).some((capability) => capability.id === 'macro-lab.service')).toBe(true);
+  });
+
+  it('registers the passive task engine as a local system capability', () => {
+    const snapshot = buildCapabilityRegistry({
+      isOnline: true,
+      syncStatus: 'idle',
+      googleConnected: false,
+      passiveSnapshot: passiveSnapshot()
+    });
+
+    expect(snapshot.capabilities.find((capability) => capability.id === 'passive-tasks.engine')?.state).toBe('running');
+    expect(capabilityServiceLabel('passive-tasks')).toBe('Passive Tasks');
   });
 
   it('formats a compact assistant-friendly capability context', () => {

@@ -1,9 +1,11 @@
 import { getHealth } from './api';
 import { getAiStatus, type AiCapabilityStatus, type AiProviderStatus, type AiStatus } from './ai-os-api';
 import { getMacroStatus, type MacroStatus } from './macro-lab-api';
+import { getPassiveSnapshot } from './passive-tasks-api';
+import type { PassiveSnapshot } from '@mini-hub/core';
 
 export type CapabilityState = 'ready' | 'running' | 'degraded' | 'needs_setup' | 'offline' | 'blocked';
-export type CapabilityService = 'hub' | 'productivity' | 'ai-os' | 'macro-lab' | 'browser';
+export type CapabilityService = 'hub' | 'productivity' | 'ai-os' | 'macro-lab' | 'passive-tasks' | 'browser';
 export type CapabilityLocality = 'local' | 'cloud' | 'hybrid' | 'browser';
 export type CapabilityCost = 'free' | 'paid' | 'mixed' | 'unknown';
 export type CapabilitySafety = 'read' | 'write' | 'system' | 'destructive';
@@ -60,6 +62,8 @@ export interface CapabilityRegistryInput {
   aiError?: string;
   macroStatus?: MacroStatus;
   macroError?: string;
+  passiveSnapshot?: PassiveSnapshot;
+  passiveError?: string;
 }
 
 export interface LoadCapabilityRegistryInput {
@@ -71,7 +75,12 @@ export interface LoadCapabilityRegistryInput {
 }
 
 export async function loadCapabilityRegistry(input: LoadCapabilityRegistryInput): Promise<CapabilityRegistrySnapshot> {
-  const [hub, ai, macro] = await Promise.allSettled([getHealth(), getAiStatus(input.machineMode), getMacroStatus()]);
+  const [hub, ai, macro, passive] = await Promise.allSettled([
+    getHealth(),
+    getAiStatus(input.machineMode),
+    getMacroStatus(),
+    getPassiveSnapshot()
+  ]);
   return buildCapabilityRegistry({
     ...input,
     hubHealth: hub.status === 'fulfilled' ? hub.value : undefined,
@@ -79,7 +88,9 @@ export async function loadCapabilityRegistry(input: LoadCapabilityRegistryInput)
     aiStatus: ai.status === 'fulfilled' ? ai.value : undefined,
     aiError: ai.status === 'rejected' ? errorMessage(ai.reason) : undefined,
     macroStatus: macro.status === 'fulfilled' ? macro.value : undefined,
-    macroError: macro.status === 'rejected' ? errorMessage(macro.reason) : undefined
+    macroError: macro.status === 'rejected' ? errorMessage(macro.reason) : undefined,
+    passiveSnapshot: passive.status === 'fulfilled' ? passive.value : undefined,
+    passiveError: passive.status === 'rejected' ? errorMessage(passive.reason) : undefined
   });
 }
 
@@ -135,6 +146,7 @@ export function buildCapabilityRegistry(input: CapabilityRegistryInput): Capabil
 
   addAiCapabilities(capabilities, input.aiStatus, input.aiError);
   addMacroCapabilities(capabilities, input.macroStatus, input.macroError);
+  addPassiveTaskCapabilities(capabilities, input.passiveSnapshot, input.passiveError);
 
   return summarizeCapabilities(input.checkedAt ?? new Date().toISOString(), capabilities);
 }
@@ -157,6 +169,7 @@ export function capabilityServiceLabel(service: CapabilityService): string {
   if (service === 'productivity') return 'Productivity';
   if (service === 'ai-os') return 'AI OS';
   if (service === 'macro-lab') return 'Macro Lab';
+  if (service === 'passive-tasks') return 'Passive Tasks';
   return 'Browser Cache';
 }
 
@@ -461,6 +474,40 @@ function addMacroCapabilities(capabilities: CapabilityRegistryEntry[], status: M
   }
 }
 
+function addPassiveTaskCapabilities(
+  capabilities: CapabilityRegistryEntry[],
+  snapshot: PassiveSnapshot | undefined,
+  error: string | undefined
+): void {
+  const activeWatchers = snapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
+  const failures = snapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
+  const enabled = snapshot?.settings.enabled;
+  capabilities.push({
+    id: 'passive-tasks.engine',
+    label: 'Passive task engine',
+    description: 'Scheduled, idle, and event-style watchers that surface source-backed background work into Today.',
+    service: 'passive-tasks',
+    state: snapshot ? (enabled ? (failures ? 'degraded' : activeWatchers ? 'running' : 'needs_setup') : 'needs_setup') : error ? 'offline' : 'needs_setup',
+    available: Boolean(snapshot && enabled),
+    locality: 'local',
+    cost: 'free',
+    safety: 'system',
+    route: '/passive-tasks',
+    requiredService: 'Mini Hub API passive task store',
+    lastError: error || snapshot?.errors[0],
+    metrics: snapshot
+      ? {
+          watchers: snapshot.watchers.length,
+          activeWatchers,
+          recentRuns: snapshot.runs.length,
+          digest: snapshot.digest.length,
+          failures
+        }
+      : undefined,
+    tags: ['background', 'scheduler']
+  });
+}
+
 function aiCapabilityEntry(
   id: string,
   label: string,
@@ -508,7 +555,8 @@ function compareCapabilities(a: CapabilityRegistryEntry, b: CapabilityRegistryEn
     browser: 1,
     productivity: 2,
     'ai-os': 3,
-    'macro-lab': 4
+    'macro-lab': 4,
+    'passive-tasks': 5
   };
   return serviceOrder[a.service] - serviceOrder[b.service] || a.label.localeCompare(b.label);
 }

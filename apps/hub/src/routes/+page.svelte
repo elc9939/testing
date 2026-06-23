@@ -88,7 +88,7 @@
     .filter((item) => ['career_action', 'career_job', 'study_signal', 'study_session'].includes(item.source))
     .slice(0, 6);
   $: systemItems = attentionItems
-    .filter((item) => ['service_health', 'ai_os', 'macro_lab', 'research'].includes(item.source) || item.status === 'blocked')
+    .filter((item) => ['service_health', 'ai_os', 'macro_lab', 'research', 'passive_task'].includes(item.source) || item.status === 'blocked')
     .slice(0, 7);
   $: sourceIssues = attentionSnapshot?.sources.filter((source) => source.status !== 'ok') ?? [];
   $: googleConnected = snapshotGoogleConnected(attentionSnapshot);
@@ -157,7 +157,7 @@
     if (source === 'google_calendar') return 'calendar';
     if (source === 'career_action' || source === 'career_job') return 'career';
     if (source === 'study_signal' || source === 'study_session') return 'study';
-    if (source === 'ai_os' || source === 'macro_lab' || source === 'research') return 'system';
+    if (source === 'ai_os' || source === 'macro_lab' || source === 'research' || source === 'passive_task') return 'system';
     return 'service';
   }
 

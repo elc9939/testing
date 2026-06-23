@@ -64,8 +64,11 @@ The Svelte app under `apps/hub` provides these main pages:
 - AI OS: capability dashboard for local AI, tools, memory, jobs, agents, media, health,
   backups, telemetry, Machine Profile/Autotune, and web/browser access.
 - Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
+- Passive Tasks: durable background watcher dashboard for app health, backups, idle
+  compute, research monitor sweeps, career radar, local file intelligence, and project
+  drift detection.
 - Settings: service and machine control, capability health, endpoint configuration, theme,
-  sync status, legacy import/export, dark mode.
+  sync status, passive task preferences, legacy import/export, dark mode.
 
 The product direction is intentionally shifting toward a unified local-first Personal AI OS:
 Today should show what needs attention, AI OS should become the intelligence/capability
@@ -77,13 +80,45 @@ The hub now has a Unified Attention & Action Queue v1 in addition to the browser
 Capability Registry. The Mini Hub API exposes `/api/attention/snapshot`, which normalizes
 references plus display/action metadata from Google Calendar, Gmail priority threads,
 Career Desk jobs/actions, Study Desk signals, AI OS jobs/health/backups/benchmarks,
-Macro Lab status/run history, Research monitors/runs, local service health, and any
-manual attention items already stored in personal settings. Source freshness and source
-errors are returned alongside the items, so partial failures are visible instead of
+Macro Lab status/run history, Research monitors/runs, Passive Task output cards, local
+service health, and any manual attention items already stored in personal settings. Source
+freshness and source errors are returned alongside the items, so partial failures are visible instead of
 silently dropping data. User triage state, including dismissed, snoozed, manually
 important, completed, and archived items, is persisted through synced personal settings
 under the existing sync path. The hub client caches only the last successful real snapshot
 under `miniHub.attention.snapshot.v1`; cached attention is read-only while offline.
+
+Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
+dashboard. The engine persists `Watcher`, `Trigger`, `Task`, `Run`, `Result card`, and
+`Notification` state to `passive-tasks.json` in `MINI_HUB_DATA_DIR`, logs runs into the
+Action Ledger, and exposes a snapshot with per-family freshness/errors. The worker checks
+due tasks on a lightweight interval while the API is running; the dashboard can also run
+due tasks, event-triggered startup checks, or idle-only ticks manually. `POST
+/api/passive-tasks/events/:eventName` ingests named events such as `app.startup`, and
+event-only tasks stay out of ordinary scheduled ticks. V1 task families are real-data only:
+
+- App Health Watchdog checks the hub data directory, Google connection state, AI OS, Macro
+  Lab, Ollama, AI OS jobs, and backup freshness on a schedule and through the built-in
+  `app.startup` event task.
+- Backup + Snapshot Watcher writes non-destructive Mini Hub restore snapshots under
+  `MINI_HUB_DATA_DIR/passive-snapshots` and asks AI OS for its own backup when available.
+- Idle Compute Queue runs bounded AI OS benchmarks only when a tick is explicitly marked
+  idle.
+- Background Research Monitor reads AI OS saved monitor due-state and queues due monitor
+  runs through AI OS.
+- Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
+- Local File Intelligence scans only configured watched folders for recent document/image
+  metadata.
+- Project Drift Detector scans only configured project folders for stale README files,
+  TODO/FIXME buildup, and missing `test`/`check` scripts.
+
+Passive outputs are source-backed cards with title, summary, urgency, confidence, source
+links/files, suggested next action, and why the item surfaced. High-urgency cards flow into
+Today through the unified attention source `passive_task`; lower-urgency cards stay in the
+Passive Tasks dashboard digest. Settings controls global enablement, notification style,
+idle preference, resource limit, local/cloud AI preference, max runs per tick, and watched
+folders/domains/accounts. Background work avoids destructive changes; file/project scans
+respect configured folders only, and failures stay visible without creating fake queue items.
 
 The hub also has a browser-side Capability Registry v1. It normalizes existing service
 status from the Mini Hub API, AI OS, Macro Lab, Google connection state, and the local

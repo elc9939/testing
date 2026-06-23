@@ -11,6 +11,7 @@
     GraduationCap,
     Home,
     Keyboard,
+    ListChecks,
     Monitor,
     Moon,
     Search,
@@ -34,6 +35,7 @@
     { href: routeMap.aiLab, label: 'AI Lab', icon: BrainCircuit },
     { href: routeMap.aiOs, label: 'AI OS', icon: Cpu },
     { href: routeMap.macroLab, label: 'Macros', icon: Keyboard },
+    { href: routeMap.passiveTasks, label: 'Passive', icon: ListChecks },
     { href: routeMap.settings, label: 'Settings', icon: Settings }
   ];
 

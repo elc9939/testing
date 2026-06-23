@@ -154,6 +154,35 @@ describe('mini hub api', () => {
     expect(body.workspaces[0]?.id).toBe('personal');
   });
 
+  it('runs passive event-triggered tasks through the event endpoint', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store });
+
+    const response = await app.request('/api/passive-tasks/events/app.startup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'test-startup-event' })
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      runs: Array<{ taskId: string; metadata: { eventName?: string; reason?: string } }>;
+      snapshot: { tasks: Array<{ id: string; trigger: { kind: string; eventName?: string } }> };
+    };
+    expect(body.runs).toHaveLength(1);
+    expect(body.runs[0]).toMatchObject({
+      taskId: 'passive-task:app-health-startup',
+      metadata: { eventName: 'app.startup', reason: 'test-startup-event' }
+    });
+    expect(body.snapshot.tasks).toContainEqual(
+      expect.objectContaining({
+        id: 'passive-task:app-health-startup',
+        trigger: expect.objectContaining({ kind: 'event', eventName: 'app.startup' })
+      })
+    );
+    expect(store.actionEvents.at(-1)).toMatchObject({ source: 'passive-tasks', actionType: 'passive.app_health' });
+  });
+
   it('saves user-facing entities and exposes sync changes by cursor', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const authHeaders = { 'content-type': 'application/json' };

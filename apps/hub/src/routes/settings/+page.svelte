@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Activity, ArrowRight, Cloud, Download, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
-  import type { ActionLedgerEntry } from '@mini-hub/core';
+  import { Activity, ArrowRight, Cloud, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
+  import type { ActionLedgerEntry, PassiveSnapshot } from '@mini-hub/core';
   import {
     actionLedgerDetail,
     actionLedgerRiskLabel,
@@ -31,6 +31,7 @@
     type MachineModeId
   } from '$lib/machine-mode';
   import { getMacroLabApiUrl, restoreMacroRun } from '$lib/macro-lab-api';
+  import { getPassiveSnapshot, patchPassiveSettings } from '$lib/passive-tasks-api';
   import { getConnections } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint, setServiceEndpoints } from '$lib/service-config';
@@ -70,6 +71,14 @@
   let actionLedgerError = '';
   let actionLedgerMessage = '';
   let restoreBusyId = '';
+  let passiveSnapshot: PassiveSnapshot | null = null;
+  let passiveLoading = false;
+  let passiveError = '';
+  let passiveMessage = '';
+  let passiveSaving = false;
+  let passiveFolders = '';
+  let passiveDomains = '';
+  let passiveAccounts = '';
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: currentMachineModeDetails = formatMachineModeContext(currentMachineMode);
@@ -79,6 +88,9 @@
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
+  $: passiveSettings = passiveSnapshot?.settings ?? null;
+  $: passiveEnabledWatchers = passiveSnapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
+  $: passiveFailures = passiveSnapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -91,7 +103,68 @@
   }
 
   async function checkServices(): Promise<void> {
-    await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger()]);
+    await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger(), refreshPassiveSettings()]);
+  }
+
+  function syncPassiveEditor(next: PassiveSnapshot): void {
+    passiveSnapshot = next;
+    passiveFolders = next.settings.watchedFolders.join('\n');
+    passiveDomains = next.settings.watchedDomains.join('\n');
+    passiveAccounts = next.settings.watchedAccounts.join('\n');
+  }
+
+  async function refreshPassiveSettings(): Promise<void> {
+    passiveLoading = true;
+    passiveError = '';
+    try {
+      syncPassiveEditor(await getPassiveSnapshot());
+    } catch (error) {
+      passiveError = error instanceof Error ? error.message : 'Passive task settings failed to load.';
+    } finally {
+      passiveLoading = false;
+    }
+  }
+
+  function splitPassiveLines(value: string): string[] {
+    return value
+      .split(/\r?\n|,/u)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  async function savePassiveSettings(): Promise<void> {
+    if (!passiveSettings) return;
+    passiveSaving = true;
+    passiveError = '';
+    passiveMessage = '';
+    try {
+      syncPassiveEditor(
+        await patchPassiveSettings({
+          watchedFolders: splitPassiveLines(passiveFolders),
+          watchedDomains: splitPassiveLines(passiveDomains),
+          watchedAccounts: splitPassiveLines(passiveAccounts)
+        })
+      );
+      passiveMessage = 'Passive task settings saved.';
+    } catch (error) {
+      passiveError = error instanceof Error ? error.message : 'Passive task settings save failed.';
+    } finally {
+      passiveSaving = false;
+    }
+  }
+
+  async function updatePassivePreference(patch: Parameters<typeof patchPassiveSettings>[0]): Promise<void> {
+    passiveSaving = true;
+    passiveError = '';
+    passiveMessage = '';
+    try {
+      syncPassiveEditor(await patchPassiveSettings(patch));
+      passiveMessage = 'Passive task preference saved.';
+    } catch (error) {
+      passiveError = error instanceof Error ? error.message : 'Passive task preference save failed.';
+    } finally {
+      passiveSaving = false;
+    }
   }
 
   async function syncNow(): Promise<void> {
@@ -196,7 +269,7 @@
   }
 
   function groupCapabilityServices(capabilities: CapabilityRegistryEntry[]): CapabilityServiceGroup[] {
-    const order: CapabilityService[] = ['hub', 'browser', 'productivity', 'ai-os', 'macro-lab'];
+    const order: CapabilityService[] = ['hub', 'browser', 'productivity', 'ai-os', 'macro-lab', 'passive-tasks'];
     return order
       .map((service) => {
         const rows = capabilities.filter((capability) => capability.service === service);
@@ -229,6 +302,7 @@
     if (service === 'browser') return 'Local cache and read-only offline behavior.';
     if (service === 'productivity') return 'Google Calendar and Gmail workflow access.';
     if (service === 'ai-os') return 'Model routing, local AI, memory, jobs, media, health, and telemetry.';
+    if (service === 'passive-tasks') return 'Background watchers, run history, digests, and scheduler controls.';
     return 'Windows automation, macro execution, triggers, clipboard, windows, and files.';
   }
 
@@ -574,6 +648,151 @@
     <p class="sync-error">{capabilityError}</p>
   {:else}
     <p class="helper-text">Capability status has not been checked yet.</p>
+  {/if}
+</section>
+
+<section class="card card-pad passive-settings-panel">
+  <div class="section-title split-title">
+    <span>
+      <ListChecks size={18} />
+      <strong>Passive Tasks</strong>
+    </span>
+    <a class="button compact" href={hubHref('/passive-tasks')}>
+      <span>Dashboard</span>
+      <ArrowRight size={15} />
+    </a>
+  </div>
+
+  {#if passiveSettings}
+    <div class="passive-summary">
+      <div>
+        <span>Engine</span>
+        <strong>{passiveSettings.enabled ? 'On' : 'Off'}</strong>
+      </div>
+      <div>
+        <span>Watchers</span>
+        <strong>{passiveEnabledWatchers}/{passiveSnapshot?.watchers.length ?? 0}</strong>
+      </div>
+      <div>
+        <span>Digest</span>
+        <strong>{passiveSnapshot?.digest.length ?? 0}</strong>
+      </div>
+      <div>
+        <span>Failures</span>
+        <strong>{passiveFailures}</strong>
+      </div>
+    </div>
+
+    <div class="passive-control-grid">
+      <label class="toggle-row">
+        <input
+          type="checkbox"
+          checked={passiveSettings.enabled}
+          disabled={passiveSaving}
+          on:change={(event) => updatePassivePreference({ enabled: event.currentTarget.checked })}
+        />
+        <span>
+          <strong>Enable passive task engine</strong>
+          <small>Scheduled and event-style checks can run in the background.</small>
+        </span>
+      </label>
+      <label class="toggle-row">
+        <input
+          type="checkbox"
+          checked={passiveSettings.idleOnly}
+          disabled={passiveSaving}
+          on:change={(event) => updatePassivePreference({ idleOnly: event.currentTarget.checked })}
+        />
+        <span>
+          <strong>Prefer idle-only background work</strong>
+          <small>Idle compute remains gated until a tick is marked idle.</small>
+        </span>
+      </label>
+      <label class="field">
+        <span>Notifications</span>
+        <select
+          value={passiveSettings.notificationStyle}
+          disabled={passiveSaving}
+          on:change={(event) => updatePassivePreference({ notificationStyle: event.currentTarget.value as 'digest' | 'urgent_only' | 'off' })}
+        >
+          <option value="digest">Digest</option>
+          <option value="urgent_only">Urgent only</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Resource limit</span>
+        <select
+          value={passiveSettings.resourceLimit}
+          disabled={passiveSaving}
+          on:change={(event) => updatePassivePreference({ resourceLimit: event.currentTarget.value as 'light' | 'balanced' | 'heavy' })}
+        >
+          <option value="light">Light</option>
+          <option value="balanced">Balanced</option>
+          <option value="heavy">Heavy</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>AI preference</span>
+        <select
+          value={passiveSettings.localAiPreference}
+          disabled={passiveSaving}
+          on:change={(event) => updatePassivePreference({ localAiPreference: event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed' })}
+        >
+          <option value="local_first">Local first</option>
+          <option value="local_only">Local only</option>
+          <option value="cloud_allowed">Cloud allowed</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Max runs per tick</span>
+        <input
+          type="number"
+          min="1"
+          max="10"
+          value={passiveSettings.maxRunsPerTick}
+          disabled={passiveSaving}
+          on:change={(event) => updatePassivePreference({ maxRunsPerTick: Number(event.currentTarget.value) || 1 })}
+        />
+      </label>
+    </div>
+
+    <div class="passive-scope-grid">
+      <label class="field">
+        <span>Watched folders</span>
+        <textarea bind:value={passiveFolders} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
+      </label>
+      <label class="field">
+        <span>Watched domains</span>
+        <textarea bind:value={passiveDomains} rows="4" placeholder="example.com"></textarea>
+      </label>
+      <label class="field">
+        <span>Watched accounts</span>
+        <textarea bind:value={passiveAccounts} rows="4" placeholder="personal@example.com"></textarea>
+      </label>
+    </div>
+    <div class="action-row">
+      <button class="button primary" type="button" disabled={passiveSaving} on:click={savePassiveSettings}>
+        <Save size={17} />
+        <span>{passiveSaving ? 'Saving' : 'Save Passive Settings'}</span>
+      </button>
+      <button class="button" type="button" disabled={passiveLoading} on:click={refreshPassiveSettings}>
+        <RefreshCw size={17} />
+        <span>{passiveLoading ? 'Loading' : 'Refresh'}</span>
+      </button>
+    </div>
+    {#if passiveMessage}
+      <p class="endpoint-message">{passiveMessage}</p>
+    {/if}
+    {#if passiveError}
+      <p class="sync-error">{passiveError}</p>
+    {/if}
+  {:else if passiveLoading}
+    <p class="helper-text">Loading passive task settings...</p>
+  {:else if passiveError}
+    <p class="sync-error">{passiveError}</p>
+  {:else}
+    <p class="helper-text">Passive task settings have not loaded yet.</p>
   {/if}
 </section>
 
@@ -1246,6 +1465,81 @@
     max-width: 84px;
   }
 
+  .passive-settings-panel {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .passive-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .passive-summary div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 10px;
+    border-right: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .passive-summary div:last-child {
+    border-right: 0;
+  }
+
+  .passive-summary span,
+  .passive-summary strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .passive-summary span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .passive-control-grid,
+  .passive-scope-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .toggle-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    min-height: 62px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .toggle-row input {
+    width: 16px;
+    margin-top: 2px;
+  }
+
+  .toggle-row span {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .toggle-row small {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
   .theme-segment {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1393,6 +1687,22 @@
 
     .endpoint-grid {
       grid-template-columns: 1fr;
+    }
+
+    .passive-summary,
+    .passive-control-grid,
+    .passive-scope-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .passive-summary div,
+    .passive-summary div:last-child {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .passive-summary div:last-child {
+      border-bottom: 0;
     }
 
     dl {
