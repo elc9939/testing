@@ -88,6 +88,13 @@
     return typeof mode === 'string' && mode.trim() ? mode : '';
   }
 
+  function latestTaskError(task: PassiveTask): string {
+    const latest = task.errorLog[0];
+    if (!latest) return '';
+    const retry = latest.nextRetryAt ? ` Retry ${displayWhen(latest.nextRetryAt)}.` : '';
+    return `${displayWhen(latest.at)}: ${latest.message}${retry}`;
+  }
+
   function syncEditor(next: PassiveSnapshot): void {
     snapshot = next;
     folderText = next.settings.watchedFolders.join('\n');
@@ -370,6 +377,9 @@
                 <td>
                   <strong>{task.title}</strong>
                   <small>{task.detail}</small>
+                  {#if latestTaskError(task)}
+                    <small class="error-inline">{latestTaskError(task)}</small>
+                  {/if}
                 </td>
                 <td>{passiveFamilyLabel(task.family)}</td>
                 <td>{displayWhen(task.nextRunAt)}</td>
@@ -751,6 +761,10 @@
   .notification-row small,
   td small {
     color: var(--muted);
+  }
+
+  td small.error-inline {
+    color: var(--danger-text);
   }
 
   .digest-main em {

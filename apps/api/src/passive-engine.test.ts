@@ -394,21 +394,34 @@ describe('passive task engine', () => {
     }
   });
 
-  it('applies retry/backoff state after a failing passive run', async () => {
+  it('records retry/backoff state and a durable error log after a failing passive run', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
-    const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
-    const failingFetch = (() => Promise.reject(new Error('service offline'))) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'idle_compute')!;
+    const failingFetch = (() => Promise.reject(new Error('AI OS benchmark offline'))) as typeof fetch;
 
     const run = await runPassiveTask(store, task.id, {
       externalFetch: failingFetch,
       force: true,
-      input: { reason: 'test' }
+      input: { idle: true, reason: 'retry-log-test' }
     });
     const updated = store.passiveTasks.find((item) => item.id === task.id)!;
 
-    expect(['failed', 'blocked', 'succeeded']).toContain(run.status);
+    expect(run.status).toBe('failed');
+    expect(run.nextRunAt).toBe(updated.retry.nextRetryAt);
+    expect(updated.status).toBe('failed');
+    expect(updated.retry.attempts).toBe(1);
+    expect(updated.retry.nextRetryAt).toBeTruthy();
     expect(updated.lastRunAt).toBeTruthy();
+    expect(updated.lastError).toContain('AI OS benchmark offline');
+    expect(updated.errorLog).toHaveLength(1);
+    expect(updated.errorLog[0]).toMatchObject({
+      runId: run.id,
+      status: 'failed',
+      message: 'AI OS benchmark offline',
+      attempt: 1,
+      nextRetryAt: updated.retry.nextRetryAt
+    });
     expect(store.passiveRuns[0]?.id).toBe(run.id);
     expect(store.actionEvents[0]?.source).toBe('passive-tasks');
   });

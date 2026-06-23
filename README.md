@@ -136,6 +136,8 @@ folders/domains/accounts. Background work avoids destructive changes; file/proje
 respect configured folders only, resource limits clamp research/page/file/TODO scan budgets,
 Machine Modes shape due-work selection, and failures stay visible without creating fake queue
 items.
+Failed and blocked tasks also keep a bounded per-task error log with attempt, message,
+timestamp, and next retry so dashboard state does not depend only on the latest run record.
 The Passive Tasks dashboard exposes the same practical controls for day-to-day use, including
 idle-only scheduling, AI preference, tick limits, watcher toggles, manual ticks, and source
 scope edits.

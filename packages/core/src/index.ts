@@ -440,6 +440,16 @@ export const passiveRetryStateSchema = z.object({
   nextRetryAt: z.string().optional()
 });
 
+export const passiveTaskErrorLogEntrySchema = z.object({
+  id: z.string().min(1),
+  runId: z.string().min(1),
+  status: passiveRunStatusSchema,
+  message: z.string().min(1),
+  at: z.string().min(1),
+  attempt: z.number().int().nonnegative().default(1),
+  nextRetryAt: z.string().optional()
+});
+
 export const passiveTaskSchema = z.object({
   id: z.string().min(1),
   watcherId: z.string().min(1),
@@ -457,6 +467,7 @@ export const passiveTaskSchema = z.object({
   lastRunAt: z.string().optional(),
   nextRunAt: z.string().optional(),
   lastError: z.string().optional(),
+  errorLog: z.array(passiveTaskErrorLogEntrySchema).default([]),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
   settings: z.record(z.string(), z.unknown()).default({})
@@ -701,6 +712,7 @@ export type PassiveRun = z.infer<typeof passiveRunSchema>;
 export type PassiveNotification = z.infer<typeof passiveNotificationSchema>;
 export type PassiveCardTriageState = z.infer<typeof passiveCardTriageStateSchema>;
 export type PassiveEngineSettings = z.infer<typeof passiveEngineSettingsSchema>;
+export type PassiveTaskErrorLogEntry = z.infer<typeof passiveTaskErrorLogEntrySchema>;
 export type PassiveSourceStatus = z.infer<typeof passiveSourceStatusSchema>;
 export type PassiveSnapshot = z.infer<typeof passiveSnapshotSchema>;
 export type PassiveEnginePersistedState = z.infer<typeof passiveEnginePersistedStateSchema>;

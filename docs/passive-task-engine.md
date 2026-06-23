@@ -65,7 +65,8 @@ The shared core model includes:
 - `PassiveTrigger`: schedule, event, idle, or manual trigger metadata. Event triggers run
   only when an explicit event name is ingested, for example `app.startup`.
 - `PassiveTask`: runnable unit with priority, status, retry/backoff, idle-only, last/next run,
-  machine mode, and source refs.
+  machine mode, source refs, and a bounded per-task error log that records failed/blocked
+  run id, attempt, message, timestamp, and next retry.
 - `PassiveRun`: durable run record with status, timing, error, changed artifacts, and cards.
 - `PassiveResultCard`: source-backed output with title, summary, urgency, confidence,
   source links/files, suggested action, and why it surfaced.
@@ -126,5 +127,7 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - Cancelling a running task is sticky: when the in-flight work returns, the run is recorded as
   cancelled, no follow-up run is scheduled, and the task remains cancelled instead of being
   revived by async completion.
+- Failed and blocked runs append to the task's bounded error log, and failed run records point
+  their `nextRunAt` at the retry/backoff time so dashboard state matches the scheduler.
 - Failures remain visible in passive snapshots, source statuses, digest cards, and the Action
   Ledger instead of being silently dropped.

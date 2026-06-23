@@ -6,6 +6,7 @@ import {
   passiveRunSchema,
   passiveSnapshotSchema,
   passiveSourceStatusSchema,
+  passiveTaskErrorLogEntrySchema,
   passiveTaskSchema,
   passiveWatcherSchema,
   routeMap,
@@ -140,6 +141,7 @@ const minuteMs = 60 * 1000;
 const passiveSnapshotDirName = 'passive-snapshots';
 const passiveDigestUrgency = 58;
 const attentionUrgency = 65;
+const maxTaskErrorLogEntries = 12;
 const windowsIdleScript = `
 $ErrorActionPreference = "Stop"
 Add-Type @"
@@ -706,9 +708,47 @@ export function computeNextRunAt(task: PassiveTask, date = new Date()): string |
   return addMinutes(date, intervalMinutes);
 }
 
-function retryDelayMinutes(task: PassiveTask): number {
-  const attempts = Math.max(1, task.retry.attempts);
-  return task.retry.backoffMinutes * 2 ** Math.min(4, attempts - 1);
+function retryDelayMinutesFor(task: PassiveTask, attempts: number): number {
+  const normalizedAttempts = Math.max(1, attempts);
+  return task.retry.backoffMinutes * 2 ** Math.min(4, normalizedAttempts - 1);
+}
+
+function retryScheduleFor(task: PassiveTask, attempts: number, date: Date): { exhausted: boolean; nextRetryAt?: string } {
+  const exhausted = attempts >= task.retry.maxAttempts;
+  return {
+    exhausted,
+    ...(exhausted ? {} : { nextRetryAt: addMinutes(date, retryDelayMinutesFor(task, attempts)) })
+  };
+}
+
+function nextRunAfterResult(task: PassiveTask, status: PassiveRunStatus, date: Date): string | undefined {
+  if (status === 'cancelled') return undefined;
+  if (status === 'failed' || status === 'blocked') {
+    return retryScheduleFor(task, task.retry.attempts + 1, date).nextRetryAt;
+  }
+  return computeNextRunAt(task, date);
+}
+
+function errorLogMessage(run: PassiveRun): string {
+  return (
+    run.error ??
+    run.cards.find((item) => item.urgency >= 72)?.summary ??
+    run.cards[0]?.summary ??
+    `${familyLabels[run.family]} ${run.status}`
+  );
+}
+
+function appendTaskErrorLog(task: PassiveTask, run: PassiveRun, nextRetryAt: string | undefined, date: Date): PassiveTask['errorLog'] {
+  const entry = passiveTaskErrorLogEntrySchema.parse({
+    id: id('passive-task-error'),
+    runId: run.id,
+    status: run.status,
+    message: errorLogMessage(run),
+    at: run.finishedAt ?? nowIso(date),
+    attempt: run.attempt,
+    ...(nextRetryAt ? { nextRetryAt } : {})
+  });
+  return [entry, ...(task.errorLog ?? [])].slice(0, maxTaskErrorLogEntries);
 }
 
 export function applyRunOutcomeToTask(task: PassiveTask, run: PassiveRun, date = new Date()): PassiveTask {
@@ -731,20 +771,20 @@ export function applyRunOutcomeToTask(task: PassiveTask, run: PassiveRun, date =
 
   if (run.status === 'failed' || run.status === 'blocked') {
     const attempts = task.retry.attempts + 1;
-    const retryExhausted = attempts >= task.retry.maxAttempts;
-    const retryAt = addMinutes(date, retryDelayMinutes({ ...task, retry: { ...task.retry, attempts } }));
+    const retry = retryScheduleFor(task, attempts, date);
     return passiveTaskSchema.parse({
       ...task,
-      status: retryExhausted ? 'blocked' : 'failed',
+      status: retry.exhausted ? 'blocked' : 'failed',
       lastRunAt: run.finishedAt ?? nowIso(date),
-      nextRunAt: retryExhausted ? undefined : retryAt,
+      nextRunAt: retry.nextRetryAt,
       lastError: run.error ?? 'Task failed.',
+      errorLog: appendTaskErrorLog(task, run, retry.nextRetryAt, date),
       retry: {
         ...task.retry,
         attempts,
-        nextRetryAt: retryExhausted ? undefined : retryAt
+        nextRetryAt: retry.nextRetryAt
       },
-      trigger: { ...task.trigger, nextRunAt: retryExhausted ? undefined : retryAt },
+      trigger: { ...task.trigger, nextRunAt: retry.nextRetryAt },
       updatedAt: nowIso(date)
     });
   }
@@ -2239,7 +2279,7 @@ export async function runPassiveTask(
   }
 
   const finished = new Date();
-  const nextRunAt = result.status === 'cancelled' ? undefined : computeNextRunAt(task, finished);
+  const nextRunAt = nextRunAfterResult(task, result.status, finished);
   const run = passiveRunSchema.parse({
     id: runId,
     taskId: task.id,
@@ -2748,8 +2788,11 @@ export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceSta
         taskId: task.id,
         watcherId: task.watcherId,
         nextRunAt: task.nextRunAt,
+        nextRetryAt: task.retry.nextRetryAt,
         status: task.status,
         lastRunStatus: run?.status,
+        errorLogCount: task.errorLog.length,
+        latestErrorAt: task.errorLog[0]?.at,
         machineMode: taskMode.mode,
         machineModeSource: taskMode.source,
         modePolicy: modePolicy.allowed ? 'allowed' : 'deferred',
