@@ -162,6 +162,22 @@ function passiveSnapshot(partial: Partial<PassiveSnapshot> = {}): PassiveSnapsho
     notifications: [],
     digest: [],
     sources: [],
+    backupHealth: {
+      checkedAt: '2026-06-20T16:00:00.000Z',
+      ok: true,
+      status: 'ok',
+      snapshotRoot: 'C:\\mini-hub-data\\passive-snapshots',
+      snapshotCount: 1,
+      latestPath: 'C:\\mini-hub-data\\passive-snapshots\\snapshot.json',
+      latestAgeHours: 1,
+      stale: false,
+      latestBytes: 1024,
+      latestSha256: 'a'.repeat(64),
+      latestSummary: {},
+      latestRedactedTokenSets: 0,
+      cleanupCandidateCount: 0,
+      cleanupBytes: 0
+    },
     errors: [],
     ...partial
   };

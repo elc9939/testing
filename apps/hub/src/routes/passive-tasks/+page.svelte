@@ -17,6 +17,7 @@
   import type {
     PassiveResultCard,
     PassiveRun,
+    PassiveBackupHealth,
     PassiveSnapshot,
     PassiveSourceStatus,
     PassiveTask,
@@ -77,6 +78,7 @@
   $: notifications = visiblePassiveNotifications(snapshot);
   $: familyRows = buildFamilyRows(snapshot, settings);
   $: worker = snapshot?.worker ?? null;
+  $: backupHealth = snapshot?.backupHealth ?? null;
   $: resultRows = [...(snapshot?.results ?? [])]
     .sort((a, b) => dateValue(b.createdAt) - dateValue(a.createdAt))
     .slice(0, 8);
@@ -202,6 +204,57 @@
     if (value >= 24 * 60) return `${Math.round(value / (24 * 60))} d`;
     if (value >= 60) return `${Math.round(value / 60)} hr`;
     return `${Math.max(0, Math.round(value))} min`;
+  }
+
+  function formatHours(value: number | undefined): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+    if (value >= 48) return `${Math.round(value / 24)} d old`;
+    if (value >= 1) return `${Math.round(value)} hr old`;
+    return '<1 hr old';
+  }
+
+  function fileName(value: string | undefined): string {
+    if (!value) return 'None';
+    const parts = value.split(/[\\/]/u).filter(Boolean);
+    return parts[parts.length - 1] ?? value;
+  }
+
+  function backupStatusLabel(health: PassiveBackupHealth): string {
+    if (health.status === 'ok') return 'Verified';
+    if (health.status === 'warning') return health.stale ? 'Stale' : 'Review';
+    return 'Needs setup';
+  }
+
+  function backupStateClass(health: PassiveBackupHealth): string {
+    if (health.status === 'ok') return 'ready';
+    if (health.status === 'warning') return 'paused';
+    return 'error';
+  }
+
+  function backupLatestLine(health: PassiveBackupHealth): string {
+    if (!health.latestPath) return 'No restore point found';
+    return `${fileName(health.latestPath)} - ${formatHours(health.latestAgeHours)}`;
+  }
+
+  function backupVerifyLine(health: PassiveBackupHealth): string {
+    const parts: string[] = [];
+    if (health.latestBytes !== undefined) parts.push(formatBytes(health.latestBytes));
+    if (health.latestSha256) parts.push(`sha ${compactHash(health.latestSha256)}`);
+    if (health.latestRedactedTokenSets) parts.push(`${health.latestRedactedTokenSets} redacted token set${health.latestRedactedTokenSets === 1 ? '' : 's'}`);
+    return parts.join(' - ') || 'Verification not available';
+  }
+
+  function backupSummaryLine(health: PassiveBackupHealth): string {
+    const entries = Object.entries(health.latestSummary)
+      .filter(([, count]) => typeof count === 'number' && count > 0)
+      .slice(0, 5)
+      .map(([key, count]) => `${key} ${count}`);
+    return entries.join(' - ') || 'No entity summary yet';
+  }
+
+  function backupCleanupLine(health: PassiveBackupHealth): string {
+    if (!health.cleanupCandidateCount) return 'No stale snapshot/log/temp cleanup candidates';
+    return `${health.cleanupCandidateCount} dry-run candidate${health.cleanupCandidateCount === 1 ? '' : 's'} - ${formatBytes(health.cleanupBytes)}`;
   }
 
   function asNumber(value: unknown): number | null {
@@ -455,6 +508,10 @@
   <div>
     <span>Worker</span>
     <strong>{workerStateLabel()}</strong>
+  </div>
+  <div>
+    <span>Backups</span>
+    <strong>{backupHealth ? backupStatusLabel(backupHealth) : 'n/a'}</strong>
   </div>
   <div>
     <span>Triggers</span>
@@ -713,6 +770,52 @@
   </div>
 
   <aside class="side-column">
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><FolderOpen size={16} /></span>
+          <strong>Restore Points</strong>
+        </div>
+        <a class="button compact" href={hubHref('/settings')}>Settings</a>
+      </div>
+      {#if backupHealth}
+        <div class="worker-grid">
+          <span>
+            <small>Status</small>
+            <strong><span class={`state ${backupStateClass(backupHealth)}`}>{backupStatusLabel(backupHealth)}</span></strong>
+          </span>
+          <span>
+            <small>Snapshots</small>
+            <strong>{backupHealth.snapshotCount}</strong>
+          </span>
+          <span>
+            <small>Latest</small>
+            <strong>{backupLatestLine(backupHealth)}</strong>
+          </span>
+          <span>
+            <small>Verification</small>
+            <strong>{backupVerifyLine(backupHealth)}</strong>
+          </span>
+          <span>
+            <small>Contents</small>
+            <strong>{backupSummaryLine(backupHealth)}</strong>
+          </span>
+          <span>
+            <small>Cleanup dry-run</small>
+            <strong>{backupCleanupLine(backupHealth)}</strong>
+          </span>
+          {#if backupHealth.error}
+            <span class="worker-error">
+              <small>Issue</small>
+              <strong>{backupHealth.error}</strong>
+            </span>
+          {/if}
+        </div>
+      {:else}
+        <p class="empty-note">Restore point health appears after the passive snapshot loads.</p>
+      {/if}
+    </article>
+
     <article class="card panel">
       <div class="panel-title">
         <div>

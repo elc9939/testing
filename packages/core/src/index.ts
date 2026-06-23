@@ -593,6 +593,24 @@ export const passiveSourceStatusSchema = z.object({
   details: z.record(z.string(), z.unknown()).default({})
 });
 
+export const passiveBackupHealthSchema = z.object({
+  checkedAt: z.string().min(1),
+  ok: z.boolean(),
+  status: z.enum(['ok', 'warning', 'error']),
+  snapshotRoot: z.string().min(1),
+  snapshotCount: z.number().int().nonnegative(),
+  latestPath: z.string().optional(),
+  latestAgeHours: z.number().nonnegative().optional(),
+  stale: z.boolean().default(false),
+  latestBytes: z.number().int().nonnegative().optional(),
+  latestSha256: z.string().optional(),
+  latestSummary: z.record(z.string(), z.number()).default({}),
+  latestRedactedTokenSets: z.number().int().nonnegative().default(0),
+  cleanupCandidateCount: z.number().int().nonnegative().default(0),
+  cleanupBytes: z.number().int().nonnegative().default(0),
+  error: z.string().optional()
+});
+
 export const passiveSnapshotSchema = z.object({
   checkedAt: z.string().min(1),
   settings: passiveEngineSettingsSchema,
@@ -605,6 +623,7 @@ export const passiveSnapshotSchema = z.object({
   notifications: z.array(passiveNotificationSchema),
   digest: z.array(passiveResultCardSchema),
   sources: z.array(passiveSourceStatusSchema),
+  backupHealth: passiveBackupHealthSchema,
   errors: z.array(z.string()).default([])
 });
 
@@ -761,6 +780,7 @@ export type PassiveCardTriageState = z.infer<typeof passiveCardTriageStateSchema
 export type PassiveEngineSettings = z.infer<typeof passiveEngineSettingsSchema>;
 export type PassiveTaskErrorLogEntry = z.infer<typeof passiveTaskErrorLogEntrySchema>;
 export type PassiveSourceStatus = z.infer<typeof passiveSourceStatusSchema>;
+export type PassiveBackupHealth = z.infer<typeof passiveBackupHealthSchema>;
 export type PassiveSnapshot = z.infer<typeof passiveSnapshotSchema>;
 export type PassiveEnginePersistedState = z.infer<typeof passiveEnginePersistedStateSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;

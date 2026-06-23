@@ -1,5 +1,6 @@
 import {
   passiveEngineSettingsSchema,
+  passiveBackupHealthSchema,
   passiveCardTriageStateSchema,
   passiveNotificationSchema,
   passiveResultSchema,
@@ -17,6 +18,7 @@ import {
   type AttentionItem,
   type IntegrationConnection,
   type PassiveEngineSettings,
+  type PassiveBackupHealth,
   type PassiveCardTriageStatus,
   type PassiveNotification,
   type PassiveResult,
@@ -2270,6 +2272,36 @@ function planMiniHubCleanup(date = new Date()): CleanupCandidate[] {
   }
 
   return candidates.sort((a, b) => b.size - a.size).slice(0, 40);
+}
+
+function buildPassiveBackupHealth(date = new Date()): PassiveBackupHealth {
+  const latest = latestMiniHubSnapshotHealth(date);
+  const cleanupCandidates = planMiniHubCleanup(date);
+  const cleanupBytes = cleanupCandidates.reduce((total, item) => total + item.size, 0);
+  const verification = latest.verification;
+  const hasValidSnapshot = latest.snapshotCount > 0 && verification?.ok === true;
+  const status: PassiveBackupHealth['status'] = !hasValidSnapshot
+    ? 'error'
+    : latest.stale === true || cleanupCandidates.length > 0
+      ? 'warning'
+      : 'ok';
+  return passiveBackupHealthSchema.parse({
+    checkedAt: date.toISOString(),
+    ok: latest.ok,
+    status,
+    snapshotRoot: latest.snapshotRoot,
+    snapshotCount: latest.snapshotCount,
+    latestPath: latest.latestPath,
+    latestAgeHours: latest.latestAgeHours,
+    stale: latest.stale === true,
+    latestBytes: verification?.bytes,
+    latestSha256: verification?.sha256,
+    latestSummary: verification?.summary ?? {},
+    latestRedactedTokenSets: verification?.redactedTokenSets ?? 0,
+    cleanupCandidateCount: cleanupCandidates.length,
+    cleanupBytes,
+    error: latest.error
+  });
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -5214,6 +5246,7 @@ export function buildPassiveSnapshot(store: MemoryStore): PassiveSnapshot {
     notifications: store.passiveNotifications.slice(0, 50),
     digest: buildPassiveDigest(store),
     sources: buildPassiveSourceStatuses(store),
+    backupHealth: buildPassiveBackupHealth(),
     errors
   });
 }

@@ -630,6 +630,13 @@ describe('passive task engine', () => {
         ok: false,
         snapshotCount: 0
       });
+      expect(buildPassiveSnapshot(store).backupHealth).toMatchObject({
+        ok: false,
+        status: 'error',
+        snapshotRoot: join(dir, 'passive-snapshots'),
+        snapshotCount: 0,
+        cleanupCandidateCount: 0
+      });
     } finally {
       env.dataDir = previousDataDir;
       rmSync(dir, { recursive: true, force: true });
@@ -738,6 +745,22 @@ describe('passive task engine', () => {
         redactedTokenSets: 1
       });
       expect(snapshotRef?.metadata.sha256).toBe(run.metadata.snapshotSha256);
+      expect(buildPassiveSnapshot(store).backupHealth).toMatchObject({
+        ok: true,
+        status: 'ok',
+        snapshotRoot: join(dir, 'passive-snapshots'),
+        snapshotCount: 1,
+        latestPath: snapshotPath,
+        latestSha256: run.metadata.snapshotSha256,
+        latestSummary: {
+          jobs: 1,
+          integrationConnections: 1,
+          actionEvents: 1
+        },
+        latestRedactedTokenSets: 1,
+        cleanupCandidateCount: 0,
+        cleanupBytes: 0
+      });
     } finally {
       env.dataDir = previousDataDir;
       rmSync(dir, { recursive: true, force: true });

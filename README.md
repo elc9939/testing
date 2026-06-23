@@ -125,7 +125,9 @@ real-data only:
 - Backup + Snapshot Watcher writes non-destructive Mini Hub restore snapshots under
   `MINI_HUB_DATA_DIR/passive-snapshots`, read-verifies each new snapshot, records byte count,
   checksum, entity counts, redaction status, Passive Task state, sync events, and a redacted
-  Action Ledger copy, and asks AI OS for its own backup when available.
+  Action Ledger copy, and asks AI OS for its own backup when available. The passive snapshot
+  now includes first-class `backupHealth` with the newest restore point path, age, checksum,
+  entity summary, redaction count, stale/error state, and dry-run cleanup pressure.
 - Idle Compute Queue runs bounded AI OS benchmarks, local-first passive digest summary jobs,
   and non-destructive Mini Hub cleanup dry-runs only when the worker or a manual tick reports
   a real idle window. Summary jobs use existing source-backed passive cards and cleanup cards
@@ -181,6 +183,9 @@ source-backed cards when either surface is unavailable.
 It now verifies Mini Hub's own local restore snapshot surface too: the newest
 `MINI_HUB_DATA_DIR/passive-snapshots` JSON restore point is read back during App Health,
 with `miniHubSnapshotHealth` metadata and cards for missing, stale, or invalid snapshots.
+The Passive Tasks dashboard also has a Restore Points panel backed by the same snapshot
+verification path, so backup freshness and cleanup pressure are visible without opening raw
+run metadata.
 Watched accounts now scope integration-account health findings: if the list is empty,
 App Health reports every broken connection, and if it is set, only matching account labels,
 connection ids, `provider:account` tokens, or account domains appear in source-backed cards.

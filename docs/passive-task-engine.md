@@ -26,6 +26,9 @@ Digest rows, result rows, trigger rows, failure rows, recent runs, and retained 
 logs show compact evidence such as source labels, changed artifact counts, snapshot
 checksums, file counts, cleanup candidates, last trigger fire status, and retry times so
 background work is inspectable without opening raw JSON.
+The snapshot also carries `backupHealth`, a read-only restore-point health object with the
+snapshot directory, count, newest file, newest age, SHA-256, entity summary, token-redaction
+count, stale/error state, and Mini Hub-owned cleanup dry-run pressure.
 The dashboard also includes a Source Health panel derived from the passive source statuses.
 Each row records schedule state, last-run age, schedule lag, next run, machine-mode deferral,
 idle deferral, and explicit task errors. Scheduled work that misses its run window beyond
@@ -53,6 +56,8 @@ It also inspects `MINI_HUB_DATA_DIR/passive-snapshots`, verifies the newest Mini
 restore point with the same parser used by the backup task, records `miniHubSnapshotHealth`
 metadata, and warns when no local restore point exists, the newest one is stale, or the
 newest one cannot be read back safely.
+The Passive Tasks dashboard exposes the same evidence in a Restore Points panel, so backup
+health is visible even before an App Health card is important enough for the digest.
 
 State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Action Ledger events emitted
 by passive runs, watcher toggles, settings changes, and card triage persist separately to the
@@ -156,7 +161,8 @@ normal API startup.
   lifecycle checks.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot, read-verifies it,
   records byte count/checksum/entity counts/redaction status, and requests an AI OS backup
-  when AI OS is available.
+  when AI OS is available. `GET /api/passive-tasks/snapshot` exposes the current restore
+  inventory as `backupHealth`; this is read-only and never deletes snapshots.
 - Idle Compute Queue: runs bounded AI OS benchmarks, local-first AI OS summary jobs over
   existing passive digest cards, and non-destructive Mini Hub cleanup dry-runs only when the
   worker or dashboard tick reports a real idle window. Cleanup cards list stale passive
