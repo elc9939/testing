@@ -37,6 +37,10 @@ const tickBodySchema = z.object({
   idle: z.boolean().optional(),
   reason: z.string().optional(),
   eventName: z.string().optional(),
+  eventFolder: z.string().optional(),
+  eventFileName: z.string().optional(),
+  eventFilePath: z.string().optional(),
+  eventKind: z.string().optional(),
   limit: z.number().int().positive().max(10).optional()
 });
 
@@ -76,6 +80,10 @@ function passiveRunInput(input: TickBody, fallbackReason: string): PassiveRunInp
   const result: PassiveRunInput = { reason: input.reason ?? fallbackReason };
   if (input.idle !== undefined) result.idle = input.idle;
   if (input.eventName !== undefined) result.eventName = input.eventName;
+  if (input.eventFolder !== undefined) result.eventFolder = input.eventFolder;
+  if (input.eventFileName !== undefined) result.eventFileName = input.eventFileName;
+  if (input.eventFilePath !== undefined) result.eventFilePath = input.eventFilePath;
+  if (input.eventKind !== undefined) result.eventKind = input.eventKind;
   return result;
 }
 
@@ -136,6 +144,10 @@ export function passiveTaskRoutes(store: MemoryStore, options: PassiveTaskRouteO
         input: { reason: parsed.data.reason ?? `api-event:${parsedEventName.data}` }
       };
       if (parsed.data.idle !== undefined) eventOptions.input.idle = parsed.data.idle;
+      if (parsed.data.eventFolder !== undefined) eventOptions.input.eventFolder = parsed.data.eventFolder;
+      if (parsed.data.eventFileName !== undefined) eventOptions.input.eventFileName = parsed.data.eventFileName;
+      if (parsed.data.eventFilePath !== undefined) eventOptions.input.eventFilePath = parsed.data.eventFilePath;
+      if (parsed.data.eventKind !== undefined) eventOptions.input.eventKind = parsed.data.eventKind;
       if (parsed.data.limit !== undefined) eventOptions.limit = parsed.data.limit;
       const runs = await runPassiveEvent(store, parsedEventName.data, eventOptions);
       return c.json({ runs, snapshot: buildPassiveSnapshot(store) });

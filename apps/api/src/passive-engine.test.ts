@@ -1,5 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { personalWorkspaceId } from '@mini-hub/core';
@@ -107,13 +107,16 @@ describe('passive task engine', () => {
     const startupDue = duePassiveTasks(store, now, { eventName: 'app.startup' });
     const reconnectDue = duePassiveTasks(store, now, { eventName: 'app.reconnect' });
     const oauthDue = duePassiveTasks(store, now, { eventName: 'google.oauth.connected' });
-    const unrelatedDue = duePassiveTasks(store, now, { eventName: 'file.changed' });
+    const fileDue = duePassiveTasks(store, now, { eventName: 'file.changed' });
+    const unrelatedDue = duePassiveTasks(store, now, { eventName: 'not.real' });
 
     expect(scheduledDue.some((task) => task.trigger.kind === 'event')).toBe(false);
     expect(startupDue).toHaveLength(1);
     expect(startupDue[0]?.id).toBe('passive-task:app-health-startup');
     expect(reconnectDue[0]?.id).toBe('passive-task:app-health-startup');
     expect(oauthDue[0]?.id).toBe('passive-task:app-health-startup');
+    expect(fileDue).toHaveLength(1);
+    expect(fileDue[0]?.id).toBe('passive-task:file-intelligence-event');
     expect(unrelatedDue).toEqual([]);
   });
 
@@ -177,6 +180,58 @@ describe('passive task engine', () => {
         idleSource: 'test-idle-detector'
       }
     });
+  });
+
+  it('runs local file intelligence from configured folder watch events', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-watch-'));
+    try {
+      const watchedFile = join(dir, 'notes.pdf');
+      writeFileSync(watchedFile, 'source-backed test file', 'utf8');
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = { ...store.passiveSettings!, watchedFolders: [dir] };
+      const listeners = new Map<string, (eventType: string, fileName?: string) => void>();
+      const stop = startPassiveTaskWorker(store, {
+        externalFetch: healthyServiceFetch(),
+        intervalMs: 60_000,
+        startupEventName: false,
+        fileEventDebounceMs: 1,
+        idleDetector: (thresholdMinutes) => ({
+          idle: false,
+          thresholdMinutes,
+          checkedAt: '2026-06-20T10:00:00.000Z',
+          source: 'test-active-detector'
+        }),
+        folderWatcher: (folder, listener) => {
+          listeners.set(folder, listener);
+          return { close: () => listeners.delete(folder) };
+        }
+      });
+      try {
+        const watchedFolder = resolve(dir);
+        await waitForCondition(() => listeners.has(watchedFolder));
+        listeners.get(watchedFolder)?.('rename', 'notes.pdf');
+        await waitForCondition(() => store.passiveRuns.some((run) => run.taskId === 'passive-task:file-intelligence-event'));
+      } finally {
+        stop();
+      }
+
+      const run = store.passiveRuns.find((item) => item.taskId === 'passive-task:file-intelligence-event');
+      expect(run).toMatchObject({
+        status: 'succeeded',
+        metadata: {
+          eventName: 'file.changed',
+          eventFolder: resolve(dir),
+          eventFileName: 'notes.pdf',
+          eventFilePath: watchedFile,
+          eventKind: 'rename'
+        }
+      });
+      expect(run?.changed).toContain(`file:${watchedFile}`);
+      expect(run?.cards.some((card) => card.sourceRefs.some((ref) => ref.filePath === watchedFile))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('persists watcher state across store instances', () => {

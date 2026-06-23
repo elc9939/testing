@@ -99,8 +99,10 @@ The dashboard can also run due tasks, event-triggered startup checks, or idle-on
 manually. The API worker emits
 `app.startup` when it starts, the browser shell emits throttled `app.startup`/`app.reconnect`
 events on open and reconnect, and Google OAuth connect/revoke flows emit passive lifecycle
-events. `POST /api/passive-tasks/events/:eventName` also ingests named events directly, and
-event-only tasks stay out of ordinary scheduled ticks. V1 task families are real-data only:
+events. It also watches configured local folders with a debounced `file.changed` event while
+the API is running. `POST /api/passive-tasks/events/:eventName` also ingests named events
+directly, and event-only tasks stay out of ordinary scheduled ticks. V1 task families are
+real-data only:
 
 - App Health Watchdog checks the hub data directory, Google connection state, AI OS, Macro
   Lab, Ollama, AI OS jobs, and backup freshness on a schedule and through built-in startup,
@@ -113,7 +115,7 @@ event-only tasks stay out of ordinary scheduled ticks. V1 task families are real
   runs through AI OS.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
 - Local File Intelligence scans only configured watched folders for recent document/image
-  metadata.
+  metadata and can run from debounced configured-folder change events.
 - Project Drift Detector scans only configured project folders for stale README files,
   TODO/FIXME buildup, and missing `test`/`check` scripts.
 

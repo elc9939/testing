@@ -26,13 +26,15 @@ import {
 } from '@mini-hub/core';
 import {
   existsSync,
+  type FSWatcher,
   mkdirSync,
   readdirSync,
   readFileSync,
   statSync,
+  watch as watchFs,
   writeFileSync
 } from 'node:fs';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { promisify } from 'node:util';
@@ -49,6 +51,10 @@ export interface PassiveRunInput {
   idleMinutes?: number;
   idleSource?: string;
   idleError?: string;
+  eventFolder?: string;
+  eventFileName?: string;
+  eventFilePath?: string;
+  eventKind?: string;
 }
 
 export interface PassiveIdleState {
@@ -61,6 +67,8 @@ export interface PassiveIdleState {
 }
 
 export type PassiveIdleDetector = (thresholdMinutes: number) => PassiveIdleState | Promise<PassiveIdleState>;
+export type PassiveFolderWatchListener = (eventType: string, fileName?: string) => void;
+export type PassiveFolderWatchFactory = (folder: string, listener: PassiveFolderWatchListener) => Pick<FSWatcher, 'close'>;
 
 interface FamilyRunResult {
   status: PassiveRunStatus;
@@ -219,6 +227,20 @@ const defaultTaskDefinitions: DefaultTaskDefinition[] = [
     offsetMinutes: 50
   },
   {
+    family: 'file_intelligence',
+    taskId: 'passive-task:file-intelligence-event',
+    watcherId: 'passive-watcher:file-intelligence',
+    title: 'Inspect changed watched folder',
+    description: 'Runs local file intelligence when a configured folder reports a file change.',
+    detail: 'Event-triggered scan for configured watched folders only.',
+    triggerKind: 'event',
+    triggerLabel: 'Folder event',
+    eventName: 'file.changed',
+    eventNames: ['file.changed', 'file.created', 'folder.changed'],
+    priority: 74,
+    route: routeMap.passiveTasks
+  },
+  {
     family: 'project_drift',
     taskId: 'passive-task:project-drift',
     watcherId: 'passive-watcher:project-drift',
@@ -316,6 +338,12 @@ export async function detectPassiveIdleState(thresholdMinutes = 20): Promise<Pas
       error: describeError(error)
     });
   }
+}
+
+function createNodeFolderWatcher(folder: string, listener: PassiveFolderWatchListener): Pick<FSWatcher, 'close'> {
+  return watchFs(folder, { persistent: false }, (eventType, fileName) => {
+    listener(eventType, fileName ?? undefined);
+  });
 }
 
 function defaultTriggerId(definition: DefaultTaskDefinition): string {
@@ -1159,15 +1187,27 @@ function safeConfiguredFolders(settings: PassiveEngineSettings): string[] {
   return Array.from(new Set(settings.watchedFolders.map((folder) => folder.trim()).filter(Boolean))).slice(0, 16);
 }
 
+const interestingFileExtensions = new Set(['.pdf', '.doc', '.docx', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp']);
+
+function pathWithinFolder(folder: string, target: string): boolean {
+  const relativePath = relative(resolve(folder), resolve(target));
+  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
+}
+
+function passiveEventFilePath(input: PassiveRunInput, folders: string[]): string | undefined {
+  const eventPath = typeof input.eventFilePath === 'string' && input.eventFilePath.trim() ? resolve(input.eventFilePath) : '';
+  if (!eventPath) return undefined;
+  return folders.some((folder) => pathWithinFolder(folder, eventPath)) ? eventPath : undefined;
+}
+
 function recentInterestingFiles(folder: string): Array<{ path: string; size: number; mtimeMs: number }> {
-  const extensions = new Set(['.pdf', '.doc', '.docx', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp']);
   const entries: Array<{ path: string; size: number; mtimeMs: number }> = [];
   const cutoff = Date.now() - 7 * dayMs;
   for (const entry of readdirSync(folder, { withFileTypes: true }).slice(0, 500)) {
     if (!entry.isFile()) continue;
     const fullPath = join(folder, entry.name);
     const extension = extname(entry.name).toLowerCase();
-    if (!extensions.has(extension)) continue;
+    if (!interestingFileExtensions.has(extension)) continue;
     const stat = statSync(fullPath);
     if (stat.mtimeMs < cutoff) continue;
     entries.push({ path: fullPath, size: stat.size, mtimeMs: stat.mtimeMs });
@@ -1175,7 +1215,7 @@ function recentInterestingFiles(folder: string): Array<{ path: string; size: num
   return entries.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, 20);
 }
 
-function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: string): FamilyRunResult {
+function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: string, input: PassiveRunInput): FamilyRunResult {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
   const folders = safeConfiguredFolders(settings);
   if (!folders.length) {
@@ -1202,6 +1242,38 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
   }
 
   const cards: PassiveResultCard[] = [];
+  const eventFilePath = passiveEventFilePath(input, folders);
+  const eventFileName = input.eventFileName || (eventFilePath ? basename(eventFilePath) : '');
+  if (eventFilePath && (!eventFileName || interestingFileExtensions.has(extname(eventFileName).toLowerCase()))) {
+    cards.push(
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: eventFileName ? `Watched file changed: ${eventFileName}` : 'Watched folder changed',
+        summary: `${input.eventKind ?? 'change'} event from ${input.eventFolder ? basename(input.eventFolder) || input.eventFolder : 'a configured folder'}.`,
+        urgency: 58,
+        confidence: 0.82,
+        route: routeMap.passiveTasks,
+        sourceRefs: [
+          stableSourceRef('file', eventFileName || eventFilePath, {
+            id: eventFilePath,
+            filePath: eventFilePath,
+            metadata: {
+              eventName: input.eventName,
+              eventKind: input.eventKind,
+              eventFolder: input.eventFolder
+            }
+          })
+        ],
+        suggestedAction: 'Inspect file',
+        actionKind: 'inspect',
+        why: 'A configured watched folder emitted a file change event.'
+      })
+    );
+  }
+
   for (const folder of folders) {
     try {
       const resolved = resolve(folder);
@@ -1278,7 +1350,17 @@ function runFileIntelligence(store: MemoryStore, task: PassiveTask, runId: strin
     );
   }
 
-  return { status: cards.some((item) => item.urgency >= 80) ? 'blocked' : 'succeeded', cards };
+  return {
+    status: cards.some((item) => item.urgency >= 80) ? 'blocked' : 'succeeded',
+    cards,
+    changed: eventFilePath ? [`file:${eventFilePath}`] : [],
+    metadata: {
+      ...(eventFilePath ? { eventFilePath } : {}),
+      ...(input.eventFolder ? { eventFolder: input.eventFolder } : {}),
+      ...(input.eventFileName ? { eventFileName: input.eventFileName } : {}),
+      ...(input.eventKind ? { eventKind: input.eventKind } : {})
+    }
+  };
 }
 
 function countTodos(folder: string): number {
@@ -1424,7 +1506,7 @@ async function executeFamily(
   if (task.family === 'idle_compute') return runIdleCompute(task, runId, fetchImpl, input);
   if (task.family === 'research_monitor') return runResearchMonitor(task, runId, fetchImpl);
   if (task.family === 'career_radar') return runCareerRadar(store, task, runId);
-  if (task.family === 'file_intelligence') return runFileIntelligence(store, task, runId);
+  if (task.family === 'file_intelligence') return runFileIntelligence(store, task, runId, input);
   return runProjectDrift(store, task, runId);
 }
 
@@ -1513,6 +1595,10 @@ export async function runPassiveTask(
       ...(options.input?.idleMinutes !== undefined ? { idleMinutes: options.input.idleMinutes } : {}),
       ...(options.input?.idleSource ? { idleSource: options.input.idleSource } : {}),
       ...(options.input?.idleError ? { idleError: options.input.idleError } : {}),
+      ...(options.input?.eventFolder ? { eventFolder: options.input.eventFolder } : {}),
+      ...(options.input?.eventFileName ? { eventFileName: options.input.eventFileName } : {}),
+      ...(options.input?.eventFilePath ? { eventFilePath: options.input.eventFilePath } : {}),
+      ...(options.input?.eventKind ? { eventKind: options.input.eventKind } : {}),
       ...(result.metadata ?? {})
     }
   });
@@ -1600,14 +1686,21 @@ export function startPassiveTaskWorker(
     intervalMs?: number;
     startupEventName?: string | false;
     idleDetector?: PassiveIdleDetector;
+    folderWatcher?: PassiveFolderWatchFactory;
+    fileEventDebounceMs?: number;
   } = {}
 ): () => void {
   const intervalMs = options.intervalMs ?? 5 * minuteMs;
   const startupEventName = options.startupEventName ?? 'app.startup';
   const idleDetector = options.idleDetector ?? detectPassiveIdleState;
+  const folderWatcher = options.folderWatcher ?? createNodeFolderWatcher;
+  const fileEventDebounceMs = options.fileEventDebounceMs ?? 1500;
+  const watchedFolders = new Map<string, Pick<FSWatcher, 'close'>>();
+  let pendingFileEvent: PassiveRunInput | null = null;
+  let fileEventTimer: ReturnType<typeof setTimeout> | null = null;
   let running = false;
   const runExclusive = async (label: string, work: () => Promise<unknown>) => {
-    if (running) return;
+    if (running) return false;
     running = true;
     try {
       await work();
@@ -1616,9 +1709,81 @@ export function startPassiveTaskWorker(
     } finally {
       running = false;
     }
+    return true;
+  };
+  const closeFolderWatchers = () => {
+    for (const watcher of watchedFolders.values()) {
+      watcher.close();
+    }
+    watchedFolders.clear();
+  };
+  const fileWatcherEnabled = () => {
+    const settings = store.passiveSettings ?? defaultPassiveSettings();
+    const watcher = store.passiveWatchers.find((item) => item.family === 'file_intelligence');
+    return Boolean(settings.enabled && watcher?.enabled && settings.enabledFamilies.file_intelligence !== false);
+  };
+  const flushFileEvent = () => {
+    if (!pendingFileEvent) return;
+    const input = pendingFileEvent;
+    pendingFileEvent = null;
+    void runExclusive('file event', async () => {
+      const eventOptions: { externalFetch?: FetchLike; input: Omit<PassiveRunInput, 'eventName'>; limit: number } = {
+        input,
+        limit: 1
+      };
+      if (options.externalFetch) eventOptions.externalFetch = options.externalFetch;
+      await runPassiveEvent(store, 'file.changed', eventOptions);
+    }).then((started) => {
+      if (started) return;
+      pendingFileEvent = input;
+      fileEventTimer = setTimeout(flushFileEvent, fileEventDebounceMs);
+    });
+  };
+  const scheduleFileEvent = (folder: string, eventKind: string, fileName?: string) => {
+    const resolvedFolder = resolve(folder);
+    const eventFilePath = fileName ? resolve(resolvedFolder, fileName) : resolvedFolder;
+    pendingFileEvent = {
+      reason: `folder-watch:${eventKind}`,
+      eventFolder: resolvedFolder,
+      ...(fileName ? { eventFileName: fileName } : {}),
+      eventFilePath,
+      eventKind
+    };
+    if (fileEventTimer) clearTimeout(fileEventTimer);
+    fileEventTimer = setTimeout(flushFileEvent, fileEventDebounceMs);
+  };
+  const refreshFolderWatchers = () => {
+    ensurePassiveDefaults(store);
+    if (!fileWatcherEnabled()) {
+      closeFolderWatchers();
+      return;
+    }
+    const settings = store.passiveSettings ?? defaultPassiveSettings();
+    const folders = safeConfiguredFolders(settings)
+      .map((folder) => resolve(folder))
+      .filter((folder) => existsSync(folder) && statSync(folder).isDirectory());
+    const desired = new Set(folders);
+    for (const [folder, watcher] of watchedFolders.entries()) {
+      if (!desired.has(folder)) {
+        watcher.close();
+        watchedFolders.delete(folder);
+      }
+    }
+    for (const folder of folders) {
+      if (watchedFolders.has(folder)) continue;
+      try {
+        watchedFolders.set(
+          folder,
+          folderWatcher(folder, (eventKind, fileName) => scheduleFileEvent(folder, eventKind, fileName))
+        );
+      } catch (error) {
+        console.warn(`Passive file watcher could not watch ${folder}: ${describeError(error)}`);
+      }
+    }
   };
   const tick = async () =>
     runExclusive('tick', async () => {
+      refreshFolderWatchers();
       const idle = await idleDetector(passiveIdleThresholdMinutes(store));
       const tickOptions: { externalFetch?: FetchLike; input?: PassiveRunInput } = {
         input: {
@@ -1646,8 +1811,13 @@ export function startPassiveTaskWorker(
   const interval = setInterval(() => {
     void tick();
   }, intervalMs);
+  refreshFolderWatchers();
   void startup().then(() => tick());
-  return () => clearInterval(interval);
+  return () => {
+    clearInterval(interval);
+    if (fileEventTimer) clearTimeout(fileEventTimer);
+    closeFolderWatchers();
+  };
 }
 
 export function updatePassiveTaskStatus(store: MemoryStore, taskId: string, status: PassiveTaskStatus): PassiveTask {
