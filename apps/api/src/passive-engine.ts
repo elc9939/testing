@@ -665,6 +665,12 @@ function shouldStorePassiveNotification(store: MemoryStore, notification: Passiv
   return !store.passiveNotifications.some((existing) => passiveNotificationKey(existing) === key && parseTime(existing.createdAt) >= cutoff);
 }
 
+function notificationAllowedByStyle(notification: PassiveNotification, style: PassiveEngineSettings['notificationStyle']): boolean {
+  if (style === 'off') return false;
+  if (style === 'urgent_only') return notification.level === 'urgent';
+  return true;
+}
+
 export function defaultPassiveSettings(date = new Date()): PassiveEngineSettings {
   return passiveEngineSettingsSchema.parse({
     enabled: true,
@@ -2868,8 +2874,7 @@ export async function runPassiveTask(
   const notificationStyle = store.passiveSettings?.notificationStyle ?? 'digest';
   if (
     notification &&
-    notificationStyle !== 'off' &&
-    (notificationStyle !== 'urgent_only' || notification.level === 'urgent') &&
+    notificationAllowedByStyle(notification, notificationStyle) &&
     shouldStorePassiveNotification(store, notification, finished)
   ) {
     store.passiveNotifications.unshift(notification);

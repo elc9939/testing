@@ -847,6 +847,82 @@ describe('passive task engine', () => {
     });
   });
 
+  it('honors passive notification style settings while keeping run history', async () => {
+    const quietStore = createMemoryStore();
+    ensurePassiveDefaults(quietStore);
+    quietStore.passiveSettings = { ...quietStore.passiveSettings!, notificationStyle: 'urgent_only' };
+    quietStore.jobs.push({
+      id: 'job-routine',
+      workspaceId: personalWorkspaceId,
+      company: 'Routine Co',
+      role: 'Analyst',
+      status: 'lead',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-05-01T10:00:00.000Z'
+    });
+    const quietTask = quietStore.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    await runPassiveTask(quietStore, quietTask.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'urgent-only-routine-test' }
+    });
+
+    expect(quietStore.passiveRuns).toHaveLength(1);
+    expect(quietStore.passiveRuns[0]?.cards[0]?.urgency).toBeLessThan(85);
+    expect(quietStore.passiveNotifications).toEqual([]);
+
+    quietStore.careerActions.push({
+      id: 'career-action-urgent',
+      workspaceId: personalWorkspaceId,
+      jobId: undefined,
+      label: 'Reply to recruiter today',
+      dueAt: '2026-06-01T10:00:00.000Z',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+
+    await runPassiveTask(quietStore, quietTask.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'urgent-only-urgent-test' }
+    });
+
+    expect(quietStore.passiveRuns).toHaveLength(2);
+    expect(quietStore.passiveNotifications).toHaveLength(1);
+    expect(quietStore.passiveNotifications[0]).toMatchObject({
+      family: 'career_radar',
+      level: 'urgent',
+      title: '1 overdue and 0 upcoming career action'
+    });
+
+    const offStore = createMemoryStore();
+    ensurePassiveDefaults(offStore);
+    offStore.passiveSettings = { ...offStore.passiveSettings!, notificationStyle: 'off' };
+    offStore.careerActions.push({
+      id: 'career-action-off',
+      workspaceId: personalWorkspaceId,
+      jobId: undefined,
+      label: 'Urgent but muted',
+      dueAt: '2026-06-01T10:00:00.000Z',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    const offTask = offStore.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    await runPassiveTask(offStore, offTask.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'notifications-off-test' }
+    });
+
+    expect(offStore.passiveRuns).toHaveLength(1);
+    expect(offStore.passiveRuns[0]?.cards[0]?.urgency).toBeGreaterThanOrEqual(85);
+    expect(offStore.passiveNotifications).toEqual([]);
+  });
+
   it('prepares AI OS research monitors from configured watched domains', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
