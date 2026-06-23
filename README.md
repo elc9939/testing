@@ -92,7 +92,10 @@ Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,
 and `Notification` state to `passive-tasks.json` in `MINI_HUB_DATA_DIR`, exposes live
 `Worker` state in the snapshot, logs runs into the Action Ledger, and exposes a snapshot
-with per-family freshness/errors. The worker checks
+with per-family freshness/errors. Explicit Mini Hub action events, including Passive Task
+runs, watcher toggles, settings changes, card triage, and restore attempts, persist to the
+bounded `action-ledger.json` audit file in `MINI_HUB_DATA_DIR`; obvious secret/token fields
+are redacted before that file is written. The worker checks
 due tasks on a lightweight interval while the API is running, and on Windows it marks ticks
 idle after the configured last-input threshold so idle-only work can run automatically. If
 idle state cannot be measured, the worker stays conservative and treats the tick as active.

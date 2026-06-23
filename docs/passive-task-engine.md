@@ -36,7 +36,10 @@ empty, App Health reports all broken integration connections; when it is set, on
 accounts surface as health findings and ignored connection issues are recorded in run
 metadata.
 
-State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Mini Hub restore snapshots
+State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Action Ledger events emitted
+by passive runs, watcher toggles, settings changes, and card triage persist separately to the
+bounded `action-ledger.json` audit file under the same data directory; obvious token/secret
+fields are redacted before that file is written. Mini Hub restore snapshots
 created by the Backup + Snapshot Watcher are written under
 `MINI_HUB_DATA_DIR/passive-snapshots`. Each new Mini Hub snapshot is read back immediately,
 checked for required collections and redacted integration token payloads, hashed with SHA-256,
@@ -103,7 +106,9 @@ The shared core model includes:
   dismissed findings. The digest filters reviewed/dismissed/future-snoozed cards and lets
   important cards remain visible even when they would otherwise be below the digest cutoff.
 
-Runs are logged into the Action Ledger with `source: passive-tasks`.
+Runs are logged into the Action Ledger with `source: passive-tasks`, and those explicit
+Mini Hub ledger events survive API restarts when action-ledger persistence is enabled by the
+normal API startup.
 
 ## V1 Families
 

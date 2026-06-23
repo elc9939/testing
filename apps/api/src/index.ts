@@ -20,8 +20,10 @@ import { studyRoutes } from './routes/study';
 import { syncRoutes } from './routes/sync';
 import { workspaceRoutes } from './routes/workspaces';
 import {
+  actionLedgerPath,
   createMemoryStore,
   defaultStore,
+  enableActionLedgerPersistence,
   enableIntegrationPersistence,
   enablePassiveTaskPersistence,
   ensurePersonalWorkspace,
@@ -133,6 +135,7 @@ export type AppType = ReturnType<typeof createApp>;
 
 if (process.env.NODE_ENV !== 'test') {
   enableIntegrationPersistence(defaultStore, integrationConnectionsPath(env.dataDir));
+  enableActionLedgerPersistence(defaultStore, actionLedgerPath(env.dataDir));
   enablePassiveTaskPersistence(defaultStore, passiveTasksPath(env.dataDir));
   ensurePassiveDefaults(defaultStore);
   const app = createApp();

@@ -18,7 +18,10 @@ import {
 } from './passive-engine';
 import { env } from './env';
 import {
+  actionLedgerPath,
+  appendActionLedgerEvent,
   createMemoryStore,
+  enableActionLedgerPersistence,
   enablePassiveTaskPersistence,
   passiveTasksPath,
   persistPassiveTasks
@@ -761,6 +764,61 @@ describe('passive task engine', () => {
       lastFiredAt: run.finishedAt,
       nextRunAt: run.nextRunAt
     });
+  });
+
+  it('persists passive action ledger events across store restarts without writing secret fields', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-action-ledger-'));
+    try {
+      const path = actionLedgerPath(dir);
+      const first = createMemoryStore();
+      enableActionLedgerPersistence(first, path);
+      appendActionLedgerEvent(first, {
+        system: 'mini-hub',
+        source: 'passive-tasks',
+        actionType: 'passive.app_health',
+        summary: 'App Health Watchdog succeeded',
+        status: 'succeeded',
+        risk: 'system',
+        changed: ['passive-run:run-1'],
+        recoverability: {
+          kind: 'artifact',
+          referenceId: 'run-1',
+          route: '/passive-tasks',
+          description: 'Passive run history records outputs and source references.',
+          reversible: false
+        },
+        rawRef: { kind: 'passive_run', id: 'run-1', accessToken: 'secret-access-token' },
+        metadata: {
+          workspaceId: personalWorkspaceId,
+          refreshToken: 'secret-refresh-token',
+          tokens_per_second: 42
+        }
+      });
+
+      const persisted = readFileSync(path, 'utf8');
+      expect(persisted).not.toContain('secret-access-token');
+      expect(persisted).not.toContain('secret-refresh-token');
+      expect(persisted).toContain('tokens_per_second');
+
+      const second = createMemoryStore();
+      enableActionLedgerPersistence(second, path);
+
+      expect(second.actionEvents).toHaveLength(1);
+      expect(second.actionEvents[0]).toMatchObject({
+        source: 'passive-tasks',
+        actionType: 'passive.app_health',
+        metadata: {
+          workspaceId: personalWorkspaceId,
+          refreshToken: '[redacted]',
+          tokens_per_second: 42
+        },
+        rawRef: {
+          accessToken: '[redacted]'
+        }
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('persists first-class passive results and backfills them from run cards', async () => {

@@ -27,6 +27,13 @@ import {
 } from '@mini-hub/core';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { z } from 'zod';
+
+const actionLedgerRetentionLimit = 1000;
+const actionLedgerPersistedStateSchema = z.object({
+  version: z.literal(1),
+  events: z.array(actionLedgerEntrySchema).default([])
+});
 
 export interface WorkspaceMember {
   id: string;
@@ -50,6 +57,7 @@ export interface MemoryStore {
   integrationPersistencePath?: string;
   syncEvents: SyncEvent[];
   actionEvents: ActionLedgerEntry[];
+  actionLedgerPersistencePath?: string;
   passiveSettings: PassiveEngineSettings | null;
   passiveWatchers: PassiveWatcher[];
   passiveTriggers: PassiveTrigger[];
@@ -93,6 +101,10 @@ export function integrationConnectionsPath(dataDir: string): string {
 
 export function passiveTasksPath(dataDir: string): string {
   return join(dataDir, 'passive-tasks.json');
+}
+
+export function actionLedgerPath(dataDir: string): string {
+  return join(dataDir, 'action-ledger.json');
 }
 
 export function enableIntegrationPersistence(store: MemoryStore, path: string): void {
@@ -151,6 +163,30 @@ export function persistPassiveTasks(store: MemoryStore): void {
     notifications: store.passiveNotifications.slice(0, 200)
   });
   writeFileSync(store.passivePersistencePath, JSON.stringify(state, null, 2), 'utf8');
+}
+
+export function enableActionLedgerPersistence(store: MemoryStore, path: string): void {
+  store.actionLedgerPersistencePath = path;
+  mkdirSync(dirname(path), { recursive: true });
+  if (!existsSync(path)) return;
+
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown;
+    const state = actionLedgerPersistedStateSchema.parse(Array.isArray(parsed) ? { version: 1, events: parsed } : parsed);
+    store.actionEvents = state.events.slice(-actionLedgerRetentionLimit);
+  } catch (error) {
+    console.warn(`Could not load persisted action ledger: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
+export function persistActionLedgerEvents(store: MemoryStore): void {
+  if (!store.actionLedgerPersistencePath) return;
+  mkdirSync(dirname(store.actionLedgerPersistencePath), { recursive: true });
+  const state = actionLedgerPersistedStateSchema.parse({
+    version: 1,
+    events: store.actionEvents.slice(-actionLedgerRetentionLimit).map(redactActionLedgerEvent)
+  });
+  writeFileSync(store.actionLedgerPersistencePath, JSON.stringify(state, null, 2), 'utf8');
 }
 
 export const defaultStore = createMemoryStore();
@@ -247,5 +283,40 @@ export function appendActionLedgerEvent(
     occurredAt: input.occurredAt ?? new Date().toISOString()
   });
   store.actionEvents.push(event);
+  store.actionEvents = store.actionEvents.slice(-actionLedgerRetentionLimit);
+  persistActionLedgerEvents(store);
   return event;
+}
+
+function redactActionLedgerEvent(event: ActionLedgerEntry): ActionLedgerEntry {
+  return actionLedgerEntrySchema.parse(redactSensitiveValue(event));
+}
+
+function redactSensitiveValue(value: unknown, key = ''): unknown {
+  if (sensitiveKey(key)) return '[redacted]';
+  if (Array.isArray(value)) return value.map((item) => redactSensitiveValue(item));
+  if (isRecord(value)) {
+    return Object.fromEntries(Object.entries(value).map(([entryKey, item]) => [entryKey, redactSensitiveValue(item, entryKey)]));
+  }
+  if (typeof value === 'string') return redactSensitiveString(value);
+  return value;
+}
+
+function sensitiveKey(key: string): boolean {
+  const normalized = key.replace(/[-_\s]/gu, '').toLowerCase();
+  return (
+    normalized === 'encryptedtokenset' ||
+    normalized === 'tokenset' ||
+    normalized === 'apikey' ||
+    normalized === 'clientsecret' ||
+    normalized.endsWith('token') ||
+    normalized.includes('secret') ||
+    normalized.includes('authorization') ||
+    normalized.includes('password') ||
+    normalized.includes('credential')
+  );
+}
+
+function redactSensitiveString(value: string): string {
+  return value.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gu, 'Bearer [redacted]');
 }
