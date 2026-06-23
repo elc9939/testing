@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import {
+    Activity,
     BarChart3,
     BrainCircuit,
     BriefcaseBusiness,
@@ -27,6 +28,7 @@
 
   const nav = [
     { href: routeMap.today, label: 'Today', icon: Home },
+    { href: routeMap.activity, label: 'Activity', icon: Activity },
     { href: routeMap.productivity, label: 'Hub', icon: CalendarClock },
     { href: routeMap.games, label: 'Games', icon: Gamepad2 },
     { href: routeMap.careerDesk, label: 'Career', icon: BriefcaseBusiness },

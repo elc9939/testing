@@ -48,6 +48,10 @@ The Svelte app under `apps/hub` provides these main pages:
   service-health, and manual-item signals without setup placeholders or fake data. Actions
   such as Read, Important, Archive, Complete, Snooze, Dismiss, Run, Restore, and Open Source
   flow through the shared attention model where supported.
+- Activity: a durable recovery surface for long-running or recently finished work. It
+  projects persisted Research runs, AI OS jobs/backups/benchmarks, Passive Task runs, and
+  Macro Lab run history into one list with source health, progress, errors, and deep links
+  back to the owning feature.
 - Career Desk: job/application tracking, action items, legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
@@ -88,6 +92,13 @@ them, so partial failures are visible instead of silently dropping data. User tr
 including dismissed, snoozed, manually important, completed, and archived items, is persisted
 through synced personal settings under the existing sync path. The hub client caches only the last successful real snapshot
 under `miniHub.attention.snapshot.v1`; cached attention is read-only while offline.
+
+The hub also has an Activity / Handoff surface at `/activity`. It is not a separate fake task
+database; it is a recovery projection over backend-persisted source records. Research runs
+link to `/research?run=<id>`, AI jobs/backups/benchmarks link to AI OS, passive runs link to
+Passive Tasks, and Macro Lab runs link to Macro Lab. The Activity page loads a last-good
+browser cache first, then refreshes AI OS, Passive Tasks, and Macro Lab independently so one
+offline service creates a partial-data warning rather than wiping out the rest of the list.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,

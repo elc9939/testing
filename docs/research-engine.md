@@ -90,6 +90,11 @@ AI OS status includes recent research runs so cockpit/activity surfaces can show
 running, paused, succeeded, failed, and cancelled research without fetching the full Research
 Desk archive first.
 
+Mini Hub's `/activity` route reads those recent AI OS records alongside passive and macro
+history. Research activity items deep-link to `/research?run=<id>`, show progress/error state
+when available, and expose supported recovery actions such as Resume or Cancel. This gives
+research handoffs a global recovery path even if the user leaves the Research Desk.
+
 The Research Desk exposes "Index into semantic memory" under advanced knobs. When enabled,
 semantic memory search can later retrieve the report and source excerpts through the existing
 `/api/ai/memory/query` endpoint and assistant memory search tool.
@@ -110,6 +115,12 @@ shows:
   links, tables, optional screenshot thumbnails, and metadata
 - Markdown, JSON, and HTML export links
 - Pause, Resume, and Cancel controls for long-running reports
+
+On load, Research Desk rehydrates the last draft workbench settings from browser storage,
+fetches recent runs from AI OS, and restores the requested `?run=<id>`, current selection, or
+latest queued/running/paused run before falling back to the latest archived report. The
+selected run ID is written back to the URL, so a refresh, tab switch, or Activity handoff does
+not make an existing run look lost.
 
 The same route also includes a Source Library panel backed by the local `research_pages`
 archive. It can search archived source cards by text, filter by domain, show preview text and

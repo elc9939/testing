@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const routeMap = {
   today: '/',
+  activity: '/activity',
   productivity: '/productivity',
   games: '/games',
   stickArenaLab: '/games/stick-arena-lab',
@@ -30,6 +31,13 @@ export const personalWorkspaceId = 'personal';
 export const personalUserId = 'personal-user';
 
 export const launcherEntries = [
+  {
+    id: 'activity',
+    name: 'Activity',
+    route: routeMap.activity,
+    group: 'command',
+    status: 'recovery-surface'
+  },
   {
     id: 'productivity-hub',
     name: 'Productivity Hub',

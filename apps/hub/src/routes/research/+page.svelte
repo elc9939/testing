@@ -25,6 +25,13 @@
     type ResearchSource,
     type ResearchSourceCard
   } from '$lib/ai-os-api';
+  import {
+    normalizeResearchDraft,
+    researchDraftStorageKey,
+    researchRunListState,
+    selectRecoverableResearchRun,
+    type ResearchDraftState
+  } from '$lib/research-state';
 
   type SourceLike = Pick<ResearchSource, 'url' | 'canonical_url'>;
 
@@ -74,13 +81,19 @@
   let monitorSchedule: ResearchMonitorSchedule = 'manual';
   let monitorsLoading = false;
   let monitorActionId = '';
+  let draftHydrated = false;
+  let requestedRunId = '';
 
   $: currentMode = modes.find((item) => item.id === mode) ?? modes[0];
   $: seedUrls = splitList(seedUrlsText);
   $: includeDomains = splitList(includeDomainsText);
   $: excludeDomains = splitList(excludeDomainsText);
+  $: runsPanelState = researchRunListState({ loading: refreshing, error, runCount: runs.length });
+  $: if (draftHydrated) persistResearchDraft();
 
   onMount(() => {
+    hydrateResearchDraft();
+    requestedRunId = requestedResearchRunId();
     void refreshRuns();
     void refreshSourceLibrary();
     void refreshMonitors();
@@ -90,8 +103,19 @@
     refreshing = true;
     error = '';
     try {
-      runs = await listResearchRuns(20);
-      selectedRun = selectedRun ? runs.find((run) => run.id === selectedRun?.id) ?? selectedRun : runs[0] ?? null;
+      const runId = requestedRunId || requestedResearchRunId();
+      let nextRuns = await listResearchRuns(20);
+      if (runId && !nextRuns.some((run) => run.id === runId)) {
+        const requested = await getResearchRun(runId).catch(() => null);
+        if (requested) nextRuns = [requested, ...nextRuns].slice(0, 20);
+      }
+      runs = nextRuns;
+      const nextSelected = selectRecoverableResearchRun(runs, {
+        requestedRunId: runId,
+        currentRunId: selectedRun?.id
+      });
+      if (nextSelected) setSelectedRun(nextSelected, { updateUrl: !runId });
+      else selectedRun = null;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Research runs failed to load.';
     } finally {
@@ -160,7 +184,7 @@
     message = '';
     try {
       const run = await createResearchRun(currentResearchInput());
-      selectedRun = run;
+      setSelectedRun(run);
       runs = [run, ...runs.filter((item) => item.id !== run.id)].slice(0, 20);
       message = `Queued ${currentMode?.label ?? 'research'} run. The report will update as sources arrive.`;
     } catch (err) {
@@ -219,7 +243,7 @@
     try {
       const result = await runResearchMonitor(monitor.id);
       monitors = [result.monitor, ...monitors.filter((item) => item.id !== result.monitor.id)].slice(0, 30);
-      selectedRun = result.run;
+      setSelectedRun(result.run);
       runs = [result.run, ...runs.filter((item) => item.id !== result.run.id)].slice(0, 20);
       monitorMessage = `Queued monitor run for ${result.monitor.name}.`;
     } catch (err) {
@@ -238,7 +262,7 @@
       const result = await runDueResearchMonitors({ limit: 8 });
       if (result.runs.length) {
         runs = [...result.runs, ...runs.filter((run) => !result.runs.some((item) => item.id === run.id))].slice(0, 20);
-        selectedRun = result.runs[0];
+        setSelectedRun(result.runs[0]);
       }
       await refreshMonitors();
       monitorMessage = result.queued_count
@@ -303,7 +327,7 @@
       if (!updates.length) return;
       for (const update of updates) {
         runs = [update, ...runs.filter((item) => item.id !== update.id)].slice(0, 20);
-        if (selectedRun?.id === update.id) selectedRun = update;
+        if (selectedRun?.id === update.id) setSelectedRun(update, { updateUrl: false });
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Research run refresh failed.';
@@ -316,7 +340,7 @@
     try {
       const cancelled = await cancelResearchRun(run.id);
       runs = [cancelled, ...runs.filter((item) => item.id !== cancelled.id)].slice(0, 20);
-      if (selectedRun?.id === cancelled.id) selectedRun = cancelled;
+      if (selectedRun?.id === cancelled.id) setSelectedRun(cancelled, { updateUrl: false });
       message = 'Research run cancelled.';
     } catch (err) {
       error = err instanceof Error ? err.message : 'Could not cancel research run.';
@@ -334,7 +358,7 @@
     try {
       const paused = await pauseResearchRun(run.id);
       runs = [paused, ...runs.filter((item) => item.id !== paused.id)].slice(0, 20);
-      if (selectedRun?.id === paused.id) selectedRun = paused;
+      if (selectedRun?.id === paused.id) setSelectedRun(paused, { updateUrl: false });
       message = 'Research run paused.';
     } catch (err) {
       error = err instanceof Error ? err.message : 'Could not pause research run.';
@@ -347,7 +371,7 @@
     try {
       const resumed = await resumeResearchRun(run.id);
       runs = [resumed, ...runs.filter((item) => item.id !== resumed.id)].slice(0, 20);
-      if (selectedRun?.id === resumed.id) selectedRun = resumed;
+      if (selectedRun?.id === resumed.id) setSelectedRun(resumed, { updateUrl: false });
       message = 'Research run resumed.';
     } catch (err) {
       error = err instanceof Error ? err.message : 'Could not resume research run.';
@@ -369,6 +393,100 @@
       .split(/[\n,]/u)
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  function defaultResearchDraft(): ResearchDraftState {
+    return {
+      mode,
+      goal,
+      seedUrlsText,
+      includeDomainsText,
+      excludeDomainsText,
+      depth,
+      maxPages,
+      perDomainLimit,
+      timeBudget,
+      dateRangeStart,
+      dateRangeEnd,
+      useAi,
+      useCloudAi,
+      saveToMemory,
+      screenshot,
+      provider,
+      model,
+      advancedOpen,
+      monitorName,
+      monitorSchedule
+    };
+  }
+
+  function currentResearchDraft(): ResearchDraftState {
+    return defaultResearchDraft();
+  }
+
+  function applyResearchDraft(draft: ResearchDraftState): void {
+    mode = draft.mode;
+    goal = draft.goal;
+    seedUrlsText = draft.seedUrlsText;
+    includeDomainsText = draft.includeDomainsText;
+    excludeDomainsText = draft.excludeDomainsText;
+    depth = draft.depth;
+    maxPages = draft.maxPages;
+    perDomainLimit = draft.perDomainLimit;
+    timeBudget = draft.timeBudget;
+    dateRangeStart = draft.dateRangeStart;
+    dateRangeEnd = draft.dateRangeEnd;
+    useAi = draft.useAi;
+    useCloudAi = draft.useCloudAi;
+    saveToMemory = draft.saveToMemory;
+    screenshot = draft.screenshot;
+    provider = draft.provider;
+    model = draft.model;
+    advancedOpen = draft.advancedOpen;
+    monitorName = draft.monitorName;
+    monitorSchedule = draft.monitorSchedule;
+  }
+
+  function hydrateResearchDraft(): void {
+    if (typeof localStorage === 'undefined') {
+      draftHydrated = true;
+      return;
+    }
+    try {
+      const parsed = JSON.parse(localStorage.getItem(researchDraftStorageKey) ?? 'null') as unknown;
+      applyResearchDraft(normalizeResearchDraft(parsed, defaultResearchDraft()));
+    } catch {
+      // Draft state is visual convenience only; ignore invalid browser storage.
+    } finally {
+      draftHydrated = true;
+    }
+  }
+
+  function persistResearchDraft(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(researchDraftStorageKey, JSON.stringify(currentResearchDraft()));
+    } catch {
+      // Browser storage can be full or unavailable; real run records remain backend-persisted.
+    }
+  }
+
+  function requestedResearchRunId(): string {
+    if (typeof window === 'undefined') return '';
+    return new URL(window.location.href).searchParams.get('run') ?? '';
+  }
+
+  function setSelectedRun(run: ResearchRun, options: { updateUrl?: boolean } = {}): void {
+    selectedRun = run;
+    if (options.updateUrl !== false) updateSelectedRunUrl(run.id);
+  }
+
+  function updateSelectedRunUrl(runId: string): void {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('run', runId);
+    requestedRunId = runId;
+    window.history.replaceState({}, '', url.toString());
   }
 
   function runMeta(run: ResearchRun): string {
@@ -523,7 +641,16 @@
     const timer = window.setInterval(() => {
       void pollLiveRuns();
     }, 1500);
-    return () => window.clearInterval(timer);
+    const visibleRefresh = () => {
+      if (document.visibilityState === 'visible') void refreshRuns();
+    };
+    window.addEventListener('focus', visibleRefresh);
+    document.addEventListener('visibilitychange', visibleRefresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', visibleRefresh);
+      document.removeEventListener('visibilitychange', visibleRefresh);
+    };
   });
 </script>
 
@@ -653,7 +780,7 @@
       {#if runs.length}
         <div class="run-list">
           {#each runs as run}
-            <button class:active={selectedRun?.id === run.id} type="button" on:click={() => (selectedRun = run)}>
+            <button class:active={selectedRun?.id === run.id} type="button" on:click={() => setSelectedRun(run)}>
               <span class={`status ${run.status}`}>{statusLabel(run)}</span>
               <strong>{run.report.title}</strong>
               <small>{runMeta(run)}</small>
@@ -672,9 +799,19 @@
           {/each}
         </div>
       {:else if refreshing}
-        <p class="empty-note">Loading archived research runs.</p>
+        <div class="run-list loading-runs" aria-label="Loading archived research runs">
+          {#each Array.from({ length: 3 }) as _}
+            <span></span>
+          {/each}
+        </div>
       {:else}
-        <p class="empty-note">No archived research yet.</p>
+        <p class:error-message={Boolean(error)} class="empty-note">{runsPanelState}</p>
+        {#if error}
+          <button class="link-button compact" type="button" on:click={refreshRuns}>
+            <RefreshCw size={15} />
+            <span>Retry Runs</span>
+          </button>
+        {/if}
       {/if}
     </aside>
   </section>
@@ -1919,6 +2056,25 @@
 
   .empty-note {
     color: var(--muted);
+  }
+
+  .loading-runs span {
+    display: block;
+    height: 74px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--surface-muted), var(--surface-soft), var(--surface-muted));
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
   }
 
   @media (max-width: 900px) {
