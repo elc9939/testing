@@ -6,10 +6,12 @@ import type {
   AttentionSource,
   AttentionSourceStatus
 } from '@mini-hub/core';
-import { requestApiJson } from './api';
+import { requestApiJsonWithTimeout } from './api';
 
 const attentionCacheKey = 'miniHub.attention.snapshot.v1';
 const refreshIntervalMs = 90_000;
+export const attentionSnapshotTimeoutMs = 7_000;
+export const attentionActionTimeoutMs = 10_000;
 
 interface AttentionCache {
   version: 1;
@@ -59,6 +61,11 @@ function writeCachedSnapshot(snapshot: AttentionSnapshot): string {
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function attentionRefreshError(error: unknown, hasSnapshot: boolean): string {
+  const message = errorMessage(error, 'Attention snapshot failed to refresh.');
+  return hasSnapshot ? `${message} Showing cached attention until the hub responds.` : message;
 }
 
 function nextSnoozeUntil(hours = 24): string {
@@ -145,7 +152,7 @@ export function createAttentionStore() {
 
     setPartial(background ? { refreshing: true, readOnly: false, error: '' } : { loading: true, readOnly: false, error: '' });
     try {
-      const snapshot = await requestApiJson<AttentionSnapshot>('/api/attention/snapshot');
+      const snapshot = await requestApiJsonWithTimeout<AttentionSnapshot>('/api/attention/snapshot', {}, attentionSnapshotTimeoutMs);
       const cachedAt = writeCachedSnapshot(snapshot);
       setPartial({
         snapshot,
@@ -156,7 +163,7 @@ export function createAttentionStore() {
       return snapshot;
     } catch (error) {
       setPartial({
-        error: errorMessage(error, 'Attention snapshot failed to refresh.'),
+        error: attentionRefreshError(error, Boolean(get(store).snapshot)),
         readOnly: true
       });
       return get(store).snapshot;
@@ -177,12 +184,13 @@ export function createAttentionStore() {
     };
     setPartial({ pendingActionId: `${itemId}:${input.action}`, error: '', readOnly: false });
     try {
-      const result = await requestApiJson<{ ok: true; snapshot: AttentionSnapshot }>(
+      const result = await requestApiJsonWithTimeout<{ ok: true; snapshot: AttentionSnapshot }>(
         `/api/attention/items/${encodeURIComponent(itemId)}/actions`,
         {
           method: 'POST',
           body: JSON.stringify(body)
-        }
+        },
+        attentionActionTimeoutMs
       );
       const cachedAt = writeCachedSnapshot(result.snapshot);
       setPartial({ snapshot: result.snapshot, cachedAt, error: '' });

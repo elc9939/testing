@@ -64,7 +64,10 @@ The Svelte app under `apps/hub` provides these main pages:
   actions. It aggregates real Calendar, Gmail, Career, Study, AI OS, Macro Lab, Research,
   service-health, and manual-item signals without setup placeholders or fake data. Actions
   such as Read, Important, Archive, Complete, Snooze, Dismiss, Run, Restore, and Open Source
-  flow through the shared attention model where supported.
+  flow through the shared attention model where supported. The browser keeps a last-good
+  cached attention snapshot and bounds refresh/action requests, so a slow local API does not
+  leave the cockpit spinning forever; cached attention is shown read-only until the hub
+  responds again.
 - Activity: a durable recovery surface for long-running or recently finished work. It
   projects persisted Research runs, AI OS jobs/backups/benchmarks, Passive Task runs, and
   Macro Lab run history into one list with source health, progress, errors, and deep links

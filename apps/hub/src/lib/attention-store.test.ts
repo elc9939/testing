@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { attentionActionLabel, attentionSourceStatusLine, itemSupportsAction } from './attention-store';
+import {
+  attentionActionLabel,
+  attentionActionTimeoutMs,
+  attentionSnapshotTimeoutMs,
+  attentionSourceStatusLine,
+  itemSupportsAction
+} from './attention-store';
 import type { AttentionItem } from '@mini-hub/core';
 
 function item(partial: Partial<AttentionItem>): AttentionItem {
@@ -58,5 +64,10 @@ describe('attention store helpers', () => {
     expect(itemSupportsAction(item({}), 'mark_read')).toBe(true);
     expect(itemSupportsAction(item({}), 'complete')).toBe(false);
     expect(attentionActionLabel('snooze')).toBe('Snooze');
+  });
+
+  it('keeps Today refresh and write calls bounded', () => {
+    expect(attentionSnapshotTimeoutMs).toBeGreaterThan(0);
+    expect(attentionSnapshotTimeoutMs).toBeLessThan(attentionActionTimeoutMs);
   });
 });
