@@ -26,6 +26,11 @@ Digest rows, result rows, trigger rows, failure rows, recent runs, and retained 
 logs show compact evidence such as source labels, changed artifact counts, snapshot
 checksums, file counts, cleanup candidates, last trigger fire status, and retry times so
 background work is inspectable without opening raw JSON.
+The dashboard also includes a Source Health panel derived from the passive source statuses.
+Each row records schedule state, last-run age, schedule lag, next run, machine-mode deferral,
+idle deferral, and explicit task errors. Scheduled work that misses its run window beyond
+the worker grace period becomes an `error` source, while idle-only work waiting for an active
+machine to become idle stays `ok` with `waiting_for_idle` evidence.
 Direct task "Run now" actions create/update separate `manual` triggers, so the dashboard can
 distinguish ad hoc runs from schedule/event/idle firings and the scheduled trigger's
 last-fired state stays truthful.
@@ -218,6 +223,9 @@ normal API startup.
 - Routine digest cards automatically age out of Today/passive digest surfaces after 7 days,
   and urgent cards after 30 days, unless marked important or tied to unresolved failed/blocked
   runs. The underlying run history and source-backed result rows are retained.
+- Passive source statuses include schedule lag and last-run age. A task that is enabled,
+  allowed by Machine Mode, not waiting for idle time, and overdue beyond the worker grace
+  window is reported as an error so background work cannot silently rot.
 - Repeated non-urgent notifications are suppressed for a day so recurring background findings
   behave like a quiet digest; urgent findings can still surface immediately.
 - Notification style only controls stored notifications; passive runs, source cards, digest

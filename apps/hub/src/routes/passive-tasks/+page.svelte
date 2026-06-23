@@ -14,7 +14,16 @@
     Star,
     XCircle
   } from 'lucide-svelte';
-  import type { PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTask, PassiveTaskFamily, PassiveTrigger, PassiveWatcher } from '@mini-hub/core';
+  import type {
+    PassiveResultCard,
+    PassiveRun,
+    PassiveSnapshot,
+    PassiveSourceStatus,
+    PassiveTask,
+    PassiveTaskFamily,
+    PassiveTrigger,
+    PassiveWatcher
+  } from '@mini-hub/core';
   import {
     cancelPassiveTask,
     dismissPassiveNotification,
@@ -74,6 +83,9 @@
   $: triggerRows = [...(snapshot?.triggers ?? [])]
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt) || a.label.localeCompare(b.label))
     .slice(0, 8);
+  $: sourceRows = [...(snapshot?.sources ?? [])].sort(
+    (a, b) => sourceStatusRank(a) - sourceStatusRank(b) || a.label.localeCompare(b.label)
+  );
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -186,8 +198,42 @@
     return `${value} B`;
   }
 
+  function formatMinutes(value: number): string {
+    if (value >= 24 * 60) return `${Math.round(value / (24 * 60))} d`;
+    if (value >= 60) return `${Math.round(value / 60)} hr`;
+    return `${Math.max(0, Math.round(value))} min`;
+  }
+
   function asNumber(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  function sourceStatusRank(source: PassiveSourceStatus): number {
+    if (source.status === 'error') return 0;
+    if (source.status === 'unavailable') return 1;
+    return 2;
+  }
+
+  function sourceStateClass(source: PassiveSourceStatus): string {
+    if (source.status === 'ok') return 'ready';
+    if (source.status === 'unavailable') return 'paused';
+    return 'error';
+  }
+
+  function sourceDetailsLine(source: PassiveSourceStatus): string {
+    const details = source.details ?? {};
+    const parts: string[] = [];
+    const state = typeof details.scheduleState === 'string' ? details.scheduleState.replaceAll('_', ' ') : '';
+    if (state) parts.push(state);
+    const lastAge = asNumber(details.lastRunAgeMinutes);
+    if (lastAge !== null) parts.push(`last ${formatMinutes(lastAge)} ago`);
+    const lag = asNumber(details.scheduleLagMinutes);
+    if (lag !== null && lag > 0) parts.push(`lag ${formatMinutes(lag)}`);
+    const nextRunAt = typeof details.nextRunAt === 'string' ? details.nextRunAt : '';
+    if (nextRunAt) parts.push(`next ${displayWhen(nextRunAt)}`);
+    const modeReason = typeof details.modePolicyReason === 'string' ? details.modePolicyReason : '';
+    if (modeReason) parts.push(modeReason);
+    return parts.join(' - ') || 'No run evidence yet';
   }
 
   function sourceList(card: PassiveResultCard): string {
@@ -515,6 +561,36 @@
         </div>
       {:else}
         <p class="empty-note">No passive results have been persisted yet.</p>
+      {/if}
+    </article>
+
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><CheckCircle2 size={16} /></span>
+          <strong>Source Health</strong>
+        </div>
+      </div>
+      {#if sourceRows.length}
+        <div class="run-list">
+          {#each sourceRows as source}
+            <div class="run-row">
+              <span class={`state ${sourceStateClass(source)}`}>{source.status === 'unavailable' ? 'off' : source.status}</span>
+              <span>
+                <strong>{source.label}</strong>
+                <small>{sourceDetailsLine(source)}</small>
+                {#if source.fetchedAt}
+                  <small class="evidence-line">fetched {displayWhen(source.fetchedAt)}</small>
+                {/if}
+                {#if source.error}
+                  <small class="error-inline">{source.error}</small>
+                {/if}
+              </span>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">Source health appears after passive tasks are registered.</p>
       {/if}
     </article>
 

@@ -171,6 +171,10 @@ respect configured folders only, resource limits clamp research/page/file/TODO s
 Machine Modes shape due-work selection, and failures stay visible without creating fake queue
 items. Today can run source-backed passive actions where supported, but those actions respect
 the same disabled, paused, cancelled, and running task guards as the Passive Tasks dashboard.
+Passive source health records schedule state, last-run age, schedule lag, next run, mode
+deferral, and idle deferral; enabled scheduled work that misses its run window beyond the
+worker grace period becomes a visible source issue, while idle-only work waiting for an
+active machine stays quiet with `waiting_for_idle` evidence.
 Watched accounts now scope integration-account health findings: if the list is empty,
 App Health reports every broken connection, and if it is set, only matching account labels,
 connection ids, `provider:account` tokens, or account domains appear in source-backed cards.

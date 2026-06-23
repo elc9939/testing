@@ -1660,6 +1660,67 @@ describe('passive task engine', () => {
     });
   });
 
+  it('marks passive source status as overdue when scheduled work silently misses its window', () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'app_health' && item.trigger.kind === 'schedule')!;
+    const overdueAt = new Date(Date.now() - 45 * 60 * 1000).toISOString();
+    store.passiveTasks = store.passiveTasks.map((item) =>
+      item.id === task.id ? { ...item, nextRunAt: overdueAt, trigger: { ...item.trigger, nextRunAt: overdueAt } } : item
+    );
+    store.passiveTriggers = store.passiveTriggers.map((trigger) =>
+      trigger.id === task.trigger.id ? { ...trigger, nextRunAt: overdueAt } : trigger
+    );
+
+    const source = buildPassiveSnapshot(store).sources.find((item) => item.details.taskId === task.id)!;
+
+    expect(source.status).toBe('error');
+    expect(source.error).toContain('overdue');
+    expect(source.details).toMatchObject({
+      scheduleState: 'overdue',
+      nextRunAt: overdueAt
+    });
+    expect(Number(source.details.scheduleLagMinutes)).toBeGreaterThanOrEqual(40);
+  });
+
+  it('keeps idle-only overdue sources quiet while the machine is active', () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'idle_compute')!;
+    const overdueAt = new Date(Date.now() - 90 * 60 * 1000).toISOString();
+    const checkedAt = new Date().toISOString();
+    store.passiveWorker = {
+      id: 'passive-worker',
+      enabled: true,
+      running: false,
+      intervalMs: 5 * 60 * 1000,
+      lastIdle: {
+        idle: false,
+        thresholdMinutes: 30,
+        checkedAt,
+        source: 'test-active-window',
+        idleMinutes: 0
+      },
+      activeFileWatchCount: 0,
+      pendingFileEvent: false,
+      updatedAt: checkedAt
+    };
+    store.passiveTasks = store.passiveTasks.map((item) =>
+      item.id === task.id ? { ...item, nextRunAt: overdueAt, trigger: { ...item.trigger, nextRunAt: overdueAt } } : item
+    );
+
+    const source = buildPassiveSnapshot(store).sources.find((item) => item.details.taskId === task.id)!;
+
+    expect(source.status).toBe('ok');
+    expect(source.error).toBeUndefined();
+    expect(source.details).toMatchObject({
+      scheduleState: 'waiting_for_idle',
+      lastIdle: false,
+      lastIdleSource: 'test-active-window'
+    });
+    expect(Number(source.details.scheduleLagMinutes)).toBeGreaterThanOrEqual(80);
+  });
+
   it('builds source-backed career digest and attention items from real records', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

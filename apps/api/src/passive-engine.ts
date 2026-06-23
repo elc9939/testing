@@ -198,6 +198,7 @@ const passiveSnapshotDirName = 'passive-snapshots';
 const passiveDigestUrgency = 58;
 const passiveDigestFreshMs = 7 * dayMs;
 const passiveDigestUrgentFreshMs = 30 * dayMs;
+const passiveSourceOverdueGraceMs = 15 * minuteMs;
 const attentionUrgency = 65;
 const maxTaskErrorLogEntries = 12;
 const passiveNotificationDedupeMs = dayMs;
@@ -4744,18 +4745,64 @@ export function buildPassiveDigest(store: MemoryStore, limit = 12): PassiveResul
 
 export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceStatus[] {
   const currentMode = currentPassiveMachineMode(store);
+  const checkedAt = new Date();
+  const settings = store.passiveSettings ?? defaultPassiveSettings(checkedAt);
+  const workerIntervalMs =
+    typeof store.passiveWorker?.intervalMs === 'number' && store.passiveWorker.intervalMs > 0
+      ? store.passiveWorker.intervalMs
+      : 5 * minuteMs;
+  const overdueGraceMs = Math.max(passiveSourceOverdueGraceMs, workerIntervalMs * 2);
   return store.passiveTasks.map((task) => {
     const run = latestRunForTask(store, task.id);
     const fetchedAt = run?.finishedAt ?? task.lastRunAt;
-    const error = task.lastError ?? run?.error;
+    const nextRunAt = task.nextRunAt ?? task.trigger.nextRunAt;
+    const fetchedAtMs = parseTime(fetchedAt);
+    const nextRunAtMs = parseTime(nextRunAt);
+    const scheduleLagMs = Number.isFinite(nextRunAtMs) ? checkedAt.getTime() - nextRunAtMs : Number.NaN;
     const taskMode = taskMachineMode(store, task);
     const modePolicy = passiveModePolicy(task, currentMode);
+    const taskEnabled =
+      settings.enabled && watcherEnabled(store, task) && !['paused', 'cancelled'].includes(task.status);
+    const waitsForIdle =
+      (settings.idleOnly || task.idleOnly || task.trigger.kind === 'idle') && store.passiveWorker?.lastIdle?.idle !== true;
+    const scheduleOverdue =
+      taskEnabled &&
+      ['active', 'failed'].includes(task.status) &&
+      modePolicy.allowed &&
+      !waitsForIdle &&
+      Number.isFinite(scheduleLagMs) &&
+      scheduleLagMs > overdueGraceMs;
+    const scheduleState = !settings.enabled
+      ? 'engine_disabled'
+      : !watcherEnabled(store, task)
+        ? 'watcher_disabled'
+        : task.status === 'paused' || task.status === 'cancelled'
+          ? task.status
+          : !modePolicy.allowed
+            ? 'mode_deferred'
+            : waitsForIdle
+              ? 'waiting_for_idle'
+              : scheduleOverdue
+                ? 'overdue'
+                : Number.isFinite(scheduleLagMs) && scheduleLagMs > 0
+                  ? 'due'
+                  : nextRunAt
+                    ? 'scheduled'
+                    : task.trigger.kind === 'event'
+                      ? 'waiting_for_event'
+                      : 'unscheduled';
+    const staleError = scheduleOverdue
+      ? `${task.title} is ${Math.round(scheduleLagMs / minuteMs)} min overdue. Check the worker or run it manually.`
+      : undefined;
+    const error = task.lastError ?? run?.error ?? staleError;
     const status: PassiveSourceStatus['status'] =
       task.status === 'blocked' || run?.status === 'failed' || run?.status === 'blocked'
         ? 'error'
-        : watcherEnabled(store, task)
-          ? 'ok'
-          : 'unavailable';
+        : scheduleOverdue
+          ? 'error'
+          : taskEnabled
+            ? 'ok'
+            : 'unavailable';
     return sourceStatus({
       id: task.family,
       label: familyLabels[task.family],
@@ -4765,10 +4812,18 @@ export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceSta
       details: {
         taskId: task.id,
         watcherId: task.watcherId,
-        nextRunAt: task.nextRunAt,
+        nextRunAt,
         nextRetryAt: task.retry.nextRetryAt,
         status: task.status,
         lastRunStatus: run?.status,
+        scheduleState,
+        overdueGraceMinutes: Math.round(overdueGraceMs / minuteMs),
+        ...(Number.isFinite(scheduleLagMs) && scheduleLagMs > 0
+          ? { scheduleLagMinutes: Math.round(scheduleLagMs / minuteMs) }
+          : {}),
+        ...(Number.isFinite(fetchedAtMs)
+          ? { lastRunAgeMinutes: Math.max(0, Math.round((checkedAt.getTime() - fetchedAtMs) / minuteMs)) }
+          : {}),
         errorLogCount: task.errorLog.length,
         latestErrorAt: task.errorLog[0]?.at,
         machineMode: taskMode.mode,
@@ -4779,10 +4834,10 @@ export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceSta
           ? {
               idleOnly: task.idleOnly,
               idleThresholdMinutes: task.trigger.idleMinutes,
-              lastIdle: run?.metadata.idle,
-              lastIdleMinutes: run?.metadata.idleMinutes,
-              lastIdleSource: run?.metadata.idleSource,
-              lastIdleError: run?.metadata.idleError
+              lastIdle: run?.metadata.idle ?? store.passiveWorker?.lastIdle?.idle,
+              lastIdleMinutes: run?.metadata.idleMinutes ?? store.passiveWorker?.lastIdle?.idleMinutes,
+              lastIdleSource: run?.metadata.idleSource ?? store.passiveWorker?.lastIdle?.source,
+              lastIdleError: run?.metadata.idleError ?? store.passiveWorker?.lastIdle?.error
             }
           : {})
       }
