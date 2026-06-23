@@ -110,7 +110,9 @@ real-data only:
   configured Ollama chat model, AI OS jobs, and backup freshness on a schedule and through
   built-in startup, reconnect, and Google OAuth lifecycle event triggers.
 - Backup + Snapshot Watcher writes non-destructive Mini Hub restore snapshots under
-  `MINI_HUB_DATA_DIR/passive-snapshots` and asks AI OS for its own backup when available.
+  `MINI_HUB_DATA_DIR/passive-snapshots`, read-verifies each new snapshot, records byte count,
+  checksum, entity counts, and redaction status, and asks AI OS for its own backup when
+  available.
 - Idle Compute Queue runs bounded AI OS benchmarks and non-destructive Mini Hub cleanup
   dry-runs only when the worker or a manual tick reports a real idle window. Cleanup cards
   list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does

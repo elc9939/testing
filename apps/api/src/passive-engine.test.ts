@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -321,6 +321,83 @@ describe('passive task engine', () => {
         integrationConnectionIssues: 1,
         ignoredIntegrationConnectionIssues: 1
       });
+    } finally {
+      env.dataDir = previousDataDir;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('creates read-verified Mini Hub restore snapshots with redacted integration tokens', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-backup-'));
+    const previousDataDir = env.dataDir;
+    try {
+      env.dataDir = dir;
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.jobs.push({
+        id: 'job-1',
+        workspaceId: personalWorkspaceId,
+        company: 'Acme',
+        role: 'Data Analyst',
+        status: 'lead',
+        applicationUrl: '',
+        notes: '',
+        deviceId: 'test',
+        updatedAt: '2026-06-20T10:00:00.000Z'
+      });
+      store.integrationConnections.set('google-personal', {
+        id: 'google-personal',
+        workspaceId: personalWorkspaceId,
+        provider: 'google',
+        accountLabel: 'personal@example.com',
+        scopes: ['gmail.readonly'],
+        encryptedTokenSet: 'secret-token-payload',
+        status: 'connected',
+        createdAt: '2026-06-20T10:00:00.000Z',
+        updatedAt: '2026-06-20T10:00:00.000Z'
+      });
+      const task = store.passiveTasks.find((item) => item.family === 'backup_snapshot')!;
+      const backupFetch = (async (input: unknown, init?: RequestInit) => {
+        const href = String(input);
+        if (href.endsWith('/api/ai/backups')) return jsonResponse({ backup: { id: 'backup-1', ok: true } });
+        return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+      }) as typeof fetch;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: backupFetch,
+        force: true,
+        input: { reason: 'backup-verification-test' }
+      });
+
+      const snapshotPath = String(run.metadata.snapshotPath);
+      const snapshotText = readFileSync(snapshotPath, 'utf8');
+      const snapshot = JSON.parse(snapshotText) as { jobs: unknown[]; integrationConnections: Array<{ encryptedTokenSet: string }> };
+      const snapshotRef = run.cards[0]?.sourceRefs[0];
+      expect(run.status).toBe('succeeded');
+      expect(existsSync(snapshotPath)).toBe(true);
+      expect(run.changed).toContain(`snapshot:${snapshotPath}`);
+      expect(run.metadata).toMatchObject({
+        snapshotVerified: true,
+        snapshotBytes: snapshotText.length,
+        redactedTokenSets: 1,
+        snapshotSummary: {
+          jobs: 1,
+          integrationConnections: 1
+        },
+        aiBackup: {
+          requested: true,
+          id: 'backup-1'
+        }
+      });
+      expect(String(run.metadata.snapshotSha256)).toMatch(/^[a-f0-9]{64}$/u);
+      expect(snapshot.jobs).toHaveLength(1);
+      expect(snapshot.integrationConnections[0]?.encryptedTokenSet).toBe('[encrypted-redacted]');
+      expect(snapshotText).not.toContain('secret-token-payload');
+      expect(snapshotRef?.metadata).toMatchObject({
+        verified: true,
+        redactedTokenSets: 1
+      });
+      expect(snapshotRef?.metadata.sha256).toBe(run.metadata.snapshotSha256);
     } finally {
       env.dataDir = previousDataDir;
       rmSync(dir, { recursive: true, force: true });

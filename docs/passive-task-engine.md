@@ -29,7 +29,9 @@ metadata.
 
 State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Mini Hub restore snapshots
 created by the Backup + Snapshot Watcher are written under
-`MINI_HUB_DATA_DIR/passive-snapshots`.
+`MINI_HUB_DATA_DIR/passive-snapshots`. Each new Mini Hub snapshot is read back immediately,
+checked for required collections and redacted integration token payloads, hashed with SHA-256,
+and summarized in the run metadata before the task is considered successful.
 
 The resource limit setting is active policy, not a label. `light`, `balanced`, and `heavy`
 adjust watched-folder count, per-folder file scans, semantic-memory indexing count, project
@@ -93,8 +95,9 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   configured Ollama chat model availability, AI OS jobs, and backup freshness. It has both a
   scheduled task and a built-in event task for `app.startup`, `app.reconnect`, service
   reconnect, and Google OAuth lifecycle checks.
-- Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot and requests an AI OS
-  backup when AI OS is available.
+- Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot, read-verifies it,
+  records byte count/checksum/entity counts/redaction status, and requests an AI OS backup
+  when AI OS is available.
 - Idle Compute Queue: runs bounded AI OS benchmarks and non-destructive Mini Hub cleanup
   dry-runs only when the worker or dashboard tick reports a real idle window. Cleanup cards
   list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does
@@ -128,7 +131,9 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   evidence when those artifacts already exist.
 - Resource limits clamp local scan breadth and AI OS research monitor budgets before work is
   queued, so changing the setting affects the next run without editing task definitions.
-- Backup snapshots redact encrypted token payloads from Mini Hub connection metadata.
+- Backup snapshots redact encrypted token payloads from Mini Hub connection metadata, and the
+  snapshot task fails visibly if the newly-written restore point cannot be parsed or if an
+  unredacted token payload is detected.
 - Idle compute is gated by worker-measured or manually requested idle ticks. Probe failures
   do not allow heavy work to run.
 - Event work is gated by explicit event names; scheduled ticks do not accidentally run

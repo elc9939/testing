@@ -43,6 +43,7 @@ import {
 } from 'node:fs';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { platform } from 'node:os';
 import { promisify } from 'node:util';
 import { env } from './env';
@@ -71,6 +72,15 @@ interface CleanupCandidate {
   size: number;
   mtimeMs: number;
   reason: string;
+}
+
+interface SnapshotVerification {
+  ok: boolean;
+  bytes: number;
+  sha256: string;
+  summary: Record<string, number>;
+  redactedTokenSets: number;
+  error?: string;
 }
 
 interface ProjectHealthArtifact {
@@ -1306,6 +1316,67 @@ function sanitizedMiniHubSnapshot(store: MemoryStore): Record<string, unknown> {
   };
 }
 
+function snapshotCount(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function snapshotSummary(snapshot: Record<string, unknown>): Record<string, number> {
+  return {
+    workspaces: snapshotCount(snapshot.workspaces),
+    members: snapshotCount(snapshot.members),
+    jobs: snapshotCount(snapshot.jobs),
+    studySessions: snapshotCount(snapshot.studySessions),
+    careerActions: snapshotCount(snapshot.careerActions),
+    gameRuns: snapshotCount(snapshot.gameRuns),
+    gameStates: snapshotCount(snapshot.gameStates),
+    achievements: snapshotCount(snapshot.achievements),
+    notes: snapshotCount(snapshot.notes),
+    integrationConnections: snapshotCount(snapshot.integrationConnections),
+    syncEvents: typeof snapshot.syncEventCount === 'number' ? snapshot.syncEventCount : 0,
+    actionEvents: typeof snapshot.actionEventCount === 'number' ? snapshot.actionEventCount : 0
+  };
+}
+
+function countRedactedTokenSets(snapshot: Record<string, unknown>): number {
+  const connections = Array.isArray(snapshot.integrationConnections) ? snapshot.integrationConnections : [];
+  return connections.filter((connection) => isRecord(connection) && connection.encryptedTokenSet === '[encrypted-redacted]').length;
+}
+
+function verifyMiniHubSnapshotFile(snapshotPath: string): SnapshotVerification {
+  try {
+    const text = readFileSync(snapshotPath, 'utf8');
+    const parsed = JSON.parse(text) as unknown;
+    if (!isRecord(parsed)) throw new Error('Snapshot root is not an object.');
+    if (!Array.isArray(parsed.workspaces) || !Array.isArray(parsed.integrationConnections)) {
+      throw new Error('Snapshot is missing required Mini Hub collections.');
+    }
+    const leakedToken = parsed.integrationConnections.some(
+      (connection) =>
+        isRecord(connection) &&
+        typeof connection.encryptedTokenSet === 'string' &&
+        connection.encryptedTokenSet !== '' &&
+        connection.encryptedTokenSet !== '[encrypted-redacted]'
+    );
+    if (leakedToken) throw new Error('Snapshot verification found an unredacted token payload.');
+    return {
+      ok: true,
+      bytes: Buffer.byteLength(text, 'utf8'),
+      sha256: createHash('sha256').update(text).digest('hex'),
+      summary: snapshotSummary(parsed),
+      redactedTokenSets: countRedactedTokenSets(parsed)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      bytes: existsSync(snapshotPath) ? statSync(snapshotPath).size : 0,
+      sha256: '',
+      summary: {},
+      redactedTokenSets: 0,
+      error: describeError(error)
+    };
+  }
+}
+
 function formatBytes(value: number): string {
   if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
   if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
@@ -1370,7 +1441,9 @@ async function runBackupSnapshot(store: MemoryStore, task: PassiveTask, runId: s
   mkdirSync(snapshotRoot, { recursive: true });
   const snapshotId = `${createdAt.replace(/[:.]/gu, '-')}_${crypto.randomUUID().slice(0, 8)}`;
   const snapshotPath = join(snapshotRoot, `${snapshotId}.json`);
-  writeFileSync(snapshotPath, JSON.stringify(sanitizedMiniHubSnapshot(store), null, 2), 'utf8');
+  const snapshotPayload = sanitizedMiniHubSnapshot(store);
+  writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), 'utf8');
+  const verification = verifyMiniHubSnapshotFile(snapshotPath);
 
   const cards: PassiveResultCard[] = [
     card({
@@ -1383,13 +1456,41 @@ async function runBackupSnapshot(store: MemoryStore, task: PassiveTask, runId: s
       urgency: 48,
       confidence: 0.95,
       route: routeMap.settings,
-      sourceRefs: [stableSourceRef('file', 'Mini Hub restore snapshot', { id: snapshotId, filePath: snapshotPath })],
+      sourceRefs: [
+        stableSourceRef('file', 'Mini Hub restore snapshot', {
+          id: snapshotId,
+          filePath: snapshotPath,
+          metadata: {
+            verified: verification.ok,
+            bytes: verification.bytes,
+            sha256: verification.sha256,
+            redactedTokenSets: verification.redactedTokenSets,
+            summary: verification.summary,
+            ...(verification.error ? { error: verification.error } : {})
+          }
+        })
+      ],
       suggestedAction: 'Inspect snapshot',
       actionKind: 'inspect',
-      why: 'A scheduled non-destructive backup watcher created a restore point.'
+      why: verification.ok
+        ? 'A scheduled non-destructive backup watcher created and read-verified a restore point.'
+        : 'A scheduled non-destructive backup watcher wrote a restore point, but verification failed.'
     })
   ];
   const changed = [`snapshot:${snapshotPath}`];
+  if (!verification.ok) {
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'Mini Hub restore snapshot verification failed',
+        verification.error ?? 'Snapshot could not be read back after writing.',
+        88,
+        stableSourceRef('file', 'Mini Hub restore snapshot', { id: snapshotId, filePath: snapshotPath })
+      )
+    );
+  }
+  const aiBackupMetadata: Record<string, unknown> = { requested: false };
 
   try {
     const payload = await fetchJsonWithTimeout(
@@ -1403,8 +1504,15 @@ async function runBackupSnapshot(store: MemoryStore, task: PassiveTask, runId: s
       10000
     );
     const backup = isRecord(payload) && isRecord(payload.backup) ? payload.backup : null;
-    if (backup?.id) changed.push(`ai-backup:${String(backup.id)}`);
+    aiBackupMetadata.requested = true;
+    if (backup?.id) {
+      changed.push(`ai-backup:${String(backup.id)}`);
+      aiBackupMetadata.id = String(backup.id);
+    }
+    if (backup) aiBackupMetadata.backup = backup;
   } catch (error) {
+    aiBackupMetadata.requested = true;
+    aiBackupMetadata.error = describeError(error);
     cards.push(
       serviceIssueCard(
         task,
@@ -1417,7 +1525,22 @@ async function runBackupSnapshot(store: MemoryStore, task: PassiveTask, runId: s
     );
   }
 
-  return { status: 'succeeded', cards, changed, metadata: { snapshotPath } };
+  return {
+    status: verification.ok ? 'succeeded' : 'failed',
+    ...(verification.ok ? {} : { error: verification.error ?? 'Mini Hub restore snapshot verification failed.' }),
+    cards,
+    changed,
+    metadata: {
+      snapshotPath,
+      snapshotId,
+      snapshotVerified: verification.ok,
+      snapshotBytes: verification.bytes,
+      snapshotSha256: verification.sha256,
+      snapshotSummary: verification.summary,
+      redactedTokenSets: verification.redactedTokenSets,
+      aiBackup: aiBackupMetadata
+    }
+  };
 }
 
 async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: FetchLike, input: PassiveRunInput): Promise<FamilyRunResult> {
