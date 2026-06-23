@@ -71,6 +71,8 @@ The shared core model includes:
 - `PassiveResultCard`: source-backed output with title, summary, urgency, confidence,
   source links/files, suggested action, and why it surfaced.
 - `PassiveNotification`: digest-level notification derived from notable cards.
+  Repeated non-urgent notifications with the same family/title/body are de-duplicated for
+  24 hours; run history and digest cards still record the repeated work.
 - Passive card triage: persisted per-card state for important, reviewed, snoozed, and
   dismissed findings. The digest filters reviewed/dismissed/future-snoozed cards and lets
   important cards remain visible even when they would otherwise be below the digest cutoff.
@@ -126,6 +128,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   provisioning; localhost and IP-style hosts are ignored.
 - Lower-urgency output stays in the Passive Tasks dashboard. Today only receives high-urgency
   cards through the `passive_task` attention source.
+- Repeated non-urgent notifications are suppressed for a day so recurring background findings
+  behave like a quiet digest; urgent findings can still surface immediately.
 - Passive card triage is reversible from the source state: reviewed, dismissed, snoozed,
   important, and clear actions are logged to the Action Ledger and do not alter source files
   or remote services.

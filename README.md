@@ -141,6 +141,9 @@ Machine Modes shape due-work selection, and failures stay visible without creati
 items.
 Failed and blocked tasks also keep a bounded per-task error log with attempt, message,
 timestamp, and next retry so dashboard state does not depend only on the latest run record.
+Repeated non-urgent passive notifications with the same family/title/body are de-duplicated
+for a day so recurring findings stay digest-like instead of noisy; run history and source
+cards still record the repeated work.
 The Passive Tasks dashboard exposes the same practical controls for day-to-day use, including
 idle-only scheduling, AI preference, family toggles, tick limits, watcher toggles, manual
 ticks, and source scope edits.

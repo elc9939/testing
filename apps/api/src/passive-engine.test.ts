@@ -597,6 +597,42 @@ describe('passive task engine', () => {
     expect(attention[0]?.title).toContain('career action');
   });
 
+  it('dedupes repeated non-urgent passive notifications while keeping run history', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-1',
+      workspaceId: personalWorkspaceId,
+      company: 'Acme',
+      role: 'Data Analyst',
+      status: 'lead',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-05-01T10:00:00.000Z'
+    });
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'notification-dedupe-a' }
+    });
+    await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'notification-dedupe-b' }
+    });
+
+    expect(store.passiveRuns.filter((run) => run.taskId === task.id)).toHaveLength(2);
+    expect(store.passiveNotifications).toHaveLength(1);
+    expect(store.passiveNotifications[0]).toMatchObject({
+      family: 'career_radar',
+      level: 'info',
+      title: '1 career lead need follow-up'
+    });
+  });
+
   it('prepares AI OS research monitors from configured watched domains', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

@@ -149,6 +149,7 @@ const passiveSnapshotDirName = 'passive-snapshots';
 const passiveDigestUrgency = 58;
 const attentionUrgency = 65;
 const maxTaskErrorLogEntries = 12;
+const passiveNotificationDedupeMs = dayMs;
 const windowsIdleScript = `
 $ErrorActionPreference = "Stop"
 Add-Type @"
@@ -606,6 +607,17 @@ function notificationFromRun(run: PassiveRun, cardItems: PassiveResultCard[]): P
     cardIds: notable.map((item) => item.id),
     createdAt: nowIso()
   });
+}
+
+function passiveNotificationKey(notification: Pick<PassiveNotification, 'family' | 'level' | 'title' | 'body'>): string {
+  return `${notification.family}:${notification.level}:${notification.title}:${notification.body}`;
+}
+
+function shouldStorePassiveNotification(store: MemoryStore, notification: PassiveNotification, date = new Date()): boolean {
+  if (notification.level === 'urgent') return true;
+  const cutoff = date.getTime() - passiveNotificationDedupeMs;
+  const key = passiveNotificationKey(notification);
+  return !store.passiveNotifications.some((existing) => passiveNotificationKey(existing) === key && parseTime(existing.createdAt) >= cutoff);
 }
 
 export function defaultPassiveSettings(date = new Date()): PassiveEngineSettings {
@@ -2541,7 +2553,12 @@ export async function runPassiveTask(
 
   const notification = notificationFromRun(run, result.cards);
   const notificationStyle = store.passiveSettings?.notificationStyle ?? 'digest';
-  if (notification && notificationStyle !== 'off' && (notificationStyle !== 'urgent_only' || notification.level === 'urgent')) {
+  if (
+    notification &&
+    notificationStyle !== 'off' &&
+    (notificationStyle !== 'urgent_only' || notification.level === 'urgent') &&
+    shouldStorePassiveNotification(store, notification, finished)
+  ) {
     store.passiveNotifications.unshift(notification);
     store.passiveNotifications = store.passiveNotifications.slice(0, 200);
   }
