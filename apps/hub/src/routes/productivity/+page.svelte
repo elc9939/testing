@@ -217,6 +217,11 @@
     }
   }
 
+  function googleOAuthCallbackMode(): 'api' | 'hub' {
+    if (typeof window === 'undefined') return 'api';
+    return window.location.hostname.endsWith('github.io') ? 'hub' : 'api';
+  }
+
   function consumeGoogleQueryStatus(): void {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
@@ -517,7 +522,7 @@
     try {
       const returnTo = googleReturnTo();
       rememberGoogleReturnTo(returnTo);
-      const url = await getGoogleOAuthUrl(returnTo, popup ? 'popup' : 'redirect');
+      const url = await getGoogleOAuthUrl(returnTo, popup ? 'popup' : 'redirect', googleOAuthCallbackMode());
       if (popup) {
         popup.location.href = url;
         actionMessage = 'Complete Google sign-in in the popup.';
@@ -860,7 +865,7 @@
     <strong>Google account setup</strong>
     <p>
       Use Add Google Account once for each account you want Mini Hub to control. The OAuth flow opens Google's
-      account picker in a popup and returns here automatically after the local API stores the token.
+      account picker in a popup, stores the token in your local API, and returns to this hub tab automatically.
     </p>
   </div>
   <button class="button compact" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>

@@ -464,17 +464,23 @@ export function googleCatalog(): ConnectorCatalogEntry[] {
   ];
 }
 
-export function googleAuthUrl(options: { returnTo?: string | undefined; mode?: OAuthState['mode'] | undefined } = {}): string {
+export function googleAuthUrl(
+  options: { returnTo?: string | undefined; mode?: OAuthState['mode'] | undefined; redirectUri?: string | undefined } = {}
+): string {
   requireGoogleConfig();
+  const redirectUri = options.redirectUri ?? env.googleRedirectUri;
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', env.googleClientId ?? '');
-  url.searchParams.set('redirect_uri', env.googleRedirectUri);
+  url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', googleScopes.join(' '));
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent select_account');
   url.searchParams.set('include_granted_scopes', 'true');
-  url.searchParams.set('state', createOAuthState('google', personalWorkspaceId, { returnTo: options.returnTo, mode: options.mode }));
+  url.searchParams.set(
+    'state',
+    createOAuthState('google', personalWorkspaceId, { returnTo: options.returnTo, mode: options.mode, redirectUri })
+  );
   return url.toString();
 }
 
@@ -485,7 +491,7 @@ export async function handleGoogleCallback(store: MemoryStore, code: string, sta
     code,
     client_id: env.googleClientId ?? '',
     client_secret: env.googleClientSecret ?? '',
-    redirect_uri: env.googleRedirectUri,
+    redirect_uri: state.redirectUri ?? env.googleRedirectUri,
     grant_type: 'authorization_code'
   });
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {

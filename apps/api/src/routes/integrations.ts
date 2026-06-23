@@ -73,6 +73,11 @@ const gmailModifyBody = z.object({
   removeLabelIds: z.array(z.string().min(1)).default([])
 });
 
+const googleOAuthExchangeBody = z.object({
+  code: z.string().min(1),
+  state: z.string().min(1)
+});
+
 function publicConnection(connection: ReturnType<typeof getConnection>) {
   if (!connection) return null;
   return {
@@ -243,6 +248,10 @@ function oauthMode(value: string | undefined): OAuthState['mode'] {
   return value === 'popup' ? 'popup' : 'redirect';
 }
 
+function oauthCallbackMode(value: string | undefined): 'api' | 'hub' {
+  return value === 'hub' ? 'hub' : 'api';
+}
+
 function oauthStartReturnTo(c: Context<AppBindings>): string | undefined {
   const candidates = [
     c.req.query('returnTo'),
@@ -254,6 +263,15 @@ function oauthStartReturnTo(c: Context<AppBindings>): string | undefined {
     if (safe) return safe;
   }
   return undefined;
+}
+
+function hostedGoogleCallbackUri(returnTo: string | undefined): string | undefined {
+  const safe = safeReturnTo(returnTo);
+  if (!safe) return undefined;
+  const url = new URL(safe);
+  const firstPathSegment = url.pathname.split('/').filter(Boolean)[0];
+  const basePath = firstPathSegment ? `/${firstPathSegment}` : '';
+  return `${url.origin}${basePath}/oauth/google/callback`;
 }
 
 function previewOAuthState(value: string | undefined): OAuthState | null {
@@ -346,6 +364,12 @@ function oauthFinishResponse(
   return c.redirect(redirectUrl);
 }
 
+function oauthExchangeStateValue(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
+  const value = (body as { state?: unknown }).state;
+  return typeof value === 'string' ? value : undefined;
+}
+
 export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
 
@@ -367,9 +391,50 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      return c.json({ url: googleAuthUrl({ returnTo: oauthStartReturnTo(c), mode: oauthMode(c.req.query('mode')) }) });
+      const returnTo = oauthStartReturnTo(c);
+      const callbackMode = oauthCallbackMode(c.req.query('callback'));
+      return c.json({
+        url: googleAuthUrl({
+          returnTo,
+          mode: oauthMode(c.req.query('mode')),
+          redirectUri: callbackMode === 'hub' ? hostedGoogleCallbackUri(returnTo) : undefined
+        })
+      });
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Google OAuth unavailable' }, 400);
+    }
+  });
+
+  app.post('/google/oauth/exchange', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = googleOAuthExchangeBody.safeParse(body);
+    const statePreview = previewOAuthState(parsed.success ? parsed.data.state : oauthExchangeStateValue(body));
+    const finish = (input: { ok: boolean; status: string; message?: string | undefined }) =>
+      c.json({
+        ok: input.ok,
+        status: input.status,
+        redirectUrl: oauthProductivityRedirect({ returnTo: statePreview?.returnTo, status: input.status, message: input.message }),
+        ...(input.message ? { message: input.message } : {})
+      });
+
+    if (!parsed.success) {
+      return finish({ ok: false, status: 'missing-code', message: 'Google OAuth did not return a usable authorization code.' });
+    }
+
+    try {
+      const connectionState = await handleGoogleCallback(store, parsed.data.code, parsed.data.state);
+      emitPassiveIntegrationEvent(store, 'google.oauth.connected', 'google-oauth-exchange');
+      return c.json({
+        ok: true,
+        status: 'connected',
+        redirectUrl: oauthProductivityRedirect({ returnTo: connectionState.returnTo, status: 'connected' })
+      });
+    } catch (error) {
+      return finish({
+        ok: false,
+        status: 'error',
+        message: error instanceof Error ? error.message : 'oauth-failed'
+      });
     }
   });
 

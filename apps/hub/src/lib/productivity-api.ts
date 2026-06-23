@@ -75,6 +75,13 @@ export interface GmailReplyDraft {
   bodyText: string;
 }
 
+export interface GoogleOAuthExchangeResult {
+  ok: boolean;
+  status: string;
+  redirectUrl: string;
+  message?: string;
+}
+
 export async function getCatalog(): Promise<ConnectorCatalogEntry[]> {
   const result = await requestApiJson<{ connectors: ConnectorCatalogEntry[] }>('/api/integrations/catalog');
   return result.connectors;
@@ -85,15 +92,27 @@ export async function getConnections(): Promise<PublicConnection[]> {
   return result.connections;
 }
 
-export async function getGoogleOAuthUrl(returnTo?: string, mode: 'redirect' | 'popup' = 'redirect'): Promise<string> {
+export async function getGoogleOAuthUrl(
+  returnTo?: string,
+  mode: 'redirect' | 'popup' = 'redirect',
+  callback: 'api' | 'hub' = 'api'
+): Promise<string> {
   const params = new URLSearchParams();
   if (returnTo) params.set('returnTo', returnTo);
   if (mode !== 'redirect') params.set('mode', mode);
+  if (callback !== 'api') params.set('callback', callback);
   const suffix = params.toString() ? `?${params}` : '';
   const result = await requestApiJson<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`, {
     headers: returnTo ? { 'X-Mini-Hub-Return-To': returnTo } : undefined
   });
   return result.url;
+}
+
+export async function exchangeGoogleOAuthCode(input: { code: string; state: string }): Promise<GoogleOAuthExchangeResult> {
+  return requestApiJson<GoogleOAuthExchangeResult>('/api/integrations/google/oauth/exchange', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
 }
 
 export async function revokeGoogle(connectionId?: string): Promise<void> {

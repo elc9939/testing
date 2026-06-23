@@ -946,6 +946,47 @@ describe('mini hub api', () => {
     }
   });
 
+  it('can launch Google OAuth against the hosted hub callback', async () => {
+    const previous = {
+      googleClientId: env.googleClientId,
+      googleClientSecret: env.googleClientSecret,
+      googleRedirectUri: env.googleRedirectUri,
+      hubPublicUrl: env.hubPublicUrl,
+      trustedOrigins: [...env.trustedOrigins]
+    };
+    try {
+      env.googleClientId = 'test-client-id';
+      env.googleClientSecret = 'test-client-secret';
+      env.googleRedirectUri = 'http://127.0.0.1:8787/api/integrations/google/oauth/callback';
+      env.hubPublicUrl = 'http://127.0.0.1:5173';
+      env.trustedOrigins = ['http://127.0.0.1:5173', 'https://elc9939.github.io'];
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+      const returnTo = 'https://elc9939.github.io/testing/productivity?panel=mail';
+
+      const response = await app.request(
+        `/api/integrations/google/oauth/start?returnTo=${encodeURIComponent(returnTo)}&mode=popup&callback=hub`
+      );
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { url: string };
+      const authUrl = new URL(body.url);
+      const redirectUri = authUrl.searchParams.get('redirect_uri');
+      const stateValue = authUrl.searchParams.get('state');
+      expect(redirectUri).toBe('https://elc9939.github.io/testing/oauth/google/callback');
+      expect(verifyOAuthState(stateValue ?? '', 'google')).toMatchObject({
+        returnTo,
+        mode: 'popup',
+        redirectUri
+      });
+    } finally {
+      env.googleClientId = previous.googleClientId;
+      env.googleClientSecret = previous.googleClientSecret;
+      env.googleRedirectUri = previous.googleRedirectUri;
+      env.hubPublicUrl = previous.hubPublicUrl;
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
   it('redirects Google OAuth callbacks back to the trusted starting hub URL', async () => {
     const previous = {
       googleClientId: env.googleClientId,
@@ -987,6 +1028,69 @@ describe('mini hub api', () => {
 
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe(`${returnTo}&google=connected`);
+    } finally {
+      env.googleClientId = previous.googleClientId;
+      env.googleClientSecret = previous.googleClientSecret;
+      env.googleRedirectUri = previous.googleRedirectUri;
+      env.hubPublicUrl = previous.hubPublicUrl;
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
+  it('exchanges hosted Google OAuth callbacks through JSON', async () => {
+    const previous = {
+      googleClientId: env.googleClientId,
+      googleClientSecret: env.googleClientSecret,
+      googleRedirectUri: env.googleRedirectUri,
+      hubPublicUrl: env.hubPublicUrl,
+      trustedOrigins: [...env.trustedOrigins]
+    };
+    try {
+      env.googleClientId = 'test-client-id';
+      env.googleClientSecret = 'test-client-secret';
+      env.googleRedirectUri = 'http://127.0.0.1:8787/api/integrations/google/oauth/callback';
+      env.hubPublicUrl = 'http://127.0.0.1:5173';
+      env.trustedOrigins = ['http://127.0.0.1:5173', 'https://elc9939.github.io'];
+      const returnTo = 'https://elc9939.github.io/testing/productivity?panel=calendar';
+      const redirectUri = 'https://elc9939.github.io/testing/oauth/google/callback';
+      const state = createOAuthState('google', 'personal', { returnTo, mode: 'popup', redirectUri });
+      const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+        const href = String(input);
+        if (href.includes('oauth2.googleapis.com/token')) {
+          const params = new URLSearchParams(String(init?.body ?? ''));
+          expect(params.get('redirect_uri')).toBe(redirectUri);
+          return jsonResponse({
+            access_token: 'google-access-token',
+            refresh_token: 'google-refresh-token',
+            expires_in: 3600,
+            scope: 'openid email profile',
+            token_type: 'Bearer'
+          });
+        }
+        if (href.includes('www.googleapis.com/oauth2/v3/userinfo')) {
+          return jsonResponse({ email: 'student@example.edu', name: 'Student Example' });
+        }
+        return jsonResponse({ error: `unexpected ${href}` }, 404);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const store = createMemoryStore();
+      const app = createApp({ useLogger: false, store });
+
+      const response = await app.request('/api/integrations/google/oauth/exchange', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: 'test-code', state })
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        ok: true,
+        status: 'connected',
+        redirectUrl: `${returnTo}&google=connected`
+      });
+      expect(Array.from(store.integrationConnections.values())).toEqual([
+        expect.objectContaining({ provider: 'google', accountLabel: 'student@example.edu', status: 'connected' })
+      ]);
     } finally {
       env.googleClientId = previous.googleClientId;
       env.googleClientSecret = previous.googleClientSecret;

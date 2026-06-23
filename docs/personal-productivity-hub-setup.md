@@ -16,6 +16,7 @@ Default local URLs:
 - Hub: `http://127.0.0.1:5173/productivity`
 - API: `http://127.0.0.1:8787`
 - Google OAuth callback: `http://127.0.0.1:8787/api/integrations/google/oauth/callback`
+- Hosted GitHub Pages callback: `https://elc9939.github.io/testing/oauth/google/callback`
 
 ## Environment
 
@@ -40,13 +41,24 @@ BRIGHTSPACE_ICAL_URL=
 
 `MINI_HUB_TOKEN_ENCRYPTION_KEY` encrypts provider OAuth tokens at rest and signs OAuth state.
 When you start Google OAuth from the public GitHub Pages app, a local dev URL, or a LAN hub
-URL, the hub passes its current Productivity URL as a signed `returnTo` value. The Google
-callback can still be the local API URL because that is where tokens are stored. After the
-token is stored, popup mode posts a completion message back to the original hub tab and then
-closes; if there is no opener tab, the callback redirects to the trusted hub URL that started
-the flow instead of always falling back to `HUB_PUBLIC_URL`. The hub sends `returnTo` both as
-a signed state value and as `X-Mini-Hub-Return-To` so hosted pages and local APIs agree on the
-original destination.
+URL, the hub passes its current Productivity URL as a signed `returnTo` value. Local dev can
+use the local API callback because that is where tokens are stored. The GitHub Pages hub can
+instead use `/oauth/google/callback` on the hosted site; that static callback hands the one-time
+Google code to the local API, waits for the token to be stored, posts a completion message back
+to the original hub tab, and then closes. If there is no opener tab, it redirects to the trusted
+hub URL that started the flow instead of leaving the browser on `127.0.0.1`.
+
+The public GitHub Pages UI requests the hosted callback dynamically, so the local API can
+keep `GOOGLE_REDIRECT_URI` pointed at the API callback for normal local development. If you
+want hosted callback behavior to be the default for direct API-started OAuth URLs too, set:
+
+```dotenv
+HUB_PUBLIC_URL=https://elc9939.github.io/testing
+GOOGLE_REDIRECT_URI=https://elc9939.github.io/testing/oauth/google/callback
+```
+
+The API still performs the token exchange and encrypted token storage. The hosted page only
+receives the short-lived OAuth code and signed state, then immediately returns to the hub.
 
 ## Google OAuth App
 
@@ -73,6 +85,7 @@ original destination.
      - `https://elc9939.github.io`
    - Authorized redirect URIs:
      - `http://127.0.0.1:8787/api/integrations/google/oauth/callback`
+     - `https://elc9939.github.io/testing/oauth/google/callback`
 6. Put the generated client id and client secret in `.env`.
 
 ## Requested Google Scopes
