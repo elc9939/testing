@@ -114,6 +114,24 @@ interface PassiveResourceBudget {
   researchTimeBudgetSeconds: number;
 }
 
+interface PassiveResourceDecision {
+  checked: boolean;
+  source: 'app-health-run' | 'none';
+  mode: PassiveMachineMode;
+  profileFresh: boolean;
+  heavyAiAllowed: boolean;
+  summaryAllowed: boolean;
+  benchmarkAllowed: boolean;
+  resourcePressureLevel?: string;
+  resourcePressureDrivers: string[];
+  suggestedMaxJobConcurrency?: number;
+  skipReason?: string;
+  profileRunId?: string;
+  profileFinishedAt?: string;
+  profileAgeMinutes?: number;
+  preferredLocalRoute?: Record<string, unknown>;
+}
+
 export interface PassiveRunInput {
   idle?: boolean;
   reason?: string;
@@ -173,6 +191,7 @@ const passiveDigestUrgency = 58;
 const attentionUrgency = 65;
 const maxTaskErrorLogEntries = 12;
 const passiveNotificationDedupeMs = dayMs;
+const passiveMachineProfileFreshMs = 60 * minuteMs;
 const windowsIdleScript = `
 $ErrorActionPreference = "Stop"
 Add-Type @"
@@ -1351,6 +1370,87 @@ function buildAiOsMachineProfileCards(
   return cards;
 }
 
+function latestAiOsMachineProfileSummary(
+  store: MemoryStore,
+  date = new Date()
+): { profile: Record<string, unknown>; run: PassiveRun; ageMs: number } | undefined {
+  const nowMs = date.getTime();
+  for (const run of store.passiveRuns) {
+    const profile = isRecord(run.metadata.aiOsMachineProfile) ? run.metadata.aiOsMachineProfile : undefined;
+    if (!profile || profile.available !== true) continue;
+    const finishedAt = parseTime(run.finishedAt ?? run.startedAt);
+    if (!Number.isFinite(finishedAt)) continue;
+    const ageMs = Math.max(0, nowMs - finishedAt);
+    if (ageMs > passiveMachineProfileFreshMs) continue;
+    return { profile, run, ageMs };
+  }
+  return undefined;
+}
+
+function passiveResourceDecision(store: MemoryStore, date = new Date()): PassiveResourceDecision {
+  const mode = currentPassiveMachineMode(store);
+  const latest = latestAiOsMachineProfileSummary(store, date);
+  if (!latest) {
+    return {
+      checked: true,
+      source: 'none',
+      mode,
+      profileFresh: false,
+      heavyAiAllowed: mode !== 'offline',
+      summaryAllowed: mode !== 'offline',
+      benchmarkAllowed: mode !== 'offline',
+      resourcePressureDrivers: [],
+      ...(mode === 'offline' ? { skipReason: 'Offline Mode avoids AI OS model calls.' } : {})
+    };
+  }
+
+  const pressure = isRecord(latest.profile.resourcePressure) ? latest.profile.resourcePressure : {};
+  const route = isRecord(latest.profile.bestTextRoute) ? latest.profile.bestTextRoute : undefined;
+  const provider = optionalString(route?.provider);
+  const model = optionalString(route?.model);
+  const label = optionalString(route?.label) ?? (provider && model ? `${provider}/${model}` : provider ?? model);
+  const level = optionalString(pressure.level);
+  const drivers = optionalStringArray(pressure.drivers);
+  const highPressure = level === 'high';
+  const offline = mode === 'offline';
+  const heavyAiAllowed = !highPressure && !offline;
+  const suggestedMaxJobConcurrency = optionalNumber(latest.profile.suggestedMaxJobConcurrency);
+  const preferredLocalRoute =
+    mode === 'beast' && route?.local === true && provider
+      ? compactRecord({
+          provider,
+          model,
+          label,
+          tokensPerSecond: optionalNumber(route.tokensPerSecond),
+          latencyMs: optionalNumber(route.latencyMs),
+          measuredAt: optionalString(route.measuredAt)
+        })
+      : undefined;
+
+  const decision: PassiveResourceDecision = {
+    checked: true,
+    source: 'app-health-run',
+    mode,
+    profileFresh: true,
+    heavyAiAllowed,
+    summaryAllowed: heavyAiAllowed,
+    benchmarkAllowed: heavyAiAllowed,
+    resourcePressureDrivers: drivers,
+    profileRunId: latest.run.id,
+    profileAgeMinutes: Math.round((latest.ageMs / minuteMs) * 10) / 10
+  };
+  if (level) decision.resourcePressureLevel = level;
+  if (suggestedMaxJobConcurrency !== undefined) decision.suggestedMaxJobConcurrency = suggestedMaxJobConcurrency;
+  if (highPressure) {
+    decision.skipReason = `AI OS machine profile reports high resource pressure${drivers.length ? ` from ${drivers.join(', ')}` : ''}.`;
+  } else if (offline) {
+    decision.skipReason = 'Offline Mode avoids AI OS model calls.';
+  }
+  if (latest.run.finishedAt) decision.profileFinishedAt = latest.run.finishedAt;
+  if (preferredLocalRoute) decision.preferredLocalRoute = preferredLocalRoute;
+  return decision;
+}
+
 async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const cards: PassiveResultCard[] = [];
   const settings = store.passiveSettings ?? defaultPassiveSettings();
@@ -1861,7 +1961,8 @@ async function queueIdleDigestSummary(
   task: PassiveTask,
   runId: string,
   fetchImpl: FetchLike,
-  budget: PassiveResourceBudget
+  budget: PassiveResourceBudget,
+  resourceDecision: PassiveResourceDecision
 ): Promise<{ cards: PassiveResultCard[]; changed: string[]; metadata: Record<string, unknown> }> {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
   const digestCards = buildPassiveDigest(store, budget.idleSummaryCards);
@@ -1880,6 +1981,11 @@ async function queueIdleDigestSummary(
   const summaryText = passiveDigestSummaryText(digestCards, budget.idleSummaryChars);
   const machineMode = currentPassiveMachineMode(store);
   const allowCloud = settings.localAiPreference === 'cloud_allowed';
+  const preferredRoute = isRecord(resourceDecision.preferredLocalRoute) ? resourceDecision.preferredLocalRoute : undefined;
+  const preferredProvider = optionalString(preferredRoute?.provider);
+  const preferredModel = optionalString(preferredRoute?.model);
+  const suggestedConcurrency = optionalNumber(resourceDecision.suggestedMaxJobConcurrency);
+  const boundedConcurrency = suggestedConcurrency === undefined ? undefined : Math.max(1, Math.min(4, Math.floor(suggestedConcurrency)));
   const payload = await fetchJsonWithTimeout(
     fetchImpl,
     new URL('/api/ai/jobs', env.aiOsApiUrl),
@@ -1898,20 +2004,29 @@ async function queueIdleDigestSummary(
           local_first: true,
           allow_fallback: allowCloud,
           cost_ceiling_usd: allowCloud ? 0.05 : 0,
+          ...(preferredProvider ? { provider: preferredProvider } : {}),
+          ...(preferredModel ? { model: preferredModel } : {}),
           metadata: {
             source: 'passive-task',
             task_id: task.id,
             passive_run_id: runId,
             machine_mode: machineMode,
-            local_ai_preference: settings.localAiPreference
+            local_ai_preference: settings.localAiPreference,
+            resource_decision: resourceDecision
           }
         },
+        ...(boundedConcurrency ? { concurrency: boundedConcurrency } : {}),
         metadata: {
           source: 'passive-task',
           task_id: task.id,
           passive_run_id: runId,
           machine_mode: machineMode,
           local_ai_preference: settings.localAiPreference,
+          resource_decision: resourceDecision,
+          ...(boundedConcurrency ? { concurrency: boundedConcurrency } : {}),
+          ...(preferredProvider || preferredModel
+            ? { preferred_route: { provider: preferredProvider, model: preferredModel, source: 'ai-os-machine-profile' } }
+            : {}),
           card_count: digestCards.length,
           source_card_ids: digestCards.map((item) => item.id)
         }
@@ -1966,7 +2081,12 @@ async function queueIdleDigestSummary(
       cardCount: digestCards.length,
       inputChars: summaryText.length,
       localFirst: true,
-      allowFallback: allowCloud
+      allowFallback: allowCloud,
+      resourceDecision,
+      ...(boundedConcurrency ? { concurrency: boundedConcurrency } : {}),
+      ...(preferredProvider || preferredModel
+        ? { preferredRoute: { provider: preferredProvider, model: preferredModel, source: 'ai-os-machine-profile' } }
+        : {})
     }
   };
 }
@@ -2112,6 +2232,7 @@ async function runIdleCompute(
 
   const settings = store.passiveSettings ?? defaultPassiveSettings();
   const budget = resourceBudget(settings);
+  const resourceDecision = passiveResourceDecision(store);
   const cleanupCandidates = planMiniHubCleanup();
   const cleanupCards: PassiveResultCard[] = cleanupCandidates.length
     ? [
@@ -2160,7 +2281,54 @@ async function runIdleCompute(
         })
       ];
   const cleanupChanged = cleanupCandidates.map((item) => `cleanup-candidate:${item.path}`);
-  const summary = await queueIdleDigestSummary(store, task, runId, fetchImpl, budget).catch((error: unknown) => ({
+
+  if (!resourceDecision.heavyAiAllowed) {
+    const reason = resourceDecision.skipReason ?? 'Current machine policy does not allow background local AI work.';
+    const deferredByPressure = resourceDecision.resourcePressureLevel === 'high';
+    return {
+      status: 'succeeded',
+      cards: [
+        card({
+          id: id('passive-card'),
+          taskId: task.id,
+          runId,
+          family: task.family,
+          title: deferredByPressure ? 'Idle local AI work deferred by machine pressure' : 'Idle local AI work deferred by machine policy',
+          summary: `${reason} Cleanup planning still ran because it is non-destructive and bounded.`,
+          urgency: deferredByPressure ? 54 : 42,
+          confidence: resourceDecision.profileFresh ? 0.9 : 0.72,
+          route: routeMap.aiOs,
+          sourceRefs: [
+            stableSourceRef('service', resourceDecision.profileFresh ? 'AI OS machine profile' : 'Machine mode', {
+              id: resourceDecision.profileRunId ?? 'passive-resource-policy',
+              route: routeMap.aiOs,
+              metadata: { resourceDecision }
+            })
+          ],
+          suggestedAction: deferredByPressure ? 'Wait for lower pressure' : 'Inspect policy',
+          actionKind: 'inspect',
+          why: 'Idle compute respects recent machine-profile/autotune pressure before launching local AI work.'
+        }),
+        ...cleanupCards
+      ],
+      changed: cleanupChanged,
+      metadata: {
+        cleanupCandidates: cleanupCandidates.length,
+        cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0),
+        resourceDecision,
+        idleSummary: {
+          queued: false,
+          reason: 'resource-policy'
+        },
+        benchmark: {
+          queued: false,
+          reason: 'resource-policy'
+        }
+      }
+    };
+  }
+
+  const summary = await queueIdleDigestSummary(store, task, runId, fetchImpl, budget, resourceDecision).catch((error: unknown) => ({
     cards: [
       serviceIssueCard(
         task,
@@ -2177,6 +2345,9 @@ async function runIdleCompute(
       error: describeError(error)
     }
   }));
+  const preferredRoute = isRecord(resourceDecision.preferredLocalRoute) ? resourceDecision.preferredLocalRoute : undefined;
+  const preferredProvider = optionalString(preferredRoute?.provider);
+  const preferredModel = optionalString(preferredRoute?.model);
 
   try {
     const payload = await fetchJsonWithTimeout(
@@ -2191,7 +2362,17 @@ async function runIdleCompute(
           iterations: 1,
           max_tokens: 96,
           local_first: true,
-          metadata: { source: 'passive-task', task_id: task.id }
+          ...(preferredProvider ? { provider: preferredProvider } : {}),
+          ...(preferredModel ? { model: preferredModel } : {}),
+          metadata: {
+            source: 'passive-task',
+            task_id: task.id,
+            passive_run_id: runId,
+            resource_decision: resourceDecision,
+            ...(preferredProvider || preferredModel
+              ? { preferred_route: { provider: preferredProvider, model: preferredModel, source: 'ai-os-machine-profile' } }
+              : {})
+          }
         })
       },
       45000
@@ -2227,7 +2408,14 @@ async function runIdleCompute(
       metadata: {
         cleanupCandidates: cleanupCandidates.length,
         cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0),
-        idleSummary: summary.metadata
+        resourceDecision,
+        idleSummary: summary.metadata,
+        benchmark: {
+          queued: true,
+          ...(preferredProvider || preferredModel
+            ? { preferredRoute: { provider: preferredProvider, model: preferredModel, source: 'ai-os-machine-profile' } }
+            : {})
+        }
       }
     };
   } catch (error) {
@@ -2248,7 +2436,15 @@ async function runIdleCompute(
       metadata: {
         cleanupCandidates: cleanupCandidates.length,
         cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0),
-        idleSummary: summary.metadata
+        resourceDecision,
+        idleSummary: summary.metadata,
+        benchmark: {
+          queued: false,
+          error: describeError(error),
+          ...(preferredProvider || preferredModel
+            ? { preferredRoute: { provider: preferredProvider, model: preferredModel, source: 'ai-os-machine-profile' } }
+            : {})
+        }
       }
     };
   }

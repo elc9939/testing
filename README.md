@@ -124,7 +124,10 @@ real-data only:
   and non-destructive Mini Hub cleanup dry-runs only when the worker or a manual tick reports
   a real idle window. Summary jobs use existing source-backed passive cards and cleanup cards
   list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does not
-  delete them.
+  delete them. It also reads the latest fresh App Health machine-profile/autotune metadata:
+  high measured CPU/RAM/GPU/VRAM pressure defers local AI summary/benchmark work while still
+  allowing cleanup dry-runs, suggested concurrency is passed to queued AI OS jobs, and Beast
+  Mode prefers the best measured local text route when one exists.
 - Background Research Monitor reads AI OS saved monitor due-state, prepares daily AI OS
   monitor templates from configured watched domains, queues due monitor runs through AI OS,
   and surfaces completed `monitor_topic` reports as source-backed passive cards. Already

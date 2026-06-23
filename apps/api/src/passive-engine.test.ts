@@ -779,6 +779,192 @@ describe('passive task engine', () => {
     expect(run.cards.some((card) => card.title === 'Idle passive digest summary queued')).toBe(true);
   });
 
+  it('defers idle AI jobs when recent machine profile pressure is high', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store, new Date('2026-06-20T10:00:00.000Z'));
+    const appHealthTask = store.passiveTasks.find((item) => item.family === 'app_health')!;
+    const idleTask = store.passiveTasks.find((item) => item.family === 'idle_compute')!;
+    let aiJobCalls = 0;
+    let benchmarkCalls = 0;
+    const pressureFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/status')) {
+        return jsonResponse({
+          jobs: [],
+          backups: [{ id: 'backup-1', ok: true }],
+          machine_profile: {
+            mode: 'beast',
+            created_at: '2026-06-20T10:00:00.000Z',
+            provider_summary: { total: 1, available: 1, local_configured: 1, local_available: 1 },
+            ai_os_health: { integrity_ok: true, jobs_count: 0 },
+            capability_readiness: { total: 4, available: 4, unavailable: 0 },
+            benchmarks: { text_samples: 2 },
+            autotune: {
+              resource_pressure: {
+                level: 'high',
+                drivers: ['gpu', 'vram'],
+                gpu_utilization_percent: 98,
+                vram_percent: 93
+              },
+              suggested_max_job_concurrency: 1,
+              best_text_route: {
+                provider: 'ollama',
+                model: 'llama3.1:8b',
+                tokens_per_second: 22,
+                local: true,
+                paid: false
+              },
+              confidence: 'measured'
+            }
+          }
+        });
+      }
+      if (href.includes('/api/ai/jobs')) {
+        aiJobCalls += 1;
+      }
+      if (href.includes('/api/ai/benchmarks')) {
+        benchmarkCalls += 1;
+      }
+      return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+    }) as typeof fetch;
+
+    await runPassiveTask(store, appHealthTask.id, {
+      externalFetch: pressureFetch,
+      force: true,
+      input: { reason: 'pressure-source' }
+    });
+
+    const run = await runPassiveTask(store, idleTask.id, {
+      externalFetch: pressureFetch,
+      force: true,
+      input: { idle: true, reason: 'pressure-gate-test' }
+    });
+
+    expect(run.status).toBe('succeeded');
+    expect(aiJobCalls).toBe(0);
+    expect(benchmarkCalls).toBe(0);
+    expect(run.cards[0]?.title).toBe('Idle local AI work deferred by machine pressure');
+    expect(run.metadata.resourceDecision).toMatchObject({
+      source: 'app-health-run',
+      profileFresh: true,
+      heavyAiAllowed: false,
+      resourcePressureLevel: 'high',
+      resourcePressureDrivers: ['gpu', 'vram'],
+      suggestedMaxJobConcurrency: 1
+    });
+    expect(run.metadata.idleSummary).toMatchObject({
+      queued: false,
+      reason: 'resource-policy'
+    });
+    expect(run.metadata.benchmark).toMatchObject({
+      queued: false,
+      reason: 'resource-policy'
+    });
+  });
+
+  it('uses the measured local route for Beast Mode idle AI jobs', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store, new Date('2026-06-20T10:00:00.000Z'));
+    setMachineMode(store, 'beast');
+    const appHealthTask = store.passiveTasks.find((item) => item.family === 'app_health')!;
+    await runPassiveTask(store, appHealthTask.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'beast-route-source' }
+    });
+    store.careerActions.push({
+      id: 'career-action-beast-route',
+      workspaceId: personalWorkspaceId,
+      jobId: undefined,
+      label: 'Review measured local route',
+      dueAt: '2026-06-19T10:00:00.000Z',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    const careerTask = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+    await runPassiveTask(store, careerTask.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'beast-digest-source' }
+    });
+
+    const jobBodies: Array<Record<string, unknown>> = [];
+    const benchmarkBodies: Array<Record<string, unknown>> = [];
+    const idleFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/jobs')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        jobBodies.push(body);
+        return jsonResponse({
+          job: {
+            id: 'job-beast-route',
+            primitive: 'chunk_summarize',
+            status: 'queued',
+            created_at: '2026-06-20T10:00:00.000Z',
+            updated_at: '2026-06-20T10:00:00.000Z',
+            total: 1,
+            completed: 0,
+            failed: 0,
+            progress: 0,
+            metadata: body.metadata
+          }
+        });
+      }
+      if (href.includes('/api/ai/benchmarks')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        benchmarkBodies.push(body);
+        return jsonResponse({ benchmark: { id: 'benchmark-beast-route', tokens_per_second: 34, provider: body.provider, model: body.model } });
+      }
+      return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+    }) as typeof fetch;
+    const idleTask = store.passiveTasks.find((item) => item.family === 'idle_compute')!;
+
+    const run = await runPassiveTask(store, idleTask.id, {
+      externalFetch: idleFetch,
+      force: true,
+      input: { idle: true, reason: 'beast-route-test' }
+    });
+
+    expect(run.status).toBe('succeeded');
+    expect(jobBodies[0]).toMatchObject({
+      concurrency: 2,
+      request: {
+        provider: 'ollama',
+        model: 'llama3.1:8b'
+      }
+    });
+    expect(benchmarkBodies[0]).toMatchObject({
+      provider: 'ollama',
+      model: 'llama3.1:8b'
+    });
+    expect(run.metadata.resourceDecision).toMatchObject({
+      mode: 'beast',
+      heavyAiAllowed: true,
+      preferredLocalRoute: {
+        provider: 'ollama',
+        model: 'llama3.1:8b',
+        label: 'ollama/llama3.1:8b'
+      },
+      suggestedMaxJobConcurrency: 2
+    });
+    expect(run.metadata.idleSummary).toMatchObject({
+      concurrency: 2,
+      preferredRoute: {
+        provider: 'ollama',
+        model: 'llama3.1:8b',
+        source: 'ai-os-machine-profile'
+      }
+    });
+    expect(run.metadata.benchmark).toMatchObject({
+      queued: true,
+      preferredRoute: {
+        provider: 'ollama',
+        model: 'llama3.1:8b',
+        source: 'ai-os-machine-profile'
+      }
+    });
+  });
+
   it('runs local file intelligence from configured folder watch events', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-watch-'));
     try {

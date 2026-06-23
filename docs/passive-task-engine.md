@@ -131,7 +131,11 @@ normal API startup.
 - Idle Compute Queue: runs bounded AI OS benchmarks, local-first AI OS summary jobs over
   existing passive digest cards, and non-destructive Mini Hub cleanup dry-runs only when the
   worker or dashboard tick reports a real idle window. Cleanup cards list stale passive
-  snapshots/logs/temp files under Mini Hub-owned data paths; v1 does not delete them.
+  snapshots/logs/temp files under Mini Hub-owned data paths; v1 does not delete them. It
+  consults the latest fresh App Health AI OS machine-profile/autotune metadata before
+  launching local AI work: high measured pressure defers summaries/benchmarks, suggested
+  concurrency is passed through to queued AI OS jobs, and Beast Mode prefers the best measured
+  local text route when one is available.
 - Background Research Monitor: reads AI OS due monitors, prepares daily AI OS monitor
   templates from configured watched domains, queues due monitor runs, and surfaces completed
   `monitor_topic` reports as source-backed passive cards with research-run and source URL
