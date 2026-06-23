@@ -13,6 +13,7 @@ import { triageGmailThreads } from '../integrations/email-triage';
 import { getConnection, getConnections as getStoredConnections } from '../integrations/token-vault';
 import type { CalendarEventPatch, GmailComposeInput, GmailModifyInput, GmailReplyInput } from '../integrations/types';
 import { requireUser, type AppBindings } from '../context';
+import { runPassiveEvent } from '../passive-engine';
 import type { MemoryStore } from '../store';
 
 const eventBody = z.object({
@@ -199,6 +200,15 @@ function gmailThreadQuery(c: Context<AppBindings>): {
   return query;
 }
 
+function emitPassiveIntegrationEvent(store: MemoryStore, eventName: string, reason: string): void {
+  void runPassiveEvent(store, eventName, {
+    input: { reason },
+    limit: 1
+  }).catch((error) => {
+    console.warn(`Passive integration event ${eventName} failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+  });
+}
+
 export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
 
@@ -232,6 +242,7 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     if (!code || !state) return c.redirect(`${env.hubPublicUrl}/productivity?google=missing-code`);
     try {
       await handleGoogleCallback(store, code, state);
+      emitPassiveIntegrationEvent(store, 'google.oauth.connected', 'google-oauth-callback');
       return c.redirect(`${env.hubPublicUrl}/productivity?google=connected`);
     } catch (error) {
       const message = encodeURIComponent(error instanceof Error ? error.message : 'oauth-failed');
@@ -245,6 +256,7 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     try {
       const body = await c.req.json().catch(() => ({})) as { connectionId?: string };
       await revokeGoogleConnection(store, body.connectionId);
+      emitPassiveIntegrationEvent(store, 'google.oauth.revoked', 'google-oauth-revoke');
       return c.json({ ok: true });
     } catch (error) {
       const result = connectorError(error);

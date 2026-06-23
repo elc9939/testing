@@ -20,6 +20,11 @@ State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Mini Hub resto
 created by the Backup + Snapshot Watcher are written under
 `MINI_HUB_DATA_DIR/passive-snapshots`.
 
+The API worker emits `app.startup` when it starts. The hub browser shell also emits a
+throttled `app.startup` on open and `app.reconnect` after the browser comes back online.
+Google OAuth connect/revoke flows emit `google.oauth.connected` and `google.oauth.revoked`.
+Those lifecycle events all feed the App Health Watchdog event task.
+
 ## Model
 
 The shared core model includes:
@@ -40,7 +45,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 
 - App Health Watchdog: checks Mini Hub data dir, Google connection state, AI OS, Macro Lab,
   Ollama, AI OS jobs, and backup freshness. It has both a scheduled task and a built-in
-  `app.startup` event task for startup/reconnect checks.
+  event task for `app.startup`, `app.reconnect`, service reconnect, and Google OAuth
+  lifecycle checks.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot and requests an AI OS
   backup when AI OS is available.
 - Idle Compute Queue: runs bounded AI OS benchmarks only when the tick is explicitly marked

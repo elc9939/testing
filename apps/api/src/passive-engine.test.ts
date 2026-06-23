@@ -9,6 +9,7 @@ import {
   collectPassiveAttentionItems,
   duePassiveTasks,
   ensurePassiveDefaults,
+  startPassiveTaskWorker,
   runPassiveTask,
   setPassiveWatcherEnabled,
   updatePassiveTaskStatus
@@ -25,6 +26,30 @@ function jsonResponse(value: unknown, ok = true): Response {
     status: ok ? 200 : 500,
     headers: { 'content-type': 'application/json' }
   });
+}
+
+function healthyServiceFetch(): typeof fetch {
+  return (async (input: unknown) => {
+    const href = String(input);
+    if (href.includes('/api/ai/status')) {
+      return jsonResponse({ jobs: [], backups: [{ id: 'backup-1', ok: true }] });
+    }
+    if (href.includes('/api/macro-lab/status')) {
+      return jsonResponse({ ok: true, engine: { panic: false, running: 0, action_count: 0 } });
+    }
+    if (href.includes('/api/tags')) {
+      return jsonResponse({ models: [{ name: 'llama3.1:8b' }] });
+    }
+    return jsonResponse({ ok: true });
+  }) as typeof fetch;
+}
+
+async function waitForCondition(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('Timed out waiting for passive test condition.');
 }
 
 describe('passive task engine', () => {
@@ -76,12 +101,37 @@ describe('passive task engine', () => {
 
     const scheduledDue = duePassiveTasks(store, now);
     const startupDue = duePassiveTasks(store, now, { eventName: 'app.startup' });
-    const unrelatedDue = duePassiveTasks(store, now, { eventName: 'google.oauth.connected' });
+    const reconnectDue = duePassiveTasks(store, now, { eventName: 'app.reconnect' });
+    const oauthDue = duePassiveTasks(store, now, { eventName: 'google.oauth.connected' });
+    const unrelatedDue = duePassiveTasks(store, now, { eventName: 'file.changed' });
 
     expect(scheduledDue.some((task) => task.trigger.kind === 'event')).toBe(false);
     expect(startupDue).toHaveLength(1);
     expect(startupDue[0]?.id).toBe('passive-task:app-health-startup');
+    expect(reconnectDue[0]?.id).toBe('passive-task:app-health-startup');
+    expect(oauthDue[0]?.id).toBe('passive-task:app-health-startup');
     expect(unrelatedDue).toEqual([]);
+  });
+
+  it('emits a startup event run automatically when the worker starts', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const stop = startPassiveTaskWorker(store, {
+      externalFetch: healthyServiceFetch(),
+      intervalMs: 60_000
+    });
+    try {
+      await waitForCondition(() => store.passiveRuns.some((run) => run.metadata.eventName === 'app.startup'));
+    } finally {
+      stop();
+    }
+
+    const run = store.passiveRuns.find((item) => item.metadata.eventName === 'app.startup');
+    expect(run).toMatchObject({
+      taskId: 'passive-task:app-health-startup',
+      status: 'succeeded',
+      metadata: { reason: 'worker-startup', eventName: 'app.startup' }
+    });
   });
 
   it('persists watcher state across store instances', () => {

@@ -93,13 +93,15 @@ dashboard. The engine persists `Watcher`, `Trigger`, `Task`, `Run`, `Result card
 `Notification` state to `passive-tasks.json` in `MINI_HUB_DATA_DIR`, logs runs into the
 Action Ledger, and exposes a snapshot with per-family freshness/errors. The worker checks
 due tasks on a lightweight interval while the API is running; the dashboard can also run
-due tasks, event-triggered startup checks, or idle-only ticks manually. `POST
-/api/passive-tasks/events/:eventName` ingests named events such as `app.startup`, and
+due tasks, event-triggered startup checks, or idle-only ticks manually. The API worker emits
+`app.startup` when it starts, the browser shell emits throttled `app.startup`/`app.reconnect`
+events on open and reconnect, and Google OAuth connect/revoke flows emit passive lifecycle
+events. `POST /api/passive-tasks/events/:eventName` also ingests named events directly, and
 event-only tasks stay out of ordinary scheduled ticks. V1 task families are real-data only:
 
 - App Health Watchdog checks the hub data directory, Google connection state, AI OS, Macro
-  Lab, Ollama, AI OS jobs, and backup freshness on a schedule and through the built-in
-  `app.startup` event task.
+  Lab, Ollama, AI OS jobs, and backup freshness on a schedule and through built-in startup,
+  reconnect, and Google OAuth lifecycle event triggers.
 - Backup + Snapshot Watcher writes non-destructive Mini Hub restore snapshots under
   `MINI_HUB_DATA_DIR/passive-snapshots` and asks AI OS for its own backup when available.
 - Idle Compute Queue runs bounded AI OS benchmarks only when a tick is explicitly marked

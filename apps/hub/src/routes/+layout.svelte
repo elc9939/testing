@@ -21,6 +21,7 @@
   import { routeMap } from '@mini-hub/core';
   import AssistantDock from '$lib/AssistantDock.svelte';
   import { clientData } from '$lib/client-data';
+  import { runPassiveEvent } from '$lib/passive-tasks-api';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
   import { applyTheme, normalizeTheme, setTheme, theme, watchSystemTheme, type ThemeMode } from '$lib/theme';
 
@@ -41,6 +42,7 @@
 
   $: path = hubRouteFromPath($page.url.pathname);
   $: themeLabel = $theme === 'dark' ? 'Dark' : $theme === 'light' ? 'Light' : 'System';
+  const passiveEventThrottlePrefix = 'miniHub.passive.event.v1';
 
   function cycleTheme(): void {
     const modes: ThemeMode[] = ['system', 'light', 'dark'];
@@ -50,6 +52,16 @@
     if ($clientData.isOnline) {
       void clientData.saveSettings({ theme: nextTheme }).catch(() => undefined);
     }
+  }
+
+  function emitPassiveBrowserEvent(eventName: string, reason: string, throttleMinutes: number): void {
+    if (typeof window === 'undefined' || !navigator.onLine) return;
+    const key = `${passiveEventThrottlePrefix}.${eventName}`;
+    const lastRun = Number(localStorage.getItem(key) ?? '0');
+    if (Number.isFinite(lastRun) && Date.now() - lastRun < throttleMinutes * 60_000) return;
+    void runPassiveEvent(eventName, { reason, limit: 1 })
+      .then(() => localStorage.setItem(key, String(Date.now())))
+      .catch(() => undefined);
   }
 
   onMount(() => {
@@ -68,11 +80,14 @@
       }
     });
     applyTheme($theme);
-    void clientData.init();
+    void clientData.init().then(() => emitPassiveBrowserEvent('app.startup', 'hub-layout-startup', 30));
+    const handleOnline = () => emitPassiveBrowserEvent('app.reconnect', 'browser-online', 10);
+    window.addEventListener('online', handleOnline);
     return () => {
       unsubscribeTheme();
       unsubscribeSystemTheme();
       unsubscribeData();
+      window.removeEventListener('online', handleOnline);
     };
   });
 </script>

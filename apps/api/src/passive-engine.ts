@@ -63,6 +63,7 @@ interface DefaultTaskDefinition {
   triggerLabel?: string;
   intervalMinutes?: number;
   eventName?: string;
+  eventNames?: string[];
   priority: number;
   idleOnly?: boolean;
   route: string;
@@ -108,6 +109,7 @@ const defaultTaskDefinitions: DefaultTaskDefinition[] = [
     triggerKind: 'event',
     triggerLabel: 'Startup event',
     eventName: 'app.startup',
+    eventNames: ['app.startup', 'app.reconnect', 'service.reconnect', 'google.oauth.connected', 'google.oauth.revoked'],
     priority: 95,
     route: routeMap.settings
   },
@@ -308,7 +310,8 @@ function defaultTask(definition: DefaultTaskDefinition, date: Date): PassiveTask
       ...(definition.intervalMinutes ? { intervalMinutes: definition.intervalMinutes } : {}),
       ...(definition.eventName ? { eventName: definition.eventName } : {}),
       ...(definition.idleOnly ? { idleMinutes: 20 } : {}),
-      ...(nextRunAt ? { nextRunAt } : {})
+      ...(nextRunAt ? { nextRunAt } : {}),
+      ...(definition.eventNames?.length ? { metadata: { eventNames: definition.eventNames } } : {})
     },
     priority: definition.priority,
     idleOnly: Boolean(definition.idleOnly),
@@ -1484,29 +1487,45 @@ export async function runPassiveEvent(
 
 export function startPassiveTaskWorker(
   store: MemoryStore,
-  options: { externalFetch?: FetchLike; intervalMs?: number } = {}
+  options: { externalFetch?: FetchLike; intervalMs?: number; startupEventName?: string | false } = {}
 ): () => void {
   const intervalMs = options.intervalMs ?? 5 * minuteMs;
+  const startupEventName = options.startupEventName ?? 'app.startup';
   let running = false;
-  const tick = async () => {
+  const runExclusive = async (label: string, work: () => Promise<unknown>) => {
     if (running) return;
     running = true;
     try {
+      await work();
+    } catch (error) {
+      console.warn(`Passive task worker ${label} failed: ${describeError(error)}`);
+    } finally {
+      running = false;
+    }
+  };
+  const tick = async () =>
+    runExclusive('tick', async () => {
       const tickOptions: { externalFetch?: FetchLike; input?: PassiveRunInput } = {
         input: { reason: 'worker-tick', idle: false }
       };
       if (options.externalFetch) tickOptions.externalFetch = options.externalFetch;
       await runDuePassiveTasks(store, tickOptions);
-    } catch (error) {
-      console.warn(`Passive task worker tick failed: ${describeError(error)}`);
-    } finally {
-      running = false;
-    }
+    });
+  const startup = async () => {
+    if (!startupEventName) return;
+    await runExclusive('startup event', async () => {
+      const eventOptions: { externalFetch?: FetchLike; input: Omit<PassiveRunInput, 'eventName'>; limit: number } = {
+        input: { reason: 'worker-startup' },
+        limit: 1
+      };
+      if (options.externalFetch) eventOptions.externalFetch = options.externalFetch;
+      await runPassiveEvent(store, startupEventName, eventOptions);
+    });
   };
   const interval = setInterval(() => {
     void tick();
   }, intervalMs);
-  void tick();
+  void startup().then(() => tick());
   return () => clearInterval(interval);
 }
 
