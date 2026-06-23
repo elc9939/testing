@@ -75,6 +75,19 @@ describe('buildActivityRecords', () => {
             metadata: {}
           }
         ],
+        tool_calls: [
+          {
+            id: 'call_1',
+            created_at: '2026-06-20T10:03:30.000Z',
+            tool_id: 'study.add_session',
+            ok: true,
+            safety: 'write',
+            requires_confirmation: true,
+            arguments: { subject: 'Algorithms' },
+            result: { ok: true },
+            latency_ms: 42
+          }
+        ],
         benchmark_runs: [
           {
             id: 'bench_1',
@@ -90,6 +103,19 @@ describe('buildActivityRecords', () => {
             result: {},
             ok: true
           }
+        ],
+        generation_assets: [
+          {
+            id: 'asset_1',
+            created_at: '2026-06-20T10:00:30.000Z',
+            kind: 'image',
+            provider: 'comfyui',
+            model: 'sdxl',
+            prompt: 'cat',
+            content_type: 'image/png',
+            asset_path: 'generated/cat.png',
+            metadata: {}
+          }
         ]
       }),
       passiveSnapshot: {
@@ -101,10 +127,9 @@ describe('buildActivityRecords', () => {
             family: 'research_monitor',
             status: 'failed',
             startedAt: '2026-06-20T10:01:00.000Z',
-            error: 'monitor API unavailable',
             cards: [],
             changed: [],
-            metadata: {}
+            metadata: { indexedFiles: 2, fileCount: 5 }
           }
         ]
       } as unknown as PassiveSnapshot,
@@ -125,13 +150,20 @@ describe('buildActivityRecords', () => {
     expect(records.map((record) => record.id)).toEqual([
       'research:research_active',
       'ai-job:job_1',
+      'ai-tool:call_1',
       'ai-benchmark:bench_1',
       'passive:passive_1',
+      'ai-generation:asset_1',
       'macro:macro_1'
     ]);
     expect(records.find((record) => record.id === 'research:research_active')?.route).toBe('/research?run=research_active');
+    expect(records.find((record) => record.id === 'ai-tool:call_1')?.route).toBe('/ai-os?activity=tool&id=call_1');
+    expect(records.find((record) => record.id === 'ai-generation:asset_1')?.route).toBe('/ai-os?activity=generation&id=asset_1');
     expect(records.find((record) => record.id === 'passive:passive_1')?.actions.find((action) => action.kind === 'retry')?.enabled).toBe(true);
+    expect(records.find((record) => record.id === 'passive:passive_1')?.detail).toContain('indexed file');
     expect(records.find((record) => record.id === 'ai-job:job_1')?.actions.find((action) => action.kind === 'cancel')?.enabled).toBe(true);
+    expect(records.find((record) => record.id === 'ai-tool:call_1')?.actions.find((action) => action.kind === 'view_logs')?.enabled).toBe(true);
+    expect(records.find((record) => record.id === 'ai-generation:asset_1')?.detail).toContain('generated/cat.png');
     expect(records.find((record) => record.id === 'research:research_active')?.actions.some((action) => action.kind === 'dismiss')).toBe(false);
     expect(records.find((record) => record.id === 'macro:macro_1')?.actions.find((action) => action.kind === 'dismiss')?.enabled).toBe(true);
     expect(activityHasActiveWork(records)).toBe(true);

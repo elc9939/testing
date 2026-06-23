@@ -1,5 +1,13 @@
 import type { PassiveRun, PassiveSnapshot } from '@mini-hub/core';
-import type { AiBackupSummary, AiBenchmarkRun, AiJobSnapshot, AiStatus, ResearchRun } from './ai-os-api';
+import type {
+  AiBackupSummary,
+  AiBenchmarkRun,
+  AiGenerationAsset,
+  AiJobSnapshot,
+  AiStatus,
+  AiToolCallEntry,
+  ResearchRun
+} from './ai-os-api';
 import type { MacroRun } from './macro-lab-api';
 
 export type ActivityStatus = 'queued' | 'running' | 'paused' | 'succeeded' | 'failed' | 'cancelled' | 'blocked' | 'skipped' | 'info';
@@ -39,8 +47,10 @@ export function buildActivityRecords(input: ActivityBuildInput, limit = 40): Act
   const records = [
     ...researchRecords(input.aiStatus?.research_runs ?? []),
     ...aiJobRecords(input.aiStatus?.jobs ?? []),
+    ...toolCallRecords(input.aiStatus?.tool_calls ?? []),
     ...benchmarkRecords(input.aiStatus?.benchmark_runs ?? []),
     ...backupRecords(input.aiStatus?.backups ?? []),
+    ...generationAssetRecords(input.aiStatus?.generation_assets ?? []),
     ...passiveRecords(input.passiveSnapshot?.runs ?? []),
     ...macroRecords(input.macroRuns ?? [])
   ];
@@ -112,6 +122,30 @@ function aiJobRecords(jobs: AiJobSnapshot[]): ActivityRecord[] {
   });
 }
 
+function toolCallRecords(calls: AiToolCallEntry[]): ActivityRecord[] {
+  return calls.map((call) => {
+    const route = `/ai-os?activity=tool&id=${encodeURIComponent(call.id)}`;
+    const status: ActivityStatus = call.ok ? 'succeeded' : 'failed';
+    return {
+      id: `ai-tool:${call.id}`,
+      source: 'ai-os',
+      sourceLabel: 'AI OS',
+      title: `Tool call: ${call.tool_id}`,
+      detail: call.error || toolCallDetail(call),
+      status,
+      startedAt: call.created_at,
+      updatedAt: call.created_at,
+      error: call.error,
+      route,
+      actions: dismissibleActions(status, [
+        action('open', 'Open', true, route),
+        action('view_logs', 'View Logs', true, route)
+      ]),
+      metadata: { toolCallId: call.id, toolId: call.tool_id, safety: call.safety }
+    };
+  });
+}
+
 function benchmarkRecords(runs: AiBenchmarkRun[]): ActivityRecord[] {
   return runs.map((run) => {
     const route = `/ai-os?activity=benchmark&id=${encodeURIComponent(run.id)}`;
@@ -151,6 +185,28 @@ function backupRecords(backups: AiBackupSummary[]): ActivityRecord[] {
         action('view_logs', 'View Logs', true, route)
       ]),
       metadata: { backupId: backup.id, path: backup.path }
+    };
+  });
+}
+
+function generationAssetRecords(assets: AiGenerationAsset[]): ActivityRecord[] {
+  return assets.map((asset) => {
+    const route = `/ai-os?activity=generation&id=${encodeURIComponent(asset.id)}`;
+    return {
+      id: `ai-generation:${asset.id}`,
+      source: 'ai-os',
+      sourceLabel: 'AI OS',
+      title: `${titleCase(asset.kind)} generated`,
+      detail: generationAssetDetail(asset),
+      status: 'succeeded',
+      startedAt: asset.created_at,
+      updatedAt: asset.created_at,
+      route,
+      actions: dismissibleActions('succeeded', [
+        action('open', 'Open', true, route),
+        action('view_logs', 'View Logs', true, route)
+      ]),
+      metadata: { assetId: asset.id, kind: asset.kind, provider: asset.provider, model: asset.model }
     };
   });
 }
@@ -236,16 +292,40 @@ function aiJobDetail(job: AiJobSnapshot): string {
   return 'Tracked by the AI OS queue.';
 }
 
+function toolCallDetail(call: AiToolCallEntry): string {
+  const gate = call.requires_confirmation ? ', confirmation gated' : '';
+  return `${call.safety}${gate} action in ${Math.round(call.latency_ms)} ms.`;
+}
+
 function benchmarkDetail(run: AiBenchmarkRun): string {
   const provider = [run.provider, run.model].filter(Boolean).join('/');
   const speed = typeof run.tokens_per_second === 'number' ? `, ${run.tokens_per_second.toFixed(1)} tokens/sec` : '';
   return `${provider || 'auto route'} in ${Math.round(run.latency_ms)} ms${speed}.`;
 }
 
+function generationAssetDetail(asset: AiGenerationAsset): string {
+  const provider = [asset.provider, asset.model].filter(Boolean).join('/');
+  const location = asset.asset_path || asset.content_type || 'metadata logged';
+  return `${provider || 'generation adapter'} - ${location}.`;
+}
+
 function passiveDetail(run: PassiveRun): string {
-  const cards = run.cards.length ? `${run.cards.length} card${run.cards.length === 1 ? '' : 's'}` : 'no cards';
-  const changed = run.changed.length ? `, ${run.changed.length} change${run.changed.length === 1 ? '' : 's'}` : '';
-  return `${cards}${changed}.`;
+  const parts = [
+    run.cards.length ? `${run.cards.length} card${run.cards.length === 1 ? '' : 's'}` : '',
+    run.changed.length ? `${run.changed.length} change${run.changed.length === 1 ? '' : 's'}` : '',
+    run.metadata.snapshotVerified === true ? 'snapshot verified' : '',
+    countDetail(run.metadata.cleanupCandidates, 'cleanup candidate'),
+    countDetail(run.metadata.indexedFiles, 'indexed file'),
+    countDetail(run.metadata.fileCount, 'file scanned'),
+    countDetail(run.metadata.ignoredIntegrationConnectionIssues, 'ignored account issue')
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(', ')}.` : 'No cards or changed artifacts.';
+}
+
+function countDetail(value: unknown, label: string): string {
+  const count = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : 0;
+  if (count <= 0) return '';
+  return `${count} ${label}${count === 1 ? '' : 's'}`;
 }
 
 function dateValue(value: string): number {

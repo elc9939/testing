@@ -253,7 +253,7 @@
   <section class="empty-state">
     <Activity size={20} />
     <strong>No durable activity yet.</strong>
-    <p>When a research run, AI OS job, passive sweep, backup, benchmark, or macro run exists in its backend, it will appear here after refresh.</p>
+    <p>When a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run exists in its backend, it will appear here after refresh.</p>
     {#if partial}
       <p>Some sources are unavailable, so this may be incomplete.</p>
     {/if}
