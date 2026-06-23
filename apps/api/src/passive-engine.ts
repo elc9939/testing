@@ -521,6 +521,31 @@ function stableSourceRef(kind: PassiveSourceRef['kind'], label: string, values: 
   };
 }
 
+function endpointMetadata(value: string | URL): Record<string, unknown> {
+  try {
+    const url = value instanceof URL ? value : new URL(value);
+    const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+    return {
+      url: url.toString(),
+      origin: url.origin,
+      protocol: url.protocol.replace(/:$/u, ''),
+      host: url.hostname,
+      port
+    };
+  } catch {
+    return { url: String(value) };
+  }
+}
+
+function ollamaModelNames(payload: unknown): string[] {
+  if (!isRecord(payload) || !Array.isArray(payload.models)) return [];
+  return payload.models
+    .filter(isRecord)
+    .map((model) => model.name ?? model.model)
+    .filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
+    .map((name) => name.trim());
+}
+
 function normalizeWatchedDomain(value: string): string | null {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return null;
@@ -924,6 +949,14 @@ function serviceIssueCard(task: PassiveTask, runId: string, title: string, summa
 async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const cards: PassiveResultCard[] = [];
   const dataDir = resolve(env.dataDir);
+  const endpoints = {
+    hub: endpointMetadata(env.hubPublicUrl),
+    miniHubApi: endpointMetadata(`http://127.0.0.1:${env.port}`),
+    aiOs: endpointMetadata(env.aiOsApiUrl),
+    macroLab: endpointMetadata(env.macroLabApiUrl),
+    ollama: endpointMetadata(env.ollamaBaseUrl)
+  };
+  let ollamaModels: string[] = [];
   if (!existsSync(dataDir)) {
     cards.push(
       serviceIssueCard(
@@ -978,7 +1011,11 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
           `${failedJobs.length} AI OS job${failedJobs.length === 1 ? '' : 's'} failed`,
           'AI OS reported failed or blocked job records.',
           78,
-          stableSourceRef('service', 'AI OS jobs', { id: 'ai-os-jobs', route: routeMap.aiOs })
+          stableSourceRef('service', 'AI OS jobs', {
+            id: 'ai-os-jobs',
+            route: routeMap.aiOs,
+            metadata: endpoints.aiOs
+          })
         )
       );
     }
@@ -992,7 +1029,11 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
           'AI OS has no visible backup',
           'AI OS status did not report any recent backup artifact.',
           70,
-          stableSourceRef('service', 'AI OS backups', { id: 'ai-os-backups', route: routeMap.aiOs })
+          stableSourceRef('service', 'AI OS backups', {
+            id: 'ai-os-backups',
+            route: routeMap.aiOs,
+            metadata: endpoints.aiOs
+          })
         )
       );
     } else if (latestBackup.ok === false) {
@@ -1003,7 +1044,11 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
           'Latest AI OS backup did not verify',
           String(latestBackup.error ?? 'AI OS reported the latest backup as not ok.'),
           86,
-          stableSourceRef('service', 'AI OS backups', { id: String(latestBackup.id ?? 'latest'), route: routeMap.aiOs })
+          stableSourceRef('service', 'AI OS backups', {
+            id: String(latestBackup.id ?? 'latest'),
+            route: routeMap.aiOs,
+            metadata: endpoints.aiOs
+          })
         )
       );
     }
@@ -1015,7 +1060,12 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         'AI OS is unavailable',
         describeError(error),
         82,
-        stableSourceRef('service', 'AI OS API', { id: 'ai-os-api', route: routeMap.aiOs, url: env.aiOsApiUrl })
+        stableSourceRef('service', 'AI OS API', {
+          id: 'ai-os-api',
+          route: routeMap.aiOs,
+          url: env.aiOsApiUrl,
+          metadata: endpoints.aiOs
+        })
       )
     );
   }
@@ -1031,7 +1081,11 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
           'Macro Lab panic is active',
           'Local automation is blocked until panic mode is cleared.',
           92,
-          stableSourceRef('service', 'Macro Lab', { id: 'macro-lab', route: routeMap.macroLab })
+          stableSourceRef('service', 'Macro Lab', {
+            id: 'macro-lab',
+            route: routeMap.macroLab,
+            metadata: endpoints.macroLab
+          })
         )
       );
     }
@@ -1043,13 +1097,57 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         'Macro Lab is unavailable',
         describeError(error),
         74,
-        stableSourceRef('service', 'Macro Lab API', { id: 'macro-lab-api', route: routeMap.macroLab, url: env.macroLabApiUrl })
+        stableSourceRef('service', 'Macro Lab API', {
+          id: 'macro-lab-api',
+          route: routeMap.macroLab,
+          url: env.macroLabApiUrl,
+          metadata: endpoints.macroLab
+        })
       )
     );
   }
 
   try {
-    await fetchJsonWithTimeout(fetchImpl, new URL('/api/tags', env.ollamaBaseUrl), 'Ollama', {}, 1600);
+    const tags = await fetchJsonWithTimeout(fetchImpl, new URL('/api/tags', env.ollamaBaseUrl), 'Ollama', {}, 1600);
+    ollamaModels = ollamaModelNames(tags);
+    if (!ollamaModels.length) {
+      cards.push(
+        serviceIssueCard(
+          task,
+          runId,
+          'Ollama has no local models installed',
+          'Ollama responded, but /api/tags did not list any model names.',
+          78,
+          stableSourceRef('service', 'Ollama models', {
+            id: 'ollama-models',
+            route: routeMap.aiOs,
+            url: env.ollamaBaseUrl,
+            metadata: { ...endpoints.ollama, configuredModel: env.ollamaChatModel, modelCount: 0 }
+          })
+        )
+      );
+    } else if (!ollamaModels.includes(env.ollamaChatModel)) {
+      cards.push(
+        serviceIssueCard(
+          task,
+          runId,
+          'Configured Ollama model is not installed',
+          `${env.ollamaChatModel} is configured, but Ollama reported: ${ollamaModels.slice(0, 5).join(', ')}.`,
+          72,
+          stableSourceRef('service', 'Ollama models', {
+            id: 'ollama-models',
+            route: routeMap.aiOs,
+            url: env.ollamaBaseUrl,
+            metadata: {
+              ...endpoints.ollama,
+              configuredModel: env.ollamaChatModel,
+              modelCount: ollamaModels.length,
+              models: ollamaModels.slice(0, 12)
+            }
+          })
+        )
+      );
+    }
   } catch (error) {
     cards.push(
       serviceIssueCard(
@@ -1058,7 +1156,12 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         'Ollama model server is unavailable',
         describeError(error),
         62,
-        stableSourceRef('service', 'Ollama', { id: 'ollama', route: routeMap.aiOs, url: env.ollamaBaseUrl })
+        stableSourceRef('service', 'Ollama', {
+          id: 'ollama',
+          route: routeMap.aiOs,
+          url: env.ollamaBaseUrl,
+          metadata: { ...endpoints.ollama, configuredModel: env.ollamaChatModel }
+        })
       )
     );
   }
@@ -1075,7 +1178,24 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         urgency: 22,
         confidence: 0.82,
         route: routeMap.settings,
-        sourceRefs: [stableSourceRef('service', 'Mini Hub API', { id: 'mini-hub-api', route: routeMap.settings })],
+        sourceRefs: [
+          stableSourceRef('service', 'Mini Hub API', {
+            id: 'mini-hub-api',
+            route: routeMap.settings,
+            metadata: endpoints.miniHubApi
+          }),
+          stableSourceRef('service', 'Ollama models', {
+            id: 'ollama-models',
+            route: routeMap.aiOs,
+            url: env.ollamaBaseUrl,
+            metadata: {
+              ...endpoints.ollama,
+              configuredModel: env.ollamaChatModel,
+              modelCount: ollamaModels.length,
+              models: ollamaModels.slice(0, 12)
+            }
+          })
+        ],
         suggestedAction: 'No action',
         actionKind: 'inspect',
         why: 'A scheduled service health run completed without high-urgency findings.'
@@ -1083,7 +1203,16 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     );
   }
 
-  return { status: cards.some((item) => item.urgency >= 85) ? 'blocked' : 'succeeded', cards };
+  return {
+    status: cards.some((item) => item.urgency >= 85) ? 'blocked' : 'succeeded',
+    cards,
+    metadata: {
+      serviceEndpoints: endpoints,
+      configuredOllamaModel: env.ollamaChatModel,
+      ollamaModels: ollamaModels.slice(0, 24),
+      ollamaModelCount: ollamaModels.length
+    }
+  };
 }
 
 function sanitizedMiniHubSnapshot(store: MemoryStore): Record<string, unknown> {

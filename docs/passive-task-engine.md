@@ -79,10 +79,11 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 
 ## V1 Families
 
-- App Health Watchdog: checks Mini Hub data dir, Google connection state, AI OS, Macro Lab,
-  Ollama, AI OS jobs, and backup freshness. It has both a scheduled task and a built-in
-  event task for `app.startup`, `app.reconnect`, service reconnect, and Google OAuth
-  lifecycle checks.
+- App Health Watchdog: checks Mini Hub data dir, Google connection state, configured local
+  service endpoints/ports, AI OS, Macro Lab, Ollama reachability, Ollama model inventory,
+  configured Ollama chat model availability, AI OS jobs, and backup freshness. It has both a
+  scheduled task and a built-in event task for `app.startup`, `app.reconnect`, service
+  reconnect, and Google OAuth lifecycle checks.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot and requests an AI OS
   backup when AI OS is available.
 - Idle Compute Queue: runs bounded AI OS benchmarks and non-destructive Mini Hub cleanup

@@ -191,6 +191,57 @@ describe('passive task engine', () => {
     });
   });
 
+  it('surfaces missing configured Ollama models with endpoint port metadata', async () => {
+    const previousModel = env.ollamaChatModel;
+    try {
+      env.ollamaChatModel = 'llama3.1:8b';
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+      const fetchWithDifferentModel = (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/api/ai/status')) {
+          return jsonResponse({ jobs: [], backups: [{ id: 'backup-1', ok: true }] });
+        }
+        if (href.includes('/api/macro-lab/status')) {
+          return jsonResponse({ ok: true, engine: { panic: false } });
+        }
+        if (href.includes('/api/tags')) {
+          return jsonResponse({ models: [{ name: 'mistral:7b' }] });
+        }
+        return jsonResponse({ ok: true });
+      }) as typeof fetch;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: fetchWithDifferentModel,
+        force: true,
+        input: { reason: 'model-health-test' }
+      });
+
+      const modelCard = run.cards.find((card) => card.title === 'Configured Ollama model is not installed');
+      expect(run.status).toBe('succeeded');
+      expect(modelCard?.summary).toContain('llama3.1:8b');
+      expect(modelCard?.sourceRefs[0]?.metadata).toMatchObject({
+        host: '127.0.0.1',
+        port: '11434',
+        configuredModel: 'llama3.1:8b',
+        modelCount: 1,
+        models: ['mistral:7b']
+      });
+      expect(run.metadata).toMatchObject({
+        configuredOllamaModel: 'llama3.1:8b',
+        ollamaModels: ['mistral:7b'],
+        ollamaModelCount: 1
+      });
+      expect(run.metadata.serviceEndpoints).toMatchObject({
+        miniHubApi: { port: String(env.port) },
+        ollama: { port: '11434' }
+      });
+    } finally {
+      env.ollamaChatModel = previousModel;
+    }
+  });
+
   it('uses worker idle detection to run idle-only scheduled tasks', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store, new Date('2026-06-20T10:00:00.000Z'));
