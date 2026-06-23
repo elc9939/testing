@@ -23,6 +23,7 @@ const appDestinations: Array<{ route: string; label: string; terms: string[] }> 
   { route: routeMap.aiLab, label: 'AI Lab', terms: ['ai lab', 'local intelligence', 'transformers', 'tree sitter', 'tree-sitter'] },
   { route: routeMap.aiOs, label: 'AI OS', terms: ['ai os', 'capability', 'capabilities', 'providers', 'agents'] },
   { route: routeMap.macroLab, label: 'Macro Lab', terms: ['macro', 'macros', 'automation'] },
+  { route: routeMap.passiveTasks, label: 'Passive Tasks', terms: ['passive tasks', 'passive engine', 'background tasks', 'background work', 'monitors', 'sweeps'] },
   { route: routeMap.games, label: 'Games', terms: ['games', 'stick arena'] },
   { route: routeMap.settings, label: 'Settings', terms: ['settings', 'preferences', 'theme'] }
 ];

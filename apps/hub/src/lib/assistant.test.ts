@@ -13,6 +13,11 @@ describe('assistant intent resolver', () => {
       route: '/activity',
       label: 'Activity'
     });
+    expect(resolveAssistantIntent('open passive engine monitors')).toEqual({
+      kind: 'navigate',
+      route: '/passive-tasks',
+      label: 'Passive Tasks'
+    });
   });
 
   it('explains the lab and OS surfaces directly', () => {
