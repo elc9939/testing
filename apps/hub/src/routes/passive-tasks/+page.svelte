@@ -160,6 +160,23 @@
     await applyAction('resource-limit', () => patchPassiveSettings({ resourceLimit: value }), 'Resource limit saved.');
   }
 
+  async function setIdleOnly(value: boolean): Promise<void> {
+    await applyAction(
+      'idle-only',
+      () => patchPassiveSettings({ idleOnly: value }),
+      value ? 'Passive tasks will wait for idle windows.' : 'Passive tasks can run on their normal schedule.'
+    );
+  }
+
+  async function setLocalAiPreference(value: 'local_first' | 'local_only' | 'cloud_allowed'): Promise<void> {
+    await applyAction('ai-preference', () => patchPassiveSettings({ localAiPreference: value }), 'AI preference saved.');
+  }
+
+  async function setMaxRunsPerTick(value: number): Promise<void> {
+    const next = Math.max(1, Math.min(10, Math.round(value) || 1));
+    await applyAction('max-runs', () => patchPassiveSettings({ maxRunsPerTick: next }), 'Run limit saved.');
+  }
+
   function nextSnoozeUntil(hours = 24): string {
     return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
   }
@@ -271,7 +288,7 @@
               <span class="digest-main">
                 <strong>{card.title}</strong>
                 <small>{card.summary}</small>
-                <em>{cardSource(card)} · confidence {Math.round(card.confidence * 100)}%</em>
+                <em>{cardSource(card)} - confidence {Math.round(card.confidence * 100)}%</em>
               </span>
               <span class="digest-actions">
                 <button class="icon-action" type="button" title="Mark important" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'important')}>
@@ -485,6 +502,36 @@
               <option value="balanced">Balanced</option>
               <option value="heavy">Heavy</option>
             </select>
+          </label>
+          <label class="check-field">
+            <input
+              type="checkbox"
+              checked={settings.idleOnly}
+              disabled={Boolean(busyId)}
+              on:change={(event) => setIdleOnly(event.currentTarget.checked)}
+            />
+            <span>
+              <strong>Idle-only schedule</strong>
+              <small>Scheduled work waits for an idle tick unless run manually.</small>
+            </span>
+          </label>
+          <label class="field">
+            <span>AI preference</span>
+            <select value={settings.localAiPreference} on:change={(event) => setLocalAiPreference(event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed')}>
+              <option value="local_first">Local first</option>
+              <option value="local_only">Local only</option>
+              <option value="cloud_allowed">Cloud allowed</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Max runs per tick</span>
+            <input
+              type="number"
+              min="1"
+              max="10"
+              value={settings.maxRunsPerTick}
+              on:change={(event) => setMaxRunsPerTick(Number(event.currentTarget.value))}
+            />
           </label>
           <label class="field">
             <span>Watched folders</span>
@@ -795,6 +842,33 @@
     color: var(--muted);
     font-size: 12px;
     font-weight: 800;
+  }
+
+  .check-field {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .check-field input {
+    margin-top: 3px;
+  }
+
+  .check-field span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .check-field strong {
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .check-field small {
+    color: var(--muted);
   }
 
   .settings-note {

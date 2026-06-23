@@ -136,6 +136,9 @@ folders/domains/accounts. Background work avoids destructive changes; file/proje
 respect configured folders only, resource limits clamp research/page/file/TODO scan budgets,
 Machine Modes shape due-work selection, and failures stay visible without creating fake queue
 items.
+The Passive Tasks dashboard exposes the same practical controls for day-to-day use, including
+idle-only scheduling, AI preference, tick limits, watcher toggles, manual ticks, and source
+scope edits.
 Idle cleanup planning is dry-run only and scans Mini Hub-owned data paths, not broad user
 folders.
 

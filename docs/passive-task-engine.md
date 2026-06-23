@@ -17,6 +17,12 @@ surface only the cards that need action.
 - Dashboard: `/passive-tasks`
 - Settings shortcut: `/settings`
 
+The dashboard exposes the day-to-day controls directly: engine on/off, watcher toggles,
+task pause/resume/cancel, manual due/startup/idle ticks, notification style, resource limit,
+idle-only schedule mode, local/cloud AI preference, max runs per tick, and watched
+folders/domains/accounts. The Settings page shows the same durable preferences alongside the
+broader service and machine controls.
+
 State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Mini Hub restore snapshots
 created by the Backup + Snapshot Watcher are written under
 `MINI_HUB_DATA_DIR/passive-snapshots`.
