@@ -123,8 +123,8 @@ real-data only:
   list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does not
   delete them.
 - Background Research Monitor reads AI OS saved monitor due-state, prepares daily AI OS
-  monitor templates from configured watched domains, and queues due monitor runs through
-  AI OS.
+  monitor templates from configured watched domains, queues due monitor runs through AI OS,
+  and surfaces completed `monitor_topic` reports as source-backed passive cards.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
 - Local File Intelligence scans only configured watched folders for recent document,
   note/data, and image metadata; text-like files get bounded previews, suggested tags,

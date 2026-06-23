@@ -1352,6 +1352,99 @@ describe('passive task engine', () => {
     expect(run.metadata.resourceLimit).toBe('light');
   });
 
+  it('surfaces completed AI OS research monitor runs as source-backed passive cards', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const researchFetch = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [{ id: 'monitor-clay', metadata: { watched_domain: 'clay.com' } }] });
+      }
+      if (href.includes('/api/ai/research/runs?limit=10')) {
+        return jsonResponse({
+          runs: [
+            {
+              id: 'research-clay-1',
+              mode: 'monitor_topic',
+              goal: 'Monitor clay.com for GTM data analyst updates.',
+              status: 'succeeded',
+              report: {
+                title: 'Clay GTM update',
+                tldr: 'Clay published a new GTM data workflow note relevant to saved data analyst leads.',
+                key_facts: ['New workflow mentions enrichment QA.', 'The post links to a public product update.']
+              },
+              sources: [
+                {
+                  id: 'source-clay-1',
+                  url: 'https://clay.com/blog/gtm-data-update',
+                  canonical_url: 'https://clay.com/blog/gtm-data-update',
+                  title: 'GTM data update',
+                  description: 'A public Clay product note.',
+                  fetched_at: '2026-06-20T10:00:00.000Z',
+                  score: 0.88,
+                  rank: 1
+                }
+              ],
+              options: {
+                metadata: {
+                  source: 'mini-hub-passive',
+                  watched_domain: 'clay.com'
+                }
+              },
+              runtime_ms: 1200,
+              cost_usd: 0,
+              total_tokens: 0
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'completed-monitor-test' }
+    });
+
+    const card = run.cards.find((item) => item.title === 'Clay GTM update');
+    expect(run.status).toBe('succeeded');
+    expect(run.changed).toContain('research-run:research-clay-1');
+    expect(card).toMatchObject({
+      family: 'research_monitor',
+      summary: expect.stringContaining('Clay published a new GTM data workflow note'),
+      suggestedAction: 'Review research update',
+      why: expect.stringContaining('clay.com')
+    });
+    expect(card?.sourceRefs[0]).toMatchObject({
+      kind: 'record',
+      id: 'research-clay-1',
+      route: '/research',
+      metadata: {
+        researchRunId: 'research-clay-1',
+        watchedDomain: 'clay.com',
+        sourceCount: 1
+      }
+    });
+    expect(card?.sourceRefs[1]).toMatchObject({
+      kind: 'url',
+      url: 'https://clay.com/blog/gtm-data-update',
+      metadata: {
+        title: 'GTM data update',
+        rank: 1
+      }
+    });
+    expect(run.metadata.recentResearch).toMatchObject({
+      recentRunsChecked: 1,
+      monitorRunsChecked: 1,
+      surfacedResearchRuns: 1
+    });
+  });
+
   it('surfaces failing project health artifacts without running project scripts', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-project-health-'));
     try {

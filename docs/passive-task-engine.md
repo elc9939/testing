@@ -130,7 +130,9 @@ normal API startup.
   worker or dashboard tick reports a real idle window. Cleanup cards list stale passive
   snapshots/logs/temp files under Mini Hub-owned data paths; v1 does not delete them.
 - Background Research Monitor: reads AI OS due monitors, prepares daily AI OS monitor
-  templates from configured watched domains, and queues due monitor runs.
+  templates from configured watched domains, queues due monitor runs, and surfaces completed
+  `monitor_topic` reports as source-backed passive cards with research-run and source URL
+  references.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
 - Local File Intelligence: scans only configured watched folders for recent document,
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
@@ -158,6 +160,9 @@ normal API startup.
   evidence when those artifacts already exist.
 - Resource limits clamp local scan breadth and AI OS research monitor budgets before work is
   queued, so changing the setting affects the next run without editing task definitions.
+- Completed AI OS monitor-topic research runs are surfaced only when their reports or source
+  list contain real content. The passive engine links back to the research run and source URLs
+  rather than inventing change summaries.
 - Backup snapshots redact encrypted token payloads from Mini Hub connection metadata, and the
   snapshot task fails visibly if the newly-written restore point cannot be parsed or if an
   unredacted token payload is detected. Action Ledger token/secret-looking fields are also

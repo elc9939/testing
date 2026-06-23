@@ -2142,11 +2142,161 @@ async function ensureWatchedDomainResearchMonitors(settings: PassiveEngineSettin
   return created;
 }
 
+function stringList(value: unknown, limit = 4): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, limit) : [];
+}
+
+function nestedRecord(value: Record<string, unknown>, key: string): Record<string, unknown> {
+  return isRecord(value[key]) ? value[key] : {};
+}
+
+function researchRunSourceRefs(run: Record<string, unknown>): PassiveSourceRef[] {
+  const sources = Array.isArray(run.sources) ? run.sources.filter(isRecord) : [];
+  return sources.slice(0, 6).map((source) => {
+    const url =
+      typeof source.canonical_url === 'string' && source.canonical_url
+        ? source.canonical_url
+        : typeof source.url === 'string'
+          ? source.url
+          : undefined;
+    const label =
+      typeof source.title === 'string' && source.title.trim()
+        ? source.title
+        : url
+          ? url
+          : typeof source.id === 'string'
+            ? source.id
+            : 'Research source';
+    return stableSourceRef('url', label, {
+      id: String(source.id ?? url ?? label),
+      route: routeMap.research,
+      ...(url ? { url } : {}),
+      metadata: {
+        url,
+        title: source.title,
+        description: source.description,
+        fetchedAt: source.fetched_at,
+        score: source.score,
+        rank: source.rank
+      }
+    });
+  });
+}
+
+function researchRunReportSummary(report: Record<string, unknown>, sources: PassiveSourceRef[]): string {
+  const keyFacts = stringList(report.key_facts, 3);
+  const tldr = typeof report.tldr === 'string' ? report.tldr.trim() : '';
+  const detailed = typeof report.detailed_summary === 'string' ? report.detailed_summary.trim() : '';
+  const parts = [tldr, keyFacts.length ? `Key facts: ${keyFacts.join('; ')}.` : '', !tldr && detailed ? detailed : ''].filter(Boolean);
+  if (parts.length) return truncateText(parts.join(' '), 520);
+  return sources.length
+    ? `AI OS found ${sources.length} source${sources.length === 1 ? '' : 's'} for this monitor run.`
+    : 'AI OS completed this monitor run without a source-backed summary.';
+}
+
+function researchRunCard(task: PassiveTask, passiveRunId: string, researchRun: Record<string, unknown>): PassiveResultCard | null {
+  if (researchRun.mode !== 'monitor_topic' || researchRun.status !== 'succeeded') return null;
+  const report = nestedRecord(researchRun, 'report');
+  const sources = researchRunSourceRefs(researchRun);
+  const keyFacts = stringList(report.key_facts, 3);
+  const tldr = typeof report.tldr === 'string' ? report.tldr.trim() : '';
+  const detailed = typeof report.detailed_summary === 'string' ? report.detailed_summary.trim() : '';
+  if (!sources.length && !keyFacts.length && !tldr && !detailed) return null;
+  const options = nestedRecord(researchRun, 'options');
+  const metadata = nestedRecord(options, 'metadata');
+  const watchedDomain = typeof metadata.watched_domain === 'string' ? metadata.watched_domain : undefined;
+  const title =
+    typeof report.title === 'string' && report.title.trim()
+      ? report.title.trim()
+      : watchedDomain
+        ? `Research update for ${watchedDomain}`
+        : 'Research monitor update';
+  return card({
+    id: id('passive-card'),
+    taskId: task.id,
+    runId: passiveRunId,
+    family: task.family,
+    title: truncateText(title, 140),
+    summary: researchRunReportSummary(report, sources),
+    urgency: keyFacts.length || sources.length >= 2 ? 68 : 56,
+    confidence: sources.length ? 0.78 : 0.58,
+    route: routeMap.research,
+    sourceRefs: [
+      stableSourceRef('record', 'AI OS research run', {
+        id: String(researchRun.id ?? title),
+        route: routeMap.research,
+        metadata: {
+          researchRunId: researchRun.id,
+          status: researchRun.status,
+          mode: researchRun.mode,
+          goal: researchRun.goal,
+          watchedDomain,
+          sourceCount: sources.length,
+          runtimeMs: researchRun.runtime_ms,
+          costUsd: researchRun.cost_usd,
+          totalTokens: researchRun.total_tokens
+        }
+      }),
+      ...sources
+    ],
+    suggestedAction: 'Review research update',
+    actionKind: 'inspect',
+    why: watchedDomain
+      ? `AI OS completed a saved monitor run for ${watchedDomain} and returned source-backed findings.`
+      : 'AI OS completed a saved topic monitor run and returned source-backed findings.'
+  });
+}
+
+async function recentResearchMonitorRunCards(
+  task: PassiveTask,
+  passiveRunId: string,
+  fetchImpl: FetchLike,
+  budget: PassiveResourceBudget
+): Promise<{ cards: PassiveResultCard[]; changed: string[]; metadata: Record<string, unknown> }> {
+  const payload = await fetchJsonWithTimeout(
+    fetchImpl,
+    new URL('/api/ai/research/runs?limit=10', env.aiOsApiUrl),
+    'Recent research runs'
+  );
+  const runs = isRecord(payload) && Array.isArray(payload.runs) ? payload.runs.filter(isRecord) : [];
+  const monitorRuns = runs.filter((run) => run.mode === 'monitor_topic');
+  const cards = monitorRuns
+    .map((run) => researchRunCard(task, passiveRunId, run))
+    .filter((item): item is PassiveResultCard => Boolean(item))
+    .slice(0, budget.researchMonitorRunLimit);
+  return {
+    cards,
+    changed: cards
+      .map((item) => item.sourceRefs[0]?.metadata.researchRunId)
+      .filter((value): value is string => typeof value === 'string')
+      .map((researchRunId) => `research-run:${researchRunId}`),
+    metadata: {
+      recentRunsChecked: runs.length,
+      monitorRunsChecked: monitorRuns.length,
+      surfacedResearchRuns: cards.length
+    }
+  };
+}
+
 async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
   const budget = resourceBudget(settings);
   try {
     const createdMonitors = await ensureWatchedDomainResearchMonitors(settings, fetchImpl);
+    const recent = await recentResearchMonitorRunCards(task, runId, fetchImpl, budget).catch((error: unknown) => ({
+      cards: [
+        serviceIssueCard(
+          task,
+          runId,
+          'Recent research run summary failed',
+          describeError(error),
+          56,
+          stableSourceRef('service', 'AI OS research runs', { id: 'ai-os-research-runs', route: routeMap.research })
+        )
+      ],
+      changed: [],
+      metadata: { recentRunError: describeError(error) }
+    }));
     const duePayload = await fetchJsonWithTimeout(
       fetchImpl,
       new URL('/api/ai/research/monitors/due?limit=10', env.aiOsApiUrl),
@@ -2179,9 +2329,30 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
               actionKind: 'inspect',
               why: 'Passive Tasks found watched domains in settings and created durable AI OS monitor definitions for them without running a crawl.'
             })
+          ].concat(recent.cards),
+          changed: [
+            ...createdMonitors.map((monitor) => `research-monitor:${String(monitor.id ?? '')}`).filter((value) => !value.endsWith(':')),
+            ...recent.changed
           ],
-          changed: createdMonitors.map((monitor) => `research-monitor:${String(monitor.id ?? '')}`).filter((value) => !value.endsWith(':')),
-          metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings, budget), resourceLimit: settings.resourceLimit }
+          metadata: {
+            createdMonitors: createdMonitors.length,
+            watchedDomains: safeConfiguredDomains(settings, budget),
+            resourceLimit: settings.resourceLimit,
+            recentResearch: recent.metadata
+          }
+        };
+      }
+      if (recent.cards.length) {
+        return {
+          status: 'succeeded',
+          cards: recent.cards,
+          changed: recent.changed,
+          metadata: {
+            createdMonitors: 0,
+            watchedDomains: safeConfiguredDomains(settings, budget),
+            resourceLimit: settings.resourceLimit,
+            recentResearch: recent.metadata
+          }
         };
       }
       return {
@@ -2202,8 +2373,14 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
             actionKind: 'inspect',
             why: 'The monitor sweep checked real saved monitor state.'
           })
-        ],
-        metadata: { createdMonitors: 0, watchedDomains: safeConfiguredDomains(settings, budget), resourceLimit: settings.resourceLimit }
+        ].concat(recent.cards),
+        changed: recent.changed,
+        metadata: {
+          createdMonitors: 0,
+          watchedDomains: safeConfiguredDomains(settings, budget),
+          resourceLimit: settings.resourceLimit,
+          recentResearch: recent.metadata
+        }
       };
     }
 
@@ -2242,12 +2419,18 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
           actionKind: 'inspect',
           why: 'AI OS reported saved research monitors whose schedules are due.'
         })
-      ],
+      ].concat(recent.cards),
       changed: [
         ...createdMonitors.map((monitor) => `research-monitor:${String(monitor.id ?? '')}`).filter((value) => !value.endsWith(':')),
-        ...queued.map((run) => `research-run:${String(run.id ?? '')}`).filter((value) => !value.endsWith(':'))
+        ...queued.map((run) => `research-run:${String(run.id ?? '')}`).filter((value) => !value.endsWith(':')),
+        ...recent.changed
       ],
-      metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings, budget), resourceLimit: settings.resourceLimit }
+      metadata: {
+        createdMonitors: createdMonitors.length,
+        watchedDomains: safeConfiguredDomains(settings, budget),
+        resourceLimit: settings.resourceLimit,
+        recentResearch: recent.metadata
+      }
     };
   } catch (error) {
     return {
