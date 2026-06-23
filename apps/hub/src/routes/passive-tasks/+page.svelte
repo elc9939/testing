@@ -52,6 +52,7 @@
   );
   $: pausedTasks = (snapshot?.tasks ?? []).filter((task) => task.status === 'paused' || task.status === 'cancelled');
   $: failedRuns = (snapshot?.runs ?? []).filter((run) => ['failed', 'blocked'].includes(run.status));
+  $: tasksWithErrorLogs = (snapshot?.tasks ?? []).filter((task) => task.errorLog.length > 0).slice(0, 6);
   $: digestCards = topPassiveCards(snapshot);
   $: notifications = visiblePassiveNotifications(snapshot);
   $: nextRuns = [...(snapshot?.tasks ?? [])]
@@ -93,6 +94,65 @@
     if (!latest) return '';
     const retry = latest.nextRetryAt ? ` Retry ${displayWhen(latest.nextRetryAt)}.` : '';
     return `${displayWhen(latest.at)}: ${latest.message}${retry}`;
+  }
+
+  function compactHash(value: unknown): string {
+    return typeof value === 'string' && value.length >= 12 ? value.slice(0, 12) : '';
+  }
+
+  function formatBytes(value: unknown): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${value} B`;
+  }
+
+  function asNumber(value: unknown): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  function sourceList(card: PassiveResultCard): string {
+    const labels = card.sourceRefs.slice(0, 3).map((source) => source.label).filter(Boolean);
+    if (!labels.length) return '';
+    return `${labels.join(', ')}${card.sourceRefs.length > labels.length ? ` +${card.sourceRefs.length - labels.length}` : ''}`;
+  }
+
+  function cardEvidence(card: PassiveResultCard): string {
+    const source = card.sourceRefs[0];
+    const metadata = source?.metadata ?? {};
+    const parts: string[] = [];
+    if (metadata.verified === true) parts.push('verified');
+    const bytes = formatBytes(metadata.bytes ?? metadata.size);
+    if (bytes) parts.push(bytes);
+    const sha = compactHash(metadata.sha256);
+    if (sha) parts.push(`sha ${sha}`);
+    const width = asNumber(metadata.width);
+    const height = asNumber(metadata.height);
+    if (width && height) parts.push(`${width}x${height}`);
+    const pages = asNumber(metadata.pageCountApprox);
+    if (pages) parts.push(`~${pages} page${pages === 1 ? '' : 's'}`);
+    if (metadata.officePackage === true) parts.push('Office package');
+    if (Array.isArray(metadata.tags) && metadata.tags.length) parts.push(`tags ${metadata.tags.slice(0, 4).join(', ')}`);
+    if (card.sourceRefs.length > 1) parts.push(`${card.sourceRefs.length} sources`);
+    return parts.join(' - ');
+  }
+
+  function runEvidence(run: PassiveRun): string {
+    const parts: string[] = [];
+    if (run.cards.length) parts.push(`${run.cards.length} card${run.cards.length === 1 ? '' : 's'}`);
+    if (run.changed.length) parts.push(`${run.changed.length} artifact${run.changed.length === 1 ? '' : 's'}`);
+    if (run.metadata.snapshotVerified === true) parts.push('snapshot verified');
+    const sha = compactHash(run.metadata.snapshotSha256);
+    if (sha) parts.push(`sha ${sha}`);
+    const cleanupCandidates = asNumber(run.metadata.cleanupCandidates);
+    if (cleanupCandidates) parts.push(`${cleanupCandidates} cleanup candidate${cleanupCandidates === 1 ? '' : 's'}`);
+    const indexedFiles = asNumber(run.metadata.indexedFiles);
+    if (indexedFiles) parts.push(`${indexedFiles} indexed file${indexedFiles === 1 ? '' : 's'}`);
+    const fileCount = asNumber(run.metadata.fileCount);
+    if (fileCount) parts.push(`${fileCount} file${fileCount === 1 ? '' : 's'} scanned`);
+    const ignoredAccounts = asNumber(run.metadata.ignoredIntegrationConnectionIssues);
+    if (ignoredAccounts) parts.push(`${ignoredAccounts} ignored account issue${ignoredAccounts === 1 ? '' : 's'}`);
+    return parts.join(' - ');
   }
 
   function syncEditor(next: PassiveSnapshot): void {
@@ -296,6 +356,12 @@
                 <strong>{card.title}</strong>
                 <small>{card.summary}</small>
                 <em>{cardSource(card)} - confidence {Math.round(card.confidence * 100)}%</em>
+                {#if sourceList(card)}
+                  <small class="evidence-line">Sources: {sourceList(card)}</small>
+                {/if}
+                {#if cardEvidence(card)}
+                  <small class="evidence-line">{cardEvidence(card)}</small>
+                {/if}
               </span>
               <span class="digest-actions">
                 <button class="icon-action" type="button" title="Mark important" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'important')}>
@@ -427,12 +493,42 @@
               <span>
                 <strong>{passiveFamilyLabel(run.family)}</strong>
                 <small>{run.error ?? run.cards[0]?.summary ?? 'Needs inspection'}</small>
+                {#if runEvidence(run)}
+                  <small class="evidence-line">{runEvidence(run)}</small>
+                {/if}
               </span>
             </div>
           {/each}
         </div>
       {:else}
         <p class="empty-note">No passive task failures are visible.</p>
+      {/if}
+    </article>
+
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><AlertTriangle size={16} /></span>
+          <strong>Task Error Logs</strong>
+        </div>
+      </div>
+      {#if tasksWithErrorLogs.length}
+        <div class="run-list">
+          {#each tasksWithErrorLogs as task}
+            <div class="run-row">
+              <span class={`state ${task.status}`}>{task.status}</span>
+              <span>
+                <strong>{task.title}</strong>
+                <small>{latestTaskError(task)}</small>
+                {#if task.errorLog.length > 1}
+                  <small class="evidence-line">{task.errorLog.length} retained error entries</small>
+                {/if}
+              </span>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">No task error logs are retained right now.</p>
       {/if}
     </article>
 
@@ -451,6 +547,9 @@
               <span>
                 <strong>{passiveFamilyLabel(run.family)}</strong>
                 <small>{displayWhen(run.finishedAt ?? run.startedAt)} {displayDuration(run)}{runMode(run) ? ` - ${runMode(run)}` : ''}</small>
+                {#if runEvidence(run)}
+                  <small class="evidence-line">{runEvidence(run)}</small>
+                {/if}
               </span>
             </div>
           {/each}
@@ -760,6 +859,13 @@
   .run-row small,
   .notification-row small,
   td small {
+    color: var(--muted);
+  }
+
+  .digest-main .evidence-line,
+  .run-row .evidence-line {
+    white-space: normal;
+    line-height: 1.35;
     color: var(--muted);
   }
 

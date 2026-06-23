@@ -22,6 +22,9 @@ task pause/resume/cancel, manual due/startup/idle ticks, notification style, res
 idle-only schedule mode, local/cloud AI preference, max runs per tick, and watched
 folders/domains/accounts. The Settings page shows the same durable preferences, plus
 family-level enable/disable toggles, alongside the broader service and machine controls.
+Digest rows, failure rows, recent runs, and retained task error logs show compact evidence
+such as source labels, changed artifact counts, snapshot checksums, file counts, cleanup
+candidates, and retry times so background work is inspectable without opening raw JSON.
 Watched accounts are matched against integration connection labels/ids. When the list is
 empty, App Health reports all broken integration connections; when it is set, only matching
 accounts surface as health findings and ignored connection issues are recorded in run
