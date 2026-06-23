@@ -80,6 +80,17 @@ interface CleanupCandidate {
   reason: string;
 }
 
+interface MiniHubSnapshotHealth {
+  ok: boolean;
+  snapshotRoot: string;
+  snapshotCount: number;
+  latestPath?: string;
+  latestAgeHours?: number;
+  stale?: boolean;
+  verification?: SnapshotVerification;
+  error?: string;
+}
+
 interface SnapshotVerification {
   ok: boolean;
   bytes: number;
@@ -201,6 +212,7 @@ interface DefaultTaskDefinition {
 }
 
 const dayMs = 24 * 60 * 60 * 1000;
+const hourMs = 60 * 60 * 1000;
 const minuteMs = 60 * 1000;
 const passiveSnapshotDirName = 'passive-snapshots';
 const passiveDigestUrgency = 58;
@@ -1616,6 +1628,7 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     ollama: endpointMetadata(env.ollamaBaseUrl)
   };
   const serviceChecks: Record<string, Record<string, unknown>> = {};
+  const miniHubSnapshotHealth = latestMiniHubSnapshotHealth();
   let ollamaModels: string[] = [];
   let aiOsMachineProfile: Record<string, unknown> = { checked: false, available: false, reason: 'not checked yet' };
   if (!existsSync(dataDir)) {
@@ -1627,6 +1640,55 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         `Expected data directory was not found at ${dataDir}.`,
         88,
         stableSourceRef('file', 'Mini Hub data directory', { id: 'mini-hub-data-dir', filePath: dataDir })
+      )
+    );
+  }
+  if (miniHubSnapshotHealth.snapshotCount === 0) {
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'Mini Hub has no local restore snapshot',
+        miniHubSnapshotHealth.error ?? 'No Mini Hub restore snapshots were found.',
+        68,
+        stableSourceRef('file', 'Mini Hub restore snapshots', {
+          id: 'mini-hub-restore-snapshots',
+          route: routeMap.settings,
+          filePath: miniHubSnapshotHealth.snapshotRoot,
+          metadata: { snapshotHealth: miniHubSnapshotHealth }
+        })
+      )
+    );
+  } else if (miniHubSnapshotHealth.verification?.ok === false) {
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'Latest Mini Hub restore snapshot did not verify',
+        miniHubSnapshotHealth.error ?? 'The newest Mini Hub restore snapshot could not be read back safely.',
+        84,
+        stableSourceRef('file', 'Mini Hub restore snapshot', {
+          id: miniHubSnapshotHealth.latestPath ?? 'latest-mini-hub-restore-snapshot',
+          route: routeMap.settings,
+          filePath: miniHubSnapshotHealth.latestPath ?? miniHubSnapshotHealth.snapshotRoot,
+          metadata: { snapshotHealth: miniHubSnapshotHealth }
+        })
+      )
+    );
+  } else if (miniHubSnapshotHealth.stale === true) {
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'Mini Hub restore snapshot is stale',
+        miniHubSnapshotHealth.error ?? 'The newest Mini Hub restore snapshot is older than the passive backup freshness window.',
+        72,
+        stableSourceRef('file', 'Mini Hub restore snapshot', {
+          id: miniHubSnapshotHealth.latestPath ?? 'latest-mini-hub-restore-snapshot',
+          route: routeMap.settings,
+          filePath: miniHubSnapshotHealth.latestPath ?? miniHubSnapshotHealth.snapshotRoot,
+          metadata: { snapshotHealth: miniHubSnapshotHealth }
+        })
       )
     );
   }
@@ -1947,6 +2009,12 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
             url: miniHubApiHealthUrl.toString(),
             metadata: { ...endpoints.miniHubApi, check: serviceChecks.miniHubApi }
           }),
+          stableSourceRef('file', 'Mini Hub restore snapshot', {
+            id: miniHubSnapshotHealth.latestPath ?? 'mini-hub-restore-snapshots',
+            route: routeMap.settings,
+            filePath: miniHubSnapshotHealth.latestPath ?? miniHubSnapshotHealth.snapshotRoot,
+            metadata: { snapshotHealth: miniHubSnapshotHealth }
+          }),
           stableSourceRef('service', 'Ollama models', {
             id: 'ollama-models',
             route: routeMap.aiOs,
@@ -1972,6 +2040,7 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     metadata: {
       serviceEndpoints: endpoints,
       serviceChecks,
+      miniHubSnapshotHealth,
       watchedAccounts,
       totalIntegrationConnectionIssues: disconnectedConnections.length,
       integrationConnectionIssues: disconnected.length,
@@ -2090,6 +2159,56 @@ function verifyMiniHubSnapshotFile(snapshotPath: string): SnapshotVerification {
       sha256: '',
       summary: {},
       redactedTokenSets: 0,
+      error: describeError(error)
+    };
+  }
+}
+
+function latestMiniHubSnapshotHealth(date = new Date()): MiniHubSnapshotHealth {
+  const snapshotRoot = join(resolve(env.dataDir), passiveSnapshotDirName);
+  if (!existsSync(snapshotRoot)) {
+    return {
+      ok: false,
+      snapshotRoot,
+      snapshotCount: 0,
+      error: 'Mini Hub restore snapshot directory does not exist yet.'
+    };
+  }
+
+  try {
+    const snapshots = readdirSync(snapshotRoot, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .map((entry) => join(snapshotRoot, entry.name))
+      .map((path) => ({ path, stats: statSync(path) }))
+      .sort((a, b) => b.stats.mtimeMs - a.stats.mtimeMs);
+    const latest = snapshots[0];
+    if (!latest) {
+      return {
+        ok: false,
+        snapshotRoot,
+        snapshotCount: 0,
+        error: 'Mini Hub restore snapshot directory has no JSON restore points.'
+      };
+    }
+    const verification = verifyMiniHubSnapshotFile(latest.path);
+    const latestAgeHours = Math.max(0, Math.round(((date.getTime() - latest.stats.mtimeMs) / hourMs) * 10) / 10);
+    const stale = latest.stats.mtimeMs < date.getTime() - 3 * dayMs;
+    return {
+      ok: verification.ok && !stale,
+      snapshotRoot,
+      snapshotCount: snapshots.length,
+      latestPath: latest.path,
+      latestAgeHours,
+      stale,
+      verification,
+      ...(!verification.ok ? { error: verification.error ?? 'Latest Mini Hub restore snapshot did not verify.' } : {}),
+      ...(verification.ok && stale ? { error: `Latest Mini Hub restore snapshot is ${latestAgeHours} hours old.` } : {})
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      snapshotRoot,
+      snapshotCount: 0,
       error: describeError(error)
     };
   }

@@ -49,6 +49,10 @@ metadata.
 App Health actively probes the configured Mini Hub public page and the local
 `/api/health` endpoint, records the reachability evidence in `serviceChecks`, and emits
 source-backed cards when either surface is down or returning an error.
+It also inspects `MINI_HUB_DATA_DIR/passive-snapshots`, verifies the newest Mini Hub
+restore point with the same parser used by the backup task, records `miniHubSnapshotHealth`
+metadata, and warns when no local restore point exists, the newest one is stale, or the
+newest one cannot be read back safely.
 
 State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Action Ledger events emitted
 by passive runs, watcher toggles, settings changes, and card triage persist separately to the

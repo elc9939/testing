@@ -178,6 +178,9 @@ active machine stays quiet with `waiting_for_idle` evidence.
 App Health also actively probes the configured Mini Hub public page and the local Mini Hub
 API `/api/health` endpoint, records `serviceChecks` evidence on the run, and raises
 source-backed cards when either surface is unavailable.
+It now verifies Mini Hub's own local restore snapshot surface too: the newest
+`MINI_HUB_DATA_DIR/passive-snapshots` JSON restore point is read back during App Health,
+with `miniHubSnapshotHealth` metadata and cards for missing, stale, or invalid snapshots.
 Watched accounts now scope integration-account health findings: if the list is empty,
 App Health reports every broken connection, and if it is set, only matching account labels,
 connection ids, `provider:account` tokens, or account domains appear in source-backed cards.

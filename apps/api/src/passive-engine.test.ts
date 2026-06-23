@@ -603,6 +603,39 @@ describe('passive task engine', () => {
     }
   });
 
+  it('surfaces missing Mini Hub local restore snapshots in app health', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-no-local-snapshot-'));
+    const previousDataDir = env.dataDir;
+    try {
+      env.dataDir = dir;
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'missing-local-snapshot-test' }
+      });
+
+      const snapshotCard = run.cards.find((card) => card.title === 'Mini Hub has no local restore snapshot');
+      expect(run.status).toBe('succeeded');
+      expect(snapshotCard?.summary).toContain('restore snapshot directory does not exist');
+      expect(snapshotCard?.sourceRefs[0]?.metadata.snapshotHealth).toMatchObject({
+        ok: false,
+        snapshotRoot: join(dir, 'passive-snapshots'),
+        snapshotCount: 0
+      });
+      expect(run.metadata.miniHubSnapshotHealth).toMatchObject({
+        ok: false,
+        snapshotCount: 0
+      });
+    } finally {
+      env.dataDir = previousDataDir;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('creates read-verified Mini Hub restore snapshots with redacted integration tokens', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-backup-'));
     const previousDataDir = env.dataDir;
@@ -705,6 +738,50 @@ describe('passive task engine', () => {
         redactedTokenSets: 1
       });
       expect(snapshotRef?.metadata.sha256).toBe(run.metadata.snapshotSha256);
+    } finally {
+      env.dataDir = previousDataDir;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('recognizes fresh read-verified Mini Hub restore snapshots in app health', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-local-snapshot-health-'));
+    const previousDataDir = env.dataDir;
+    try {
+      env.dataDir = dir;
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      const backupTask = store.passiveTasks.find((item) => item.family === 'backup_snapshot')!;
+      const backupFetch = (async (input: unknown, init?: RequestInit) => {
+        const href = String(input);
+        if (href.endsWith('/api/ai/backups')) return jsonResponse({ backup: { id: 'backup-health-1', ok: true } });
+        return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+      }) as typeof fetch;
+      await runPassiveTask(store, backupTask.id, {
+        externalFetch: backupFetch,
+        force: true,
+        input: { reason: 'local-snapshot-health-seed' }
+      });
+      const healthTask = store.passiveTasks.find((item) => item.family === 'app_health')!;
+
+      const healthRun = await runPassiveTask(store, healthTask.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'local-snapshot-health-test' }
+      });
+
+      expect(healthRun.cards.some((card) => card.title === 'Mini Hub has no local restore snapshot')).toBe(false);
+      expect(healthRun.cards.some((card) => card.title === 'Latest Mini Hub restore snapshot did not verify')).toBe(false);
+      expect(healthRun.metadata.miniHubSnapshotHealth).toMatchObject({
+        ok: true,
+        snapshotCount: 1,
+        stale: false,
+        verification: {
+          ok: true,
+          redactedTokenSets: 0
+        }
+      });
+      expect(String((healthRun.metadata.miniHubSnapshotHealth as { latestPath?: string }).latestPath)).toContain('passive-snapshots');
     } finally {
       env.dataDir = previousDataDir;
       rmSync(dir, { recursive: true, force: true });
