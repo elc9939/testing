@@ -210,7 +210,9 @@ normal API startup.
   cancelled, no follow-up run is scheduled, and the task remains cancelled instead of being
   revived by async completion.
 - Manual run requests still bypass schedule timing, but they respect engine, watcher, family,
-  paused, cancelled, and running task state. Resume a paused task before running it manually.
+  paused, cancelled, and running task state. Today passive-card run actions use the same
+  guard path as the dashboard instead of force-running paused or disabled tasks. Resume a
+  paused task before running it manually.
 - Failed and blocked runs append to the task's bounded error log, and failed run records point
   their `nextRunAt` at the retry/backoff time so dashboard state matches the scheduler.
 - Failures remain visible in passive snapshots, source statuses, digest cards, and the Action

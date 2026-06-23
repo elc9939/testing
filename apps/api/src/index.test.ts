@@ -206,6 +206,53 @@ describe('mini hub api', () => {
     expect(body.snapshot.tasks.find((task) => task.id === taskId)?.status).toBe('paused');
   });
 
+  it('prevents Today passive run actions from bypassing paused task state', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store });
+    const taskId = 'passive-task:career-radar';
+
+    await app.request('/api/career-actions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        label: 'Follow up with recruiter',
+        dueAt: '2026-06-19T10:00:00.000Z'
+      })
+    });
+    const firstRunResponse = await app.request(`/api/passive-tasks/tasks/${encodeURIComponent(taskId)}/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'attention-paused-seed' })
+    });
+    expect(firstRunResponse.status).toBe(200);
+    const firstRunBody = (await firstRunResponse.json()) as { run: { cards: Array<{ id: string }> } };
+    const itemId = `passive-task:${firstRunBody.run.cards[0]!.id}`;
+
+    const pauseResponse = await app.request(`/api/passive-tasks/tasks/${encodeURIComponent(taskId)}/pause`, {
+      method: 'POST'
+    });
+    expect(pauseResponse.status).toBe(200);
+
+    const actionResponse = await app.request(`/api/attention/items/${encodeURIComponent(itemId)}/actions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'run' })
+    });
+
+    expect(actionResponse.status).toBe(409);
+    const body = (await actionResponse.json()) as { error: string; blocked: { itemId: string; action: string } };
+    expect(body).toMatchObject({
+      error: 'Passive task is paused.',
+      blocked: { itemId, action: 'run' }
+    });
+    expect(store.passiveRuns.filter((run) => run.taskId === taskId)).toHaveLength(1);
+    expect(store.passiveTasks.find((task) => task.id === taskId)?.status).toBe('paused');
+    expect(store.settings?.preferences.attentionTriage).toMatchObject({
+      [itemId]: { itemId, status: 'blocked' }
+    });
+  });
+
   it('saves user-facing entities and exposes sync changes by cursor', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const authHeaders = { 'content-type': 'application/json' };

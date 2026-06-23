@@ -1341,10 +1341,10 @@ async function runPassiveAttentionTask(store: MemoryStore, externalFetch: FetchL
   const cardId = itemId.slice('passive-task:'.length);
   const match = store.passiveRuns.flatMap((run) => run.cards).find((card) => card.id === cardId);
   if (!match) throw new Error('Passive task card not found.');
+  const task = store.passiveTasks.find((item) => item.id === match.taskId);
   await runPassiveTask(store, match.taskId, {
     externalFetch,
-    force: true,
-    input: { reason: 'attention-run', idle: false }
+    input: { reason: 'attention-run', idle: Boolean(task?.idleOnly) }
   });
 }
 
