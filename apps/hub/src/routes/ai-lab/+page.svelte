@@ -17,6 +17,25 @@
   $: grammarAssetState = grammarUrl.trim()
     ? 'Tree-sitter grammar URL is configured.'
     : 'Tree-sitter needs a WASM grammar URL before parsing can run.';
+  $: readinessRows = [
+    {
+      label: 'Transformers.js',
+      state: 'Loads on demand',
+      detail: 'Classification runs in the browser bundle through the shared AI package. First run may download or initialize model assets.'
+    },
+    {
+      label: 'Tree-sitter grammar',
+      state: grammarUrl.trim() ? 'Configured' : 'Setup needed',
+      detail: grammarUrl.trim()
+        ? 'The parser will load the configured WASM grammar URL when you press Parse.'
+        : 'Paste a WASM grammar URL before parsing. The JavaScript grammar is bundled by default.'
+    },
+    {
+      label: 'AI OS API',
+      state: 'Not required',
+      detail: 'This lab is browser-local. Use AI OS for Ollama/API routing, queues, agents, and service health.'
+    }
+  ];
 
   function setResult(state: AiLabResultState, detail = ''): void {
     resultState = state;
@@ -38,7 +57,11 @@
     try {
       const ai = await import('@mini-hub/ai');
       const rows = await ai.classifyTextLocally(text, parsedLabels);
-      setResult('success', rows.length ? rows.map((row) => `${row.label}: ${row.score.toFixed(3)}`).join('\n') : 'Classifier returned no labels.');
+      if (!rows.length) {
+        setResult('empty', 'Classifier returned no labels. Try broader labels or a longer input.');
+      } else {
+        setResult('success', rows.map((row) => `${row.label}: ${row.score.toFixed(3)}`).join('\n'));
+      }
     } catch (error) {
       setResult('error', error instanceof Error ? error.message : 'Classification failed.');
     } finally {
@@ -60,7 +83,8 @@
     try {
       const ai = await import('@mini-hub/ai');
       const parsed = await ai.parseWithTreeSitter(codeText, grammarUrl.trim() || javascriptGrammarUrl);
-      setResult('success', JSON.stringify(parsed, null, 2));
+      const serialized = JSON.stringify(parsed, null, 2);
+      setResult(serialized && serialized !== '{}' ? 'success' : 'empty', serialized || 'Parser returned no syntax tree.');
     } catch (error) {
       setResult('error', error instanceof Error ? error.message : 'Parse failed.');
     } finally {
@@ -91,6 +115,16 @@
   </div>
 </section>
 
+<section class="card card-pad readiness-strip" aria-label="AI Lab readiness">
+  {#each readinessRows as row}
+    <div>
+      <span>{row.label}</span>
+      <strong>{row.state}</strong>
+      <small>{row.detail}</small>
+    </div>
+  {/each}
+</section>
+
 <section class="grid two">
   <div class="card card-pad panel">
     <div class="section-title">
@@ -107,7 +141,7 @@
     </div>
     <button class="button primary" type="button" disabled={busy} on:click={classify}>
       <Play size={17} />
-      <span>Classify</span>
+      <span>{busy && resultState === 'loading' ? 'Running' : 'Classify'}</span>
     </button>
   </div>
 
@@ -127,18 +161,20 @@
     </div>
     <button class="button" type="button" disabled={busy} on:click={parseCode}>
       <Play size={17} />
-      <span>Parse</span>
+      <span>{busy && resultState === 'loading' ? 'Running' : 'Parse'}</span>
     </button>
   </div>
 </section>
 
-<section class={`card card-pad result-panel ${resultState}`}>
+<section class={`card card-pad result-panel ${resultState}`} aria-live="polite">
   <div class="section-title">
     <BrainCircuit size={18} />
     <strong>{resultCopy.title}</strong>
   </div>
   <p>{resultCopy.detail}</p>
   {#if resultState === 'success'}
+    <pre>{resultText}</pre>
+  {:else if resultState === 'empty' && resultText}
     <pre>{resultText}</pre>
   {:else if resultState === 'error' && resultText}
     <pre class="error-output">{resultText}</pre>
@@ -163,6 +199,35 @@
     margin: 0;
     color: var(--muted);
     line-height: 1.45;
+  }
+
+  .readiness-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .readiness-strip div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+  }
+
+  .readiness-strip span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .readiness-strip small {
+    color: var(--muted);
+    line-height: 1.35;
   }
 
   .panel {
@@ -218,12 +283,17 @@
     border-color: var(--warning-border);
   }
 
+  .result-panel.empty {
+    border-color: var(--border-strong);
+  }
+
   .error-output {
     color: var(--error-text);
   }
 
   @media (max-width: 760px) {
-    .plain-guide {
+    .plain-guide,
+    .readiness-strip {
       grid-template-columns: 1fr;
     }
   }

@@ -1,4 +1,4 @@
-export type AiLabResultState = 'idle' | 'loading' | 'success' | 'error';
+export type AiLabResultState = 'idle' | 'loading' | 'success' | 'empty' | 'error';
 
 export interface AiLabResultCopy {
   title: string;
@@ -23,6 +23,12 @@ export function aiLabResultCopy(state: AiLabResultState, detail = ''): AiLabResu
     return {
       title: 'Result ready',
       detail: detail || 'The browser-side experiment returned output.'
+    };
+  }
+  if (state === 'empty') {
+    return {
+      title: 'No output returned',
+      detail: detail || 'The browser-side experiment ran, but the model or parser did not return inspectable output.'
     };
   }
   if (state === 'error') {
