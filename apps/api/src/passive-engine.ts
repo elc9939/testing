@@ -56,6 +56,14 @@ interface FileInsight {
   indexableText?: string;
 }
 
+interface CleanupCandidate {
+  path: string;
+  kind: 'snapshot' | 'log' | 'temp';
+  size: number;
+  mtimeMs: number;
+  reason: string;
+}
+
 export interface PassiveRunInput {
   idle?: boolean;
   reason?: string;
@@ -874,6 +882,64 @@ function sanitizedMiniHubSnapshot(store: MemoryStore): Record<string, unknown> {
   };
 }
 
+function formatBytes(value: number): string {
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${value} B`;
+}
+
+function cleanupCandidate(path: string, kind: CleanupCandidate['kind'], reason: string): CleanupCandidate | null {
+  try {
+    const stat = statSync(path);
+    if (!stat.isFile()) return null;
+    return { path, kind, size: stat.size, mtimeMs: stat.mtimeMs, reason };
+  } catch {
+    return null;
+  }
+}
+
+function planMiniHubCleanup(date = new Date()): CleanupCandidate[] {
+  const candidates: CleanupCandidate[] = [];
+  const dataDir = resolve(env.dataDir);
+  const snapshotRoot = join(dataDir, passiveSnapshotDirName);
+  const snapshotRetentionCount = 14;
+  const oldSnapshotCutoff = date.getTime() - 45 * dayMs;
+  const oldLogCutoff = date.getTime() - 21 * dayMs;
+
+  if (existsSync(snapshotRoot)) {
+    try {
+      const snapshots = readdirSync(snapshotRoot, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+        .map((entry) => join(snapshotRoot, entry.name))
+        .map((path) => cleanupCandidate(path, 'snapshot', 'stale Mini Hub restore snapshot'))
+        .filter((item): item is CleanupCandidate => Boolean(item))
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      for (const [index, snapshot] of snapshots.entries()) {
+        if (index >= snapshotRetentionCount || snapshot.mtimeMs < oldSnapshotCutoff) candidates.push(snapshot);
+      }
+    } catch {
+      // A cleanup dry-run should not fail the idle compute task just because a folder changed mid-scan.
+    }
+  }
+
+  if (existsSync(dataDir)) {
+    try {
+      for (const entry of readdirSync(dataDir, { withFileTypes: true }).slice(0, 200)) {
+        if (!entry.isFile()) continue;
+        const fullPath = join(dataDir, entry.name);
+        const extension = extname(entry.name).toLowerCase();
+        if (!['.log', '.tmp'].includes(extension)) continue;
+        const candidate = cleanupCandidate(fullPath, extension === '.log' ? 'log' : 'temp', `old ${extension.slice(1)} file in Mini Hub data dir`);
+        if (candidate && candidate.mtimeMs < oldLogCutoff) candidates.push(candidate);
+      }
+    } catch {
+      // Keep cleanup planning best-effort and non-blocking.
+    }
+  }
+
+  return candidates.sort((a, b) => b.size - a.size).slice(0, 40);
+}
+
 async function runBackupSnapshot(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const createdAt = nowIso();
   const snapshotRoot = join(resolve(env.dataDir), passiveSnapshotDirName);
@@ -955,6 +1021,55 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
     };
   }
 
+  const cleanupCandidates = planMiniHubCleanup();
+  const cleanupCards: PassiveResultCard[] = cleanupCandidates.length
+    ? [
+        card({
+          id: id('passive-card'),
+          taskId: task.id,
+          runId,
+          family: task.family,
+          title: `${cleanupCandidates.length} idle cleanup candidate${cleanupCandidates.length === 1 ? '' : 's'} found`,
+          summary: `Dry-run only: ${formatBytes(cleanupCandidates.reduce((total, item) => total + item.size, 0))} across stale snapshots/logs/temp files. No files were changed.`,
+          urgency: cleanupCandidates.length >= 10 ? 58 : 46,
+          confidence: 0.86,
+          route: routeMap.passiveTasks,
+          sourceRefs: cleanupCandidates.slice(0, 10).map((item) =>
+            stableSourceRef('file', basename(item.path), {
+              id: item.path,
+              filePath: item.path,
+              metadata: {
+                kind: item.kind,
+                size: item.size,
+                modifiedAt: new Date(item.mtimeMs).toISOString(),
+                reason: item.reason
+              }
+            })
+          ),
+          suggestedAction: 'Review cleanup plan',
+          actionKind: 'inspect',
+          why: 'The machine was idle, so the cleanup planner checked only Mini Hub-owned data paths and produced a non-destructive dry-run.'
+        })
+      ]
+    : [
+        card({
+          id: id('passive-card'),
+          taskId: task.id,
+          runId,
+          family: task.family,
+          title: 'Idle cleanup is quiet',
+          summary: 'No stale Mini Hub snapshots, logs, or temp files crossed the cleanup planning threshold.',
+          urgency: 18,
+          confidence: 0.78,
+          route: routeMap.passiveTasks,
+          sourceRefs: [stableSourceRef('file', 'Mini Hub data dir', { id: resolve(env.dataDir), filePath: resolve(env.dataDir) })],
+          suggestedAction: 'No action',
+          actionKind: 'inspect',
+          why: 'The cleanup planner ran during an idle window and found no non-destructive cleanup candidates.'
+        })
+      ];
+  const cleanupChanged = cleanupCandidates.map((item) => `cleanup-candidate:${item.path}`);
+
   try {
     const payload = await fetchJsonWithTimeout(
       fetchImpl,
@@ -999,8 +1114,12 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
           actionKind: 'inspect',
           why: 'The machine was marked idle, so the idle compute queue ran a bounded local benchmark.'
         })
-      ],
-      changed: benchmark.id ? [`benchmark:${String(benchmark.id)}`] : []
+      ].concat(cleanupCards),
+      changed: [...(benchmark.id ? [`benchmark:${String(benchmark.id)}`] : []), ...cleanupChanged],
+      metadata: {
+        cleanupCandidates: cleanupCandidates.length,
+        cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0)
+      }
     };
   } catch (error) {
     return {
@@ -1015,7 +1134,12 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
           70,
           stableSourceRef('service', 'AI OS benchmark', { id: 'ai-os-benchmark', route: routeMap.aiOs })
         )
-      ]
+      ].concat(cleanupCards),
+      changed: cleanupChanged,
+      metadata: {
+        cleanupCandidates: cleanupCandidates.length,
+        cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0)
+      }
     };
   }
 }

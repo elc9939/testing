@@ -62,8 +62,10 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   lifecycle checks.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot and requests an AI OS
   backup when AI OS is available.
-- Idle Compute Queue: runs bounded AI OS benchmarks only when the worker or dashboard tick
-  reports a real idle window.
+- Idle Compute Queue: runs bounded AI OS benchmarks and non-destructive Mini Hub cleanup
+  dry-runs only when the worker or dashboard tick reports a real idle window. Cleanup cards
+  list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does
+  not delete them.
 - Background Research Monitor: reads AI OS due monitors and queues due monitor runs.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
 - Local File Intelligence: scans only configured watched folders for recent document,
@@ -76,6 +78,9 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 ## Safety
 
 - No destructive file changes run from v1 passive tasks.
+- Idle cleanup planning is dry-run only. It scans Mini Hub-owned data paths for stale
+  passive snapshots, logs, and temp files, then emits source-backed cards without deleting
+  anything.
 - File and project scans respect the configured folder list; no default broad filesystem scan.
 - File event watchers are created only for configured folders, are non-recursive, and close
   when the folder is removed or the file-intelligence watcher is disabled.

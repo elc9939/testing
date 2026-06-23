@@ -109,8 +109,10 @@ real-data only:
   reconnect, and Google OAuth lifecycle event triggers.
 - Backup + Snapshot Watcher writes non-destructive Mini Hub restore snapshots under
   `MINI_HUB_DATA_DIR/passive-snapshots` and asks AI OS for its own backup when available.
-- Idle Compute Queue runs bounded AI OS benchmarks only when the worker or a manual tick
-  reports a real idle window.
+- Idle Compute Queue runs bounded AI OS benchmarks and non-destructive Mini Hub cleanup
+  dry-runs only when the worker or a manual tick reports a real idle window. Cleanup cards
+  list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does
+  not delete them.
 - Background Research Monitor reads AI OS saved monitor due-state and queues due monitor
   runs through AI OS.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
@@ -128,6 +130,8 @@ Passive Tasks dashboard digest. Settings controls global enablement, notificatio
 idle preference, resource limit, local/cloud AI preference, max runs per tick, and watched
 folders/domains/accounts. Background work avoids destructive changes; file/project scans
 respect configured folders only, and failures stay visible without creating fake queue items.
+Idle cleanup planning is dry-run only and scans Mini Hub-owned data paths, not broad user
+folders.
 
 The hub also has a browser-side Capability Registry v1. It normalizes existing service
 status from the Mini Hub API, AI OS, Macro Lab, Google connection state, and the local

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +14,7 @@ import {
   setPassiveWatcherEnabled,
   updatePassiveTaskStatus
 } from './passive-engine';
+import { env } from './env';
 import {
   createMemoryStore,
   enablePassiveTaskPersistence,
@@ -183,6 +184,46 @@ describe('passive task engine', () => {
         idleSource: 'test-idle-detector'
       }
     });
+  });
+
+  it('plans stale Mini Hub cleanup during idle compute without deleting files', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-cleanup-'));
+    const previousDataDir = env.dataDir;
+    try {
+      env.dataDir = dir;
+      const snapshotDir = join(dir, 'passive-snapshots');
+      mkdirSync(snapshotDir, { recursive: true });
+      const oldSnapshot = join(snapshotDir, 'old-snapshot.json');
+      const oldLog = join(dir, 'old-api.log');
+      writeFileSync(oldSnapshot, JSON.stringify({ ok: true }), 'utf8');
+      writeFileSync(oldLog, 'old log line\n', 'utf8');
+      const oldDate = new Date('2026-04-01T10:00:00.000Z');
+      utimesSync(oldSnapshot, oldDate, oldDate);
+      utimesSync(oldLog, oldDate, oldDate);
+
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store, new Date('2026-06-20T10:00:00.000Z'));
+      const task = store.passiveTasks.find((item) => item.family === 'idle_compute')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { idle: true, reason: 'cleanup-test' }
+      });
+
+      expect(run.status).toBe('succeeded');
+      expect(run.metadata.cleanupCandidates).toBeGreaterThanOrEqual(2);
+      expect(run.changed).toContain(`cleanup-candidate:${oldSnapshot}`);
+      expect(run.changed).toContain(`cleanup-candidate:${oldLog}`);
+      expect(run.cards.some((card) => card.title.includes('idle cleanup candidate'))).toBe(true);
+      expect(run.cards.some((card) => card.sourceRefs.some((ref) => ref.filePath === oldSnapshot))).toBe(true);
+      expect(run.cards.some((card) => card.sourceRefs.some((ref) => ref.filePath === oldLog))).toBe(true);
+      expect(existsSync(oldSnapshot)).toBe(true);
+      expect(existsSync(oldLog)).toBe(true);
+    } finally {
+      env.dataDir = previousDataDir;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('runs local file intelligence from configured folder watch events', async () => {
