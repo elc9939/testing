@@ -119,9 +119,12 @@ normal API startup.
 - App Health Watchdog: checks Mini Hub data dir, watched Google connection state,
   configured local
   service endpoints/ports, AI OS, Macro Lab, Ollama reachability, Ollama model inventory,
-  configured Ollama chat model availability, AI OS jobs, and backup freshness. It has both a
-  scheduled task and a built-in event task for `app.startup`, `app.reconnect`, service
-  reconnect, and Google OAuth lifecycle checks.
+  configured Ollama chat model availability, AI OS jobs, backup freshness, and the AI OS
+  machine-profile/autotune summary. High measured CPU/RAM/GPU/VRAM pressure and failed AI OS
+  storage integrity checks surface as source-backed cards; healthy provider, benchmark, and
+  suggested-concurrency details are kept in run metadata. It has both a scheduled task and a
+  built-in event task for `app.startup`, `app.reconnect`, service reconnect, and Google OAuth
+  lifecycle checks.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot, read-verifies it,
   records byte count/checksum/entity counts/redaction status, and requests an AI OS backup
   when AI OS is available.

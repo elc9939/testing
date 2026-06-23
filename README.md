@@ -111,8 +111,11 @@ real-data only:
 
 - App Health Watchdog checks the hub data directory, Google connection state, configured
   local service endpoints/ports, AI OS, Macro Lab, Ollama reachability/model inventory, the
-  configured Ollama chat model, AI OS jobs, and backup freshness on a schedule and through
-  built-in startup, reconnect, and Google OAuth lifecycle event triggers.
+  configured Ollama chat model, AI OS jobs, backup freshness, and the AI OS machine-profile
+  autotune summary. High measured resource pressure or a failed AI OS storage integrity
+  check becomes a source-backed finding, while normal provider/benchmark/concurrency details
+  are retained in the App Health run metadata. It runs on a schedule and through built-in
+  startup, reconnect, and Google OAuth lifecycle event triggers.
 - Backup + Snapshot Watcher writes non-destructive Mini Hub restore snapshots under
   `MINI_HUB_DATA_DIR/passive-snapshots`, read-verifies each new snapshot, records byte count,
   checksum, entity counts, redaction status, Passive Task state, sync events, and a redacted

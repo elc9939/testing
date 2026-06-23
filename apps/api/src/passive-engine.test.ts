@@ -39,7 +39,33 @@ function healthyServiceFetch(): typeof fetch {
   return (async (input: unknown) => {
     const href = String(input);
     if (href.includes('/api/ai/status')) {
-      return jsonResponse({ jobs: [], backups: [{ id: 'backup-1', ok: true }] });
+      return jsonResponse({
+        jobs: [],
+        backups: [{ id: 'backup-1', ok: true }],
+        machine_profile: {
+          mode: 'balanced',
+          created_at: '2026-06-20T10:00:00.000Z',
+          provider_summary: { total: 1, available: 1, local_configured: 1, local_available: 1 },
+          ai_os_health: { integrity_ok: true, jobs_count: 0, background_units: 0, background_enabled: 0 },
+          capability_readiness: { total: 1, available: 1, unavailable: 0 },
+          benchmarks: { text_samples: 1 },
+          autotune: {
+            resource_pressure: { level: 'low', drivers: [], cpu_percent: 12, memory_percent: 36 },
+            suggested_max_job_concurrency: 2,
+            best_text_route: {
+              provider: 'ollama',
+              model: 'llama3.1:8b',
+              tokens_per_second: 18,
+              latency_ms: 500,
+              local: true,
+              paid: false,
+              measured_at: '2026-06-20T10:00:00.000Z'
+            },
+            confidence: 'measured',
+            routing_notes: ['Best measured text route is ollama/llama3.1:8b at 18.0 tokens/sec.']
+          }
+        }
+      });
     }
     if (href.includes('/api/macro-lab/status')) {
       return jsonResponse({ ok: true, engine: { panic: false, running: 0, action_count: 0 } });
@@ -322,6 +348,92 @@ describe('passive task engine', () => {
     } finally {
       env.ollamaChatModel = previousModel;
     }
+  });
+
+  it('surfaces measured AI OS machine profile pressure in app health', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+    const fetchWithPressure = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/status')) {
+        return jsonResponse({
+          jobs: [],
+          backups: [{ id: 'backup-1', ok: true }],
+          machine_profile: {
+            mode: 'beast',
+            created_at: '2026-06-20T10:00:00.000Z',
+            provider_summary: { total: 3, available: 1, local_configured: 1, local_available: 1 },
+            ai_os_health: { integrity_ok: true, jobs_count: 4, background_units: 2, background_enabled: 1 },
+            capability_readiness: { total: 8, available: 6, unavailable: 2 },
+            benchmarks: { text_samples: 3 },
+            autotune: {
+              resource_pressure: {
+                level: 'high',
+                drivers: ['gpu', 'vram'],
+                cpu_percent: 42,
+                memory_percent: 64,
+                gpu_utilization_percent: 97,
+                vram_percent: 91
+              },
+              suggested_max_job_concurrency: 1,
+              best_text_route: {
+                provider: 'ollama',
+                model: 'llama3.1:8b',
+                tokens_per_second: 18.5,
+                latency_ms: 420,
+                local: true,
+                paid: false,
+                measured_at: '2026-06-20T09:55:00.000Z'
+              },
+              confidence: 'measured',
+              routing_notes: ['Resource pressure is high; new local AI work should stay conservative until utilization drops.']
+            }
+          }
+        });
+      }
+      if (href.includes('/api/macro-lab/status')) {
+        return jsonResponse({ ok: true, engine: { panic: false } });
+      }
+      if (href.includes('/api/tags')) {
+        return jsonResponse({ models: [{ name: 'llama3.1:8b' }] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: fetchWithPressure,
+      force: true,
+      input: { reason: 'machine-profile-pressure-test' }
+    });
+
+    const pressureCard = run.cards.find((card) => card.title === 'AI OS resource pressure is high');
+    expect(run.status).toBe('succeeded');
+    expect(pressureCard?.summary).toContain('gpu, vram');
+    expect(pressureCard?.summary).toContain('Suggested max job concurrency is 1');
+    expect(pressureCard?.sourceRefs[0]?.metadata.machineProfile).toMatchObject({
+      mode: 'beast',
+      aiOsIntegrityOk: true,
+      textBenchmarkSamples: 3,
+      suggestedMaxJobConcurrency: 1,
+      resourcePressure: {
+        level: 'high',
+        drivers: ['gpu', 'vram'],
+        gpuUtilizationPercent: 97,
+        vramPercent: 91
+      },
+      bestTextRoute: {
+        label: 'ollama/llama3.1:8b',
+        tokensPerSecond: 18.5,
+        local: true
+      }
+    });
+    expect(run.metadata.aiOsMachineProfile).toMatchObject({
+      available: true,
+      source: 'status.machine_profile',
+      resourcePressure: { level: 'high', drivers: ['gpu', 'vram'] },
+      bestTextRoute: { label: 'ollama/llama3.1:8b' }
+    });
   });
 
   it('scopes integration health findings to configured watched accounts', async () => {

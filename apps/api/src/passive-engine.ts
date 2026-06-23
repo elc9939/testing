@@ -587,6 +587,26 @@ function ollamaModelNames(payload: unknown): string[] {
     .map((name) => name.trim());
 }
 
+function optionalNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function optionalStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((item) => optionalString(item)).filter((item): item is string => Boolean(item))
+    : [];
+}
+
+function compactRecord(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
+}
+
 function normalizeWatchedDomain(value: string): string | null {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return null;
@@ -1196,6 +1216,141 @@ function serviceIssueCard(task: PassiveTask, runId: string, title: string, summa
   });
 }
 
+type AiOsMachineProfileRead =
+  | { profile: Record<string, unknown>; source: string; error?: undefined }
+  | { profile?: undefined; source: string; error: string };
+
+function extractAiOsMachineProfile(payload: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(payload)) return undefined;
+  if (isRecord(payload.machine_profile)) return payload.machine_profile;
+  if (isRecord(payload.profile)) return payload.profile;
+  return undefined;
+}
+
+async function readAiOsMachineProfile(status: unknown, fetchImpl: FetchLike): Promise<AiOsMachineProfileRead> {
+  const statusProfile = extractAiOsMachineProfile(status);
+  if (statusProfile) return { profile: statusProfile, source: 'status.machine_profile' };
+
+  try {
+    const payload = await fetchJsonWithTimeout(fetchImpl, new URL('/api/ai/machine-profile', env.aiOsApiUrl), 'AI OS machine profile');
+    const profile = extractAiOsMachineProfile(payload);
+    if (profile) return { profile, source: 'machine-profile.endpoint' };
+    return { source: 'machine-profile.endpoint', error: 'AI OS machine profile endpoint returned no profile payload.' };
+  } catch (error) {
+    return { source: 'machine-profile.endpoint', error: describeError(error) };
+  }
+}
+
+function summarizeAiOsMachineProfile(profile: Record<string, unknown>, source: string): Record<string, unknown> {
+  const autotune = isRecord(profile.autotune) ? profile.autotune : {};
+  const benchmarks = isRecord(profile.benchmarks) ? profile.benchmarks : {};
+  const pressure = isRecord(autotune.resource_pressure) ? autotune.resource_pressure : {};
+  const bestRoute = isRecord(autotune.best_text_route)
+    ? autotune.best_text_route
+    : isRecord(benchmarks.best_text_route)
+      ? benchmarks.best_text_route
+      : undefined;
+  const health = isRecord(profile.ai_os_health) ? profile.ai_os_health : {};
+  const providerSummary = isRecord(profile.provider_summary) ? profile.provider_summary : {};
+  const capabilityReadiness = isRecord(profile.capability_readiness) ? profile.capability_readiness : {};
+  const routeProvider = optionalString(bestRoute?.provider);
+  const routeModel = optionalString(bestRoute?.model);
+  const routeLabel = routeProvider && routeModel ? `${routeProvider}/${routeModel}` : routeProvider ?? routeModel;
+
+  return compactRecord({
+    checked: true,
+    available: true,
+    source,
+    mode: optionalString(profile.mode),
+    createdAt: optionalString(profile.created_at),
+    providerSummary,
+    capabilityReadiness,
+    aiOsIntegrityOk: typeof health.integrity_ok === 'boolean' ? health.integrity_ok : undefined,
+    jobsCount: optionalNumber(health.jobs_count),
+    backgroundUnits: optionalNumber(health.background_units),
+    backgroundEnabled: optionalNumber(health.background_enabled),
+    textBenchmarkSamples: optionalNumber(benchmarks.text_samples),
+    autotuneConfidence: optionalString(autotune.confidence),
+    suggestedMaxJobConcurrency: optionalNumber(autotune.suggested_max_job_concurrency),
+    routingNotes: optionalStringArray(autotune.routing_notes),
+    resourcePressure: compactRecord({
+      level: optionalString(pressure.level),
+      drivers: optionalStringArray(pressure.drivers),
+      cpuPercent: optionalNumber(pressure.cpu_percent),
+      memoryPercent: optionalNumber(pressure.memory_percent),
+      gpuUtilizationPercent: optionalNumber(pressure.gpu_utilization_percent),
+      vramPercent: optionalNumber(pressure.vram_percent)
+    }),
+    bestTextRoute: bestRoute
+      ? compactRecord({
+          provider: routeProvider,
+          model: routeModel,
+          label: routeLabel,
+          tokensPerSecond: optionalNumber(bestRoute.tokens_per_second),
+          latencyMs: optionalNumber(bestRoute.latency_ms),
+          measuredAt: optionalString(bestRoute.measured_at),
+          local: typeof bestRoute.local === 'boolean' ? bestRoute.local : undefined,
+          paid: typeof bestRoute.paid === 'boolean' ? bestRoute.paid : undefined
+        })
+      : undefined
+  });
+}
+
+function buildAiOsMachineProfileCards(
+  task: PassiveTask,
+  runId: string,
+  endpoints: Record<string, unknown>,
+  summary: Record<string, unknown>
+): PassiveResultCard[] {
+  const pressure = isRecord(summary.resourcePressure) ? summary.resourcePressure : {};
+  const level = optionalString(pressure.level);
+  const drivers = optionalStringArray(pressure.drivers);
+  const cards: PassiveResultCard[] = [];
+  const sourceRef = stableSourceRef('service', 'AI OS machine profile', {
+    id: 'ai-os-machine-profile',
+    route: routeMap.aiOs,
+    url: env.aiOsApiUrl,
+    metadata: { ...endpoints, machineProfile: summary }
+  });
+
+  if (summary.aiOsIntegrityOk === false) {
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'AI OS data integrity check failed',
+        'AI OS machine profile reports that its storage integrity check is not currently passing.',
+        90,
+        sourceRef
+      )
+    );
+  }
+
+  if (level === 'high') {
+    const concurrency = optionalNumber(summary.suggestedMaxJobConcurrency);
+    const route = isRecord(summary.bestTextRoute) ? optionalString(summary.bestTextRoute.label) : undefined;
+    const tokensPerSecond = isRecord(summary.bestTextRoute) ? optionalNumber(summary.bestTextRoute.tokensPerSecond) : undefined;
+    cards.push(
+      serviceIssueCard(
+        task,
+        runId,
+        'AI OS resource pressure is high',
+        [
+          `AI OS reports high resource pressure${drivers.length ? ` from ${drivers.join(', ')}` : ''}.`,
+          concurrency !== undefined ? `Suggested max job concurrency is ${concurrency}.` : '',
+          route ? `Best measured text route is ${route}${tokensPerSecond !== undefined ? ` at ${tokensPerSecond} tokens/sec` : ''}.` : ''
+        ]
+          .filter(Boolean)
+          .join(' '),
+        78,
+        sourceRef
+      )
+    );
+  }
+
+  return cards;
+}
+
 async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const cards: PassiveResultCard[] = [];
   const settings = store.passiveSettings ?? defaultPassiveSettings();
@@ -1209,6 +1364,7 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     ollama: endpointMetadata(env.ollamaBaseUrl)
   };
   let ollamaModels: string[] = [];
+  let aiOsMachineProfile: Record<string, unknown> = { checked: false, available: false, reason: 'not checked yet' };
   if (!existsSync(dataDir)) {
     cards.push(
       serviceIssueCard(
@@ -1313,7 +1469,26 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         )
       );
     }
+
+    const profileRead = await readAiOsMachineProfile(status, fetchImpl);
+    if (profileRead.profile) {
+      aiOsMachineProfile = summarizeAiOsMachineProfile(profileRead.profile, profileRead.source);
+      cards.push(...buildAiOsMachineProfileCards(task, runId, endpoints.aiOs, aiOsMachineProfile));
+    } else {
+      aiOsMachineProfile = {
+        checked: true,
+        available: false,
+        source: profileRead.source,
+        error: profileRead.error
+      };
+    }
   } catch (error) {
+    aiOsMachineProfile = {
+      checked: false,
+      available: false,
+      reason: 'ai-os-status-unavailable',
+      error: describeError(error)
+    };
     cards.push(
       serviceIssueCard(
         task,
@@ -1473,6 +1648,7 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
       totalIntegrationConnectionIssues: disconnectedConnections.length,
       integrationConnectionIssues: disconnected.length,
       ignoredIntegrationConnectionIssues: ignoredDisconnected,
+      aiOsMachineProfile,
       configuredOllamaModel: env.ollamaChatModel,
       ollamaModels: ollamaModels.slice(0, 24),
       ollamaModelCount: ollamaModels.length
