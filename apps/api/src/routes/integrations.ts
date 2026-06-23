@@ -265,12 +265,33 @@ function oauthStartReturnTo(c: Context<AppBindings>): string | undefined {
   return undefined;
 }
 
+function normalizedHubBasePath(pathname: string): string {
+  const normalized = pathname.replace(/\/+$/u, '');
+  if (!normalized || normalized === '/') return '';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+}
+
+function hostedGoogleCallbackBasePath(returnUrl: URL): string {
+  try {
+    const hubUrl = new URL(env.hubPublicUrl);
+    if (hubUrl.origin === returnUrl.origin) return normalizedHubBasePath(hubUrl.pathname);
+  } catch {
+    // Fall through to host-specific inference.
+  }
+
+  if (returnUrl.hostname.endsWith('github.io')) {
+    const firstPathSegment = returnUrl.pathname.split('/').filter(Boolean)[0];
+    return firstPathSegment ? `/${firstPathSegment}` : '';
+  }
+
+  return '';
+}
+
 function hostedGoogleCallbackUri(returnTo: string | undefined): string | undefined {
   const safe = safeReturnTo(returnTo);
   if (!safe) return undefined;
   const url = new URL(safe);
-  const firstPathSegment = url.pathname.split('/').filter(Boolean)[0];
-  const basePath = firstPathSegment ? `/${firstPathSegment}` : '';
+  const basePath = hostedGoogleCallbackBasePath(url);
   return `${url.origin}${basePath}/oauth/google/callback`;
 }
 

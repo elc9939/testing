@@ -13,7 +13,7 @@ Build a private, single-user command center for email, calendar, files, coursewo
 The productivity hub extends the staged Mini Hub rewrite:
 
 - `apps/hub`: SvelteKit SPA/static UI. It renders the command center, starts OAuth, and calls the local personal API.
-- `apps/api`: Hono API. It owns OAuth token exchange, API-hosted callbacks, encrypted token storage, provider calls, validation, connector error handling, and all mutation endpoints. The hosted hub callback can forward a Google authorization code to this API so public-page OAuth stays visually on the original site.
+- `apps/api`: Hono API. It owns OAuth token exchange, API-hosted callbacks, encrypted token storage, provider calls, validation, connector error handling, and all mutation endpoints. The hub callback can forward a Google authorization code to this API so OAuth stays visually on the original site when the hub and API run on different origins.
 - `packages/core`: shared route names, Zod contracts, connector status/capability types, calendar event shape, and unified timeline item shape.
 - `packages/db`: Drizzle schema for server-authoritative Postgres tables, including integration connections and logs.
 
@@ -66,7 +66,7 @@ Provider data is not blindly mirrored yet. Calendar events are fetched live from
 The app uses two layers:
 
 1. Personal local mode: the Hono API maps local personal-mode requests to the single personal workspace. Keep the service bound to loopback unless you intentionally expose it.
-2. Provider OAuth: Google OAuth 2.0 authorization-code flow with offline access. The API creates a signed `state`, records the redirect URI used for that run, exchanges the code server-side, stores encrypted token JSON, refreshes access tokens when needed, and supports revocation. The flow supports both the local API callback and the hosted hub `/oauth/google/callback` bridge.
+2. Provider OAuth: Google OAuth 2.0 authorization-code flow with offline access. The API creates a signed `state`, records the redirect URI used for that run, exchanges the code server-side, stores encrypted token JSON, refreshes access tokens when needed, and supports revocation. The flow supports both the direct API callback and the hub `/oauth/google/callback` bridge.
 
 Secrets are only read from env:
 

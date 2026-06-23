@@ -987,6 +987,47 @@ describe('mini hub api', () => {
     }
   });
 
+  it('builds local hub OAuth callbacks without treating the current route as a base path', async () => {
+    const previous = {
+      googleClientId: env.googleClientId,
+      googleClientSecret: env.googleClientSecret,
+      googleRedirectUri: env.googleRedirectUri,
+      hubPublicUrl: env.hubPublicUrl,
+      trustedOrigins: [...env.trustedOrigins]
+    };
+    try {
+      env.googleClientId = 'test-client-id';
+      env.googleClientSecret = 'test-client-secret';
+      env.googleRedirectUri = 'http://127.0.0.1:8787/api/integrations/google/oauth/callback';
+      env.hubPublicUrl = 'http://127.0.0.1:5173';
+      env.trustedOrigins = ['http://127.0.0.1:5173'];
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+      const returnTo = 'http://127.0.0.1:5173/productivity?panel=mail';
+
+      const response = await app.request(
+        `/api/integrations/google/oauth/start?returnTo=${encodeURIComponent(returnTo)}&mode=popup&callback=hub`
+      );
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { url: string };
+      const authUrl = new URL(body.url);
+      const redirectUri = authUrl.searchParams.get('redirect_uri');
+      const stateValue = authUrl.searchParams.get('state');
+      expect(redirectUri).toBe('http://127.0.0.1:5173/oauth/google/callback');
+      expect(verifyOAuthState(stateValue ?? '', 'google')).toMatchObject({
+        returnTo,
+        mode: 'popup',
+        redirectUri
+      });
+    } finally {
+      env.googleClientId = previous.googleClientId;
+      env.googleClientSecret = previous.googleClientSecret;
+      env.googleRedirectUri = previous.googleRedirectUri;
+      env.hubPublicUrl = previous.hubPublicUrl;
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
   it('redirects Google OAuth callbacks back to the trusted starting hub URL', async () => {
     const previous = {
       googleClientId: env.googleClientId,

@@ -23,7 +23,9 @@
   } from 'lucide-svelte';
   import type { CalendarEvent, GmailLabel, GmailThread, TimelineItem } from '@mini-hub/core';
   import { attentionStore } from '$lib/attention-store';
+  import { getApiUrl } from '$lib/api';
   import { canAutoSave, clientData } from '$lib/client-data';
+  import { googleOAuthCallbackModeForUrls } from '$lib/productivity-oauth';
   import {
     archiveGmailThread,
     createGmailDraft,
@@ -219,7 +221,7 @@
 
   function googleOAuthCallbackMode(): 'api' | 'hub' {
     if (typeof window === 'undefined') return 'api';
-    return window.location.hostname.endsWith('github.io') ? 'hub' : 'api';
+    return googleOAuthCallbackModeForUrls(window.location.href, getApiUrl());
   }
 
   function consumeGoogleQueryStatus(): void {
