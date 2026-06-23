@@ -85,8 +85,11 @@ export async function getConnections(): Promise<PublicConnection[]> {
   return result.connections;
 }
 
-export async function getGoogleOAuthUrl(): Promise<string> {
-  const result = await requestApiJson<{ url: string }>('/api/integrations/google/oauth/start');
+export async function getGoogleOAuthUrl(returnTo?: string): Promise<string> {
+  const params = new URLSearchParams();
+  if (returnTo) params.set('returnTo', returnTo);
+  const suffix = params.toString() ? `?${params}` : '';
+  const result = await requestApiJson<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`);
   return result.url;
 }
 

@@ -209,6 +209,36 @@ function emitPassiveIntegrationEvent(store: MemoryStore, eventName: string, reas
   });
 }
 
+function trustedReturnOrigin(origin: string): boolean {
+  const trusted = new Set(env.trustedOrigins);
+  try {
+    trusted.add(new URL(env.hubPublicUrl).origin);
+  } catch {
+    // Keep the explicit trusted origin list as the source of truth if HUB_PUBLIC_URL is malformed.
+  }
+  return trusted.has(origin);
+}
+
+function safeReturnTo(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) return undefined;
+    if (!trustedReturnOrigin(url.origin)) return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function oauthProductivityRedirect(input: { returnTo?: string | undefined; status: string; message?: string }): string {
+  const target = safeReturnTo(input.returnTo) ?? `${env.hubPublicUrl}/productivity`;
+  const url = new URL(target);
+  url.searchParams.set('google', input.status);
+  if (input.message) url.searchParams.set('message', input.message);
+  return url.toString();
+}
+
 export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
 
@@ -230,7 +260,7 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      return c.json({ url: googleAuthUrl() });
+      return c.json({ url: googleAuthUrl({ returnTo: safeReturnTo(c.req.query('returnTo')) }) });
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Google OAuth unavailable' }, 400);
     }
@@ -239,14 +269,18 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
   app.get('/google/oauth/callback', async (c) => {
     const code = c.req.query('code');
     const state = c.req.query('state');
-    if (!code || !state) return c.redirect(`${env.hubPublicUrl}/productivity?google=missing-code`);
+    if (!code || !state) return c.redirect(oauthProductivityRedirect({ status: 'missing-code' }));
     try {
-      await handleGoogleCallback(store, code, state);
+      const connectionState = await handleGoogleCallback(store, code, state);
       emitPassiveIntegrationEvent(store, 'google.oauth.connected', 'google-oauth-callback');
-      return c.redirect(`${env.hubPublicUrl}/productivity?google=connected`);
+      return c.redirect(oauthProductivityRedirect({ returnTo: connectionState.returnTo, status: 'connected' }));
     } catch (error) {
-      const message = encodeURIComponent(error instanceof Error ? error.message : 'oauth-failed');
-      return c.redirect(`${env.hubPublicUrl}/productivity?google=error&message=${message}`);
+      return c.redirect(
+        oauthProductivityRedirect({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'oauth-failed'
+        })
+      );
     }
   });
 

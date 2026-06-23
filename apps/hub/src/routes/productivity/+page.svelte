@@ -165,6 +165,14 @@
     return (values ?? []).join(', ');
   }
 
+  function googleReturnTo(): string | undefined {
+    if (typeof window === 'undefined') return undefined;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('google');
+    url.searchParams.delete('message');
+    return url.toString();
+  }
+
   function inputValue(event: Event): string {
     return (event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
   }
@@ -428,7 +436,7 @@
   async function connectGoogle(): Promise<void> {
     actionError = '';
     try {
-      const url = await getGoogleOAuthUrl();
+      const url = await getGoogleOAuthUrl(googleReturnTo());
       window.location.href = url;
     } catch (error) {
       setError(error, 'Google OAuth is not configured');

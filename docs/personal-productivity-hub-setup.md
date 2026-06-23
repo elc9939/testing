@@ -39,6 +39,11 @@ BRIGHTSPACE_ICAL_URL=
 ```
 
 `MINI_HUB_TOKEN_ENCRYPTION_KEY` encrypts provider OAuth tokens at rest and signs OAuth state.
+When you start Google OAuth from the public GitHub Pages app, a local dev URL, or a LAN hub
+URL, the hub passes its current Productivity URL as a signed `returnTo` value. The Google
+callback can still be the local API URL, but after the token is stored the API redirects back
+to the trusted hub URL that started the flow instead of always falling back to
+`HUB_PUBLIC_URL`.
 
 ## Google OAuth App
 
@@ -62,6 +67,7 @@ BRIGHTSPACE_ICAL_URL=
      - `http://localhost:5174`
      - `http://127.0.0.1:5175`
      - `http://localhost:5175`
+     - `https://elc9939.github.io`
    - Authorized redirect URIs:
      - `http://127.0.0.1:8787/api/integrations/google/oauth/callback`
 6. Put the generated client id and client secret in `.env`.
@@ -158,6 +164,8 @@ The iCal path is deadline ingestion only. Those records should be marked read-on
 - `401 Unauthorized`: Google is not connected yet, or its refresh token needs reauthorization.
 - `Google OAuth is not configured`: `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing.
 - `redirect_uri_mismatch`: the URI in Google Cloud does not exactly match `GOOGLE_REDIRECT_URI`.
+- OAuth returns to the wrong hub page: make sure the page origin is listed in `TRUSTED_ORIGINS`.
+  Trusted origins, not full paths, are allowed for signed `returnTo` redirects.
 - `Google connection needs reauthorization`: Google did not return or no longer accepts the refresh token. Revoke and reconnect.
 - Provider `429`: wait and retry; the API maps rate-limit style errors separately so retry/backoff can be added cleanly.
 

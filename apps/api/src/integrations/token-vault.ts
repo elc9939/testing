@@ -17,6 +17,7 @@ export interface OAuthState {
   workspaceId: string;
   nonce: string;
   expiresAt: string;
+  returnTo?: string;
 }
 
 const algorithm = 'aes-256-gcm';
@@ -49,13 +50,18 @@ function signStatePayload(payload: string): string {
   return createHmac('sha256', env.tokenEncryptionKey).update(payload).digest('base64url');
 }
 
-export function createOAuthState(provider: OAuthState['provider'], workspaceId = personalWorkspaceId): string {
+export function createOAuthState(
+  provider: OAuthState['provider'],
+  workspaceId = personalWorkspaceId,
+  options: { returnTo?: string | undefined } = {}
+): string {
   const state: OAuthState = {
     provider,
     workspaceId,
     nonce: randomBytes(16).toString('base64url'),
     expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
   };
+  if (options.returnTo) state.returnTo = options.returnTo;
   const payload = Buffer.from(JSON.stringify(state), 'utf8').toString('base64url');
   const signature = signStatePayload(payload);
   return `${payload}.${signature}`;

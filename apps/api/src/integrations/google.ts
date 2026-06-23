@@ -39,6 +39,7 @@ import {
   getConnectionById,
   upsertConnection,
   verifyOAuthState,
+  type OAuthState,
   type OAuthTokenSet
 } from './token-vault';
 
@@ -463,7 +464,7 @@ export function googleCatalog(): ConnectorCatalogEntry[] {
   ];
 }
 
-export function googleAuthUrl(): string {
+export function googleAuthUrl(options: { returnTo?: string | undefined } = {}): string {
   requireGoogleConfig();
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', env.googleClientId ?? '');
@@ -473,11 +474,11 @@ export function googleAuthUrl(): string {
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent select_account');
   url.searchParams.set('include_granted_scopes', 'true');
-  url.searchParams.set('state', createOAuthState('google'));
+  url.searchParams.set('state', createOAuthState('google', personalWorkspaceId, { returnTo: options.returnTo }));
   return url.toString();
 }
 
-export async function handleGoogleCallback(store: MemoryStore, code: string, stateValue: string): Promise<void> {
+export async function handleGoogleCallback(store: MemoryStore, code: string, stateValue: string): Promise<OAuthState> {
   requireGoogleConfig();
   const state = verifyOAuthState(stateValue, 'google');
   const params = new URLSearchParams({
@@ -516,6 +517,7 @@ export async function handleGoogleCallback(store: MemoryStore, code: string, sta
     encryptedTokenSet: encryptTokenSet(tokenSet),
     status: 'connected'
   });
+  return state;
 }
 
 export async function revokeGoogleConnection(store: MemoryStore, connectionId?: string): Promise<void> {
