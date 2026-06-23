@@ -53,8 +53,10 @@ the engine and Local File Intelligence family are enabled. File changes are debo
 `file.changed` event and routed through the same passive event pipeline as startup/reconnect
 events. The event task scans configured folders only and records changed-file context in run
 metadata and source-backed cards. Text-like files (`.txt`, `.md`, `.csv`, `.json`) receive
-bounded previews and can be indexed into AI OS semantic memory; by default the passive engine
-asks AI OS to use Ollama embeddings unless the passive AI preference is `cloud_allowed`.
+bounded previews and can be indexed into AI OS semantic memory; PDFs, Office docs, screenshots,
+and image downloads receive bounded metadata summaries such as type, dimensions, approximate
+PDF page markers, package hints, tags, and cleanup hints. By default the passive engine asks
+AI OS to use Ollama embeddings unless the passive AI preference is `cloud_allowed`.
 
 Scheduled worker ticks also try to detect whether the desktop is idle. On Windows, the API
 reads the OS last-input timer and marks a tick idle only after the idle trigger threshold
@@ -102,8 +104,9 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
 - Local File Intelligence: scans only configured watched folders for recent document,
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
-  task. It adds bounded text previews, suggested tags, cleanup hints, and semantic-memory
-  artifacts for safe text-like files when AI OS is reachable.
+  task. It adds bounded text previews for text-like files, source-backed metadata summaries
+  for PDFs, Office documents, screenshots, and images, suggested tags, cleanup hints, and
+  semantic-memory artifacts for safe text-like files when AI OS is reachable.
 - Project Drift Detector: scans only configured project folders for stale READMEs,
   TODO/FIXME buildup, missing test/check scripts, and existing failing health artifacts such
   as recent test/check logs or JUnit-style result files.
@@ -117,8 +120,9 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - File and project scans respect the configured folder list; no default broad filesystem scan.
 - File event watchers are created only for configured folders, are non-recursive, and close
   when the folder is removed or the file-intelligence watcher is disabled.
-- Text previews and indexing are bounded; PDFs, Word documents, and images are not given fake
-  content summaries until a real extractor/OCR path is added.
+- Text previews and indexing are bounded. PDFs, Word documents, and images get metadata-only
+  summaries unless a real extractor/OCR path is added; the engine does not invent file
+  contents.
 - Project Drift does not execute arbitrary project scripts in the background. It reads bounded
   existing test/check log artifacts from configured folders and reports source-backed failure
   evidence when those artifacts already exist.

@@ -30,10 +30,13 @@ import {
 } from '@mini-hub/core';
 import {
   existsSync,
+  closeSync,
   type FSWatcher,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
+  readSync,
   statSync,
   watch as watchFs,
   writeFileSync
@@ -57,6 +60,7 @@ interface FileInsight {
   kind: 'document' | 'image' | 'data' | 'note' | 'other';
   tags: string[];
   cleanupHints: string[];
+  metadata: Record<string, unknown>;
   preview?: string;
   indexableText?: string;
 }
@@ -1882,11 +1886,13 @@ function fileKind(extension: string): FileInsight['kind'] {
 
 function suggestFileTags(filePath: string, extension: string): string[] {
   const name = basename(filePath).toLowerCase();
+  const fullPath = filePath.toLowerCase();
   const tags = new Set<string>([fileKind(extension)]);
   if (/\b(resume|cv|cover[-_\s]?letter|application|recruiter|interview)\b/iu.test(name)) tags.add('career');
   if (/\b(homework|assignment|exam|quiz|lecture|notes?|study|course)\b/iu.test(name)) tags.add('study');
   if (/\b(invoice|receipt|statement|tax|payment)\b/iu.test(name)) tags.add('finance');
   if (/\b(screenshot|screen shot|capture)\b/iu.test(name)) tags.add('screenshot');
+  if (/\bdownloads?\b/iu.test(fullPath) || /\b(download|untitled|scan)\b/iu.test(name)) tags.add('download');
   if (/\b(research|paper|source|citation|report)\b/iu.test(name)) tags.add('research');
   if (extension === '.md') tags.add('markdown');
   if (extension === '.json') tags.add('structured-data');
@@ -1910,6 +1916,116 @@ function compactPreviewText(value: string): string {
     .trim();
 }
 
+function readFileRange(filePath: string, offset = 0, length = 128_000): Buffer {
+  const fd = openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(length);
+    const bytesRead = readSync(fd, buffer, 0, length, offset);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function imageDimensions(filePath: string, extension: string, size: number): Record<string, unknown> {
+  try {
+    const header = readFileRange(filePath, 0, Math.min(size, 96_000));
+    if (extension === '.png' && header.length >= 24 && header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+      return {
+        width: header.readUInt32BE(16),
+        height: header.readUInt32BE(20),
+        dimensionSource: 'png-header'
+      };
+    }
+
+    if (['.jpg', '.jpeg'].includes(extension) && header.length >= 12 && header[0] === 0xff && header[1] === 0xd8) {
+      let offset = 2;
+      while (offset + 9 < header.length) {
+        if (header[offset] !== 0xff) {
+          offset += 1;
+          continue;
+        }
+        const marker = header[offset + 1];
+        if (marker === undefined) break;
+        const segmentLength = header.readUInt16BE(offset + 2);
+        if (segmentLength < 2) break;
+        if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+          return {
+            width: header.readUInt16BE(offset + 7),
+            height: header.readUInt16BE(offset + 5),
+            dimensionSource: 'jpeg-sof'
+          };
+        }
+        offset += 2 + segmentLength;
+      }
+    }
+
+    if (extension === '.webp' && header.length >= 30 && header.toString('ascii', 0, 4) === 'RIFF' && header.toString('ascii', 8, 12) === 'WEBP') {
+      const chunk = header.toString('ascii', 12, 16);
+      if (chunk === 'VP8X' && header.length >= 30) {
+        const width = 1 + header.readUIntLE(24, 3);
+        const height = 1 + header.readUIntLE(27, 3);
+        return { width, height, dimensionSource: 'webp-vp8x' };
+      }
+    }
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+function pdfMetadata(filePath: string, size: number): Record<string, unknown> {
+  try {
+    const text = readFileRange(filePath, 0, Math.min(size, 160_000)).toString('latin1');
+    const version = /^%PDF-(\d\.\d)/u.exec(text)?.[1];
+    const pageMarkers = text.match(/\/Type\s*\/Page\b(?!s)/gu) ?? [];
+    return {
+      ...(version ? { pdfVersion: version } : {}),
+      ...(pageMarkers.length ? { pageCountApprox: pageMarkers.length } : {}),
+      metadataSource: 'pdf-header'
+    };
+  } catch {
+    return {};
+  }
+}
+
+function docxMetadata(filePath: string, size: number): Record<string, unknown> {
+  try {
+    const tailLength = Math.min(size, 192_000);
+    const text = readFileRange(filePath, Math.max(0, size - tailLength), tailLength).toString('latin1');
+    const parts = [
+      text.includes('word/document.xml') ? 'document' : '',
+      text.includes('docProps/core.xml') ? 'core-properties' : '',
+      text.includes('word/media/') ? 'embedded-media' : ''
+    ].filter(Boolean);
+    return {
+      officePackage: true,
+      ...(parts.length ? { docxParts: parts } : {}),
+      metadataSource: 'docx-zip-directory'
+    };
+  } catch {
+    return {};
+  }
+}
+
+function fileMetadata(filePath: string, extension: string, size: number, mtimeMs: number): Record<string, unknown> {
+  const name = basename(filePath).toLowerCase();
+  const folder = filePath.toLowerCase();
+  const base = {
+    size,
+    modifiedAt: new Date(mtimeMs).toISOString(),
+    extension,
+    kind: fileKind(extension),
+    likelyDownload: /\bdownloads?\b/u.test(folder) || /\b(download|untitled|scan)\b/u.test(name),
+    likelyScreenshot: /\b(screenshot|screen shot|capture)\b/u.test(name)
+  };
+  if (extension === '.pdf') return { ...base, ...pdfMetadata(filePath, size) };
+  if (extension === '.docx') return { ...base, ...docxMetadata(filePath, size) };
+  if (extension === '.doc') return { ...base, legacyOfficeDocument: true };
+  if (fileKind(extension) === 'image') return { ...base, ...imageDimensions(filePath, extension, size) };
+  return base;
+}
+
 function readTextPreview(filePath: string, size: number, extension: string, budget: PassiveResourceBudget): { preview?: string; indexableText?: string } {
   if (!textPreviewExtensions.has(extension) || size > maxPreviewBytes) return {};
   try {
@@ -1926,16 +2042,55 @@ function readTextPreview(filePath: string, size: number, extension: string, budg
 
 function insightForFile(filePath: string, size: number, mtimeMs: number, budget: PassiveResourceBudget): FileInsight {
   const extension = extname(filePath).toLowerCase();
+  const tags = suggestFileTags(filePath, extension);
+  const cleanupHints = cleanupHintsForFile(filePath, size, mtimeMs);
   return {
     path: filePath,
     size,
     mtimeMs,
     extension,
     kind: fileKind(extension),
-    tags: suggestFileTags(filePath, extension),
-    cleanupHints: cleanupHintsForFile(filePath, size, mtimeMs),
+    tags,
+    cleanupHints,
+    metadata: {
+      ...fileMetadata(filePath, extension, size, mtimeMs),
+      tags,
+      cleanupHints
+    },
     ...readTextPreview(filePath, size, extension, budget)
   };
+}
+
+function fileInsightSourceMetadata(file: FileInsight): Record<string, unknown> {
+  return {
+    ...file.metadata,
+    preview: file.preview,
+    indexable: Boolean(file.indexableText)
+  };
+}
+
+function fileInsightSummary(file: FileInsight): string {
+  const parts = [`${file.extension.replace('.', '').toUpperCase() || 'file'} ${file.kind}`];
+  if (typeof file.metadata.width === 'number' && typeof file.metadata.height === 'number') {
+    parts.push(`${file.metadata.width}x${file.metadata.height}`);
+  }
+  if (typeof file.metadata.pageCountApprox === 'number') parts.push(`~${file.metadata.pageCountApprox} page${file.metadata.pageCountApprox === 1 ? '' : 's'}`);
+  if (file.metadata.officePackage === true) parts.push('Office package');
+  if (file.metadata.legacyOfficeDocument === true) parts.push('legacy Office document');
+  if (file.tags.length) parts.push(`tags: ${file.tags.join(', ')}`);
+  if (file.cleanupHints.length) parts.push(`hints: ${file.cleanupHints.join(', ')}`);
+  return parts.join(' - ');
+}
+
+function fileKindCounts(files: FileInsight[]): string {
+  const counts = files.reduce<Record<string, number>>((acc, file) => {
+    acc[file.kind] = (acc[file.kind] ?? 0) + 1;
+    return acc;
+  }, {});
+  return Object.entries(counts)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([kind, count]) => `${count} ${kind}${count === 1 ? '' : 's'}`)
+    .join(', ');
 }
 
 function safeInsightForExistingFile(filePath: string, budget: PassiveResourceBudget): FileInsight | undefined {
@@ -2076,7 +2231,10 @@ async function runFileIntelligence(
         runId,
         family: task.family,
         title: eventFileName ? `Watched file changed: ${eventFileName}` : 'Watched folder changed',
-        summary: `${input.eventKind ?? 'change'} event from ${input.eventFolder ? basename(input.eventFolder) || input.eventFolder : 'a configured folder'}.`,
+        summary: [
+          `${input.eventKind ?? 'change'} event from ${input.eventFolder ? basename(input.eventFolder) || input.eventFolder : 'a configured folder'}.`,
+          eventInsight ? fileInsightSummary(eventInsight) : ''
+        ].filter(Boolean).join(' '),
         urgency: 58,
         confidence: 0.82,
         route: routeMap.passiveTasks,
@@ -2088,16 +2246,7 @@ async function runFileIntelligence(
               eventName: input.eventName,
               eventKind: input.eventKind,
               eventFolder: input.eventFolder,
-              ...(eventInsight
-                ? {
-                    size: eventInsight.size,
-                    modifiedAt: new Date(eventInsight.mtimeMs).toISOString(),
-                    kind: eventInsight.kind,
-                    tags: eventInsight.tags,
-                    cleanupHints: eventInsight.cleanupHints,
-                    preview: eventInsight.preview
-                  }
-                : {})
+              ...(eventInsight ? fileInsightSourceMetadata(eventInsight) : {})
             }
           })
         ],
@@ -2129,6 +2278,7 @@ async function runFileIntelligence(
       if (files.length) {
         const tagText = Array.from(new Set(files.flatMap((file) => file.tags))).slice(0, 6).join(', ');
         const cleanupText = Array.from(new Set(files.flatMap((file) => file.cleanupHints))).slice(0, 4).join(', ');
+        const countText = fileKindCounts(files);
         cards.push(
           card({
             id: id('passive-card'),
@@ -2137,6 +2287,7 @@ async function runFileIntelligence(
             family: task.family,
             title: `${files.length} recent file${files.length === 1 ? '' : 's'} in ${basename(resolved) || resolved}`,
             summary: [
+              countText ? `Found ${countText}.` : '',
               files.slice(0, 5).map((file) => basename(file.path)).join('; '),
               tagText ? `Tags: ${tagText}.` : '',
               cleanupText ? `Hints: ${cleanupText}.` : ''
@@ -2148,16 +2299,7 @@ async function runFileIntelligence(
               stableSourceRef('file', basename(file.path), {
                 id: file.path,
                 filePath: file.path,
-                metadata: {
-                  size: file.size,
-                  modifiedAt: new Date(file.mtimeMs).toISOString(),
-                  extension: file.extension,
-                  kind: file.kind,
-                  tags: file.tags,
-                  cleanupHints: file.cleanupHints,
-                  preview: file.preview,
-                  indexable: Boolean(file.indexableText)
-                }
+                metadata: fileInsightSourceMetadata(file)
               })
             ),
             suggestedAction: files.some((file) => file.indexableText) ? 'Inspect indexed files' : 'Inspect files',
@@ -2231,6 +2373,8 @@ async function runFileIntelligence(
         indexableFiles: budget.indexableFiles,
         indexedFileChars: budget.indexedFileChars
       },
+      fileKinds: Array.from(new Set(allInsights.map((file) => file.kind))).sort(),
+      fileCount: new Set(allInsights.map((file) => file.path)).size,
       ...memory.metadata
     }
   };

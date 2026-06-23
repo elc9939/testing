@@ -465,6 +465,78 @@ describe('passive task engine', () => {
     }
   });
 
+  it('extracts source-backed metadata for PDFs, docs, and screenshots without indexing binary files', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-file-metadata-'));
+    try {
+      const pdfPath = join(dir, 'assignment-report.pdf');
+      const pngPath = join(dir, 'screenshot-capture.png');
+      const docxPath = join(dir, 'course-notes.docx');
+      writeFileSync(
+        pdfPath,
+        '%PDF-1.7\n1 0 obj << /Type /Page >> endobj\n2 0 obj << /Type /Pages >> endobj\n3 0 obj << /Type /Page >> endobj\n%%EOF',
+        'latin1'
+      );
+      writeFileSync(
+        pngPath,
+        Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64')
+      );
+      writeFileSync(docxPath, Buffer.from('PK\u0003\u0004word/document.xml docProps/core.xml word/media/image1.png', 'utf8'));
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = {
+        ...store.passiveSettings!,
+        watchedFolders: [dir],
+        resourceLimit: 'light'
+      };
+      let ingestCount = 0;
+      const fetchWithIngestCount = (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/api/ai/memory/ingest')) ingestCount += 1;
+        return healthyServiceFetch()(input as Parameters<typeof fetch>[0]);
+      }) as typeof fetch;
+      const task = store.passiveTasks.find((item) => item.family === 'file_intelligence')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: fetchWithIngestCount,
+        force: true,
+        input: { reason: 'binary-metadata-test' }
+      });
+
+      const refs = run.cards.flatMap((card) => card.sourceRefs);
+      const pdfRef = refs.find((ref) => ref.filePath === pdfPath);
+      const pngRef = refs.find((ref) => ref.filePath === pngPath);
+      const docxRef = refs.find((ref) => ref.filePath === docxPath);
+      expect(run.status).toBe('succeeded');
+      expect(pdfRef?.metadata).toMatchObject({
+        extension: '.pdf',
+        kind: 'document',
+        pdfVersion: '1.7',
+        pageCountApprox: 2
+      });
+      expect(pdfRef?.metadata.tags).toContain('study');
+      expect(pngRef?.metadata).toMatchObject({
+        extension: '.png',
+        kind: 'image',
+        width: 1,
+        height: 1,
+        likelyScreenshot: true
+      });
+      expect(pngRef?.metadata.tags).toContain('screenshot');
+      expect(docxRef?.metadata).toMatchObject({
+        extension: '.docx',
+        kind: 'document',
+        officePackage: true
+      });
+      expect(docxRef?.metadata.docxParts).toEqual(expect.arrayContaining(['document', 'core-properties', 'embedded-media']));
+      expect(run.metadata.fileKinds).toEqual(expect.arrayContaining(['document', 'image']));
+      expect(run.metadata.fileCount).toBe(3);
+      expect(run.metadata.indexedFiles).toBe(0);
+      expect(ingestCount).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('uses light resource limits to cap passive file memory indexing', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-file-budget-'));
     try {

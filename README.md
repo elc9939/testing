@@ -122,7 +122,9 @@ real-data only:
 - Local File Intelligence scans only configured watched folders for recent document,
   note/data, and image metadata; text-like files get bounded previews, suggested tags,
   cleanup hints, and optional AI OS semantic-memory indexing from debounced folder events
-  or scheduled scans.
+  or scheduled scans. PDFs, Office docs, screenshots, and image downloads get metadata-only
+  summaries such as dimensions, approximate PDF page markers, package hints, tags, and
+  cleanup hints until a real extractor/OCR path exists.
 - Project Drift Detector scans only configured project folders for stale README files,
   TODO/FIXME buildup, missing `test`/`check` scripts, and existing failing health artifacts
   such as recent test/check logs. It reports those artifacts without running arbitrary project
