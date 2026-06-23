@@ -2028,9 +2028,101 @@ describe('passive task engine', () => {
       metadata: { source: 'mini-hub-passive', watched_domain: 'example.com' }
     });
     expect(run.changed).toContain('research-monitor:monitor-example.com');
-    expect(run.cards[0]?.title).toContain('watched domain monitor');
+    expect(run.cards[0]?.title).toContain('research domain monitor');
     expect(run.metadata.watchedDomains).toEqual(['example.com', 'docs.example.org']);
     expect(run.metadata.resourceLimit).toBe('light');
+  });
+
+  it('prepares research monitors from active saved career job URLs', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.passiveSettings = {
+      ...store.passiveSettings!,
+      watchedDomains: [],
+      localAiPreference: 'local_first',
+      resourceLimit: 'light'
+    };
+    store.jobs.push(
+      {
+        id: 'job-career-research',
+        workspaceId: personalWorkspaceId,
+        company: 'Clay Labs',
+        role: 'GTM Data Analyst',
+        status: 'lead',
+        applicationUrl: 'https://www.clay.com/careers/gtm-data-analyst',
+        notes: '',
+        deviceId: 'test',
+        updatedAt: '2026-06-20T10:00:00.000Z'
+      },
+      {
+        id: 'job-inactive-research',
+        workspaceId: personalWorkspaceId,
+        company: 'Old Co',
+        role: 'Analyst',
+        status: 'rejected',
+        applicationUrl: 'https://old.example.com/jobs/analyst',
+        notes: '',
+        deviceId: 'test',
+        updatedAt: '2026-06-20T10:00:00.000Z'
+      }
+    );
+    const createdBodies: Array<Record<string, unknown>> = [];
+    const researchFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [] });
+      }
+      if (href.endsWith('/api/ai/research/monitors')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        createdBodies.push(body);
+        const metadata = body.metadata as Record<string, unknown>;
+        return jsonResponse({
+          monitor: {
+            id: `monitor-${metadata.watched_domain}`,
+            name: body.name,
+            metadata,
+            request: body.request
+          }
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-domain-monitor-test' }
+    });
+
+    expect(run.status).toBe('succeeded');
+    expect(createdBodies).toHaveLength(1);
+    expect(createdBodies[0]).toMatchObject({
+      name: 'Passive career watch: clay.com',
+      metadata: {
+        source: 'mini-hub-passive',
+        watched_domain: 'clay.com',
+        watched_domain_source: 'career_job',
+        source_job_ids: ['job-career-research']
+      }
+    });
+    expect(createdBodies[0]?.request).toMatchObject({
+      seed_urls: ['https://www.clay.com/careers/gtm-data-analyst'],
+      include_domains: ['clay.com'],
+      metadata: {
+        watched_domain: 'clay.com',
+        watched_domain_source: 'career_job',
+        source_labels: ['Clay Labs - GTM Data Analyst']
+      }
+    });
+    expect(run.metadata).toMatchObject({
+      watchedDomains: ['clay.com'],
+      watchedDomainSources: { 'clay.com': 'career_job' },
+      careerJobDomains: ['clay.com']
+    });
   });
 
   it('surfaces completed AI OS research monitor runs as source-backed passive cards', async () => {

@@ -159,9 +159,10 @@ normal API startup.
   concurrency is passed through to queued AI OS jobs, and Beast Mode prefers the best measured
   local text route when one is available.
 - Background Research Monitor: reads AI OS due monitors, prepares daily AI OS monitor
-  templates from configured watched domains, queues due monitor runs, and surfaces completed
-  `monitor_topic` reports as source-backed passive cards with research-run and source URL
-  references.
+  templates from configured watched domains and active Career Desk application URLs, queues
+  due monitor runs, and surfaces completed `monitor_topic` reports as source-backed passive
+  cards with research-run and source URL references. Career-derived monitors carry the source
+  job ids and labels in metadata so the watcher remains source-backed rather than guessed.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action.
