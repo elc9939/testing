@@ -387,6 +387,28 @@ function stableSourceRef(kind: PassiveSourceRef['kind'], label: string, values: 
   };
 }
 
+function normalizeWatchedDomain(value: string): string | null {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    const host = url.hostname.replace(/^www\./u, '');
+    if (!host || host === 'localhost' || /^\d{1,3}(?:\.\d{1,3}){3}$/u.test(host)) return null;
+    return host;
+  } catch {
+    const host = trimmed
+      .replace(/^https?:\/\//u, '')
+      .split('/')[0]
+      ?.replace(/^www\./u, '');
+    if (!host || !/^[a-z0-9.-]+\.[a-z]{2,}$/iu.test(host)) return null;
+    return host;
+  }
+}
+
+function safeConfiguredDomains(settings: PassiveEngineSettings): string[] {
+  return Array.from(new Set(settings.watchedDomains.map(normalizeWatchedDomain).filter((item): item is string => Boolean(item)))).slice(0, 12);
+}
+
 function card(
   input: Omit<PassiveResultCard, 'createdAt' | 'metadata'> & Partial<Pick<PassiveResultCard, 'createdAt' | 'metadata'>>
 ): PassiveResultCard {
@@ -1147,8 +1169,73 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
   }
 }
 
-async function runResearchMonitor(task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
+async function ensureWatchedDomainResearchMonitors(settings: PassiveEngineSettings, fetchImpl: FetchLike): Promise<Record<string, unknown>[]> {
+  const domains = safeConfiguredDomains(settings);
+  if (!domains.length) return [];
+
+  const payload = await fetchJsonWithTimeout(
+    fetchImpl,
+    new URL('/api/ai/research/monitors?limit=50', env.aiOsApiUrl),
+    'Research monitors'
+  );
+  const existing = isRecord(payload) && Array.isArray(payload.monitors) ? payload.monitors.filter(isRecord) : [];
+  const covered = new Set(
+    existing
+      .map((monitor) => (isRecord(monitor.metadata) ? monitor.metadata.watched_domain : undefined))
+      .filter((value): value is string => typeof value === 'string')
+  );
+
+  const created: Record<string, unknown>[] = [];
+  for (const domain of domains.filter((item) => !covered.has(item)).slice(0, 5)) {
+    const createPayload = await fetchJsonWithTimeout(
+      fetchImpl,
+      new URL('/api/ai/research/monitors', env.aiOsApiUrl),
+      'Create research monitor',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `Passive watch: ${domain}`,
+          enabled: true,
+          schedule: 'daily',
+          request: {
+            mode: 'monitor_topic',
+            goal: `Monitor ${domain} for meaningful changes, new posts, product/company updates, deadlines, or technical notes relevant to my Mini Hub watch list. Summarize only source-backed changes.`,
+            seed_urls: [`https://${domain}/`],
+            depth: 1,
+            max_pages: 6,
+            per_domain_limit: 4,
+            time_budget_s: 90,
+            include_domains: [domain],
+            exclude_domains: [],
+            use_ai: settings.localAiPreference !== 'local_only',
+            use_cloud_ai: settings.localAiPreference === 'cloud_allowed',
+            local_first: true,
+            screenshot: false,
+            save_to_memory: false,
+            metadata: {
+              source: 'mini-hub-passive',
+              watched_domain: domain
+            }
+          },
+          metadata: {
+            source: 'mini-hub-passive',
+            watched_domain: domain,
+            created_by_task: 'research_monitor'
+          }
+        })
+      },
+      10000
+    );
+    const monitor = isRecord(createPayload) && isRecord(createPayload.monitor) ? createPayload.monitor : { domain };
+    created.push(monitor);
+  }
+  return created;
+}
+
+async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
+  const settings = store.passiveSettings ?? defaultPassiveSettings();
   try {
+    const createdMonitors = await ensureWatchedDomainResearchMonitors(settings, fetchImpl);
     const duePayload = await fetchJsonWithTimeout(
       fetchImpl,
       new URL('/api/ai/research/monitors/due?limit=10', env.aiOsApiUrl),
@@ -1156,6 +1243,36 @@ async function runResearchMonitor(task: PassiveTask, runId: string, fetchImpl: F
     );
     const due = isRecord(duePayload) && Array.isArray(duePayload.monitors) ? duePayload.monitors.filter(isRecord) : [];
     if (!due.length) {
+      if (createdMonitors.length) {
+        return {
+          status: 'succeeded',
+          cards: [
+            card({
+              id: id('passive-card'),
+              taskId: task.id,
+              runId,
+              family: task.family,
+              title: `${createdMonitors.length} watched domain monitor${createdMonitors.length === 1 ? '' : 's'} prepared`,
+              summary: 'Created AI OS daily monitor templates from Passive Task watched domains. No crawl was run by this setup step.',
+              urgency: 44,
+              confidence: 0.88,
+              route: routeMap.research,
+              sourceRefs: createdMonitors.map((monitor) =>
+                stableSourceRef('record', String(monitor.name ?? monitor.id ?? 'Watched domain monitor'), {
+                  id: String(monitor.id ?? crypto.randomUUID()),
+                  route: routeMap.research,
+                  metadata: monitor
+                })
+              ),
+              suggestedAction: 'Inspect monitors',
+              actionKind: 'inspect',
+              why: 'Passive Tasks found watched domains in settings and created durable AI OS monitor definitions for them without running a crawl.'
+            })
+          ],
+          changed: createdMonitors.map((monitor) => `research-monitor:${String(monitor.id ?? '')}`).filter((value) => !value.endsWith(':')),
+          metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings) }
+        };
+      }
       return {
         status: 'succeeded',
         cards: [
@@ -1174,7 +1291,8 @@ async function runResearchMonitor(task: PassiveTask, runId: string, fetchImpl: F
             actionKind: 'inspect',
             why: 'The monitor sweep checked real saved monitor state.'
           })
-        ]
+        ],
+        metadata: { createdMonitors: 0, watchedDomains: safeConfiguredDomains(settings) }
       };
     }
 
@@ -1214,7 +1332,11 @@ async function runResearchMonitor(task: PassiveTask, runId: string, fetchImpl: F
           why: 'AI OS reported saved research monitors whose schedules are due.'
         })
       ],
-      changed: queued.map((run) => `research-run:${String(run.id ?? '')}`).filter((value) => !value.endsWith(':'))
+      changed: [
+        ...createdMonitors.map((monitor) => `research-monitor:${String(monitor.id ?? '')}`).filter((value) => !value.endsWith(':')),
+        ...queued.map((run) => `research-run:${String(run.id ?? '')}`).filter((value) => !value.endsWith(':'))
+      ],
+      metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings) }
     };
   } catch (error) {
     return {
@@ -1849,7 +1971,7 @@ async function executeFamily(
   if (task.family === 'app_health') return runAppHealth(store, task, runId, fetchImpl);
   if (task.family === 'backup_snapshot') return runBackupSnapshot(store, task, runId, fetchImpl);
   if (task.family === 'idle_compute') return runIdleCompute(task, runId, fetchImpl, input);
-  if (task.family === 'research_monitor') return runResearchMonitor(task, runId, fetchImpl);
+  if (task.family === 'research_monitor') return runResearchMonitor(store, task, runId, fetchImpl);
   if (task.family === 'career_radar') return runCareerRadar(store, task, runId);
   if (task.family === 'file_intelligence') return runFileIntelligence(store, task, runId, fetchImpl, input);
   return runProjectDrift(store, task, runId);

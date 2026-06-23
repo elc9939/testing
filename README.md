@@ -113,8 +113,9 @@ real-data only:
   dry-runs only when the worker or a manual tick reports a real idle window. Cleanup cards
   list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does
   not delete them.
-- Background Research Monitor reads AI OS saved monitor due-state and queues due monitor
-  runs through AI OS.
+- Background Research Monitor reads AI OS saved monitor due-state, prepares daily AI OS
+  monitor templates from configured watched domains, and queues due monitor runs through
+  AI OS.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.
 - Local File Intelligence scans only configured watched folders for recent document,
   note/data, and image metadata; text-like files get bounded previews, suggested tags,

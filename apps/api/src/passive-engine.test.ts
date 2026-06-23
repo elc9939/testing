@@ -352,6 +352,66 @@ describe('passive task engine', () => {
     expect(attention[0]?.title).toContain('career action');
   });
 
+  it('prepares AI OS research monitors from configured watched domains', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.passiveSettings = {
+      ...store.passiveSettings!,
+      watchedDomains: ['Example.com/news', 'https://docs.example.org/updates'],
+      localAiPreference: 'local_only'
+    };
+    const createdBodies: Array<Record<string, unknown>> = [];
+    const researchFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [] });
+      }
+      if (href.endsWith('/api/ai/research/monitors')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        createdBodies.push(body);
+        const metadata = body.metadata as Record<string, unknown>;
+        return jsonResponse({
+          monitor: {
+            id: `monitor-${metadata.watched_domain}`,
+            name: body.name,
+            metadata,
+            request: body.request
+          }
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'watched-domain-test' }
+    });
+
+    expect(run.status).toBe('succeeded');
+    expect(createdBodies).toHaveLength(2);
+    expect(createdBodies[0]).toMatchObject({
+      enabled: true,
+      schedule: 'daily',
+      metadata: { source: 'mini-hub-passive', watched_domain: 'example.com' }
+    });
+    expect(createdBodies[0]?.request).toMatchObject({
+      mode: 'monitor_topic',
+      seed_urls: ['https://example.com/'],
+      include_domains: ['example.com'],
+      use_ai: false,
+      use_cloud_ai: false,
+      metadata: { source: 'mini-hub-passive', watched_domain: 'example.com' }
+    });
+    expect(run.changed).toContain('research-monitor:monitor-example.com');
+    expect(run.cards[0]?.title).toContain('watched domain monitor');
+    expect(run.metadata.watchedDomains).toEqual(['example.com', 'docs.example.org']);
+  });
+
   it('persists passive result card triage and filters the source digest', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

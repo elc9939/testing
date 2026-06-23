@@ -123,6 +123,10 @@ and runs any due daily/weekly monitors. A monitor run is just a normal report ar
 exports, citations, source cache, Action Ledger visibility, and semantic-memory opt-in all
 continue to work.
 
+Mini Hub's Passive Task Engine can also prepare AI OS monitor templates from configured
+watched domains. Those templates are tagged with `source: mini-hub-passive`, use the same
+daily monitor scheduler, and do not run a crawl during the setup step.
+
 Advanced run knobs currently sent by the UI include depth, max pages, per-domain limit, time
 budget, date range, include/exclude domains, local AI synthesis, cloud fallback, explicit
 provider/model, screenshot preference, and opt-in semantic memory indexing.

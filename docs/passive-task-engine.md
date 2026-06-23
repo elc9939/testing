@@ -12,6 +12,7 @@ surface only the cards that need action.
 - Run one task: `POST /api/passive-tasks/tasks/:id/run`
 - Pause/resume/cancel: `POST /api/passive-tasks/tasks/:id/pause`, `resume`, `cancel`
 - Toggle watcher: `POST /api/passive-tasks/watchers/:id/toggle`
+- Triage source card: `POST /api/passive-tasks/cards/:id/triage`
 - Settings patch: `PATCH /api/passive-tasks/settings`
 - Dashboard: `/passive-tasks`
 - Settings shortcut: `/settings`
@@ -69,7 +70,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   dry-runs only when the worker or dashboard tick reports a real idle window. Cleanup cards
   list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does
   not delete them.
-- Background Research Monitor: reads AI OS due monitors and queues due monitor runs.
+- Background Research Monitor: reads AI OS due monitors, prepares daily AI OS monitor
+  templates from configured watched domains, and queues due monitor runs.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
 - Local File Intelligence: scans only configured watched folders for recent document,
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
@@ -94,6 +96,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   do not allow heavy work to run.
 - Event work is gated by explicit event names; scheduled ticks do not accidentally run
   event-only tasks.
+- Watched domains are normalized to public hostnames before passive research monitor
+  provisioning; localhost and IP-style hosts are ignored.
 - Lower-urgency output stays in the Passive Tasks dashboard. Today only receives high-urgency
   cards through the `passive_task` attention source.
 - Passive card triage is reversible from the source state: reviewed, dismissed, snoozed,
