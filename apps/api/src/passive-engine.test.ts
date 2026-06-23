@@ -13,6 +13,7 @@ import {
   runPassiveTask,
   setPassiveWatcherEnabled,
   updatePassiveCardTriage,
+  updatePassiveSettings,
   updatePassiveTaskStatus
 } from './passive-engine';
 import { env } from './env';
@@ -100,6 +101,25 @@ describe('passive task engine', () => {
     store.passiveSettings = { ...store.passiveSettings!, idleOnly: true };
     expect(duePassiveTasks(store, now)).toEqual([]);
     expect(duePassiveTasks(store, now, { idle: true }).length).toBeGreaterThan(0);
+  });
+
+  it('uses enabled family settings to gate due tasks and watcher state', () => {
+    const store = createMemoryStore();
+    const now = new Date('2026-06-20T10:00:00.000Z');
+    ensurePassiveDefaults(store, now);
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: '2026-06-20T09:00:00.000Z',
+      trigger: { ...task.trigger, nextRunAt: '2026-06-20T09:00:00.000Z' }
+    }));
+
+    updatePassiveSettings(store, { enabledFamilies: { research_monitor: false } });
+    expect(store.passiveWatchers.find((watcher) => watcher.family === 'research_monitor')?.enabled).toBe(false);
+    expect(duePassiveTasks(store, now, { idle: true }).some((task) => task.family === 'research_monitor')).toBe(false);
+
+    updatePassiveSettings(store, { enabledFamilies: { research_monitor: true } });
+    expect(store.passiveWatchers.find((watcher) => watcher.family === 'research_monitor')?.enabled).toBe(true);
+    expect(duePassiveTasks(store, now, { idle: true }).some((task) => task.family === 'research_monitor')).toBe(true);
   });
 
   it('applies machine mode policy to due passive tasks', () => {

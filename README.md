@@ -134,16 +134,16 @@ Today through the unified attention source `passive_task`; lower-urgency cards s
 Passive Tasks dashboard digest. Passive cards can be marked important, reviewed, snoozed, or
 dismissed at the source, and that triage is persisted with the passive engine so quieted
 findings stay quiet across restarts. Settings controls global enablement, notification style,
-idle preference, resource limit, local/cloud AI preference, max runs per tick, and watched
-folders/domains/accounts. Background work avoids destructive changes; file/project scans
+idle preference, resource limit, local/cloud AI preference, family enablement, max runs per
+tick, and watched folders/domains/accounts. Background work avoids destructive changes; file/project scans
 respect configured folders only, resource limits clamp research/page/file/TODO scan budgets,
 Machine Modes shape due-work selection, and failures stay visible without creating fake queue
 items.
 Failed and blocked tasks also keep a bounded per-task error log with attempt, message,
 timestamp, and next retry so dashboard state does not depend only on the latest run record.
 The Passive Tasks dashboard exposes the same practical controls for day-to-day use, including
-idle-only scheduling, AI preference, tick limits, watcher toggles, manual ticks, and source
-scope edits.
+idle-only scheduling, AI preference, family toggles, tick limits, watcher toggles, manual
+ticks, and source scope edits.
 Idle cleanup planning is dry-run only and scans Mini Hub-owned data paths, not broad user
 folders.
 

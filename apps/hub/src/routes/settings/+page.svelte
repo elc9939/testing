@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Activity, ArrowRight, Cloud, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
-  import type { ActionLedgerEntry, PassiveSnapshot } from '@mini-hub/core';
+  import type { ActionLedgerEntry, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
   import {
     actionLedgerDetail,
     actionLedgerRiskLabel,
@@ -31,7 +31,7 @@
     type MachineModeId
   } from '$lib/machine-mode';
   import { getMacroLabApiUrl, restoreMacroRun } from '$lib/macro-lab-api';
-  import { getPassiveSnapshot, patchPassiveSettings } from '$lib/passive-tasks-api';
+  import { getPassiveSnapshot, passiveFamilyLabel, patchPassiveSettings } from '$lib/passive-tasks-api';
   import { getConnections } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint, setServiceEndpoints } from '$lib/service-config';
@@ -91,6 +91,14 @@
   $: passiveSettings = passiveSnapshot?.settings ?? null;
   $: passiveEnabledWatchers = passiveSnapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
   $: passiveFailures = passiveSnapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
+  $: passiveFamilyRows = passiveSnapshot?.watchers.map((watcher) => ({
+    family: watcher.family,
+    label: passiveFamilyLabel(watcher.family),
+    description: watcher.description,
+    watcherEnabled: watcher.enabled,
+    familyEnabled: passiveSettings?.enabledFamilies[watcher.family] !== false,
+    taskCount: watcher.taskIds.length
+  })) ?? [];
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -165,6 +173,10 @@
     } finally {
       passiveSaving = false;
     }
+  }
+
+  async function updatePassiveFamily(family: PassiveTaskFamily, enabled: boolean): Promise<void> {
+    await updatePassivePreference({ enabledFamilies: { [family]: enabled } });
   }
 
   async function syncNow(): Promise<void> {
@@ -755,6 +767,24 @@
           on:change={(event) => updatePassivePreference({ maxRunsPerTick: Number(event.currentTarget.value) || 1 })}
         />
       </label>
+    </div>
+
+    <div class="passive-family-grid" aria-label="Passive task families">
+      {#each passiveFamilyRows as family}
+        <label class="family-toggle-row">
+          <input
+            type="checkbox"
+            checked={family.familyEnabled}
+            disabled={passiveSaving}
+            on:change={(event) => updatePassiveFamily(family.family, event.currentTarget.checked)}
+          />
+          <span>
+            <strong>{family.label}</strong>
+            <small>{family.description}</small>
+            <em>{family.taskCount} task{family.taskCount === 1 ? '' : 's'} - watcher {family.watcherEnabled ? 'on' : 'off'} - family {family.familyEnabled ? 'enabled' : 'disabled'}</em>
+          </span>
+        </label>
+      {/each}
     </div>
 
     <div class="passive-scope-grid">
@@ -1512,6 +1542,12 @@
     gap: 10px;
   }
 
+  .passive-family-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   .toggle-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -1524,7 +1560,24 @@
     background: var(--surface-muted);
   }
 
+  .family-toggle-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    min-height: 76px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
   .toggle-row input {
+    width: 16px;
+    margin-top: 2px;
+  }
+
+  .family-toggle-row input {
     width: 16px;
     margin-top: 2px;
   }
@@ -1535,9 +1588,26 @@
     min-width: 0;
   }
 
+  .family-toggle-row span {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
   .toggle-row small {
     color: var(--muted);
     line-height: 1.35;
+  }
+
+  .family-toggle-row small,
+  .family-toggle-row em {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .family-toggle-row em {
+    font-style: normal;
+    font-size: 12px;
   }
 
   .theme-segment {
@@ -1691,6 +1761,7 @@
 
     .passive-summary,
     .passive-control-grid,
+    .passive-family-grid,
     .passive-scope-grid {
       grid-template-columns: 1fr;
     }
