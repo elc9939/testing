@@ -19,10 +19,55 @@ const routeTitles = [
   ['../routes/settings/+page.svelte', 'Settings - Mini Hub']
 ] as const;
 
+const routeHeadings = [
+  ['../routes/+page.svelte', '<h1>Attention Queue</h1>'],
+  ['../routes/activity/+page.svelte', '<h1>Activity</h1>'],
+  ['../routes/productivity/+page.svelte', '<h1>Productivity Hub</h1>'],
+  ['../routes/desk/career/+page.svelte', '<h1>Career</h1>'],
+  ['../routes/desk/study/+page.svelte', '<h1>Study</h1>'],
+  ['../routes/analytics/+page.svelte', '<h1>Local Insights</h1>'],
+  ['../routes/games/+page.svelte', '<h1>Play Surfaces</h1>'],
+  ['../routes/games/stick-arena-lab/+page.svelte', '<h1>Ability Lab</h1>'],
+  ['../routes/research/+page.svelte', '<h1>Research Desk</h1>'],
+  ['../routes/ai-lab/+page.svelte', '<h1>Browser Experiments</h1>'],
+  ['../routes/ai-os/+page.svelte', '<h1>Ask AI OS</h1>'],
+  ['../routes/macro-lab/+page.svelte', '<h1>Macro Lab</h1>'],
+  ['../routes/passive-tasks/+page.svelte', '<h1>Passive Tasks</h1>'],
+  ['../routes/settings/+page.svelte', '<h1>Workspace</h1>']
+] as const;
+
 describe('route document titles', () => {
   it.each(routeTitles)('%s declares %s', (routeFile, expectedTitle) => {
     const file = fileURLToPath(new URL(routeFile, import.meta.url));
     const source = readFileSync(file, 'utf8');
     expect(source).toContain(`<title>${expectedTitle}</title>`);
+  });
+
+  it.each(routeHeadings)('%s declares visible heading %s', (routeFile, expectedHeading) => {
+    const file = fileURLToPath(new URL(routeFile, import.meta.url));
+    const source = readFileSync(file, 'utf8');
+    expect(source).toContain(expectedHeading);
+  });
+
+  it('keeps primary nav labels wired to the matching route map entries', () => {
+    const file = fileURLToPath(new URL('../routes/+layout.svelte', import.meta.url));
+    const source = readFileSync(file, 'utf8');
+
+    for (const expectedNav of [
+      "href: routeMap.today, label: 'Today'",
+      "href: routeMap.activity, label: 'Activity'",
+      "href: routeMap.productivity, label: 'Hub'",
+      "href: routeMap.careerDesk, label: 'Career'",
+      "href: routeMap.studyDesk, label: 'Study'",
+      "href: routeMap.analytics, label: 'Analytics'",
+      "href: routeMap.research, label: 'Research'",
+      "href: routeMap.aiLab, label: 'AI Lab'",
+      "href: routeMap.aiOs, label: 'AI OS'",
+      "href: routeMap.macroLab, label: 'Macros'",
+      "href: routeMap.passiveTasks, label: 'Passive'",
+      "href: routeMap.settings, label: 'Settings'"
+    ]) {
+      expect(source).toContain(expectedNav);
+    }
   });
 });
