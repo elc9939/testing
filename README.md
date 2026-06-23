@@ -121,6 +121,8 @@ browser cache first, then refreshes AI OS, Passive Tasks, and Macro Lab independ
 per-source timeouts so one slow or offline service creates a partial-data warning rather than
 wiping out or blocking the rest of the list. If all live Activity sources fail but a previous
 durable list exists in browser storage, the cached records stay visible as stale partial data.
+AI OS reads linked job/activity query parameters and highlights matching jobs, benchmarks,
+backups, tool calls, and generation assets when the current snapshot includes them.
 Passive Tasks and Macro Lab read the linked `run` query parameter, highlight the matching
 recent run when it is in the current service snapshot, and explain when the Activity record is
 older than the page's short recent-run list.

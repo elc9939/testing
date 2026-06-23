@@ -140,10 +140,18 @@ describe('buildAiActivityItems', () => {
     );
 
     expect(items.map((item) => item.kind)).toEqual(['research', 'generation', 'backup', 'benchmark', 'tool', 'job']);
-    expect(items[0]).toMatchObject({ state: 'paused', route: '/research' });
+    expect(items[0]).toMatchObject({ state: 'paused', route: '/research?run=research_1' });
     expect(items[0].detail).toContain('1 source, 1 cached, 45%');
     expect(items[3].detail).toContain('18.5 tokens/sec');
     expect(items[5].state).toBe('running');
+    expect(items.map((item) => item.route)).toEqual([
+      '/research?run=research_1',
+      '/ai-os?activity=generation&id=asset_1',
+      '/ai-os?activity=backup&id=backup_1',
+      '/ai-os?activity=benchmark&id=bench_1',
+      '/ai-os?activity=tool&id=tool_1',
+      '/ai-os?job=job_1'
+    ]);
   });
 
   it('surfaces failed records with errors before generic detail text', () => {

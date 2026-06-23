@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { routeMap } from '@mini-hub/core';
   import {
@@ -182,6 +183,18 @@
   $: startupChecks = buildStartupChecks(status, actionError);
   $: startupSummary = summarizeStartupChecks(startupChecks);
   $: canWarmLocalModel = Boolean(providerById(status, 'ollama')?.available && !loadedModels.length);
+  $: linkedActivityKind = $page.url.searchParams.get('activity') ?? ($page.url.searchParams.get('job') ? 'job' : '');
+  $: linkedActivityId = $page.url.searchParams.get('id') ?? $page.url.searchParams.get('job') ?? '';
+  $: highlightedJobId = linkedActivityKind === 'job' ? linkedActivityId : '';
+  $: highlightedToolId = linkedActivityKind === 'tool' ? linkedActivityId : '';
+  $: highlightedBenchmarkId = linkedActivityKind === 'benchmark' ? linkedActivityId : '';
+  $: highlightedBackupId = linkedActivityKind === 'backup' ? linkedActivityId : '';
+  $: highlightedGenerationId = linkedActivityKind === 'generation' ? linkedActivityId : '';
+  $: highlightedJobPresent = highlightedJobId ? jobs.some((job) => job.id === highlightedJobId) : true;
+  $: highlightedToolPresent = highlightedToolId ? toolCalls.some((call) => call.id === highlightedToolId) : true;
+  $: highlightedBenchmarkPresent = highlightedBenchmarkId ? benchmarkRuns.some((run) => run.id === highlightedBenchmarkId) : true;
+  $: highlightedBackupPresent = highlightedBackupId ? (status?.backups ?? []).some((backup) => backup.id === highlightedBackupId) : true;
+  $: highlightedGenerationPresent = highlightedGenerationId ? generationAssets.some((asset) => asset.id === highlightedGenerationId) : true;
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -1349,14 +1362,17 @@
     </div>
     <div class="call-list">
       {#each toolCalls.slice(0, 6) as call}
-        <article class:failed={!call.ok} class="call-row">
+        <article class:failed={!call.ok} class:selected={call.id === highlightedToolId} class="call-row">
           <strong>{call.tool_id}</strong>
           <span>{call.ok ? 'OK' : call.error ?? 'blocked'}</span>
           <small>{call.latency_ms.toFixed(0)} ms · {new Date(call.created_at).toLocaleTimeString()}</small>
         </article>
       {:else}
-        <p class="muted">No tool calls yet.</p>
+        <p class="muted">{highlightedToolId ? `Activity tool call ${highlightedToolId} is not in the current AI OS tool-call snapshot.` : 'No tool calls yet.'}</p>
       {/each}
+      {#if !highlightedToolPresent}
+        <p class="muted">The linked Activity tool call is not in the latest {toolCalls.length} tool-call rows. Refresh AI OS or open Activity for the durable record.</p>
+      {/if}
     </div>
   </div>
 </section>
@@ -1394,6 +1410,9 @@
     <div class="section-title">
       <Activity size={18} />
       <strong>Benchmarks</strong>
+      {#if highlightedBenchmarkId}
+        <span class="section-kicker">Activity: {highlightedBenchmarkId}</span>
+      {/if}
     </div>
     <div class="control-grid">
       <div class="field">
@@ -1416,7 +1435,7 @@
     </button>
     <div class="benchmark-list">
       {#each benchmarkRuns.slice(0, 5) as run}
-        <article class:failed={!run.ok} class="benchmark-row">
+        <article class:failed={!run.ok} class:selected={run.id === highlightedBenchmarkId} class="benchmark-row">
           <div>
             <strong>{run.kind}</strong>
             <span>{run.provider ?? 'auto'}</span>
@@ -1424,8 +1443,11 @@
           <small>{run.latency_ms.toFixed(0)} ms · {run.tokens_per_second ? `${run.tokens_per_second.toFixed(1)} tok/s` : 'n/a tok/s'}</small>
         </article>
       {:else}
-        <p class="muted">No benchmark runs yet.</p>
+        <p class="muted">{highlightedBenchmarkId ? `Activity benchmark ${highlightedBenchmarkId} is not in the current AI OS benchmark snapshot.` : 'No benchmark runs yet.'}</p>
       {/each}
+      {#if !highlightedBenchmarkPresent}
+        <p class="muted">The linked Activity benchmark is not in the latest {benchmarkRuns.length} benchmark rows. Refresh AI OS or open Activity for the durable record.</p>
+      {/if}
     </div>
     <pre>{benchmarkResult}</pre>
   </div>
@@ -1519,6 +1541,9 @@
     <div class="section-title usage-title">
       <HardDrive size={18} />
       <strong>Backups</strong>
+      {#if highlightedBackupId}
+        <span class="section-kicker">Activity: {highlightedBackupId}</span>
+      {/if}
     </div>
     <table>
       <thead>
@@ -1531,15 +1556,18 @@
       </thead>
       <tbody>
         {#each status?.backups ?? [] as backup}
-          <tr class:failed={!backup.ok}>
+          <tr class:failed={!backup.ok} class:selected={backup.id === highlightedBackupId}>
             <td>{backup.created_at ? new Date(backup.created_at).toLocaleString() : backup.id}</td>
             <td>{backup.ok ? 'OK' : backup.error ?? 'Check'}</td>
             <td>{backup.reason}</td>
             <td>{(backup.size_bytes / 1024).toFixed(1)} KB</td>
           </tr>
         {:else}
-          <tr><td colspan="4" class="muted">No backups yet.</td></tr>
+          <tr><td colspan="4" class="muted">{highlightedBackupId ? `Activity backup ${highlightedBackupId} is not in the current AI OS backup snapshot.` : 'No backups yet.'}</td></tr>
         {/each}
+        {#if !highlightedBackupPresent}
+          <tr><td colspan="4" class="muted">The linked Activity backup is not in the latest AI OS backup rows. Refresh AI OS or open Activity for the durable record.</td></tr>
+        {/if}
       </tbody>
     </table>
   </div>
@@ -1587,6 +1615,9 @@
     <div class="section-title">
       <Workflow size={18} />
       <strong>Jobs</strong>
+      {#if highlightedJobId}
+        <span class="section-kicker">Activity: {highlightedJobId}</span>
+      {/if}
     </div>
     <div class="control-grid">
       <div class="field">
@@ -1619,7 +1650,7 @@
     </div>
     <div class="job-list">
       {#each jobs as job}
-        <article class="job-row">
+        <article class:selected={job.id === highlightedJobId} class="job-row">
           <div>
             <strong>{job.primitive}</strong>
             <span>{job.status}</span>
@@ -1630,8 +1661,11 @@
           </button>
         </article>
       {:else}
-        <p class="muted">No jobs queued.</p>
+        <p class="muted">{highlightedJobId ? `Activity job ${highlightedJobId} is not in the current AI OS job snapshot.` : 'No jobs queued.'}</p>
       {/each}
+      {#if !highlightedJobPresent}
+        <p class="muted">The linked Activity job is not in the latest {jobs.length} AI OS job rows. Refresh AI OS or open Activity for the durable record.</p>
+      {/if}
     </div>
   </div>
 </section>
@@ -1765,7 +1799,7 @@
     <pre>{multimodalResult}</pre>
     <div class="asset-list">
       {#each generationAssets.slice(0, 6) as asset}
-        <article class="asset-row">
+        <article class:selected={asset.id === highlightedGenerationId} class="asset-row">
           <div>
             <strong>{asset.kind}</strong>
             <span>{asset.provider}</span>
@@ -1773,8 +1807,11 @@
           <small>{asset.asset_path ?? asset.content_type ?? 'metadata only'}</small>
         </article>
       {:else}
-        <p class="muted">No generation assets yet.</p>
+        <p class="muted">{highlightedGenerationId ? `Activity generation ${highlightedGenerationId} is not in the current AI OS asset snapshot.` : 'No generation assets yet.'}</p>
       {/each}
+      {#if !highlightedGenerationPresent}
+        <p class="muted">The linked Activity generation is not in the latest {generationAssets.length} generated asset rows. Refresh AI OS or open Activity for the durable record.</p>
+      {/if}
     </div>
   </div>
 
@@ -2177,6 +2214,16 @@
     margin-bottom: 12px;
   }
 
+  .section-kicker {
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .providers-panel,
   .capability-panel,
   .panel {
@@ -2307,6 +2354,15 @@
   .tool-row.armed {
     border-color: var(--warning-border);
     background: var(--warning-bg);
+  }
+
+  .job-row.selected,
+  .call-row.selected,
+  .benchmark-row.selected,
+  .asset-row.selected {
+    border-color: var(--accent);
+    background: var(--active);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .capability-group {
@@ -2451,6 +2507,11 @@
 
   tr.failed td {
     background: var(--error-bg);
+  }
+
+  tr.selected td {
+    background: var(--active);
+    box-shadow: inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent);
   }
 
   @media (max-width: 1100px) {

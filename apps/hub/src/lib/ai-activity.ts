@@ -23,7 +23,7 @@ export function buildAiActivityItems(status: AiStatus | null | undefined, limit 
       detail: job.error || jobProgress(job),
       state: jobState(job.status),
       occurredAt: job.updated_at || job.created_at,
-      route: '/ai-os'
+      route: `/ai-os?job=${encodeURIComponent(job.id)}`
     })),
     ...(status.tool_calls ?? []).map((call) => ({
       id: `tool:${call.id}`,
@@ -32,7 +32,7 @@ export function buildAiActivityItems(status: AiStatus | null | undefined, limit 
       detail: call.error || toolCallDetail(call),
       state: call.ok ? ('success' as const) : ('failed' as const),
       occurredAt: call.created_at,
-      route: '/ai-os'
+      route: `/ai-os?activity=tool&id=${encodeURIComponent(call.id)}`
     })),
     ...(status.benchmark_runs ?? []).map((run) => ({
       id: `benchmark:${run.id}`,
@@ -41,7 +41,7 @@ export function buildAiActivityItems(status: AiStatus | null | undefined, limit 
       detail: run.error || benchmarkDetail(run),
       state: run.ok ? ('success' as const) : ('failed' as const),
       occurredAt: run.created_at,
-      route: '/ai-os'
+      route: `/ai-os?activity=benchmark&id=${encodeURIComponent(run.id)}`
     })),
     ...(status.backups ?? []).map((backup) => ({
       id: `backup:${backup.id}`,
@@ -50,7 +50,7 @@ export function buildAiActivityItems(status: AiStatus | null | undefined, limit 
       detail: backup.error || `${formatBytes(backup.size_bytes)} verified by manifest and SQLite checks.`,
       state: backup.ok ? ('success' as const) : ('failed' as const),
       occurredAt: backup.created_at,
-      route: '/ai-os'
+      route: `/ai-os?activity=backup&id=${encodeURIComponent(backup.id)}`
     })),
     ...(status.generation_assets ?? []).map((asset) => ({
       id: `generation:${asset.id}`,
@@ -59,7 +59,7 @@ export function buildAiActivityItems(status: AiStatus | null | undefined, limit 
       detail: generationDetail(asset),
       state: 'success' as const,
       occurredAt: asset.created_at,
-      route: '/ai-os'
+      route: `/ai-os?activity=generation&id=${encodeURIComponent(asset.id)}`
     })),
     ...(status.research_runs ?? []).map((run) => ({
       id: `research:${run.id}`,
@@ -68,7 +68,7 @@ export function buildAiActivityItems(status: AiStatus | null | undefined, limit 
       detail: run.error || researchDetail(run),
       state: researchState(run.status),
       occurredAt: run.updated_at || run.created_at,
-      route: '/research'
+      route: `/research?run=${encodeURIComponent(run.id)}`
     }))
   ];
 

@@ -16,4 +16,15 @@ describe('route handoffs', () => {
     expect(source).toContain('class:selected={run.id === highlightedRunId}');
     expect(source).toContain('The linked Activity run is not in the latest');
   });
+
+  it('keeps AI OS activity links inspectable after navigation', () => {
+    const source = routeSource('../routes/ai-os/+page.svelte');
+
+    expect(source).toContain("$page.url.searchParams.get('activity')");
+    expect(source).toContain("$page.url.searchParams.get('job')");
+    expect(source).toContain('class:selected={job.id === highlightedJobId}');
+    expect(source).toContain('class:selected={run.id === highlightedBenchmarkId}');
+    expect(source).toContain('class:selected={backup.id === highlightedBackupId}');
+    expect(source).toContain('The linked Activity job is not in the latest');
+  });
 });
