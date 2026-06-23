@@ -13,7 +13,7 @@
     Star,
     XCircle
   } from 'lucide-svelte';
-  import type { PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTask, PassiveWatcher } from '@mini-hub/core';
+  import type { PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTask, PassiveTaskFamily, PassiveWatcher } from '@mini-hub/core';
   import {
     cancelPassiveTask,
     dismissPassiveNotification,
@@ -45,6 +45,16 @@
   let domainText = '';
   let accountText = '';
 
+  interface PassiveFamilyRow {
+    family: PassiveTaskFamily;
+    label: string;
+    description: string;
+    watcherEnabled: boolean;
+    familyEnabled: boolean;
+    taskCount: number;
+    activeTaskCount: number;
+  }
+
   $: settings = snapshot?.settings ?? null;
   $: watchersById = new Map((snapshot?.watchers ?? []).map((watcher) => [watcher.id, watcher]));
   $: activeTasks = (snapshot?.tasks ?? []).filter((task) =>
@@ -55,6 +65,7 @@
   $: tasksWithErrorLogs = (snapshot?.tasks ?? []).filter((task) => task.errorLog.length > 0).slice(0, 6);
   $: digestCards = topPassiveCards(snapshot);
   $: notifications = visiblePassiveNotifications(snapshot);
+  $: familyRows = buildFamilyRows(snapshot, settings);
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -100,6 +111,22 @@
     if (!settings?.enabled || !watcher?.enabled) return false;
     if (settings.enabledFamilies[task.family] === false) return false;
     return !['paused', 'cancelled', 'running'].includes(task.status);
+  }
+
+  function buildFamilyRows(nextSnapshot: PassiveSnapshot | null, nextSettings: typeof settings): PassiveFamilyRow[] {
+    if (!nextSnapshot || !nextSettings) return [];
+    return nextSnapshot.watchers.map((watcher) => {
+      const tasks = nextSnapshot.tasks.filter((task) => task.watcherId === watcher.id);
+      return {
+        family: watcher.family,
+        label: passiveFamilyLabel(watcher.family),
+        description: watcher.description,
+        watcherEnabled: watcher.enabled,
+        familyEnabled: nextSettings.enabledFamilies[watcher.family] !== false,
+        taskCount: tasks.length,
+        activeTaskCount: tasks.filter((task) => task.status === 'active' || task.status === 'failed' || task.status === 'blocked').length
+      };
+    });
   }
 
   function compactHash(value: unknown): string {
@@ -248,6 +275,14 @@
   async function setMaxRunsPerTick(value: number): Promise<void> {
     const next = Math.max(1, Math.min(10, Math.round(value) || 1));
     await applyAction('max-runs', () => patchPassiveSettings({ maxRunsPerTick: next }), 'Run limit saved.');
+  }
+
+  async function setFamilyEnabled(family: PassiveTaskFamily, enabled: boolean): Promise<void> {
+    await applyAction(
+      `family:${family}`,
+      () => patchPassiveSettings({ enabledFamilies: { [family]: enabled } }),
+      `${passiveFamilyLabel(family)} ${enabled ? 'enabled' : 'disabled'}.`
+    );
   }
 
   function nextSnoozeUntil(hours = 24): string {
@@ -648,6 +683,23 @@
               on:change={(event) => setMaxRunsPerTick(Number(event.currentTarget.value))}
             />
           </label>
+          <div class="family-control-grid" aria-label="Passive task family controls">
+            {#each familyRows as family}
+              <label class="family-control-row">
+                <input
+                  type="checkbox"
+                  checked={family.familyEnabled}
+                  disabled={Boolean(busyId)}
+                  on:change={(event) => setFamilyEnabled(family.family, event.currentTarget.checked)}
+                />
+                <span>
+                  <strong>{family.label}</strong>
+                  <small>{family.description}</small>
+                  <em>{family.activeTaskCount}/{family.taskCount} runnable - watcher {family.watcherEnabled ? 'on' : 'off'}</em>
+                </span>
+              </label>
+            {/each}
+          </div>
           <label class="field">
             <span>Watched folders</span>
             <textarea bind:value={folderText} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
@@ -968,6 +1020,51 @@
     color: var(--muted);
     font-size: 12px;
     font-weight: 800;
+  }
+
+  .family-control-grid {
+    display: grid;
+    gap: 6px;
+  }
+
+  .family-control-row {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .family-control-row input {
+    margin-top: 3px;
+  }
+
+  .family-control-row span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .family-control-row strong,
+  .family-control-row small,
+  .family-control-row em {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .family-control-row strong {
+    color: var(--text);
+  }
+
+  .family-control-row small,
+  .family-control-row em {
+    color: var(--muted);
+    font-size: 12px;
+    font-style: normal;
   }
 
   .check-field {

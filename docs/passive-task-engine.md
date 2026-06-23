@@ -25,6 +25,8 @@ family-level enable/disable toggles, alongside the broader service and machine c
 Digest rows, failure rows, recent runs, and retained task error logs show compact evidence
 such as source labels, changed artifact counts, snapshot checksums, file counts, cleanup
 candidates, and retry times so background work is inspectable without opening raw JSON.
+The dashboard settings panel also exposes family enable/disable toggles, so broad families
+can be quieted from the same surface used to inspect their outputs.
 Watched accounts are matched against integration connection labels/ids. When the list is
 empty, App Health reports all broken integration connections; when it is set, only matching
 accounts surface as health findings and ignored connection issues are recorded in run
