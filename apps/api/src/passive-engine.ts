@@ -12,6 +12,7 @@ import {
   routeMap,
   type AttentionAction,
   type AttentionItem,
+  type IntegrationConnection,
   type PassiveEngineSettings,
   type PassiveCardTriageStatus,
   type PassiveNotification,
@@ -579,6 +580,36 @@ function safeConfiguredDomains(settings: PassiveEngineSettings, budget = resourc
   );
 }
 
+function normalizeWatchedAccount(value: string): string | null {
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+}
+
+function safeConfiguredAccounts(settings: PassiveEngineSettings): string[] {
+  return Array.from(new Set(settings.watchedAccounts.map(normalizeWatchedAccount).filter((item): item is string => Boolean(item)))).slice(
+    0,
+    50
+  );
+}
+
+function connectionMatchesWatchedAccount(connection: IntegrationConnection, watchedAccounts: string[]): boolean {
+  if (!watchedAccounts.length) return true;
+  const label = normalizeWatchedAccount(connection.accountLabel);
+  const idValue = normalizeWatchedAccount(connection.id);
+  const provider = normalizeWatchedAccount(connection.provider);
+  const labelDomain = label?.includes('@') ? label.split('@').at(1) ?? '' : '';
+  const keys = new Set(
+    [label, idValue, provider && label ? `${provider}:${label}` : '', provider && idValue ? `${provider}:${idValue}` : ''].filter(Boolean)
+  );
+
+  return watchedAccounts.some((account) => {
+    if (keys.has(account)) return true;
+    if (label && account.startsWith('@') && label.endsWith(account)) return true;
+    if (labelDomain && account === labelDomain) return true;
+    return false;
+  });
+}
+
 function card(
   input: Omit<PassiveResultCard, 'createdAt' | 'metadata'> & Partial<Pick<PassiveResultCard, 'createdAt' | 'metadata'>>
 ): PassiveResultCard {
@@ -967,6 +998,8 @@ function serviceIssueCard(task: PassiveTask, runId: string, title: string, summa
 
 async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const cards: PassiveResultCard[] = [];
+  const settings = store.passiveSettings ?? defaultPassiveSettings();
+  const watchedAccounts = safeConfiguredAccounts(settings);
   const dataDir = resolve(env.dataDir);
   const endpoints = {
     hub: endpointMetadata(env.hubPublicUrl),
@@ -989,9 +1022,11 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     );
   }
 
-  const disconnected = Array.from(store.integrationConnections.values()).filter((connection) =>
+  const disconnectedConnections = Array.from(store.integrationConnections.values()).filter((connection) =>
     ['needs_reauth', 'revoked', 'error'].includes(connection.status)
   );
+  const disconnected = disconnectedConnections.filter((connection) => connectionMatchesWatchedAccount(connection, watchedAccounts));
+  const ignoredDisconnected = disconnectedConnections.length - disconnected.length;
   if (disconnected.length) {
     cards.push(
       card({
@@ -1000,7 +1035,7 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
         runId,
         family: task.family,
         title: `${disconnected.length} integration connection${disconnected.length === 1 ? '' : 's'} need attention`,
-        summary: disconnected.map((connection) => `${connection.provider}: ${connection.status}`).join('; '),
+        summary: disconnected.map((connection) => `${connection.provider} ${connection.accountLabel}: ${connection.status}`).join('; '),
         urgency: 78,
         confidence: 0.95,
         route: routeMap.productivity,
@@ -1008,12 +1043,19 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
           stableSourceRef('record', connection.accountLabel, {
             id: connection.id,
             route: routeMap.productivity,
-            metadata: { provider: connection.provider, status: connection.status }
+            metadata: {
+              provider: connection.provider,
+              status: connection.status,
+              accountLabel: connection.accountLabel,
+              watchedAccountScoped: watchedAccounts.length > 0
+            }
           })
         ),
         suggestedAction: 'Reconnect provider',
         actionKind: 'inspect',
-        why: 'An existing integration connection is not connected.'
+        why: watchedAccounts.length
+          ? 'A watched integration account is not connected.'
+          : 'An existing integration connection is not connected.'
       })
     );
   }
@@ -1227,6 +1269,10 @@ async function runAppHealth(store: MemoryStore, task: PassiveTask, runId: string
     cards,
     metadata: {
       serviceEndpoints: endpoints,
+      watchedAccounts,
+      totalIntegrationConnectionIssues: disconnectedConnections.length,
+      integrationConnectionIssues: disconnected.length,
+      ignoredIntegrationConnectionIssues: ignoredDisconnected,
       configuredOllamaModel: env.ollamaChatModel,
       ollamaModels: ollamaModels.slice(0, 24),
       ollamaModelCount: ollamaModels.length

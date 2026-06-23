@@ -138,7 +138,9 @@ idle preference, resource limit, local/cloud AI preference, family enablement, m
 tick, and watched folders/domains/accounts. Background work avoids destructive changes; file/project scans
 respect configured folders only, resource limits clamp research/page/file/TODO scan budgets,
 Machine Modes shape due-work selection, and failures stay visible without creating fake queue
-items.
+items. Watched accounts now scope integration-account health findings: if the list is empty,
+App Health reports every broken connection, and if it is set, only matching account labels,
+connection ids, `provider:account` tokens, or account domains appear in source-backed cards.
 Failed and blocked tasks also keep a bounded per-task error log with attempt, message,
 timestamp, and next retry so dashboard state does not depend only on the latest run record.
 Repeated non-urgent passive notifications with the same family/title/body are de-duplicated

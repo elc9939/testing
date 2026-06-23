@@ -22,6 +22,10 @@ task pause/resume/cancel, manual due/startup/idle ticks, notification style, res
 idle-only schedule mode, local/cloud AI preference, max runs per tick, and watched
 folders/domains/accounts. The Settings page shows the same durable preferences, plus
 family-level enable/disable toggles, alongside the broader service and machine controls.
+Watched accounts are matched against integration connection labels/ids. When the list is
+empty, App Health reports all broken integration connections; when it is set, only matching
+accounts surface as health findings and ignored connection issues are recorded in run
+metadata.
 
 State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Mini Hub restore snapshots
 created by the Backup + Snapshot Watcher are written under
@@ -81,7 +85,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 
 ## V1 Families
 
-- App Health Watchdog: checks Mini Hub data dir, Google connection state, configured local
+- App Health Watchdog: checks Mini Hub data dir, watched Google connection state,
+  configured local
   service endpoints/ports, AI OS, Macro Lab, Ollama reachability, Ollama model inventory,
   configured Ollama chat model availability, AI OS jobs, and backup freshness. It has both a
   scheduled task and a built-in event task for `app.startup`, `app.reconnect`, service
@@ -126,6 +131,9 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   event-only tasks.
 - Watched domains are normalized to public hostnames before passive research monitor
   provisioning; localhost and IP-style hosts are ignored.
+- Watched accounts scope integration-account health findings. Account labels, connection ids,
+  `provider:account` tokens, `@domain` suffixes, and plain email domains can match; unmatched
+  broken connections are tracked in metadata but kept out of the digest.
 - Lower-urgency output stays in the Passive Tasks dashboard. Today only receives high-urgency
   cards through the `passive_task` attention source.
 - Repeated non-urgent notifications are suppressed for a day so recurring background findings

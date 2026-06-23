@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { personalWorkspaceId } from '@mini-hub/core';
+import { personalWorkspaceId, type IntegrationConnection } from '@mini-hub/core';
 import {
   buildPassiveDigest,
   buildPassiveSnapshot,
@@ -259,6 +259,71 @@ describe('passive task engine', () => {
       });
     } finally {
       env.ollamaChatModel = previousModel;
+    }
+  });
+
+  it('scopes integration health findings to configured watched accounts', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-account-scope-'));
+    const previousDataDir = env.dataDir;
+    try {
+      env.dataDir = dir;
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = { ...store.passiveSettings!, watchedAccounts: ['school@example.edu'] };
+      const now = '2026-06-20T10:00:00.000Z';
+      const personalConnection = {
+        id: 'google-personal',
+        workspaceId: personalWorkspaceId,
+        provider: 'google',
+        accountLabel: 'personal@example.com',
+        scopes: [],
+        encryptedTokenSet: '',
+        status: 'needs_reauth',
+        createdAt: now,
+        updatedAt: now
+      } satisfies IntegrationConnection;
+      const schoolConnection = {
+        id: 'google-school',
+        workspaceId: personalWorkspaceId,
+        provider: 'google',
+        accountLabel: 'school@example.edu',
+        scopes: [],
+        encryptedTokenSet: '',
+        status: 'error',
+        error: 'refresh failed',
+        createdAt: now,
+        updatedAt: now
+      } satisfies IntegrationConnection;
+      store.integrationConnections.set(personalConnection.id, personalConnection);
+      store.integrationConnections.set(schoolConnection.id, schoolConnection);
+      const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'account-scope-test' }
+      });
+
+      const connectionCard = run.cards.find((card) => card.title === '1 integration connection need attention');
+      expect(run.status).toBe('succeeded');
+      expect(connectionCard?.summary).toContain('school@example.edu');
+      expect(connectionCard?.summary).not.toContain('personal@example.com');
+      expect(connectionCard?.sourceRefs).toHaveLength(1);
+      expect(connectionCard?.sourceRefs[0]?.metadata).toMatchObject({
+        provider: 'google',
+        status: 'error',
+        accountLabel: 'school@example.edu',
+        watchedAccountScoped: true
+      });
+      expect(run.metadata).toMatchObject({
+        watchedAccounts: ['school@example.edu'],
+        totalIntegrationConnectionIssues: 2,
+        integrationConnectionIssues: 1,
+        ignoredIntegrationConnectionIssues: 1
+      });
+    } finally {
+      env.dataDir = previousDataDir;
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 
