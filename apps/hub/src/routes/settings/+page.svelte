@@ -705,7 +705,7 @@
         />
         <span>
           <strong>Prefer idle-only background work</strong>
-          <small>Idle compute remains gated until a tick is marked idle.</small>
+          <small>Scheduled work waits for the local API to report a Windows idle window.</small>
         </span>
       </label>
       <label class="field">

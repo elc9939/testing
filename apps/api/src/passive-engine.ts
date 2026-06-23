@@ -33,16 +33,34 @@ import {
   writeFileSync
 } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
+import { execFile } from 'node:child_process';
+import { platform } from 'node:os';
+import { promisify } from 'node:util';
 import { env } from './env';
 import { appendActionLedgerEvent, persistPassiveTasks, type MemoryStore } from './store';
 
 type FetchLike = typeof fetch;
+const execFileAsync = promisify(execFile);
 
 export interface PassiveRunInput {
   idle?: boolean;
   reason?: string;
   eventName?: string;
+  idleMinutes?: number;
+  idleSource?: string;
+  idleError?: string;
 }
+
+export interface PassiveIdleState {
+  idle: boolean;
+  thresholdMinutes: number;
+  checkedAt: string;
+  source: string;
+  idleMinutes?: number;
+  error?: string;
+}
+
+export type PassiveIdleDetector = (thresholdMinutes: number) => PassiveIdleState | Promise<PassiveIdleState>;
 
 interface FamilyRunResult {
   status: PassiveRunStatus;
@@ -75,6 +93,32 @@ const minuteMs = 60 * 1000;
 const passiveSnapshotDirName = 'passive-snapshots';
 const passiveDigestUrgency = 58;
 const attentionUrgency = 65;
+const windowsIdleScript = `
+$ErrorActionPreference = "Stop"
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class MiniHubIdleState {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct LASTINPUTINFO {
+    public uint cbSize;
+    public uint dwTime;
+  }
+  [DllImport("user32.dll")]
+  public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+  public static uint GetIdleMilliseconds() {
+    LASTINPUTINFO info = new LASTINPUTINFO();
+    info.cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(LASTINPUTINFO));
+    if (!GetLastInputInfo(ref info)) {
+      return 0;
+    }
+    return ((uint)Environment.TickCount - info.dwTime);
+  }
+}
+"@
+$idleMs = [MiniHubIdleState]::GetIdleMilliseconds()
+[pscustomobject]@{ idleMs = $idleMs; source = "windows-last-input" } | ConvertTo-Json -Compress
+`;
 
 const familyLabels: Record<PassiveTaskFamily, string> = {
   app_health: 'App Health Watchdog',
@@ -212,6 +256,66 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function describeError(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error || 'Unknown error');
+}
+
+function passiveIdleThresholdMinutes(store: MemoryStore): number {
+  const configured = store.passiveTasks
+    .filter((task) => task.idleOnly)
+    .map((task) => task.trigger.idleMinutes)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  return configured.length ? Math.min(...configured) : 20;
+}
+
+function idleState(input: Omit<PassiveIdleState, 'checkedAt'> & Partial<Pick<PassiveIdleState, 'checkedAt'>>): PassiveIdleState {
+  return {
+    ...input,
+    checkedAt: input.checkedAt ?? nowIso()
+  };
+}
+
+function parseIdlePayload(value: unknown): { idleMs?: number; source?: string } {
+  if (!isRecord(value)) return {};
+  const idleMs = typeof value.idleMs === 'number' ? value.idleMs : Number(value.idleMs);
+  return {
+    ...(Number.isFinite(idleMs) ? { idleMs } : {}),
+    ...(typeof value.source === 'string' ? { source: value.source } : {})
+  };
+}
+
+export async function detectPassiveIdleState(thresholdMinutes = 20): Promise<PassiveIdleState> {
+  const normalizedThreshold = Math.max(1, Math.round(thresholdMinutes));
+  if (platform() !== 'win32') {
+    return idleState({
+      idle: false,
+      thresholdMinutes: normalizedThreshold,
+      source: 'unsupported',
+      error: 'Passive idle detection is currently available only on Windows.'
+    });
+  }
+
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', windowsIdleScript],
+      { timeout: 3000 }
+    );
+    const payload = parseIdlePayload(JSON.parse(stdout.trim()) as unknown);
+    const idleMinutes = payload.idleMs === undefined ? undefined : Math.max(0, payload.idleMs / minuteMs);
+    return idleState({
+      idle: idleMinutes !== undefined && idleMinutes >= normalizedThreshold,
+      thresholdMinutes: normalizedThreshold,
+      source: payload.source ?? 'windows-last-input',
+      ...(idleMinutes !== undefined ? { idleMinutes: Math.round(idleMinutes * 10) / 10 } : {}),
+      ...(idleMinutes === undefined ? { error: 'Windows idle probe returned no idle duration.' } : {})
+    });
+  } catch (error) {
+    return idleState({
+      idle: false,
+      thresholdMinutes: normalizedThreshold,
+      source: 'windows-last-input',
+      error: describeError(error)
+    });
+  }
 }
 
 function defaultTriggerId(definition: DefaultTaskDefinition): string {
@@ -456,6 +560,7 @@ export function duePassiveTasks(store: MemoryStore, date = new Date(), input: Pa
   const nowMs = date.getTime();
   const eventName = input.eventName?.trim();
   if (!store.passiveSettings?.enabled) return [];
+  if (store.passiveSettings.idleOnly && !input.idle && !eventName) return [];
   return store.passiveTasks
     .filter((task) => ['active', 'failed'].includes(task.status))
     .filter((task) => watcherEnabled(store, task))
@@ -1405,6 +1510,9 @@ export async function runPassiveTask(
       reason: options.input?.reason ?? 'scheduled',
       eventName: options.input?.eventName,
       idle: Boolean(options.input?.idle),
+      ...(options.input?.idleMinutes !== undefined ? { idleMinutes: options.input.idleMinutes } : {}),
+      ...(options.input?.idleSource ? { idleSource: options.input.idleSource } : {}),
+      ...(options.input?.idleError ? { idleError: options.input.idleError } : {}),
       ...(result.metadata ?? {})
     }
   });
@@ -1487,10 +1595,16 @@ export async function runPassiveEvent(
 
 export function startPassiveTaskWorker(
   store: MemoryStore,
-  options: { externalFetch?: FetchLike; intervalMs?: number; startupEventName?: string | false } = {}
+  options: {
+    externalFetch?: FetchLike;
+    intervalMs?: number;
+    startupEventName?: string | false;
+    idleDetector?: PassiveIdleDetector;
+  } = {}
 ): () => void {
   const intervalMs = options.intervalMs ?? 5 * minuteMs;
   const startupEventName = options.startupEventName ?? 'app.startup';
+  const idleDetector = options.idleDetector ?? detectPassiveIdleState;
   let running = false;
   const runExclusive = async (label: string, work: () => Promise<unknown>) => {
     if (running) return;
@@ -1505,8 +1619,15 @@ export function startPassiveTaskWorker(
   };
   const tick = async () =>
     runExclusive('tick', async () => {
+      const idle = await idleDetector(passiveIdleThresholdMinutes(store));
       const tickOptions: { externalFetch?: FetchLike; input?: PassiveRunInput } = {
-        input: { reason: 'worker-tick', idle: false }
+        input: {
+          reason: 'worker-tick',
+          idle: idle.idle,
+          ...(idle.idleMinutes !== undefined ? { idleMinutes: idle.idleMinutes } : {}),
+          idleSource: idle.source,
+          ...(idle.error ? { idleError: idle.error } : {})
+        }
       };
       if (options.externalFetch) tickOptions.externalFetch = options.externalFetch;
       await runDuePassiveTasks(store, tickOptions);
@@ -1692,7 +1813,17 @@ export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceSta
         watcherId: task.watcherId,
         nextRunAt: task.nextRunAt,
         status: task.status,
-        lastRunStatus: run?.status
+        lastRunStatus: run?.status,
+        ...(task.idleOnly || task.family === 'idle_compute'
+          ? {
+              idleOnly: task.idleOnly,
+              idleThresholdMinutes: task.trigger.idleMinutes,
+              lastIdle: run?.metadata.idle,
+              lastIdleMinutes: run?.metadata.idleMinutes,
+              lastIdleSource: run?.metadata.idleSource,
+              lastIdleError: run?.metadata.idleError
+            }
+          : {})
       }
     });
   });

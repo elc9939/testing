@@ -25,6 +25,11 @@ throttled `app.startup` on open and `app.reconnect` after the browser comes back
 Google OAuth connect/revoke flows emit `google.oauth.connected` and `google.oauth.revoked`.
 Those lifecycle events all feed the App Health Watchdog event task.
 
+Scheduled worker ticks also try to detect whether the desktop is idle. On Windows, the API
+reads the OS last-input timer and marks a tick idle only after the idle trigger threshold
+is met. If the probe is unavailable or errors, the tick is treated as active and idle-only
+work stays deferred. Manual dashboard ticks can still explicitly set `idle: true`.
+
 ## Model
 
 The shared core model includes:
@@ -49,8 +54,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   lifecycle checks.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot and requests an AI OS
   backup when AI OS is available.
-- Idle Compute Queue: runs bounded AI OS benchmarks only when the tick is explicitly marked
-  idle.
+- Idle Compute Queue: runs bounded AI OS benchmarks only when the worker or dashboard tick
+  reports a real idle window.
 - Background Research Monitor: reads AI OS due monitors and queues due monitor runs.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
 - Local File Intelligence: scans only configured watched folders for recent document/image
@@ -63,7 +68,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - No destructive file changes run from v1 passive tasks.
 - File and project scans respect the configured folder list; no default broad filesystem scan.
 - Backup snapshots redact encrypted token payloads from Mini Hub connection metadata.
-- Idle compute is gated by explicit idle ticks.
+- Idle compute is gated by worker-measured or manually requested idle ticks. Probe failures
+  do not allow heavy work to run.
 - Event work is gated by explicit event names; scheduled ticks do not accidentally run
   event-only tasks.
 - Lower-urgency output stays in the Passive Tasks dashboard. Today only receives high-urgency

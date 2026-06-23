@@ -92,8 +92,11 @@ Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/
 dashboard. The engine persists `Watcher`, `Trigger`, `Task`, `Run`, `Result card`, and
 `Notification` state to `passive-tasks.json` in `MINI_HUB_DATA_DIR`, logs runs into the
 Action Ledger, and exposes a snapshot with per-family freshness/errors. The worker checks
-due tasks on a lightweight interval while the API is running; the dashboard can also run
-due tasks, event-triggered startup checks, or idle-only ticks manually. The API worker emits
+due tasks on a lightweight interval while the API is running, and on Windows it marks ticks
+idle after the configured last-input threshold so idle-only work can run automatically. If
+idle state cannot be measured, the worker stays conservative and treats the tick as active.
+The dashboard can also run due tasks, event-triggered startup checks, or idle-only ticks
+manually. The API worker emits
 `app.startup` when it starts, the browser shell emits throttled `app.startup`/`app.reconnect`
 events on open and reconnect, and Google OAuth connect/revoke flows emit passive lifecycle
 events. `POST /api/passive-tasks/events/:eventName` also ingests named events directly, and
@@ -104,8 +107,8 @@ event-only tasks stay out of ordinary scheduled ticks. V1 task families are real
   reconnect, and Google OAuth lifecycle event triggers.
 - Backup + Snapshot Watcher writes non-destructive Mini Hub restore snapshots under
   `MINI_HUB_DATA_DIR/passive-snapshots` and asks AI OS for its own backup when available.
-- Idle Compute Queue runs bounded AI OS benchmarks only when a tick is explicitly marked
-  idle.
+- Idle Compute Queue runs bounded AI OS benchmarks only when the worker or a manual tick
+  reports a real idle window.
 - Background Research Monitor reads AI OS saved monitor due-state and queues due monitor
   runs through AI OS.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups.

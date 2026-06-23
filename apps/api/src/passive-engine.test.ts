@@ -80,6 +80,10 @@ describe('passive task engine', () => {
     expect(activeDue[0]?.family).toBe('app_health');
     expect(activeDue.some((task) => task.family === 'idle_compute')).toBe(false);
     expect(idleDue.some((task) => task.family === 'idle_compute')).toBe(true);
+
+    store.passiveSettings = { ...store.passiveSettings!, idleOnly: true };
+    expect(duePassiveTasks(store, now)).toEqual([]);
+    expect(duePassiveTasks(store, now, { idle: true }).length).toBeGreaterThan(0);
   });
 
   it('keeps event tasks out of scheduled ticks and runs them only for matching events', () => {
@@ -131,6 +135,47 @@ describe('passive task engine', () => {
       taskId: 'passive-task:app-health-startup',
       status: 'succeeded',
       metadata: { reason: 'worker-startup', eventName: 'app.startup' }
+    });
+  });
+
+  it('uses worker idle detection to run idle-only scheduled tasks', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store, new Date('2026-06-20T10:00:00.000Z'));
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: task.family === 'idle_compute' ? '2026-06-20T09:00:00.000Z' : '2099-06-21T09:00:00.000Z',
+      trigger: {
+        ...task.trigger,
+        nextRunAt: task.family === 'idle_compute' ? '2026-06-20T09:00:00.000Z' : '2099-06-21T09:00:00.000Z'
+      }
+    }));
+    const stop = startPassiveTaskWorker(store, {
+      externalFetch: healthyServiceFetch(),
+      intervalMs: 60_000,
+      startupEventName: false,
+      idleDetector: (thresholdMinutes) => ({
+        idle: true,
+        idleMinutes: thresholdMinutes + 5,
+        thresholdMinutes,
+        checkedAt: '2026-06-20T10:00:00.000Z',
+        source: 'test-idle-detector'
+      })
+    });
+    try {
+      await waitForCondition(() => store.passiveRuns.some((run) => run.taskId === 'passive-task:idle-compute'));
+    } finally {
+      stop();
+    }
+
+    const run = store.passiveRuns.find((item) => item.taskId === 'passive-task:idle-compute');
+    expect(run).toMatchObject({
+      status: 'succeeded',
+      metadata: {
+        reason: 'worker-tick',
+        idle: true,
+        idleMinutes: 25,
+        idleSource: 'test-idle-detector'
+      }
     });
   });
 

@@ -199,6 +199,10 @@
     <strong>{settings?.enabled ? 'On' : 'Off'}</strong>
   </div>
   <div>
+    <span>Schedule</span>
+    <strong>{settings?.idleOnly ? 'Idle only' : 'Normal'}</strong>
+  </div>
+  <div>
     <span>Active</span>
     <strong>{activeTasks.length}</strong>
   </div>
