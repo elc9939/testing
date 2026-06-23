@@ -25,7 +25,7 @@ import { triageGmailThreads } from '../integrations/email-triage';
 import { GoogleCalendarConnector, GoogleGmailConnector } from '../integrations/google';
 import { getConnections as getStoredConnections } from '../integrations/token-vault';
 import type { CalendarConnector } from '../integrations/types';
-import { buildPassiveSourceStatuses, collectPassiveAttentionItems, runPassiveTask } from '../passive-engine';
+import { buildPassiveSourceStatuses, collectPassiveAttentionItems, runPassiveTask, updatePassiveCardTriage } from '../passive-engine';
 import {
   appendSyncEvent,
   ensurePersonalWorkspace,
@@ -1357,6 +1357,22 @@ async function performAttentionAction(input: {
   snoozedUntil?: string;
 }): Promise<void> {
   const { store, workspaceIds, externalFetch, itemId, actionKind } = input;
+  if (itemId.startsWith('passive-task:')) {
+    const cardId = itemId.slice('passive-task:'.length);
+    if (actionKind === 'snooze') {
+      const snoozedUntil = input.snoozedUntil ?? new Date(Date.now() + dayMs).toISOString();
+      updatePassiveCardTriage(store, cardId, 'snoozed', { snoozedUntil, reason: 'attention-snooze' });
+      return;
+    }
+    if (actionKind === 'dismiss') {
+      updatePassiveCardTriage(store, cardId, 'dismissed', { reason: 'attention-dismiss' });
+      return;
+    }
+    if (actionKind === 'mark_important') {
+      updatePassiveCardTriage(store, cardId, 'important', { reason: 'attention-important' });
+      return;
+    }
+  }
   if (actionKind === 'snooze') {
     const snoozedUntil = input.snoozedUntil ?? new Date(Date.now() + dayMs).toISOString();
     setTriageState(store, itemId, { status: 'snoozed', snoozedUntil });

@@ -1,5 +1,6 @@
 import {
   passiveEngineSettingsSchema,
+  passiveCardTriageStateSchema,
   passiveNotificationSchema,
   passiveResultCardSchema,
   passiveRunSchema,
@@ -11,6 +12,7 @@ import {
   type AttentionAction,
   type AttentionItem,
   type PassiveEngineSettings,
+  type PassiveCardTriageStatus,
   type PassiveNotification,
   type PassiveResultCard,
   type PassiveRun,
@@ -426,6 +428,7 @@ export function defaultPassiveSettings(date = new Date()): PassiveEngineSettings
     watchedDomains: [],
     watchedAccounts: [],
     enabledFamilies: Object.fromEntries(defaultTaskDefinitions.map((definition) => [definition.family, true])),
+    cardTriage: {},
     updatedAt: nowIso(date)
   });
 }
@@ -2289,15 +2292,110 @@ export function updatePassiveSettings(
   return next;
 }
 
+function passiveCardState(store: MemoryStore, cardId: string) {
+  const raw = store.passiveSettings?.cardTriage?.[cardId];
+  const parsed = passiveCardTriageStateSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+function passiveCardVisible(store: MemoryStore, cardItem: PassiveResultCard, date = new Date()): boolean {
+  const state = passiveCardState(store, cardItem.id);
+  if (!state) return true;
+  if (state.status === 'dismissed' || state.status === 'reviewed') return false;
+  if (state.status === 'snoozed') {
+    const snoozedUntil = state.snoozedUntil ? Date.parse(state.snoozedUntil) : Number.NaN;
+    return !(Number.isFinite(snoozedUntil) && snoozedUntil > date.getTime());
+  }
+  return true;
+}
+
+function passiveCardForDigest(store: MemoryStore, cardItem: PassiveResultCard): PassiveResultCard {
+  const state = passiveCardState(store, cardItem.id);
+  if (!state) return cardItem;
+  return passiveResultCardSchema.parse({
+    ...cardItem,
+    urgency: state.status === 'important' ? Math.min(100, cardItem.urgency + 12) : cardItem.urgency,
+    metadata: {
+      ...cardItem.metadata,
+      passiveTriageStatus: state.status,
+      passiveTriageUpdatedAt: state.updatedAt,
+      ...(state.snoozedUntil ? { snoozedUntil: state.snoozedUntil } : {})
+    }
+  });
+}
+
+function passiveCardImportant(store: MemoryStore, cardId: string): boolean {
+  return passiveCardState(store, cardId)?.status === 'important';
+}
+
+export function updatePassiveCardTriage(
+  store: MemoryStore,
+  cardId: string,
+  status: PassiveCardTriageStatus | 'clear',
+  input: { snoozedUntil?: string; reason?: string } = {}
+): PassiveEngineSettings {
+  ensurePassiveDefaults(store);
+  const matchesCard = store.passiveRuns.some((run) => run.cards.some((cardItem) => cardItem.id === cardId));
+  if (!matchesCard) throw new Error('Passive result card not found.');
+  const existing = store.passiveSettings ?? defaultPassiveSettings();
+  const nextTriage = { ...(existing.cardTriage ?? {}) };
+  if (status === 'clear') {
+    delete nextTriage[cardId];
+  } else {
+    nextTriage[cardId] = passiveCardTriageStateSchema.parse({
+      cardId,
+      status,
+      updatedAt: nowIso(),
+      ...(input.snoozedUntil ? { snoozedUntil: input.snoozedUntil } : {}),
+      ...(input.reason ? { reason: input.reason } : {})
+    });
+  }
+  const next = passiveEngineSettingsSchema.parse({
+    ...existing,
+    cardTriage: nextTriage,
+    updatedAt: nowIso()
+  });
+  store.passiveSettings = next;
+  appendActionLedgerEvent(store, {
+    system: 'mini-hub',
+    source: 'passive-tasks',
+    actionType: status === 'clear' ? 'passive.card.clear' : `passive.card.${status}`,
+    summary: status === 'clear' ? 'Passive card triage cleared' : `Passive card marked ${status}`,
+    status: 'succeeded',
+    risk: 'write',
+    changed: [`passive-card:${cardId}`],
+    recoverability: {
+      kind: 'snapshot',
+      route: routeMap.passiveTasks,
+      description: 'Passive card triage can be changed again from the Passive Tasks dashboard.',
+      reversible: true
+    },
+    rawRef: { kind: 'passive_card', id: cardId },
+    metadata: { status, snoozedUntil: input.snoozedUntil, reason: input.reason }
+  });
+  persistPassiveTasks(store);
+  return next;
+}
+
 export function buildPassiveDigest(store: MemoryStore, limit = 12): PassiveResultCard[] {
   const seen = new Set<string>();
   const cards: PassiveResultCard[] = [];
+  const checkedAt = new Date();
   for (const run of store.passiveRuns) {
     for (const item of run.cards) {
+      if (!passiveCardVisible(store, item, checkedAt)) continue;
+      const digestItem = passiveCardForDigest(store, item);
       const key = `${item.family}:${item.title}:${item.summary}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      if (item.urgency >= passiveDigestUrgency || run.status === 'failed' || run.status === 'blocked') cards.push(item);
+      if (
+        passiveCardImportant(store, item.id) ||
+        digestItem.urgency >= passiveDigestUrgency ||
+        run.status === 'failed' ||
+        run.status === 'blocked'
+      ) {
+        cards.push(digestItem);
+      }
     }
   }
   return cards.sort((a, b) => b.urgency - a.urgency || parseTime(b.createdAt) - parseTime(a.createdAt)).slice(0, limit);
@@ -2368,7 +2466,7 @@ function attentionAction(kind: AttentionAction['kind'], label: string, route: st
     available,
     reason,
     requiresOnline: kind !== 'open' && kind !== 'inspect',
-    risk: kind === 'run' ? 'system' : kind === 'dismiss' || kind === 'snooze' ? 'write' : 'read'
+    risk: kind === 'run' ? 'system' : kind === 'dismiss' || kind === 'snooze' || kind === 'mark_important' ? 'write' : 'read'
   };
 }
 
@@ -2390,6 +2488,7 @@ export function collectPassiveAttentionItems(store: MemoryStore): AttentionItem[
       actions: [
         attentionAction('inspect', 'Inspect', item.route),
         attentionAction('run', 'Run watcher', routeMap.passiveTasks, true),
+        attentionAction('mark_important', 'Important', routeMap.passiveTasks),
         attentionAction('snooze', 'Snooze', routeMap.passiveTasks),
         attentionAction('dismiss', 'Dismiss', routeMap.passiveTasks)
       ],

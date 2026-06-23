@@ -1,4 +1,4 @@
-import { passiveTaskStatusSchema, type PassiveEngineSettings } from '@mini-hub/core';
+import { passiveCardTriageStatusSchema, passiveTaskStatusSchema, type PassiveEngineSettings } from '@mini-hub/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
@@ -10,6 +10,7 @@ import {
   runPassiveTask,
   setPassiveWatcherEnabled,
   updatePassiveSettings,
+  updatePassiveCardTriage,
   updatePassiveTaskStatus
 } from '../passive-engine';
 import { ensurePersonalWorkspace, persistPassiveTasks, type MemoryStore } from '../store';
@@ -52,6 +53,12 @@ const watcherToggleSchema = z.object({
 
 const statusBodySchema = z.object({
   status: passiveTaskStatusSchema
+});
+
+const cardTriageBodySchema = z.object({
+  status: z.union([passiveCardTriageStatusSchema, z.literal('clear')]),
+  snoozedUntil: z.string().optional(),
+  reason: z.string().optional()
 });
 
 type PassiveSettingsPatch = Partial<Omit<PassiveEngineSettings, 'updatedAt'>>;
@@ -183,6 +190,23 @@ export function passiveTaskRoutes(store: MemoryStore, options: PassiveTaskRouteO
     try {
       const task = updatePassiveTaskStatus(store, c.req.param('id'), parsed.data.status);
       return c.json({ task, snapshot: buildPassiveSnapshot(store) });
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, 404);
+    }
+  });
+
+  app.post('/cards/:id/triage', async (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    ensurePersonalWorkspace(store);
+    const parsed = cardTriageBodySchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
+    try {
+      const settings = updatePassiveCardTriage(store, c.req.param('id'), parsed.data.status, {
+        ...(parsed.data.snoozedUntil ? { snoozedUntil: parsed.data.snoozedUntil } : {}),
+        ...(parsed.data.reason ? { reason: parsed.data.reason } : {})
+      });
+      return c.json({ settings, snapshot: buildPassiveSnapshot(store) });
     } catch (error) {
       return c.json({ error: errorMessage(error) }, 404);
     }

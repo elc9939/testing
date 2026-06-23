@@ -111,6 +111,7 @@ function passiveSnapshot(partial: Partial<PassiveSnapshot> = {}): PassiveSnapsho
       watchedDomains: [],
       watchedAccounts: [],
       enabledFamilies: { app_health: true },
+      cardTriage: {},
       updatedAt: '2026-06-20T16:00:00.000Z'
     },
     watchers: [

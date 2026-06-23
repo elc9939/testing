@@ -121,6 +121,20 @@ export async function togglePassiveWatcher(watcherId: string, enabled: boolean):
   return result.snapshot;
 }
 
+export async function triagePassiveCard(
+  cardId: string,
+  input: { status: 'reviewed' | 'dismissed' | 'snoozed' | 'important' | 'clear'; snoozedUntil?: string; reason?: string }
+): Promise<PassiveSnapshot> {
+  const result = await requestApiJson<{ settings: PassiveEngineSettings; snapshot: PassiveSnapshot }>(
+    `/api/passive-tasks/cards/${encodeURIComponent(cardId)}/triage`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input)
+    }
+  );
+  return result.snapshot;
+}
+
 export async function dismissPassiveNotification(notificationId: string): Promise<PassiveSnapshot> {
   const result = await requestApiJson<{ ok: true; snapshot: PassiveSnapshot }>(
     `/api/passive-tasks/notifications/${encodeURIComponent(notificationId)}/dismiss`,

@@ -10,6 +10,7 @@
     Play,
     RefreshCw,
     Settings,
+    Star,
     XCircle
   } from 'lucide-svelte';
   import type { PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTask, PassiveWatcher } from '@mini-hub/core';
@@ -29,6 +30,7 @@
     runPassiveTick,
     togglePassiveWatcher,
     topPassiveCards,
+    triagePassiveCard,
     visiblePassiveNotifications
   } from '$lib/passive-tasks-api';
   import { attentionStore } from '$lib/attention-store';
@@ -153,6 +155,32 @@
     await applyAction('resource-limit', () => patchPassiveSettings({ resourceLimit: value }), 'Resource limit saved.');
   }
 
+  function nextSnoozeUntil(hours = 24): string {
+    return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+  }
+
+  async function triageCard(
+    cardId: string,
+    status: 'reviewed' | 'dismissed' | 'snoozed' | 'important'
+  ): Promise<void> {
+    await applyAction(
+      `card:${status}:${cardId}`,
+      () =>
+        triagePassiveCard(cardId, {
+          status,
+          reason: 'dashboard',
+          ...(status === 'snoozed' ? { snoozedUntil: nextSnoozeUntil() } : {})
+        }),
+      status === 'important'
+        ? 'Passive card marked important.'
+        : status === 'reviewed'
+          ? 'Passive card marked reviewed.'
+          : status === 'snoozed'
+            ? 'Passive card snoozed for 24 hours.'
+            : 'Passive card dismissed.'
+    );
+  }
+
   function cardSource(card: PassiveResultCard): string {
     return card.sourceRefs[0]?.label ?? passiveFamilyLabel(card.family);
   }
@@ -240,7 +268,21 @@
                 <small>{card.summary}</small>
                 <em>{cardSource(card)} · confidence {Math.round(card.confidence * 100)}%</em>
               </span>
-              <a class="button compact" href={hubHref(card.route)}>Inspect</a>
+              <span class="digest-actions">
+                <button class="icon-action" type="button" title="Mark important" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'important')}>
+                  <Star size={15} />
+                </button>
+                <button class="icon-action" type="button" title="Snooze 24 hours" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'snoozed')}>
+                  <Clock3 size={15} />
+                </button>
+                <button class="icon-action" type="button" title="Mark reviewed" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'reviewed')}>
+                  <CheckCircle2 size={15} />
+                </button>
+                <button class="icon-action" type="button" title="Dismiss" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'dismissed')}>
+                  <XCircle size={15} />
+                </button>
+                <a class="button compact" href={hubHref(card.route)}>Inspect</a>
+              </span>
             </div>
           {/each}
         </div>
@@ -604,6 +646,14 @@
     grid-template-columns: 72px minmax(0, 1fr) auto;
   }
 
+  .digest-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    min-width: 0;
+  }
+
   .watcher-row {
     grid-template-columns: 58px minmax(0, 1fr) auto;
   }
@@ -758,6 +808,16 @@
 
     .signal-strip {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .digest-row {
+      grid-template-columns: 72px minmax(0, 1fr);
+    }
+
+    .digest-actions {
+      grid-column: 2;
+      justify-content: flex-start;
+      flex-wrap: wrap;
     }
   }
 

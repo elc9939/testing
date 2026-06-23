@@ -12,6 +12,7 @@ import {
   startPassiveTaskWorker,
   runPassiveTask,
   setPassiveWatcherEnabled,
+  updatePassiveCardTriage,
   updatePassiveTaskStatus
 } from './passive-engine';
 import { env } from './env';
@@ -349,6 +350,42 @@ describe('passive task engine', () => {
     expect(digest[0]?.sourceRefs[0]?.id).toBe('career-action-1');
     expect(attention[0]?.source).toBe('passive_task');
     expect(attention[0]?.title).toContain('career action');
+  });
+
+  it('persists passive result card triage and filters the source digest', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.careerActions.push({
+      id: 'career-action-1',
+      workspaceId: personalWorkspaceId,
+      jobId: undefined,
+      label: 'Follow up with recruiter',
+      dueAt: '2026-06-19T10:00:00.000Z',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+    await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'triage-test' }
+    });
+    const cardId = buildPassiveDigest(store)[0]!.id;
+
+    updatePassiveCardTriage(store, cardId, 'dismissed', { reason: 'test-dismiss' });
+    expect(store.passiveSettings?.cardTriage[cardId]).toMatchObject({ status: 'dismissed', reason: 'test-dismiss' });
+    expect(buildPassiveDigest(store).some((card) => card.id === cardId)).toBe(false);
+    expect(store.actionEvents.at(-1)).toMatchObject({
+      source: 'passive-tasks',
+      actionType: 'passive.card.dismissed',
+      changed: [`passive-card:${cardId}`]
+    });
+
+    updatePassiveCardTriage(store, cardId, 'clear');
+    expect(buildPassiveDigest(store).some((card) => card.id === cardId)).toBe(true);
+
+    updatePassiveCardTriage(store, cardId, 'snoozed', { snoozedUntil: new Date(Date.now() + 60_000).toISOString() });
+    expect(buildPassiveDigest(store).some((card) => card.id === cardId)).toBe(false);
   });
 
   it('records pause and resume state transitions', () => {
