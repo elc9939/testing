@@ -523,6 +523,33 @@ export const passiveNotificationSchema = z.object({
   dismissedAt: z.string().optional()
 });
 
+export const passiveIdleStateSchema = z.object({
+  idle: z.boolean(),
+  thresholdMinutes: z.number().int().positive(),
+  checkedAt: z.string().min(1),
+  source: z.string().min(1),
+  idleMinutes: z.number().nonnegative().optional(),
+  error: z.string().optional()
+});
+
+export const passiveWorkerStateSchema = z.object({
+  id: z.string().min(1).default('passive-worker'),
+  enabled: z.boolean().default(true),
+  running: z.boolean().default(false),
+  startedAt: z.string().optional(),
+  stoppedAt: z.string().optional(),
+  lastTickAt: z.string().optional(),
+  lastTickFinishedAt: z.string().optional(),
+  nextTickAt: z.string().optional(),
+  intervalMs: z.number().int().nonnegative().default(0),
+  lastEventName: z.string().optional(),
+  lastIdle: passiveIdleStateSchema.optional(),
+  activeFileWatchCount: z.number().int().nonnegative().default(0),
+  pendingFileEvent: z.boolean().default(false),
+  lastError: z.string().optional(),
+  updatedAt: z.string().min(1)
+});
+
 export const passiveCardTriageStateSchema = z.object({
   cardId: z.string().min(1),
   status: passiveCardTriageStatusSchema,
@@ -560,6 +587,7 @@ export const passiveSnapshotSchema = z.object({
   settings: passiveEngineSettingsSchema,
   watchers: z.array(passiveWatcherSchema),
   tasks: z.array(passiveTaskSchema),
+  worker: passiveWorkerStateSchema,
   runs: z.array(passiveRunSchema),
   notifications: z.array(passiveNotificationSchema),
   digest: z.array(passiveResultCardSchema),
@@ -710,6 +738,8 @@ export type PassiveTask = z.infer<typeof passiveTaskSchema>;
 export type PassiveResultCard = z.infer<typeof passiveResultCardSchema>;
 export type PassiveRun = z.infer<typeof passiveRunSchema>;
 export type PassiveNotification = z.infer<typeof passiveNotificationSchema>;
+export type PassiveIdleStateRecord = z.infer<typeof passiveIdleStateSchema>;
+export type PassiveWorkerState = z.infer<typeof passiveWorkerStateSchema>;
 export type PassiveCardTriageState = z.infer<typeof passiveCardTriageStateSchema>;
 export type PassiveEngineSettings = z.infer<typeof passiveEngineSettingsSchema>;
 export type PassiveTaskErrorLogEntry = z.infer<typeof passiveTaskErrorLogEntrySchema>;

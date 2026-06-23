@@ -211,6 +211,58 @@ describe('passive task engine', () => {
     });
   });
 
+  it('exposes passive worker lifecycle, idle, and tick state in snapshots', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: '2099-06-20T10:00:00.000Z',
+      trigger: { ...task.trigger, nextRunAt: task.trigger.kind === 'event' ? undefined : '2099-06-20T10:00:00.000Z' }
+    }));
+
+    const stop = startPassiveTaskWorker(store, {
+      externalFetch: healthyServiceFetch(),
+      intervalMs: 50,
+      startupEventName: false,
+      idleDetector: async (thresholdMinutes) => ({
+        idle: true,
+        thresholdMinutes,
+        checkedAt: '2026-06-20T10:00:00.000Z',
+        source: 'test-idle',
+        idleMinutes: thresholdMinutes + 1
+      })
+    });
+
+    try {
+      await waitForCondition(() => Boolean(buildPassiveSnapshot(store).worker.lastTickFinishedAt));
+      const snapshot = buildPassiveSnapshot(store);
+      expect(snapshot.worker).toMatchObject({
+        id: 'passive-worker',
+        enabled: true,
+        running: false,
+        intervalMs: 50,
+        activeFileWatchCount: 0,
+        pendingFileEvent: false,
+        lastEventName: 'tick',
+        lastIdle: {
+          idle: true,
+          source: 'test-idle'
+        }
+      });
+      expect(snapshot.worker.startedAt).toBeTruthy();
+      expect(snapshot.worker.lastTickAt).toBeTruthy();
+      expect(snapshot.worker.lastTickFinishedAt).toBeTruthy();
+      expect(snapshot.worker.nextTickAt).toBeTruthy();
+    } finally {
+      stop();
+    }
+
+    const stopped = buildPassiveSnapshot(store).worker;
+    expect(stopped.running).toBe(false);
+    expect(stopped.stoppedAt).toBeTruthy();
+    expect(stopped.activeFileWatchCount).toBe(0);
+  });
+
   it('surfaces missing configured Ollama models with endpoint port metadata', async () => {
     const previousModel = env.ollamaChatModel;
     try {

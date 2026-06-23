@@ -27,6 +27,9 @@ such as source labels, changed artifact counts, snapshot checksums, file counts,
 candidates, and retry times so background work is inspectable without opening raw JSON.
 The dashboard settings panel also exposes family enable/disable toggles, so broad families
 can be quieted from the same surface used to inspect their outputs.
+The snapshot and dashboard also expose live worker state: whether the background worker is
+started/running, its interval, last and next tick timestamps, last idle probe, active file
+watcher count, pending file event state, and the latest worker-level issue.
 Watched accounts are matched against integration connection labels/ids. When the list is
 empty, App Health reports all broken integration connections; when it is set, only matching
 accounts surface as health findings and ignored connection issues are recorded in run
@@ -80,6 +83,9 @@ The shared core model includes:
 - `PassiveTask`: runnable unit with priority, status, retry/backoff, idle-only, last/next run,
   machine mode, source refs, and a bounded per-task error log that records failed/blocked
   run id, attempt, message, timestamp, and next retry.
+- `PassiveWorkerState`: live runner state for the API worker, including lifecycle timestamps,
+  tick cadence, last idle probe, active watched-folder count, pending file-event state, and
+  worker-level errors.
 - `PassiveRun`: durable run record with status, timing, error, changed artifacts, and cards.
 - `PassiveResultCard`: source-backed output with title, summary, urgency, confidence,
   source links/files, suggested action, and why it surfaced.

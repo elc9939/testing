@@ -8,6 +8,7 @@ import {
   passiveSourceStatusSchema,
   passiveTaskErrorLogEntrySchema,
   passiveTaskSchema,
+  passiveWorkerStateSchema,
   passiveWatcherSchema,
   routeMap,
   type AttentionAction,
@@ -26,6 +27,7 @@ import {
   type PassiveTaskFamily,
   type PassiveTaskStatus,
   type PassiveTriggerKind,
+  type PassiveWorkerState,
   type PassiveWatcher
 } from '@mini-hub/core';
 import {
@@ -441,6 +443,10 @@ function addMinutes(date: Date, minutes: number): string {
   return new Date(date.getTime() + minutes * minuteMs).toISOString();
 }
 
+function addMilliseconds(date: Date, ms: number): string {
+  return new Date(date.getTime() + ms).toISOString();
+}
+
 function parseTime(value: string | undefined): number {
   if (!value) return Number.NaN;
   const parsed = Date.parse(value);
@@ -685,6 +691,41 @@ export function defaultPassiveSettings(date = new Date()): PassiveEngineSettings
     enabledFamilies: Object.fromEntries(defaultTaskDefinitions.map((definition) => [definition.family, true])),
     cardTriage: {},
     updatedAt: nowIso(date)
+  });
+}
+
+function defaultPassiveWorkerState(store: MemoryStore, date = new Date()): PassiveWorkerState {
+  const settings = store.passiveSettings ?? defaultPassiveSettings(date);
+  return passiveWorkerStateSchema.parse({
+    id: 'passive-worker',
+    enabled: settings.enabled,
+    running: false,
+    intervalMs: 0,
+    activeFileWatchCount: 0,
+    pendingFileEvent: false,
+    updatedAt: nowIso(date)
+  });
+}
+
+function setPassiveWorkerState(store: MemoryStore, patch: Partial<PassiveWorkerState>, date = new Date()): PassiveWorkerState {
+  const existing = store.passiveWorker ?? defaultPassiveWorkerState(store, date);
+  const settings = store.passiveSettings ?? defaultPassiveSettings(date);
+  const next = passiveWorkerStateSchema.parse({
+    ...existing,
+    ...patch,
+    enabled: patch.enabled ?? settings.enabled,
+    updatedAt: nowIso(date)
+  });
+  store.passiveWorker = next;
+  return next;
+}
+
+function passiveWorkerSnapshot(store: MemoryStore, date = new Date()): PassiveWorkerState {
+  return passiveWorkerStateSchema.parse({
+    ...defaultPassiveWorkerState(store, date),
+    ...(store.passiveWorker ?? {}),
+    enabled: store.passiveSettings?.enabled ?? store.passiveWorker?.enabled ?? true,
+    updatedAt: store.passiveWorker?.updatedAt ?? nowIso(date)
   });
 }
 
@@ -2964,15 +3005,49 @@ export function startPassiveTaskWorker(
   let pendingFileEvent: PassiveRunInput | null = null;
   let fileEventTimer: ReturnType<typeof setTimeout> | null = null;
   let running = false;
+  setPassiveWorkerState(store, {
+    startedAt: nowIso(),
+    stoppedAt: undefined,
+    running: false,
+    intervalMs,
+    nextTickAt: addMilliseconds(new Date(), intervalMs),
+    activeFileWatchCount: 0,
+    pendingFileEvent: false,
+    lastError: undefined
+  });
   const runExclusive = async (label: string, work: () => Promise<unknown>) => {
-    if (running) return false;
+    if (running) {
+      setPassiveWorkerState(store, {
+        lastEventName: label,
+        pendingFileEvent: Boolean(pendingFileEvent),
+        lastError: `Skipped ${label}; worker is already running.`
+      });
+      return false;
+    }
     running = true;
+    const started = new Date();
+    setPassiveWorkerState(store, {
+      running: true,
+      lastEventName: label,
+      activeFileWatchCount: watchedFolders.size,
+      pendingFileEvent: Boolean(pendingFileEvent),
+      ...(label === 'tick' ? { lastTickAt: nowIso(started), nextTickAt: addMilliseconds(started, intervalMs) } : {})
+    }, started);
     try {
       await work();
     } catch (error) {
-      console.warn(`Passive task worker ${label} failed: ${describeError(error)}`);
+      const message = describeError(error);
+      setPassiveWorkerState(store, { lastError: message });
+      console.warn(`Passive task worker ${label} failed: ${message}`);
     } finally {
       running = false;
+      const finished = new Date();
+      setPassiveWorkerState(store, {
+        running: false,
+        activeFileWatchCount: watchedFolders.size,
+        pendingFileEvent: Boolean(pendingFileEvent),
+        ...(label === 'tick' ? { lastTickFinishedAt: nowIso(finished), nextTickAt: addMilliseconds(finished, intervalMs) } : {})
+      }, finished);
     }
     return true;
   };
@@ -2981,6 +3056,7 @@ export function startPassiveTaskWorker(
       watcher.close();
     }
     watchedFolders.clear();
+    setPassiveWorkerState(store, { activeFileWatchCount: 0 });
   };
   const fileWatcherEnabled = () => {
     const settings = store.passiveSettings ?? defaultPassiveSettings();
@@ -3014,6 +3090,11 @@ export function startPassiveTaskWorker(
       eventFilePath,
       eventKind
     };
+    setPassiveWorkerState(store, {
+      pendingFileEvent: true,
+      activeFileWatchCount: watchedFolders.size,
+      lastEventName: 'file.changed'
+    });
     if (fileEventTimer) clearTimeout(fileEventTimer);
     fileEventTimer = setTimeout(flushFileEvent, fileEventDebounceMs);
   };
@@ -3045,11 +3126,16 @@ export function startPassiveTaskWorker(
         console.warn(`Passive file watcher could not watch ${folder}: ${describeError(error)}`);
       }
     }
+    setPassiveWorkerState(store, {
+      activeFileWatchCount: watchedFolders.size,
+      pendingFileEvent: Boolean(pendingFileEvent)
+    });
   };
   const tick = async () =>
     runExclusive('tick', async () => {
       refreshFolderWatchers();
       const idle = await idleDetector(passiveIdleThresholdMinutes(store));
+      setPassiveWorkerState(store, { lastIdle: idle, pendingFileEvent: Boolean(pendingFileEvent) });
       const tickOptions: { externalFetch?: FetchLike; input?: PassiveRunInput } = {
         input: {
           reason: 'worker-tick',
@@ -3082,6 +3168,13 @@ export function startPassiveTaskWorker(
     clearInterval(interval);
     if (fileEventTimer) clearTimeout(fileEventTimer);
     closeFolderWatchers();
+    setPassiveWorkerState(store, {
+      running: false,
+      stoppedAt: nowIso(),
+      nextTickAt: undefined,
+      activeFileWatchCount: 0,
+      pendingFileEvent: false
+    });
   };
 }
 
@@ -3380,6 +3473,7 @@ export function buildPassiveSnapshot(store: MemoryStore): PassiveSnapshot {
     settings: store.passiveSettings ?? defaultPassiveSettings(),
     watchers: store.passiveWatchers,
     tasks: store.passiveTasks,
+    worker: passiveWorkerSnapshot(store),
     runs: store.passiveRuns.slice(0, 50),
     notifications: store.passiveNotifications.slice(0, 50),
     digest: buildPassiveDigest(store),

@@ -17,6 +17,7 @@ import {
   type PassiveRun,
   type PassiveTask,
   type PassiveWatcher,
+  type PassiveWorkerState,
   type PersonalSettings,
   type StudySession,
   type SyncEvent,
@@ -50,6 +51,7 @@ export interface MemoryStore {
   passiveSettings: PassiveEngineSettings | null;
   passiveWatchers: PassiveWatcher[];
   passiveTasks: PassiveTask[];
+  passiveWorker: PassiveWorkerState | null;
   passiveRuns: PassiveRun[];
   passiveNotifications: PassiveNotification[];
   passivePersistencePath?: string;
@@ -73,6 +75,7 @@ export function createMemoryStore(): MemoryStore {
     passiveSettings: null,
     passiveWatchers: [],
     passiveTasks: [],
+    passiveWorker: null,
     passiveRuns: [],
     passiveNotifications: []
   };

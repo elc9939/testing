@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
+    Activity,
     AlertTriangle,
     Bell,
     CheckCircle2,
@@ -66,6 +67,7 @@
   $: digestCards = topPassiveCards(snapshot);
   $: notifications = visiblePassiveNotifications(snapshot);
   $: familyRows = buildFamilyRows(snapshot, settings);
+  $: worker = snapshot?.worker ?? null;
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -93,6 +95,26 @@
     if (typeof run.durationMs !== 'number') return '';
     if (run.durationMs < 1000) return `${run.durationMs} ms`;
     return `${(run.durationMs / 1000).toFixed(1)} s`;
+  }
+
+  function displayInterval(ms: number | undefined): string {
+    if (!ms) return 'Not scheduled';
+    if (ms < 60_000) return `${Math.round(ms / 1000)} sec`;
+    return `${Math.round(ms / 60_000)} min`;
+  }
+
+  function workerStateLabel(): string {
+    if (!worker?.startedAt) return 'Not started';
+    if (!worker.enabled) return 'Disabled';
+    return worker.running ? 'Running' : 'Idle';
+  }
+
+  function workerIdleLine(): string {
+    if (!worker?.lastIdle) return 'No idle probe yet';
+    const idle = worker.lastIdle.idle ? 'idle' : 'active';
+    const minutes = typeof worker.lastIdle.idleMinutes === 'number' ? ` ${Math.round(worker.lastIdle.idleMinutes)} min` : '';
+    const errorText = worker.lastIdle.error ? ` - ${worker.lastIdle.error}` : '';
+    return `${idle}${minutes} via ${worker.lastIdle.source}${errorText}`;
   }
 
   function runMode(run: PassiveRun): string {
@@ -361,6 +383,10 @@
     <strong>{settings?.idleOnly ? 'Idle only' : 'Normal'}</strong>
   </div>
   <div>
+    <span>Worker</span>
+    <strong>{workerStateLabel()}</strong>
+  </div>
+  <div>
     <span>Active</span>
     <strong>{activeTasks.length}</strong>
   </div>
@@ -519,6 +545,51 @@
   </div>
 
   <aside class="side-column">
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Activity size={16} /></span>
+          <strong>Worker</strong>
+        </div>
+      </div>
+      {#if worker}
+        <div class="worker-grid">
+          <span>
+            <small>State</small>
+            <strong>{workerStateLabel()}</strong>
+          </span>
+          <span>
+            <small>Interval</small>
+            <strong>{displayInterval(worker.intervalMs)}</strong>
+          </span>
+          <span>
+            <small>Last tick</small>
+            <strong>{displayWhen(worker.lastTickFinishedAt ?? worker.lastTickAt)}</strong>
+          </span>
+          <span>
+            <small>Next tick</small>
+            <strong>{displayWhen(worker.nextTickAt)}</strong>
+          </span>
+          <span>
+            <small>Idle probe</small>
+            <strong>{workerIdleLine()}</strong>
+          </span>
+          <span>
+            <small>File watchers</small>
+            <strong>{worker.activeFileWatchCount}{worker.pendingFileEvent ? ' + pending file event' : ''}</strong>
+          </span>
+          {#if worker.lastError}
+            <span class="worker-error">
+              <small>Last worker issue</small>
+              <strong>{worker.lastError}</strong>
+            </span>
+          {/if}
+        </div>
+      {:else}
+        <p class="empty-note">Worker state appears after the API starts the passive task worker.</p>
+      {/if}
+    </article>
+
     <article class="card panel">
       <div class="panel-title">
         <div>
@@ -759,7 +830,7 @@
 
   .signal-strip {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 8px;
     margin-bottom: 10px;
   }
@@ -1014,6 +1085,44 @@
     display: grid;
     gap: 10px;
     padding: 10px;
+  }
+
+  .worker-grid {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .worker-grid span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .worker-grid small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .worker-grid strong {
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .worker-grid .worker-error {
+    border-color: var(--error-border);
+    background: var(--error-bg);
+  }
+
+  .worker-grid .worker-error strong {
+    color: var(--error-text);
   }
 
   .settings-form .field span {

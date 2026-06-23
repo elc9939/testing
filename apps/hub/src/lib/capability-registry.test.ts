@@ -129,6 +129,19 @@ function passiveSnapshot(partial: Partial<PassiveSnapshot> = {}): PassiveSnapsho
       }
     ],
     tasks: [],
+    worker: {
+      id: 'passive-worker',
+      enabled: true,
+      running: false,
+      startedAt: '2026-06-20T15:55:00.000Z',
+      lastTickAt: '2026-06-20T15:59:00.000Z',
+      lastTickFinishedAt: '2026-06-20T15:59:01.000Z',
+      nextTickAt: '2026-06-20T16:04:01.000Z',
+      intervalMs: 300_000,
+      activeFileWatchCount: 0,
+      pendingFileEvent: false,
+      updatedAt: '2026-06-20T16:00:00.000Z'
+    },
     runs: [],
     notifications: [],
     digest: [],

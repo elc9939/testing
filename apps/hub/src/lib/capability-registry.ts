@@ -482,6 +482,7 @@ function addPassiveTaskCapabilities(
   const activeWatchers = snapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
   const failures = snapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
   const enabled = snapshot?.settings.enabled;
+  const worker = snapshot?.worker;
   capabilities.push({
     id: 'passive-tasks.engine',
     label: 'Passive task engine',
@@ -499,6 +500,9 @@ function addPassiveTaskCapabilities(
       ? {
           watchers: snapshot.watchers.length,
           activeWatchers,
+          workerRunning: worker?.running ?? false,
+          workerStarted: Boolean(worker?.startedAt),
+          activeFileWatchers: worker?.activeFileWatchCount ?? 0,
           recentRuns: snapshot.runs.length,
           digest: snapshot.digest.length,
           failures
