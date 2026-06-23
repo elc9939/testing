@@ -611,6 +611,7 @@ export const passiveSnapshotSchema = z.object({
 export const passiveEnginePersistedStateSchema = z.object({
   version: z.literal(1),
   settings: passiveEngineSettingsSchema.nullable().default(null),
+  worker: passiveWorkerStateSchema.nullable().default(null),
   watchers: z.array(passiveWatcherSchema).default([]),
   triggers: z.array(passiveTriggerSchema).default([]),
   tasks: z.array(passiveTaskSchema).default([]),

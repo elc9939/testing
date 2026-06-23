@@ -4,6 +4,7 @@ import {
   actionLedgerEntrySchema,
   integrationConnectionSchema,
   passiveEnginePersistedStateSchema,
+  passiveWorkerStateSchema,
   type ActionLedgerEntry,
   type Achievement,
   type CareerActionRecord,
@@ -138,6 +139,15 @@ export function enablePassiveTaskPersistence(store: MemoryStore, path: string): 
   try {
     const parsed = passiveEnginePersistedStateSchema.parse(JSON.parse(readFileSync(path, 'utf8')) as unknown);
     store.passiveSettings = parsed.settings;
+    store.passiveWorker = parsed.worker
+      ? passiveWorkerStateSchema.parse({
+          ...parsed.worker,
+          running: false,
+          activeFileWatchCount: 0,
+          pendingFileEvent: false,
+          stoppedAt: parsed.worker.running ? new Date().toISOString() : parsed.worker.stoppedAt
+        })
+      : null;
     store.passiveWatchers = parsed.watchers;
     store.passiveTriggers = parsed.triggers;
     store.passiveTasks = parsed.tasks;
@@ -155,6 +165,7 @@ export function persistPassiveTasks(store: MemoryStore): void {
   const state = passiveEnginePersistedStateSchema.parse({
     version: 1,
     settings: store.passiveSettings,
+    worker: store.passiveWorker,
     watchers: store.passiveWatchers,
     triggers: store.passiveTriggers,
     tasks: store.passiveTasks,

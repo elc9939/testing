@@ -91,8 +91,10 @@ under `miniHub.attention.snapshot.v1`; cached attention is read-only while offli
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,
 and `Notification` state to `passive-tasks.json` in `MINI_HUB_DATA_DIR`, exposes live
-`Worker` state in the snapshot, logs runs into the Action Ledger, and exposes a snapshot
-with per-family freshness/errors. Explicit Mini Hub action events, including Passive Task
+`Worker` state in the snapshot, persists the worker's last-known state, logs runs into the
+Action Ledger, and exposes a snapshot with per-family freshness/errors. Runtime-only worker
+fields such as stale file watcher handles, pending file events, and `running` are cleared
+when passive state is loaded after a restart. Explicit Mini Hub action events, including Passive Task
 runs, watcher toggles, settings changes, card triage, and restore attempts, persist to the
 bounded `action-ledger.json` audit file in `MINI_HUB_DATA_DIR`; obvious secret/token fields
 are redacted before that file is written. The worker checks

@@ -1323,6 +1323,77 @@ describe('passive task engine', () => {
     }
   });
 
+  it('persists passive worker state while clearing stale runtime handles after restart', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-passive-worker-'));
+    try {
+      const watchedFolder = join(dir, 'watched');
+      mkdirSync(watchedFolder);
+      const path = passiveTasksPath(dir);
+      const first = createMemoryStore();
+      enablePassiveTaskPersistence(first, path);
+      ensurePassiveDefaults(first);
+      first.passiveSettings = { ...first.passiveSettings!, watchedFolders: [watchedFolder] };
+      persistPassiveTasks(first);
+
+      const stop = startPassiveTaskWorker(first, {
+        externalFetch: healthyServiceFetch(),
+        intervalMs: 60_000,
+        startupEventName: false,
+        idleDetector: (thresholdMinutes) => ({
+          idle: false,
+          thresholdMinutes,
+          checkedAt: '2026-06-20T10:00:00.000Z',
+          source: 'test-active-detector'
+        }),
+        folderWatcher: () => ({ close: () => {} })
+      });
+      let persisted = {} as { worker?: Record<string, unknown> };
+      try {
+        await waitForCondition(() => {
+          persisted = JSON.parse(readFileSync(path, 'utf8')) as { worker?: Record<string, unknown> };
+          return persisted.worker?.running === true || persisted.worker?.activeFileWatchCount === 1;
+        });
+        expect(persisted.worker).toMatchObject({
+          activeFileWatchCount: 1,
+          pendingFileEvent: false
+        });
+      } finally {
+        stop();
+      }
+
+      writeFileSync(
+        path,
+        JSON.stringify(
+          {
+            ...persisted,
+            worker: {
+              ...persisted.worker,
+              running: true,
+              activeFileWatchCount: 2,
+              pendingFileEvent: true
+            }
+          },
+          null,
+          2
+        ),
+        'utf8'
+      );
+
+      const second = createMemoryStore();
+      enablePassiveTaskPersistence(second, path);
+
+      expect(second.passiveWorker).toMatchObject({
+        running: false,
+        activeFileWatchCount: 0,
+        pendingFileEvent: false
+      });
+      expect(second.passiveWorker?.stoppedAt).toBeTruthy();
+      expect(buildPassiveSnapshot(second).worker.running).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('updates first-class trigger run state after a passive task fires', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
@@ -2141,5 +2212,28 @@ describe('passive task engine', () => {
     expect(paused.status).toBe('paused');
     expect(resumed.status).toBe('active');
     expect(store.actionEvents.map((event) => event.actionType)).toEqual(['passive.task.paused', 'passive.task.active']);
+  });
+
+  it('clears next-run surfaces when a passive task is cancelled', () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'project_drift')!;
+    const dueAt = '2026-06-20T09:00:00.000Z';
+    store.passiveTasks = store.passiveTasks.map((item) =>
+      item.id === task.id ? { ...item, nextRunAt: dueAt, trigger: { ...item.trigger, nextRunAt: dueAt } } : item
+    );
+    const cancelled = updatePassiveTaskStatus(store, task.id, 'cancelled');
+    const snapshot = buildPassiveSnapshot(store);
+    const trigger = snapshot.triggers.find((item) => item.id === task.trigger.id)!;
+    const watcher = snapshot.watchers.find((item) => item.id === task.watcherId)!;
+
+    expect(cancelled.status).toBe('cancelled');
+    expect(cancelled.nextRunAt).toBeUndefined();
+    expect(cancelled.trigger.nextRunAt).toBeUndefined();
+    expect(cancelled.retry.nextRetryAt).toBeUndefined();
+    expect(trigger.enabled).toBe(false);
+    expect(trigger.nextRunAt).toBeUndefined();
+    expect(watcher.nextRunAt).toBeUndefined();
+    expect(duePassiveTasks(store, new Date('2026-06-20T10:00:00.000Z')).some((item) => item.id === task.id)).toBe(false);
   });
 });

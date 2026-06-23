@@ -31,6 +31,9 @@ can be quieted from the same surface used to inspect their outputs.
 The snapshot and dashboard also expose live worker state: whether the background worker is
 started/running, its interval, last and next tick timestamps, last idle probe, active file
 watcher count, pending file event state, and the latest worker-level issue.
+That worker state is persisted as the last-known runner record, but restart load normalizes
+runtime-only fields so stale file watcher handles, pending file events, and an old `running`
+flag do not survive as live state.
 Watched accounts are matched against integration connection labels/ids. When the list is
 empty, App Health reports all broken integration connections; when it is set, only matching
 accounts surface as health findings and ignored connection issues are recorded in run
@@ -96,9 +99,10 @@ The shared core model includes:
 - `PassiveTask`: runnable unit with priority, status, retry/backoff, idle-only, last/next run,
   machine mode, source refs, and a bounded per-task error log that records failed/blocked
   run id, attempt, message, timestamp, and next retry.
-- `PassiveWorkerState`: live runner state for the API worker, including lifecycle timestamps,
-  tick cadence, last idle probe, active watched-folder count, pending file-event state, and
-  worker-level errors.
+- `PassiveWorkerState`: last-known runner state for the API worker, including lifecycle
+  timestamps, tick cadence, last idle probe, active watched-folder count, pending file-event
+  state, and worker-level errors. Restart load clears stale runtime handles before exposing
+  the state again.
 - `PassiveRun`: durable run record with status, timing, error, changed artifacts, and cards.
 - `PassiveResult`: first-class source-backed output with title, summary, urgency,
   confidence, source links/files, suggested action, and why it surfaced. Runs still embed

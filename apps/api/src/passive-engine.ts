@@ -775,6 +775,7 @@ function setPassiveWorkerState(store: MemoryStore, patch: Partial<PassiveWorkerS
     updatedAt: nowIso(date)
   });
   store.passiveWorker = next;
+  persistPassiveTasks(store);
   return next;
 }
 
@@ -4337,13 +4338,21 @@ export function updatePassiveTaskStatus(store: MemoryStore, taskId: string, stat
   if (index < 0) throw new Error('Passive task not found.');
   const existing = store.passiveTasks[index]!;
   const now = nowIso();
-  const nextRunAt = status === 'active' && !existing.nextRunAt ? computeNextRunAt(existing) : existing.nextRunAt;
+  const nextRunAt =
+    status === 'cancelled'
+      ? undefined
+      : status === 'active' && !existing.nextRunAt
+        ? computeNextRunAt(existing)
+        : existing.nextRunAt;
   const next = passiveTaskSchema.parse({
     ...existing,
     status,
     nextRunAt,
     trigger: { ...existing.trigger, nextRunAt },
-    retry: status === 'active' ? { ...existing.retry, attempts: 0, nextRetryAt: undefined } : existing.retry,
+    retry:
+      status === 'active' || status === 'cancelled'
+        ? { ...existing.retry, attempts: 0, nextRetryAt: undefined }
+        : existing.retry,
     updatedAt: now
   });
   store.passiveTasks[index] = next;
