@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import {
     AlertTriangle,
@@ -51,6 +52,11 @@
 
   $: selectedMacro = macros.find((macro) => macro.id === selectedId) ?? macros[0];
   $: capabilityReady = status?.capabilities.filter((capability) => capability.available).length ?? 0;
+  $: highlightedRunId = $page.url.searchParams.get('run') ?? '';
+  $: engineState = status ? (status.engine.panic ? 'panic' : status.ok ? 'ready' : 'check') : loading ? 'loading' : 'unknown';
+  $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'loading' : 'unknown';
+  $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'loading' : 'unknown';
+  $: serviceDetail = status ? `${status.version} at ${getMacroLabApiUrl()}` : `Target: ${getMacroLabApiUrl()}`;
 
   onMount(() => {
     void refresh();
@@ -211,19 +217,23 @@
 <section class="status-strip">
   <div class="metric">
     <span>Engine</span>
-    <strong class:bad={status?.engine.panic}>{status?.engine.panic ? 'panic' : 'ready'}</strong>
+    <strong class:bad={engineState === 'panic'} class:warn={engineState === 'unknown' || engineState === 'loading' || engineState === 'check'}>{engineState}</strong>
+    <small>{serviceDetail}</small>
   </div>
   <div class="metric">
     <span>Capabilities</span>
-    <strong>{capabilityReady}/{status?.capabilities.length ?? 0}</strong>
+    <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : loading ? 'loading' : 'unknown'}</strong>
+    <small>{status ? `${status.engine.action_count} action type${status.engine.action_count === 1 ? '' : 's'}` : 'Start Macro Lab, then refresh.'}</small>
   </div>
   <div class="metric">
     <span>Triggers</span>
-    <strong>{status?.triggers.enabled ? 'on' : 'off'}</strong>
+    <strong class:warn={triggerState === 'unknown' || triggerState === 'loading'}>{triggerState}</strong>
+    <small>{status ? `${status.engine.running} running automation${status.engine.running === 1 ? '' : 's'}` : 'Reload state is not known yet.'}</small>
   </div>
   <div class="metric">
     <span>Database</span>
-    <strong>{status?.integrity.ok ? 'ok' : 'check'}</strong>
+    <strong class:warn={databaseState === 'unknown' || databaseState === 'loading' || databaseState === 'check'}>{databaseState}</strong>
+    <small>{status ? 'Macro definitions and run history are reachable.' : 'Run history will appear after connection.'}</small>
   </div>
 </section>
 
@@ -242,6 +252,11 @@
         {#if macro.armed}<Shield size={15} />{/if}
       </button>
     {/each}
+    {#if loading && !macros.length}
+      <p class="empty-note">Loading macro definitions from Macro Lab...</p>
+    {:else if !macros.length}
+      <p class="empty-note">{error ? 'Macro definitions are unavailable until the service responds.' : 'No macros are registered yet. Create one with the plus button.'}</p>
+    {/if}
   </aside>
 
   <main class="editor card">
@@ -267,6 +282,12 @@
         <button class="button danger" disabled={busy} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
         <button class="button" disabled={busy} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
       </div>
+    {:else}
+      <div class="empty-panel">
+        <Keyboard size={20} />
+        <strong>{loading ? 'Loading macro editor' : 'No macro selected'}</strong>
+        <p>{error ? 'Connect the Macro Lab service to edit and run macros.' : 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.'}</p>
+      </div>
     {/if}
   </main>
 </section>
@@ -285,6 +306,11 @@
           <small>{action.description}</small>
         </div>
       {/each}
+      {#if loading && !actions.length}
+        <p class="empty-note">Loading action catalog...</p>
+      {:else if !actions.length}
+        <p class="empty-note">{error ? 'Action catalog unavailable until Macro Lab responds.' : 'No action types are registered yet.'}</p>
+      {/if}
     </div>
   </div>
 
@@ -306,16 +332,23 @@
 <section class="card card-pad runs">
   <div class="panel-head">
     <strong>Run History</strong>
-    <span>{runs.length}</span>
+    <span>{highlightedRunId ? `Activity: ${highlightedRunId}` : `${runs.length}`}</span>
   </div>
   <div class="run-table">
     {#each runs as run}
-      <div>
+      <div class:selected={run.id === highlightedRunId}>
         <strong>{run.macro_name}</strong>
         <span class:ok={run.status === 'succeeded' || run.status === 'dry_run'} class:bad={run.status === 'failed'}>{run.status}</span>
         <small>{run.started_at}</small>
       </div>
     {/each}
+    {#if loading && !runs.length}
+      <p class="empty-note">Loading recent Macro Lab runs...</p>
+    {:else if !runs.length}
+      <p class="empty-note">{error ? 'Run history is unavailable until Macro Lab responds.' : 'No macro runs have been recorded yet.'}</p>
+    {:else if highlightedRunId && !runs.some((run) => run.id === highlightedRunId)}
+      <p class="empty-note">The linked Activity run is not in the latest {runs.length} Macro Lab runs. Refresh or open Activity for the durable record.</p>
+    {/if}
   </div>
 </section>
 
@@ -345,6 +378,11 @@
 
   .metric strong {
     font-size: 18px;
+  }
+
+  .metric small {
+    color: var(--muted);
+    line-height: 1.35;
   }
 
   .workspace {
@@ -393,6 +431,34 @@
 
   small {
     color: var(--muted);
+  }
+
+  .empty-note {
+    margin: 0;
+    padding: 12px 14px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .empty-panel {
+    display: grid;
+    gap: 8px;
+    min-height: 260px;
+    place-content: center;
+    justify-items: center;
+    padding: 24px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .empty-panel strong {
+    color: var(--text);
+  }
+
+  .empty-panel p {
+    max-width: 420px;
+    margin: 0;
+    line-height: 1.45;
   }
 
   .editor {
@@ -486,6 +552,13 @@
     gap: 4px 10px;
     padding: 10px 0;
     border-bottom: 1px solid var(--border);
+  }
+
+  .run-table div.selected {
+    border-color: var(--accent);
+    border-radius: 6px;
+    padding: 10px;
+    background: var(--active);
   }
 
   .catalog small,

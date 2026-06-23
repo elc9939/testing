@@ -114,8 +114,10 @@ The hub also has an Activity / Handoff surface at `/activity`. It is not a separ
 database; it is a recovery projection over backend-persisted source records. Research runs
 link to `/research?run=<id>`, AI jobs/backups/benchmarks link to AI OS, passive runs link to
 Passive Tasks, and Macro Lab runs link to Macro Lab. The Activity page loads a last-good
-browser cache first, then refreshes AI OS, Passive Tasks, and Macro Lab independently so one
-offline service creates a partial-data warning rather than wiping out the rest of the list.
+browser cache first, then refreshes AI OS, Passive Tasks, and Macro Lab independently with
+per-source timeouts so one slow or offline service creates a partial-data warning rather than
+wiping out or blocking the rest of the list. If all live Activity sources fail but a previous
+durable list exists in browser storage, the cached records stay visible as stale partial data.
 If a task seems to disappear after switching pages or refreshing, open Activity first: active
 and recent durable work should be recoverable there, while purely visual drafts stay in
 browser storage on their owning page.

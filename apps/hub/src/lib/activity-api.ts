@@ -9,6 +9,7 @@ export interface ActivitySourceState {
   id: string;
   label: string;
   ok: boolean;
+  state: 'ok' | 'error' | 'timeout';
   error?: string;
   count: number;
 }
@@ -50,16 +51,61 @@ function writeActivityCache(snapshot: ActivitySnapshot): string {
 }
 
 function source(id: string, label: string, ok: boolean, count: number, error?: string): ActivitySourceState {
-  return { id, label, ok, count, ...(error ? { error } : {}) };
+  return {
+    id,
+    label,
+    ok,
+    state: ok ? 'ok' : error && /timed out/iu.test(error) ? 'timeout' : 'error',
+    count,
+    ...(error ? { error } : {})
+  };
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : 'Request failed.';
 }
 
-export async function loadActivitySnapshot(limit = 40): Promise<ActivitySnapshot> {
+export async function settleActivitySource<T>(
+  label: string,
+  promise: Promise<T>,
+  timeoutMs = 6_000
+): Promise<PromiseSettledResult<T>> {
+  let settled = false;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ status: 'rejected', reason: new Error(`${label} timed out after ${timeoutMs} ms.`) });
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ status: 'fulfilled', value });
+      },
+      (reason) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ status: 'rejected', reason });
+      }
+    );
+  });
+}
+
+export async function loadActivitySnapshot(
+  limit = 40,
+  options: { sourceTimeoutMs?: number } = {}
+): Promise<ActivitySnapshot> {
   const checkedAt = new Date().toISOString();
-  const [ai, passive, macro] = await Promise.allSettled([getAiStatus(), getPassiveSnapshot(), listMacroRuns(30)]);
+  const timeoutMs = options.sourceTimeoutMs ?? 6_000;
+  const [ai, passive, macro] = await Promise.all([
+    settleActivitySource('AI OS activity source', getAiStatus(), timeoutMs),
+    settleActivitySource('Passive Tasks activity source', getPassiveSnapshot(), timeoutMs),
+    settleActivitySource('Macro Lab activity source', listMacroRuns(30), timeoutMs)
+  ]);
 
   const aiStatus = ai.status === 'fulfilled' ? ai.value : null;
   const passiveSnapshot = passive.status === 'fulfilled' ? passive.value : null;
@@ -83,6 +129,20 @@ export async function loadActivitySnapshot(limit = 40): Promise<ActivitySnapshot
     ],
     errors
   };
+
+  const cached = errors.length && records.length === 0 ? readActivityCache() : null;
+  if (cached?.records.length) {
+    return {
+      ...snapshot,
+      cachedAt: cached.cachedAt,
+      stale: true,
+      partial: true,
+      active: activityHasActiveWork(cached.records),
+      records: cached.records,
+      errors: [...errors, 'Showing cached Activity records because live sources are unavailable.']
+    };
+  }
+
   snapshot.cachedAt = writeActivityCache(snapshot);
   return snapshot;
 }

@@ -110,6 +110,7 @@
 
   function sourceLine(source: ActivitySourceState): string {
     if (source.ok) return `${source.count} record${source.count === 1 ? '' : 's'}`;
+    if (source.state === 'timeout') return 'timed out; cached work remains visible';
     return source.error || 'unavailable';
   }
 </script>
