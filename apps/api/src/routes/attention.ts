@@ -6,6 +6,7 @@ import {
   attentionTriageStateSchema,
   personalSettingsSchema,
   personalWorkspaceId,
+  routeMap,
   type AttentionAction,
   type AttentionActionKind,
   type AttentionItem,
@@ -15,6 +16,7 @@ import {
   type AttentionTriageState,
   type CalendarEvent,
   type GmailThread,
+  type PassiveSourceStatus,
   type PersonalSettings
 } from '@mini-hub/core';
 import { Hono } from 'hono';
@@ -25,7 +27,13 @@ import { triageGmailThreads } from '../integrations/email-triage';
 import { GoogleCalendarConnector, GoogleGmailConnector } from '../integrations/google';
 import { getConnections as getStoredConnections } from '../integrations/token-vault';
 import type { CalendarConnector } from '../integrations/types';
-import { buildPassiveSourceStatuses, collectPassiveAttentionItems, runPassiveTask, updatePassiveCardTriage } from '../passive-engine';
+import {
+  buildPassiveSourceStatuses,
+  collectPassiveAttentionItems,
+  ensurePassiveDefaults,
+  runPassiveTask,
+  updatePassiveCardTriage
+} from '../passive-engine';
 import {
   appendSyncEvent,
   ensurePersonalWorkspace,
@@ -1124,7 +1132,91 @@ function manualItems(store: MemoryStore): SourceResult {
   };
 }
 
+function passiveSourceTaskId(source: PassiveSourceStatus): string {
+  const taskId = source.details.taskId;
+  return typeof taskId === 'string' && taskId.trim() ? taskId : source.id;
+}
+
+function passiveSourceIssuePriority(source: PassiveSourceStatus): number {
+  const details = source.details ?? {};
+  const lastRunStatus = typeof details.lastRunStatus === 'string' ? details.lastRunStatus : '';
+  const scheduleState = typeof details.scheduleState === 'string' ? details.scheduleState : '';
+  const backupStatus = typeof details.backupStatus === 'string' ? details.backupStatus : '';
+  if (lastRunStatus === 'failed' || lastRunStatus === 'blocked') return 82;
+  if (scheduleState === 'overdue') return 78;
+  if (backupStatus === 'error') return 76;
+  return 70;
+}
+
+function passiveSourceIssueDetail(source: PassiveSourceStatus): string {
+  const details = source.details ?? {};
+  const parts: string[] = [];
+  if (source.error) parts.push(source.error);
+  const scheduleState = typeof details.scheduleState === 'string' ? details.scheduleState.replaceAll('_', ' ') : '';
+  if (scheduleState) parts.push(`schedule ${scheduleState}`);
+  const backupStatus = typeof details.backupStatus === 'string' ? details.backupStatus : '';
+  if (backupStatus) {
+    const snapshotCount = typeof details.snapshotCount === 'number' ? details.snapshotCount : undefined;
+    parts.push(`restore ${backupStatus}${snapshotCount !== undefined ? `, ${snapshotCount} snapshot${snapshotCount === 1 ? '' : 's'}` : ''}`);
+  }
+  const nextRunAt = typeof details.nextRunAt === 'string' ? details.nextRunAt : '';
+  if (nextRunAt) parts.push(`next ${nextRunAt}`);
+  return parts.filter(Boolean).join(' · ') || `${source.label} reported a passive source-health issue.`;
+}
+
+function passiveSourceIssueItems(sourceStatuses: PassiveSourceStatus[], digestItems: AttentionItem[]): AttentionItem[] {
+  const coveredTaskIds = new Set(
+    digestItems
+      .map((item) => {
+        const taskId = item.metadata.taskId;
+        return typeof taskId === 'string' ? taskId : '';
+      })
+      .filter(Boolean)
+  );
+  return sourceStatuses
+    .filter((source) => source.status === 'error')
+    .filter((source) => !coveredTaskIds.has(passiveSourceTaskId(source)))
+    .slice(0, 4)
+    .map((source) => {
+      const taskId = passiveSourceTaskId(source);
+      const priority = passiveSourceIssuePriority(source);
+      return parseAttentionItem({
+        id: `passive-source:${source.id}:${taskId}`,
+        source: 'passive_task',
+        sourceId: taskId,
+        title: `${source.label} needs attention`,
+        detail: passiveSourceIssueDetail(source),
+        route: routeMap.passiveTasks,
+        dueAt: source.fetchedAt,
+        priority,
+        status: priority >= 85 ? 'blocked' : 'active',
+        actionKind: 'inspect',
+        actions: [
+          action('inspect', 'Inspect', { route: routeMap.passiveTasks }),
+          action('snooze', 'Snooze', { route: routeMap.passiveTasks, requiresOnline: true, risk: 'write' }),
+          action('dismiss', 'Dismiss', { route: routeMap.passiveTasks, requiresOnline: true, risk: 'write' })
+        ],
+        recoverability: {
+          kind: 'snapshot',
+          route: routeMap.passiveTasks,
+          description: 'Passive source-health items are derived from persisted passive task state and can be dismissed from Today.',
+          reversible: true
+        },
+        readOnly: false,
+        writable: true,
+        metadata: {
+          passiveSourceId: source.id,
+          taskId,
+          sourceStatus: source.status,
+          sourceError: source.error,
+          sourceDetails: source.details
+        }
+      });
+    });
+}
+
 function collectPassiveTaskItems(store: MemoryStore): SourceResult {
+  ensurePassiveDefaults(store);
   const sourceStatuses = buildPassiveSourceStatuses(store);
   const fetchedAt =
     sourceStatuses
@@ -1133,7 +1225,8 @@ function collectPassiveTaskItems(store: MemoryStore): SourceResult {
       .sort((a, b) => timeValue(b) - timeValue(a))[0] ?? new Date().toISOString();
   const firstError = sourceStatuses.find((source) => source.status === 'error')?.error;
   const allUnavailable = sourceStatuses.length > 0 && sourceStatuses.every((source) => source.status === 'unavailable');
-  const items = collectPassiveAttentionItems(store);
+  const digestItems = collectPassiveAttentionItems(store);
+  const items = [...digestItems, ...passiveSourceIssueItems(sourceStatuses, digestItems)];
   return {
     items,
     source: sourceStatus({

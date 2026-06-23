@@ -82,10 +82,11 @@ references plus display/action metadata from Google Calendar, Gmail priority thr
 Career Desk jobs/actions, Study Desk signals, AI OS jobs/health/backups/benchmarks,
 Macro Lab status/run history, Research monitors/runs, Passive Task output cards, local
 service health, and any manual attention items already stored in personal settings. Source
-freshness and source errors are returned alongside the items, so partial failures are visible instead of
-silently dropping data. User triage state, including dismissed, snoozed, manually
-important, completed, and archived items, is persisted through synced personal settings
-under the existing sync path. The hub client caches only the last successful real snapshot
+freshness and source errors are returned alongside the items, and serious passive source-health
+issues can become capped inspectable Today items when no passive result card already covers
+them, so partial failures are visible instead of silently dropping data. User triage state,
+including dismissed, snoozed, manually important, completed, and archived items, is persisted
+through synced personal settings under the existing sync path. The hub client caches only the last successful real snapshot
 under `miniHub.attention.snapshot.v1`; cached attention is read-only while offline.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
@@ -178,7 +179,9 @@ the same disabled, paused, cancelled, and running task guards as the Passive Tas
 Passive source health records schedule state, last-run age, schedule lag, next run, mode
 deferral, and idle deferral; enabled scheduled work that misses its run window beyond the
 worker grace period becomes a visible source issue, while idle-only work waiting for an
-active machine stays quiet with `waiting_for_idle` evidence.
+active machine stays quiet with `waiting_for_idle` evidence. Today also receives capped
+passive source-health inspect items for uncovered source errors, such as missing restore
+points, so safety problems are visible before a full App Health digest card exists.
 App Health also actively probes the configured Mini Hub public page and the local Mini Hub
 API `/api/health` endpoint, records `serviceChecks` evidence on the run, and raises
 source-backed cards when either surface is unavailable.

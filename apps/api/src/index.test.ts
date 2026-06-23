@@ -1575,6 +1575,51 @@ describe('mini hub api', () => {
     expect(body.items).toContainEqual(expect.objectContaining({ id: 'service:ai-os-unavailable', status: 'blocked' }));
   });
 
+  it('surfaces passive source-health issues as Today attention items', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-attention-passive-source-'));
+    const previousDataDir = env.dataDir;
+    try {
+      env.dataDir = dir;
+      const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store: createMemoryStore() });
+
+      const response = await app.request('/api/attention/snapshot');
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        items: Array<{
+          id: string;
+          source: string;
+          title: string;
+          route: string;
+          detail: string;
+          actions: Array<{ kind: string }>;
+          metadata: Record<string, unknown>;
+        }>;
+        sources: Array<{ id: string; status: string; error?: string; itemCount?: number }>;
+      };
+      const passiveIssue = body.items.find((item) => item.id === 'passive-source:backup_snapshot:passive-task:backup-snapshot');
+
+      expect(passiveIssue).toMatchObject({
+        source: 'passive_task',
+        title: 'Backup + Snapshot Watcher needs attention',
+        route: '/passive-tasks',
+        metadata: {
+          passiveSourceId: 'backup_snapshot',
+          taskId: 'passive-task:backup-snapshot',
+          sourceStatus: 'error'
+        }
+      });
+      expect(passiveIssue?.detail).toContain('restore snapshot directory does not exist');
+      expect(passiveIssue?.actions.map((item) => item.kind)).toEqual(['inspect', 'snooze', 'dismiss']);
+      expect(body.sources.find((source) => source.id === 'passive_task')).toMatchObject({
+        status: 'error',
+        itemCount: expect.any(Number)
+      });
+    } finally {
+      env.dataDir = previousDataDir;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('persists dismissed attention triage state through synced settings', async () => {
     const store = createMemoryStore();
     const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store });

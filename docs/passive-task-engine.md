@@ -2,7 +2,9 @@
 
 Mini Hub's Passive Task Engine is the background layer beneath Today. It creates durable,
 source-backed result cards from real local signals, then lets the unified attention queue
-surface only the cards that need action.
+surface only the cards that need action. Passive source-health errors that are not already
+covered by a result card become capped inspectable Today items, so important background
+failures remain visible without turning every low-value run into a queue item.
 
 ## Surfaces
 
@@ -240,8 +242,10 @@ normal API startup.
 - Watched accounts scope integration-account health findings. Account labels, connection ids,
   `provider:account` tokens, `@domain` suffixes, and plain email domains can match; unmatched
   broken connections are tracked in metadata but kept out of the digest.
-- Lower-urgency output stays in the Passive Tasks dashboard result history. Today only
-  receives high-urgency digest cards through the `passive_task` attention source.
+- Lower-urgency output stays in the Passive Tasks dashboard result history. Today receives
+  high-urgency digest cards through the `passive_task` attention source, plus a capped set
+  of uncovered passive source-health errors such as missing restore points or overdue
+  enabled scheduled work.
 - Routine digest cards automatically age out of Today/passive digest surfaces after 7 days,
   and urgent cards after 30 days, unless marked important or tied to unresolved failed/blocked
   runs. The underlying run history and source-backed result rows are retained.
