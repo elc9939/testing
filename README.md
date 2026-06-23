@@ -268,6 +268,9 @@ Implemented now:
   URL and popup/redirect mode. When the hub and API run on different origins, account
   linking uses the hub's own `/oauth/google/callback` route first, then hands the one-time
   code to the local API for encrypted token storage and returns to the original hub tab.
+  The hosted callback keeps same-origin return state as the final fallback, so adding a
+  school account from GitHub Pages does not bounce into a localhost hub page just because
+  the local API is configured for development.
   Direct API-started OAuth URLs still support the API-hosted callback. The Productivity
   page includes an account setup panel that explains this flow for personal plus school
   accounts.

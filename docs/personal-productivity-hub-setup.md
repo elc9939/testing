@@ -184,7 +184,10 @@ The iCal path is deadline ingestion only. Those records should be marked read-on
 - `Google OAuth is not configured`: `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing.
 - `redirect_uri_mismatch`: the URI in Google Cloud does not exactly match the callback the flow requested. Register the API callback and each hub callback you actually use, for example the local hub callback and the GitHub Pages callback listed above.
 - OAuth returns to the wrong hub page: make sure the page origin is listed in `TRUSTED_ORIGINS`.
-  Trusted origins, not full paths, are allowed for signed `returnTo` redirects.
+  Trusted origins, not full paths, are allowed for signed `returnTo` redirects. The hosted
+  hub callback also prefers the same-origin `returnTo` carried in OAuth state/session storage,
+  so connecting a second Google account from GitHub Pages should return to the same GitHub
+  Pages tab even when the local API is configured with a localhost `HUB_PUBLIC_URL`.
 - `Google connection needs reauthorization`: Google did not return or no longer accepts the refresh token. Revoke and reconnect.
 - Provider `429`: wait and retry; the API maps rate-limit style errors separately so retry/backoff can be added cleanly.
 

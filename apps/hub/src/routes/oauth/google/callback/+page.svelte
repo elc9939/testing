@@ -1,16 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { exchangeGoogleOAuthCode, type GoogleOAuthExchangeResult } from '$lib/productivity-api';
+  import {
+    googleOAuthRedirectForCurrentHub,
+    googleOAuthReturnToStorageKey,
+    googleOAuthStateReturnTo
+  } from '$lib/productivity-oauth';
   import { hubHref } from '$lib/routes';
 
   let title = 'Finishing Google connection';
   let detail = 'Mini Hub is saving the Google OAuth grant through your local API.';
+  let stateReturnTo = '';
 
   function fallbackRedirectUrl(status: string, message?: string): string {
     const target = new URL(hubHref('/productivity'), window.location.origin);
     target.searchParams.set('google', status);
     if (message) target.searchParams.set('message', message);
     return target.toString();
+  }
+
+  function storedReturnTo(): string {
+    try {
+      return sessionStorage.getItem(googleOAuthReturnToStorageKey) ?? '';
+    } catch {
+      return '';
+    }
   }
 
   function failureResult(message: string, status = 'error'): GoogleOAuthExchangeResult {
@@ -23,7 +37,15 @@
   }
 
   function finish(result: GoogleOAuthExchangeResult): void {
-    const redirectUrl = result.redirectUrl || fallbackRedirectUrl(result.status, result.message);
+    const redirectUrl = googleOAuthRedirectForCurrentHub({
+      redirectUrl: result.redirectUrl,
+      stateReturnTo,
+      storedReturnTo: storedReturnTo(),
+      currentOrigin: window.location.origin,
+      fallbackUrl: fallbackRedirectUrl(result.status, result.message),
+      status: result.status,
+      message: result.message
+    });
     const message = {
       type: 'mini-hub:google-oauth',
       provider: 'google',
@@ -60,6 +82,7 @@
       const oauthErrorDescription = params.get('error_description');
       const code = params.get('code');
       const state = params.get('state');
+      stateReturnTo = googleOAuthStateReturnTo(state ?? undefined);
 
       if (oauthError) {
         finish(failureResult(oauthErrorDescription || oauthError));

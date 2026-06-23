@@ -25,7 +25,7 @@
   import { attentionStore } from '$lib/attention-store';
   import { getApiUrl } from '$lib/api';
   import { canAutoSave, clientData } from '$lib/client-data';
-  import { googleOAuthCallbackModeForUrls } from '$lib/productivity-oauth';
+  import { googleOAuthCallbackModeForUrls, googleOAuthReturnToStorageKey } from '$lib/productivity-oauth';
   import {
     archiveGmailThread,
     createGmailDraft,
@@ -66,7 +66,6 @@
 
   const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles';
   const productivityCacheKey = 'miniHub.productivity.cache.v1';
-  const googleOAuthReturnToKey = 'miniHub.googleOAuth.returnTo.v1';
   const defaultGmailQuery = [
     'in:inbox newer_than:14d',
     '-category:promotions',
@@ -189,7 +188,7 @@
   function rememberGoogleReturnTo(value: string | undefined): void {
     if (!value || typeof sessionStorage === 'undefined') return;
     try {
-      sessionStorage.setItem(googleOAuthReturnToKey, value);
+      sessionStorage.setItem(googleOAuthReturnToStorageKey, value);
     } catch {
       // Session storage is only a best-effort breadcrumb for OAuth diagnostics.
     }
@@ -542,8 +541,11 @@
 
   async function handleGoogleOAuthMessage(event: MessageEvent): Promise<void> {
     if (!isGoogleOAuthMessage(event.data)) return;
-    if (!isCurrentHubUrl(event.data.redirectUrl)) return;
-    if (googleOAuthPopup && event.source !== googleOAuthPopup) return;
+    if (googleOAuthPopup) {
+      if (event.source !== googleOAuthPopup) return;
+    } else if (!isCurrentHubUrl(event.data.redirectUrl)) {
+      return;
+    }
     if (googleOAuthPopup && !googleOAuthPopup.closed) {
       googleOAuthPopup.close();
     }
