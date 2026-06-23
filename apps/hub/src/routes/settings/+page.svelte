@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Activity, ArrowRight, Cloud, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
-  import type { ActionLedgerEntry, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
+  import type { ActionLedgerEntry, PassiveBackupHealth, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
   import {
     actionLedgerDetail,
     actionLedgerRiskLabel,
@@ -89,6 +89,7 @@
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
   $: passiveSettings = passiveSnapshot?.settings ?? null;
+  $: passiveBackupHealth = passiveSnapshot?.backupHealth ?? null;
   $: passiveEnabledWatchers = passiveSnapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
   $: passiveFailures = passiveSnapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
   $: passiveFamilyRows = passiveSnapshot?.watchers.map((watcher) => ({
@@ -458,6 +459,46 @@
     return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} tok/s` : 'not measured';
   }
 
+  function formatBytes(value: number | undefined): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${value} B`;
+  }
+
+  function formatSnapshotAge(value: number | undefined): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+    if (value >= 48) return `${Math.round(value / 24)} d`;
+    if (value >= 1) return `${Math.round(value)} hr`;
+    return '<1 hr';
+  }
+
+  function compactFileName(value: string | undefined): string {
+    if (!value) return 'None';
+    const parts = value.split(/[\\/]/u).filter(Boolean);
+    return parts[parts.length - 1] ?? value;
+  }
+
+  function backupHealthLabel(health: PassiveBackupHealth | null): string {
+    if (!health) return 'n/a';
+    if (health.status === 'ok') return 'Verified';
+    if (health.status === 'warning') return health.stale ? 'Stale' : 'Review';
+    return 'Needs setup';
+  }
+
+  function backupHealthClass(health: PassiveBackupHealth | null): string {
+    if (!health) return 'unknown';
+    return health.status;
+  }
+
+  function backupHealthDetail(health: PassiveBackupHealth): string {
+    if (!health.latestPath) return health.error ?? 'No Mini Hub restore point is available yet.';
+    const cleanup = health.cleanupCandidateCount
+      ? ` Cleanup dry-run: ${health.cleanupCandidateCount} candidate${health.cleanupCandidateCount === 1 ? '' : 's'} (${formatBytes(health.cleanupBytes)}).`
+      : '';
+    return `${compactFileName(health.latestPath)} is ${formatSnapshotAge(health.latestAgeHours)} old, ${formatBytes(health.latestBytes)}, sha ${health.latestSha256?.slice(0, 12) ?? 'n/a'}.${cleanup}`;
+  }
+
   onMount(() => {
     loadEndpointInputs();
     void clientData.init();
@@ -693,7 +734,24 @@
         <span>Failures</span>
         <strong>{passiveFailures}</strong>
       </div>
+      <div>
+        <span>Backups</span>
+        <strong>{backupHealthLabel(passiveBackupHealth)}</strong>
+      </div>
     </div>
+
+    {#if passiveBackupHealth}
+      <div class={`passive-backup-health ${backupHealthClass(passiveBackupHealth)}`}>
+        <span>
+          <strong>Restore point health</strong>
+          <small>{backupHealthDetail(passiveBackupHealth)}</small>
+          {#if passiveBackupHealth.error}
+            <em>{passiveBackupHealth.error}</em>
+          {/if}
+        </span>
+        <a class="button compact" href={hubHref('/passive-tasks')}>Open Restore Points</a>
+      </div>
+    {/if}
 
     <div class="passive-control-grid">
       <label class="toggle-row">
@@ -1503,7 +1561,7 @@
 
   .passive-summary {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     border: 1px solid var(--border);
     border-radius: 6px;
     overflow: hidden;
@@ -1533,6 +1591,46 @@
     color: var(--muted);
     font-size: 12px;
     font-weight: 800;
+  }
+
+  .passive-backup-health {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 58px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .passive-backup-health.warning {
+    border-color: var(--warning-border);
+    background: var(--warning-bg);
+  }
+
+  .passive-backup-health.error {
+    border-color: var(--danger-border);
+    background: var(--danger-bg);
+  }
+
+  .passive-backup-health span {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .passive-backup-health small,
+  .passive-backup-health em {
+    color: var(--muted);
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1.35;
+  }
+
+  .passive-backup-health.error em {
+    color: var(--danger-text);
   }
 
   .passive-control-grid,
@@ -1763,6 +1861,10 @@
     .passive-control-grid,
     .passive-family-grid,
     .passive-scope-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .passive-backup-health {
       grid-template-columns: 1fr;
     }
 

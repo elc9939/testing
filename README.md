@@ -185,7 +185,9 @@ It now verifies Mini Hub's own local restore snapshot surface too: the newest
 with `miniHubSnapshotHealth` metadata and cards for missing, stale, or invalid snapshots.
 The Passive Tasks dashboard also has a Restore Points panel backed by the same snapshot
 verification path, so backup freshness and cleanup pressure are visible without opening raw
-run metadata.
+run metadata. Settings shows the same restore-point summary, and Capability Registry marks
+Passive Tasks degraded when restore points are missing, stale, invalid, or under cleanup
+pressure.
 Watched accounts now scope integration-account health findings: if the list is empty,
 App Health reports every broken connection, and if it is set, only matching account labels,
 connection ids, `provider:account` tokens, or account domains appear in source-backed cards.

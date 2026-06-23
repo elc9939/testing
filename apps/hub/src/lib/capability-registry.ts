@@ -483,19 +483,36 @@ function addPassiveTaskCapabilities(
   const failures = snapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
   const enabled = snapshot?.settings.enabled;
   const worker = snapshot?.worker;
+  const backupHealth = snapshot?.backupHealth;
+  const backupIssue = Boolean(backupHealth && backupHealth.status !== 'ok');
+  const passiveError =
+    error ||
+    snapshot?.errors[0] ||
+    backupHealth?.error ||
+    (backupIssue ? `Restore points need attention: ${backupHealth?.status}` : undefined);
   capabilities.push({
     id: 'passive-tasks.engine',
     label: 'Passive task engine',
     description: 'Scheduled, idle, and event-style watchers that surface source-backed background work into Today.',
     service: 'passive-tasks',
-    state: snapshot ? (enabled ? (failures ? 'degraded' : activeWatchers ? 'running' : 'needs_setup') : 'needs_setup') : error ? 'offline' : 'needs_setup',
+    state: snapshot
+      ? enabled
+        ? failures || backupIssue
+          ? 'degraded'
+          : activeWatchers
+            ? 'running'
+            : 'needs_setup'
+        : 'needs_setup'
+      : error
+        ? 'offline'
+        : 'needs_setup',
     available: Boolean(snapshot && enabled),
     locality: 'local',
     cost: 'free',
     safety: 'system',
     route: '/passive-tasks',
     requiredService: 'Mini Hub API passive task store',
-    lastError: error || snapshot?.errors[0],
+    lastError: passiveError,
     metrics: snapshot
       ? {
           watchers: snapshot.watchers.length,
@@ -507,7 +524,11 @@ function addPassiveTaskCapabilities(
           recentRuns: snapshot.runs.length,
           results: snapshot.results.length,
           digest: snapshot.digest.length,
-          failures
+          failures,
+          backupOk: backupHealth?.ok ?? false,
+          backupStatus: backupHealth?.status ?? 'unknown',
+          snapshots: backupHealth?.snapshotCount ?? 0,
+          cleanupCandidates: backupHealth?.cleanupCandidateCount ?? 0
         }
       : undefined,
     tags: ['background', 'scheduler']

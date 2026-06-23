@@ -58,6 +58,8 @@ metadata, and warns when no local restore point exists, the newest one is stale,
 newest one cannot be read back safely.
 The Passive Tasks dashboard exposes the same evidence in a Restore Points panel, so backup
 health is visible even before an App Health card is important enough for the digest.
+Settings shows a compact restore-point health row, and Capability Registry degrades the
+Passive Tasks capability when `backupHealth` is not `ok`.
 
 State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Action Ledger events emitted
 by passive runs, watcher toggles, settings changes, and card triage persist separately to the

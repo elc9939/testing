@@ -244,6 +244,38 @@ describe('capability registry', () => {
     expect(capabilityServiceLabel('passive-tasks')).toBe('Passive Tasks');
   });
 
+  it('degrades passive tasks when restore point health needs attention', () => {
+    const snapshot = buildCapabilityRegistry({
+      isOnline: true,
+      syncStatus: 'idle',
+      googleConnected: false,
+      passiveSnapshot: passiveSnapshot({
+        backupHealth: {
+          checkedAt: '2026-06-20T16:00:00.000Z',
+          ok: false,
+          status: 'error',
+          snapshotRoot: 'C:\\mini-hub-data\\passive-snapshots',
+          snapshotCount: 0,
+          stale: false,
+          latestSummary: {},
+          latestRedactedTokenSets: 0,
+          cleanupCandidateCount: 0,
+          cleanupBytes: 0,
+          error: 'Mini Hub restore snapshot directory does not exist yet.'
+        }
+      })
+    });
+    const capability = snapshot.capabilities.find((item) => item.id === 'passive-tasks.engine');
+
+    expect(capability?.state).toBe('degraded');
+    expect(capability?.lastError).toContain('restore snapshot directory');
+    expect(capability?.metrics).toMatchObject({
+      backupOk: false,
+      backupStatus: 'error',
+      snapshots: 0
+    });
+  });
+
   it('formats a compact assistant-friendly capability context', () => {
     const snapshot = buildCapabilityRegistry({
       checkedAt: '2026-06-20T16:00:00.000Z',
