@@ -1,5 +1,5 @@
 import { env as publicEnv } from '$env/dynamic/public';
-import { requestServiceJson, resolveServiceUrl } from './service-config';
+import { requestServiceJson, requestServiceResponse, resolveServiceUrl } from './service-config';
 
 export function getAiOsApiUrl(): string {
   return resolveServiceUrl(
@@ -515,18 +515,13 @@ export async function streamInference(
   onEvent: (event: string, data: Record<string, unknown>) => void
 ): Promise<void> {
   const baseUrl = getAiOsApiUrl();
-  const response = await fetch(`${baseUrl}/api/ai/infer/stream`, {
+  const streamPath = '/api/ai/infer/stream';
+  const response = await requestServiceResponse('aiOs', baseUrl, streamPath, {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'text/event-stream, application/json' },
     body: JSON.stringify(toInferencePayload({ ...input, stream: true } as AiInferenceInput))
   });
-  if (!response.ok || !response.body) {
-    const text = await response.text().catch(() => '');
-    if (text.trimStart().startsWith('<')) {
-      throw new Error(`AI OS stream returned the web app HTML instead of events. Set AI OS API URL in Settings to the desktop service, usually ${baseUrl}.`);
-    }
-    throw new Error(`AI OS stream failed with ${response.status}`);
-  }
+  if (!response.body) throw new Error(`AI OS stream ${streamPath} returned no response body.`);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';

@@ -225,8 +225,8 @@ export function localNetworkHint(): string {
   return 'For full phone access, double-click Start Mini Hub Phone Mode.cmd on the desktop and keep that window open. It starts the API, AI OS, Macro Lab, and hub, then prints/copies a phone URL with the desktop service addresses already filled in.';
 }
 
-export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string): string {
-  return `${serviceLabels[serviceId]} request ${path} returned the web app HTML instead of JSON. The app is pointed at ${baseUrl}, but that address is serving the static website, not the ${serviceLabels[serviceId]}. ${localNetworkHint()}`;
+export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string, expected = 'JSON'): string {
+  return `${serviceLabels[serviceId]} request ${path} returned the web app HTML instead of ${expected}. The app is pointed at ${baseUrl}, but that address is serving the static website, not the ${serviceLabels[serviceId]}. ${localNetworkHint()}`;
 }
 
 function missingRouteMessage(serviceId: ServiceId, path: string, baseUrl: string): string {
@@ -349,6 +349,72 @@ async function fetchServiceJson<T>(
   return body as T;
 }
 
+async function fetchServiceResponse(
+  serviceId: ServiceId,
+  baseUrl: string,
+  path: string,
+  init: RequestInit,
+  options: { credentials?: RequestCredentials; timeoutMs?: number } = {}
+): Promise<Response> {
+  let response: Response;
+  const timeoutMs = options.timeoutMs ?? defaultServiceRequestTimeoutMs;
+  const controller = timeoutMs > 0 ? new AbortController() : undefined;
+  const upstreamSignal = init.signal;
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const abortFromUpstream = () => controller?.abort(upstreamSignal?.reason);
+
+  try {
+    if (controller) {
+      if (upstreamSignal?.aborted) {
+        controller.abort(upstreamSignal.reason);
+      } else {
+        upstreamSignal?.addEventListener('abort', abortFromUpstream, { once: true });
+      }
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
+    }
+
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      credentials: options.credentials,
+      signal: controller?.signal ?? init.signal,
+      headers: {
+        accept: 'application/json',
+        ...(init.headers ?? {})
+      }
+    });
+  } catch (error) {
+    const detail = timedOut ? `request timed out after ${timeoutMs} ms` : error instanceof Error ? error.message : 'network request failed';
+    throw new Error(networkFailureMessage(serviceId, baseUrl, detail));
+  } finally {
+    if (timer) clearTimeout(timer);
+    upstreamSignal?.removeEventListener('abort', abortFromUpstream);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (response.ok && /text\/html/iu.test(contentType)) throw new Error(serviceHtmlFallbackMessage(serviceId, path, baseUrl, 'events'));
+  if (response.ok) return response;
+
+  const text = await response.text().catch(() => '');
+  if (text.trimStart().startsWith('<')) throw new Error(serviceHtmlFallbackMessage(serviceId, path, baseUrl, 'events'));
+  if (response.status === 404 || /^not found$/iu.test(text.trim())) throw new Error(missingRouteMessage(serviceId, path, baseUrl));
+
+  if (contentType.includes('application/json') || contentType.includes('+json')) {
+    try {
+      const message = messageFromJson(JSON.parse(text) as unknown);
+      if (response.status === 404 || /^not found$/iu.test(message)) throw new Error(missingRouteMessage(serviceId, path, baseUrl));
+      throw new Error(message || `${serviceLabels[serviceId]} request ${path} failed with ${response.status}`);
+    } catch (error) {
+      if (error instanceof Error && error.message) throw error;
+    }
+  }
+
+  throw new Error(`${serviceLabels[serviceId]} request ${path} failed with ${response.status}`);
+}
+
 export async function requestServiceJson<T>(
   serviceId: ServiceId,
   baseUrl: string,
@@ -363,6 +429,25 @@ export async function requestServiceJson<T>(
     if (fallback) {
       clearServiceEndpoint(serviceId);
       return fetchServiceJson<T>(serviceId, fallback, path, init, options);
+    }
+    throw error;
+  }
+}
+
+export async function requestServiceResponse(
+  serviceId: ServiceId,
+  baseUrl: string,
+  path: string,
+  init: RequestInit = {},
+  options: { credentials?: RequestCredentials; timeoutMs?: number } = {}
+): Promise<Response> {
+  try {
+    return await fetchServiceResponse(serviceId, baseUrl, path, init, options);
+  } catch (error) {
+    const fallback = retryFallbackUrl(serviceId, baseUrl);
+    if (fallback) {
+      clearServiceEndpoint(serviceId);
+      return fetchServiceResponse(serviceId, fallback, path, init, options);
     }
     throw error;
   }

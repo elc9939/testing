@@ -3,6 +3,7 @@ import {
   defaultServiceRequestTimeoutMs,
   looksLikeHostedStaticEndpoint,
   requestServiceJson,
+  requestServiceResponse,
   serviceEndpointResolution,
   serviceFallbackUrl
 } from './service-config';
@@ -64,5 +65,35 @@ describe('service endpoint resolution', () => {
 
   it('keeps a positive default timeout for all service JSON requests', () => {
     expect(defaultServiceRequestTimeoutMs).toBeGreaterThan(0);
+  });
+
+  it('turns streamed HTML responses into actionable service setup errors', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('<!doctype html><title>Mini Hub</title>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' }
+      })
+    );
+
+    await expect(
+      requestServiceResponse('aiOs', serviceFallbackUrl('aiOs'), '/api/ai/infer/stream', {
+        headers: { accept: 'text/event-stream, application/json' }
+      })
+    ).rejects.toThrow('returned the web app HTML instead of events');
+  });
+
+  it('turns missing streamed routes into endpoint diagnostics', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('Not Found', {
+        status: 404,
+        headers: { 'content-type': 'text/plain' }
+      })
+    );
+
+    await expect(
+      requestServiceResponse('aiOs', serviceFallbackUrl('aiOs'), '/api/ai/infer/stream', {
+        headers: { accept: 'text/event-stream, application/json' }
+      })
+    ).rejects.toThrow('AI OS API route /api/ai/infer/stream was not found');
   });
 });
