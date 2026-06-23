@@ -123,7 +123,9 @@ The shared core model includes:
   so equivalent recurring cards inherit the same quieting/importance state while changed
   findings can surface again. The digest filters reviewed/dismissed/future-snoozed cards and
   lets important cards remain visible even when they would otherwise be below the digest
-  cutoff.
+  cutoff. Routine cards age out of the digest after 7 days, and very urgent cards after
+  30 days, unless you mark them important or they belong to a failed/blocked run. Run history
+  and the source result stream are retained for inspection.
 
 Runs are logged into the Action Ledger with `source: passive-tasks`, and those explicit
 Mini Hub ledger events survive API restarts when action-ledger persistence is enabled by the
@@ -213,6 +215,9 @@ normal API startup.
   broken connections are tracked in metadata but kept out of the digest.
 - Lower-urgency output stays in the Passive Tasks dashboard result history. Today only
   receives high-urgency digest cards through the `passive_task` attention source.
+- Routine digest cards automatically age out of Today/passive digest surfaces after 7 days,
+  and urgent cards after 30 days, unless marked important or tied to unresolved failed/blocked
+  runs. The underlying run history and source-backed result rows are retained.
 - Repeated non-urgent notifications are suppressed for a day so recurring background findings
   behave like a quiet digest; urgent findings can still surface immediately.
 - Notification style only controls stored notifications; passive runs, source cards, digest

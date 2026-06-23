@@ -2206,6 +2206,45 @@ describe('passive task engine', () => {
     expect(buildPassiveDigest(store).some((card) => card.id === cardId)).toBe(false);
   });
 
+  it('expires stale routine passive digest cards while preserving intentionally retained cards', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-stale-digest',
+      workspaceId: personalWorkspaceId,
+      company: 'Routine Co',
+      role: 'Data Analyst',
+      status: 'lead',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-05-01T10:00:00.000Z'
+    });
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'stale-digest-test' }
+    });
+    const card = buildPassiveDigest(store)[0]!;
+    expect(card.title).toBe('1 career lead need follow-up');
+    expect(card.urgency).toBeLessThan(85);
+
+    const staleCreatedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    store.passiveResults = store.passiveResults.map((item) => (item.id === card.id ? { ...item, createdAt: staleCreatedAt } : item));
+    expect(buildPassiveDigest(store).some((item) => item.id === card.id)).toBe(false);
+
+    updatePassiveCardTriage(store, card.id, 'important', { reason: 'still-relevant' });
+    expect(buildPassiveDigest(store).some((item) => item.id === card.id)).toBe(true);
+
+    updatePassiveCardTriage(store, card.id, 'clear');
+    store.passiveRuns = store.passiveRuns.map((run) =>
+      run.id === card.runId ? { ...run, status: 'blocked' as const, error: 'still unresolved' } : run
+    );
+    expect(buildPassiveDigest(store).some((item) => item.id === card.id)).toBe(true);
+  });
+
   it('applies passive card triage to repeated source-equivalent findings', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

@@ -196,6 +196,8 @@ const dayMs = 24 * 60 * 60 * 1000;
 const minuteMs = 60 * 1000;
 const passiveSnapshotDirName = 'passive-snapshots';
 const passiveDigestUrgency = 58;
+const passiveDigestFreshMs = 7 * dayMs;
+const passiveDigestUrgentFreshMs = 30 * dayMs;
 const attentionUrgency = 65;
 const maxTaskErrorLogEntries = 12;
 const passiveNotificationDedupeMs = dayMs;
@@ -4602,6 +4604,22 @@ function passiveCardImportant(store: MemoryStore, cardId: string): boolean {
   return passiveCardState(store, cardItem)?.status === 'important';
 }
 
+function passiveCardFreshForDigest(
+  store: MemoryStore,
+  cardItem: PassiveResultCard,
+  digestItem: PassiveResultCard,
+  run: PassiveRun | undefined,
+  checkedAt: Date
+): boolean {
+  if (passiveCardImportant(store, cardItem.id)) return true;
+  if (run?.status === 'failed' || run?.status === 'blocked') return true;
+  const createdAt = parseTime(cardItem.createdAt);
+  if (!Number.isFinite(createdAt)) return true;
+  const ageMs = checkedAt.getTime() - createdAt;
+  if (ageMs <= passiveDigestFreshMs) return true;
+  return digestItem.urgency >= 85 && ageMs <= passiveDigestUrgentFreshMs;
+}
+
 export function updatePassiveCardTriage(
   store: MemoryStore,
   cardId: string,
@@ -4708,6 +4726,7 @@ export function buildPassiveDigest(store: MemoryStore, limit = 12): PassiveResul
     if (!passiveCardVisible(store, item, checkedAt)) continue;
     const run = store.passiveRuns.find((entry) => entry.id === item.runId);
     const digestItem = passiveCardForDigest(store, item);
+    if (!passiveCardFreshForDigest(store, item, digestItem, run, checkedAt)) continue;
     const key = `${item.family}:${item.title}:${item.summary}`;
     if (seen.has(key)) continue;
     seen.add(key);
