@@ -1419,6 +1419,50 @@ describe('passive task engine', () => {
     });
   });
 
+  it('records manual runs on a manual trigger without moving the schedule trigger', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'app_health' && item.trigger.kind === 'schedule')!;
+    const scheduledAt = '2026-06-21T10:00:00.000Z';
+    store.passiveTasks = store.passiveTasks.map((item) =>
+      item.id === task.id ? { ...item, nextRunAt: scheduledAt, trigger: { ...item.trigger, nextRunAt: scheduledAt } } : item
+    );
+    store.passiveTriggers = store.passiveTriggers.map((trigger) =>
+      trigger.id === task.trigger.id ? { ...trigger, nextRunAt: scheduledAt } : trigger
+    );
+    const beforeScheduleTrigger = buildPassiveSnapshot(store).triggers.find((item) => item.id === task.trigger.id)!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      input: { reason: 'manual-trigger-test', manual: true }
+    });
+    const snapshot = buildPassiveSnapshot(store);
+    const scheduleTrigger = snapshot.triggers.find((item) => item.id === task.trigger.id)!;
+    const manualTrigger = snapshot.triggers.find((item) => item.id === `passive-trigger:manual:${task.id}`)!;
+    const watcher = snapshot.watchers.find((item) => item.id === task.watcherId)!;
+    const updatedTask = snapshot.tasks.find((item) => item.id === task.id)!;
+
+    expect(run.status).toBe('succeeded');
+    expect(run.metadata).toMatchObject({ reason: 'manual-trigger-test', triggerKind: 'manual' });
+    expect(scheduleTrigger).toMatchObject({
+      id: beforeScheduleTrigger.id,
+      kind: 'schedule',
+      nextRunAt: scheduledAt
+    });
+    expect(scheduleTrigger.lastRunId).toBeUndefined();
+    expect(manualTrigger).toMatchObject({
+      kind: 'manual',
+      watcherId: task.watcherId,
+      taskIds: [task.id],
+      lastRunId: run.id,
+      lastStatus: 'succeeded',
+      lastFiredAt: run.finishedAt
+    });
+    expect(manualTrigger.nextRunAt).toBeUndefined();
+    expect(watcher.triggerIds).toContain(manualTrigger.id);
+    expect(updatedTask.nextRunAt).toBe(scheduledAt);
+  });
+
   it('persists passive action ledger events across store restarts without writing secret fields', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-action-ledger-'));
     try {

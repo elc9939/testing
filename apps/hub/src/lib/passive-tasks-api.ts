@@ -75,7 +75,7 @@ export async function runPassiveEvent(
   return result.snapshot;
 }
 
-export async function runPassiveTask(taskId: string, input: { idle?: boolean; reason?: string } = {}): Promise<PassiveSnapshot> {
+export async function runPassiveTask(taskId: string, input: { idle?: boolean; reason?: string; manual?: boolean } = {}): Promise<PassiveSnapshot> {
   const result = await requestApiJson<{ run: PassiveRun; snapshot: PassiveSnapshot }>(
     `/api/passive-tasks/tasks/${encodeURIComponent(taskId)}/run`,
     {

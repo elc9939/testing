@@ -1344,7 +1344,7 @@ async function runPassiveAttentionTask(store: MemoryStore, externalFetch: FetchL
   const task = store.passiveTasks.find((item) => item.id === match.taskId);
   await runPassiveTask(store, match.taskId, {
     externalFetch,
-    input: { reason: 'attention-run', idle: Boolean(task?.idleOnly) }
+    input: { reason: 'attention-run', idle: Boolean(task?.idleOnly), manual: true }
   });
 }
 

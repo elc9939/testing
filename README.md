@@ -105,7 +105,8 @@ When the passive engine is disabled, worker ticks skip idle probing and due-task
 the off switch is quiet rather than just result-less; pending file events are dropped and
 active watched-folder handles are closed as the worker refreshes.
 The dashboard can also run due tasks, event-triggered startup checks, or idle-only ticks
-manually. If a running passive task is cancelled, the cancelled state is preserved when the
+manually. Direct "Run now" actions are recorded on separate manual triggers, so ad hoc runs
+do not rewrite the scheduled trigger's last-fired state. If a running passive task is cancelled, the cancelled state is preserved when the
 in-flight run finishes, so the task does not silently resume itself. The API worker emits
 `app.startup` when it starts, the browser shell emits throttled `app.startup`/`app.reconnect`
 events on open and reconnect, and Google OAuth connect/revoke flows emit passive lifecycle

@@ -141,6 +141,7 @@ interface PassiveResourceDecision {
 
 export interface PassiveRunInput {
   idle?: boolean;
+  manual?: boolean;
   reason?: string;
   eventName?: string;
   idleMinutes?: number;
@@ -3918,6 +3919,55 @@ function updateTriggerAfterRun(store: MemoryStore, task: PassiveTask, run: Passi
   });
 }
 
+function manualTriggerId(task: PassiveTask): string {
+  return `passive-trigger:manual:${task.id}`;
+}
+
+function updateManualTriggerAfterRun(store: MemoryStore, task: PassiveTask, run: PassiveRun): void {
+  syncPassiveTriggersFromTasks(store);
+  const triggerId = manualTriggerId(task);
+  const now = nowIso();
+  const existing = store.passiveTriggers.find((trigger) => trigger.id === triggerId);
+  const next = passiveTriggerSchema.parse({
+    ...(existing ?? {
+      id: triggerId,
+      kind: 'manual',
+      label: 'Manual run',
+      createdAt: task.createdAt
+    }),
+    kind: 'manual',
+    watcherId: task.watcherId,
+    taskIds: [task.id],
+    enabled: watcherEnabled(store, task) && !['paused', 'cancelled'].includes(task.status),
+    lastFiredAt: run.finishedAt ?? now,
+    lastRunId: run.id,
+    lastStatus: run.status,
+    nextRunAt: undefined,
+    error: run.status === 'failed' || run.status === 'blocked' ? run.error : undefined,
+    updatedAt: now,
+    metadata: {
+      ...(existing?.metadata ?? {}),
+      taskCount: 1,
+      source: 'manual-run'
+    }
+  });
+  if (existing) {
+    store.passiveTriggers = store.passiveTriggers.map((trigger) => (trigger.id === triggerId ? next : trigger));
+  } else {
+    store.passiveTriggers.push(next);
+  }
+
+  const watcherIndex = store.passiveWatchers.findIndex((watcher) => watcher.id === task.watcherId);
+  if (watcherIndex >= 0) {
+    const watcher = store.passiveWatchers[watcherIndex]!;
+    store.passiveWatchers[watcherIndex] = passiveWatcherSchema.parse({
+      ...watcher,
+      triggerIds: [...new Set([...watcher.triggerIds, triggerId])],
+      updatedAt: now
+    });
+  }
+}
+
 export async function runPassiveTask(
   store: MemoryStore,
   taskId: string,
@@ -3939,6 +3989,8 @@ export async function runPassiveTask(
   const runId = id('passive-run');
   const attempt = task.retry.attempts + 1;
   const runMode = taskMachineMode(store, task);
+  const manualRun = options.input?.manual === true;
+  const previousNextRunAt = task.nextRunAt ?? task.trigger.nextRunAt;
   store.passiveTasks[taskIndex] = passiveTaskSchema.parse({ ...task, status: 'running', updatedAt: startedAt });
   persistPassiveTasks(store);
 
@@ -3982,7 +4034,8 @@ export async function runPassiveTask(
   }
 
   const finished = new Date();
-  const nextRunAt = nextRunAfterResult(task, result.status, finished);
+  const preserveSchedule = manualRun && ['succeeded', 'skipped'].includes(result.status);
+  const nextRunAt = preserveSchedule ? previousNextRunAt : nextRunAfterResult(task, result.status, finished);
   const run = passiveRunSchema.parse({
     id: runId,
     taskId: task.id,
@@ -3999,6 +4052,7 @@ export async function runPassiveTask(
     nextRunAt,
     metadata: {
       reason: options.input?.reason ?? 'scheduled',
+      triggerKind: manualRun ? 'manual' : options.input?.eventName ? 'event' : options.input?.idle ? 'idle' : 'schedule',
       machineMode: runMode.mode,
       machineModeSource: runMode.source,
       eventName: options.input?.eventName,
@@ -4017,10 +4071,18 @@ export async function runPassiveTask(
   store.passiveRuns = store.passiveRuns.slice(0, 200);
   syncPassiveResultsFromRuns(store);
 
-  const nextTask = applyRunOutcomeToTask(taskAfterExecution.status === 'cancelled' ? taskAfterExecution : task, run, finished);
+  const appliedTask = applyRunOutcomeToTask(taskAfterExecution.status === 'cancelled' ? taskAfterExecution : task, run, finished);
+  const nextTask =
+    preserveSchedule && nextRunAt
+      ? passiveTaskSchema.parse({ ...appliedTask, nextRunAt, trigger: { ...appliedTask.trigger, nextRunAt } })
+      : appliedTask;
   store.passiveTasks[taskIndex] = nextTask;
   updateWatcherAfterRun(store, nextTask, run);
-  updateTriggerAfterRun(store, nextTask, run);
+  if (manualRun) {
+    updateManualTriggerAfterRun(store, nextTask, run);
+  } else {
+    updateTriggerAfterRun(store, nextTask, run);
+  }
 
   const notification = notificationFromRun(run, result.cards);
   const notificationStyle = store.passiveSettings?.notificationStyle ?? 'digest';

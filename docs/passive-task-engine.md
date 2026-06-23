@@ -26,6 +26,9 @@ Digest rows, result rows, trigger rows, failure rows, recent runs, and retained 
 logs show compact evidence such as source labels, changed artifact counts, snapshot
 checksums, file counts, cleanup candidates, last trigger fire status, and retry times so
 background work is inspectable without opening raw JSON.
+Direct task "Run now" actions create/update separate `manual` triggers, so the dashboard can
+distinguish ad hoc runs from schedule/event/idle firings and the scheduled trigger's
+last-fired state stays truthful.
 The dashboard settings panel also exposes family enable/disable toggles, so broad families
 can be quieted from the same surface used to inspect their outputs.
 The snapshot and dashboard also expose live worker state: whether the background worker is
@@ -94,8 +97,9 @@ The shared core model includes:
 - `PassiveWatcher`: the family-level switch and description.
 - `PassiveTrigger`: first-class schedule, event, idle, or manual trigger state with owner
   watcher/task links, enabled state, cadence/event metadata, last fired run/status/error, and
-  next-run time. Event triggers run only when an explicit event name is ingested, for example
-  `app.startup`.
+  next-run time. Manual triggers are created by direct task runs and do not overwrite the
+  schedule trigger's last-fired evidence. Event triggers run only when an explicit event name
+  is ingested, for example `app.startup`.
 - `PassiveTask`: runnable unit with priority, status, retry/backoff, idle-only, last/next run,
   machine mode, source refs, and a bounded per-task error log that records failed/blocked
   run id, attempt, message, timestamp, and next retry.
