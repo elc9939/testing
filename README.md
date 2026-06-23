@@ -244,9 +244,11 @@ Implemented now:
   panel with per-account revoke controls. Calendar and Gmail resources are scoped to the
   account that produced them, and Today shows connected account counts/labels instead of
   assuming a single Google identity. Google OAuth now carries a signed trusted `returnTo`
-  URL, so linking a school account from the GitHub Pages hub returns to that same hub page
-  after the local API callback stores the token. The Productivity page includes an account
-  setup panel that explains this flow for personal plus school accounts.
+  URL and popup/redirect mode, so linking a school account from the GitHub Pages hub keeps
+  the original hub tab open while the local API callback stores the token, notifies the
+  page, and closes the OAuth popup. If a popup is blocked, the flow falls back to the same
+  trusted full-page redirect. The Productivity page includes an account setup panel that
+  explains this flow for personal plus school accounts.
 - Google Calendar list/view/create/edit/delete/move/reminder support.
 - Gmail search/list/read/compose/draft/send/reply/archive/mark read/unread/label actions.
 - Productivity mutations invalidate the unified attention cache, so Calendar changes and

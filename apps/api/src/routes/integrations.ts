@@ -10,7 +10,7 @@ import {
   revokeGoogleConnection
 } from '../integrations/google';
 import { triageGmailThreads } from '../integrations/email-triage';
-import { getConnection, getConnections as getStoredConnections } from '../integrations/token-vault';
+import { getConnection, getConnections as getStoredConnections, verifyOAuthState, type OAuthState } from '../integrations/token-vault';
 import type { CalendarEventPatch, GmailComposeInput, GmailModifyInput, GmailReplyInput } from '../integrations/types';
 import { requireUser, type AppBindings } from '../context';
 import { runPassiveEvent } from '../passive-engine';
@@ -231,12 +231,100 @@ function safeReturnTo(value: string | undefined): string | undefined {
   }
 }
 
-function oauthProductivityRedirect(input: { returnTo?: string | undefined; status: string; message?: string }): string {
+function oauthProductivityRedirect(input: { returnTo?: string | undefined; status: string; message?: string | undefined }): string {
   const target = safeReturnTo(input.returnTo) ?? `${env.hubPublicUrl}/productivity`;
   const url = new URL(target);
   url.searchParams.set('google', input.status);
   if (input.message) url.searchParams.set('message', input.message);
   return url.toString();
+}
+
+function oauthMode(value: string | undefined): OAuthState['mode'] {
+  return value === 'popup' ? 'popup' : 'redirect';
+}
+
+function previewOAuthState(value: string | undefined): OAuthState | null {
+  if (!value) return null;
+  try {
+    return verifyOAuthState(value, 'google');
+  } catch {
+    return null;
+  }
+}
+
+function safeJsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</gu, '\\u003c')
+    .replace(/>/gu, '\\u003e')
+    .replace(/&/gu, '\\u0026')
+    .replace(/\u2028/gu, '\\u2028')
+    .replace(/\u2029/gu, '\\u2029');
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/gu, '&amp;')
+    .replace(/"/gu, '&quot;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;');
+}
+
+function oauthPopupHtml(input: { redirectUrl: string; status: string; message?: string | undefined }): string {
+  const redirect = new URL(input.redirectUrl);
+  const payload = {
+    type: 'mini-hub:google-oauth',
+    provider: 'google',
+    status: input.status,
+    message: input.message ?? '',
+    redirectUrl: redirect.toString()
+  };
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google connected</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111827; color: #f8fafc; }
+    main { width: min(34rem, calc(100vw - 2rem)); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 8px; padding: 1.5rem; background: rgba(15, 23, 42, 0.92); }
+    p { color: #cbd5e1; }
+    a { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <main>
+    <strong>Google connection ${input.status === 'connected' ? 'complete' : 'finished'}</strong>
+    <p>This popup should close automatically and refresh Mini Hub.</p>
+    <a href="${escapeHtmlAttribute(redirect.toString())}">Return to Mini Hub</a>
+  </main>
+  <script>
+    (() => {
+      const message = ${safeJsonForScript(payload)};
+      const targetOrigin = ${safeJsonForScript(redirect.origin)};
+      const redirectUrl = ${safeJsonForScript(redirect.toString())};
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(message, targetOrigin);
+        window.setTimeout(() => window.close(), 120);
+        window.setTimeout(() => window.location.replace(redirectUrl), 1200);
+      } else {
+        window.location.replace(redirectUrl);
+      }
+    })();
+  </script>
+</body>
+</html>`;
+}
+
+function oauthFinishResponse(
+  c: Context<AppBindings>,
+  input: { state?: OAuthState | null; returnTo?: string | undefined; status: string; message?: string | undefined }
+) {
+  const redirectUrl = oauthProductivityRedirect({ returnTo: input.returnTo ?? input.state?.returnTo, status: input.status, message: input.message });
+  if (input.state?.mode === 'popup') {
+    return c.html(oauthPopupHtml({ redirectUrl, status: input.status, message: input.message }));
+  }
+  return c.redirect(redirectUrl);
 }
 
 export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
@@ -260,7 +348,7 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      return c.json({ url: googleAuthUrl({ returnTo: safeReturnTo(c.req.query('returnTo')) }) });
+      return c.json({ url: googleAuthUrl({ returnTo: safeReturnTo(c.req.query('returnTo')), mode: oauthMode(c.req.query('mode')) }) });
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Google OAuth unavailable' }, 400);
     }
@@ -269,18 +357,18 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
   app.get('/google/oauth/callback', async (c) => {
     const code = c.req.query('code');
     const state = c.req.query('state');
-    if (!code || !state) return c.redirect(oauthProductivityRedirect({ status: 'missing-code' }));
+    const statePreview = previewOAuthState(state);
+    if (!code || !state) return oauthFinishResponse(c, { state: statePreview, status: 'missing-code' });
     try {
       const connectionState = await handleGoogleCallback(store, code, state);
       emitPassiveIntegrationEvent(store, 'google.oauth.connected', 'google-oauth-callback');
-      return c.redirect(oauthProductivityRedirect({ returnTo: connectionState.returnTo, status: 'connected' }));
+      return oauthFinishResponse(c, { state: connectionState, status: 'connected' });
     } catch (error) {
-      return c.redirect(
-        oauthProductivityRedirect({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'oauth-failed'
-        })
-      );
+      return oauthFinishResponse(c, {
+        state: statePreview,
+        status: 'error',
+        message: error instanceof Error ? error.message : 'oauth-failed'
+      });
     }
   });
 

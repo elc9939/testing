@@ -85,9 +85,10 @@ export async function getConnections(): Promise<PublicConnection[]> {
   return result.connections;
 }
 
-export async function getGoogleOAuthUrl(returnTo?: string): Promise<string> {
+export async function getGoogleOAuthUrl(returnTo?: string, mode: 'redirect' | 'popup' = 'redirect'): Promise<string> {
   const params = new URLSearchParams();
   if (returnTo) params.set('returnTo', returnTo);
+  if (mode !== 'redirect') params.set('mode', mode);
   const suffix = params.toString() ? `?${params}` : '';
   const result = await requestApiJson<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`);
   return result.url;

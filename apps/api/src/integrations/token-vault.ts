@@ -18,6 +18,7 @@ export interface OAuthState {
   nonce: string;
   expiresAt: string;
   returnTo?: string;
+  mode?: 'redirect' | 'popup';
 }
 
 const algorithm = 'aes-256-gcm';
@@ -53,7 +54,7 @@ function signStatePayload(payload: string): string {
 export function createOAuthState(
   provider: OAuthState['provider'],
   workspaceId = personalWorkspaceId,
-  options: { returnTo?: string | undefined } = {}
+  options: { returnTo?: string | undefined; mode?: OAuthState['mode'] | undefined } = {}
 ): string {
   const state: OAuthState = {
     provider,
@@ -62,6 +63,7 @@ export function createOAuthState(
     expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
   };
   if (options.returnTo) state.returnTo = options.returnTo;
+  if (options.mode && options.mode !== 'redirect') state.mode = options.mode;
   const payload = Buffer.from(JSON.stringify(state), 'utf8').toString('base64url');
   const signature = signStatePayload(payload);
   return `${payload}.${signature}`;

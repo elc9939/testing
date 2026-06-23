@@ -878,6 +878,40 @@ describe('mini hub api', () => {
     }
   });
 
+  it('can launch Google OAuth in popup mode without losing the trusted hub URL', async () => {
+    const previous = {
+      googleClientId: env.googleClientId,
+      googleClientSecret: env.googleClientSecret,
+      googleRedirectUri: env.googleRedirectUri,
+      hubPublicUrl: env.hubPublicUrl,
+      trustedOrigins: [...env.trustedOrigins]
+    };
+    try {
+      env.googleClientId = 'test-client-id';
+      env.googleClientSecret = 'test-client-secret';
+      env.googleRedirectUri = 'http://127.0.0.1:8787/api/integrations/google/oauth/callback';
+      env.hubPublicUrl = 'http://127.0.0.1:5173';
+      env.trustedOrigins = ['http://127.0.0.1:5173', 'https://elc9939.github.io'];
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+      const returnTo = 'https://elc9939.github.io/testing/productivity?panel=mail';
+
+      const response = await app.request(
+        `/api/integrations/google/oauth/start?returnTo=${encodeURIComponent(returnTo)}&mode=popup`
+      );
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { url: string };
+      const stateValue = new URL(body.url).searchParams.get('state');
+      expect(verifyOAuthState(stateValue ?? '', 'google')).toMatchObject({ returnTo, mode: 'popup' });
+    } finally {
+      env.googleClientId = previous.googleClientId;
+      env.googleClientSecret = previous.googleClientSecret;
+      env.googleRedirectUri = previous.googleRedirectUri;
+      env.hubPublicUrl = previous.hubPublicUrl;
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
   it('redirects Google OAuth callbacks back to the trusted starting hub URL', async () => {
     const previous = {
       googleClientId: env.googleClientId,
@@ -919,6 +953,59 @@ describe('mini hub api', () => {
 
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe(`${returnTo}&google=connected`);
+    } finally {
+      env.googleClientId = previous.googleClientId;
+      env.googleClientSecret = previous.googleClientSecret;
+      env.googleRedirectUri = previous.googleRedirectUri;
+      env.hubPublicUrl = previous.hubPublicUrl;
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
+  it('returns a popup completion page for popup Google OAuth callbacks', async () => {
+    const previous = {
+      googleClientId: env.googleClientId,
+      googleClientSecret: env.googleClientSecret,
+      googleRedirectUri: env.googleRedirectUri,
+      hubPublicUrl: env.hubPublicUrl,
+      trustedOrigins: [...env.trustedOrigins]
+    };
+    try {
+      env.googleClientId = 'test-client-id';
+      env.googleClientSecret = 'test-client-secret';
+      env.googleRedirectUri = 'http://127.0.0.1:8787/api/integrations/google/oauth/callback';
+      env.hubPublicUrl = 'http://127.0.0.1:5173';
+      env.trustedOrigins = ['http://127.0.0.1:5173', 'https://elc9939.github.io'];
+      const returnTo = 'https://elc9939.github.io/testing/productivity?panel=calendar';
+      const state = createOAuthState('google', 'personal', { returnTo, mode: 'popup' });
+      const fetchMock = vi.fn(async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('oauth2.googleapis.com/token')) {
+          return jsonResponse({
+            access_token: 'google-access-token',
+            refresh_token: 'google-refresh-token',
+            expires_in: 3600,
+            scope: 'openid email profile',
+            token_type: 'Bearer'
+          });
+        }
+        if (href.includes('www.googleapis.com/oauth2/v3/userinfo')) {
+          return jsonResponse({ email: 'student@example.edu', name: 'Student Example' });
+        }
+        return jsonResponse({ error: `unexpected ${href}` }, 404);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+
+      const response = await app.request(
+        `/api/integrations/google/oauth/callback?code=test-code&state=${encodeURIComponent(state)}`
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('text/html');
+      const html = await response.text();
+      expect(html).toContain('mini-hub:google-oauth');
+      expect(html).toContain('https://elc9939.github.io/testing/productivity?panel=calendar&amp;google=connected');
     } finally {
       env.googleClientId = previous.googleClientId;
       env.googleClientSecret = previous.googleClientSecret;

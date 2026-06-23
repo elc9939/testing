@@ -464,7 +464,7 @@ export function googleCatalog(): ConnectorCatalogEntry[] {
   ];
 }
 
-export function googleAuthUrl(options: { returnTo?: string | undefined } = {}): string {
+export function googleAuthUrl(options: { returnTo?: string | undefined; mode?: OAuthState['mode'] | undefined } = {}): string {
   requireGoogleConfig();
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', env.googleClientId ?? '');
@@ -474,7 +474,7 @@ export function googleAuthUrl(options: { returnTo?: string | undefined } = {}): 
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent select_account');
   url.searchParams.set('include_granted_scopes', 'true');
-  url.searchParams.set('state', createOAuthState('google', personalWorkspaceId, { returnTo: options.returnTo }));
+  url.searchParams.set('state', createOAuthState('google', personalWorkspaceId, { returnTo: options.returnTo, mode: options.mode }));
   return url.toString();
 }
 

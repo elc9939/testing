@@ -90,6 +90,14 @@
     selectedGmailLabelId: string;
   }
 
+  interface GoogleOAuthMessage {
+    type: 'mini-hub:google-oauth';
+    provider: 'google';
+    status: string;
+    message?: string;
+    redirectUrl?: string;
+  }
+
   let catalog: ConnectorCatalogEntry[] = [];
   let connections: PublicConnection[] = [];
   let calendars: CalendarSummary[] = [];
@@ -111,6 +119,8 @@
   let cacheLoadedAt = '';
   let actionError = '';
   let actionMessage = '';
+  let googleOAuthOpening = false;
+  let googleOAuthPopup: Window | null = null;
   let editingEventId = '';
   let eventDraft = emptyDraft();
   let composeDraft: GmailComposeDraft = emptyComposeDraft();
@@ -171,6 +181,49 @@
     url.searchParams.delete('google');
     url.searchParams.delete('message');
     return url.toString();
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function isGoogleOAuthMessage(value: unknown): value is GoogleOAuthMessage {
+    return (
+      isRecord(value) &&
+      value.type === 'mini-hub:google-oauth' &&
+      value.provider === 'google' &&
+      typeof value.status === 'string' &&
+      (value.message === undefined || typeof value.message === 'string') &&
+      (value.redirectUrl === undefined || typeof value.redirectUrl === 'string')
+    );
+  }
+
+  function isCurrentHubUrl(value: string | undefined): boolean {
+    if (!value || typeof window === 'undefined') return true;
+    try {
+      return new URL(value).origin === window.location.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  function consumeGoogleQueryStatus(): void {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const status = url.searchParams.get('google');
+    if (!status) return;
+    const message = url.searchParams.get('message') ?? '';
+    if (status === 'connected') {
+      actionMessage = 'Google account connected.';
+      actionError = '';
+    } else if (status === 'error') {
+      actionError = message || 'Google OAuth failed.';
+    } else if (status === 'missing-code') {
+      actionError = 'Google OAuth did not return a usable authorization code.';
+    }
+    url.searchParams.delete('google');
+    url.searchParams.delete('message');
+    window.history.replaceState({}, '', url.toString());
   }
 
   function inputValue(event: Event): string {
@@ -435,12 +488,53 @@
 
   async function connectGoogle(): Promise<void> {
     actionError = '';
-    try {
-      const url = await getGoogleOAuthUrl(googleReturnTo());
-      window.location.href = url;
-    } catch (error) {
-      setError(error, 'Google OAuth is not configured');
+    actionMessage = '';
+    googleOAuthOpening = true;
+    const popup =
+      typeof window !== 'undefined'
+        ? window.open('about:blank', 'mini-hub-google-oauth', 'width=560,height=720,menubar=no,toolbar=no,location=yes,status=no')
+        : null;
+    if (popup) {
+      googleOAuthPopup = popup;
+      try {
+        popup.document.title = 'Connect Google';
+        popup.document.body.innerHTML =
+          '<main style="font-family: system-ui, sans-serif; padding: 24px;"><strong>Opening Google sign-in...</strong><p>You can close this window if you change your mind.</p></main>';
+      } catch {
+        // The popup may become cross-origin quickly; setting the placeholder is only cosmetic.
+      }
     }
+    try {
+      const url = await getGoogleOAuthUrl(googleReturnTo(), popup ? 'popup' : 'redirect');
+      if (popup) {
+        popup.location.href = url;
+        actionMessage = 'Complete Google sign-in in the popup.';
+      } else {
+        window.location.href = url;
+      }
+    } catch (error) {
+      if (popup && !popup.closed) popup.close();
+      if (googleOAuthPopup === popup) googleOAuthPopup = null;
+      setError(error, 'Google OAuth is not configured');
+    } finally {
+      googleOAuthOpening = false;
+    }
+  }
+
+  async function handleGoogleOAuthMessage(event: MessageEvent): Promise<void> {
+    if (!isGoogleOAuthMessage(event.data)) return;
+    if (!isCurrentHubUrl(event.data.redirectUrl)) return;
+    if (googleOAuthPopup && event.source !== googleOAuthPopup) return;
+    googleOAuthPopup = null;
+    if (event.data.status === 'connected') {
+      actionError = '';
+      actionMessage = 'Google account connected.';
+      await loadOverview();
+      notifyAttentionChanged();
+      return;
+    }
+    actionMessage = '';
+    actionError = event.data.message || 'Google OAuth failed.';
   }
 
   async function disconnectGoogle(connection?: PublicConnection): Promise<void> {
@@ -671,13 +765,19 @@
 
   onMount(() => {
     hydrateProductivityCache();
+    consumeGoogleQueryStatus();
     void clientData.init();
     void loadOverview();
     const interval = window.setInterval(refreshIfVisible, 120_000);
+    const oauthListener = (event: MessageEvent) => {
+      void handleGoogleOAuthMessage(event);
+    };
+    window.addEventListener('message', oauthListener);
     window.addEventListener('focus', refreshIfVisible);
     document.addEventListener('visibilitychange', refreshIfVisible);
     return () => {
       window.clearInterval(interval);
+      window.removeEventListener('message', oauthListener);
       window.removeEventListener('focus', refreshIfVisible);
       document.removeEventListener('visibilitychange', refreshIfVisible);
     };
@@ -703,9 +803,9 @@
       <span>{backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
     {#if googleConnected}
-      <button class="button" type="button" disabled={!canAct} on:click={connectGoogle}>
+      <button class="button" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
         <Link size={17} />
-        <span>Add Google Account</span>
+        <span>{googleOAuthOpening ? 'Opening...' : 'Add Google Account'}</span>
       </button>
       {#if googleConnections.length === 1}
         <button class="button" type="button" disabled={!canAct} on:click={() => disconnectGoogle(googleConnection)}>
@@ -714,9 +814,9 @@
         </button>
       {/if}
     {:else}
-      <button class="button primary" type="button" disabled={!canAct} on:click={connectGoogle}>
+      <button class="button primary" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
         <Link size={17} />
-        <span>Connect Google</span>
+        <span>{googleOAuthOpening ? 'Opening...' : 'Connect Google'}</span>
       </button>
     {/if}
   </div>
@@ -745,12 +845,12 @@
     <strong>Google account setup</strong>
     <p>
       Use Add Google Account once for each account you want Mini Hub to control. The OAuth flow opens Google's
-      account picker, so connect your personal account, return here, then add your school account.
+      account picker in a popup and returns here automatically after the local API stores the token.
     </p>
   </div>
-  <button class="button compact" type="button" disabled={!canAct} on:click={connectGoogle}>
+  <button class="button compact" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
     <Link size={15} />
-    <span>{googleConnected ? 'Add Another' : 'Connect Google'}</span>
+    <span>{googleOAuthOpening ? 'Opening...' : googleConnected ? 'Add Another' : 'Connect Google'}</span>
   </button>
 </section>
 
@@ -758,9 +858,9 @@
   <section class="account-panel" aria-label="Connected Google accounts">
     <div class="account-panel-title">
       <strong>Connected Google Accounts</strong>
-      <button class="button compact" type="button" disabled={!canAct} on:click={connectGoogle}>
+      <button class="button compact" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
         <Link size={15} />
-        <span>Add</span>
+        <span>{googleOAuthOpening ? 'Opening...' : 'Add'}</span>
       </button>
     </div>
     <div class="account-list">
