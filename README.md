@@ -319,7 +319,10 @@ Implemented now:
   Gmail read/archive/important actions are reflected in Today's queue after refresh.
 - Productivity page stores only the last successful real Google response in browser
   local storage under `miniHub.productivity.cache.v1`; it is a display cache, not a
-  source of invented data, and live API refreshes replace it.
+  source of invented data, and live API refreshes replace it. Google read calls are
+  bounded so a slow Calendar/Gmail/API source returns an actionable error instead of
+  leaving the page in an indefinite loading state; OAuth setup and write actions use
+  longer bounded timeouts.
 - Mini Hub action ledger endpoint for synced personal data writes/deletes with risk and
   recoverability metadata. Updates and deletes now attach before-state snapshots for
   Career Desk, Study Desk, settings, and game state where possible, and

@@ -1,5 +1,9 @@
 import type { CalendarEvent, GmailDraft, GmailLabel, GmailMessage, GmailThread, TimelineItem } from '@mini-hub/core';
-import { requestApiJson } from './api';
+import { requestApiJsonWithTimeout } from './api';
+
+export const productivityReadTimeoutMs = 8_000;
+export const productivityOAuthTimeoutMs = 12_000;
+export const productivityActionTimeoutMs = 20_000;
 
 export interface ConnectorCatalogEntry {
   id: string;
@@ -82,13 +86,25 @@ export interface GoogleOAuthExchangeResult {
   message?: string;
 }
 
+function requestProductivityRead<T>(path: string): Promise<T> {
+  return requestApiJsonWithTimeout<T>(path, {}, productivityReadTimeoutMs);
+}
+
+function requestProductivityOAuth<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return requestApiJsonWithTimeout<T>(path, init, productivityOAuthTimeoutMs);
+}
+
+function requestProductivityAction<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return requestApiJsonWithTimeout<T>(path, init, productivityActionTimeoutMs);
+}
+
 export async function getCatalog(): Promise<ConnectorCatalogEntry[]> {
-  const result = await requestApiJson<{ connectors: ConnectorCatalogEntry[] }>('/api/integrations/catalog');
+  const result = await requestProductivityRead<{ connectors: ConnectorCatalogEntry[] }>('/api/integrations/catalog');
   return result.connectors;
 }
 
 export async function getConnections(): Promise<PublicConnection[]> {
-  const result = await requestApiJson<{ connections: PublicConnection[] }>('/api/integrations/connections');
+  const result = await requestProductivityRead<{ connections: PublicConnection[] }>('/api/integrations/connections');
   return result.connections;
 }
 
@@ -102,28 +118,28 @@ export async function getGoogleOAuthUrl(
   if (mode !== 'redirect') params.set('mode', mode);
   if (callback !== 'api') params.set('callback', callback);
   const suffix = params.toString() ? `?${params}` : '';
-  const result = await requestApiJson<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`, {
+  const result = await requestProductivityOAuth<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`, {
     headers: returnTo ? { 'X-Mini-Hub-Return-To': returnTo } : undefined
   });
   return result.url;
 }
 
 export async function exchangeGoogleOAuthCode(input: { code: string; state: string }): Promise<GoogleOAuthExchangeResult> {
-  return requestApiJson<GoogleOAuthExchangeResult>('/api/integrations/google/oauth/exchange', {
+  return requestProductivityOAuth<GoogleOAuthExchangeResult>('/api/integrations/google/oauth/exchange', {
     method: 'POST',
     body: JSON.stringify(input)
   });
 }
 
 export async function revokeGoogle(connectionId?: string): Promise<void> {
-  await requestApiJson<{ ok: true }>('/api/integrations/google/revoke', {
+  await requestProductivityAction<{ ok: true }>('/api/integrations/google/revoke', {
     method: 'POST',
     body: JSON.stringify(connectionId ? { connectionId } : {})
   });
 }
 
 export async function listCalendars(): Promise<CalendarSummary[]> {
-  const result = await requestApiJson<{ calendars: CalendarSummary[] }>('/api/productivity/calendar/calendars');
+  const result = await requestProductivityRead<{ calendars: CalendarSummary[] }>('/api/productivity/calendar/calendars');
   return result.calendars;
 }
 
@@ -137,12 +153,12 @@ export async function listEvents(input: {
   if (input.timeMin) params.set('timeMin', input.timeMin);
   if (input.timeMax) params.set('timeMax', input.timeMax);
   if (input.q) params.set('q', input.q);
-  const result = await requestApiJson<{ events: CalendarEvent[] }>(`/api/productivity/calendar/events?${params}`);
+  const result = await requestProductivityRead<{ events: CalendarEvent[] }>(`/api/productivity/calendar/events?${params}`);
   return result.events;
 }
 
 export async function createEvent(input: CalendarEventDraft): Promise<CalendarEvent> {
-  const result = await requestApiJson<{ event: CalendarEvent }>('/api/productivity/calendar/events', {
+  const result = await requestProductivityAction<{ event: CalendarEvent }>('/api/productivity/calendar/events', {
     method: 'POST',
     body: JSON.stringify(input)
   });
@@ -150,7 +166,7 @@ export async function createEvent(input: CalendarEventDraft): Promise<CalendarEv
 }
 
 export async function updateEvent(input: CalendarEventDraft): Promise<CalendarEvent> {
-  const result = await requestApiJson<{ event: CalendarEvent }>('/api/productivity/calendar/events', {
+  const result = await requestProductivityAction<{ event: CalendarEvent }>('/api/productivity/calendar/events', {
     method: 'PATCH',
     body: JSON.stringify(input)
   });
@@ -158,14 +174,14 @@ export async function updateEvent(input: CalendarEventDraft): Promise<CalendarEv
 }
 
 export async function deleteEvent(calendarId: string, eventId: string): Promise<void> {
-  await requestApiJson<{ ok: true }>('/api/productivity/calendar/events', {
+  await requestProductivityAction<{ ok: true }>('/api/productivity/calendar/events', {
     method: 'DELETE',
     body: JSON.stringify({ calendarId, eventId })
   });
 }
 
 export async function moveEvent(calendarId: string, eventId: string, destinationCalendarId: string): Promise<CalendarEvent> {
-  const result = await requestApiJson<{ event: CalendarEvent }>('/api/productivity/calendar/events/move', {
+  const result = await requestProductivityAction<{ event: CalendarEvent }>('/api/productivity/calendar/events/move', {
     method: 'POST',
     body: JSON.stringify({ calendarId, eventId, destinationCalendarId })
   });
@@ -176,12 +192,12 @@ export async function getTimeline(input: { timeMin?: string; timeMax?: string })
   const params = new URLSearchParams();
   if (input.timeMin) params.set('timeMin', input.timeMin);
   if (input.timeMax) params.set('timeMax', input.timeMax);
-  const result = await requestApiJson<{ items: TimelineItem[] }>(`/api/productivity/timeline?${params}`);
+  const result = await requestProductivityRead<{ items: TimelineItem[] }>(`/api/productivity/timeline?${params}`);
   return result.items;
 }
 
 export async function listGmailLabels(): Promise<GmailLabel[]> {
-  const result = await requestApiJson<{ labels: GmailLabel[] }>('/api/productivity/gmail/labels');
+  const result = await requestProductivityRead<{ labels: GmailLabel[] }>('/api/productivity/gmail/labels');
   return result.labels;
 }
 
@@ -196,7 +212,7 @@ export async function listGmailThreads(input: {
   if (input.pageToken) params.set('pageToken', input.pageToken);
   if (input.maxResults) params.set('maxResults', String(input.maxResults));
   for (const labelId of input.labelIds ?? []) params.append('labelIds', labelId);
-  return requestApiJson<GmailThreadList>(`/api/productivity/gmail/threads?${params}`);
+  return requestProductivityRead<GmailThreadList>(`/api/productivity/gmail/threads?${params}`);
 }
 
 export async function listPriorityGmailThreads(input: {
@@ -208,19 +224,19 @@ export async function listPriorityGmailThreads(input: {
   if (input.q) params.set('q', input.q);
   if (input.maxResults) params.set('maxResults', String(input.maxResults));
   for (const labelId of input.labelIds ?? []) params.append('labelIds', labelId);
-  const result = await requestApiJson<{ threads: GmailThreadInsight[] }>(`/api/productivity/gmail/priority?${params}`);
+  const result = await requestProductivityRead<{ threads: GmailThreadInsight[] }>(`/api/productivity/gmail/priority?${params}`);
   return result.threads;
 }
 
 export async function getGmailThread(threadId: string): Promise<GmailThread> {
-  const result = await requestApiJson<{ thread: GmailThread }>(
+  const result = await requestProductivityRead<{ thread: GmailThread }>(
     `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}`
   );
   return result.thread;
 }
 
 export async function sendGmailMessage(input: GmailComposeDraft): Promise<GmailMessage> {
-  const result = await requestApiJson<{ message: GmailMessage }>('/api/productivity/gmail/messages/send', {
+  const result = await requestProductivityAction<{ message: GmailMessage }>('/api/productivity/gmail/messages/send', {
     method: 'POST',
     body: JSON.stringify(input)
   });
@@ -228,7 +244,7 @@ export async function sendGmailMessage(input: GmailComposeDraft): Promise<GmailM
 }
 
 export async function createGmailDraft(input: GmailComposeDraft | GmailReplyDraft): Promise<GmailDraft> {
-  const result = await requestApiJson<{ draft: GmailDraft }>('/api/productivity/gmail/drafts', {
+  const result = await requestProductivityAction<{ draft: GmailDraft }>('/api/productivity/gmail/drafts', {
     method: 'POST',
     body: JSON.stringify(input)
   });
@@ -236,7 +252,7 @@ export async function createGmailDraft(input: GmailComposeDraft | GmailReplyDraf
 }
 
 export async function sendGmailDraft(draftId: string): Promise<GmailMessage> {
-  const result = await requestApiJson<{ message: GmailMessage }>(
+  const result = await requestProductivityAction<{ message: GmailMessage }>(
     `/api/productivity/gmail/drafts/${encodeURIComponent(draftId)}/send`,
     { method: 'POST' }
   );
@@ -244,13 +260,13 @@ export async function sendGmailDraft(draftId: string): Promise<GmailMessage> {
 }
 
 export async function deleteGmailDraft(draftId: string): Promise<void> {
-  await requestApiJson<{ ok: true }>(`/api/productivity/gmail/drafts/${encodeURIComponent(draftId)}`, {
+  await requestProductivityAction<{ ok: true }>(`/api/productivity/gmail/drafts/${encodeURIComponent(draftId)}`, {
     method: 'DELETE'
   });
 }
 
 export async function replyGmailThread(input: GmailReplyDraft): Promise<GmailMessage> {
-  const result = await requestApiJson<{ message: GmailMessage }>(
+  const result = await requestProductivityAction<{ message: GmailMessage }>(
     `/api/productivity/gmail/threads/${encodeURIComponent(input.threadId)}/reply`,
     {
       method: 'POST',
@@ -264,7 +280,7 @@ export async function modifyGmailThread(
   threadId: string,
   input: { addLabelIds?: string[]; removeLabelIds?: string[] }
 ): Promise<GmailThread> {
-  const result = await requestApiJson<{ thread: GmailThread }>(
+  const result = await requestProductivityAction<{ thread: GmailThread }>(
     `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/modify`,
     {
       method: 'POST',
@@ -275,7 +291,7 @@ export async function modifyGmailThread(
 }
 
 export async function archiveGmailThread(threadId: string): Promise<GmailThread> {
-  const result = await requestApiJson<{ thread: GmailThread }>(
+  const result = await requestProductivityAction<{ thread: GmailThread }>(
     `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/archive`,
     { method: 'POST' }
   );
@@ -283,7 +299,7 @@ export async function archiveGmailThread(threadId: string): Promise<GmailThread>
 }
 
 export async function markGmailThreadRead(threadId: string): Promise<GmailThread> {
-  const result = await requestApiJson<{ thread: GmailThread }>(
+  const result = await requestProductivityAction<{ thread: GmailThread }>(
     `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/read`,
     { method: 'POST' }
   );
@@ -291,7 +307,7 @@ export async function markGmailThreadRead(threadId: string): Promise<GmailThread
 }
 
 export async function markGmailThreadUnread(threadId: string): Promise<GmailThread> {
-  const result = await requestApiJson<{ thread: GmailThread }>(
+  const result = await requestProductivityAction<{ thread: GmailThread }>(
     `/api/productivity/gmail/threads/${encodeURIComponent(threadId)}/unread`,
     { method: 'POST' }
   );
