@@ -140,10 +140,13 @@ real-data only:
   allowing cleanup dry-runs, suggested concurrency is passed to queued AI OS jobs, and Beast
   Mode prefers the best measured local text route when one exists.
 - Background Research Monitor reads AI OS saved monitor due-state, prepares daily AI OS
-  monitor templates from configured watched domains and active Career Desk application URLs,
-  queues due monitor runs through AI OS, and surfaces completed `monitor_topic` reports as
-  source-backed passive cards. Already surfaced research run ids are skipped on later sweeps
-  so completed monitor reports do not repeat endlessly.
+  monitor templates from configured watched research entries and active Career Desk
+  application URLs, queues due monitor runs through AI OS, and surfaces completed
+  `monitor_topic` reports as source-backed passive cards. The watch list accepts plain
+  domains plus `page:`, `topic:`, `tool:`, and `company:` lines; pages/domains stay
+  domain-constrained, while topic/tool/company watches search by goal text. Already
+  surfaced research run ids are skipped on later sweeps so completed monitor reports do
+  not repeat endlessly.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action.

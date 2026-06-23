@@ -2214,9 +2214,111 @@ describe('passive task engine', () => {
       metadata: { source: 'mini-hub-passive', watched_domain: 'example.com' }
     });
     expect(run.changed).toContain('research-monitor:monitor-example.com');
-    expect(run.cards[0]?.title).toContain('research domain monitor');
+    expect(run.cards[0]?.title).toContain('research watches prepared');
     expect(run.metadata.watchedDomains).toEqual(['example.com', 'docs.example.org']);
     expect(run.metadata.resourceLimit).toBe('light');
+  });
+
+  it('prepares research monitors from configured pages, topics, tools, and companies', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.passiveSettings = {
+      ...store.passiveSettings!,
+      watchedDomains: [
+        'page:https://docs.example.org/updates',
+        'topic: local LLM tooling',
+        'tool: Ollama',
+        'company: Clay Labs'
+      ],
+      localAiPreference: 'cloud_allowed',
+      resourceLimit: 'balanced'
+    };
+    const createdBodies: Array<Record<string, unknown>> = [];
+    const researchFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [] });
+      }
+      if (href.endsWith('/api/ai/research/monitors')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        createdBodies.push(body);
+        const metadata = body.metadata as Record<string, unknown>;
+        return jsonResponse({
+          monitor: {
+            id: `monitor-${metadata.passive_watch_key}`,
+            name: body.name,
+            metadata,
+            request: body.request
+          }
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'research-watch-entry-test' }
+    });
+
+    expect(run.status).toBe('succeeded');
+    expect(createdBodies).toHaveLength(4);
+    expect(createdBodies.map((body) => (body.metadata as Record<string, unknown>).passive_watch_kind)).toEqual([
+      'page',
+      'topic',
+      'tool',
+      'company'
+    ]);
+    expect(createdBodies[0]).toMatchObject({
+      name: 'Passive page watch: https://docs.example.org/updates',
+      metadata: {
+        source: 'mini-hub-passive',
+        passive_watch_key: 'page:https://docs.example.org/updates',
+        passive_watch_kind: 'page',
+        watched_domain: 'docs.example.org'
+      }
+    });
+    expect(createdBodies[0]?.request).toMatchObject({
+      seed_urls: ['https://docs.example.org/updates'],
+      include_domains: ['docs.example.org']
+    });
+    expect(createdBodies[1]).toMatchObject({
+      name: 'Passive topic watch: local LLM tooling',
+      request: {
+        seed_urls: [],
+        include_domains: [],
+        use_ai: true,
+        use_cloud_ai: true,
+        metadata: {
+          passive_watch_key: 'topic:local-llm-tooling',
+          passive_watch_kind: 'topic',
+          passive_watch_label: 'local LLM tooling'
+        }
+      },
+      metadata: {
+        passive_watch_key: 'topic:local-llm-tooling',
+        passive_watch_kind: 'topic',
+        passive_watch_label: 'local LLM tooling'
+      }
+    });
+    expect(run.changed).toContain('research-monitor:monitor-topic:local-llm-tooling');
+    expect(run.metadata).toMatchObject({
+      watchedDomains: ['docs.example.org'],
+      watchedTopics: ['local LLM tooling'],
+      watchedTools: ['Ollama'],
+      watchedCompanies: ['Clay Labs'],
+      watchedPages: ['https://docs.example.org/updates']
+    });
+    expect(run.metadata.watchedResearchEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'tool:ollama', kind: 'tool', label: 'Ollama' }),
+        expect.objectContaining({ key: 'company:clay-labs', kind: 'company', label: 'Clay Labs' })
+      ])
+    );
   });
 
   it('prepares research monitors from active saved career job URLs', async () => {

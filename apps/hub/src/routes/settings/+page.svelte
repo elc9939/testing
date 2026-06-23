@@ -37,6 +37,14 @@
   import { localNetworkHint, setServiceEndpoints } from '$lib/service-config';
   import { setTheme, theme, type ThemeMode } from '$lib/theme';
 
+  const watchedResearchPlaceholder = [
+    'example.com',
+    'page:https://example.com/updates',
+    'topic: local LLM tooling',
+    'tool: Ollama',
+    'company: Clay Labs'
+  ].join('\n');
+
   interface CapabilityServiceGroup {
     service: CapabilityService;
     label: string;
@@ -851,8 +859,8 @@
         <textarea bind:value={passiveFolders} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
       </label>
       <label class="field">
-        <span>Watched domains</span>
-        <textarea bind:value={passiveDomains} rows="4" placeholder="example.com"></textarea>
+        <span>Watched research</span>
+        <textarea bind:value={passiveDomains} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
       </label>
       <label class="field">
         <span>Watched accounts</span>

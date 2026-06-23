@@ -134,8 +134,12 @@ interface PassiveResourceBudget {
   researchTimeBudgetSeconds: number;
 }
 
+type PassiveResearchWatchKind = 'domain' | 'page' | 'topic' | 'tool' | 'company';
+
 interface PassiveResearchDomainEntry {
-  domain: string;
+  key: string;
+  kind: PassiveResearchWatchKind;
+  domain?: string;
   source: 'settings' | 'career_job';
   labels: string[];
   jobIds: string[];
@@ -677,21 +681,78 @@ function normalizeWatchedDomain(value: string): string | null {
   }
 }
 
-function safeConfiguredDomains(settings: PassiveEngineSettings, budget = resourceBudget(settings)): string[] {
-  return Array.from(new Set(settings.watchedDomains.map(normalizeWatchedDomain).filter((item): item is string => Boolean(item)))).slice(
-    0,
-    Math.max(budget.researchMonitorCreateLimit, budget.researchMonitorRunLimit)
+function slugResearchWatchKey(value: string): string {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 80) || 'watch'
   );
 }
 
-function safeConfiguredDomainEntries(settings: PassiveEngineSettings, budget = resourceBudget(settings)): PassiveResearchDomainEntry[] {
-  return safeConfiguredDomains(settings, budget).map((domain) => ({
+function parseWatchedPage(value: string): PassiveResearchDomainEntry | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    const domain = normalizeWatchedDomain(url.toString());
+    if (!domain) return null;
+    return {
+      key: `page:${url.toString()}`,
+      kind: 'page',
+      domain,
+      source: 'settings',
+      labels: [url.toString()],
+      jobIds: [],
+      urls: [url.toString()]
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseResearchSettingEntry(value: string): PassiveResearchDomainEntry | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const prefixed = /^(topic|tool|company|page)\s*:\s*(.+)$/iu.exec(trimmed);
+  if (prefixed) {
+    const kind = prefixed[1]!.toLowerCase() as PassiveResearchWatchKind;
+    const body = prefixed[2]!.trim();
+    if (kind === 'page') return parseWatchedPage(body);
+    if (!body) return null;
+    return {
+      key: `${kind}:${slugResearchWatchKey(body)}`,
+      kind,
+      source: 'settings',
+      labels: [body],
+      jobIds: [],
+      urls: []
+    };
+  }
+
+  const domain = normalizeWatchedDomain(trimmed);
+  if (!domain) return null;
+  return {
+    key: `domain:${domain}`,
+    kind: 'domain',
     domain,
     source: 'settings',
     labels: [domain],
     jobIds: [],
     urls: [`https://${domain}/`]
-  }));
+  };
+}
+
+function safeConfiguredDomainEntries(settings: PassiveEngineSettings, budget = resourceBudget(settings)): PassiveResearchDomainEntry[] {
+  const limit = Math.max(budget.researchMonitorCreateLimit, budget.researchMonitorRunLimit);
+  const byKey = new Map<string, PassiveResearchDomainEntry>();
+  for (const entry of settings.watchedDomains.map(parseResearchSettingEntry).filter((item): item is PassiveResearchDomainEntry => Boolean(item))) {
+    if (!byKey.has(entry.key)) byKey.set(entry.key, entry);
+    if (byKey.size >= limit) break;
+  }
+  return Array.from(byKey.values());
 }
 
 function activeCareerResearchJobs(store: MemoryStore) {
@@ -715,6 +776,8 @@ function safeCareerResearchDomainEntries(
     const existing =
       byDomain.get(domain) ??
       ({
+        key: `domain:${domain}`,
+        kind: 'domain',
         domain,
         source: 'career_job',
         labels: [],
@@ -741,29 +804,47 @@ function passiveResearchDomainEntries(
   budget = resourceBudget(settings)
 ): PassiveResearchDomainEntry[] {
   const limit = Math.max(budget.researchMonitorCreateLimit, budget.researchMonitorRunLimit);
-  const byDomain = new Map<string, PassiveResearchDomainEntry>();
+  const byKey = new Map<string, PassiveResearchDomainEntry>();
   for (const entry of [...safeConfiguredDomainEntries(settings, budget), ...safeCareerResearchDomainEntries(store, budget)]) {
-    const existing = byDomain.get(entry.domain);
+    const existing = byKey.get(entry.key);
     if (!existing) {
-      byDomain.set(entry.domain, entry);
+      byKey.set(entry.key, entry);
       continue;
     }
-    byDomain.set(entry.domain, {
-      domain: entry.domain,
-      source: existing.source === 'settings' ? 'settings' : entry.source,
+    byKey.set(entry.key, {
+      key: entry.key,
+      kind: existing.kind,
+      ...(existing.domain ?? entry.domain ? { domain: existing.domain ?? entry.domain } : {}),
+      source: existing.source === 'settings' || entry.source === 'settings' ? 'settings' : entry.source,
       labels: Array.from(new Set([...existing.labels, ...entry.labels])).slice(0, 4),
       jobIds: Array.from(new Set([...existing.jobIds, ...entry.jobIds])).slice(0, 8),
       urls: Array.from(new Set([...existing.urls, ...entry.urls])).slice(0, 4)
     });
   }
-  return Array.from(byDomain.values()).slice(0, limit);
+  return Array.from(byKey.values()).slice(0, limit);
 }
 
 function researchDomainMetadata(entries: PassiveResearchDomainEntry[]): Record<string, unknown> {
+  const domainEntries = entries.filter((entry): entry is PassiveResearchDomainEntry & { domain: string } => Boolean(entry.domain));
+  const nonDomainEntries = entries.filter((entry) => !entry.domain || entry.kind !== 'domain');
   return {
-    watchedDomains: entries.map((entry) => entry.domain),
-    watchedDomainSources: Object.fromEntries(entries.map((entry) => [entry.domain, entry.source])),
-    careerJobDomains: entries.filter((entry) => entry.source === 'career_job').map((entry) => entry.domain)
+    watchedDomains: Array.from(new Set(domainEntries.map((entry) => entry.domain))),
+    watchedDomainSources: Object.fromEntries(domainEntries.map((entry) => [entry.domain, entry.source])),
+    careerJobDomains: Array.from(new Set(domainEntries.filter((entry) => entry.source === 'career_job').map((entry) => entry.domain))),
+    watchedResearchEntries: entries.map((entry) =>
+      compactRecord({
+        key: entry.key,
+        kind: entry.kind,
+        label: entry.labels[0] ?? entry.domain ?? entry.key,
+        domain: entry.domain,
+        source: entry.source,
+        url: entry.urls[0]
+      })
+    ),
+    watchedTopics: nonDomainEntries.filter((entry) => entry.kind === 'topic').map((entry) => entry.labels[0] ?? entry.key),
+    watchedTools: nonDomainEntries.filter((entry) => entry.kind === 'tool').map((entry) => entry.labels[0] ?? entry.key),
+    watchedCompanies: nonDomainEntries.filter((entry) => entry.kind === 'company').map((entry) => entry.labels[0] ?? entry.key),
+    watchedPages: nonDomainEntries.filter((entry) => entry.kind === 'page').map((entry) => entry.urls[0]).filter(Boolean)
   };
 }
 
@@ -2829,6 +2910,62 @@ async function runIdleCompute(
   }
 }
 
+function passiveResearchWatchLabel(entry: PassiveResearchDomainEntry): string {
+  return entry.labels[0] ?? entry.domain ?? entry.key.replace(/^[^:]+:/u, '');
+}
+
+function passiveResearchWatchName(entry: PassiveResearchDomainEntry): string {
+  const label = passiveResearchWatchLabel(entry);
+  if (entry.source === 'career_job' && entry.domain) return `Passive career watch: ${entry.domain}`;
+  if (entry.kind === 'domain' && entry.domain) return `Passive watch: ${entry.domain}`;
+  if (entry.kind === 'page') return `Passive page watch: ${label}`;
+  if (entry.kind === 'tool') return `Passive tool watch: ${label}`;
+  if (entry.kind === 'company') return `Passive company watch: ${label}`;
+  return `Passive topic watch: ${label}`;
+}
+
+function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
+  const label = passiveResearchWatchLabel(entry);
+  const labelText = entry.labels.length ? ` Sources: ${entry.labels.join('; ')}.` : '';
+  if (entry.source === 'career_job' && entry.domain) {
+    return `Monitor ${entry.domain} for meaningful career/company changes relevant to saved Career Desk targets.${labelText} Summarize only source-backed changes.`;
+  }
+  if (entry.kind === 'domain' && entry.domain) {
+    return `Monitor ${entry.domain} for meaningful changes, new posts, product/company updates, deadlines, or technical notes relevant to my Mini Hub watch list. Summarize only source-backed changes.`;
+  }
+  if (entry.kind === 'page') {
+    return `Monitor this saved page for meaningful changes relevant to my Mini Hub watch list: ${label}. Summarize only source-backed changes.`;
+  }
+  if (entry.kind === 'tool') {
+    return `Monitor meaningful updates about this saved tool: ${label}. Focus on releases, docs, pricing, API changes, reliability notes, and source-backed technical changes.`;
+  }
+  if (entry.kind === 'company') {
+    return `Monitor meaningful updates about this saved company: ${label}. Focus on product, hiring, funding, leadership, deadlines, and source-backed changes.`;
+  }
+  return `Monitor meaningful source-backed updates about this saved topic: ${label}.`;
+}
+
+function passiveResearchWatchMetadata(entry: PassiveResearchDomainEntry): Record<string, unknown> {
+  return compactRecord({
+    source: 'mini-hub-passive',
+    passive_watch_key: entry.key,
+    passive_watch_kind: entry.kind,
+    passive_watch_label: passiveResearchWatchLabel(entry),
+    watched_domain: entry.domain,
+    watched_domain_source: entry.domain ? entry.source : undefined,
+    created_by_task: 'research_monitor',
+    source_labels: entry.labels,
+    source_job_ids: entry.jobIds
+  });
+}
+
+function existingResearchWatchKey(monitor: Record<string, unknown>): string | undefined {
+  const metadata = isRecord(monitor.metadata) ? monitor.metadata : {};
+  if (typeof metadata.passive_watch_key === 'string' && metadata.passive_watch_key.trim()) return metadata.passive_watch_key;
+  if (typeof metadata.watched_domain === 'string' && metadata.watched_domain.trim()) return `domain:${metadata.watched_domain.trim().toLowerCase()}`;
+  return undefined;
+}
+
 async function ensureWatchedDomainResearchMonitors(
   settings: PassiveEngineSettings,
   domainEntries: PassiveResearchDomainEntry[],
@@ -2843,16 +2980,12 @@ async function ensureWatchedDomainResearchMonitors(
     'Research monitors'
   );
   const existing = isRecord(payload) && Array.isArray(payload.monitors) ? payload.monitors.filter(isRecord) : [];
-  const covered = new Set(
-    existing
-      .map((monitor) => (isRecord(monitor.metadata) ? monitor.metadata.watched_domain : undefined))
-      .filter((value): value is string => typeof value === 'string')
-  );
+  const covered = new Set(existing.map(existingResearchWatchKey).filter((value): value is string => typeof value === 'string'));
 
   const created: Record<string, unknown>[] = [];
-  for (const entry of domainEntries.filter((item) => !covered.has(item.domain)).slice(0, budget.researchMonitorCreateLimit)) {
-    const labelText = entry.labels.length ? ` Sources: ${entry.labels.join('; ')}.` : '';
-    const seedUrls = entry.urls.length ? entry.urls : [`https://${entry.domain}/`];
+  for (const entry of domainEntries.filter((item) => !covered.has(item.key)).slice(0, budget.researchMonitorCreateLimit)) {
+    const seedUrls = entry.urls.length ? entry.urls : entry.domain ? [`https://${entry.domain}/`] : [];
+    const metadata = passiveResearchWatchMetadata(entry);
     const createPayload = await fetchJsonWithTimeout(
       fetchImpl,
       new URL('/api/ai/research/monitors', env.aiOsApiUrl),
@@ -2860,48 +2993,32 @@ async function ensureWatchedDomainResearchMonitors(
       {
         method: 'POST',
         body: JSON.stringify({
-          name: entry.source === 'career_job' ? `Passive career watch: ${entry.domain}` : `Passive watch: ${entry.domain}`,
+          name: passiveResearchWatchName(entry),
           enabled: true,
           schedule: 'daily',
           request: {
             mode: 'monitor_topic',
-            goal:
-              entry.source === 'career_job'
-                ? `Monitor ${entry.domain} for meaningful career/company changes relevant to saved Career Desk targets.${labelText} Summarize only source-backed changes.`
-                : `Monitor ${entry.domain} for meaningful changes, new posts, product/company updates, deadlines, or technical notes relevant to my Mini Hub watch list. Summarize only source-backed changes.`,
+            goal: passiveResearchWatchGoal(entry),
             seed_urls: seedUrls,
             depth: 1,
             max_pages: budget.researchMaxPages,
             per_domain_limit: budget.researchPerDomainLimit,
             time_budget_s: budget.researchTimeBudgetSeconds,
-            include_domains: [entry.domain],
+            include_domains: entry.domain ? [entry.domain] : [],
             exclude_domains: [],
             use_ai: settings.localAiPreference !== 'local_only',
             use_cloud_ai: settings.localAiPreference === 'cloud_allowed',
             local_first: true,
             screenshot: false,
             save_to_memory: false,
-            metadata: {
-              source: 'mini-hub-passive',
-              watched_domain: entry.domain,
-              watched_domain_source: entry.source,
-              source_labels: entry.labels,
-              source_job_ids: entry.jobIds
-            }
+            metadata
           },
-          metadata: {
-            source: 'mini-hub-passive',
-            watched_domain: entry.domain,
-            watched_domain_source: entry.source,
-            created_by_task: 'research_monitor',
-            source_labels: entry.labels,
-            source_job_ids: entry.jobIds
-          }
+          metadata
         })
       },
       10000
     );
-    const monitor = isRecord(createPayload) && isRecord(createPayload.monitor) ? createPayload.monitor : { domain: entry.domain };
+    const monitor = isRecord(createPayload) && isRecord(createPayload.monitor) ? createPayload.monitor : metadata;
     created.push(monitor);
   }
   return created;
@@ -2970,12 +3087,16 @@ function researchRunCard(task: PassiveTask, passiveRunId: string, researchRun: R
   const options = nestedRecord(researchRun, 'options');
   const metadata = nestedRecord(options, 'metadata');
   const watchedDomain = typeof metadata.watched_domain === 'string' ? metadata.watched_domain : undefined;
+  const watchLabel = typeof metadata.passive_watch_label === 'string' ? metadata.passive_watch_label : undefined;
+  const watchKind = typeof metadata.passive_watch_kind === 'string' ? metadata.passive_watch_kind : undefined;
   const title =
     typeof report.title === 'string' && report.title.trim()
       ? report.title.trim()
       : watchedDomain
         ? `Research update for ${watchedDomain}`
-        : 'Research monitor update';
+        : watchLabel
+          ? `Research update for ${watchLabel}`
+          : 'Research monitor update';
   return card({
     id: id('passive-card'),
     taskId: task.id,
@@ -3008,7 +3129,9 @@ function researchRunCard(task: PassiveTask, passiveRunId: string, researchRun: R
     actionKind: 'inspect',
     why: watchedDomain
       ? `AI OS completed a saved monitor run for ${watchedDomain} and returned source-backed findings.`
-      : 'AI OS completed a saved topic monitor run and returned source-backed findings.'
+      : watchLabel
+        ? `AI OS completed a saved ${watchKind ?? 'topic'} monitor run for ${watchLabel} and returned source-backed findings.`
+        : 'AI OS completed a saved topic monitor run and returned source-backed findings.'
   });
 }
 
@@ -3109,13 +3232,13 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
               taskId: task.id,
               runId,
               family: task.family,
-              title: `${createdMonitors.length} research domain monitor${createdMonitors.length === 1 ? '' : 's'} prepared`,
-              summary: 'Created AI OS daily monitor templates from Passive Task research domains. No crawl was run by this setup step.',
+              title: `${createdMonitors.length} research watch${createdMonitors.length === 1 ? '' : 'es'} prepared`,
+              summary: 'Created AI OS daily monitor templates from Passive Task watch-list entries. No crawl was run by this setup step.',
               urgency: 44,
               confidence: 0.88,
               route: routeMap.research,
               sourceRefs: createdMonitors.map((monitor) =>
-                stableSourceRef('record', String(monitor.name ?? monitor.id ?? 'Watched domain monitor'), {
+                stableSourceRef('record', String(monitor.name ?? monitor.id ?? 'Research watch monitor'), {
                   id: String(monitor.id ?? crypto.randomUUID()),
                   route: routeMap.research,
                   metadata: monitor
@@ -3123,7 +3246,7 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
               ),
               suggestedAction: 'Inspect monitors',
               actionKind: 'inspect',
-              why: 'Passive Tasks found source-backed research domains and created durable AI OS monitor definitions for them without running a crawl.'
+              why: 'Passive Tasks found source-backed research watch-list entries and created durable AI OS monitor definitions for them without running a crawl.'
             })
           ].concat(recent.cards),
           changed: [

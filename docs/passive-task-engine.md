@@ -182,10 +182,13 @@ normal API startup.
   concurrency is passed through to queued AI OS jobs, and Beast Mode prefers the best measured
   local text route when one is available.
 - Background Research Monitor: reads AI OS due monitors, prepares daily AI OS monitor
-  templates from configured watched domains and active Career Desk application URLs, queues
-  due monitor runs, and surfaces completed `monitor_topic` reports as source-backed passive
-  cards with research-run and source URL references. Career-derived monitors carry the source
-  job ids and labels in metadata so the watcher remains source-backed rather than guessed.
+  templates from configured watched research entries and active Career Desk application URLs,
+  queues due monitor runs, and surfaces completed `monitor_topic` reports as source-backed
+  passive cards with research-run and source URL references. The watch list accepts plain
+  domains plus `page:`, `topic:`, `tool:`, and `company:` lines; pages/domains stay
+  domain-constrained, while topic/tool/company watches search by goal text without invented
+  seed URLs. Career-derived monitors carry the source job ids and labels in metadata so the
+  watcher remains source-backed rather than guessed.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action.
@@ -237,8 +240,9 @@ normal API startup.
   when the passive AI preference is `cloud_allowed`.
 - Event work is gated by explicit event names; scheduled ticks do not accidentally run
   event-only tasks.
-- Watched domains are normalized to public hostnames before passive research monitor
-  provisioning; localhost and IP-style hosts are ignored.
+- Watched research domain/page entries are normalized to public hostnames before passive
+  research monitor provisioning; localhost and IP-style hosts are ignored. Topic, tool, and
+  company entries become explicit AI OS monitor goals with stable passive watch keys.
 - Watched accounts scope integration-account health findings. Account labels, connection ids,
   `provider:account` tokens, `@domain` suffixes, and plain email domains can match; unmatched
   broken connections are tracked in metadata but kept out of the digest.

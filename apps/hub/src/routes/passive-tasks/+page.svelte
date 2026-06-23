@@ -47,6 +47,14 @@
   import { attentionStore } from '$lib/attention-store';
   import { hubHref } from '$lib/routes';
 
+  const watchedResearchPlaceholder = [
+    'example.com',
+    'page:https://example.com/updates',
+    'topic: local LLM tooling',
+    'tool: Ollama',
+    'company: Clay Labs'
+  ].join('\n');
+
   let snapshot: PassiveSnapshot | null = null;
   let loading = false;
   let error = '';
@@ -1056,8 +1064,8 @@
             <textarea bind:value={folderText} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
           </label>
           <label class="field">
-            <span>Watched domains</span>
-            <textarea bind:value={domainText} rows="3" placeholder="example.com"></textarea>
+            <span>Watched research</span>
+            <textarea bind:value={domainText} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
           </label>
           <label class="field">
             <span>Watched accounts</span>

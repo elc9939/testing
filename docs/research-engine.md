@@ -124,7 +124,8 @@ exports, citations, source cache, Action Ledger visibility, and semantic-memory 
 continue to work.
 
 Mini Hub's Passive Task Engine can also prepare AI OS monitor templates from configured
-watched domains. Those templates are tagged with `source: mini-hub-passive`, use the same
+watched research entries: plain domains, exact `page:` URLs, and `topic:`, `tool:`, or
+`company:` lines. Those templates are tagged with `source: mini-hub-passive`, use the same
 daily monitor scheduler, and do not run a crawl during the setup step.
 
 Advanced run knobs currently sent by the UI include depth, max pages, per-domain limit, time
