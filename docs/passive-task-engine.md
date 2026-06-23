@@ -160,6 +160,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - Cancelling a running task is sticky: when the in-flight work returns, the run is recorded as
   cancelled, no follow-up run is scheduled, and the task remains cancelled instead of being
   revived by async completion.
+- Manual run requests still bypass schedule timing, but they respect engine, watcher, family,
+  paused, cancelled, and running task state. Resume a paused task before running it manually.
 - Failed and blocked runs append to the task's bounded error log, and failed run records point
   their `nextRunAt` at the retry/backoff time so dashboard state matches the scheduler.
 - Failures remain visible in passive snapshots, source statuses, digest cards, and the Action

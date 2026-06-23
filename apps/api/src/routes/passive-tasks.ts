@@ -172,7 +172,6 @@ export function passiveTaskRoutes(store: MemoryStore, options: PassiveTaskRouteO
     try {
       const run = await runPassiveTask(store, c.req.param('id'), {
         externalFetch,
-        force: true,
         input: passiveRunInput(parsed.data, 'manual-run')
       });
       return c.json({ run, snapshot: buildPassiveSnapshot(store) });

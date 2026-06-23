@@ -183,6 +183,29 @@ describe('mini hub api', () => {
     expect(store.actionEvents.at(-1)).toMatchObject({ source: 'passive-tasks', actionType: 'passive.app_health' });
   });
 
+  it('prevents manual passive runs from bypassing paused task state', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store });
+    const taskId = 'passive-task:app-health';
+
+    const pauseResponse = await app.request(`/api/passive-tasks/tasks/${encodeURIComponent(taskId)}/pause`, {
+      method: 'POST'
+    });
+    expect(pauseResponse.status).toBe(200);
+
+    const runResponse = await app.request(`/api/passive-tasks/tasks/${encodeURIComponent(taskId)}/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'manual-paused-test' })
+    });
+
+    expect(runResponse.status).toBe(409);
+    const body = (await runResponse.json()) as { error: string; snapshot: { runs: unknown[]; tasks: Array<{ id: string; status: string }> } };
+    expect(body.error).toBe('Passive task is paused.');
+    expect(body.snapshot.runs).toEqual([]);
+    expect(body.snapshot.tasks.find((task) => task.id === taskId)?.status).toBe('paused');
+  });
+
   it('saves user-facing entities and exposes sync changes by cursor', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const authHeaders = { 'content-type': 'application/json' };

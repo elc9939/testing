@@ -96,6 +96,12 @@
     return `${displayWhen(latest.at)}: ${latest.message}${retry}`;
   }
 
+  function canRunTask(task: PassiveTask, watcher: PassiveWatcher | undefined): boolean {
+    if (!settings?.enabled || !watcher?.enabled) return false;
+    if (settings.enabledFamilies[task.family] === false) return false;
+    return !['paused', 'cancelled', 'running'].includes(task.status);
+  }
+
   function compactHash(value: unknown): string {
     return typeof value === 'string' && value.length >= 12 ? value.slice(0, 12) : '';
   }
@@ -451,7 +457,7 @@
                 <td>{displayWhen(task.nextRunAt)}</td>
                 <td><span class={`state ${task.status}`}>{task.status}</span></td>
                 <td class="table-actions">
-                  <button class="icon-action" type="button" title="Run now" disabled={Boolean(busyId)} on:click={() => applyAction(`run:${task.id}`, () => runPassiveTask(task.id, { idle: task.idleOnly, reason: 'dashboard-run' }), `${task.title} ran.`)}>
+                  <button class="icon-action" type="button" title="Run now" disabled={Boolean(busyId) || !canRunTask(task, watcher)} on:click={() => applyAction(`run:${task.id}`, () => runPassiveTask(task.id, { idle: task.idleOnly, reason: 'dashboard-run' }), `${task.title} ran.`)}>
                     <Play size={15} />
                   </button>
                   {#if task.status === 'paused'}
