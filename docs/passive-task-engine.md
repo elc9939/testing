@@ -98,7 +98,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   task. It adds bounded text previews, suggested tags, cleanup hints, and semantic-memory
   artifacts for safe text-like files when AI OS is reachable.
 - Project Drift Detector: scans only configured project folders for stale READMEs,
-  TODO/FIXME buildup, and missing test/check scripts.
+  TODO/FIXME buildup, missing test/check scripts, and existing failing health artifacts such
+  as recent test/check logs or JUnit-style result files.
 
 ## Safety
 
@@ -111,6 +112,9 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   when the folder is removed or the file-intelligence watcher is disabled.
 - Text previews and indexing are bounded; PDFs, Word documents, and images are not given fake
   content summaries until a real extractor/OCR path is added.
+- Project Drift does not execute arbitrary project scripts in the background. It reads bounded
+  existing test/check log artifacts from configured folders and reports source-backed failure
+  evidence when those artifacts already exist.
 - Resource limits clamp local scan breadth and AI OS research monitor budgets before work is
   queued, so changing the setting affects the next run without editing task definitions.
 - Backup snapshots redact encrypted token payloads from Mini Hub connection metadata.

@@ -642,6 +642,46 @@ describe('passive task engine', () => {
     expect(run.metadata.resourceLimit).toBe('light');
   });
 
+  it('surfaces failing project health artifacts without running project scripts', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-project-health-'));
+    try {
+      const readmePath = join(dir, 'README.md');
+      const packagePath = join(dir, 'package.json');
+      const logPath = join(dir, '.tmp-check.err.log');
+      writeFileSync(readmePath, '# Project\n\nHealth checked project.', 'utf8');
+      writeFileSync(packagePath, JSON.stringify({ scripts: { check: 'echo should-not-run' } }), 'utf8');
+      writeFileSync(logPath, 'Mini Hub check output\nTests failed: 1 failed, 2 passed\n', 'utf8');
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = {
+        ...store.passiveSettings!,
+        watchedFolders: [dir],
+        resourceLimit: 'light'
+      };
+      const task = store.passiveTasks.find((item) => item.family === 'project_drift')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'project-health-artifact-test' }
+      });
+
+      const card = run.cards.find((item) => item.title.includes('may be drifting'));
+      const artifactRef = card?.sourceRefs.find((ref) => ref.filePath === logPath);
+      expect(run.status).toBe('succeeded');
+      expect(card?.summary).toContain('1 failing health check artifact');
+      expect(artifactRef?.metadata).toMatchObject({
+        matched: 'Tests failed: 1 failed, 2 passed'
+      });
+      expect(run.changed).toContain(`health-check:${logPath}`);
+      expect(run.metadata.projectBudget).toMatchObject({
+        healthArtifactCount: 1
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('persists passive result card triage and filters the source digest', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

@@ -68,6 +68,13 @@ interface CleanupCandidate {
   reason: string;
 }
 
+interface ProjectHealthArtifact {
+  path: string;
+  summary: string;
+  matched: string;
+  mtimeMs: number;
+}
+
 interface PassiveResourceBudget {
   watchedFolderLimit: number;
   filesPerFolder: number;
@@ -2192,6 +2199,69 @@ function countTodos(folder: string, budget: PassiveResourceBudget): number {
   return count;
 }
 
+function projectHealthArtifactName(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (/^\.tmp-.+\.(?:err\.)?log$/u.test(lower)) return true;
+  if (/\b(?:test|tests|check|health|ci|junit|vitest|pytest|playwright|coverage)\b/u.test(lower)) {
+    return /\.(?:log|txt|xml|json)$/u.test(lower);
+  }
+  return false;
+}
+
+function projectHealthFailureLine(text: string): string | null {
+  const patterns = [
+    /\b(?:tests?|checks?)\s+failed\b/iu,
+    /\b[1-9]\d*\s+(?:failed|failing|failure|failures)\b/iu,
+    /\bFAIL(?:ED)?\s+[\w./:-]+/u,
+    /\bexit code\s+[1-9]\d*\b/iu,
+    /\bProcess completed with exit code [1-9]\d*\b/iu,
+    /\bnpm ERR!\b/u,
+    /\bERR_PNPM_[A-Z0-9_]+\b/u,
+    /\bAssertionError\b/u,
+    /\bTraceback \(most recent call last\)/u,
+    /<(?:failure|error)\b/iu
+  ];
+  for (const rawLine of text.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (patterns.some((pattern) => pattern.test(line))) return line.slice(0, 220);
+  }
+  return null;
+}
+
+function scanProjectHealthArtifacts(folder: string, budget: PassiveResourceBudget): ProjectHealthArtifact[] {
+  const artifacts: ProjectHealthArtifact[] = [];
+  const stack = [folder];
+  const ignored = new Set(['node_modules', '.git', 'dist', 'build', '.svelte-kit', 'coverage']);
+  let inspected = 0;
+  const recentCutoff = Date.now() - 45 * dayMs;
+  while (stack.length && inspected < budget.projectDirectoryEntries && artifacts.length < 5) {
+    const current = stack.pop()!;
+    for (const entry of readdirSync(current, { withFileTypes: true }).slice(0, budget.projectDirectoryEntries)) {
+      inspected += 1;
+      if (inspected > budget.projectDirectoryEntries || artifacts.length >= 5) break;
+      const path = join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!ignored.has(entry.name)) stack.push(path);
+        continue;
+      }
+      if (!entry.isFile() || !projectHealthArtifactName(entry.name)) continue;
+      const stats = statSync(path);
+      if (stats.mtimeMs < recentCutoff || stats.size > 2_000_000) continue;
+      const text = readFileSync(path, 'utf8').slice(0, Math.min(budget.projectFileChars, 80_000));
+      const matched = projectHealthFailureLine(text);
+      if (!matched) continue;
+      artifacts.push({
+        path,
+        summary: `${basename(path)} reports a failing health check.`,
+        matched,
+        mtimeMs: stats.mtimeMs
+      });
+    }
+  }
+  return artifacts;
+}
+
 function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): FamilyRunResult {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
   const budget = resourceBudget(settings);
@@ -2220,6 +2290,8 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
   }
 
   const cards: PassiveResultCard[] = [];
+  const changed: string[] = [];
+  let healthArtifactCount = 0;
   for (const folder of folders) {
     try {
       const resolved = resolve(folder);
@@ -2247,6 +2319,25 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
       const todos = countTodos(resolved, budget);
       if (todos >= 20) issues.push(`${todos} TODO/FIXME markers`);
 
+      const healthArtifacts = scanProjectHealthArtifacts(resolved, budget);
+      if (healthArtifacts.length) {
+        healthArtifactCount += healthArtifacts.length;
+        issues.push(`${healthArtifacts.length} failing health check artifact${healthArtifacts.length === 1 ? '' : 's'}`);
+        for (const artifact of healthArtifacts) {
+          changed.push(`health-check:${artifact.path}`);
+          sourceRefs.push(
+            stableSourceRef('file', basename(artifact.path), {
+              id: artifact.path,
+              filePath: artifact.path,
+              metadata: {
+                matched: artifact.matched,
+                mtimeMs: artifact.mtimeMs
+              }
+            })
+          );
+        }
+      }
+
       if (issues.length) {
         cards.push(
           card({
@@ -2262,7 +2353,7 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
             sourceRefs,
             suggestedAction: 'Inspect project',
             actionKind: 'inspect',
-            why: 'Configured project metadata shows stale docs, TODO buildup, or missing health scripts.'
+            why: 'Configured project metadata shows stale docs, TODO buildup, failing health artifacts, or missing health scripts.'
           })
         );
       }
@@ -2288,7 +2379,7 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
         runId,
         family: task.family,
         title: 'Configured projects look steady',
-        summary: 'No README, TODO, or package health drift was detected in configured folders.',
+        summary: 'No README, TODO, package health, or failing health artifact drift was detected in configured folders.',
         urgency: 22,
         confidence: 0.7,
         route: routeMap.passiveTasks,
@@ -2303,13 +2394,15 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
   return {
     status: 'succeeded',
     cards,
+    changed,
     metadata: {
       resourceLimit: settings.resourceLimit,
       projectBudget: {
         folders: folders.length,
         directoryEntries: budget.projectDirectoryEntries,
         todoCap: budget.projectTodoCap,
-        fileChars: budget.projectFileChars
+        fileChars: budget.projectFileChars,
+        healthArtifactCount
       }
     }
   };

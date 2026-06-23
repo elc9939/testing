@@ -124,7 +124,9 @@ real-data only:
   cleanup hints, and optional AI OS semantic-memory indexing from debounced folder events
   or scheduled scans.
 - Project Drift Detector scans only configured project folders for stale README files,
-  TODO/FIXME buildup, and missing `test`/`check` scripts.
+  TODO/FIXME buildup, missing `test`/`check` scripts, and existing failing health artifacts
+  such as recent test/check logs. It reports those artifacts without running arbitrary project
+  commands in the background.
 
 Passive outputs are source-backed cards with title, summary, urgency, confidence, source
 links/files, suggested next action, and why the item surfaced. High-urgency cards flow into
