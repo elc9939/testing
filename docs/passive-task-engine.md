@@ -149,8 +149,9 @@ normal API startup.
   for PDFs, Office documents, screenshots, and images, suggested tags, cleanup hints, and
   semantic-memory artifacts for safe text-like files when AI OS is reachable.
 - Project Drift Detector: scans only configured project folders for stale READMEs,
-  TODO/FIXME buildup, missing test/check scripts, and existing failing health artifacts such
-  as recent test/check logs or JUnit-style result files.
+  README files that trail newer source/config files, TODO/FIXME buildup, missing test/check
+  scripts, and existing failing health artifacts such as recent test/check logs or
+  JUnit-style result files.
 
 ## Safety
 

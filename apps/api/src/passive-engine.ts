@@ -96,6 +96,13 @@ interface ProjectHealthArtifact {
   mtimeMs: number;
 }
 
+interface ProjectDocDrift {
+  path: string;
+  mtimeMs: number;
+  readmeMtimeMs: number;
+  daysNewerThanReadme: number;
+}
+
 interface PassiveResourceBudget {
   watchedFolderLimit: number;
   filesPerFolder: number;
@@ -3561,6 +3568,43 @@ function countTodos(folder: string, budget: PassiveResourceBudget): number {
   return count;
 }
 
+function latestSourceNewerThanReadme(folder: string, readmePath: string, budget: PassiveResourceBudget): ProjectDocDrift | null {
+  const readmeMtimeMs = statSync(readmePath).mtimeMs;
+  const stack = [folder];
+  const ignored = new Set(['node_modules', '.git', 'dist', 'build', '.svelte-kit', 'coverage']);
+  const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.svelte', '.py', '.rs', '.go', '.json', '.toml', '.yaml', '.yml']);
+  let inspected = 0;
+  let newest: { path: string; mtimeMs: number } | null = null;
+
+  while (stack.length && inspected < budget.projectDirectoryEntries) {
+    const current = stack.pop()!;
+    for (const entry of readdirSync(current, { withFileTypes: true }).slice(0, budget.projectDirectoryEntries)) {
+      inspected += 1;
+      if (inspected > budget.projectDirectoryEntries) break;
+      const path = join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!ignored.has(entry.name)) stack.push(path);
+        continue;
+      }
+      if (!entry.isFile() || resolve(path) === resolve(readmePath)) continue;
+      const lowerName = entry.name.toLowerCase();
+      if (lowerName.endsWith('.lock') || lowerName === 'package-lock.json' || lowerName === 'pnpm-lock.yaml') continue;
+      if (!sourceExtensions.has(extname(entry.name).toLowerCase())) continue;
+      const mtimeMs = statSync(path).mtimeMs;
+      if (mtimeMs <= readmeMtimeMs + 14 * dayMs) continue;
+      if (!newest || mtimeMs > newest.mtimeMs) newest = { path, mtimeMs };
+    }
+  }
+
+  if (!newest) return null;
+  return {
+    path: newest.path,
+    mtimeMs: newest.mtimeMs,
+    readmeMtimeMs,
+    daysNewerThanReadme: Math.max(0, Math.round((newest.mtimeMs - readmeMtimeMs) / dayMs))
+  };
+}
+
 function projectHealthArtifactName(name: string): boolean {
   const lower = name.toLowerCase();
   if (/^\.tmp-.+\.(?:err\.)?log$/u.test(lower)) return true;
@@ -3654,6 +3698,7 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
   const cards: PassiveResultCard[] = [];
   const changed: string[] = [];
   let healthArtifactCount = 0;
+  let docDriftCount = 0;
   for (const folder of folders) {
     try {
       const resolved = resolve(folder);
@@ -3669,6 +3714,24 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
         sourceRefs.push(stableSourceRef('file', 'README', { id: readme, filePath: readme }));
         const readmeAgeDays = Math.round((Date.now() - statSync(readme).mtimeMs) / dayMs);
         if (readmeAgeDays > 90) issues.push(`README stale for ${readmeAgeDays} days`);
+        const docDrift = latestSourceNewerThanReadme(resolved, readme, budget);
+        if (docDrift) {
+          docDriftCount += 1;
+          changed.push(`doc-drift:${docDrift.path}`);
+          issues.push(`README trails ${basename(docDrift.path)} by ${docDrift.daysNewerThanReadme} days`);
+          sourceRefs.push(
+            stableSourceRef('file', basename(docDrift.path), {
+              id: docDrift.path,
+              filePath: docDrift.path,
+              metadata: {
+                reason: 'newer-than-readme',
+                daysNewerThanReadme: docDrift.daysNewerThanReadme,
+                sourceMtimeMs: docDrift.mtimeMs,
+                readmeMtimeMs: docDrift.readmeMtimeMs
+              }
+            })
+          );
+        }
       }
 
       if (existsSync(packagePath)) {
@@ -3764,7 +3827,8 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
         directoryEntries: budget.projectDirectoryEntries,
         todoCap: budget.projectTodoCap,
         fileChars: budget.projectFileChars,
-        healthArtifactCount
+        healthArtifactCount,
+        docDriftCount
       }
     }
   };

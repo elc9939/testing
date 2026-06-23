@@ -1843,6 +1843,55 @@ describe('passive task engine', () => {
     }
   });
 
+  it('surfaces README drift when source files are newer than project docs', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-project-doc-drift-'));
+    try {
+      const readmePath = join(dir, 'README.md');
+      const packagePath = join(dir, 'package.json');
+      const sourcePath = join(dir, 'src', 'feature.ts');
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      writeFileSync(readmePath, '# Project\n\nOld setup notes.', 'utf8');
+      writeFileSync(packagePath, JSON.stringify({ scripts: { test: 'vitest run' } }), 'utf8');
+      writeFileSync(sourcePath, 'export const freshFeature = true;\n', 'utf8');
+      const readmeDate = new Date('2026-01-01T10:00:00.000Z');
+      const sourceDate = new Date('2026-03-01T10:00:00.000Z');
+      utimesSync(readmePath, readmeDate, readmeDate);
+      utimesSync(packagePath, readmeDate, readmeDate);
+      utimesSync(sourcePath, sourceDate, sourceDate);
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = {
+        ...store.passiveSettings!,
+        watchedFolders: [dir],
+        resourceLimit: 'light'
+      };
+      const task = store.passiveTasks.find((item) => item.family === 'project_drift')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'project-doc-drift-test' }
+      });
+
+      const card = run.cards.find((item) => item.title.includes('may be drifting'));
+      const readmeRef = card?.sourceRefs.find((ref) => ref.filePath === readmePath);
+      const sourceRef = card?.sourceRefs.find((ref) => ref.filePath === sourcePath);
+      expect(run.status).toBe('succeeded');
+      expect(card?.summary).toContain('README trails feature.ts by');
+      expect(readmeRef).toBeTruthy();
+      expect(sourceRef?.metadata).toMatchObject({
+        reason: 'newer-than-readme',
+        daysNewerThanReadme: 59
+      });
+      expect(run.changed).toContain(`doc-drift:${sourcePath}`);
+      expect(run.metadata.projectBudget).toMatchObject({
+        docDriftCount: 1
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('persists passive result card triage and filters the source digest', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
