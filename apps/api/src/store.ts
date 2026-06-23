@@ -288,7 +288,7 @@ export function appendActionLedgerEvent(
   return event;
 }
 
-function redactActionLedgerEvent(event: ActionLedgerEntry): ActionLedgerEntry {
+export function redactActionLedgerEvent(event: ActionLedgerEntry): ActionLedgerEntry {
   return actionLedgerEntrySchema.parse(redactSensitiveValue(event));
 }
 

@@ -53,7 +53,7 @@ import { createHash } from 'node:crypto';
 import { platform } from 'node:os';
 import { promisify } from 'node:util';
 import { env } from './env';
-import { appendActionLedgerEvent, persistPassiveTasks, type MemoryStore } from './store';
+import { appendActionLedgerEvent, persistPassiveTasks, redactActionLedgerEvent, type MemoryStore } from './store';
 
 type FetchLike = typeof fetch;
 type PassiveMachineMode = 'balanced' | 'beast' | 'quiet' | 'offline' | 'night' | 'maintenance';
@@ -1489,8 +1489,15 @@ function sanitizedMiniHubSnapshot(store: MemoryStore): Record<string, unknown> {
       ...connection,
       encryptedTokenSet: connection.encryptedTokenSet ? '[encrypted-redacted]' : ''
     })),
-    syncEventCount: store.syncEvents.length,
-    actionEventCount: store.actionEvents.length
+    syncEvents: store.syncEvents,
+    actionEvents: store.actionEvents.map(redactActionLedgerEvent),
+    passiveSettings: store.passiveSettings,
+    passiveWatchers: store.passiveWatchers,
+    passiveTriggers: store.passiveTriggers,
+    passiveTasks: store.passiveTasks,
+    passiveRuns: store.passiveRuns,
+    passiveResults: store.passiveResults,
+    passiveNotifications: store.passiveNotifications
   };
 }
 
@@ -1510,8 +1517,22 @@ function snapshotSummary(snapshot: Record<string, unknown>): Record<string, numb
     achievements: snapshotCount(snapshot.achievements),
     notes: snapshotCount(snapshot.notes),
     integrationConnections: snapshotCount(snapshot.integrationConnections),
-    syncEvents: typeof snapshot.syncEventCount === 'number' ? snapshot.syncEventCount : 0,
-    actionEvents: typeof snapshot.actionEventCount === 'number' ? snapshot.actionEventCount : 0
+    syncEvents: Array.isArray(snapshot.syncEvents)
+      ? snapshotCount(snapshot.syncEvents)
+      : typeof snapshot.syncEventCount === 'number'
+        ? snapshot.syncEventCount
+        : 0,
+    actionEvents: Array.isArray(snapshot.actionEvents)
+      ? snapshotCount(snapshot.actionEvents)
+      : typeof snapshot.actionEventCount === 'number'
+        ? snapshot.actionEventCount
+        : 0,
+    passiveWatchers: snapshotCount(snapshot.passiveWatchers),
+    passiveTriggers: snapshotCount(snapshot.passiveTriggers),
+    passiveTasks: snapshotCount(snapshot.passiveTasks),
+    passiveRuns: snapshotCount(snapshot.passiveRuns),
+    passiveResults: snapshotCount(snapshot.passiveResults),
+    passiveNotifications: snapshotCount(snapshot.passiveNotifications)
   };
 }
 
@@ -1525,7 +1546,14 @@ function verifyMiniHubSnapshotFile(snapshotPath: string): SnapshotVerification {
     const text = readFileSync(snapshotPath, 'utf8');
     const parsed = JSON.parse(text) as unknown;
     if (!isRecord(parsed)) throw new Error('Snapshot root is not an object.');
-    if (!Array.isArray(parsed.workspaces) || !Array.isArray(parsed.integrationConnections)) {
+    if (
+      !Array.isArray(parsed.workspaces) ||
+      !Array.isArray(parsed.integrationConnections) ||
+      !Array.isArray(parsed.syncEvents) ||
+      !Array.isArray(parsed.actionEvents) ||
+      !Array.isArray(parsed.passiveTasks) ||
+      !Array.isArray(parsed.passiveResults)
+    ) {
       throw new Error('Snapshot is missing required Mini Hub collections.');
     }
     const leakedToken = parsed.integrationConnections.some(

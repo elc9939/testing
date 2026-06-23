@@ -417,6 +417,23 @@ describe('passive task engine', () => {
         createdAt: '2026-06-20T10:00:00.000Z',
         updatedAt: '2026-06-20T10:00:00.000Z'
       });
+      appendActionLedgerEvent(store, {
+        system: 'mini-hub',
+        source: 'passive-tasks',
+        actionType: 'passive.file_intelligence',
+        summary: 'Local File Intelligence succeeded',
+        status: 'succeeded',
+        risk: 'read',
+        changed: ['file:C:\\Users\\Edward\\Downloads\\notes.md'],
+        recoverability: {
+          kind: 'artifact',
+          route: '/passive-tasks',
+          description: 'Passive run history records outputs and source references.',
+          reversible: false
+        },
+        rawRef: { kind: 'passive_run', authorization: 'Bearer secret-bearer-token' },
+        metadata: { workspaceId: personalWorkspaceId, refreshToken: 'secret-ledger-token' }
+      });
       const task = store.passiveTasks.find((item) => item.family === 'backup_snapshot')!;
       const backupFetch = (async (input: unknown, init?: RequestInit) => {
         const href = String(input);
@@ -432,7 +449,14 @@ describe('passive task engine', () => {
 
       const snapshotPath = String(run.metadata.snapshotPath);
       const snapshotText = readFileSync(snapshotPath, 'utf8');
-      const snapshot = JSON.parse(snapshotText) as { jobs: unknown[]; integrationConnections: Array<{ encryptedTokenSet: string }> };
+      const snapshot = JSON.parse(snapshotText) as {
+        jobs: unknown[];
+        integrationConnections: Array<{ encryptedTokenSet: string }>;
+        syncEvents: unknown[];
+        actionEvents: Array<{ metadata?: { refreshToken?: string }; rawRef?: { authorization?: string } }>;
+        passiveTasks: unknown[];
+        passiveResults: unknown[];
+      };
       const snapshotRef = run.cards[0]?.sourceRefs[0];
       expect(run.status).toBe('succeeded');
       expect(existsSync(snapshotPath)).toBe(true);
@@ -443,7 +467,8 @@ describe('passive task engine', () => {
         redactedTokenSets: 1,
         snapshotSummary: {
           jobs: 1,
-          integrationConnections: 1
+          integrationConnections: 1,
+          actionEvents: 1
         },
         aiBackup: {
           requested: true,
@@ -452,8 +477,14 @@ describe('passive task engine', () => {
       });
       expect(String(run.metadata.snapshotSha256)).toMatch(/^[a-f0-9]{64}$/u);
       expect(snapshot.jobs).toHaveLength(1);
+      expect(snapshot.passiveTasks.length).toBeGreaterThan(0);
+      expect(snapshot.passiveResults).toHaveLength(0);
+      expect(snapshot.actionEvents[0]?.metadata?.refreshToken).toBe('[redacted]');
+      expect(snapshot.actionEvents[0]?.rawRef?.authorization).toBe('[redacted]');
       expect(snapshot.integrationConnections[0]?.encryptedTokenSet).toBe('[encrypted-redacted]');
       expect(snapshotText).not.toContain('secret-token-payload');
+      expect(snapshotText).not.toContain('secret-ledger-token');
+      expect(snapshotText).not.toContain('secret-bearer-token');
       expect(snapshotRef?.metadata).toMatchObject({
         verified: true,
         redactedTokenSets: 1

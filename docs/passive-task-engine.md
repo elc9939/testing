@@ -43,7 +43,10 @@ fields are redacted before that file is written. Mini Hub restore snapshots
 created by the Backup + Snapshot Watcher are written under
 `MINI_HUB_DATA_DIR/passive-snapshots`. Each new Mini Hub snapshot is read back immediately,
 checked for required collections and redacted integration token payloads, hashed with SHA-256,
-and summarized in the run metadata before the task is considered successful.
+and summarized in the run metadata before the task is considered successful. The snapshot
+includes the passive engine's durable state collections, sync events, and a redacted copy of
+explicit Mini Hub Action Ledger events so background decisions have a restore/audit artifact
+instead of only a count.
 
 The resource limit setting is active policy, not a label. `light`, `balanced`, and `heavy`
 adjust watched-folder count, per-folder file scans, semantic-memory indexing count, project
@@ -156,7 +159,8 @@ normal API startup.
   queued, so changing the setting affects the next run without editing task definitions.
 - Backup snapshots redact encrypted token payloads from Mini Hub connection metadata, and the
   snapshot task fails visibly if the newly-written restore point cannot be parsed or if an
-  unredacted token payload is detected.
+  unredacted token payload is detected. Action Ledger token/secret-looking fields are also
+  redacted before being embedded in the restore snapshot.
 - Idle compute is gated by worker-measured or manually requested idle ticks. Probe failures
   do not allow heavy work to run.
 - Event work is gated by explicit event names; scheduled ticks do not accidentally run
