@@ -4,6 +4,7 @@ import { listMacroRuns } from './macro-lab-api';
 import { activityHasActiveWork, buildActivityRecords, type ActivityRecord } from './activity';
 
 const activityCacheKey = 'miniHub.activity.snapshot.v1';
+const activityDismissedKey = 'miniHub.activity.dismissed.v1';
 
 export interface ActivitySourceState {
   id: string;
@@ -31,6 +32,11 @@ interface ActivityCache {
   snapshot: ActivitySnapshot;
 }
 
+interface ActivityDismissedCache {
+  version: 1;
+  ids: string[];
+}
+
 export function readActivityCache(): ActivitySnapshot | null {
   if (typeof localStorage === 'undefined') return null;
   try {
@@ -48,6 +54,38 @@ function writeActivityCache(snapshot: ActivitySnapshot): string {
     localStorage.setItem(activityCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies ActivityCache));
   }
   return cachedAt;
+}
+
+export function readDismissedActivityIds(): Set<string> {
+  if (typeof localStorage === 'undefined') return new Set();
+  try {
+    const parsed = JSON.parse(localStorage.getItem(activityDismissedKey) ?? 'null') as Partial<ActivityDismissedCache> | null;
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.ids)) return new Set();
+    return new Set(parsed.ids.filter((id): id is string => typeof id === 'string' && id.length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDismissedActivityIds(ids: Set<string>): Set<string> {
+  const next = new Set(Array.from(ids).filter(Boolean).slice(-200));
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(activityDismissedKey, JSON.stringify({ version: 1, ids: Array.from(next) } satisfies ActivityDismissedCache));
+  }
+  return next;
+}
+
+export function dismissActivityRecord(recordId: string): Set<string> {
+  const ids = readDismissedActivityIds();
+  if (recordId) ids.add(recordId);
+  return writeDismissedActivityIds(ids);
+}
+
+export function clearDismissedActivityRecords(): Set<string> {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(activityDismissedKey);
+  }
+  return new Set();
 }
 
 function source(id: string, label: string, ok: boolean, count: number, error?: string): ActivitySourceState {

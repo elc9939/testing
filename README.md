@@ -123,7 +123,10 @@ wiping out or blocking the rest of the list. If all live Activity sources fail b
 durable list exists in browser storage, the cached records stay visible as stale partial data.
 If a task seems to disappear after switching pages or refreshing, open Activity first: active
 and recent durable work should be recoverable there, while purely visual drafts stay in
-browser storage on their owning page.
+browser storage on their owning page. Completed or failed Activity records can be dismissed
+from the Activity view, but dismissal is only a local browser filter. It does not delete,
+cancel, archive, or mutate the backend record, and active queued/running/paused work stays
+visible until the owning service reports a stable state.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,

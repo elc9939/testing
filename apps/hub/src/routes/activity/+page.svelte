@@ -8,9 +8,12 @@
     type ActivityRecord
   } from '$lib/activity';
   import {
+    clearDismissedActivityRecords,
+    dismissActivityRecord,
     loadActivitySnapshot,
     performActivityAction,
     readActivityCache,
+    readDismissedActivityIds,
     type ActivitySnapshot,
     type ActivitySourceState
   } from '$lib/activity-api';
@@ -23,17 +26,22 @@
   let actionError = '';
   let actionMessage = '';
   let busyKey = '';
+  let dismissedIds = new Set<string>();
+  let showDismissed = false;
 
   $: records = snapshot?.records ?? [];
+  $: visibleRecords = showDismissed ? records : records.filter((record) => isActiveRecord(record) || !dismissedIds.has(record.id));
+  $: dismissedCount = records.filter((record) => !isActiveRecord(record) && dismissedIds.has(record.id)).length;
   $: sources = snapshot?.sources ?? [];
-  $: activeRecords = records.filter((record) => ['queued', 'running', 'paused'].includes(record.status));
-  $: failedRecords = records.filter((record) => ['failed', 'blocked'].includes(record.status));
-  $: stableRecords = records.filter((record) => !['queued', 'running', 'paused', 'failed', 'blocked'].includes(record.status));
+  $: activeRecords = visibleRecords.filter((record) => ['queued', 'running', 'paused'].includes(record.status));
+  $: failedRecords = visibleRecords.filter((record) => ['failed', 'blocked'].includes(record.status));
+  $: stableRecords = visibleRecords.filter((record) => !['queued', 'running', 'paused', 'failed', 'blocked'].includes(record.status));
   $: hasActive = activityHasActiveWork(records);
   $: partial = snapshot?.partial ?? false;
   $: stale = snapshot?.stale ?? false;
 
   onMount(() => {
+    dismissedIds = readDismissedActivityIds();
     snapshot = readActivityCache();
     void refreshActivity();
     const interval = window.setInterval(() => {
@@ -69,6 +77,12 @@
 
   async function runAction(record: ActivityRecord, action: ActivityAction): Promise<void> {
     if (!action.enabled || action.kind === 'open' || action.kind === 'view_logs') return;
+    if (action.kind === 'dismiss') {
+      dismissedIds = dismissActivityRecord(record.id);
+      actionMessage = `Dismissed ${record.title} from this browser. The backend record is still recoverable.`;
+      actionError = '';
+      return;
+    }
     busyKey = `${record.id}:${action.kind}`;
     actionError = '';
     actionMessage = '';
@@ -81,6 +95,13 @@
     } finally {
       busyKey = '';
     }
+  }
+
+  function restoreDismissed(): void {
+    dismissedIds = clearDismissedActivityRecords();
+    showDismissed = false;
+    actionMessage = 'Restored dismissed Activity records for this browser.';
+    actionError = '';
   }
 
   function displayWhen(value: string | undefined): string {
@@ -113,6 +134,10 @@
     if (source.state === 'timeout') return 'timed out; cached work remains visible';
     return source.error || 'unavailable';
   }
+
+  function isActiveRecord(record: ActivityRecord): boolean {
+    return ['queued', 'running', 'paused'].includes(record.status);
+  }
 </script>
 
 <svelte:head>
@@ -125,10 +150,22 @@
     <h1>Activity</h1>
     <p>Research, AI OS, passive engine, and Macro Lab work that has durable backend state.</p>
   </div>
-  <button class="button" type="button" disabled={loading || refreshing} on:click={() => refreshActivity()}>
-    <RefreshCw size={16} />
-    <span>{refreshing ? 'Refreshing' : 'Refresh'}</span>
-  </button>
+  <div class="action-row">
+    {#if dismissedCount}
+      <button class="button" type="button" on:click={() => (showDismissed = !showDismissed)}>
+        <XCircle size={16} />
+        <span>{showDismissed ? 'Hide dismissed' : `Show dismissed (${dismissedCount})`}</span>
+      </button>
+      <button class="button" type="button" on:click={restoreDismissed}>
+        <RotateCcw size={16} />
+        <span>Restore</span>
+      </button>
+    {/if}
+    <button class="button" type="button" disabled={loading || refreshing} on:click={() => refreshActivity()}>
+      <RefreshCw size={16} />
+      <span>{refreshing ? 'Refreshing' : 'Refresh'}</span>
+    </button>
+  </div>
 </section>
 
 {#if error}
@@ -179,7 +216,7 @@
       </article>
     {/each}
   </section>
-{:else if records.length}
+{:else if visibleRecords.length}
   <section class="activity-list" aria-label="Activity records">
     {#if activeRecords.length}
       <h2>Active And Paused</h2>
@@ -201,6 +238,16 @@
         {@render ActivityRow(record, busyKey, runAction)}
       {/each}
     {/if}
+  </section>
+{:else if records.length}
+  <section class="empty-state">
+    <XCircle size={20} />
+    <strong>All current Activity records are dismissed.</strong>
+    <p>Dismiss only hides records in this browser. Durable research, AI OS, passive, and Macro Lab records still live in their owning backend.</p>
+    <button class="button" type="button" on:click={restoreDismissed}>
+      <RotateCcw size={16} />
+      <span>Restore dismissed records</span>
+    </button>
   </section>
 {:else}
   <section class="empty-state">

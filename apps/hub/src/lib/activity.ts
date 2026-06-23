@@ -76,12 +76,12 @@ function researchRecords(runs: ResearchRun[]): ActivityRecord[] {
       progress: progressValue(run.progress),
       error: run.error,
       route,
-      actions: [
+      actions: dismissibleActions(status, [
         action('open', 'Open', true, route),
         action('resume', 'Resume', status === 'paused'),
         action('cancel', 'Cancel', status === 'queued' || status === 'running' || status === 'paused'),
         action('view_logs', 'View Logs', true, route)
-      ],
+      ]),
       metadata: { runId: run.id, mode: run.mode, goal: run.goal }
     };
   });
@@ -103,10 +103,10 @@ function aiJobRecords(jobs: AiJobSnapshot[]): ActivityRecord[] {
       progress: progressValue(job.progress),
       error: job.error,
       route,
-      actions: [
+      actions: dismissibleActions(status, [
         action('open', 'Open', true, route),
         action('cancel', 'Cancel', status === 'queued' || status === 'running')
-      ],
+      ]),
       metadata: { jobId: job.id, primitive: job.primitive }
     };
   });
@@ -126,7 +126,7 @@ function benchmarkRecords(runs: AiBenchmarkRun[]): ActivityRecord[] {
       updatedAt: run.created_at,
       error: run.error,
       route,
-      actions: [action('open', 'Open', true, route)],
+      actions: dismissibleActions('succeeded', [action('open', 'Open', true, route)]),
       metadata: { benchmarkId: run.id, provider: run.provider, model: run.model }
     };
   });
@@ -146,10 +146,10 @@ function backupRecords(backups: AiBackupSummary[]): ActivityRecord[] {
       updatedAt: backup.created_at,
       error: backup.error,
       route,
-      actions: [
+      actions: dismissibleActions(backup.ok ? 'succeeded' : 'failed', [
         action('open', 'Open', true, route),
         action('view_logs', 'View Logs', true, route)
-      ],
+      ]),
       metadata: { backupId: backup.id, path: backup.path }
     };
   });
@@ -170,11 +170,11 @@ function passiveRecords(runs: PassiveRun[]): ActivityRecord[] {
       updatedAt: run.finishedAt || run.startedAt,
       error: run.error,
       route,
-      actions: [
+      actions: dismissibleActions(status, [
         action('open', 'Open', true, route),
         action('retry', 'Retry', status === 'failed' || status === 'blocked'),
         action('view_logs', 'View Logs', true, route)
-      ],
+      ]),
       metadata: { runId: run.id, taskId: run.taskId, family: run.family }
     };
   });
@@ -195,7 +195,7 @@ function macroRecords(runs: MacroRun[]): ActivityRecord[] {
       updatedAt: run.finished_at || run.started_at,
       error: run.error,
       route,
-      actions: [action('open', 'Open', true, route), action('view_logs', 'View Logs', true, route)],
+      actions: dismissibleActions(status, [action('open', 'Open', true, route), action('view_logs', 'View Logs', true, route)]),
       metadata: { runId: run.id, macroId: run.macro_id, dryRun: run.dry_run }
     };
   });
@@ -203,6 +203,11 @@ function macroRecords(runs: MacroRun[]): ActivityRecord[] {
 
 function action(kind: ActivityActionKind, label: string, enabled: boolean, route?: string): ActivityAction {
   return { kind, label, enabled, ...(route ? { route } : {}) };
+}
+
+function dismissibleActions(status: ActivityStatus, actions: ActivityAction[]): ActivityAction[] {
+  if (['queued', 'running', 'paused'].includes(status)) return actions;
+  return [...actions, action('dismiss', 'Dismiss', true)];
 }
 
 function normalizeStatus(status: string): ActivityStatus {

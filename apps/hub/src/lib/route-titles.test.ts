@@ -9,6 +9,8 @@ const routeTitles = [
   ['../routes/desk/career/+page.svelte', 'Career Desk - Mini Hub'],
   ['../routes/desk/study/+page.svelte', 'Study Desk - Mini Hub'],
   ['../routes/analytics/+page.svelte', 'Analytics - Mini Hub'],
+  ['../routes/games/+page.svelte', 'Games - Mini Hub'],
+  ['../routes/games/stick-arena-lab/+page.svelte', 'Stick Arena Ability Lab - Mini Hub'],
   ['../routes/research/+page.svelte', 'Research Desk - Mini Hub'],
   ['../routes/ai-lab/+page.svelte', 'AI Lab - Mini Hub'],
   ['../routes/ai-os/+page.svelte', 'AI OS - Mini Hub'],

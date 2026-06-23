@@ -132,6 +132,8 @@ describe('buildActivityRecords', () => {
     expect(records.find((record) => record.id === 'research:research_active')?.route).toBe('/research?run=research_active');
     expect(records.find((record) => record.id === 'passive:passive_1')?.actions.find((action) => action.kind === 'retry')?.enabled).toBe(true);
     expect(records.find((record) => record.id === 'ai-job:job_1')?.actions.find((action) => action.kind === 'cancel')?.enabled).toBe(true);
+    expect(records.find((record) => record.id === 'research:research_active')?.actions.some((action) => action.kind === 'dismiss')).toBe(false);
+    expect(records.find((record) => record.id === 'macro:macro_1')?.actions.find((action) => action.kind === 'dismiss')?.enabled).toBe(true);
     expect(activityHasActiveWork(records)).toBe(true);
   });
 

@@ -24,7 +24,7 @@ vi.mock('./macro-lab-api', () => ({
   listMacroRuns: listMacroRunsMock
 }));
 
-import { loadActivitySnapshot, settleActivitySource } from './activity-api';
+import { clearDismissedActivityRecords, dismissActivityRecord, loadActivitySnapshot, readDismissedActivityIds, settleActivitySource } from './activity-api';
 
 describe('activity source loading', () => {
   afterEach(() => {
@@ -104,6 +104,19 @@ describe('activity source loading', () => {
     expect(snapshot.partial).toBe(true);
     expect(snapshot.records.map((record) => record.id)).toEqual(['research:cached']);
     expect(snapshot.errors.at(-1)).toContain('cached Activity records');
+  });
+
+  it('persists and clears locally dismissed Activity record ids', () => {
+    installLocalStorage();
+
+    expect(Array.from(readDismissedActivityIds())).toEqual([]);
+
+    const dismissed = dismissActivityRecord('macro:finished');
+    expect(Array.from(dismissed)).toEqual(['macro:finished']);
+    expect(Array.from(readDismissedActivityIds())).toEqual(['macro:finished']);
+
+    expect(Array.from(clearDismissedActivityRecords())).toEqual([]);
+    expect(Array.from(readDismissedActivityIds())).toEqual([]);
   });
 });
 
