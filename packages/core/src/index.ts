@@ -409,10 +409,19 @@ export const passiveTriggerSchema = z.object({
   id: z.string().min(1),
   kind: passiveTriggerKindSchema,
   label: z.string().min(1),
+  watcherId: z.string().optional(),
+  taskIds: z.array(z.string()).default([]),
+  enabled: z.boolean().default(true),
   intervalMinutes: z.number().int().positive().optional(),
   eventName: z.string().optional(),
   idleMinutes: z.number().int().positive().optional(),
+  lastFiredAt: z.string().optional(),
+  lastRunId: z.string().optional(),
+  lastStatus: passiveRunStatusSchema.optional(),
   nextRunAt: z.string().optional(),
+  error: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).default({})
 });
 
@@ -586,6 +595,7 @@ export const passiveSnapshotSchema = z.object({
   checkedAt: z.string().min(1),
   settings: passiveEngineSettingsSchema,
   watchers: z.array(passiveWatcherSchema),
+  triggers: z.array(passiveTriggerSchema),
   tasks: z.array(passiveTaskSchema),
   worker: passiveWorkerStateSchema,
   runs: z.array(passiveRunSchema),
@@ -599,6 +609,7 @@ export const passiveEnginePersistedStateSchema = z.object({
   version: z.literal(1),
   settings: passiveEngineSettingsSchema.nullable().default(null),
   watchers: z.array(passiveWatcherSchema).default([]),
+  triggers: z.array(passiveTriggerSchema).default([]),
   tasks: z.array(passiveTaskSchema).default([]),
   runs: z.array(passiveRunSchema).default([]),
   notifications: z.array(passiveNotificationSchema).default([])

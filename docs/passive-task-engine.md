@@ -22,9 +22,10 @@ task pause/resume/cancel, manual due/startup/idle ticks, notification style, res
 idle-only schedule mode, local/cloud AI preference, max runs per tick, and watched
 folders/domains/accounts. The Settings page shows the same durable preferences, plus
 family-level enable/disable toggles, alongside the broader service and machine controls.
-Digest rows, failure rows, recent runs, and retained task error logs show compact evidence
-such as source labels, changed artifact counts, snapshot checksums, file counts, cleanup
-candidates, and retry times so background work is inspectable without opening raw JSON.
+Digest rows, trigger rows, failure rows, recent runs, and retained task error logs show
+compact evidence such as source labels, changed artifact counts, snapshot checksums, file
+counts, cleanup candidates, last trigger fire status, and retry times so background work is
+inspectable without opening raw JSON.
 The dashboard settings panel also exposes family enable/disable toggles, so broad families
 can be quieted from the same surface used to inspect their outputs.
 The snapshot and dashboard also expose live worker state: whether the background worker is
@@ -78,8 +79,10 @@ work stays deferred. Manual dashboard ticks can still explicitly set `idle: true
 The shared core model includes:
 
 - `PassiveWatcher`: the family-level switch and description.
-- `PassiveTrigger`: schedule, event, idle, or manual trigger metadata. Event triggers run
-  only when an explicit event name is ingested, for example `app.startup`.
+- `PassiveTrigger`: first-class schedule, event, idle, or manual trigger state with owner
+  watcher/task links, enabled state, cadence/event metadata, last fired run/status/error, and
+  next-run time. Event triggers run only when an explicit event name is ingested, for example
+  `app.startup`.
 - `PassiveTask`: runnable unit with priority, status, retry/backoff, idle-only, last/next run,
   machine mode, source refs, and a bounded per-task error log that records failed/blocked
   run id, attempt, message, timestamp, and next retry.

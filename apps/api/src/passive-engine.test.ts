@@ -77,6 +77,9 @@ describe('passive task engine', () => {
     const snapshot = buildPassiveSnapshot(store);
 
     expect(snapshot.watchers.map((watcher) => watcher.family)).toContain('app_health');
+    expect(snapshot.triggers.map((trigger) => trigger.id)).toContain('passive-trigger:app_health');
+    expect(snapshot.triggers.some((trigger) => trigger.kind === 'event')).toBe(true);
+    expect(snapshot.triggers.some((trigger) => trigger.kind === 'idle')).toBe(true);
     expect(snapshot.tasks.some((task) => task.idleOnly)).toBe(true);
     expect(snapshot.digest).toEqual([]);
   });
@@ -115,10 +118,12 @@ describe('passive task engine', () => {
 
     updatePassiveSettings(store, { enabledFamilies: { research_monitor: false } });
     expect(store.passiveWatchers.find((watcher) => watcher.family === 'research_monitor')?.enabled).toBe(false);
+    expect(buildPassiveSnapshot(store).triggers.find((trigger) => trigger.id === 'passive-trigger:research_monitor')?.enabled).toBe(false);
     expect(duePassiveTasks(store, now, { idle: true }).some((task) => task.family === 'research_monitor')).toBe(false);
 
     updatePassiveSettings(store, { enabledFamilies: { research_monitor: true } });
     expect(store.passiveWatchers.find((watcher) => watcher.family === 'research_monitor')?.enabled).toBe(true);
+    expect(buildPassiveSnapshot(store).triggers.find((trigger) => trigger.id === 'passive-trigger:research_monitor')?.enabled).toBe(true);
     expect(duePassiveTasks(store, now, { idle: true }).some((task) => task.family === 'research_monitor')).toBe(true);
   });
 
@@ -725,10 +730,35 @@ describe('passive task engine', () => {
       enablePassiveTaskPersistence(second, path);
 
       expect(second.passiveWatchers.find((item) => item.id === watcher.id)?.enabled).toBe(false);
+      expect(second.passiveTriggers.find((item) => item.watcherId === watcher.id)?.enabled).toBe(false);
       expect(second.actionEvents).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('updates first-class trigger run state after a passive task fires', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'app_health' && item.trigger.kind === 'schedule')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'trigger-state-test' }
+    });
+
+    const trigger = buildPassiveSnapshot(store).triggers.find((item) => item.id === task.trigger.id);
+    expect(run.status).toBe('succeeded');
+    expect(trigger).toMatchObject({
+      id: task.trigger.id,
+      watcherId: task.watcherId,
+      taskIds: [task.id],
+      lastRunId: run.id,
+      lastStatus: 'succeeded',
+      lastFiredAt: run.finishedAt,
+      nextRunAt: run.nextRunAt
+    });
   });
 
   it('records retry/backoff state and a durable error log after a failing passive run', async () => {

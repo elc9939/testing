@@ -128,6 +128,21 @@ function passiveSnapshot(partial: Partial<PassiveSnapshot> = {}): PassiveSnapsho
         settings: {}
       }
     ],
+    triggers: [
+      {
+        id: 'passive-trigger:app_health',
+        kind: 'schedule',
+        label: 'Scheduled check',
+        watcherId: 'passive-watcher:app-health',
+        taskIds: ['passive-task:app-health'],
+        enabled: true,
+        intervalMinutes: 60,
+        nextRunAt: '2026-06-20T16:30:00.000Z',
+        createdAt: '2026-06-20T16:00:00.000Z',
+        updatedAt: '2026-06-20T16:00:00.000Z',
+        metadata: {}
+      }
+    ],
     tasks: [],
     worker: {
       id: 'passive-worker',

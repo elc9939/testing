@@ -16,6 +16,7 @@ import {
   type PassiveNotification,
   type PassiveRun,
   type PassiveTask,
+  type PassiveTrigger,
   type PassiveWatcher,
   type PassiveWorkerState,
   type PersonalSettings,
@@ -50,6 +51,7 @@ export interface MemoryStore {
   actionEvents: ActionLedgerEntry[];
   passiveSettings: PassiveEngineSettings | null;
   passiveWatchers: PassiveWatcher[];
+  passiveTriggers: PassiveTrigger[];
   passiveTasks: PassiveTask[];
   passiveWorker: PassiveWorkerState | null;
   passiveRuns: PassiveRun[];
@@ -74,6 +76,7 @@ export function createMemoryStore(): MemoryStore {
     actionEvents: [],
     passiveSettings: null,
     passiveWatchers: [],
+    passiveTriggers: [],
     passiveTasks: [],
     passiveWorker: null,
     passiveRuns: [],
@@ -121,6 +124,7 @@ export function enablePassiveTaskPersistence(store: MemoryStore, path: string): 
     const parsed = passiveEnginePersistedStateSchema.parse(JSON.parse(readFileSync(path, 'utf8')) as unknown);
     store.passiveSettings = parsed.settings;
     store.passiveWatchers = parsed.watchers;
+    store.passiveTriggers = parsed.triggers;
     store.passiveTasks = parsed.tasks;
     store.passiveRuns = parsed.runs;
     store.passiveNotifications = parsed.notifications;
@@ -136,6 +140,7 @@ export function persistPassiveTasks(store: MemoryStore): void {
     version: 1,
     settings: store.passiveSettings,
     watchers: store.passiveWatchers,
+    triggers: store.passiveTriggers,
     tasks: store.passiveTasks,
     runs: store.passiveRuns.slice(0, 200),
     notifications: store.passiveNotifications.slice(0, 200)

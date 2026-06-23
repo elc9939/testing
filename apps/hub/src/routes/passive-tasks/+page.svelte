@@ -14,7 +14,7 @@
     Star,
     XCircle
   } from 'lucide-svelte';
-  import type { PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTask, PassiveTaskFamily, PassiveWatcher } from '@mini-hub/core';
+  import type { PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTask, PassiveTaskFamily, PassiveTrigger, PassiveWatcher } from '@mini-hub/core';
   import {
     cancelPassiveTask,
     dismissPassiveNotification,
@@ -68,6 +68,9 @@
   $: notifications = visiblePassiveNotifications(snapshot);
   $: familyRows = buildFamilyRows(snapshot, settings);
   $: worker = snapshot?.worker ?? null;
+  $: triggerRows = [...(snapshot?.triggers ?? [])]
+    .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt) || a.label.localeCompare(b.label))
+    .slice(0, 8);
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -115,6 +118,24 @@
     const minutes = typeof worker.lastIdle.idleMinutes === 'number' ? ` ${Math.round(worker.lastIdle.idleMinutes)} min` : '';
     const errorText = worker.lastIdle.error ? ` - ${worker.lastIdle.error}` : '';
     return `${idle}${minutes} via ${worker.lastIdle.source}${errorText}`;
+  }
+
+  function triggerCadence(trigger: PassiveTrigger): string {
+    if (trigger.kind === 'schedule') return trigger.intervalMinutes ? `Every ${trigger.intervalMinutes} min` : 'Scheduled';
+    if (trigger.kind === 'idle') return trigger.idleMinutes ? `Idle ${trigger.idleMinutes} min` : 'Idle window';
+    if (trigger.kind === 'event') {
+      const aliases = Array.isArray(trigger.metadata.eventNames)
+        ? trigger.metadata.eventNames.filter((value): value is string => typeof value === 'string')
+        : [];
+      return [trigger.eventName, ...aliases].filter(Boolean).slice(0, 3).join(', ') || 'Event';
+    }
+    return 'Manual';
+  }
+
+  function triggerLastLine(trigger: PassiveTrigger): string {
+    const status = trigger.lastStatus ? passiveRunStatusLabel(trigger.lastStatus) : 'not fired yet';
+    const when = trigger.lastFiredAt ? displayWhen(trigger.lastFiredAt) : '';
+    return when ? `${status} - ${when}` : status;
   }
 
   function runMode(run: PassiveRun): string {
@@ -387,6 +408,10 @@
     <strong>{workerStateLabel()}</strong>
   </div>
   <div>
+    <span>Triggers</span>
+    <strong>{snapshot?.triggers.length ?? 0}</strong>
+  </div>
+  <div>
     <span>Active</span>
     <strong>{activeTasks.length}</strong>
   </div>
@@ -452,6 +477,35 @@
         <p class="empty-note">Loading passive task outputs...</p>
       {:else}
         <p class="empty-note">No passive task cards yet. Run due tasks or configure folders/research monitors to create source-backed outputs.</p>
+      {/if}
+    </article>
+
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><Clock3 size={16} /></span>
+          <strong>Triggers</strong>
+        </div>
+      </div>
+      {#if triggerRows.length}
+        <div class="run-list">
+          {#each triggerRows as trigger}
+            {@const watcher = trigger.watcherId ? watchersById.get(trigger.watcherId) : undefined}
+            <div class="run-row">
+              <span class={`state ${trigger.enabled ? 'ready' : 'paused'}`}>{trigger.kind}</span>
+              <span>
+                <strong>{trigger.label}</strong>
+                <small>{watcher?.title ?? trigger.watcherId ?? 'Unlinked watcher'} - {triggerCadence(trigger)}</small>
+                <small>{triggerLastLine(trigger)}{trigger.nextRunAt ? ` - next ${displayWhen(trigger.nextRunAt)}` : ''}</small>
+                {#if trigger.error}
+                  <small class="error-inline">{trigger.error}</small>
+                {/if}
+              </span>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">No passive triggers are registered yet.</p>
       {/if}
     </article>
 
@@ -998,7 +1052,8 @@
     color: var(--muted);
   }
 
-  td small.error-inline {
+  td small.error-inline,
+  .run-row small.error-inline {
     color: var(--danger-text);
   }
 

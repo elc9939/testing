@@ -8,6 +8,7 @@ import {
   passiveSourceStatusSchema,
   passiveTaskErrorLogEntrySchema,
   passiveTaskSchema,
+  passiveTriggerSchema,
   passiveWorkerStateSchema,
   passiveWatcherSchema,
   routeMap,
@@ -26,6 +27,7 @@ import {
   type PassiveTask,
   type PassiveTaskFamily,
   type PassiveTaskStatus,
+  type PassiveTrigger,
   type PassiveTriggerKind,
   type PassiveWorkerState,
   type PassiveWatcher
@@ -729,6 +731,30 @@ function passiveWorkerSnapshot(store: MemoryStore, date = new Date()): PassiveWo
   });
 }
 
+function defaultTrigger(definition: DefaultTaskDefinition, date: Date): PassiveTrigger {
+  const triggerKind = definition.triggerKind ?? (definition.idleOnly ? 'idle' : 'schedule');
+  const nextRunAt = triggerKind === 'event' ? undefined : addMinutes(date, definition.offsetMinutes ?? 0);
+  return passiveTriggerSchema.parse({
+    id: defaultTriggerId(definition),
+    kind: triggerKind,
+    label: definition.triggerLabel ?? (definition.idleOnly ? 'Idle window' : 'Scheduled check'),
+    watcherId: definition.watcherId,
+    taskIds: [definition.taskId],
+    enabled: true,
+    ...(definition.intervalMinutes ? { intervalMinutes: definition.intervalMinutes } : {}),
+    ...(definition.eventName ? { eventName: definition.eventName } : {}),
+    ...(definition.idleOnly ? { idleMinutes: 20 } : {}),
+    ...(nextRunAt ? { nextRunAt } : {}),
+    createdAt: nowIso(date),
+    updatedAt: nowIso(date),
+    metadata: {
+      ...(definition.eventNames?.length ? { eventNames: definition.eventNames } : {}),
+      family: definition.family,
+      priority: definition.priority
+    }
+  });
+}
+
 function defaultWatcher(definition: DefaultTaskDefinition, date: Date): PassiveWatcher {
   const nextRunAt = definition.triggerKind === 'event' ? undefined : addMinutes(date, definition.offsetMinutes ?? 0);
   return passiveWatcherSchema.parse({
@@ -780,6 +806,77 @@ function defaultTask(definition: DefaultTaskDefinition, date: Date): PassiveTask
   });
 }
 
+function sameStringList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function syncPassiveTriggersFromTasks(store: MemoryStore, date = new Date()): boolean {
+  let changed = false;
+  const existingIds = new Set(store.passiveTriggers.map((trigger) => trigger.id));
+  for (const task of store.passiveTasks) {
+    if (existingIds.has(task.trigger.id)) continue;
+    store.passiveTriggers.push(
+      passiveTriggerSchema.parse({
+        ...task.trigger,
+        watcherId: task.watcherId,
+        taskIds: [task.id],
+        enabled: watcherEnabled(store, task) && !['paused', 'cancelled'].includes(task.status),
+        createdAt: task.createdAt,
+        updatedAt: nowIso(date)
+      })
+    );
+    existingIds.add(task.trigger.id);
+    changed = true;
+  }
+
+  store.passiveTriggers = store.passiveTriggers.map((trigger) => {
+    const tasks = store.passiveTasks.filter((task) => task.trigger.id === trigger.id);
+    if (!tasks.length) return passiveTriggerSchema.parse(trigger);
+    const primary = tasks[0]!;
+    const taskTrigger = primary.trigger;
+    const taskIds = tasks.map((task) => task.id).sort();
+    const nextRunCandidates = tasks
+      .map((task) => task.nextRunAt ?? task.trigger.nextRunAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => parseTime(a) - parseTime(b));
+    const nextRunAt = nextRunCandidates[0];
+    const enabled = tasks.some((task) => watcherEnabled(store, task) && !['paused', 'cancelled'].includes(task.status));
+    const metadata = {
+      ...trigger.metadata,
+      ...taskTrigger.metadata,
+      taskCount: taskIds.length
+    };
+    const same =
+      trigger.kind === taskTrigger.kind &&
+      trigger.label === taskTrigger.label &&
+      trigger.watcherId === primary.watcherId &&
+      sameStringList(trigger.taskIds, taskIds) &&
+      trigger.enabled === enabled &&
+      trigger.intervalMinutes === taskTrigger.intervalMinutes &&
+      trigger.eventName === taskTrigger.eventName &&
+      trigger.idleMinutes === taskTrigger.idleMinutes &&
+      trigger.nextRunAt === nextRunAt &&
+      JSON.stringify(trigger.metadata) === JSON.stringify(metadata);
+    if (same) return passiveTriggerSchema.parse(trigger);
+    changed = true;
+    return passiveTriggerSchema.parse({
+      ...trigger,
+      kind: taskTrigger.kind,
+      label: taskTrigger.label,
+      watcherId: primary.watcherId,
+      taskIds,
+      enabled,
+      intervalMinutes: taskTrigger.intervalMinutes,
+      eventName: taskTrigger.eventName,
+      idleMinutes: taskTrigger.idleMinutes,
+      nextRunAt,
+      metadata,
+      updatedAt: nowIso(date)
+    });
+  });
+  return changed;
+}
+
 export function ensurePassiveDefaults(store: MemoryStore, date = new Date()): void {
   let changed = false;
   if (!store.passiveSettings) {
@@ -788,10 +885,15 @@ export function ensurePassiveDefaults(store: MemoryStore, date = new Date()): vo
   }
 
   const watcherIds = new Set(store.passiveWatchers.map((watcher) => watcher.id));
+  const triggerIds = new Set(store.passiveTriggers.map((trigger) => trigger.id));
   const taskIds = new Set(store.passiveTasks.map((task) => task.id));
   for (const definition of defaultTaskDefinitions) {
     if (!watcherIds.has(definition.watcherId)) {
       store.passiveWatchers.push(defaultWatcher(definition, date));
+      changed = true;
+    }
+    if (!triggerIds.has(defaultTriggerId(definition))) {
+      store.passiveTriggers.push(defaultTrigger(definition, date));
       changed = true;
     }
     if (!taskIds.has(definition.taskId)) {
@@ -829,6 +931,8 @@ export function ensurePassiveDefaults(store: MemoryStore, date = new Date()): vo
   });
 
   store.passiveWatchers = store.passiveWatchers.map((watcher) => passiveWatcherSchema.parse(watcher));
+  if (syncPassiveTriggersFromTasks(store, date)) changed = true;
+  store.passiveTriggers = store.passiveTriggers.map((trigger) => passiveTriggerSchema.parse(trigger));
   store.passiveTasks = store.passiveTasks.map((task) => passiveTaskSchema.parse(task));
   store.passiveRuns = store.passiveRuns.map((run) => passiveRunSchema.parse(run));
   store.passiveNotifications = store.passiveNotifications.map((notification) => passiveNotificationSchema.parse(notification));
@@ -2809,6 +2913,24 @@ function updateWatcherAfterRun(store: MemoryStore, task: PassiveTask, run: Passi
   });
 }
 
+function updateTriggerAfterRun(store: MemoryStore, task: PassiveTask, run: PassiveRun): void {
+  syncPassiveTriggersFromTasks(store);
+  const triggerIndex = store.passiveTriggers.findIndex((trigger) => trigger.id === task.trigger.id);
+  if (triggerIndex < 0) return;
+  const existing = store.passiveTriggers[triggerIndex]!;
+  store.passiveTriggers[triggerIndex] = passiveTriggerSchema.parse({
+    ...existing,
+    watcherId: task.watcherId,
+    taskIds: [...new Set([...existing.taskIds, task.id])].sort(),
+    lastFiredAt: run.finishedAt ?? nowIso(),
+    lastRunId: run.id,
+    lastStatus: run.status,
+    nextRunAt: run.nextRunAt,
+    error: run.status === 'failed' || run.status === 'blocked' ? run.error : undefined,
+    updatedAt: nowIso()
+  });
+}
+
 export async function runPassiveTask(
   store: MemoryStore,
   taskId: string,
@@ -2910,6 +3032,7 @@ export async function runPassiveTask(
   const nextTask = applyRunOutcomeToTask(taskAfterExecution.status === 'cancelled' ? taskAfterExecution : task, run, finished);
   store.passiveTasks[taskIndex] = nextTask;
   updateWatcherAfterRun(store, nextTask, run);
+  updateTriggerAfterRun(store, nextTask, run);
 
   const notification = notificationFromRun(run, result.cards);
   const notificationStyle = store.passiveSettings?.notificationStyle ?? 'digest';
@@ -3194,6 +3317,7 @@ export function updatePassiveTaskStatus(store: MemoryStore, taskId: string, stat
     updatedAt: now
   });
   store.passiveTasks[index] = next;
+  syncPassiveTriggersFromTasks(store);
   appendActionLedgerEvent(store, {
     system: 'mini-hub',
     source: 'passive-tasks',
@@ -3237,6 +3361,7 @@ export function setPassiveWatcherEnabled(store: MemoryStore, watcherId: string, 
       updatedAt: nowIso()
     });
   }
+  syncPassiveTriggersFromTasks(store);
   appendActionLedgerEvent(store, {
     system: 'mini-hub',
     source: 'passive-tasks',
@@ -3284,6 +3409,7 @@ export function updatePassiveSettings(
       updatedAt: nowIso()
     })
   );
+  syncPassiveTriggersFromTasks(store);
   appendActionLedgerEvent(store, {
     system: 'mini-hub',
     source: 'passive-tasks',
@@ -3472,6 +3598,7 @@ export function buildPassiveSnapshot(store: MemoryStore): PassiveSnapshot {
     checkedAt: nowIso(),
     settings: store.passiveSettings ?? defaultPassiveSettings(),
     watchers: store.passiveWatchers,
+    triggers: store.passiveTriggers,
     tasks: store.passiveTasks,
     worker: passiveWorkerSnapshot(store),
     runs: store.passiveRuns.slice(0, 50),
