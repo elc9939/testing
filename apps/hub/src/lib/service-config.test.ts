@@ -1,11 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  defaultServiceRequestTimeoutMs,
   looksLikeHostedStaticEndpoint,
+  requestServiceJson,
   serviceEndpointResolution,
   serviceFallbackUrl
 } from './service-config';
 
 describe('service endpoint resolution', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it('does not treat the hosted GitHub Pages app as an API service', () => {
     const resolved = serviceEndpointResolution(
       'aiOs',
@@ -37,5 +44,25 @@ describe('service endpoint resolution', () => {
     expect(looksLikeHostedStaticEndpoint('https://elc9939.github.io/testing', 'https://elc9939.github.io')).toBe(true);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:5173', 'http://127.0.0.1:5173')).toBe(true);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:8791', 'http://127.0.0.1:5173')).toBe(false);
+  });
+
+  it('aborts hung service JSON requests with an actionable timeout message', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(((_url: string | URL | Request, init?: RequestInit) => {
+      const signal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+      });
+    }) as typeof fetch);
+
+    const result = requestServiceJson('aiOs', serviceFallbackUrl('aiOs'), '/api/ai/research/runs', {}, { timeoutMs: 25 });
+    const assertion = expect(result).rejects.toThrow('request timed out after 25 ms');
+
+    await vi.advanceTimersByTimeAsync(25);
+    await assertion;
+  });
+
+  it('keeps a positive default timeout for all service JSON requests', () => {
+    expect(defaultServiceRequestTimeoutMs).toBeGreaterThan(0);
   });
 });

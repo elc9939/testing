@@ -46,6 +46,8 @@ const serviceHealthPaths: Record<ServiceId, string> = {
   macroLab: '/api/macro-lab/health'
 };
 
+export const defaultServiceRequestTimeoutMs = 15_000;
+
 function readStoredEndpoints(): Partial<Record<ServiceId, string>> {
   if (!browser) return {};
   try {
@@ -279,13 +281,33 @@ async function fetchServiceJson<T>(
   baseUrl: string,
   path: string,
   init: RequestInit,
-  options: { credentials?: RequestCredentials } = {}
+  options: { credentials?: RequestCredentials; timeoutMs?: number } = {}
 ): Promise<T> {
   let response: Response;
+  const timeoutMs = options.timeoutMs ?? defaultServiceRequestTimeoutMs;
+  const controller = timeoutMs > 0 ? new AbortController() : undefined;
+  const upstreamSignal = init.signal;
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const abortFromUpstream = () => controller?.abort(upstreamSignal?.reason);
+
   try {
+    if (controller) {
+      if (upstreamSignal?.aborted) {
+        controller.abort(upstreamSignal.reason);
+      } else {
+        upstreamSignal?.addEventListener('abort', abortFromUpstream, { once: true });
+      }
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
+    }
+
     response = await fetch(`${baseUrl}${path}`, {
       ...init,
       credentials: options.credentials,
+      signal: controller?.signal ?? init.signal,
       headers: {
         'content-type': 'application/json',
         accept: 'application/json',
@@ -293,8 +315,11 @@ async function fetchServiceJson<T>(
       }
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'network request failed';
+    const detail = timedOut ? `request timed out after ${timeoutMs} ms` : error instanceof Error ? error.message : 'network request failed';
     throw new Error(networkFailureMessage(serviceId, baseUrl, detail));
+  } finally {
+    if (timer) clearTimeout(timer);
+    upstreamSignal?.removeEventListener('abort', abortFromUpstream);
   }
 
   const contentType = response.headers.get('content-type') ?? '';
@@ -329,7 +354,7 @@ export async function requestServiceJson<T>(
   baseUrl: string,
   path: string,
   init: RequestInit = {},
-  options: { credentials?: RequestCredentials } = {}
+  options: { credentials?: RequestCredentials; timeoutMs?: number } = {}
 ): Promise<T> {
   try {
     return await fetchServiceJson<T>(serviceId, baseUrl, path, init, options);

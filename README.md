@@ -551,6 +551,9 @@ Important distinction:
 - GitHub Pages cannot run your local Hono/FastAPI services.
 - Full sync, Google integrations, AI OS tools, and Macro Lab require local services or a
   separately deployed API endpoint configured in Settings.
+- Browser JSON calls to Hub API, AI OS, and Macro Lab are centrally bounded. If a service
+  is offline, hung, blocked by CORS/mixed-content, or pointed at the hosted static site,
+  the page should show an actionable timeout/setup error instead of loading forever.
 
 ## Checks
 
