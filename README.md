@@ -161,8 +161,8 @@ real-data only:
 - Project Drift Detector scans only configured project folders for stale README files,
   README files that trail newer source/config files, TODO/FIXME buildup, missing
   `test`/`check` scripts, and existing failing health artifacts such as recent test/check
-  logs. It reports those artifacts without running arbitrary project commands in the
-  background.
+  logs. TODO buildup cards include the top source files, counts, and sample lines. It reports
+  those artifacts without running arbitrary project commands in the background.
 
 Passive outputs are source-backed cards with title, summary, urgency, confidence, source
 links/files, suggested next action, and why the item surfaced. High-urgency cards flow into

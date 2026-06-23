@@ -202,7 +202,8 @@ normal API startup.
 - Project Drift Detector: scans only configured project folders for stale READMEs,
   README files that trail newer source/config files, TODO/FIXME buildup, missing test/check
   scripts, and existing failing health artifacts such as recent test/check logs or
-  JUnit-style result files.
+  JUnit-style result files. TODO buildup cards include the top source files, counts, and
+  sample lines so the aggregate finding remains source-backed.
 
 ## Safety
 

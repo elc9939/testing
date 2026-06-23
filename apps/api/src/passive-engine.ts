@@ -109,6 +109,18 @@ interface ProjectHealthArtifact {
   mtimeMs: number;
 }
 
+interface ProjectTodoFile {
+  path: string;
+  count: number;
+  sample: string;
+  mtimeMs: number;
+}
+
+interface ProjectTodoScan {
+  total: number;
+  files: ProjectTodoFile[];
+}
+
 interface ProjectDocDrift {
   path: string;
   mtimeMs: number;
@@ -4094,11 +4106,12 @@ async function runFileIntelligence(
   };
 }
 
-function countTodos(folder: string, budget: PassiveResourceBudget): number {
-  let count = 0;
+function scanTodos(folder: string, budget: PassiveResourceBudget): ProjectTodoScan {
+  let total = 0;
+  const files: ProjectTodoFile[] = [];
   const stack = [folder];
   const ignored = new Set(['node_modules', '.git', 'dist', 'build', '.svelte-kit', 'coverage']);
-  while (stack.length && count < budget.projectTodoCap) {
+  while (stack.length && total < budget.projectTodoCap) {
     const current = stack.pop()!;
     for (const entry of readdirSync(current, { withFileTypes: true }).slice(0, budget.projectDirectoryEntries)) {
       if (entry.isDirectory()) {
@@ -4108,11 +4121,28 @@ function countTodos(folder: string, budget: PassiveResourceBudget): number {
       if (!entry.isFile()) continue;
       const extension = extname(entry.name).toLowerCase();
       if (!['.ts', '.js', '.svelte', '.py', '.md', '.txt'].includes(extension)) continue;
-      const text = readFileSync(join(current, entry.name), 'utf8').slice(0, budget.projectFileChars);
-      count += (text.match(/\b(TODO|FIXME)\b/giu) ?? []).length;
+      const path = join(current, entry.name);
+      const text = readFileSync(path, 'utf8').slice(0, budget.projectFileChars);
+      const lines = text.split(/\r?\n/u);
+      const todoLines = lines
+        .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+        .filter((item) => /\b(TODO|FIXME)\b/iu.test(item.line));
+      if (!todoLines.length) continue;
+      total += todoLines.length;
+      const stats = statSync(path);
+      files.push({
+        path,
+        count: todoLines.length,
+        sample: `L${todoLines[0]!.lineNumber}: ${todoLines[0]!.line.slice(0, 180)}`,
+        mtimeMs: stats.mtimeMs
+      });
+      if (total >= budget.projectTodoCap) break;
     }
   }
-  return count;
+  return {
+    total,
+    files: files.sort((a, b) => b.count - a.count || b.mtimeMs - a.mtimeMs).slice(0, 8)
+  };
 }
 
 function latestSourceNewerThanReadme(folder: string, readmePath: string, budget: PassiveResourceBudget): ProjectDocDrift | null {
@@ -4246,6 +4276,8 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
   const changed: string[] = [];
   let healthArtifactCount = 0;
   let docDriftCount = 0;
+  let todoMarkerCount = 0;
+  let todoFileCount = 0;
   for (const folder of folders) {
     try {
       const resolved = resolve(folder);
@@ -4288,8 +4320,27 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
         if (!('test' in scripts) && !('check' in scripts)) issues.push('no test/check script');
       }
 
-      const todos = countTodos(resolved, budget);
-      if (todos >= 20) issues.push(`${todos} TODO/FIXME markers`);
+      const todoScan = scanTodos(resolved, budget);
+      todoMarkerCount += todoScan.total;
+      todoFileCount += todoScan.files.length;
+      if (todoScan.total >= 20) {
+        issues.push(`${todoScan.total} TODO/FIXME markers across ${todoScan.files.length} file${todoScan.files.length === 1 ? '' : 's'}`);
+        for (const todoFile of todoScan.files) {
+          changed.push(`todo-buildup:${todoFile.path}`);
+          sourceRefs.push(
+            stableSourceRef('file', basename(todoFile.path), {
+              id: todoFile.path,
+              filePath: todoFile.path,
+              metadata: {
+                reason: 'todo-buildup',
+                todoCount: todoFile.count,
+                sample: todoFile.sample,
+                mtimeMs: todoFile.mtimeMs
+              }
+            })
+          );
+        }
+      }
 
       const healthArtifacts = scanProjectHealthArtifacts(resolved, budget);
       if (healthArtifacts.length) {
@@ -4375,7 +4426,9 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
         todoCap: budget.projectTodoCap,
         fileChars: budget.projectFileChars,
         healthArtifactCount,
-        docDriftCount
+        docDriftCount,
+        todoMarkerCount,
+        todoFileCount
       }
     }
   };

@@ -2611,6 +2611,67 @@ describe('passive task engine', () => {
     }
   });
 
+  it('surfaces TODO buildup with source-backed file references', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-project-todos-'));
+    try {
+      const readmePath = join(dir, 'README.md');
+      const packagePath = join(dir, 'package.json');
+      const srcDir = join(dir, 'src');
+      const todoPath = join(srcDir, 'todo-heavy.ts');
+      const fixmePath = join(srcDir, 'fixme-heavy.py');
+      mkdirSync(srcDir, { recursive: true });
+      writeFileSync(readmePath, '# Project\n\nCurrent notes.', 'utf8');
+      writeFileSync(packagePath, JSON.stringify({ scripts: { test: 'vitest run' } }), 'utf8');
+      writeFileSync(
+        todoPath,
+        Array.from({ length: 12 }, (_, index) => `// TODO: wire passive source ${index + 1}\nexport const item${index} = ${index};`).join('\n'),
+        'utf8'
+      );
+      writeFileSync(
+        fixmePath,
+        Array.from({ length: 9 }, (_, index) => `# FIXME: tighten drift check ${index + 1}\nvalue_${index} = ${index}`).join('\n'),
+        'utf8'
+      );
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = {
+        ...store.passiveSettings!,
+        watchedFolders: [dir],
+        resourceLimit: 'light'
+      };
+      const task = store.passiveTasks.find((item) => item.family === 'project_drift')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'project-todo-source-test' }
+      });
+
+      const card = run.cards.find((item) => item.title.includes('may be drifting'));
+      const todoRef = card?.sourceRefs.find((ref) => ref.filePath === todoPath);
+      const fixmeRef = card?.sourceRefs.find((ref) => ref.filePath === fixmePath);
+      expect(run.status).toBe('succeeded');
+      expect(card?.summary).toContain('21 TODO/FIXME markers across 2 files');
+      expect(todoRef?.metadata).toMatchObject({
+        reason: 'todo-buildup',
+        todoCount: 12,
+        sample: 'L1: // TODO: wire passive source 1'
+      });
+      expect(fixmeRef?.metadata).toMatchObject({
+        reason: 'todo-buildup',
+        todoCount: 9,
+        sample: 'L1: # FIXME: tighten drift check 1'
+      });
+      expect(run.changed).toEqual(expect.arrayContaining([`todo-buildup:${todoPath}`, `todo-buildup:${fixmePath}`]));
+      expect(run.metadata.projectBudget).toMatchObject({
+        todoMarkerCount: 21,
+        todoFileCount: 2
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('persists passive result card triage and filters the source digest', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
