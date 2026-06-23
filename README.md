@@ -121,6 +121,9 @@ browser cache first, then refreshes AI OS, Passive Tasks, and Macro Lab independ
 per-source timeouts so one slow or offline service creates a partial-data warning rather than
 wiping out or blocking the rest of the list. If all live Activity sources fail but a previous
 durable list exists in browser storage, the cached records stay visible as stale partial data.
+Passive Tasks and Macro Lab read the linked `run` query parameter, highlight the matching
+recent run when it is in the current service snapshot, and explain when the Activity record is
+older than the page's short recent-run list.
 If a task seems to disappear after switching pages or refreshing, open Activity first: active
 and recent durable work should be recoverable there, while purely visual drafts stay in
 browser storage on their owning page. Completed or failed Activity records can be dismissed

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import {
     Activity,
@@ -81,6 +82,8 @@
   );
   $: pausedTasks = (snapshot?.tasks ?? []).filter((task) => task.status === 'paused' || task.status === 'cancelled');
   $: failedRuns = (snapshot?.runs ?? []).filter((run) => ['failed', 'blocked'].includes(run.status));
+  $: highlightedRunId = $page.url.searchParams.get('run') ?? '';
+  $: highlightedRunPresent = highlightedRunId ? (snapshot?.runs ?? []).some((run) => run.id === highlightedRunId) : true;
   $: tasksWithErrorLogs = (snapshot?.tasks ?? []).filter((task) => task.errorLog.length > 0).slice(0, 6);
   $: digestCards = topPassiveCards(snapshot);
   $: notifications = visiblePassiveNotifications(snapshot);
@@ -942,11 +945,12 @@
           <span class="icon-chip"><Play size={16} /></span>
           <strong>Recent Runs</strong>
         </div>
+        <span class="panel-kicker">{highlightedRunId ? `Activity: ${highlightedRunId}` : `${snapshot?.runs.length ?? 0}`}</span>
       </div>
       {#if snapshot?.runs.length}
         <div class="run-list">
           {#each snapshot.runs.slice(0, 8) as run}
-            <div class="run-row">
+            <div class="run-row" class:selected={run.id === highlightedRunId}>
               <span class={`state ${run.status}`}>{passiveRunStatusLabel(run.status)}</span>
               <span>
                 <strong>{passiveFamilyLabel(run.family)}</strong>
@@ -958,8 +962,11 @@
             </div>
           {/each}
         </div>
+        {#if !highlightedRunPresent}
+          <p class="empty-note">The linked Activity run is not in the latest {snapshot.runs.length} Passive Task runs. Refresh or open Activity for the durable record.</p>
+        {/if}
       {:else}
-        <p class="empty-note">Run history will appear after the worker or dashboard runs a task.</p>
+        <p class="empty-note">{highlightedRunId ? `Activity run ${highlightedRunId} is not in the current Passive Tasks snapshot. Refresh or open Activity for the durable record.` : 'Run history will appear after the worker or dashboard runs a task.'}</p>
       {/if}
     </article>
 
@@ -1183,6 +1190,16 @@
     min-width: 0;
   }
 
+  .panel-kicker {
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .icon-chip {
     display: grid;
     width: 26px;
@@ -1242,6 +1259,13 @@
 
   .run-row {
     grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .run-row.selected {
+    border-color: var(--accent);
+    border-radius: 6px;
+    background: var(--active);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .notification-row {
