@@ -490,6 +490,7 @@ function card(
 }
 
 function notificationFromRun(run: PassiveRun, cardItems: PassiveResultCard[]): PassiveNotification | null {
+  if (run.status === 'cancelled') return null;
   const notable = cardItems.filter((item) => item.urgency >= passiveDigestUrgency);
   if (!notable.length) return null;
   const highest = notable.reduce((best, item) => (item.urgency > best.urgency ? item : best), notable[0]!);
@@ -647,6 +648,23 @@ function retryDelayMinutes(task: PassiveTask): number {
 }
 
 export function applyRunOutcomeToTask(task: PassiveTask, run: PassiveRun, date = new Date()): PassiveTask {
+  if (run.status === 'cancelled') {
+    return passiveTaskSchema.parse({
+      ...task,
+      status: 'cancelled',
+      lastRunAt: run.finishedAt ?? nowIso(date),
+      nextRunAt: undefined,
+      lastError: run.error,
+      retry: {
+        ...task.retry,
+        attempts: 0,
+        nextRetryAt: undefined
+      },
+      trigger: { ...task.trigger, nextRunAt: undefined },
+      updatedAt: nowIso(date)
+    });
+  }
+
   if (run.status === 'failed' || run.status === 'blocked') {
     const attempts = task.retry.attempts + 1;
     const retryExhausted = attempts >= task.retry.maxAttempts;
@@ -2134,8 +2152,21 @@ export async function runPassiveTask(
       ]
     };
   }
+  const taskAfterExecution = store.passiveTasks[taskIndex]!;
+  if (taskAfterExecution.status === 'cancelled') {
+    result = {
+      ...result,
+      status: 'cancelled',
+      error: result.error ?? 'Passive task was cancelled before completion.',
+      metadata: {
+        ...(result.metadata ?? {}),
+        cancelledDuringRun: true
+      }
+    };
+  }
 
   const finished = new Date();
+  const nextRunAt = result.status === 'cancelled' ? undefined : computeNextRunAt(task, finished);
   const run = passiveRunSchema.parse({
     id: runId,
     taskId: task.id,
@@ -2149,7 +2180,7 @@ export async function runPassiveTask(
     error: result.error,
     cards: result.cards,
     changed: result.changed ?? [],
-    nextRunAt: computeNextRunAt(task, finished),
+    nextRunAt,
     metadata: {
       reason: options.input?.reason ?? 'scheduled',
       eventName: options.input?.eventName,
@@ -2167,7 +2198,7 @@ export async function runPassiveTask(
   store.passiveRuns.unshift(run);
   store.passiveRuns = store.passiveRuns.slice(0, 200);
 
-  const nextTask = applyRunOutcomeToTask(task, run, finished);
+  const nextTask = applyRunOutcomeToTask(taskAfterExecution.status === 'cancelled' ? taskAfterExecution : task, run, finished);
   store.passiveTasks[taskIndex] = nextTask;
   updateWatcherAfterRun(store, nextTask, run);
 

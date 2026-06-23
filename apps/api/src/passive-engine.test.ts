@@ -368,6 +368,52 @@ describe('passive task engine', () => {
     expect(store.actionEvents[0]?.source).toBe('passive-tasks');
   });
 
+  it('preserves cancellation requested while a passive run is executing', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+    const healthyFetch = healthyServiceFetch();
+    let releaseFirstFetch = () => {};
+    let firstFetchStarted = false;
+    const firstFetchGate = new Promise<void>((resolve) => {
+      releaseFirstFetch = resolve;
+    });
+    const delayedFetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (!firstFetchStarted) {
+        firstFetchStarted = true;
+        await firstFetchGate;
+      }
+      return healthyFetch(input, init);
+    }) as typeof fetch;
+
+    const runPromise = runPassiveTask(store, task.id, {
+      externalFetch: delayedFetch,
+      force: true,
+      input: { reason: 'cancel-during-run-test' }
+    });
+    await waitForCondition(() => firstFetchStarted && store.passiveTasks.find((item) => item.id === task.id)?.status === 'running');
+
+    const cancelled = updatePassiveTaskStatus(store, task.id, 'cancelled');
+    releaseFirstFetch();
+    const run = await runPromise;
+    const updated = store.passiveTasks.find((item) => item.id === task.id)!;
+
+    expect(cancelled.status).toBe('cancelled');
+    expect(run.status).toBe('cancelled');
+    expect(run.error).toContain('cancelled');
+    expect(run.nextRunAt).toBeUndefined();
+    expect(run.metadata.cancelledDuringRun).toBe(true);
+    expect(updated.status).toBe('cancelled');
+    expect(updated.nextRunAt).toBeUndefined();
+    expect(store.passiveNotifications).toEqual([]);
+    expect(store.actionEvents.map((event) => event.actionType)).toContain('passive.task.cancelled');
+    expect(store.actionEvents.at(-1)).toMatchObject({
+      source: 'passive-tasks',
+      actionType: 'passive.app_health',
+      status: 'cancelled'
+    });
+  });
+
   it('builds source-backed career digest and attention items from real records', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

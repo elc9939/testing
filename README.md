@@ -96,7 +96,8 @@ due tasks on a lightweight interval while the API is running, and on Windows it 
 idle after the configured last-input threshold so idle-only work can run automatically. If
 idle state cannot be measured, the worker stays conservative and treats the tick as active.
 The dashboard can also run due tasks, event-triggered startup checks, or idle-only ticks
-manually. The API worker emits
+manually. If a running passive task is cancelled, the cancelled state is preserved when the
+in-flight run finishes, so the task does not silently resume itself. The API worker emits
 `app.startup` when it starts, the browser shell emits throttled `app.startup`/`app.reconnect`
 events on open and reconnect, and Google OAuth connect/revoke flows emit passive lifecycle
 events. It also watches configured local folders with a debounced `file.changed` event while

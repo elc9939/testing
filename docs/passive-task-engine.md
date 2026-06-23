@@ -110,5 +110,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - Passive card triage is reversible from the source state: reviewed, dismissed, snoozed,
   important, and clear actions are logged to the Action Ledger and do not alter source files
   or remote services.
+- Cancelling a running task is sticky: when the in-flight work returns, the run is recorded as
+  cancelled, no follow-up run is scheduled, and the task remains cancelled instead of being
+  revived by async completion.
 - Failures remain visible in passive snapshots, source statuses, digest cards, and the Action
   Ledger instead of being silently dropped.
