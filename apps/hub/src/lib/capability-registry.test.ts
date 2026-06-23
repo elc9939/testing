@@ -158,6 +158,7 @@ function passiveSnapshot(partial: Partial<PassiveSnapshot> = {}): PassiveSnapsho
       updatedAt: '2026-06-20T16:00:00.000Z'
     },
     runs: [],
+    results: [],
     notifications: [],
     digest: [],
     sources: [],

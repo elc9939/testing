@@ -14,6 +14,7 @@ import {
   type NoteRecord,
   type PassiveEngineSettings,
   type PassiveNotification,
+  type PassiveResult,
   type PassiveRun,
   type PassiveTask,
   type PassiveTrigger,
@@ -55,6 +56,7 @@ export interface MemoryStore {
   passiveTasks: PassiveTask[];
   passiveWorker: PassiveWorkerState | null;
   passiveRuns: PassiveRun[];
+  passiveResults: PassiveResult[];
   passiveNotifications: PassiveNotification[];
   passivePersistencePath?: string;
 }
@@ -80,6 +82,7 @@ export function createMemoryStore(): MemoryStore {
     passiveTasks: [],
     passiveWorker: null,
     passiveRuns: [],
+    passiveResults: [],
     passiveNotifications: []
   };
 }
@@ -127,6 +130,7 @@ export function enablePassiveTaskPersistence(store: MemoryStore, path: string): 
     store.passiveTriggers = parsed.triggers;
     store.passiveTasks = parsed.tasks;
     store.passiveRuns = parsed.runs;
+    store.passiveResults = parsed.results;
     store.passiveNotifications = parsed.notifications;
   } catch (error) {
     console.warn(`Could not load persisted passive tasks: ${error instanceof Error ? error.message : 'unknown error'}`);
@@ -143,6 +147,7 @@ export function persistPassiveTasks(store: MemoryStore): void {
     triggers: store.passiveTriggers,
     tasks: store.passiveTasks,
     runs: store.passiveRuns.slice(0, 200),
+    results: store.passiveResults.slice(0, 500),
     notifications: store.passiveNotifications.slice(0, 200)
   });
   writeFileSync(store.passivePersistencePath, JSON.stringify(state, null, 2), 'utf8');

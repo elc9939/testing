@@ -22,10 +22,10 @@ task pause/resume/cancel, manual due/startup/idle ticks, notification style, res
 idle-only schedule mode, local/cloud AI preference, max runs per tick, and watched
 folders/domains/accounts. The Settings page shows the same durable preferences, plus
 family-level enable/disable toggles, alongside the broader service and machine controls.
-Digest rows, trigger rows, failure rows, recent runs, and retained task error logs show
-compact evidence such as source labels, changed artifact counts, snapshot checksums, file
-counts, cleanup candidates, last trigger fire status, and retry times so background work is
-inspectable without opening raw JSON.
+Digest rows, result rows, trigger rows, failure rows, recent runs, and retained task error
+logs show compact evidence such as source labels, changed artifact counts, snapshot
+checksums, file counts, cleanup candidates, last trigger fire status, and retry times so
+background work is inspectable without opening raw JSON.
 The dashboard settings panel also exposes family enable/disable toggles, so broad families
 can be quieted from the same surface used to inspect their outputs.
 The snapshot and dashboard also expose live worker state: whether the background worker is
@@ -90,8 +90,10 @@ The shared core model includes:
   tick cadence, last idle probe, active watched-folder count, pending file-event state, and
   worker-level errors.
 - `PassiveRun`: durable run record with status, timing, error, changed artifacts, and cards.
-- `PassiveResultCard`: source-backed output with title, summary, urgency, confidence,
-  source links/files, suggested action, and why it surfaced.
+- `PassiveResult`: first-class source-backed output with title, summary, urgency,
+  confidence, source links/files, suggested action, and why it surfaced. Runs still embed
+  their cards for compatibility, but the top-level result collection is the durable output
+  stream used by the digest and dashboard.
 - `PassiveNotification`: digest-level notification derived from notable cards.
   Notification style is enforced at write time: `digest` stores notable notifications,
   `urgent_only` stores only urgent ones, and `off` stores none. Repeated non-urgent
@@ -159,8 +161,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
 - Watched accounts scope integration-account health findings. Account labels, connection ids,
   `provider:account` tokens, `@domain` suffixes, and plain email domains can match; unmatched
   broken connections are tracked in metadata but kept out of the digest.
-- Lower-urgency output stays in the Passive Tasks dashboard. Today only receives high-urgency
-  cards through the `passive_task` attention source.
+- Lower-urgency output stays in the Passive Tasks dashboard result history. Today only
+  receives high-urgency digest cards through the `passive_task` attention source.
 - Repeated non-urgent notifications are suppressed for a day so recurring background findings
   behave like a quiet digest; urgent findings can still surface immediately.
 - Notification style only controls stored notifications; passive runs, source cards, digest

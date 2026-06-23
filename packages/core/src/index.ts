@@ -500,6 +500,8 @@ export const passiveResultCardSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({})
 });
 
+export const passiveResultSchema = passiveResultCardSchema;
+
 export const passiveRunSchema = z.object({
   id: z.string().min(1),
   taskId: z.string().min(1),
@@ -599,6 +601,7 @@ export const passiveSnapshotSchema = z.object({
   tasks: z.array(passiveTaskSchema),
   worker: passiveWorkerStateSchema,
   runs: z.array(passiveRunSchema),
+  results: z.array(passiveResultSchema),
   notifications: z.array(passiveNotificationSchema),
   digest: z.array(passiveResultCardSchema),
   sources: z.array(passiveSourceStatusSchema),
@@ -612,6 +615,7 @@ export const passiveEnginePersistedStateSchema = z.object({
   triggers: z.array(passiveTriggerSchema).default([]),
   tasks: z.array(passiveTaskSchema).default([]),
   runs: z.array(passiveRunSchema).default([]),
+  results: z.array(passiveResultSchema).default([]),
   notifications: z.array(passiveNotificationSchema).default([])
 });
 
@@ -747,6 +751,7 @@ export type PassiveWatcher = z.infer<typeof passiveWatcherSchema>;
 export type PassiveRetryState = z.infer<typeof passiveRetryStateSchema>;
 export type PassiveTask = z.infer<typeof passiveTaskSchema>;
 export type PassiveResultCard = z.infer<typeof passiveResultCardSchema>;
+export type PassiveResult = z.infer<typeof passiveResultSchema>;
 export type PassiveRun = z.infer<typeof passiveRunSchema>;
 export type PassiveNotification = z.infer<typeof passiveNotificationSchema>;
 export type PassiveIdleStateRecord = z.infer<typeof passiveIdleStateSchema>;

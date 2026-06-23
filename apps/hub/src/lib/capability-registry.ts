@@ -505,6 +505,7 @@ function addPassiveTaskCapabilities(
           workerStarted: Boolean(worker?.startedAt),
           activeFileWatchers: worker?.activeFileWatchCount ?? 0,
           recentRuns: snapshot.runs.length,
+          results: snapshot.results.length,
           digest: snapshot.digest.length,
           failures
         }

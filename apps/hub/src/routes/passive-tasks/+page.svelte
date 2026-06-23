@@ -68,6 +68,9 @@
   $: notifications = visiblePassiveNotifications(snapshot);
   $: familyRows = buildFamilyRows(snapshot, settings);
   $: worker = snapshot?.worker ?? null;
+  $: resultRows = [...(snapshot?.results ?? [])]
+    .sort((a, b) => dateValue(b.createdAt) - dateValue(a.createdAt))
+    .slice(0, 8);
   $: triggerRows = [...(snapshot?.triggers ?? [])]
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt) || a.label.localeCompare(b.label))
     .slice(0, 8);
@@ -427,6 +430,10 @@
     <span>Digest</span>
     <strong>{digestCards.length}</strong>
   </div>
+  <div>
+    <span>Results</span>
+    <strong>{snapshot?.results.length ?? 0}</strong>
+  </div>
 </section>
 
 <section class="dashboard-grid">
@@ -477,6 +484,37 @@
         <p class="empty-note">Loading passive task outputs...</p>
       {:else}
         <p class="empty-note">No passive task cards yet. Run due tasks or configure folders/research monitors to create source-backed outputs.</p>
+      {/if}
+    </article>
+
+    <article class="card panel">
+      <div class="panel-title">
+        <div>
+          <span class="icon-chip"><CheckCircle2 size={16} /></span>
+          <strong>Recent Results</strong>
+        </div>
+      </div>
+      {#if resultRows.length}
+        <div class="run-list">
+          {#each resultRows as result}
+            <div class="run-row result-row">
+              <span class={`urgency ${passiveUrgencyLabel(result.urgency)}`}>{passiveUrgencyLabel(result.urgency)}</span>
+              <span>
+                <strong>{result.title}</strong>
+                <small>{result.summary}</small>
+                <small>{passiveFamilyLabel(result.family)} - confidence {Math.round(result.confidence * 100)}%</small>
+                {#if sourceList(result)}
+                  <small class="evidence-line">Sources: {sourceList(result)}</small>
+                {/if}
+                {#if cardEvidence(result)}
+                  <small class="evidence-line">{cardEvidence(result)}</small>
+                {/if}
+              </span>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-note">No passive results have been persisted yet.</p>
       {/if}
     </article>
 

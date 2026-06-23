@@ -2,6 +2,7 @@ import {
   passiveEngineSettingsSchema,
   passiveCardTriageStateSchema,
   passiveNotificationSchema,
+  passiveResultSchema,
   passiveResultCardSchema,
   passiveRunSchema,
   passiveSnapshotSchema,
@@ -18,6 +19,7 @@ import {
   type PassiveEngineSettings,
   type PassiveCardTriageStatus,
   type PassiveNotification,
+  type PassiveResult,
   type PassiveResultCard,
   type PassiveRun,
   type PassiveRunStatus,
@@ -877,6 +879,29 @@ function syncPassiveTriggersFromTasks(store: MemoryStore, date = new Date()): bo
   return changed;
 }
 
+function syncPassiveResultsFromRuns(store: MemoryStore): boolean {
+  let changed = false;
+  const resultsById = new Map<string, PassiveResult>();
+  for (const result of store.passiveResults) {
+    const parsed = passiveResultSchema.safeParse(result);
+    if (parsed.success) resultsById.set(parsed.data.id, parsed.data);
+  }
+  for (const run of store.passiveRuns) {
+    for (const result of run.cards) {
+      if (!resultsById.has(result.id)) {
+        resultsById.set(result.id, passiveResultSchema.parse(result));
+        changed = true;
+      }
+    }
+  }
+  const nextResults = Array.from(resultsById.values())
+    .sort((a, b) => parseTime(b.createdAt) - parseTime(a.createdAt) || a.title.localeCompare(b.title))
+    .slice(0, 500);
+  if (nextResults.length !== store.passiveResults.length) changed = true;
+  store.passiveResults = nextResults;
+  return changed;
+}
+
 export function ensurePassiveDefaults(store: MemoryStore, date = new Date()): void {
   let changed = false;
   if (!store.passiveSettings) {
@@ -935,6 +960,8 @@ export function ensurePassiveDefaults(store: MemoryStore, date = new Date()): vo
   store.passiveTriggers = store.passiveTriggers.map((trigger) => passiveTriggerSchema.parse(trigger));
   store.passiveTasks = store.passiveTasks.map((task) => passiveTaskSchema.parse(task));
   store.passiveRuns = store.passiveRuns.map((run) => passiveRunSchema.parse(run));
+  store.passiveResults = store.passiveResults.map((result) => passiveResultSchema.parse(result));
+  if (syncPassiveResultsFromRuns(store)) changed = true;
   store.passiveNotifications = store.passiveNotifications.map((notification) => passiveNotificationSchema.parse(notification));
 
   if (changed) persistPassiveTasks(store);
@@ -3028,6 +3055,7 @@ export async function runPassiveTask(
   });
   store.passiveRuns.unshift(run);
   store.passiveRuns = store.passiveRuns.slice(0, 200);
+  syncPassiveResultsFromRuns(store);
 
   const nextTask = applyRunOutcomeToTask(taskAfterExecution.status === 'cancelled' ? taskAfterExecution : task, run, finished);
   store.passiveTasks[taskIndex] = nextTask;
@@ -3474,7 +3502,9 @@ export function updatePassiveCardTriage(
   input: { snoozedUntil?: string; reason?: string } = {}
 ): PassiveEngineSettings {
   ensurePassiveDefaults(store);
-  const matchesCard = store.passiveRuns.some((run) => run.cards.some((cardItem) => cardItem.id === cardId));
+  const matchesCard =
+    store.passiveResults.some((result) => result.id === cardId) ||
+    store.passiveRuns.some((run) => run.cards.some((cardItem) => cardItem.id === cardId));
   if (!matchesCard) throw new Error('Passive result card not found.');
   const existing = store.passiveSettings ?? defaultPassiveSettings();
   const nextTriage = { ...(existing.cardTriage ?? {}) };
@@ -3520,21 +3550,20 @@ export function buildPassiveDigest(store: MemoryStore, limit = 12): PassiveResul
   const seen = new Set<string>();
   const cards: PassiveResultCard[] = [];
   const checkedAt = new Date();
-  for (const run of store.passiveRuns) {
-    for (const item of run.cards) {
-      if (!passiveCardVisible(store, item, checkedAt)) continue;
-      const digestItem = passiveCardForDigest(store, item);
-      const key = `${item.family}:${item.title}:${item.summary}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (
-        passiveCardImportant(store, item.id) ||
-        digestItem.urgency >= passiveDigestUrgency ||
-        run.status === 'failed' ||
-        run.status === 'blocked'
-      ) {
-        cards.push(digestItem);
-      }
+  for (const item of store.passiveResults) {
+    if (!passiveCardVisible(store, item, checkedAt)) continue;
+    const run = store.passiveRuns.find((entry) => entry.id === item.runId);
+    const digestItem = passiveCardForDigest(store, item);
+    const key = `${item.family}:${item.title}:${item.summary}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (
+      passiveCardImportant(store, item.id) ||
+      digestItem.urgency >= passiveDigestUrgency ||
+      run?.status === 'failed' ||
+      run?.status === 'blocked'
+    ) {
+      cards.push(digestItem);
     }
   }
   return cards.sort((a, b) => b.urgency - a.urgency || parseTime(b.createdAt) - parseTime(a.createdAt)).slice(0, limit);
@@ -3602,6 +3631,7 @@ export function buildPassiveSnapshot(store: MemoryStore): PassiveSnapshot {
     tasks: store.passiveTasks,
     worker: passiveWorkerSnapshot(store),
     runs: store.passiveRuns.slice(0, 50),
+    results: store.passiveResults.slice(0, 100),
     notifications: store.passiveNotifications.slice(0, 50),
     digest: buildPassiveDigest(store),
     sources: buildPassiveSourceStatuses(store),

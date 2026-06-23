@@ -89,7 +89,7 @@ under the existing sync path. The hub client caches only the last successful rea
 under `miniHub.attention.snapshot.v1`; cached attention is read-only while offline.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
-dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result card`,
+dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,
 and `Notification` state to `passive-tasks.json` in `MINI_HUB_DATA_DIR`, exposes live
 `Worker` state in the snapshot, logs runs into the Action Ledger, and exposes a snapshot
 with per-family freshness/errors. The worker checks
@@ -155,8 +155,9 @@ only urgent findings, and `off` keeps none; run history and source cards still r
 work.
 The Passive Tasks dashboard exposes the same practical controls for day-to-day use, including
 idle-only scheduling, AI preference, family toggles, tick limits, watcher toggles, manual
-ticks, source scope edits, first-class trigger state, and live worker state such as last/next
-tick, idle probe, active file watcher count, pending file events, and worker-level issues.
+ticks, source scope edits, first-class trigger/result state, and live worker state such as
+last/next tick, idle probe, active file watcher count, pending file events, and worker-level
+issues.
 Idle cleanup planning is dry-run only and scans Mini Hub-owned data paths, not broad user
 folders.
 

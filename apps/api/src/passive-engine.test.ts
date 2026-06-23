@@ -81,6 +81,7 @@ describe('passive task engine', () => {
     expect(snapshot.triggers.some((trigger) => trigger.kind === 'event')).toBe(true);
     expect(snapshot.triggers.some((trigger) => trigger.kind === 'idle')).toBe(true);
     expect(snapshot.tasks.some((task) => task.idleOnly)).toBe(true);
+    expect(snapshot.results).toEqual([]);
     expect(snapshot.digest).toEqual([]);
   });
 
@@ -750,6 +751,7 @@ describe('passive task engine', () => {
 
     const trigger = buildPassiveSnapshot(store).triggers.find((item) => item.id === task.trigger.id);
     expect(run.status).toBe('succeeded');
+    expect(store.passiveResults.map((result) => result.id)).toEqual(run.cards.map((card) => card.id));
     expect(trigger).toMatchObject({
       id: task.trigger.id,
       watcherId: task.watcherId,
@@ -759,6 +761,44 @@ describe('passive task engine', () => {
       lastFiredAt: run.finishedAt,
       nextRunAt: run.nextRunAt
     });
+  });
+
+  it('persists first-class passive results and backfills them from run cards', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-passive-results-'));
+    try {
+      const first = createMemoryStore();
+      const path = passiveTasksPath(dir);
+      enablePassiveTaskPersistence(first, path);
+      ensurePassiveDefaults(first);
+      const task = first.passiveTasks.find((item) => item.family === 'career_radar')!;
+      first.careerActions.push({
+        id: 'career-action-result',
+        workspaceId: personalWorkspaceId,
+        jobId: 'job-result',
+        label: 'Follow up with Clay',
+        dueAt: '2026-06-18T10:00:00.000Z',
+        deviceId: 'test',
+        updatedAt: '2026-06-20T10:00:00.000Z'
+      });
+
+      const run = await runPassiveTask(first, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'result-persistence-test' }
+      });
+      persistPassiveTasks(first);
+
+      const second = createMemoryStore();
+      enablePassiveTaskPersistence(second, path);
+      expect(second.passiveResults.map((result) => result.id)).toEqual(run.cards.map((card) => card.id));
+
+      second.passiveResults = [];
+      ensurePassiveDefaults(second);
+      expect(second.passiveResults.map((result) => result.id)).toEqual(run.cards.map((card) => card.id));
+      expect(buildPassiveSnapshot(second).results[0]?.runId).toBe(run.id);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('records retry/backoff state and a durable error log after a failing passive run', async () => {
