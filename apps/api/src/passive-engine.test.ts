@@ -578,6 +578,95 @@ describe('passive task engine', () => {
     }
   });
 
+  it('queues bounded AI OS summaries of passive digest cards during idle compute', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store, new Date('2026-06-20T10:00:00.000Z'));
+    store.jobs.push({
+      id: 'job-summary-source',
+      workspaceId: personalWorkspaceId,
+      company: 'Summary Co',
+      role: 'Data Analyst',
+      status: 'lead',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-05-01T10:00:00.000Z'
+    });
+    const careerTask = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+    await runPassiveTask(store, careerTask.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'idle-summary-source' }
+    });
+    const sourceCardId = store.passiveResults[0]!.id;
+
+    const jobBodies: Array<Record<string, unknown>> = [];
+    const idleFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/jobs')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        jobBodies.push(body);
+        return jsonResponse({
+          job: {
+            id: 'job-idle-summary-1',
+            primitive: 'chunk_summarize',
+            status: 'queued',
+            created_at: '2026-06-20T10:00:00.000Z',
+            updated_at: '2026-06-20T10:00:00.000Z',
+            total: 1,
+            completed: 0,
+            failed: 0,
+            progress: 0,
+            metadata: body.metadata
+          }
+        });
+      }
+      if (href.includes('/api/ai/benchmarks')) {
+        return jsonResponse({ benchmark: { id: 'benchmark-idle-summary-1', tokens_per_second: 32.5 } });
+      }
+      return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+    }) as typeof fetch;
+    const idleTask = store.passiveTasks.find((item) => item.family === 'idle_compute')!;
+
+    const run = await runPassiveTask(store, idleTask.id, {
+      externalFetch: idleFetch,
+      force: true,
+      input: { idle: true, reason: 'idle-summary-test' }
+    });
+
+    const request = jobBodies[0]?.request as Record<string, unknown> | undefined;
+    const metadata = jobBodies[0]?.metadata as Record<string, unknown> | undefined;
+    expect(run.status).toBe('succeeded');
+    expect(jobBodies).toHaveLength(1);
+    expect(jobBodies[0]).toMatchObject({
+      primitive: 'chunk_summarize',
+      chunk_size: 2200,
+      metadata: {
+        source: 'passive-task',
+        task_id: idleTask.id,
+        local_ai_preference: 'local_first',
+        card_count: 1
+      }
+    });
+    expect(String(jobBodies[0]?.text)).toContain('Summary Co - Data Analyst');
+    expect(request).toMatchObject({
+      task_type: 'summarize',
+      local_first: true,
+      allow_fallback: false,
+      cost_ceiling_usd: 0
+    });
+    expect(metadata?.source_card_ids).toEqual([sourceCardId]);
+    expect(run.changed).toContain('ai-job:job-idle-summary-1');
+    expect(run.metadata.idleSummary).toMatchObject({
+      queued: true,
+      jobId: 'job-idle-summary-1',
+      cardCount: 1,
+      localFirst: true,
+      allowFallback: false
+    });
+    expect(run.cards.some((card) => card.title === 'Idle passive digest summary queued')).toBe(true);
+  });
+
   it('runs local file intelligence from configured folder watch events', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-watch-'));
     try {

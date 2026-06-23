@@ -102,6 +102,8 @@ interface PassiveResourceBudget {
   directoryEntriesPerFolder: number;
   indexableFiles: number;
   indexedFileChars: number;
+  idleSummaryCards: number;
+  idleSummaryChars: number;
   projectDirectoryEntries: number;
   projectTodoCap: number;
   projectFileChars: number;
@@ -215,6 +217,8 @@ const passiveResourceBudgets: Record<PassiveEngineSettings['resourceLimit'], Pas
     directoryEntriesPerFolder: 200,
     indexableFiles: 1,
     indexedFileChars: 30_000,
+    idleSummaryCards: 4,
+    idleSummaryChars: 6_000,
     projectDirectoryEntries: 150,
     projectTodoCap: 50,
     projectFileChars: 80_000,
@@ -230,6 +234,8 @@ const passiveResourceBudgets: Record<PassiveEngineSettings['resourceLimit'], Pas
     directoryEntriesPerFolder: 500,
     indexableFiles: 3,
     indexedFileChars: 80_000,
+    idleSummaryCards: 8,
+    idleSummaryChars: 12_000,
     projectDirectoryEntries: 400,
     projectTodoCap: 100,
     projectFileChars: 200_000,
@@ -245,6 +251,8 @@ const passiveResourceBudgets: Record<PassiveEngineSettings['resourceLimit'], Pas
     directoryEntriesPerFolder: 900,
     indexableFiles: 5,
     indexedFileChars: 120_000,
+    idleSummaryCards: 12,
+    idleSummaryChars: 20_000,
     projectDirectoryEntries: 700,
     projectTodoCap: 180,
     projectFileChars: 300_000,
@@ -1641,6 +1649,152 @@ function planMiniHubCleanup(date = new Date()): CleanupCandidate[] {
   return candidates.sort((a, b) => b.size - a.size).slice(0, 40);
 }
 
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
+}
+
+function passiveDigestSummaryText(cards: PassiveResultCard[], maxLength: number): string {
+  const lines: string[] = [
+    'Summarize these Mini Hub passive-task findings. Use only the listed source-backed facts. Return a concise synthesis with next actions and uncertainty.'
+  ];
+  for (const [index, item] of cards.entries()) {
+    const sources = item.sourceRefs
+      .slice(0, 4)
+      .map((ref) => `${ref.kind}:${ref.label}${ref.filePath ? ` (${ref.filePath})` : ref.route ? ` (${ref.route})` : ''}`)
+      .join('; ');
+    lines.push(
+      [
+        `${index + 1}. ${familyLabels[item.family]} | urgency ${Math.round(item.urgency)} | confidence ${Math.round(item.confidence * 100)}%`,
+        `Title: ${item.title}`,
+        `Summary: ${item.summary}`,
+        `Why: ${item.why}`,
+        `Suggested action: ${item.suggestedAction}`,
+        sources ? `Sources: ${sources}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+    if (lines.join('\n\n').length >= maxLength) break;
+  }
+  return truncateText(lines.join('\n\n'), maxLength);
+}
+
+async function queueIdleDigestSummary(
+  store: MemoryStore,
+  task: PassiveTask,
+  runId: string,
+  fetchImpl: FetchLike,
+  budget: PassiveResourceBudget
+): Promise<{ cards: PassiveResultCard[]; changed: string[]; metadata: Record<string, unknown> }> {
+  const settings = store.passiveSettings ?? defaultPassiveSettings();
+  const digestCards = buildPassiveDigest(store, budget.idleSummaryCards);
+  if (!digestCards.length) {
+    return {
+      cards: [],
+      changed: [],
+      metadata: {
+        queued: false,
+        reason: 'no-passive-digest-cards',
+        cardCount: 0
+      }
+    };
+  }
+
+  const summaryText = passiveDigestSummaryText(digestCards, budget.idleSummaryChars);
+  const machineMode = currentPassiveMachineMode(store);
+  const allowCloud = settings.localAiPreference === 'cloud_allowed';
+  const payload = await fetchJsonWithTimeout(
+    fetchImpl,
+    new URL('/api/ai/jobs', env.aiOsApiUrl),
+    'AI OS idle digest summary job',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        primitive: 'chunk_summarize',
+        text: summaryText,
+        chunk_size: 2200,
+        request: {
+          task_type: 'summarize',
+          prompt: 'Summarize Mini Hub passive-task findings into a concise source-backed digest.',
+          temperature: 0.2,
+          max_tokens: 512,
+          local_first: true,
+          allow_fallback: allowCloud,
+          cost_ceiling_usd: allowCloud ? 0.05 : 0,
+          metadata: {
+            source: 'passive-task',
+            task_id: task.id,
+            passive_run_id: runId,
+            machine_mode: machineMode,
+            local_ai_preference: settings.localAiPreference
+          }
+        },
+        metadata: {
+          source: 'passive-task',
+          task_id: task.id,
+          passive_run_id: runId,
+          machine_mode: machineMode,
+          local_ai_preference: settings.localAiPreference,
+          card_count: digestCards.length,
+          source_card_ids: digestCards.map((item) => item.id)
+        }
+      })
+    },
+    10000
+  );
+  const job = isRecord(payload) && isRecord(payload.job) ? payload.job : {};
+  const jobId = typeof job.id === 'string' ? job.id : undefined;
+  return {
+    cards: [
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: 'Idle passive digest summary queued',
+        summary: `AI OS accepted ${digestCards.length} passive finding${digestCards.length === 1 ? '' : 's'} for a local-first summary job.`,
+        urgency: digestCards.some((item) => item.urgency >= 85) ? 64 : 48,
+        confidence: 0.84,
+        route: routeMap.aiOs,
+        sourceRefs: [
+          stableSourceRef('record', 'AI OS job', {
+            id: jobId ?? runId,
+            route: routeMap.aiOs,
+            metadata: {
+              job,
+              sourceCardIds: digestCards.map((item) => item.id)
+            }
+          }),
+          ...digestCards.slice(0, 5).map((item) =>
+            stableSourceRef('record', item.title, {
+              id: item.id,
+              route: item.route,
+              metadata: {
+                family: item.family,
+                urgency: item.urgency,
+                sourceRefs: item.sourceRefs
+              }
+            })
+          )
+        ],
+        suggestedAction: 'Inspect summary job',
+        actionKind: 'inspect',
+        why: 'The machine was idle, so Mini Hub queued a bounded AI OS summary over existing passive findings instead of blocking the UI.'
+      })
+    ],
+    changed: jobId ? [`ai-job:${jobId}`] : [],
+    metadata: {
+      queued: true,
+      jobId,
+      cardCount: digestCards.length,
+      inputChars: summaryText.length,
+      localFirst: true,
+      allowFallback: allowCloud
+    }
+  };
+}
+
 async function runBackupSnapshot(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const createdAt = nowIso();
   const snapshotRoot = join(resolve(env.dataDir), passiveSnapshotDirName);
@@ -1749,7 +1903,13 @@ async function runBackupSnapshot(store: MemoryStore, task: PassiveTask, runId: s
   };
 }
 
-async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: FetchLike, input: PassiveRunInput): Promise<FamilyRunResult> {
+async function runIdleCompute(
+  store: MemoryStore,
+  task: PassiveTask,
+  runId: string,
+  fetchImpl: FetchLike,
+  input: PassiveRunInput
+): Promise<FamilyRunResult> {
   if (!input.idle) {
     return {
       status: 'skipped',
@@ -1774,6 +1934,8 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
     };
   }
 
+  const settings = store.passiveSettings ?? defaultPassiveSettings();
+  const budget = resourceBudget(settings);
   const cleanupCandidates = planMiniHubCleanup();
   const cleanupCards: PassiveResultCard[] = cleanupCandidates.length
     ? [
@@ -1822,6 +1984,23 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
         })
       ];
   const cleanupChanged = cleanupCandidates.map((item) => `cleanup-candidate:${item.path}`);
+  const summary = await queueIdleDigestSummary(store, task, runId, fetchImpl, budget).catch((error: unknown) => ({
+    cards: [
+      serviceIssueCard(
+        task,
+        runId,
+        'Idle digest summary failed to queue',
+        describeError(error),
+        58,
+        stableSourceRef('service', 'AI OS jobs', { id: 'ai-os-jobs', route: routeMap.aiOs })
+      )
+    ],
+    changed: [],
+    metadata: {
+      queued: false,
+      error: describeError(error)
+    }
+  }));
 
   try {
     const payload = await fetchJsonWithTimeout(
@@ -1867,11 +2046,12 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
           actionKind: 'inspect',
           why: 'The machine was marked idle, so the idle compute queue ran a bounded local benchmark.'
         })
-      ].concat(cleanupCards),
-      changed: [...(benchmark.id ? [`benchmark:${String(benchmark.id)}`] : []), ...cleanupChanged],
+      ].concat(cleanupCards, summary.cards),
+      changed: [...(benchmark.id ? [`benchmark:${String(benchmark.id)}`] : []), ...cleanupChanged, ...summary.changed],
       metadata: {
         cleanupCandidates: cleanupCandidates.length,
-        cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0)
+        cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0),
+        idleSummary: summary.metadata
       }
     };
   } catch (error) {
@@ -1887,11 +2067,12 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
           70,
           stableSourceRef('service', 'AI OS benchmark', { id: 'ai-os-benchmark', route: routeMap.aiOs })
         )
-      ].concat(cleanupCards),
-      changed: cleanupChanged,
+      ].concat(cleanupCards, summary.cards),
+      changed: [...cleanupChanged, ...summary.changed],
       metadata: {
         cleanupCandidates: cleanupCandidates.length,
-        cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0)
+        cleanupBytes: cleanupCandidates.reduce((total, item) => total + item.size, 0),
+        idleSummary: summary.metadata
       }
     };
   }
@@ -2948,7 +3129,7 @@ async function executeFamily(
 ): Promise<FamilyRunResult> {
   if (task.family === 'app_health') return runAppHealth(store, task, runId, fetchImpl);
   if (task.family === 'backup_snapshot') return runBackupSnapshot(store, task, runId, fetchImpl);
-  if (task.family === 'idle_compute') return runIdleCompute(task, runId, fetchImpl, input);
+  if (task.family === 'idle_compute') return runIdleCompute(store, task, runId, fetchImpl, input);
   if (task.family === 'research_monitor') return runResearchMonitor(store, task, runId, fetchImpl);
   if (task.family === 'career_radar') return runCareerRadar(store, task, runId);
   if (task.family === 'file_intelligence') return runFileIntelligence(store, task, runId, fetchImpl, input);

@@ -125,10 +125,10 @@ normal API startup.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot, read-verifies it,
   records byte count/checksum/entity counts/redaction status, and requests an AI OS backup
   when AI OS is available.
-- Idle Compute Queue: runs bounded AI OS benchmarks and non-destructive Mini Hub cleanup
-  dry-runs only when the worker or dashboard tick reports a real idle window. Cleanup cards
-  list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does
-  not delete them.
+- Idle Compute Queue: runs bounded AI OS benchmarks, local-first AI OS summary jobs over
+  existing passive digest cards, and non-destructive Mini Hub cleanup dry-runs only when the
+  worker or dashboard tick reports a real idle window. Cleanup cards list stale passive
+  snapshots/logs/temp files under Mini Hub-owned data paths; v1 does not delete them.
 - Background Research Monitor: reads AI OS due monitors, prepares daily AI OS monitor
   templates from configured watched domains, and queues due monitor runs.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups.
@@ -164,6 +164,9 @@ normal API startup.
   redacted before being embedded in the restore snapshot.
 - Idle compute is gated by worker-measured or manually requested idle ticks. Probe failures
   do not allow heavy work to run.
+- Idle digest summaries are queued through AI OS as bounded `chunk_summarize` jobs over
+  existing passive cards. They do not invent findings, and cloud fallback is allowed only
+  when the passive AI preference is `cloud_allowed`.
 - Event work is gated by explicit event names; scheduled ticks do not accidentally run
   event-only tasks.
 - Watched domains are normalized to public hostnames before passive research monitor

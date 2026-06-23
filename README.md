@@ -117,10 +117,11 @@ real-data only:
   `MINI_HUB_DATA_DIR/passive-snapshots`, read-verifies each new snapshot, records byte count,
   checksum, entity counts, redaction status, Passive Task state, sync events, and a redacted
   Action Ledger copy, and asks AI OS for its own backup when available.
-- Idle Compute Queue runs bounded AI OS benchmarks and non-destructive Mini Hub cleanup
-  dry-runs only when the worker or a manual tick reports a real idle window. Cleanup cards
-  list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does
-  not delete them.
+- Idle Compute Queue runs bounded AI OS benchmarks, local-first passive digest summary jobs,
+  and non-destructive Mini Hub cleanup dry-runs only when the worker or a manual tick reports
+  a real idle window. Summary jobs use existing source-backed passive cards and cleanup cards
+  list stale passive snapshots/logs/temp files under Mini Hub-owned data paths; v1 does not
+  delete them.
 - Background Research Monitor reads AI OS saved monitor due-state, prepares daily AI OS
   monitor templates from configured watched domains, and queues due monitor runs through
   AI OS.
