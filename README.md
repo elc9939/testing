@@ -81,7 +81,9 @@ The Svelte app under `apps/hub` provides these main pages:
   for read/unread, important, and archive.
 - Games: new game surfaces plus a link to the legacy arcade.
 - Stick Arena Lab: Pixi/Rapier-style game-engine slice and saved run metadata.
-- Analytics: local dashboard surface for career/study/game data.
+- Analytics: local dashboard surface over the real Mini Hub browser cache for career,
+  study, and game data. It shows loading, offline cached, and healthy-empty states instead
+  of sample metrics.
 - Research Desk: AI OS-backed web intelligence workbench for quick search, deep research,
   URL scrape, site crawl, source comparison, and topic-monitor shaped runs.
 - AI Lab: small browser-side local AI experiments such as classification and code parsing.
