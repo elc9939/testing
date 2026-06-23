@@ -83,6 +83,11 @@
     return `${(run.durationMs / 1000).toFixed(1)} s`;
   }
 
+  function runMode(run: PassiveRun): string {
+    const mode = run.metadata.machineMode;
+    return typeof mode === 'string' && mode.trim() ? mode : '';
+  }
+
   function syncEditor(next: PassiveSnapshot): void {
     snapshot = next;
     folderText = next.settings.watchedFolders.join('\n');
@@ -418,7 +423,7 @@
               <span class={`state ${run.status}`}>{passiveRunStatusLabel(run.status)}</span>
               <span>
                 <strong>{passiveFamilyLabel(run.family)}</strong>
-                <small>{displayWhen(run.finishedAt ?? run.startedAt)} {displayDuration(run)}</small>
+                <small>{displayWhen(run.finishedAt ?? run.startedAt)} {displayDuration(run)}{runMode(run) ? ` - ${runMode(run)}` : ''}</small>
               </span>
             </div>
           {/each}

@@ -44,6 +44,7 @@ import { env } from './env';
 import { appendActionLedgerEvent, persistPassiveTasks, type MemoryStore } from './store';
 
 type FetchLike = typeof fetch;
+type PassiveMachineMode = 'balanced' | 'beast' | 'quiet' | 'offline' | 'night' | 'maintenance';
 const execFileAsync = promisify(execFile);
 
 interface FileInsight {
@@ -226,6 +227,69 @@ const passiveResourceBudgets: Record<PassiveEngineSettings['resourceLimit'], Pas
 
 function resourceBudget(settings: PassiveEngineSettings): PassiveResourceBudget {
   return passiveResourceBudgets[settings.resourceLimit] ?? passiveResourceBudgets.balanced;
+}
+
+const passiveMachineModes = new Set<PassiveMachineMode>(['balanced', 'beast', 'quiet', 'offline', 'night', 'maintenance']);
+const quietDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
+
+function passiveMachineMode(value: unknown): PassiveMachineMode | null {
+  return typeof value === 'string' && passiveMachineModes.has(value as PassiveMachineMode) ? (value as PassiveMachineMode) : null;
+}
+
+function currentPassiveMachineMode(store: MemoryStore): PassiveMachineMode {
+  const preferences = store.settings?.preferences;
+  if (!preferences || typeof preferences !== 'object' || Array.isArray(preferences)) return 'balanced';
+  return passiveMachineMode((preferences as Record<string, unknown>).machineMode) ?? 'balanced';
+}
+
+function taskMachineMode(store: MemoryStore, task: PassiveTask): { mode: PassiveMachineMode; source: 'task' | 'settings' } {
+  const explicit = passiveMachineMode(task.machineMode);
+  if (explicit) return { mode: explicit, source: 'task' };
+  return { mode: currentPassiveMachineMode(store), source: 'settings' };
+}
+
+function passiveModePolicy(
+  task: PassiveTask,
+  currentMode: PassiveMachineMode
+): { allowed: boolean; priorityDelta: number; reason?: string } {
+  const explicitMode = passiveMachineMode(task.machineMode);
+  if (explicitMode && explicitMode !== currentMode) {
+    return {
+      allowed: false,
+      priorityDelta: 0,
+      reason: `Task is pinned to ${explicitMode} mode.`
+    };
+  }
+
+  if (currentMode === 'quiet' && quietDeferredFamilies.has(task.family)) {
+    return {
+      allowed: false,
+      priorityDelta: 0,
+      reason: 'Quiet Mode defers heavier passive work.'
+    };
+  }
+
+  if (currentMode === 'offline' && task.family === 'research_monitor') {
+    return {
+      allowed: false,
+      priorityDelta: 0,
+      reason: 'Offline Mode skips web-backed research monitor sweeps.'
+    };
+  }
+
+  if (currentMode === 'beast' && ['idle_compute', 'research_monitor', 'file_intelligence'].includes(task.family)) {
+    return { allowed: true, priorityDelta: 8 };
+  }
+
+  if (currentMode === 'maintenance' && ['app_health', 'backup_snapshot', 'project_drift', 'idle_compute'].includes(task.family)) {
+    return { allowed: true, priorityDelta: 10 };
+  }
+
+  if (currentMode === 'night' && ['backup_snapshot', 'idle_compute', 'file_intelligence', 'project_drift'].includes(task.family)) {
+    return { allowed: true, priorityDelta: 6 };
+  }
+
+  return { allowed: true, priorityDelta: 0 };
 }
 
 const defaultTaskDefinitions: DefaultTaskDefinition[] = [
@@ -721,6 +785,7 @@ export function duePassiveTasks(store: MemoryStore, date = new Date(), input: Pa
   ensurePassiveDefaults(store, date);
   const nowMs = date.getTime();
   const eventName = input.eventName?.trim();
+  const mode = currentPassiveMachineMode(store);
   if (!store.passiveSettings?.enabled) return [];
   if (store.passiveSettings.idleOnly && !input.idle && !eventName) return [];
   return store.passiveTasks
@@ -728,14 +793,21 @@ export function duePassiveTasks(store: MemoryStore, date = new Date(), input: Pa
     .filter((task) => watcherEnabled(store, task))
     .filter((task) => !task.idleOnly || Boolean(input.idle))
     .filter((task) => (eventName ? taskMatchesEvent(task, eventName) : task.trigger.kind !== 'event'))
+    .map((task) => ({ task, policy: passiveModePolicy(task, mode) }))
+    .filter((item) => item.policy.allowed)
     .filter((task) => {
-      const retryAt = parseTime(task.retry.nextRetryAt);
+      const retryAt = parseTime(task.task.retry.nextRetryAt);
       if (Number.isFinite(retryAt) && retryAt > nowMs) return false;
       if (eventName) return true;
-      const nextRun = parseTime(task.nextRunAt ?? task.trigger.nextRunAt);
+      const nextRun = parseTime(task.task.nextRunAt ?? task.task.trigger.nextRunAt);
       return !Number.isFinite(nextRun) || nextRun <= nowMs;
     })
-    .sort((a, b) => b.priority - a.priority || a.title.localeCompare(b.title));
+    .sort(
+      (a, b) =>
+        b.task.priority + b.policy.priorityDelta - (a.task.priority + a.policy.priorityDelta) ||
+        a.task.title.localeCompare(b.task.title)
+    )
+    .map((item) => item.task);
 }
 
 async function fetchJsonWithTimeout(
@@ -2123,6 +2195,7 @@ export async function runPassiveTask(
   const startedAt = nowIso();
   const runId = id('passive-run');
   const attempt = task.retry.attempts + 1;
+  const runMode = taskMachineMode(store, task);
   store.passiveTasks[taskIndex] = passiveTaskSchema.parse({ ...task, status: 'running', updatedAt: startedAt });
   persistPassiveTasks(store);
 
@@ -2183,6 +2256,8 @@ export async function runPassiveTask(
     nextRunAt,
     metadata: {
       reason: options.input?.reason ?? 'scheduled',
+      machineMode: runMode.mode,
+      machineModeSource: runMode.source,
       eventName: options.input?.eventName,
       idle: Boolean(options.input?.idle),
       ...(options.input?.idleMinutes !== undefined ? { idleMinutes: options.input.idleMinutes } : {}),
@@ -2223,7 +2298,7 @@ export async function runPassiveTask(
             ? 'blocked'
             : 'failed',
     risk: task.family === 'backup_snapshot' || task.family === 'idle_compute' || task.family === 'research_monitor' ? 'system' : 'read',
-    mode: task.machineMode,
+    mode: runMode.mode,
     changed: run.changed,
     recoverability: {
       kind: task.family === 'backup_snapshot' ? 'backup' : run.changed.length ? 'artifact' : 'none',
@@ -2650,10 +2725,13 @@ export function buildPassiveDigest(store: MemoryStore, limit = 12): PassiveResul
 }
 
 export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceStatus[] {
+  const currentMode = currentPassiveMachineMode(store);
   return store.passiveTasks.map((task) => {
     const run = latestRunForTask(store, task.id);
     const fetchedAt = run?.finishedAt ?? task.lastRunAt;
     const error = task.lastError ?? run?.error;
+    const taskMode = taskMachineMode(store, task);
+    const modePolicy = passiveModePolicy(task, currentMode);
     const status: PassiveSourceStatus['status'] =
       task.status === 'blocked' || run?.status === 'failed' || run?.status === 'blocked'
         ? 'error'
@@ -2672,6 +2750,10 @@ export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceSta
         nextRunAt: task.nextRunAt,
         status: task.status,
         lastRunStatus: run?.status,
+        machineMode: taskMode.mode,
+        machineModeSource: taskMode.source,
+        modePolicy: modePolicy.allowed ? 'allowed' : 'deferred',
+        ...(modePolicy.reason ? { modePolicyReason: modePolicy.reason } : {}),
         ...(task.idleOnly || task.family === 'idle_compute'
           ? {
               idleOnly: task.idleOnly,

@@ -26,6 +26,13 @@ adjust watched-folder count, per-folder file scans, semantic-memory indexing cou
 TODO scan breadth, research monitor creation count, due-run sweep size, and monitor crawl
 budgets.
 
+Machine Mode is active policy for scheduled work. Quiet Mode defers heavier passive families
+such as idle compute, research monitor sweeps, file intelligence, and project drift. Offline
+Mode skips web-backed research monitor sweeps. Beast, Night Shift, and Maintenance adjust
+priority toward the work those modes are meant for, and any task pinned to a specific
+`machineMode` only runs during that mode. Run history and Action Ledger events record the
+effective mode that shaped the run.
+
 The API worker emits `app.startup` when it starts. The hub browser shell also emits a
 throttled `app.startup` on open and `app.reconnect` after the browser comes back online.
 Google OAuth connect/revoke flows emit `google.oauth.connected` and `google.oauth.revoked`.

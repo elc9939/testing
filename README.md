@@ -134,7 +134,8 @@ findings stay quiet across restarts. Settings controls global enablement, notifi
 idle preference, resource limit, local/cloud AI preference, max runs per tick, and watched
 folders/domains/accounts. Background work avoids destructive changes; file/project scans
 respect configured folders only, resource limits clamp research/page/file/TODO scan budgets,
-and failures stay visible without creating fake queue items.
+Machine Modes shape due-work selection, and failures stay visible without creating fake queue
+items.
 Idle cleanup planning is dry-run only and scans Mini Hub-owned data paths, not broad user
 folders.
 

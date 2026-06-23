@@ -49,6 +49,17 @@ function healthyServiceFetch(): typeof fetch {
   }) as typeof fetch;
 }
 
+function setMachineMode(store: ReturnType<typeof createMemoryStore>, machineMode: string): void {
+  store.settings = {
+    workspaceId: personalWorkspaceId,
+    highScores: {},
+    recentState: {},
+    preferences: { machineMode },
+    deviceId: 'test',
+    updatedAt: '2026-06-20T10:00:00.000Z'
+  };
+}
+
 async function waitForCondition(predicate: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     if (predicate()) return;
@@ -89,6 +100,40 @@ describe('passive task engine', () => {
     store.passiveSettings = { ...store.passiveSettings!, idleOnly: true };
     expect(duePassiveTasks(store, now)).toEqual([]);
     expect(duePassiveTasks(store, now, { idle: true }).length).toBeGreaterThan(0);
+  });
+
+  it('applies machine mode policy to due passive tasks', () => {
+    const store = createMemoryStore();
+    const now = new Date('2026-06-20T10:00:00.000Z');
+    ensurePassiveDefaults(store, now);
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: '2026-06-20T09:00:00.000Z',
+      trigger: { ...task.trigger, nextRunAt: '2026-06-20T09:00:00.000Z' }
+    }));
+
+    setMachineMode(store, 'quiet');
+    const quietFamilies = duePassiveTasks(store, now, { idle: true }).map((task) => task.family);
+    expect(quietFamilies).toContain('app_health');
+    expect(quietFamilies).toContain('backup_snapshot');
+    expect(quietFamilies).toContain('career_radar');
+    expect(quietFamilies).not.toContain('idle_compute');
+    expect(quietFamilies).not.toContain('research_monitor');
+    expect(quietFamilies).not.toContain('file_intelligence');
+    expect(quietFamilies).not.toContain('project_drift');
+
+    setMachineMode(store, 'offline');
+    const offlineFamilies = duePassiveTasks(store, now, { idle: true }).map((task) => task.family);
+    expect(offlineFamilies).not.toContain('research_monitor');
+    expect(offlineFamilies).toContain('file_intelligence');
+
+    store.passiveTasks = store.passiveTasks.map((task) =>
+      task.family === 'project_drift' ? { ...task, machineMode: 'night' } : task
+    );
+    setMachineMode(store, 'balanced');
+    expect(duePassiveTasks(store, now, { idle: true }).some((task) => task.family === 'project_drift')).toBe(false);
+    setMachineMode(store, 'night');
+    expect(duePassiveTasks(store, now, { idle: true }).some((task) => task.family === 'project_drift')).toBe(true);
   });
 
   it('keeps event tasks out of scheduled ticks and runs them only for matching events', () => {
@@ -411,6 +456,32 @@ describe('passive task engine', () => {
       source: 'passive-tasks',
       actionType: 'passive.app_health',
       status: 'cancelled'
+    });
+  });
+
+  it('records the effective machine mode on passive runs and action ledger events', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    setMachineMode(store, 'maintenance');
+    const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'machine-mode-test' }
+    });
+
+    expect(run.metadata.machineMode).toBe('maintenance');
+    expect(run.metadata.machineModeSource).toBe('settings');
+    expect(store.actionEvents.at(-1)).toMatchObject({
+      source: 'passive-tasks',
+      actionType: 'passive.app_health',
+      mode: 'maintenance'
+    });
+    expect(buildPassiveSnapshot(store).sources.find((source) => source.id === 'app_health')?.details).toMatchObject({
+      machineMode: 'maintenance',
+      machineModeSource: 'settings',
+      modePolicy: 'allowed'
     });
   });
 
