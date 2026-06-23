@@ -4175,6 +4175,19 @@ export function startPassiveTaskWorker(
   };
   const flushFileEvent = () => {
     if (!pendingFileEvent) return;
+    if (!fileWatcherEnabled()) {
+      pendingFileEvent = null;
+      if (fileEventTimer) {
+        clearTimeout(fileEventTimer);
+        fileEventTimer = null;
+      }
+      setPassiveWorkerState(store, {
+        pendingFileEvent: false,
+        activeFileWatchCount: watchedFolders.size
+      });
+      refreshFolderWatchers();
+      return;
+    }
     const input = pendingFileEvent;
     pendingFileEvent = null;
     void runExclusive('file event', async () => {
@@ -4191,6 +4204,20 @@ export function startPassiveTaskWorker(
     });
   };
   const scheduleFileEvent = (folder: string, eventKind: string, fileName?: string) => {
+    if (!fileWatcherEnabled()) {
+      pendingFileEvent = null;
+      if (fileEventTimer) {
+        clearTimeout(fileEventTimer);
+        fileEventTimer = null;
+      }
+      setPassiveWorkerState(store, {
+        pendingFileEvent: false,
+        activeFileWatchCount: watchedFolders.size,
+        lastEventName: 'file.changed'
+      });
+      refreshFolderWatchers();
+      return;
+    }
     const resolvedFolder = resolve(folder);
     const eventFilePath = fileName ? resolve(resolvedFolder, fileName) : resolvedFolder;
     pendingFileEvent = {

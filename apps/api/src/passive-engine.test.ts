@@ -1065,6 +1065,55 @@ describe('passive task engine', () => {
     }
   });
 
+  it('drops watched-folder events after the passive engine is disabled', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-disabled-watch-'));
+    try {
+      const watchedFile = join(dir, 'quiet-notes.md');
+      writeFileSync(watchedFile, '# Quiet\n\nThis should not queue while disabled.', 'utf8');
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = { ...store.passiveSettings!, watchedFolders: [dir] };
+      const listeners = new Map<string, (eventType: string, fileName?: string) => void>();
+      const stop = startPassiveTaskWorker(store, {
+        externalFetch: healthyServiceFetch(),
+        intervalMs: 60_000,
+        startupEventName: false,
+        fileEventDebounceMs: 1,
+        idleDetector: (thresholdMinutes) => ({
+          idle: false,
+          thresholdMinutes,
+          checkedAt: '2026-06-20T10:00:00.000Z',
+          source: 'test-active-detector'
+        }),
+        folderWatcher: (folder, listener) => {
+          listeners.set(folder, listener);
+          return { close: () => listeners.delete(folder) };
+        }
+      });
+      try {
+        const watchedFolder = resolve(dir);
+        await waitForCondition(() => listeners.has(watchedFolder));
+        const listener = listeners.get(watchedFolder)!;
+        updatePassiveSettings(store, { enabled: false });
+        listener('rename', 'quiet-notes.md');
+        await waitForCondition(() => !listeners.has(watchedFolder));
+      } finally {
+        stop();
+      }
+
+      const snapshot = buildPassiveSnapshot(store);
+      expect(store.passiveRuns.some((run) => run.taskId === 'passive-task:file-intelligence-event')).toBe(false);
+      expect(snapshot.worker).toMatchObject({
+        enabled: false,
+        activeFileWatchCount: 0,
+        pendingFileEvent: false,
+        lastEventName: 'file.changed'
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('extracts source-backed metadata for PDFs, docs, and screenshots without indexing binary files', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-file-metadata-'));
     try {
