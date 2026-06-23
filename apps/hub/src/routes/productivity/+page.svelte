@@ -64,6 +64,7 @@
 
   const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles';
   const productivityCacheKey = 'miniHub.productivity.cache.v1';
+  const googleOAuthReturnToKey = 'miniHub.googleOAuth.returnTo.v1';
   const defaultGmailQuery = [
     'in:inbox newer_than:14d',
     '-category:promotions',
@@ -181,6 +182,15 @@
     url.searchParams.delete('google');
     url.searchParams.delete('message');
     return url.toString();
+  }
+
+  function rememberGoogleReturnTo(value: string | undefined): void {
+    if (!value || typeof sessionStorage === 'undefined') return;
+    try {
+      sessionStorage.setItem(googleOAuthReturnToKey, value);
+    } catch {
+      // Session storage is only a best-effort breadcrumb for OAuth diagnostics.
+    }
   }
 
   function isRecord(value: unknown): value is Record<string, unknown> {
@@ -505,7 +515,9 @@
       }
     }
     try {
-      const url = await getGoogleOAuthUrl(googleReturnTo(), popup ? 'popup' : 'redirect');
+      const returnTo = googleReturnTo();
+      rememberGoogleReturnTo(returnTo);
+      const url = await getGoogleOAuthUrl(returnTo, popup ? 'popup' : 'redirect');
       if (popup) {
         popup.location.href = url;
         actionMessage = 'Complete Google sign-in in the popup.';
@@ -525,6 +537,9 @@
     if (!isGoogleOAuthMessage(event.data)) return;
     if (!isCurrentHubUrl(event.data.redirectUrl)) return;
     if (googleOAuthPopup && event.source !== googleOAuthPopup) return;
+    if (googleOAuthPopup && !googleOAuthPopup.closed) {
+      googleOAuthPopup.close();
+    }
     googleOAuthPopup = null;
     if (event.data.status === 'connected') {
       actionError = '';

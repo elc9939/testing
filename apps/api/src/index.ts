@@ -75,7 +75,7 @@ export function createApp(options: CreateAppOptions = {}) {
         if (!origin) return env.trustedOrigins[0] ?? '*';
         return env.trustedOrigins.includes(origin) ? origin : env.trustedOrigins[0];
       },
-      allowHeaders: ['Content-Type', 'Authorization'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Mini-Hub-Return-To'],
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true
     })

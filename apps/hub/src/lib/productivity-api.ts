@@ -90,7 +90,9 @@ export async function getGoogleOAuthUrl(returnTo?: string, mode: 'redirect' | 'p
   if (returnTo) params.set('returnTo', returnTo);
   if (mode !== 'redirect') params.set('mode', mode);
   const suffix = params.toString() ? `?${params}` : '';
-  const result = await requestApiJson<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`);
+  const result = await requestApiJson<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`, {
+    headers: returnTo ? { 'X-Mini-Hub-Return-To': returnTo } : undefined
+  });
   return result.url;
 }
 

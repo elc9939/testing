@@ -243,6 +243,19 @@ function oauthMode(value: string | undefined): OAuthState['mode'] {
   return value === 'popup' ? 'popup' : 'redirect';
 }
 
+function oauthStartReturnTo(c: Context<AppBindings>): string | undefined {
+  const candidates = [
+    c.req.query('returnTo'),
+    c.req.header('x-mini-hub-return-to'),
+    c.req.header('referer')
+  ];
+  for (const candidate of candidates) {
+    const safe = safeReturnTo(candidate);
+    if (safe) return safe;
+  }
+  return undefined;
+}
+
 function previewOAuthState(value: string | undefined): OAuthState | null {
   if (!value) return null;
   try {
@@ -304,9 +317,15 @@ function oauthPopupHtml(input: { redirectUrl: string; status: string; message?: 
       const targetOrigin = ${safeJsonForScript(redirect.origin)};
       const redirectUrl = ${safeJsonForScript(redirect.toString())};
       if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(message, targetOrigin);
-        window.setTimeout(() => window.close(), 120);
-        window.setTimeout(() => window.location.replace(redirectUrl), 1200);
+        let attempts = 0;
+        const notify = () => {
+          attempts += 1;
+          window.opener.postMessage(message, targetOrigin);
+          if (attempts >= 12) window.clearInterval(timer);
+        };
+        const timer = window.setInterval(notify, 250);
+        notify();
+        window.setTimeout(() => window.close(), 500);
       } else {
         window.location.replace(redirectUrl);
       }
@@ -348,7 +367,7 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     const user = requireUser(c);
     if (user instanceof Response) return user;
     try {
-      return c.json({ url: googleAuthUrl({ returnTo: safeReturnTo(c.req.query('returnTo')), mode: oauthMode(c.req.query('mode')) }) });
+      return c.json({ url: googleAuthUrl({ returnTo: oauthStartReturnTo(c), mode: oauthMode(c.req.query('mode')) }) });
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Google OAuth unavailable' }, 400);
     }

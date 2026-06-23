@@ -878,6 +878,40 @@ describe('mini hub api', () => {
     }
   });
 
+  it('keeps the starting hub URL from the OAuth return header when query params are unavailable', async () => {
+    const previous = {
+      googleClientId: env.googleClientId,
+      googleClientSecret: env.googleClientSecret,
+      googleRedirectUri: env.googleRedirectUri,
+      hubPublicUrl: env.hubPublicUrl,
+      trustedOrigins: [...env.trustedOrigins]
+    };
+    try {
+      env.googleClientId = 'test-client-id';
+      env.googleClientSecret = 'test-client-secret';
+      env.googleRedirectUri = 'http://127.0.0.1:8787/api/integrations/google/oauth/callback';
+      env.hubPublicUrl = 'http://127.0.0.1:5173';
+      env.trustedOrigins = ['http://127.0.0.1:5173', 'https://elc9939.github.io'];
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+      const returnTo = 'https://elc9939.github.io/testing/productivity?panel=calendar';
+
+      const response = await app.request('/api/integrations/google/oauth/start?mode=popup', {
+        headers: { 'X-Mini-Hub-Return-To': returnTo }
+      });
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { url: string };
+      const stateValue = new URL(body.url).searchParams.get('state');
+      expect(verifyOAuthState(stateValue ?? '', 'google')).toMatchObject({ returnTo, mode: 'popup' });
+    } finally {
+      env.googleClientId = previous.googleClientId;
+      env.googleClientSecret = previous.googleClientSecret;
+      env.googleRedirectUri = previous.googleRedirectUri;
+      env.hubPublicUrl = previous.hubPublicUrl;
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
   it('can launch Google OAuth in popup mode without losing the trusted hub URL', async () => {
     const previous = {
       googleClientId: env.googleClientId,
@@ -1005,6 +1039,8 @@ describe('mini hub api', () => {
       expect(response.headers.get('content-type')).toContain('text/html');
       const html = await response.text();
       expect(html).toContain('mini-hub:google-oauth');
+      expect(html).toContain('window.setInterval(notify, 250)');
+      expect(html).not.toContain('window.setTimeout(() => window.location.replace(redirectUrl)');
       expect(html).toContain('https://elc9939.github.io/testing/productivity?panel=calendar&amp;google=connected');
     } finally {
       env.googleClientId = previous.googleClientId;

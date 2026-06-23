@@ -41,9 +41,12 @@ BRIGHTSPACE_ICAL_URL=
 `MINI_HUB_TOKEN_ENCRYPTION_KEY` encrypts provider OAuth tokens at rest and signs OAuth state.
 When you start Google OAuth from the public GitHub Pages app, a local dev URL, or a LAN hub
 URL, the hub passes its current Productivity URL as a signed `returnTo` value. The Google
-callback can still be the local API URL, but after the token is stored the API redirects back
-to the trusted hub URL that started the flow instead of always falling back to
-`HUB_PUBLIC_URL`.
+callback can still be the local API URL because that is where tokens are stored. After the
+token is stored, popup mode posts a completion message back to the original hub tab and then
+closes; if there is no opener tab, the callback redirects to the trusted hub URL that started
+the flow instead of always falling back to `HUB_PUBLIC_URL`. The hub sends `returnTo` both as
+a signed state value and as `X-Mini-Hub-Return-To` so hosted pages and local APIs agree on the
+original destination.
 
 ## Google OAuth App
 
