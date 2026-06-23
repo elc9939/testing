@@ -21,6 +21,11 @@ State persists to `passive-tasks.json` under `MINI_HUB_DATA_DIR`. Mini Hub resto
 created by the Backup + Snapshot Watcher are written under
 `MINI_HUB_DATA_DIR/passive-snapshots`.
 
+The resource limit setting is active policy, not a label. `light`, `balanced`, and `heavy`
+adjust watched-folder count, per-folder file scans, semantic-memory indexing count, project
+TODO scan breadth, research monitor creation count, due-run sweep size, and monitor crawl
+budgets.
+
 The API worker emits `app.startup` when it starts. The hub browser shell also emits a
 throttled `app.startup` on open and `app.reconnect` after the browser comes back online.
 Google OAuth connect/revoke flows emit `google.oauth.connected` and `google.oauth.revoked`.
@@ -91,6 +96,8 @@ Runs are logged into the Action Ledger with `source: passive-tasks`.
   when the folder is removed or the file-intelligence watcher is disabled.
 - Text previews and indexing are bounded; PDFs, Word documents, and images are not given fake
   content summaries until a real extractor/OCR path is added.
+- Resource limits clamp local scan breadth and AI OS research monitor budgets before work is
+  queued, so changing the setting affects the next run without editing task definitions.
 - Backup snapshots redact encrypted token payloads from Mini Hub connection metadata.
 - Idle compute is gated by worker-measured or manually requested idle ticks. Probe failures
   do not allow heavy work to run.

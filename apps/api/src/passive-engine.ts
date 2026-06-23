@@ -66,6 +66,22 @@ interface CleanupCandidate {
   reason: string;
 }
 
+interface PassiveResourceBudget {
+  watchedFolderLimit: number;
+  filesPerFolder: number;
+  directoryEntriesPerFolder: number;
+  indexableFiles: number;
+  indexedFileChars: number;
+  projectDirectoryEntries: number;
+  projectTodoCap: number;
+  projectFileChars: number;
+  researchMonitorCreateLimit: number;
+  researchMonitorRunLimit: number;
+  researchMaxPages: number;
+  researchPerDomainLimit: number;
+  researchTimeBudgetSeconds: number;
+}
+
 export interface PassiveRunInput {
   idle?: boolean;
   reason?: string;
@@ -159,6 +175,58 @@ const familyLabels: Record<PassiveTaskFamily, string> = {
   file_intelligence: 'Local File Intelligence',
   project_drift: 'Project Drift Detector'
 };
+
+const passiveResourceBudgets: Record<PassiveEngineSettings['resourceLimit'], PassiveResourceBudget> = {
+  light: {
+    watchedFolderLimit: 6,
+    filesPerFolder: 8,
+    directoryEntriesPerFolder: 200,
+    indexableFiles: 1,
+    indexedFileChars: 30_000,
+    projectDirectoryEntries: 150,
+    projectTodoCap: 50,
+    projectFileChars: 80_000,
+    researchMonitorCreateLimit: 2,
+    researchMonitorRunLimit: 2,
+    researchMaxPages: 3,
+    researchPerDomainLimit: 2,
+    researchTimeBudgetSeconds: 45
+  },
+  balanced: {
+    watchedFolderLimit: 16,
+    filesPerFolder: 20,
+    directoryEntriesPerFolder: 500,
+    indexableFiles: 3,
+    indexedFileChars: 80_000,
+    projectDirectoryEntries: 400,
+    projectTodoCap: 100,
+    projectFileChars: 200_000,
+    researchMonitorCreateLimit: 5,
+    researchMonitorRunLimit: 5,
+    researchMaxPages: 6,
+    researchPerDomainLimit: 4,
+    researchTimeBudgetSeconds: 90
+  },
+  heavy: {
+    watchedFolderLimit: 24,
+    filesPerFolder: 40,
+    directoryEntriesPerFolder: 900,
+    indexableFiles: 5,
+    indexedFileChars: 120_000,
+    projectDirectoryEntries: 700,
+    projectTodoCap: 180,
+    projectFileChars: 300_000,
+    researchMonitorCreateLimit: 8,
+    researchMonitorRunLimit: 8,
+    researchMaxPages: 10,
+    researchPerDomainLimit: 6,
+    researchTimeBudgetSeconds: 150
+  }
+};
+
+function resourceBudget(settings: PassiveEngineSettings): PassiveResourceBudget {
+  return passiveResourceBudgets[settings.resourceLimit] ?? passiveResourceBudgets.balanced;
+}
 
 const defaultTaskDefinitions: DefaultTaskDefinition[] = [
   {
@@ -405,8 +473,11 @@ function normalizeWatchedDomain(value: string): string | null {
   }
 }
 
-function safeConfiguredDomains(settings: PassiveEngineSettings): string[] {
-  return Array.from(new Set(settings.watchedDomains.map(normalizeWatchedDomain).filter((item): item is string => Boolean(item)))).slice(0, 12);
+function safeConfiguredDomains(settings: PassiveEngineSettings, budget = resourceBudget(settings)): string[] {
+  return Array.from(new Set(settings.watchedDomains.map(normalizeWatchedDomain).filter((item): item is string => Boolean(item)))).slice(
+    0,
+    Math.max(budget.researchMonitorCreateLimit, budget.researchMonitorRunLimit)
+  );
 }
 
 function card(
@@ -1170,7 +1241,8 @@ async function runIdleCompute(task: PassiveTask, runId: string, fetchImpl: Fetch
 }
 
 async function ensureWatchedDomainResearchMonitors(settings: PassiveEngineSettings, fetchImpl: FetchLike): Promise<Record<string, unknown>[]> {
-  const domains = safeConfiguredDomains(settings);
+  const budget = resourceBudget(settings);
+  const domains = safeConfiguredDomains(settings, budget);
   if (!domains.length) return [];
 
   const payload = await fetchJsonWithTimeout(
@@ -1186,7 +1258,7 @@ async function ensureWatchedDomainResearchMonitors(settings: PassiveEngineSettin
   );
 
   const created: Record<string, unknown>[] = [];
-  for (const domain of domains.filter((item) => !covered.has(item)).slice(0, 5)) {
+  for (const domain of domains.filter((item) => !covered.has(item)).slice(0, budget.researchMonitorCreateLimit)) {
     const createPayload = await fetchJsonWithTimeout(
       fetchImpl,
       new URL('/api/ai/research/monitors', env.aiOsApiUrl),
@@ -1202,9 +1274,9 @@ async function ensureWatchedDomainResearchMonitors(settings: PassiveEngineSettin
             goal: `Monitor ${domain} for meaningful changes, new posts, product/company updates, deadlines, or technical notes relevant to my Mini Hub watch list. Summarize only source-backed changes.`,
             seed_urls: [`https://${domain}/`],
             depth: 1,
-            max_pages: 6,
-            per_domain_limit: 4,
-            time_budget_s: 90,
+            max_pages: budget.researchMaxPages,
+            per_domain_limit: budget.researchPerDomainLimit,
+            time_budget_s: budget.researchTimeBudgetSeconds,
             include_domains: [domain],
             exclude_domains: [],
             use_ai: settings.localAiPreference !== 'local_only',
@@ -1234,6 +1306,7 @@ async function ensureWatchedDomainResearchMonitors(settings: PassiveEngineSettin
 
 async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
+  const budget = resourceBudget(settings);
   try {
     const createdMonitors = await ensureWatchedDomainResearchMonitors(settings, fetchImpl);
     const duePayload = await fetchJsonWithTimeout(
@@ -1270,7 +1343,7 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
             })
           ],
           changed: createdMonitors.map((monitor) => `research-monitor:${String(monitor.id ?? '')}`).filter((value) => !value.endsWith(':')),
-          metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings) }
+          metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings, budget), resourceLimit: settings.resourceLimit }
         };
       }
       return {
@@ -1292,7 +1365,7 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
             why: 'The monitor sweep checked real saved monitor state.'
           })
         ],
-        metadata: { createdMonitors: 0, watchedDomains: safeConfiguredDomains(settings) }
+        metadata: { createdMonitors: 0, watchedDomains: safeConfiguredDomains(settings, budget), resourceLimit: settings.resourceLimit }
       };
     }
 
@@ -1302,7 +1375,7 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
       'Run due research monitors',
       {
         method: 'POST',
-        body: JSON.stringify({ limit: Math.min(5, due.length), dry_run: false, include_manual: false })
+        body: JSON.stringify({ limit: Math.min(budget.researchMonitorRunLimit, due.length), dry_run: false, include_manual: false })
       },
       10000
     );
@@ -1336,7 +1409,7 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
         ...createdMonitors.map((monitor) => `research-monitor:${String(monitor.id ?? '')}`).filter((value) => !value.endsWith(':')),
         ...queued.map((run) => `research-run:${String(run.id ?? '')}`).filter((value) => !value.endsWith(':'))
       ],
-      metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings) }
+      metadata: { createdMonitors: createdMonitors.length, watchedDomains: safeConfiguredDomains(settings, budget), resourceLimit: settings.resourceLimit }
     };
   } catch (error) {
     return {
@@ -1444,8 +1517,8 @@ function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): F
   return { status: 'succeeded', cards };
 }
 
-function safeConfiguredFolders(settings: PassiveEngineSettings): string[] {
-  return Array.from(new Set(settings.watchedFolders.map((folder) => folder.trim()).filter(Boolean))).slice(0, 16);
+function safeConfiguredFolders(settings: PassiveEngineSettings, budget = resourceBudget(settings)): string[] {
+  return Array.from(new Set(settings.watchedFolders.map((folder) => folder.trim()).filter(Boolean))).slice(0, budget.watchedFolderLimit);
 }
 
 const interestingFileExtensions = new Set([
@@ -1463,7 +1536,6 @@ const interestingFileExtensions = new Set([
 ]);
 const textPreviewExtensions = new Set(['.txt', '.md', '.csv', '.json']);
 const maxPreviewBytes = 96_000;
-const maxIndexedFileChars = 80_000;
 
 function pathWithinFolder(folder: string, target: string): boolean {
   const relativePath = relative(resolve(folder), resolve(target));
@@ -1514,10 +1586,10 @@ function compactPreviewText(value: string): string {
     .trim();
 }
 
-function readTextPreview(filePath: string, size: number, extension: string): { preview?: string; indexableText?: string } {
+function readTextPreview(filePath: string, size: number, extension: string, budget: PassiveResourceBudget): { preview?: string; indexableText?: string } {
   if (!textPreviewExtensions.has(extension) || size > maxPreviewBytes) return {};
   try {
-    const text = compactPreviewText(readFileSync(filePath, 'utf8').slice(0, maxIndexedFileChars));
+    const text = compactPreviewText(readFileSync(filePath, 'utf8').slice(0, budget.indexedFileChars));
     if (!text) return {};
     return {
       preview: text.slice(0, 360),
@@ -1528,7 +1600,7 @@ function readTextPreview(filePath: string, size: number, extension: string): { p
   }
 }
 
-function insightForFile(filePath: string, size: number, mtimeMs: number): FileInsight {
+function insightForFile(filePath: string, size: number, mtimeMs: number, budget: PassiveResourceBudget): FileInsight {
   const extension = extname(filePath).toLowerCase();
   return {
     path: filePath,
@@ -1538,33 +1610,33 @@ function insightForFile(filePath: string, size: number, mtimeMs: number): FileIn
     kind: fileKind(extension),
     tags: suggestFileTags(filePath, extension),
     cleanupHints: cleanupHintsForFile(filePath, size, mtimeMs),
-    ...readTextPreview(filePath, size, extension)
+    ...readTextPreview(filePath, size, extension, budget)
   };
 }
 
-function safeInsightForExistingFile(filePath: string): FileInsight | undefined {
+function safeInsightForExistingFile(filePath: string, budget: PassiveResourceBudget): FileInsight | undefined {
   try {
     const stat = statSync(filePath);
     if (!stat.isFile()) return undefined;
-    return insightForFile(filePath, stat.size, stat.mtimeMs);
+    return insightForFile(filePath, stat.size, stat.mtimeMs, budget);
   } catch {
     return undefined;
   }
 }
 
-function recentInterestingFiles(folder: string): FileInsight[] {
+function recentInterestingFiles(folder: string, budget: PassiveResourceBudget): FileInsight[] {
   const entries: FileInsight[] = [];
   const cutoff = Date.now() - 7 * dayMs;
-  for (const entry of readdirSync(folder, { withFileTypes: true }).slice(0, 500)) {
+  for (const entry of readdirSync(folder, { withFileTypes: true }).slice(0, budget.directoryEntriesPerFolder)) {
     if (!entry.isFile()) continue;
     const fullPath = join(folder, entry.name);
     const extension = extname(entry.name).toLowerCase();
     if (!interestingFileExtensions.has(extension)) continue;
     const stat = statSync(fullPath);
     if (stat.mtimeMs < cutoff) continue;
-    entries.push(insightForFile(fullPath, stat.size, stat.mtimeMs));
+    entries.push(insightForFile(fullPath, stat.size, stat.mtimeMs, budget));
   }
-  return entries.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, 20);
+  return entries.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, budget.filesPerFolder);
 }
 
 async function indexFileInsightsToMemory(
@@ -1572,8 +1644,9 @@ async function indexFileInsightsToMemory(
   settings: PassiveEngineSettings,
   insights: FileInsight[]
 ): Promise<{ changed: string[]; metadata: Record<string, unknown>; error?: string }> {
+  const budget = resourceBudget(settings);
   const unique = Array.from(new Map(insights.map((file) => [file.path, file])).values());
-  const indexable = unique.filter((file) => file.indexableText).slice(0, 3);
+  const indexable = unique.filter((file) => file.indexableText).slice(0, budget.indexableFiles);
   if (!indexable.length) return { changed: [], metadata: { indexedFiles: 0 } };
   const changed: string[] = [];
   const indexed: Array<Record<string, unknown>> = [];
@@ -1640,7 +1713,8 @@ async function runFileIntelligence(
   input: PassiveRunInput
 ): Promise<FamilyRunResult> {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
-  const folders = safeConfiguredFolders(settings);
+  const budget = resourceBudget(settings);
+  const folders = safeConfiguredFolders(settings, budget);
   if (!folders.length) {
     return {
       status: 'succeeded',
@@ -1668,7 +1742,7 @@ async function runFileIntelligence(
   const allInsights: FileInsight[] = [];
   const eventFilePath = passiveEventFilePath(input, folders);
   const eventFileName = input.eventFileName || (eventFilePath ? basename(eventFilePath) : '');
-  const eventInsight = eventFilePath ? safeInsightForExistingFile(eventFilePath) : undefined;
+  const eventInsight = eventFilePath ? safeInsightForExistingFile(eventFilePath, budget) : undefined;
   if (eventInsight) allInsights.push(eventInsight);
   if (eventFilePath && (!eventFileName || interestingFileExtensions.has(extname(eventFileName).toLowerCase()))) {
     cards.push(
@@ -1726,7 +1800,7 @@ async function runFileIntelligence(
         );
         continue;
       }
-      const files = recentInterestingFiles(resolved);
+      const files = recentInterestingFiles(resolved, budget);
       allInsights.push(...files);
       if (files.length) {
         const tagText = Array.from(new Set(files.flatMap((file) => file.tags))).slice(0, 6).join(', ');
@@ -1825,18 +1899,26 @@ async function runFileIntelligence(
       ...(input.eventFolder ? { eventFolder: input.eventFolder } : {}),
       ...(input.eventFileName ? { eventFileName: input.eventFileName } : {}),
       ...(input.eventKind ? { eventKind: input.eventKind } : {}),
+      resourceLimit: settings.resourceLimit,
+      fileBudget: {
+        folders: folders.length,
+        filesPerFolder: budget.filesPerFolder,
+        directoryEntriesPerFolder: budget.directoryEntriesPerFolder,
+        indexableFiles: budget.indexableFiles,
+        indexedFileChars: budget.indexedFileChars
+      },
       ...memory.metadata
     }
   };
 }
 
-function countTodos(folder: string): number {
+function countTodos(folder: string, budget: PassiveResourceBudget): number {
   let count = 0;
   const stack = [folder];
   const ignored = new Set(['node_modules', '.git', 'dist', 'build', '.svelte-kit', 'coverage']);
-  while (stack.length && count < 100) {
+  while (stack.length && count < budget.projectTodoCap) {
     const current = stack.pop()!;
-    for (const entry of readdirSync(current, { withFileTypes: true }).slice(0, 400)) {
+    for (const entry of readdirSync(current, { withFileTypes: true }).slice(0, budget.projectDirectoryEntries)) {
       if (entry.isDirectory()) {
         if (!ignored.has(entry.name)) stack.push(join(current, entry.name));
         continue;
@@ -1844,7 +1926,7 @@ function countTodos(folder: string): number {
       if (!entry.isFile()) continue;
       const extension = extname(entry.name).toLowerCase();
       if (!['.ts', '.js', '.svelte', '.py', '.md', '.txt'].includes(extension)) continue;
-      const text = readFileSync(join(current, entry.name), 'utf8').slice(0, 200_000);
+      const text = readFileSync(join(current, entry.name), 'utf8').slice(0, budget.projectFileChars);
       count += (text.match(/\b(TODO|FIXME)\b/giu) ?? []).length;
     }
   }
@@ -1853,7 +1935,8 @@ function countTodos(folder: string): number {
 
 function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): FamilyRunResult {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
-  const folders = safeConfiguredFolders(settings);
+  const budget = resourceBudget(settings);
+  const folders = safeConfiguredFolders(settings, budget);
   if (!folders.length) {
     return {
       status: 'succeeded',
@@ -1902,7 +1985,7 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
         if (!('test' in scripts) && !('check' in scripts)) issues.push('no test/check script');
       }
 
-      const todos = countTodos(resolved);
+      const todos = countTodos(resolved, budget);
       if (todos >= 20) issues.push(`${todos} TODO/FIXME markers`);
 
       if (issues.length) {
@@ -1958,7 +2041,19 @@ function runProjectDrift(store: MemoryStore, task: PassiveTask, runId: string): 
     );
   }
 
-  return { status: 'succeeded', cards };
+  return {
+    status: 'succeeded',
+    cards,
+    metadata: {
+      resourceLimit: settings.resourceLimit,
+      projectBudget: {
+        folders: folders.length,
+        directoryEntries: budget.projectDirectoryEntries,
+        todoCap: budget.projectTodoCap,
+        fileChars: budget.projectFileChars
+      }
+    }
+  };
 }
 
 async function executeFamily(

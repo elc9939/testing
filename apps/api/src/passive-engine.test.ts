@@ -284,6 +284,50 @@ describe('passive task engine', () => {
     }
   });
 
+  it('uses light resource limits to cap passive file memory indexing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-file-budget-'));
+    try {
+      writeFileSync(join(dir, 'alpha-notes.md'), '# Alpha\n\nStudy and project notes.', 'utf8');
+      writeFileSync(join(dir, 'beta-notes.md'), '# Beta\n\nMore study and project notes.', 'utf8');
+      writeFileSync(join(dir, 'gamma-notes.md'), '# Gamma\n\nEven more study and project notes.', 'utf8');
+      const store = createMemoryStore();
+      ensurePassiveDefaults(store);
+      store.passiveSettings = {
+        ...store.passiveSettings!,
+        watchedFolders: [dir],
+        resourceLimit: 'light'
+      };
+      let ingestCount = 0;
+      const fetchWithIngestCount = (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/api/ai/memory/ingest')) {
+          ingestCount += 1;
+          return jsonResponse({ result: { document_id: `memory-doc-${ingestCount}`, chunks: 1 } });
+        }
+        return jsonResponse({ ok: true });
+      }) as typeof fetch;
+      const task = store.passiveTasks.find((item) => item.family === 'file_intelligence' && item.trigger.kind !== 'event')!;
+
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: fetchWithIngestCount,
+        force: true,
+        input: { reason: 'file-budget-test' }
+      });
+
+      expect(run.status).toBe('succeeded');
+      expect(ingestCount).toBe(1);
+      expect(run.metadata.indexedFiles).toBe(1);
+      expect(run.metadata.fileBudget).toMatchObject({
+        filesPerFolder: 8,
+        directoryEntriesPerFolder: 200,
+        indexableFiles: 1,
+        indexedFileChars: 30000
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('persists watcher state across store instances', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-passive-'));
     try {
@@ -357,8 +401,9 @@ describe('passive task engine', () => {
     ensurePassiveDefaults(store);
     store.passiveSettings = {
       ...store.passiveSettings!,
-      watchedDomains: ['Example.com/news', 'https://docs.example.org/updates'],
-      localAiPreference: 'local_only'
+      watchedDomains: ['Example.com/news', 'https://docs.example.org/updates', 'https://extra.example.net'],
+      localAiPreference: 'local_only',
+      resourceLimit: 'light'
     };
     const createdBodies: Array<Record<string, unknown>> = [];
     const researchFetch = (async (input: unknown, init?: RequestInit) => {
@@ -403,6 +448,9 @@ describe('passive task engine', () => {
       mode: 'monitor_topic',
       seed_urls: ['https://example.com/'],
       include_domains: ['example.com'],
+      max_pages: 3,
+      per_domain_limit: 2,
+      time_budget_s: 45,
       use_ai: false,
       use_cloud_ai: false,
       metadata: { source: 'mini-hub-passive', watched_domain: 'example.com' }
@@ -410,6 +458,7 @@ describe('passive task engine', () => {
     expect(run.changed).toContain('research-monitor:monitor-example.com');
     expect(run.cards[0]?.title).toContain('watched domain monitor');
     expect(run.metadata.watchedDomains).toEqual(['example.com', 'docs.example.org']);
+    expect(run.metadata.resourceLimit).toBe('light');
   });
 
   it('persists passive result card triage and filters the source digest', async () => {
