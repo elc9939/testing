@@ -26,6 +26,7 @@
     type ResearchSourceCard
   } from '$lib/ai-os-api';
   import {
+    isResearchRunActive,
     normalizeResearchDraft,
     researchDraftStorageKey,
     researchRunListState,
@@ -317,8 +318,8 @@
   }
 
   async function pollLiveRuns(): Promise<void> {
-    const liveIds = new Set(runs.filter(isLiveRun).map((run) => run.id));
-    if (selectedRun && isLiveRun(selectedRun)) liveIds.add(selectedRun.id);
+    const liveIds = new Set(runs.filter(isResearchRunActive).map((run) => run.id));
+    if (selectedRun && isResearchRunActive(selectedRun)) liveIds.add(selectedRun.id);
     if (!liveIds.size) return;
     try {
       const updates = (await Promise.all(Array.from(liveIds).map((id) => getResearchRun(id).catch(() => null)))).filter(

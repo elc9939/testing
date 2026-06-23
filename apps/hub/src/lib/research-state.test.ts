@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ResearchRun } from './ai-os-api';
 import {
+  isResearchRunActive,
   normalizeResearchDraft,
   researchRunListState,
   selectRecoverableResearchRun,
@@ -69,6 +70,13 @@ function run(id: string, status: ResearchRun['status'], updatedAt: string): Rese
 }
 
 describe('selectRecoverableResearchRun', () => {
+  it('treats queued, running, and paused runs as active handoffs', () => {
+    expect(isResearchRunActive(run('queued', 'queued', '2026-06-20T10:00:00.000Z'))).toBe(true);
+    expect(isResearchRunActive(run('running', 'running', '2026-06-20T10:00:00.000Z'))).toBe(true);
+    expect(isResearchRunActive(run('paused', 'paused', '2026-06-20T10:00:00.000Z'))).toBe(true);
+    expect(isResearchRunActive(run('done', 'succeeded', '2026-06-20T10:00:00.000Z'))).toBe(false);
+  });
+
   it('prefers deep links, then current selection, then active work, then latest run', () => {
     const runs = [
       run('done_latest', 'succeeded', '2026-06-20T10:03:00.000Z'),
