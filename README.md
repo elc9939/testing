@@ -99,6 +99,8 @@ are redacted before that file is written. The worker checks
 due tasks on a lightweight interval while the API is running, and on Windows it marks ticks
 idle after the configured last-input threshold so idle-only work can run automatically. If
 idle state cannot be measured, the worker stays conservative and treats the tick as active.
+When the passive engine is disabled, worker ticks skip idle probing and due-task dispatch so
+the off switch is quiet rather than just result-less.
 The dashboard can also run due tasks, event-triggered startup checks, or idle-only ticks
 manually. If a running passive task is cancelled, the cancelled state is preserved when the
 in-flight run finishes, so the task does not silently resume itself. The API worker emits

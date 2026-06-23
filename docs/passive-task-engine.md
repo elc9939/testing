@@ -78,7 +78,9 @@ AI OS to use Ollama embeddings unless the passive AI preference is `cloud_allowe
 Scheduled worker ticks also try to detect whether the desktop is idle. On Windows, the API
 reads the OS last-input timer and marks a tick idle only after the idle trigger threshold
 is met. If the probe is unavailable or errors, the tick is treated as active and idle-only
-work stays deferred. Manual dashboard ticks can still explicitly set `idle: true`.
+work stays deferred. If the passive engine is disabled, worker ticks skip idle probing and
+due-task dispatch, while still refreshing watcher state so file watchers close cleanly.
+Manual dashboard ticks can still explicitly set `idle: true` after the engine is re-enabled.
 
 ## Model
 
@@ -185,6 +187,8 @@ normal API startup.
   redacted before being embedded in the restore snapshot.
 - Idle compute is gated by worker-measured or manually requested idle ticks. Probe failures
   do not allow heavy work to run.
+- Disabling the passive engine prevents scheduled/event/idle work and also skips worker idle
+  probes, so the global off switch avoids background polling as well as task dispatch.
 - Idle digest summaries are queued through AI OS as bounded `chunk_summarize` jobs over
   existing passive cards. They do not invent findings, and cloud fallback is allowed only
   when the passive AI preference is `cloud_allowed`.

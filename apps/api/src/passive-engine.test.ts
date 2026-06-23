@@ -299,6 +299,49 @@ describe('passive task engine', () => {
     expect(stopped.activeFileWatchCount).toBe(0);
   });
 
+  it('keeps disabled engine worker ticks quiet without idle probes or due runs', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    updatePassiveSettings(store, { enabled: false });
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: '2026-06-20T09:00:00.000Z',
+      trigger: { ...task.trigger, nextRunAt: task.trigger.kind === 'event' ? undefined : '2026-06-20T09:00:00.000Z' }
+    }));
+    let idleProbeCount = 0;
+    const stop = startPassiveTaskWorker(store, {
+      externalFetch: healthyServiceFetch(),
+      intervalMs: 50,
+      startupEventName: false,
+      idleDetector: async (thresholdMinutes) => {
+        idleProbeCount += 1;
+        return {
+          idle: true,
+          thresholdMinutes,
+          checkedAt: '2026-06-20T10:00:00.000Z',
+          source: 'should-not-run',
+          idleMinutes: thresholdMinutes + 1
+        };
+      }
+    });
+
+    try {
+      await waitForCondition(() => buildPassiveSnapshot(store).worker.lastIdle?.source === 'engine-disabled');
+    } finally {
+      stop();
+    }
+
+    const snapshot = buildPassiveSnapshot(store);
+    expect(idleProbeCount).toBe(0);
+    expect(store.passiveRuns).toEqual([]);
+    expect(snapshot.worker.enabled).toBe(false);
+    expect(snapshot.worker.pendingFileEvent).toBe(false);
+    expect(snapshot.worker.lastIdle).toMatchObject({
+      idle: false,
+      source: 'engine-disabled'
+    });
+  });
+
   it('surfaces missing configured Ollama models with endpoint port metadata', async () => {
     const previousModel = env.ollamaChatModel;
     try {

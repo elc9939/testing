@@ -4244,6 +4244,22 @@ export function startPassiveTaskWorker(
   const tick = async () =>
     runExclusive('tick', async () => {
       refreshFolderWatchers();
+      if (!store.passiveSettings?.enabled) {
+        pendingFileEvent = null;
+        if (fileEventTimer) {
+          clearTimeout(fileEventTimer);
+          fileEventTimer = null;
+        }
+        setPassiveWorkerState(store, {
+          lastIdle: idleState({
+            idle: false,
+            thresholdMinutes: passiveIdleThresholdMinutes(store),
+            source: 'engine-disabled'
+          }),
+          pendingFileEvent: false
+        });
+        return;
+      }
       const idle = await idleDetector(passiveIdleThresholdMinutes(store));
       setPassiveWorkerState(store, { lastIdle: idle, pendingFileEvent: Boolean(pendingFileEvent) });
       const tickOptions: { externalFetch?: FetchLike; input?: PassiveRunInput } = {
