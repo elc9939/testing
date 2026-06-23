@@ -630,12 +630,25 @@ describe('passive task engine', () => {
         ok: false,
         snapshotCount: 0
       });
-      expect(buildPassiveSnapshot(store).backupHealth).toMatchObject({
+      const passiveSnapshot = buildPassiveSnapshot(store);
+      expect(passiveSnapshot.backupHealth).toMatchObject({
         ok: false,
         status: 'error',
         snapshotRoot: join(dir, 'passive-snapshots'),
         snapshotCount: 0,
         cleanupCandidateCount: 0
+      });
+      const backupSource = passiveSnapshot.sources.find((source) => source.id === 'backup_snapshot');
+      expect(backupSource).toMatchObject({
+        status: 'error',
+        error: 'Mini Hub restore snapshot directory does not exist yet.',
+        details: {
+          backupStatus: 'error',
+          backupOk: false,
+          snapshotRoot: join(dir, 'passive-snapshots'),
+          snapshotCount: 0,
+          cleanupCandidateCount: 0
+        }
       });
     } finally {
       env.dataDir = previousDataDir;
@@ -745,7 +758,8 @@ describe('passive task engine', () => {
         redactedTokenSets: 1
       });
       expect(snapshotRef?.metadata.sha256).toBe(run.metadata.snapshotSha256);
-      expect(buildPassiveSnapshot(store).backupHealth).toMatchObject({
+      const passiveSnapshot = buildPassiveSnapshot(store);
+      expect(passiveSnapshot.backupHealth).toMatchObject({
         ok: true,
         status: 'ok',
         snapshotRoot: join(dir, 'passive-snapshots'),
@@ -760,6 +774,19 @@ describe('passive task engine', () => {
         latestRedactedTokenSets: 1,
         cleanupCandidateCount: 0,
         cleanupBytes: 0
+      });
+      expect(passiveSnapshot.sources.find((source) => source.id === 'backup_snapshot')).toMatchObject({
+        status: 'ok',
+        details: {
+          backupStatus: 'ok',
+          backupOk: true,
+          snapshotRoot: join(dir, 'passive-snapshots'),
+          snapshotCount: 1,
+          latestSnapshotPath: snapshotPath,
+          latestSnapshotSha256: run.metadata.snapshotSha256,
+          latestRedactedTokenSets: 1,
+          cleanupCandidateCount: 0
+        }
       });
     } finally {
       env.dataDir = previousDataDir;

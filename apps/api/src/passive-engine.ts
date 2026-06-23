@@ -5126,7 +5126,32 @@ export function buildPassiveDigest(store: MemoryStore, limit = 12): PassiveResul
   return cards.sort((a, b) => b.urgency - a.urgency || parseTime(b.createdAt) - parseTime(a.createdAt)).slice(0, limit);
 }
 
-export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceStatus[] {
+function backupSourceError(health: PassiveBackupHealth): string | undefined {
+  if (health.status === 'ok') return undefined;
+  return health.error ?? (health.stale ? 'Latest restore snapshot is stale.' : `Restore point health is ${health.status}.`);
+}
+
+function backupSourceDetails(health: PassiveBackupHealth): Record<string, unknown> {
+  const details: Record<string, unknown> = {
+    backupStatus: health.status,
+    backupOk: health.ok,
+    snapshotRoot: health.snapshotRoot,
+    snapshotCount: health.snapshotCount,
+    stale: health.stale,
+    cleanupCandidateCount: health.cleanupCandidateCount,
+    cleanupBytes: health.cleanupBytes,
+    latestRedactedTokenSets: health.latestRedactedTokenSets
+  };
+  if (health.latestPath) details.latestSnapshotPath = health.latestPath;
+  if (health.latestAgeHours !== undefined) details.latestSnapshotAgeHours = health.latestAgeHours;
+  if (health.latestBytes !== undefined) details.latestSnapshotBytes = health.latestBytes;
+  if (health.latestSha256) details.latestSnapshotSha256 = health.latestSha256;
+  if (Object.keys(health.latestSummary).length) details.latestSnapshotSummary = health.latestSummary;
+  if (health.error) details.backupError = health.error;
+  return details;
+}
+
+export function buildPassiveSourceStatuses(store: MemoryStore, backupHealth = buildPassiveBackupHealth()): PassiveSourceStatus[] {
   const currentMode = currentPassiveMachineMode(store);
   const checkedAt = new Date();
   const settings = store.passiveSettings ?? defaultPassiveSettings(checkedAt);
@@ -5177,9 +5202,12 @@ export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceSta
     const staleError = scheduleOverdue
       ? `${task.title} is ${Math.round(scheduleLagMs / minuteMs)} min overdue. Check the worker or run it manually.`
       : undefined;
-    const error = task.lastError ?? run?.error ?? staleError;
+    const restorePointError = task.family === 'backup_snapshot' ? backupSourceError(backupHealth) : undefined;
+    const error = task.lastError ?? run?.error ?? staleError ?? restorePointError;
     const status: PassiveSourceStatus['status'] =
-      task.status === 'blocked' || run?.status === 'failed' || run?.status === 'blocked'
+      task.family === 'backup_snapshot' && backupHealth.status !== 'ok'
+        ? 'error'
+        : task.status === 'blocked' || run?.status === 'failed' || run?.status === 'blocked'
         ? 'error'
         : scheduleOverdue
           ? 'error'
@@ -5222,7 +5250,8 @@ export function buildPassiveSourceStatuses(store: MemoryStore): PassiveSourceSta
               lastIdleSource: run?.metadata.idleSource ?? store.passiveWorker?.lastIdle?.source,
               lastIdleError: run?.metadata.idleError ?? store.passiveWorker?.lastIdle?.error
             }
-          : {})
+          : {}),
+        ...(task.family === 'backup_snapshot' ? backupSourceDetails(backupHealth) : {})
       }
     });
   });
@@ -5234,6 +5263,7 @@ export function buildPassiveSnapshot(store: MemoryStore): PassiveSnapshot {
     .filter((task) => task.lastError)
     .map((task) => `${familyLabels[task.family]}: ${task.lastError}`)
     .slice(0, 12);
+  const backupHealth = buildPassiveBackupHealth();
   return passiveSnapshotSchema.parse({
     checkedAt: nowIso(),
     settings: store.passiveSettings ?? defaultPassiveSettings(),
@@ -5245,8 +5275,8 @@ export function buildPassiveSnapshot(store: MemoryStore): PassiveSnapshot {
     results: store.passiveResults.slice(0, 100),
     notifications: store.passiveNotifications.slice(0, 50),
     digest: buildPassiveDigest(store),
-    sources: buildPassiveSourceStatuses(store),
-    backupHealth: buildPassiveBackupHealth(),
+    sources: buildPassiveSourceStatuses(store, backupHealth),
+    backupHealth,
     errors
   });
 }

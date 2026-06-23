@@ -34,6 +34,10 @@ Each row records schedule state, last-run age, schedule lag, next run, machine-m
 idle deferral, and explicit task errors. Scheduled work that misses its run window beyond
 the worker grace period becomes an `error` source, while idle-only work waiting for an active
 machine to become idle stays `ok` with `waiting_for_idle` evidence.
+The Backup + Snapshot Watcher source row also carries `backupHealth` evidence directly:
+restore status, snapshot root/count, newest snapshot path/age/checksum, redaction count, and
+cleanup dry-run pressure. Missing, stale, or unverifiable restore points therefore degrade
+the source-health row even when the scheduled backup task itself has not just failed.
 Direct task "Run now" actions create/update separate `manual` triggers, so the dashboard can
 distinguish ad hoc runs from schedule/event/idle firings and the scheduled trigger's
 last-fired state stays truthful.
@@ -164,7 +168,9 @@ normal API startup.
 - Backup + Snapshot Watcher: creates a local Mini Hub restore snapshot, read-verifies it,
   records byte count/checksum/entity counts/redaction status, and requests an AI OS backup
   when AI OS is available. `GET /api/passive-tasks/snapshot` exposes the current restore
-  inventory as `backupHealth`; this is read-only and never deletes snapshots.
+  inventory as `backupHealth`; the same evidence is attached to the backup source status so
+  source-health consumers do not need to inspect a separate panel. This is read-only and
+  never deletes snapshots.
 - Idle Compute Queue: runs bounded AI OS benchmarks, local-first AI OS summary jobs over
   existing passive digest cards, and non-destructive Mini Hub cleanup dry-runs only when the
   worker or dashboard tick reports a real idle window. Cleanup cards list stale passive

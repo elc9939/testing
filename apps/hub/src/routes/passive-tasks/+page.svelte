@@ -276,8 +276,17 @@
   function sourceDetailsLine(source: PassiveSourceStatus): string {
     const details = source.details ?? {};
     const parts: string[] = [];
+    const backupStatus = typeof details.backupStatus === 'string' ? details.backupStatus : '';
+    if (backupStatus) {
+      const snapshotCount = asNumber(details.snapshotCount);
+      parts.push(`restore ${backupStatus}${snapshotCount !== null ? `, ${snapshotCount} snapshot${snapshotCount === 1 ? '' : 's'}` : ''}`);
+    }
     const state = typeof details.scheduleState === 'string' ? details.scheduleState.replaceAll('_', ' ') : '';
     if (state) parts.push(state);
+    const latestAge = asNumber(details.latestSnapshotAgeHours);
+    if (latestAge !== null) parts.push(`latest ${formatMinutes(Math.round(latestAge * 60))} ago`);
+    const cleanupCandidates = asNumber(details.cleanupCandidateCount);
+    if (cleanupCandidates !== null && cleanupCandidates > 0) parts.push(`${cleanupCandidates} cleanup candidate${cleanupCandidates === 1 ? '' : 's'}`);
     const lastAge = asNumber(details.lastRunAgeMinutes);
     if (lastAge !== null) parts.push(`last ${formatMinutes(lastAge)} ago`);
     const lag = asNumber(details.scheduleLagMinutes);

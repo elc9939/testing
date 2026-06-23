@@ -127,7 +127,9 @@ real-data only:
   checksum, entity counts, redaction status, Passive Task state, sync events, and a redacted
   Action Ledger copy, and asks AI OS for its own backup when available. The passive snapshot
   now includes first-class `backupHealth` with the newest restore point path, age, checksum,
-  entity summary, redaction count, stale/error state, and dry-run cleanup pressure.
+  entity summary, redaction count, stale/error state, and dry-run cleanup pressure. The
+  backup source status carries the same restore-point health, so source-health summaries and
+  dashboards degrade when restore points are missing, stale, or unverifiable.
 - Idle Compute Queue runs bounded AI OS benchmarks, local-first passive digest summary jobs,
   and non-destructive Mini Hub cleanup dry-runs only when the worker or a manual tick reports
   a real idle window. Summary jobs use existing source-backed passive cards and cleanup cards
