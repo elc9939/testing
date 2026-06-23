@@ -50,6 +50,7 @@ describe('feature wiring diagnostics', () => {
       route: '/productivity'
     });
     expect(rows.find((row) => row.id === 'passive-tasks')?.status).toBe('offline');
+    expect(rows.find((row) => row.id === 'passive-tasks')?.endpoint).toBe('http://127.0.0.1:8787/api/passive-tasks/*');
     expect(featureWiringStatusLabel('needs_setup')).toBe('Needs setup');
   });
 });

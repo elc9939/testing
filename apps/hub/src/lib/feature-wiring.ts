@@ -98,7 +98,7 @@ export function buildFeatureWiringRows(input: FeatureWiringInput): FeatureWiring
       route: routeMap.passiveTasks,
       endpoint: hubEndpoint,
       signal: input.passiveTasks,
-      endpointSuffix: '/api/passive/*',
+      endpointSuffix: '/api/passive-tasks/*',
       checkedAt: input.checkedAt
     }),
     localRow(input.browserStorage, input.checkedAt)
