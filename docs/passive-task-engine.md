@@ -147,7 +147,9 @@ normal API startup.
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
   task. It adds bounded text previews for text-like files, source-backed metadata summaries
   for PDFs, Office documents, screenshots, and images, suggested tags, cleanup hints, and
-  semantic-memory artifacts for safe text-like files when AI OS is reachable.
+  semantic-memory artifacts for safe text-like files when AI OS is reachable. Successful text
+  ingests record path/mtime/size fingerprints in passive run metadata so unchanged files are
+  skipped on later scans, while modified files can be indexed again.
 - Project Drift Detector: scans only configured project folders for stale READMEs,
   README files that trail newer source/config files, TODO/FIXME buildup, missing test/check
   scripts, and existing failing health artifacts such as recent test/check logs or

@@ -3236,6 +3236,24 @@ function fileInsightSourceMetadata(file: FileInsight): Record<string, unknown> {
   };
 }
 
+function fileIndexFingerprint(file: Pick<FileInsight, 'path' | 'mtimeMs' | 'size'>): string {
+  return `${resolve(file.path)}:${Math.round(file.mtimeMs)}:${file.size}`;
+}
+
+function previouslyIndexedFileFingerprints(store: MemoryStore): Set<string> {
+  const fingerprints = new Set<string>();
+  for (const run of store.passiveRuns) {
+    if (run.family !== 'file_intelligence') continue;
+    const indexed = Array.isArray(run.metadata.indexed) ? run.metadata.indexed.filter(isRecord) : [];
+    for (const item of indexed) {
+      if (typeof item.fingerprint === 'string' && item.fingerprint.trim()) {
+        fingerprints.add(item.fingerprint);
+      }
+    }
+  }
+  return fingerprints;
+}
+
 function fileInsightSummary(file: FileInsight): string {
   const parts = [`${file.extension.replace('.', '').toUpperCase() || 'file'} ${file.kind}`];
   if (typeof file.metadata.width === 'number' && typeof file.metadata.height === 'number') {
@@ -3286,18 +3304,31 @@ function recentInterestingFiles(folder: string, budget: PassiveResourceBudget): 
 }
 
 async function indexFileInsightsToMemory(
+  store: MemoryStore,
   fetchImpl: FetchLike,
   settings: PassiveEngineSettings,
   insights: FileInsight[]
 ): Promise<{ changed: string[]; metadata: Record<string, unknown>; error?: string }> {
   const budget = resourceBudget(settings);
   const unique = Array.from(new Map(insights.map((file) => [file.path, file])).values());
-  const indexable = unique.filter((file) => file.indexableText).slice(0, budget.indexableFiles);
-  if (!indexable.length) return { changed: [], metadata: { indexedFiles: 0 } };
+  const candidates = unique.filter((file) => file.indexableText);
+  const previousFingerprints = previouslyIndexedFileFingerprints(store);
+  const skippedAlreadyIndexed = candidates.filter((file) => previousFingerprints.has(fileIndexFingerprint(file)));
+  const indexable = candidates.filter((file) => !previousFingerprints.has(fileIndexFingerprint(file))).slice(0, budget.indexableFiles);
+  if (!indexable.length) {
+    return {
+      changed: [],
+      metadata: {
+        indexedFiles: 0,
+        skippedAlreadyIndexedFiles: skippedAlreadyIndexed.length
+      }
+    };
+  }
   const changed: string[] = [];
   const indexed: Array<Record<string, unknown>> = [];
   const failed: Array<Record<string, unknown>> = [];
   for (const file of indexable) {
+    const fingerprint = fileIndexFingerprint(file);
     try {
       const payload = await fetchJsonWithTimeout(
         fetchImpl,
@@ -3332,6 +3363,10 @@ async function indexFileInsightsToMemory(
       if (documentId) changed.push(`memory:${documentId}`);
       indexed.push({
         path: file.path,
+        fingerprint,
+        size: file.size,
+        mtimeMs: Math.round(file.mtimeMs),
+        modifiedAt: new Date(file.mtimeMs).toISOString(),
         documentId,
         chunks: typeof result.chunks === 'number' ? result.chunks : undefined
       });
@@ -3343,6 +3378,7 @@ async function indexFileInsightsToMemory(
     changed,
     metadata: {
       indexedFiles: indexed.length,
+      skippedAlreadyIndexedFiles: skippedAlreadyIndexed.length,
       indexFailures: failed.length,
       indexed,
       ...(failed.length ? { failed } : {})
@@ -3509,7 +3545,7 @@ async function runFileIntelligence(
     );
   }
 
-  const memory = await indexFileInsightsToMemory(fetchImpl, settings, allInsights);
+  const memory = await indexFileInsightsToMemory(store, fetchImpl, settings, allInsights);
   if (memory.error) {
     cards.push(
       serviceIssueCard(

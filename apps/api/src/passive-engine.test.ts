@@ -1138,6 +1138,77 @@ describe('passive task engine', () => {
     }
   });
 
+  it('skips unchanged files that were already indexed in a persisted passive run', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-file-dedupe-'));
+    try {
+      const passivePath = passiveTasksPath(dir);
+      const watchedDir = join(dir, 'watched');
+      mkdirSync(watchedDir, { recursive: true });
+      const notePath = join(watchedDir, 'repeat-notes.md');
+      writeFileSync(notePath, '# Repeat\n\nOnly index this unchanged note once.', 'utf8');
+
+      const first = createMemoryStore();
+      enablePassiveTaskPersistence(first, passivePath);
+      ensurePassiveDefaults(first);
+      first.passiveSettings = { ...first.passiveSettings!, watchedFolders: [watchedDir], resourceLimit: 'light' };
+      let ingestCount = 0;
+      const fetchWithIngestCount = (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/api/ai/memory/ingest')) {
+          ingestCount += 1;
+          return jsonResponse({ result: { document_id: `memory-repeat-${ingestCount}`, chunks: 1 } });
+        }
+        return jsonResponse({ ok: true });
+      }) as typeof fetch;
+      const firstTask = first.passiveTasks.find((item) => item.family === 'file_intelligence' && item.trigger.kind !== 'event')!;
+
+      const firstRun = await runPassiveTask(first, firstTask.id, {
+        externalFetch: fetchWithIngestCount,
+        force: true,
+        input: { reason: 'file-dedupe-first' }
+      });
+      persistPassiveTasks(first);
+
+      const second = createMemoryStore();
+      enablePassiveTaskPersistence(second, passivePath);
+      ensurePassiveDefaults(second);
+      const secondTask = second.passiveTasks.find((item) => item.family === 'file_intelligence' && item.trigger.kind !== 'event')!;
+      const secondRun = await runPassiveTask(second, secondTask.id, {
+        externalFetch: fetchWithIngestCount,
+        force: true,
+        input: { reason: 'file-dedupe-second' }
+      });
+
+      writeFileSync(notePath, '# Repeat\n\nThe note changed and should index again.', 'utf8');
+      const changedDate = new Date('2026-06-22T10:00:00.000Z');
+      utimesSync(notePath, changedDate, changedDate);
+      const thirdRun = await runPassiveTask(second, secondTask.id, {
+        externalFetch: fetchWithIngestCount,
+        force: true,
+        input: { reason: 'file-dedupe-after-edit' }
+      });
+
+      expect(firstRun.metadata).toMatchObject({
+        indexedFiles: 1,
+        skippedAlreadyIndexedFiles: 0
+      });
+      expect(secondRun.metadata).toMatchObject({
+        indexedFiles: 0,
+        skippedAlreadyIndexedFiles: 1
+      });
+      expect(thirdRun.metadata).toMatchObject({
+        indexedFiles: 1,
+        skippedAlreadyIndexedFiles: 0
+      });
+      expect(ingestCount).toBe(2);
+      expect(firstRun.changed).toContain('memory:memory-repeat-1');
+      expect(secondRun.changed).not.toContain('memory:memory-repeat-2');
+      expect(thirdRun.changed).toContain('memory:memory-repeat-2');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('persists watcher state across store instances', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-passive-'));
     try {

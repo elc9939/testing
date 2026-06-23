@@ -141,7 +141,9 @@ real-data only:
   cleanup hints, and optional AI OS semantic-memory indexing from debounced folder events
   or scheduled scans. PDFs, Office docs, screenshots, and image downloads get metadata-only
   summaries such as dimensions, approximate PDF page markers, package hints, tags, and
-  cleanup hints until a real extractor/OCR path exists.
+  cleanup hints until a real extractor/OCR path exists. Text-like file ingests record a
+  path/mtime/size fingerprint in passive run history so unchanged files are skipped on later
+  scans, while edited files can index again.
 - Project Drift Detector scans only configured project folders for stale README files,
   README files that trail newer source/config files, TODO/FIXME buildup, missing
   `test`/`check` scripts, and existing failing health artifacts such as recent test/check
