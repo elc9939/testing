@@ -154,8 +154,9 @@ Passive outputs are source-backed cards with title, summary, urgency, confidence
 links/files, suggested next action, and why the item surfaced. High-urgency cards flow into
 Today through the unified attention source `passive_task`; lower-urgency cards stay in the
 Passive Tasks dashboard digest. Passive cards can be marked important, reviewed, snoozed, or
-dismissed at the source, and that triage is persisted with the passive engine so quieted
-findings stay quiet across restarts. Settings controls global enablement, notification style,
+dismissed at the source, and that triage is persisted with the passive engine by card id and
+source-backed fingerprint so equivalent recurring findings stay quiet across restarts while
+changed findings can resurface. Settings controls global enablement, notification style,
 idle preference, resource limit, local/cloud AI preference, family enablement, max runs per
 tick, and watched folders/domains/accounts. Background work avoids destructive changes; file/project scans
 respect configured folders only, resource limits clamp research/page/file/TODO scan budgets,

@@ -1989,7 +1989,7 @@ describe('passive task engine', () => {
     expect(store.actionEvents.at(-1)).toMatchObject({
       source: 'passive-tasks',
       actionType: 'passive.card.dismissed',
-      changed: [`passive-card:${cardId}`]
+      changed: expect.arrayContaining([`passive-card:${cardId}`, expect.stringMatching(/^passive-card-key:/u)])
     });
 
     updatePassiveCardTriage(store, cardId, 'clear');
@@ -1997,6 +1997,45 @@ describe('passive task engine', () => {
 
     updatePassiveCardTriage(store, cardId, 'snoozed', { snoozedUntil: new Date(Date.now() + 60_000).toISOString() });
     expect(buildPassiveDigest(store).some((card) => card.id === cardId)).toBe(false);
+  });
+
+  it('applies passive card triage to repeated source-equivalent findings', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.careerActions.push({
+      id: 'career-action-repeat',
+      workspaceId: personalWorkspaceId,
+      jobId: undefined,
+      label: 'Follow up with recruiter',
+      dueAt: '2026-06-19T10:00:00.000Z',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'stable-triage-first' }
+    });
+    const firstCard = buildPassiveDigest(store)[0]!;
+
+    updatePassiveCardTriage(store, firstCard.id, 'dismissed', { reason: 'recurring-low-value' });
+    const triageEvent = store.actionEvents.at(-1);
+
+    await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'stable-triage-repeat' }
+    });
+
+    const repeatedCards = store.passiveResults.filter(
+      (card) => card.title === firstCard.title && card.summary === firstCard.summary
+    );
+    expect(repeatedCards.length).toBeGreaterThanOrEqual(2);
+    expect(buildPassiveDigest(store).some((card) => card.title === firstCard.title && card.summary === firstCard.summary)).toBe(false);
+    expect(Object.keys(store.passiveSettings!.cardTriage).some((key) => key.startsWith('passive-card-key:'))).toBe(true);
+    expect(triageEvent?.metadata).toEqual(expect.objectContaining({ stableKey: expect.stringMatching(/^passive-card-key:/u) }));
   });
 
   it('records pause and resume state transitions', () => {

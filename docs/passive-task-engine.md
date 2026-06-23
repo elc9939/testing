@@ -106,9 +106,12 @@ The shared core model includes:
   notifications with the same family/title/body are de-duplicated for 24 hours; run history
   and digest cards still record the repeated work. Notification dismissals are persisted and
   audited in the Action Ledger; the source run and cards remain available for inspection.
-- Passive card triage: persisted per-card state for important, reviewed, snoozed, and
-  dismissed findings. The digest filters reviewed/dismissed/future-snoozed cards and lets
-  important cards remain visible even when they would otherwise be below the digest cutoff.
+- Passive card triage: persisted state for important, reviewed, snoozed, and dismissed
+  findings. Triage is stored against the concrete card id and a source-backed fingerprint,
+  so equivalent recurring cards inherit the same quieting/importance state while changed
+  findings can surface again. The digest filters reviewed/dismissed/future-snoozed cards and
+  lets important cards remain visible even when they would otherwise be below the digest
+  cutoff.
 
 Runs are logged into the Action Ledger with `source: passive-tasks`, and those explicit
 Mini Hub ledger events survive API restarts when action-ledger persistence is enabled by the
@@ -201,8 +204,8 @@ normal API startup.
 - Notification dismissal is a write action: it is persisted, logged to the Action Ledger, and
   does not delete the original passive run or source-backed cards.
 - Passive card triage is reversible from the source state: reviewed, dismissed, snoozed,
-  important, and clear actions are logged to the Action Ledger and do not alter source files
-  or remote services.
+  important, and clear actions are logged to the Action Ledger with both the concrete card id
+  and stable passive-card key, and do not alter source files or remote services.
 - Cancelling a running task is sticky: when the in-flight work returns, the run is recorded as
   cancelled, no follow-up run is scheduled, and the task remains cancelled instead of being
   revived by async completion.

@@ -4418,14 +4418,46 @@ export function updatePassiveSettings(
   return next;
 }
 
-function passiveCardState(store: MemoryStore, cardId: string) {
-  const raw = store.passiveSettings?.cardTriage?.[cardId];
+function passiveCardTriageKey(cardItem: PassiveResultCard): string {
+  const sourceRefs = cardItem.sourceRefs
+    .map((ref) => [ref.kind, ref.id, ref.label, ref.route ?? '', ref.url ?? '', ref.filePath ?? ''].join('|'))
+    .sort();
+  const fingerprint = createHash('sha256')
+    .update(
+      JSON.stringify({
+        family: cardItem.family,
+        title: cardItem.title,
+        summary: cardItem.summary,
+        route: cardItem.route,
+        suggestedAction: cardItem.suggestedAction,
+        sourceRefs
+      })
+    )
+    .digest('hex')
+    .slice(0, 24);
+  return `passive-card-key:${fingerprint}`;
+}
+
+function findPassiveResultCard(store: MemoryStore, cardId: string): PassiveResultCard | null {
+  return (
+    store.passiveResults.find((result) => result.id === cardId) ??
+    store.passiveRuns.flatMap((run) => run.cards).find((cardItem) => cardItem.id === cardId) ??
+    null
+  );
+}
+
+function parsePassiveCardState(store: MemoryStore, key: string) {
+  const raw = store.passiveSettings?.cardTriage?.[key];
   const parsed = passiveCardTriageStateSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
 
+function passiveCardState(store: MemoryStore, cardItem: PassiveResultCard) {
+  return parsePassiveCardState(store, cardItem.id) ?? parsePassiveCardState(store, passiveCardTriageKey(cardItem));
+}
+
 function passiveCardVisible(store: MemoryStore, cardItem: PassiveResultCard, date = new Date()): boolean {
-  const state = passiveCardState(store, cardItem.id);
+  const state = passiveCardState(store, cardItem);
   if (!state) return true;
   if (state.status === 'dismissed' || state.status === 'reviewed') return false;
   if (state.status === 'snoozed') {
@@ -4436,7 +4468,7 @@ function passiveCardVisible(store: MemoryStore, cardItem: PassiveResultCard, dat
 }
 
 function passiveCardForDigest(store: MemoryStore, cardItem: PassiveResultCard): PassiveResultCard {
-  const state = passiveCardState(store, cardItem.id);
+  const state = passiveCardState(store, cardItem);
   if (!state) return cardItem;
   return passiveResultCardSchema.parse({
     ...cardItem,
@@ -4451,7 +4483,9 @@ function passiveCardForDigest(store: MemoryStore, cardItem: PassiveResultCard): 
 }
 
 function passiveCardImportant(store: MemoryStore, cardId: string): boolean {
-  return passiveCardState(store, cardId)?.status === 'important';
+  const cardItem = findPassiveResultCard(store, cardId);
+  if (!cardItem) return false;
+  return passiveCardState(store, cardItem)?.status === 'important';
 }
 
 export function updatePassiveCardTriage(
@@ -4461,17 +4495,24 @@ export function updatePassiveCardTriage(
   input: { snoozedUntil?: string; reason?: string } = {}
 ): PassiveEngineSettings {
   ensurePassiveDefaults(store);
-  const matchesCard =
-    store.passiveResults.some((result) => result.id === cardId) ||
-    store.passiveRuns.some((run) => run.cards.some((cardItem) => cardItem.id === cardId));
-  if (!matchesCard) throw new Error('Passive result card not found.');
+  const cardItem = findPassiveResultCard(store, cardId);
+  if (!cardItem) throw new Error('Passive result card not found.');
+  const stableKey = passiveCardTriageKey(cardItem);
   const existing = store.passiveSettings ?? defaultPassiveSettings();
   const nextTriage = { ...(existing.cardTriage ?? {}) };
   if (status === 'clear') {
     delete nextTriage[cardId];
+    delete nextTriage[stableKey];
   } else {
     nextTriage[cardId] = passiveCardTriageStateSchema.parse({
       cardId,
+      status,
+      updatedAt: nowIso(),
+      ...(input.snoozedUntil ? { snoozedUntil: input.snoozedUntil } : {}),
+      ...(input.reason ? { reason: input.reason } : {})
+    });
+    nextTriage[stableKey] = passiveCardTriageStateSchema.parse({
+      cardId: stableKey,
       status,
       updatedAt: nowIso(),
       ...(input.snoozedUntil ? { snoozedUntil: input.snoozedUntil } : {}),
@@ -4491,7 +4532,7 @@ export function updatePassiveCardTriage(
     summary: status === 'clear' ? 'Passive card triage cleared' : `Passive card marked ${status}`,
     status: 'succeeded',
     risk: 'write',
-    changed: [`passive-card:${cardId}`],
+    changed: [`passive-card:${cardId}`, stableKey],
     recoverability: {
       kind: 'snapshot',
       route: routeMap.passiveTasks,
@@ -4499,7 +4540,7 @@ export function updatePassiveCardTriage(
       reversible: true
     },
     rawRef: { kind: 'passive_card', id: cardId },
-    metadata: { status, snoozedUntil: input.snoozedUntil, reason: input.reason }
+    metadata: { status, snoozedUntil: input.snoozedUntil, reason: input.reason, stableKey }
   });
   persistPassiveTasks(store);
   return next;
