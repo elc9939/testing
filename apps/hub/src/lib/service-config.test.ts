@@ -5,7 +5,8 @@ import {
   requestServiceJson,
   requestServiceResponse,
   serviceEndpointResolution,
-  serviceFallbackUrl
+  serviceFallbackUrl,
+  serviceNetworkContextHint
 } from './service-config';
 
 describe('service endpoint resolution', () => {
@@ -45,6 +46,13 @@ describe('service endpoint resolution', () => {
     expect(looksLikeHostedStaticEndpoint('https://elc9939.github.io/testing', 'https://elc9939.github.io')).toBe(true);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:5173', 'http://127.0.0.1:5173')).toBe(true);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:8791', 'http://127.0.0.1:5173')).toBe(false);
+  });
+
+  it('explains hosted HTTPS failures against local desktop services', () => {
+    expect(serviceNetworkContextHint('http://127.0.0.1:8791', 'https:')).toContain('hosted HTTPS page');
+    expect(serviceNetworkContextHint('http://localhost:8791', 'https:')).toContain('local HTTP desktop service');
+    expect(serviceNetworkContextHint('http://192.168.1.50:8791', 'https:')).toContain('insecure LAN HTTP endpoint');
+    expect(serviceNetworkContextHint('http://127.0.0.1:8791', 'http:')).toContain('CORS');
   });
 
   it('aborts hung service JSON requests with an actionable timeout message', async () => {

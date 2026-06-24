@@ -238,16 +238,20 @@ function missingRouteMessage(serviceId: ServiceId, path: string, baseUrl: string
   return `${serviceLabels[serviceId]} route ${path} was not found at ${baseUrl}.${staticHint} Check Settings -> Desktop Services and set ${serviceLabels[serviceId]} to ${expected}; its health endpoint should be ${expected}${servicePath}.`;
 }
 
+export function serviceNetworkContextHint(baseUrl: string, pageProtocol = browser && typeof window !== 'undefined' ? window.location.protocol : ''): string {
+  const isInsecureHttp = /^http:\/\//iu.test(baseUrl);
+  const isLocalDesktopEndpoint = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::|\/|$)/iu.test(baseUrl);
+  if (pageProtocol === 'https:' && isInsecureHttp && isLocalDesktopEndpoint) {
+    return ' The hosted HTTPS page may be blocked from reaching a local HTTP desktop service in this browser; open the local hub URL printed by the launcher, or use Settings from that local page.';
+  }
+  if (pageProtocol === 'https:' && isInsecureHttp) {
+    return ' This can happen when the hosted HTTPS page is blocked from calling an insecure LAN HTTP endpoint; open the local hub URL printed by the launcher or use a browser-allowed local endpoint.';
+  }
+  return ' This can also be a CORS, firewall, service-offline, or mixed-content block.';
+}
+
 function networkFailureMessage(serviceId: ServiceId, baseUrl: string, detail: string): string {
-  const mixedOrCors =
-    browser &&
-    typeof window !== 'undefined' &&
-    window.location.protocol === 'https:' &&
-    /^http:\/\//iu.test(baseUrl) &&
-    !/^http:\/\/(?:127\.0\.0\.1|localhost)(?::|\/|$)/iu.test(baseUrl)
-      ? ' This can happen when the hosted HTTPS page is blocked from calling an insecure LAN HTTP endpoint; open the local hub URL printed by the launcher or use a browser-allowed local endpoint.'
-      : ' This can also be a CORS, firewall, service-offline, or mixed-content block.';
-  return `${serviceLabels[serviceId]} unavailable at ${baseUrl}: ${detail}.${mixedOrCors} ${localNetworkHint()}`;
+  return `${serviceLabels[serviceId]} unavailable at ${baseUrl}: ${detail}.${serviceNetworkContextHint(baseUrl)} ${localNetworkHint()}`;
 }
 
 function messageFromJson(body: unknown): string {
