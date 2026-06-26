@@ -30,7 +30,9 @@ const fallbackDraft: ResearchDraftState = {
   model: '',
   advancedOpen: false,
   monitorName: '',
-  monitorSchedule: 'manual'
+  monitorSchedule: 'manual',
+  selectedRunId: '',
+  selectedMonitorId: ''
 };
 
 function run(id: string, status: ResearchRun['status'], updatedAt: string): ResearchRun {
@@ -104,7 +106,9 @@ describe('research draft and state helpers', () => {
         maxPages: -5,
         timeBudget: 120,
         useAi: true,
-        monitorSchedule: 'weekly'
+        monitorSchedule: 'weekly',
+        selectedRunId: 'run_123',
+        selectedMonitorId: '<script>'
       },
       fallbackDraft
     );
@@ -117,7 +121,9 @@ describe('research draft and state helpers', () => {
       maxPages: 1,
       timeBudget: 120,
       useAi: true,
-      monitorSchedule: 'weekly'
+      monitorSchedule: 'weekly',
+      selectedRunId: 'run_123',
+      selectedMonitorId: ''
     });
   });
 

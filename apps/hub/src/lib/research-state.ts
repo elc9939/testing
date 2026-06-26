@@ -21,6 +21,8 @@ export interface ResearchDraftState {
   advancedOpen: boolean;
   monitorName: string;
   monitorSchedule: 'manual' | 'daily' | 'weekly';
+  selectedRunId: string;
+  selectedMonitorId: string;
 }
 
 export const researchDraftStorageKey = 'miniHub.research.draft.v1';
@@ -86,7 +88,9 @@ export function normalizeResearchDraft(value: unknown, fallback: ResearchDraftSt
     model: stringValue(record.model, fallback.model),
     advancedOpen: booleanValue(record.advancedOpen, fallback.advancedOpen),
     monitorName: stringValue(record.monitorName, fallback.monitorName),
-    monitorSchedule: isSchedule(record.monitorSchedule) ? record.monitorSchedule : fallback.monitorSchedule
+    monitorSchedule: isSchedule(record.monitorSchedule) ? record.monitorSchedule : fallback.monitorSchedule,
+    selectedRunId: idValue(record.selectedRunId, fallback.selectedRunId),
+    selectedMonitorId: idValue(record.selectedMonitorId, fallback.selectedMonitorId)
   };
 }
 
@@ -100,6 +104,12 @@ function isSchedule(value: unknown): value is ResearchDraftState['monitorSchedul
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function idValue(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  return /^[\w:.-]{1,120}$/u.test(trimmed) ? trimmed : fallback;
 }
 
 function booleanValue(value: unknown, fallback: boolean): boolean {

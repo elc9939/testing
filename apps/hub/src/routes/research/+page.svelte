@@ -90,6 +90,8 @@
   let runActionId = '';
   let draftHydrated = false;
   let requestedRunId = '';
+  let persistedRunId = '';
+  let selectedMonitorId = '';
 
   $: currentMode = modes.find((item) => item.id === mode) ?? modes[0];
   $: seedUrls = splitList(seedUrlsText);
@@ -152,7 +154,8 @@
     refreshing = true;
     error = '';
     try {
-      const runId = requestedRunId || requestedResearchRunId();
+      const urlRunId = requestedRunId || requestedResearchRunId();
+      const runId = urlRunId || persistedRunId;
       let nextRuns = await listResearchRuns(20);
       if (runId && !nextRuns.some((run) => run.id === runId)) {
         const requested = await getResearchRun(runId).catch(() => null);
@@ -163,7 +166,7 @@
         requestedRunId: runId,
         currentRunId: selectedRun?.id
       });
-      if (nextSelected) setSelectedRun(nextSelected, { updateUrl: !runId });
+      if (nextSelected) setSelectedRun(nextSelected, { updateUrl: !urlRunId });
       else selectedRun = null;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Research runs failed to load.';
@@ -276,6 +279,7 @@
         }
       });
       monitors = [monitor, ...monitors.filter((item) => item.id !== monitor.id)].slice(0, 30);
+      selectedMonitorId = monitor.id;
       monitorName = '';
       monitorMessage = 'Saved topic monitor. Use Run Now whenever you want a fresh report.';
     } catch (err) {
@@ -297,6 +301,7 @@
     try {
       const updated = await updateResearchMonitor(monitor.id, { enabled: !monitor.enabled });
       monitors = monitors.map((item) => (item.id === updated.id ? updated : item));
+      selectedMonitorId = updated.id;
     } catch (err) {
       monitorError = err instanceof Error ? err.message : 'Could not update monitor.';
     } finally {
@@ -316,6 +321,7 @@
     try {
       const result = await runResearchMonitor(monitor.id);
       monitors = [result.monitor, ...monitors.filter((item) => item.id !== result.monitor.id)].slice(0, 30);
+      selectedMonitorId = result.monitor.id;
       setSelectedRun(result.run);
       runs = [result.run, ...runs.filter((item) => item.id !== result.run.id)].slice(0, 20);
       monitorMessage = `Queued monitor run for ${result.monitor.name}.`;
@@ -370,6 +376,7 @@
     try {
       await deleteResearchMonitor(monitor.id);
       monitors = monitors.filter((item) => item.id !== monitor.id);
+      if (selectedMonitorId === monitor.id) selectedMonitorId = '';
       monitorMessage = 'Deleted monitor. Archived reports were left intact.';
     } catch (err) {
       monitorError = err instanceof Error ? err.message : 'Could not delete monitor.';
@@ -379,6 +386,7 @@
   }
 
   function loadMonitorIntoForm(monitor: ResearchMonitor): void {
+    selectedMonitorId = monitor.id;
     const request = monitor.request;
     mode = request.mode ?? 'monitor_topic';
     goal = request.goal ?? '';
@@ -547,7 +555,9 @@
       model,
       advancedOpen,
       monitorName,
-      monitorSchedule
+      monitorSchedule,
+      selectedRunId: selectedRun?.id ?? persistedRunId,
+      selectedMonitorId
     };
   }
 
@@ -576,6 +586,8 @@
     advancedOpen = draft.advancedOpen;
     monitorName = draft.monitorName;
     monitorSchedule = draft.monitorSchedule;
+    persistedRunId = draft.selectedRunId;
+    selectedMonitorId = draft.selectedMonitorId;
   }
 
   function hydrateResearchDraft(): void {
@@ -609,6 +621,7 @@
 
   function setSelectedRun(run: ResearchRun, options: { updateUrl?: boolean } = {}): void {
     selectedRun = run;
+    persistedRunId = run.id;
     if (options.updateUrl !== false) updateSelectedRunUrl(run.id);
   }
 
@@ -1019,7 +1032,7 @@
     {#if monitors.length}
       <div class="monitor-list">
         {#each monitors as monitor}
-          <article class="monitor-card">
+          <article class="monitor-card" class:selected={monitor.id === selectedMonitorId}>
             <div class="monitor-card-main">
               <span class={`status ${monitor.last_status ?? (monitor.enabled ? 'queued' : 'cancelled')}`}>{monitor.enabled ? 'on' : 'off'}</span>
               <div>
@@ -1034,7 +1047,9 @@
                 <Play size={15} />
                 <span>{monitorActionBusy(monitor, 'run') ? 'Running' : 'Run Now'}</span>
               </button>
-              <button type="button" on:click={() => loadMonitorIntoForm(monitor)}>Load</button>
+              <button type="button" title={monitor.id === selectedMonitorId ? 'This monitor is loaded in the workbench.' : 'Load this monitor into the workbench.'} on:click={() => loadMonitorIntoForm(monitor)}>
+                {monitor.id === selectedMonitorId ? 'Loaded' : 'Load'}
+              </button>
               <button type="button" disabled={monitorActionDisabled(monitor)} title={monitorActionTitle(monitor.enabled ? 'Disable this monitor.' : 'Enable this monitor.', monitor)} on:click={() => toggleMonitor(monitor)}>
                 {monitorActionBusy(monitor, 'toggle') ? 'Saving' : monitor.enabled ? 'Disable' : 'Enable'}
               </button>
@@ -1667,6 +1682,12 @@
     display: grid;
     gap: 10px;
     padding: 12px;
+  }
+
+  .monitor-card.selected {
+    border-color: var(--accent);
+    background: var(--active);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .monitor-card p {

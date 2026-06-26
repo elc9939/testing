@@ -67,7 +67,7 @@ const routes = [
     service: 'AI OS API',
     safeAction: 'Run sample goal only when AI OS is connected; otherwise Connect AI OS is disabled/actionable.',
     expectedBlockedState: 'One compact AI OS setup card; no fake run appears when offline.',
-    persistence: 'Draft goal/options/seed URLs and latest active run should restore after navigation.'
+    persistence: 'Draft goal/options/seed URLs, selected report, loaded monitor, and latest active run should restore after navigation.'
   },
   {
     id: 'ai-lab',

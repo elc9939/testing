@@ -27,4 +27,15 @@ describe('route handoffs', () => {
     expect(source).toContain('class:selected={backup.id === highlightedBackupId}');
     expect(source).toContain('The linked Activity job is not in the latest');
   });
+
+  it('keeps Research selected reports and monitors recoverable after navigation', () => {
+    const source = routeSource('../routes/research/+page.svelte');
+
+    expect(source).toContain('const urlRunId = requestedRunId || requestedResearchRunId()');
+    expect(source).toContain('const runId = urlRunId || persistedRunId');
+    expect(source).toContain('selectedRunId: selectedRun?.id ?? persistedRunId');
+    expect(source).toContain('selectedMonitorId');
+    expect(source).toContain('class:selected={monitor.id === selectedMonitorId}');
+    expect(source).toContain("monitor.id === selectedMonitorId ? 'Loaded' : 'Load'");
+  });
 });
