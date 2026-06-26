@@ -91,8 +91,12 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain("title={macroControlTitle || 'Run this macro with confirmed side effects.'}");
     expect(macro).toContain('disabled={macroControlDisabled}');
     expect(passive).toContain('passiveServiceReady = Boolean(snapshot && settings && !serviceError)');
+    expect(passive).toContain('passiveWriteTitle = passiveDisabledReason({ loading, busyId, serviceError, serviceReady: passiveServiceReady })');
     expect(passive).toContain('passiveControlDisabled = Boolean(passiveWriteTitle)');
     expect(passive).toContain('passiveWriteDisabled = passiveControlDisabled');
+    expect(passive).toContain('passiveRefreshBlockedReason = passiveRefreshDisabledReason({ loading, busyId })');
+    expect(passive).toContain('function passiveRefreshDisabledReason');
+    expect(passive).toContain("title={passiveRefreshBlockedReason || 'Reload the latest Passive Tasks snapshot.'}");
     expect(passive).toContain('function passiveDisabledReason');
     expect(passive).toContain('function requirePassiveReady');
     expect(passive).toContain('if (passiveConnectionError(nextError))');

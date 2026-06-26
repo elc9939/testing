@@ -93,9 +93,10 @@
   $: familyRows = buildFamilyRows(snapshot, settings);
   $: passiveServiceReady = Boolean(snapshot && settings && !serviceError);
   $: passiveStateKnown = passiveServiceReady;
-  $: passiveWriteTitle = passiveDisabledReason();
+  $: passiveWriteTitle = passiveDisabledReason({ loading, busyId, serviceError, serviceReady: passiveServiceReady });
   $: passiveControlDisabled = Boolean(passiveWriteTitle);
   $: passiveWriteDisabled = passiveControlDisabled;
+  $: passiveRefreshBlockedReason = passiveRefreshDisabledReason({ loading, busyId });
   $: worker = snapshot?.worker ?? null;
   $: backupHealth = snapshot?.backupHealth ?? null;
   $: resultRows = [...(snapshot?.results ?? [])]
@@ -192,11 +193,24 @@
     return !['paused', 'cancelled', 'running'].includes(task.status);
   }
 
-  function passiveDisabledReason(): string {
-    if (loading) return 'Passive Tasks is loading the latest snapshot.';
-    if (busyId) return 'Another Passive Tasks action is already running.';
-    if (serviceError) return `Passive Tasks API is unavailable: ${serviceError}`;
-    if (!passiveServiceReady) return 'Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.';
+  function passiveDisabledReason(
+    state: { loading: boolean; busyId: string; serviceError: string; serviceReady: boolean } = {
+      loading,
+      busyId,
+      serviceError,
+      serviceReady: passiveServiceReady
+    }
+  ): string {
+    if (state.loading) return 'Passive Tasks is loading the latest snapshot.';
+    if (state.busyId) return 'Another Passive Tasks action is already running.';
+    if (state.serviceError) return `Passive Tasks API is unavailable: ${state.serviceError}`;
+    if (!state.serviceReady) return 'Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.';
+    return '';
+  }
+
+  function passiveRefreshDisabledReason(state: { loading: boolean; busyId: string }): string {
+    if (state.loading) return 'Passive Tasks is already loading the latest snapshot.';
+    if (state.busyId) return 'Wait for the current Passive Tasks action before refreshing.';
     return '';
   }
 
@@ -552,7 +566,7 @@
     <h1>Passive Tasks</h1>
   </div>
   <div class="header-actions">
-    <button class="button" type="button" disabled={loading || Boolean(busyId)} on:click={load}>
+    <button class="button" type="button" disabled={Boolean(passiveRefreshBlockedReason)} title={passiveRefreshBlockedReason || 'Reload the latest Passive Tasks snapshot.'} on:click={load}>
       <RefreshCw size={16} />
       <span>{loading ? 'Loading' : 'Refresh'}</span>
     </button>
