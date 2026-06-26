@@ -219,11 +219,15 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/games/stick-arena-lab/+page.svelte');
 
     expect(source).toContain('labReady = Boolean(lab)');
+    expect(source).toContain('saveDisabled = !labReady || !canSave || saving');
+    expect(source).toContain('resetDisabled = !labReady || labControlBusy');
     expect(source).toContain('if (!lab)');
+    expect(source).toContain('Engine is still loading; wait for the lab before saving.');
+    expect(source).toContain('Loading game engine: reset and save are disabled until the lab is ready.');
     expect(source).toContain('Offline read-only: the lab is playable');
     expect(source).toContain("href={hubHref('/settings')}");
-    expect(source).toContain('disabled={!labReady}');
-    expect(source).toContain('disabled={!canSave || saving}');
+    expect(source).toContain('disabled={resetDisabled}');
+    expect(source).toContain('disabled={saveDisabled}');
   });
 
   it('shows Analytics refresh as a guarded async action with readable failures', async () => {

@@ -15,6 +15,29 @@
 
   $: canSave = canAutoSave($clientData);
   $: labReady = Boolean(lab);
+  $: labLoading = !labReady && status === 'Loading engine';
+  $: labControlBusy = saving;
+  $: resetDisabled = !labReady || labControlBusy;
+  $: saveDisabled = !labReady || !canSave || saving;
+  $: saveCapabilityStatus = labReady ? (canSave ? 'Ready' : 'Offline read-only') : labLoading ? 'Engine loading' : 'Engine unavailable';
+
+  function resetTitle(): string {
+    if (saving) return 'Wait for the current run save to finish before resetting.';
+    if (labReady) return 'Reset the local ability lab.';
+    if (labLoading) return 'Wait for the game engine to finish loading.';
+    return `Game engine is unavailable: ${status}`;
+  }
+
+  function saveTitle(): string {
+    if (saving) return 'This run is already saving.';
+    if (!labReady) {
+      return labLoading
+        ? 'Wait for the game engine to finish loading before saving.'
+        : `Game engine is unavailable: ${status}`;
+    }
+    if (!canSave) return 'Start the Mini Hub API before saving game runs.';
+    return 'Save this run to Mini Hub.';
+  }
 
   onMount(async () => {
     void clientData.init();
@@ -36,6 +59,10 @@
   });
 
   async function saveRun(label = 'manual'): Promise<void> {
+    if (!lab) {
+      saveStatus = labLoading ? 'Engine is still loading; wait for the lab before saving.' : `Cannot save: game engine is unavailable (${status}).`;
+      return;
+    }
     if (!canSave) {
       saveStatus = 'Offline read-only: telemetry stays visible, but saving needs the Mini Hub API.';
       return;
@@ -66,7 +93,11 @@
 
   async function resetLab(): Promise<void> {
     if (!lab) {
-      status = 'Engine is still loading.';
+      status = labLoading ? 'Engine is still loading.' : status;
+      return;
+    }
+    if (saving) {
+      saveStatus = 'Wait for the current save before resetting the lab.';
       return;
     }
     lab?.reset();
@@ -85,11 +116,11 @@
     <h1>Ability Lab</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={!labReady} title={labReady ? 'Reset the local ability lab.' : 'Wait for the game engine to finish loading.'} on:click={resetLab}>
+    <button class="button" type="button" disabled={resetDisabled} title={resetTitle()} on:click={resetLab}>
       <RotateCcw size={17} />
       <span>Reset</span>
     </button>
-    <button class="button" type="button" disabled={!canSave || saving} title={canSave ? 'Save this run to Mini Hub.' : 'Start the Mini Hub API before saving game runs.'} on:click={() => saveRun()}>
+    <button class="button" type="button" disabled={saveDisabled} title={saveTitle()} on:click={() => saveRun()}>
       <Save size={17} />
       <span>{saving ? 'Saving' : 'Save Run'}</span>
     </button>
@@ -103,13 +134,19 @@
   </section>
 {/if}
 
+{#if !labReady}
+  <section class="card card-pad engine-banner">
+    <span>{labLoading ? 'Loading game engine: reset and save are disabled until the lab is ready.' : `Game engine unavailable: ${status}`}</span>
+  </section>
+{/if}
+
 <section class="lab-layout">
   <div class="arena card" bind:this={mount} aria-label="Stick Arena Pixi Rapier canvas"></div>
   <aside class="card card-pad">
     <strong>Status</strong>
     <p class="muted">{status}</p>
     <strong>Saving</strong>
-    <p class="muted">{saveStatus || (canSave ? 'Ready' : 'Offline read-only')}</p>
+    <p class="muted">{saveStatus || saveCapabilityStatus}</p>
     <strong>Telemetry</strong>
     {#if telemetry.length}
       <ul>
@@ -155,6 +192,13 @@
     gap: 8px;
     align-items: center;
     justify-content: space-between;
+    margin-bottom: 12px;
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .engine-banner {
     margin-bottom: 12px;
     border-color: var(--warning-border);
     color: var(--warning-text);
