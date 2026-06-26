@@ -159,6 +159,13 @@ describe('Mini Hub usability control gates', () => {
 
     expect(source).toContain('function printChecklist');
     expect(source).toContain("args.has('--checklist')");
+    expect(source).toContain('safeActionLabels');
+    expect(source).toContain('function extractButtonStates');
+    expect(source).toContain('function safeActionStatus');
+    expect(source).toContain('function liveRenderState');
+    expect(source).toContain('client-rendered shell');
+    expect(source).toContain('rawNotFound');
+    expect(source).toContain('Live DOM snapshot');
     expect(source).toContain('Exercise safe action');
     expect(source).toContain('verify persistence');
     expect(source).toContain('expectedBlockedState');
