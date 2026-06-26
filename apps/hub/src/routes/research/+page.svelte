@@ -110,13 +110,32 @@
     : sourceLibraryLoading
       ? 'Source library search is already running.'
       : 'Search archived Research Desk source cards.';
-  $: selectedRunActionDisabled = !selectedRun || aiOsUnavailable || Boolean(runActionId);
-  $: selectedRunActionTitle = aiOsUnavailable
+  $: selectedRunActionBlockedReason = !selectedRun
+    ? 'Select a research run before controlling it.'
+    : aiOsUnavailable
     ? 'Connect AI OS before controlling this research run.'
     : runActionId
       ? 'A research run action is already in progress.'
       : '';
+  $: selectedRunActionDisabled = Boolean(selectedRunActionBlockedReason);
+  $: selectedRunActionTitle = selectedRunActionBlockedReason || 'Control the selected research run.';
   $: if (draftHydrated) persistResearchDraft();
+
+  function runResearchTitle(): string {
+    if (aiOsUnavailable) return 'Connect AI OS before starting a research run.';
+    if (loading) return 'Research run is already being queued.';
+    return `Start a ${currentMode?.label ?? 'Research'} run.`;
+  }
+
+  function refreshRunsTitle(): string {
+    return refreshing ? 'Research runs are already refreshing.' : 'Refresh research runs from AI OS.';
+  }
+
+  function refreshMonitorsTitle(): string {
+    if (monitorActionId) return 'Another research monitor action is already running.';
+    if (monitorsLoading) return 'Research monitors are already refreshing.';
+    return 'Refresh research monitors from AI OS.';
+  }
 
   function monitorActionBlockedReason(monitor?: ResearchMonitor): string {
     if (aiOsUnavailable) return 'Connect AI OS before changing research monitors.';
@@ -136,6 +155,11 @@
 
   function monitorActionTitle(enabledTitle: string, monitor?: ResearchMonitor): string {
     return monitorActionBlockedReason(monitor) || enabledTitle;
+  }
+
+  function saveCurrentMonitorTitle(): string {
+    if (!goal.trim()) return 'Enter a research goal before saving a monitor.';
+    return monitorActionTitle('Save the current workbench as a reusable monitor.');
   }
 
   function monitorActionBusy(monitor: ResearchMonitor, action: 'run' | 'toggle' | 'delete'): boolean {
@@ -824,7 +848,7 @@
       <h1>Research Desk</h1>
       <p>Search, scrape, crawl, compare, cite, and archive source-backed reports through AI OS.</p>
     </div>
-    <button class="icon-button" type="button" disabled={refreshing} title="Refresh runs" on:click={refreshRuns}>
+    <button class="icon-button" type="button" disabled={refreshing} title={refreshRunsTitle()} on:click={refreshRuns}>
       <RefreshCw size={17} />
     </button>
   </section>
@@ -946,7 +970,7 @@
       {/if}
 
       <div class="form-actions">
-        <button class="primary-button" type="submit" disabled={loading || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before starting a research run.' : ''}>
+        <button class="primary-button" type="submit" disabled={loading || aiOsUnavailable} title={runResearchTitle()}>
           <Search size={17} />
           <span>{serviceBlockedLabel}</span>
         </button>
@@ -1011,7 +1035,7 @@
           <Play size={15} />
           <span>{aiOsUnavailable ? 'Connect AI OS' : monitorActionId === 'due-sweep' ? 'Running Due' : 'Run Due'}</span>
         </button>
-        <button class="icon-button" type="button" disabled={monitorsLoading || Boolean(monitorActionId)} title={monitorActionId ? 'Another research monitor action is already running.' : 'Refresh monitors'} on:click={refreshMonitors}>
+        <button class="icon-button" type="button" disabled={monitorsLoading || Boolean(monitorActionId)} title={refreshMonitorsTitle()} on:click={refreshMonitors}>
           <RefreshCw size={17} />
         </button>
       </div>
@@ -1030,7 +1054,7 @@
           <option value="weekly">Weekly</option>
         </select>
       </label>
-      <button class="link-button" type="button" disabled={monitorActionDisabled() || !goal.trim()} title={monitorActionTitle('Save the current workbench as a reusable monitor.')} on:click={saveCurrentMonitor}>
+      <button class="link-button" type="button" disabled={monitorActionDisabled() || !goal.trim()} title={saveCurrentMonitorTitle()} on:click={saveCurrentMonitor}>
         <Bell size={15} />
         <span>{aiOsUnavailable ? 'Connect AI OS' : 'Save Current Setup'}</span>
       </button>

@@ -444,11 +444,53 @@
     return enabledTitle;
   }
 
+  function productivityValidatedActionTitle(enabledTitle: string, validationReason: string): string {
+    const blocked = productivityActionTitle(enabledTitle);
+    return blocked === enabledTitle ? validationReason || enabledTitle : blocked;
+  }
+
   function gmailReadTitle(enabledTitle: string): string {
     if (loading) return 'Productivity is still loading the latest connection state.';
     if (!productivityReady) return 'Connect the API and Google to load live Gmail controls. Cached mail remains visible.';
     if (gmailLoading) return 'Priority Gmail is already refreshing.';
     return enabledTitle;
+  }
+
+  function moveEventTitle(event: CalendarEvent): string {
+    if (!moveTargetCalendarId) {
+      return productivityValidatedActionTitle('Move event', 'Choose a move target calendar first.');
+    }
+    if (moveTargetCalendarId === event.calendarId) {
+      return productivityValidatedActionTitle('Move event', 'Choose a different calendar before moving this event.');
+    }
+    return productivityActionTitle('Move event');
+  }
+
+  function selectedLabelActionTitle(): string {
+    return productivityValidatedActionTitle('Apply selected label', selectedGmailLabelId ? '' : 'Choose a Gmail label before applying it.');
+  }
+
+  function replyActionTitle(send: boolean): string {
+    return productivityValidatedActionTitle(
+      send ? 'Send this Gmail reply' : 'Save reply as a Gmail draft',
+      replyBody.trim() ? '' : 'Write a reply before saving or sending it.'
+    );
+  }
+
+  function eventSaveActionTitle(): string {
+    const action = editingEventId ? 'Update this Google Calendar event.' : 'Create this Google Calendar event.';
+    if (!eventDraft.title.trim()) return productivityValidatedActionTitle(action, 'Add an event title before saving.');
+    if (!eventDraft.start) return productivityValidatedActionTitle(action, 'Add an event start time before saving.');
+    if (!eventDraft.end) return productivityValidatedActionTitle(action, 'Add an event end time before saving.');
+    return productivityActionTitle(action);
+  }
+
+  function composeActionTitle(send: boolean): string {
+    const action = send ? 'Send this Gmail message.' : 'Save this message as a Gmail draft.';
+    if (!composeDraft.to.length) return productivityValidatedActionTitle(action, 'Add at least one recipient before saving or sending.');
+    if (!composeDraft.subject.trim()) return productivityValidatedActionTitle(action, 'Add a subject before saving or sending.');
+    if (!composeDraft.bodyText.trim()) return productivityValidatedActionTitle(action, 'Write a message body before saving or sending.');
+    return productivityActionTitle(action);
   }
 
   function beginProductivityAction(key: string, requiresGoogle = true): boolean {
@@ -1173,7 +1215,7 @@
               <button class="icon-button" type="button" aria-label={`Edit ${event.title}`} title={productivityActionTitle('Edit event')} disabled={productivityWriteDisabled} on:click={() => editEvent(event)}>
                 <Save size={16} />
               </button>
-              <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title={productivityActionTitle('Move event')} disabled={productivityWriteDisabled || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>
+              <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title={moveEventTitle(event)} disabled={productivityWriteDisabled || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>
                 <Send size={16} />
               </button>
               <button class="icon-button danger" type="button" aria-label={`Delete ${event.title}`} title={productivityActionTitle('Delete event')} disabled={productivityWriteDisabled} on:click={() => removeEvent(event)}>
@@ -1311,7 +1353,7 @@
           <Archive size={17} />
           <span>Archive</span>
         </button>
-        <button class="button" type="button" disabled={productivityWriteDisabled || !selectedGmailLabelId} title={productivityActionTitle('Apply selected label')} on:click={applySelectedLabel}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !selectedGmailLabelId} title={selectedLabelActionTitle()} on:click={applySelectedLabel}>
           <Tag size={17} />
           <span>{selectedGmailThread && isActionBusy(`gmail:label:${selectedGmailThread.id}`) ? 'Applying' : 'Apply Label'}</span>
         </button>
@@ -1333,11 +1375,11 @@
         <textarea id="gmail-reply" bind:value={replyBody} disabled={productivityWriteDisabled} title={productivityActionTitle('Write a reply for the selected Gmail thread.')} rows="5"></textarea>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={productivityActionTitle('Save reply as a Gmail draft')} on:click={() => sendReply(false)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={replyActionTitle(false)} on:click={() => sendReply(false)}>
           <Save size={17} />
           <span>{selectedGmailThread && isActionBusy(`gmail:reply:draft:${selectedGmailThread.id}`) ? 'Saving' : 'Draft Reply'}</span>
         </button>
-        <button class="button primary" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={productivityActionTitle('Send this Gmail reply')} on:click={() => sendReply(true)}>
+        <button class="button primary" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={replyActionTitle(true)} on:click={() => sendReply(true)}>
           <Reply size={17} />
           <span>{selectedGmailThread && isActionBusy(`gmail:reply:send:${selectedGmailThread.id}`) ? 'Sending' : 'Send Reply'}</span>
         </button>
@@ -1440,7 +1482,7 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="button primary" type="submit" disabled={productivityWriteDisabled || !eventDraft.title.trim() || !eventDraft.start || !eventDraft.end} title={productivityActionTitle(editingEventId ? 'Update this Google Calendar event.' : 'Create this Google Calendar event.')}>
+        <button class="button primary" type="submit" disabled={productivityWriteDisabled || !eventDraft.title.trim() || !eventDraft.start || !eventDraft.end} title={eventSaveActionTitle()}>
           <Save size={17} />
           <span>{isActionBusy(editingEventId ? `event:save:${editingEventId}` : 'event:create') ? 'Saving Event' : editingEventId ? 'Update Event' : 'Create Event'}</span>
         </button>
@@ -1487,11 +1529,11 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={productivityActionTitle('Save this message as a Gmail draft.')} on:click={() => sendCompose(false)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={composeActionTitle(false)} on:click={() => sendCompose(false)}>
           <Save size={17} />
           <span>{isActionBusy('gmail:compose:draft') ? 'Saving Draft' : 'Save Draft'}</span>
         </button>
-        <button class="button primary" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={productivityActionTitle('Send this Gmail message.')} on:click={() => sendCompose(true)}>
+        <button class="button primary" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={composeActionTitle(true)} on:click={() => sendCompose(true)}>
           <Send size={17} />
           <span>{isActionBusy('gmail:compose:send') ? 'Sending Email' : 'Send Email'}</span>
         </button>

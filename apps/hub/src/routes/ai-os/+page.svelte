@@ -1773,7 +1773,7 @@
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Queue'}</span>
       </button>
-      <button class="button" type="button" disabled={aiOsActionBlocked} title={aiOsActionTitle('Refresh AI OS job rows.', false, '')} on:click={refreshJobs}>
+      <button class="button" type="button" disabled={aiOsActionBlocked} title={aiOsActionTitle('Refresh AI OS job rows.', false, 'AI OS jobs are already refreshing.')} on:click={refreshJobs}>
         <RefreshCw size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Jobs'}</span>
       </button>

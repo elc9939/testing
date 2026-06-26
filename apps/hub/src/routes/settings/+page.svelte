@@ -326,6 +326,12 @@
     }
   }
 
+  function syncNowTitle(): string {
+    if (syncBusy) return 'Sync is already running.';
+    if (!$clientData.isOnline) return 'Offline read-only: start or connect the Mini Hub API before syncing.';
+    return 'Sync local cache with the Mini Hub API.';
+  }
+
   function loadEndpointInputs(showMessage = false): void {
     if (endpointSaving) return;
     hubApiInput = getApiUrl();
@@ -1277,7 +1283,7 @@
       <div><dt>Local DB</dt><dd>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</dd></div>
     </dl>
     <div class="action-row">
-      <button class="button" type="button" disabled={syncBusy || !$clientData.isOnline} title={$clientData.isOnline ? 'Sync local cache with the Mini Hub API.' : 'Offline read-only: start or connect the Mini Hub API before syncing.'} on:click={syncNow}>
+      <button class="button" type="button" disabled={syncBusy || !$clientData.isOnline} title={syncNowTitle()} on:click={syncNow}>
         <Cloud size={17} />
         <span>{syncBusy ? 'Syncing' : $clientData.isOnline ? 'Sync Now' : 'Offline Read-only'}</span>
       </button>
