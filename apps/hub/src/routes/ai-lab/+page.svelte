@@ -10,10 +10,14 @@
   return tags.includes('ai') && role.remote ? 0.95 : 0.62;
 }`;
   let grammarUrl = javascriptGrammarUrl;
-  let resultText = '';
-  let resultState: AiLabResultState = 'idle';
-  let busy = false;
-  $: resultCopy = aiLabResultCopy(resultState, resultText);
+  let classifyResultText = '';
+  let classifyResultState: AiLabResultState = 'idle';
+  let classifyBusy = false;
+  let parseResultText = '';
+  let parseResultState: AiLabResultState = 'idle';
+  let parseBusy = false;
+  $: classifyResultCopy = aiLabResultCopy(classifyResultState, classifyResultText);
+  $: parseResultCopy = aiLabResultCopy(parseResultState, parseResultText);
   $: grammarAssetState = grammarUrl.trim()
     ? 'Tree-sitter grammar URL is configured.'
     : 'Tree-sitter needs a WASM grammar URL before parsing can run.';
@@ -37,58 +41,63 @@
     }
   ];
 
-  function setResult(state: AiLabResultState, detail = ''): void {
-    resultState = state;
-    resultText = detail;
+  function setClassifyResult(state: AiLabResultState, detail = ''): void {
+    classifyResultState = state;
+    classifyResultText = detail;
+  }
+
+  function setParseResult(state: AiLabResultState, detail = ''): void {
+    parseResultState = state;
+    parseResultText = detail;
   }
 
   async function classify(): Promise<void> {
     const parsedLabels = parseAiLabLabels(labels);
     if (!text.trim()) {
-      setResult('error', 'Add text before running the classifier.');
+      setClassifyResult('error', 'Add text before running the classifier.');
       return;
     }
     if (!parsedLabels.length) {
-      setResult('error', 'Add at least one comma-separated label.');
+      setClassifyResult('error', 'Add at least one comma-separated label.');
       return;
     }
-    busy = true;
-    setResult('loading', 'Loading Transformers.js and the local classification model.');
+    classifyBusy = true;
+    setClassifyResult('loading', 'Loading Transformers.js and the local classification model.');
     try {
       const ai = await import('@mini-hub/ai');
       const rows = await ai.classifyTextLocally(text, parsedLabels);
       if (!rows.length) {
-        setResult('empty', 'Classifier returned no labels. Try broader labels or a longer input.');
+        setClassifyResult('empty', 'Classifier returned no labels. Try broader labels or a longer input.');
       } else {
-        setResult('success', rows.map((row) => `${row.label}: ${row.score.toFixed(3)}`).join('\n'));
+        setClassifyResult('success', rows.map((row) => `${row.label}: ${row.score.toFixed(3)}`).join('\n'));
       }
     } catch (error) {
-      setResult('error', error instanceof Error ? error.message : 'Classification failed.');
+      setClassifyResult('error', error instanceof Error ? error.message : 'Classification failed.');
     } finally {
-      busy = false;
+      classifyBusy = false;
     }
   }
 
   async function parseCode(): Promise<void> {
     if (!grammarUrl.trim()) {
-      setResult('error', 'Provide a Tree-sitter WASM grammar URL first.');
+      setParseResult('error', 'Provide a Tree-sitter WASM grammar URL first.');
       return;
     }
     if (!codeText.trim()) {
-      setResult('error', 'Add code before running the parser.');
+      setParseResult('error', 'Add code before running the parser.');
       return;
     }
-    busy = true;
-    setResult('loading', 'Loading Tree-sitter and the configured grammar.');
+    parseBusy = true;
+    setParseResult('loading', 'Loading Tree-sitter and the configured grammar.');
     try {
       const ai = await import('@mini-hub/ai');
       const parsed = await ai.parseWithTreeSitter(codeText, grammarUrl.trim() || javascriptGrammarUrl);
       const serialized = JSON.stringify(parsed, null, 2);
-      setResult(serialized && serialized !== '{}' ? 'success' : 'empty', serialized || 'Parser returned no syntax tree.');
+      setParseResult(serialized && serialized !== '{}' ? 'success' : 'empty', serialized || 'Parser returned no syntax tree.');
     } catch (error) {
-      setResult('error', error instanceof Error ? error.message : 'Parse failed.');
+      setParseResult('error', error instanceof Error ? error.message : 'Parse failed.');
     } finally {
-      busy = false;
+      parseBusy = false;
     }
   }
 </script>
@@ -139,9 +148,9 @@
       <label for="labels">Labels</label>
       <input id="labels" bind:value={labels} />
     </div>
-    <button class="button primary" type="button" disabled={busy} on:click={classify}>
+    <button class="button primary" type="button" disabled={classifyBusy} on:click={classify}>
       <Play size={17} />
-      <span>{busy && resultState === 'loading' ? 'Running' : 'Classify'}</span>
+      <span>{classifyBusy ? 'Running' : 'Classify'}</span>
     </button>
   </div>
 
@@ -159,26 +168,39 @@
       <label for="code-text">Code</label>
       <textarea id="code-text" bind:value={codeText} rows="7"></textarea>
     </div>
-    <button class="button" type="button" disabled={busy} on:click={parseCode}>
+    <button class="button" type="button" disabled={parseBusy} on:click={parseCode}>
       <Play size={17} />
-      <span>{busy && resultState === 'loading' ? 'Running' : 'Parse'}</span>
+      <span>{parseBusy ? 'Running' : 'Parse'}</span>
     </button>
   </div>
 </section>
 
-<section class={`card card-pad result-panel ${resultState}`} aria-live="polite">
-  <div class="section-title">
-    <BrainCircuit size={18} />
-    <strong>{resultCopy.title}</strong>
-  </div>
-  <p>{resultCopy.detail}</p>
-  {#if resultState === 'success'}
-    <pre>{resultText}</pre>
-  {:else if resultState === 'empty' && resultText}
-    <pre>{resultText}</pre>
-  {:else if resultState === 'error' && resultText}
-    <pre class="error-output">{resultText}</pre>
-  {/if}
+<section class="result-grid" aria-label="AI Lab results">
+  <article class={`card card-pad result-panel ${classifyResultState}`} aria-live="polite">
+    <div class="section-title">
+      <BrainCircuit size={18} />
+      <strong>Classifier: {classifyResultCopy.title}</strong>
+    </div>
+    <p>{classifyResultCopy.detail}</p>
+    {#if classifyResultState === 'success' || (classifyResultState === 'empty' && classifyResultText)}
+      <pre>{classifyResultText}</pre>
+    {:else if classifyResultState === 'error' && classifyResultText}
+      <pre class="error-output">{classifyResultText}</pre>
+    {/if}
+  </article>
+
+  <article class={`card card-pad result-panel ${parseResultState}`} aria-live="polite">
+    <div class="section-title">
+      <FileCode2 size={18} />
+      <strong>Parser: {parseResultCopy.title}</strong>
+    </div>
+    <p>{parseResultCopy.detail}</p>
+    {#if parseResultState === 'success' || (parseResultState === 'empty' && parseResultText)}
+      <pre>{parseResultText}</pre>
+    {:else if parseResultState === 'error' && parseResultText}
+      <pre class="error-output">{parseResultText}</pre>
+    {/if}
+  </article>
 </section>
 
 <style>
@@ -263,10 +285,17 @@
     white-space: pre-wrap;
   }
 
+  .result-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+  }
+
   .result-panel {
     display: grid;
     gap: 12px;
-    margin-top: 10px;
+    align-content: start;
   }
 
   .result-panel p {
@@ -293,7 +322,8 @@
 
   @media (max-width: 760px) {
     .plain-guide,
-    .readiness-strip {
+    .readiness-strip,
+    .result-grid {
       grid-template-columns: 1fr;
     }
   }

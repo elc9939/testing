@@ -36,6 +36,7 @@
     "check:pwa": "node scripts/check-pwa-cache.js",
     "check:poses": "node scripts/pose-shot.js --check",
     "check:logminer": "node scripts/check-logminer.js",
+    "qa:hub:smoke": "node scripts/hub-usability-smoke.mjs",
     "pose:shot": "node scripts/pose-shot.js",
     "icons": "node scripts/gen-icons.js",
     "task": "node scripts/task.js",

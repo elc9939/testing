@@ -574,6 +574,19 @@ pnpm test:workspaces
 pnpm legacy:check
 ```
 
+Mini Hub usability smoke check:
+
+```powershell
+pnpm qa:hub:smoke
+$env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
+$env:HUB_SMOKE_URL='https://elc9939.github.io/testing/'; pnpm qa:hub:smoke
+```
+
+The smoke check records each visible hub route's title, main heading, service dependency,
+button/disabled-control counts, setup/error surfaces, and the safe QA action to try. With
+`HUB_SMOKE_URL` set, it also verifies that the route responds over HTTP so hosted-vs-local
+handoff problems are visible before a manual browser pass.
+
 Python backend checks:
 
 ```powershell

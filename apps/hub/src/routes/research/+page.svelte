@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { routeMap } from '@mini-hub/core';
   import { Bell, Database, Download, ExternalLink, FileText, Pause, Play, RefreshCw, Search, Trash2, X } from 'lucide-svelte';
   import {
     cancelResearchRun,
     createResearchMonitor,
     createResearchRun,
     deleteResearchMonitor,
+    getAiOsApiUrl,
     getResearchRun,
     listResearchMonitors,
     listResearchRuns,
@@ -25,7 +27,10 @@
     type ResearchSource,
     type ResearchSourceCard
   } from '$lib/ai-os-api';
+  import { hubHref } from '$lib/routes';
+  import { localNetworkHint } from '$lib/service-config';
   import {
+    compactResearchServiceIssue,
     isResearchRunActive,
     normalizeResearchDraft,
     researchDraftStorageKey,
@@ -89,7 +94,13 @@
   $: seedUrls = splitList(seedUrlsText);
   $: includeDomains = splitList(includeDomainsText);
   $: excludeDomains = splitList(excludeDomainsText);
-  $: runsPanelState = researchRunListState({ loading: refreshing, error, runCount: runs.length });
+  $: serviceIssue = compactResearchServiceIssue([error, monitorError, sourceLibraryError]);
+  $: aiOsUnavailable = Boolean(serviceIssue);
+  $: visibleRunError = serviceIssue && error === serviceIssue ? '' : error;
+  $: visibleMonitorError = serviceIssue && monitorError === serviceIssue ? '' : monitorError;
+  $: visibleSourceLibraryError = serviceIssue && sourceLibraryError === serviceIssue ? '' : sourceLibraryError;
+  $: runsPanelState = researchRunListState({ loading: refreshing, error: visibleRunError, runCount: runs.length });
+  $: serviceBlockedLabel = aiOsUnavailable ? 'Connect AI OS' : loading ? 'Queueing' : `Run ${currentMode?.label ?? 'Research'}`;
   $: if (draftHydrated) persistResearchDraft();
 
   onMount(() => {
@@ -122,6 +133,10 @@
     } finally {
       refreshing = false;
     }
+  }
+
+  async function refreshResearchServices(): Promise<void> {
+    await Promise.all([refreshRuns(), refreshSourceLibrary(), refreshMonitors()]);
   }
 
   async function refreshSourceLibrary(): Promise<void> {
@@ -176,6 +191,10 @@
   }
 
   async function runResearch(): Promise<void> {
+    if (aiOsUnavailable) {
+      error = serviceIssue;
+      return;
+    }
     if (!goal.trim()) {
       error = 'Type a research goal, question, topic, company, person, site, or seed URL.';
       return;
@@ -196,6 +215,10 @@
   }
 
   async function saveCurrentMonitor(): Promise<void> {
+    if (aiOsUnavailable) {
+      monitorError = serviceIssue;
+      return;
+    }
     if (!goal.trim()) {
       monitorError = 'Type a topic or goal before saving a monitor.';
       return;
@@ -224,6 +247,10 @@
   }
 
   async function toggleMonitor(monitor: ResearchMonitor): Promise<void> {
+    if (aiOsUnavailable) {
+      monitorError = serviceIssue;
+      return;
+    }
     monitorActionId = monitor.id;
     monitorError = '';
     monitorMessage = '';
@@ -238,6 +265,10 @@
   }
 
   async function runMonitor(monitor: ResearchMonitor): Promise<void> {
+    if (aiOsUnavailable) {
+      monitorError = serviceIssue;
+      return;
+    }
     monitorActionId = monitor.id;
     monitorError = '';
     monitorMessage = '';
@@ -255,6 +286,10 @@
   }
 
   async function runDueMonitors(): Promise<void> {
+    if (aiOsUnavailable) {
+      monitorError = serviceIssue;
+      return;
+    }
     monitorsLoading = true;
     monitorActionId = 'due-sweep';
     monitorError = '';
@@ -278,6 +313,10 @@
   }
 
   async function removeMonitor(monitor: ResearchMonitor): Promise<void> {
+    if (aiOsUnavailable) {
+      monitorError = serviceIssue;
+      return;
+    }
     if (!window.confirm(`Delete research monitor "${monitor.name}"? Archived reports stay saved.`)) return;
     monitorActionId = monitor.id;
     monitorError = '';
@@ -671,6 +710,24 @@
     </button>
   </section>
 
+  {#if serviceIssue}
+    <section class="service-card" aria-live="polite">
+      <div>
+        <strong>AI OS service needs attention</strong>
+        <span>{getAiOsApiUrl()}</span>
+        <p>{serviceIssue}</p>
+        <p>{localNetworkHint()}</p>
+      </div>
+      <div class="service-actions">
+        <button class="link-button compact" type="button" disabled={refreshing || monitorsLoading || sourceLibraryLoading} on:click={refreshResearchServices}>
+          <RefreshCw size={15} />
+          <span>Retry Service</span>
+        </button>
+        <a class="link-button compact" href={hubHref(routeMap.settings)}>Open Settings</a>
+      </div>
+    </section>
+  {/if}
+
   <section class="workbench">
     <form class="query-panel" on:submit|preventDefault={runResearch}>
       <div class="mode-grid" aria-label="Research mode">
@@ -764,12 +821,12 @@
       {/if}
 
       <div class="form-actions">
-        <button class="primary-button" type="submit" disabled={loading}>
+        <button class="primary-button" type="submit" disabled={loading || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before starting a research run.' : ''}>
           <Search size={17} />
-          <span>{loading ? 'Queueing' : `Run ${currentMode?.label ?? 'Research'}`}</span>
+          <span>{serviceBlockedLabel}</span>
         </button>
         {#if message}<p class="ok-message">{message}</p>{/if}
-        {#if error}<p class="error-message">{error}</p>{/if}
+        {#if visibleRunError}<p class="error-message">{visibleRunError}</p>{/if}
       </div>
     </form>
 
@@ -806,8 +863,8 @@
           {/each}
         </div>
       {:else}
-        <p class:error-message={Boolean(error)} class="empty-note">{runsPanelState}</p>
-        {#if error}
+        <p class:error-message={Boolean(visibleRunError)} class="empty-note">{runsPanelState}</p>
+        {#if visibleRunError || serviceIssue}
           <button class="link-button compact" type="button" on:click={refreshRuns}>
             <RefreshCw size={15} />
             <span>Retry Runs</span>
@@ -825,9 +882,9 @@
         <p>Save a reusable research setup, then run it again when you want a fresh report.</p>
       </div>
       <div class="monitor-heading-actions">
-        <button class="link-button compact" type="button" disabled={monitorsLoading} on:click={runDueMonitors}>
+        <button class="link-button compact" type="button" disabled={monitorsLoading || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before running monitors.' : ''} on:click={runDueMonitors}>
           <Play size={15} />
-          <span>Run Due</span>
+          <span>{aiOsUnavailable ? 'Connect AI OS' : 'Run Due'}</span>
         </button>
         <button class="icon-button" type="button" disabled={monitorsLoading} title="Refresh monitors" on:click={refreshMonitors}>
           <RefreshCw size={17} />
@@ -848,14 +905,14 @@
           <option value="weekly">Weekly</option>
         </select>
       </label>
-      <button class="link-button" type="button" disabled={monitorsLoading || !goal.trim()} on:click={saveCurrentMonitor}>
+      <button class="link-button" type="button" disabled={monitorsLoading || !goal.trim() || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before saving monitors.' : ''} on:click={saveCurrentMonitor}>
         <Bell size={15} />
-        <span>Save Current Setup</span>
+        <span>{aiOsUnavailable ? 'Connect AI OS' : 'Save Current Setup'}</span>
       </button>
     </div>
 
-    {#if monitorError}
-      <p class="error-message monitor-note">{monitorError}</p>
+    {#if visibleMonitorError}
+      <p class="error-message monitor-note">{visibleMonitorError}</p>
     {:else if monitorMessage}
       <p class="ok-message monitor-note">{monitorMessage}</p>
     {/if}
@@ -874,15 +931,15 @@
             <p>{monitor.request.goal}</p>
             {#if monitor.last_error}<p class="error-message compact-message">{monitor.last_error}</p>{/if}
             <div class="monitor-actions">
-              <button type="button" disabled={monitorActionId === monitor.id} on:click={() => runMonitor(monitor)}>
+              <button type="button" disabled={monitorActionId === monitor.id || aiOsUnavailable} on:click={() => runMonitor(monitor)}>
                 <Play size={15} />
                 <span>Run Now</span>
               </button>
               <button type="button" on:click={() => loadMonitorIntoForm(monitor)}>Load</button>
-              <button type="button" disabled={monitorActionId === monitor.id} on:click={() => toggleMonitor(monitor)}>
+              <button type="button" disabled={monitorActionId === monitor.id || aiOsUnavailable} on:click={() => toggleMonitor(monitor)}>
                 {monitor.enabled ? 'Disable' : 'Enable'}
               </button>
-              <button class="danger-button" type="button" disabled={monitorActionId === monitor.id} on:click={() => removeMonitor(monitor)}>
+              <button class="danger-button" type="button" disabled={monitorActionId === monitor.id || aiOsUnavailable} on:click={() => removeMonitor(monitor)}>
                 <Trash2 size={15} />
                 <span>Delete</span>
               </button>
@@ -918,14 +975,14 @@
         <span>Domain filter</span>
         <input bind:value={sourceDomain} placeholder="example.com" />
       </label>
-      <button class="link-button" type="submit" disabled={sourceLibraryLoading}>
+      <button class="link-button" type="submit" disabled={sourceLibraryLoading || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before searching sources.' : ''}>
         <Search size={15} />
-        <span>{sourceLibraryLoading ? 'Searching' : 'Search Sources'}</span>
+        <span>{aiOsUnavailable ? 'Connect AI OS' : sourceLibraryLoading ? 'Searching' : 'Search Sources'}</span>
       </button>
     </form>
 
-    {#if sourceLibraryError}
-      <p class="error-message source-library-note">{sourceLibraryError}</p>
+    {#if visibleSourceLibraryError}
+      <p class="error-message source-library-note">{visibleSourceLibraryError}</p>
     {:else if sourceLibraryMessage}
       <p class="ok-message source-library-note">{sourceLibraryMessage}</p>
     {/if}
@@ -1302,6 +1359,36 @@
     justify-content: space-between;
     gap: 16px;
     padding: 18px;
+  }
+
+  .service-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--warning-border);
+    border-radius: 8px;
+    background: var(--warning-bg);
+  }
+
+  .service-card > div:first-child {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .service-card span,
+  .service-card p {
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
+  .service-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: max-content;
   }
 
   .eyebrow,

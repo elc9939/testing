@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ResearchRun } from './ai-os-api';
 import {
+  compactResearchServiceIssue,
   isResearchRunActive,
+  isResearchServiceError,
   normalizeResearchDraft,
   researchRunListState,
   selectRecoverableResearchRun,
@@ -123,5 +125,17 @@ describe('research draft and state helpers', () => {
     expect(researchRunListState({ loading: true, runCount: 0 })).toBe('Loading archived research runs.');
     expect(researchRunListState({ loading: false, error: 'connection refused', runCount: 0 })).toContain('AI OS unavailable');
     expect(researchRunListState({ loading: false, runCount: 0 })).toContain('New runs will stay here');
+  });
+
+  it('collapses repeated AI OS service failures without treating form validation as service outage', () => {
+    expect(isResearchServiceError('AI OS API unavailable at http://127.0.0.1:8791: Failed to fetch.')).toBe(true);
+    expect(isResearchServiceError('Type a research goal before running.')).toBe(false);
+    expect(
+      compactResearchServiceIssue([
+        '',
+        'Type a research goal before running.',
+        'AI OS API route /api/ai/research/runs was not found at http://127.0.0.1:8791.'
+      ])
+    ).toContain('AI OS API route');
   });
 });

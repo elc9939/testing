@@ -88,6 +88,8 @@
   $: digestCards = topPassiveCards(snapshot);
   $: notifications = visiblePassiveNotifications(snapshot);
   $: familyRows = buildFamilyRows(snapshot, settings);
+  $: passiveStateKnown = Boolean(snapshot && settings);
+  $: passiveControlDisabled = loading || Boolean(busyId) || !passiveStateKnown;
   $: worker = snapshot?.worker ?? null;
   $: backupHealth = snapshot?.backupHealth ?? null;
   $: resultRows = [...(snapshot?.results ?? [])]
@@ -499,17 +501,17 @@
       <RefreshCw size={16} />
       <span>{loading ? 'Loading' : 'Refresh'}</span>
     </button>
-    <button class="button" type="button" disabled={Boolean(busyId)} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveControlDisabled} title={!passiveStateKnown ? 'Load Passive Tasks before running background work.' : ''} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
       <Clock3 size={16} />
-      <span>Run Due</span>
+      <span>{passiveStateKnown ? 'Run Due' : 'Load First'}</span>
     </button>
-    <button class="button" type="button" disabled={Boolean(busyId)} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
+    <button class="button" type="button" disabled={passiveControlDisabled} title={!passiveStateKnown ? 'Load Passive Tasks before firing startup events.' : ''} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
       <RefreshCw size={16} />
-      <span>Startup Event</span>
+      <span>{passiveStateKnown ? 'Startup Event' : 'Load First'}</span>
     </button>
-    <button class="button" type="button" disabled={Boolean(busyId)} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveControlDisabled} title={!passiveStateKnown ? 'Load Passive Tasks before running idle ticks.' : ''} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
       <Play size={16} />
-      <span>Idle Tick</span>
+      <span>{passiveStateKnown ? 'Idle Tick' : 'Load First'}</span>
     </button>
   </div>
 </section>

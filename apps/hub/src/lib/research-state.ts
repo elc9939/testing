@@ -51,6 +51,17 @@ export function researchRunListState(input: { loading: boolean; error?: string; 
   return '';
 }
 
+export function isResearchServiceError(value: string): boolean {
+  return /(?:AI OS|api|service|route|Failed to fetch|CORS|mixed-content|timed out|timeout|unavailable|offline|Not Found|ECONNREFUSED|connection refused)/iu.test(
+    value
+  );
+}
+
+export function compactResearchServiceIssue(errors: string[]): string {
+  const serviceError = errors.map((item) => item.trim()).find((item) => item && isResearchServiceError(item));
+  return serviceError ?? '';
+}
+
 export function normalizeResearchDraft(value: unknown, fallback: ResearchDraftState): ResearchDraftState {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
   const record = value as Partial<ResearchDraftState>;

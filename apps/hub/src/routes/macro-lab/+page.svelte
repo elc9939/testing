@@ -57,6 +57,8 @@
   $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'loading' : 'unknown';
   $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'loading' : 'unknown';
   $: serviceDetail = status ? `${status.version} at ${getMacroLabApiUrl()}` : `Target: ${getMacroLabApiUrl()}`;
+  $: macroStateKnown = Boolean(status);
+  $: macroControlDisabled = busy || loading || !macroStateKnown;
 
   onMount(() => {
     void refresh();
@@ -197,8 +199,8 @@
   </div>
   <div class="action-row">
     <button class="button" disabled={loading || busy} on:click={refresh}><RefreshCw size={16} />Refresh</button>
-    <button class="button danger" disabled={busy} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
-    <button class="button" disabled={busy} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
+    <button class="button danger" disabled={macroControlDisabled} title={!macroStateKnown ? 'Connect Macro Lab before using panic controls.' : ''} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
+    <button class="button" disabled={macroControlDisabled} title={!macroStateKnown ? 'Connect Macro Lab before resetting panic state.' : ''} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
   </div>
 </div>
 
@@ -241,7 +243,7 @@
   <aside class="macro-list card">
     <div class="panel-head">
       <strong>Macros</strong>
-      <button class="icon-button" disabled={busy} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
+      <button class="icon-button" disabled={macroControlDisabled} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
     </div>
     {#each macros as macro}
       <button class:active={selectedMacro?.id === macro.id} class="macro-row" on:click={() => selectMacro(macro)}>
@@ -267,20 +269,20 @@
           <span class="muted"> {selectedMacro.id}</span>
         </div>
         <div class="action-row compact">
-          <button class="button" disabled={busy} on:click={() => toggleSelected('enabled')}>
+          <button class="button" disabled={macroControlDisabled} on:click={() => toggleSelected('enabled')}>
             {#if selectedMacro.enabled}<ToggleRight size={16} />Enabled{:else}<ToggleLeft size={16} />Disabled{/if}
           </button>
-          <button class:selected={selectedMacro.armed} class="button" disabled={busy} on:click={() => toggleSelected('armed')}>
+          <button class:selected={selectedMacro.armed} class="button" disabled={macroControlDisabled} on:click={() => toggleSelected('armed')}>
             <Shield size={16} />{selectedMacro.armed ? 'Armed' : 'Safe'}
           </button>
         </div>
       </div>
       <textarea bind:value={editor} spellcheck="false"></textarea>
       <div class="action-row">
-        <button class="button primary" disabled={busy} on:click={saveSelected}><Save size={16} />Save</button>
-        <button class="button" disabled={busy} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
-        <button class="button danger" disabled={busy} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
-        <button class="button" disabled={busy} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
+        <button class="button primary" disabled={macroControlDisabled} on:click={saveSelected}><Save size={16} />Save</button>
+        <button class="button" disabled={macroControlDisabled} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
+        <button class="button danger" disabled={macroControlDisabled} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
+        <button class="button" disabled={macroControlDisabled} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
       </div>
     {:else}
       <div class="empty-panel">
@@ -320,8 +322,8 @@
       <Clipboard size={17} />
     </div>
     <div class="action-row">
-      <button class="button" disabled={busy} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
-      <button class="button" disabled={busy} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
+      <button class="button" disabled={macroControlDisabled} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
+      <button class="button" disabled={macroControlDisabled} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
     </div>
     {#if result}
       <pre>{result}</pre>

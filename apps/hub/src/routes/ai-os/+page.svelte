@@ -183,6 +183,9 @@
   $: startupChecks = buildStartupChecks(status, actionError);
   $: startupSummary = summarizeStartupChecks(startupChecks);
   $: canWarmLocalModel = Boolean(providerById(status, 'ollama')?.available && !loadedModels.length);
+  $: aiOsReady = Boolean(status);
+  $: aiOsActionBlocked = !aiOsReady;
+  $: aiOsBlockedLabel = loading ? 'Checking AI OS' : 'Connect AI OS';
   $: linkedActivityKind = $page.url.searchParams.get('activity') ?? ($page.url.searchParams.get('job') ? 'job' : '');
   $: linkedActivityId = $page.url.searchParams.get('id') ?? $page.url.searchParams.get('job') ?? '';
   $: highlightedJobId = linkedActivityKind === 'job' ? linkedActivityId : '';
@@ -228,6 +231,13 @@
 
   function modeMetadata(): Record<string, unknown> {
     return { machine_mode: machineModeContext(currentMachineMode.id) };
+  }
+
+  function requireAiOsReady(action: string): boolean {
+    if (status) return true;
+    actionError = `${action} needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
+    actionMessage = '';
+    return false;
   }
 
   function redactMediaPayloads(value: unknown): unknown {
@@ -591,6 +601,7 @@
   }
 
   async function refreshJobs(): Promise<void> {
+    if (!requireAiOsReady('Job refresh')) return;
     try {
       jobs = await listAiJobs();
     } catch (error) {
@@ -599,6 +610,7 @@
   }
 
   async function runAdHocInference(stream = false): Promise<void> {
+    if (!requireAiOsReady('Inference')) return;
     inferBusy = true;
     actionError = '';
     inferResult = stream ? '' : 'Running';
@@ -640,6 +652,7 @@
   }
 
   async function createBackupNow(): Promise<void> {
+    if (!requireAiOsReady('Backup')) return;
     foundationBusy = true;
     actionError = '';
     try {
@@ -653,6 +666,7 @@
   }
 
   async function verifyLatestBackup(): Promise<void> {
+    if (!requireAiOsReady('Backup verification')) return;
     const latest = status?.backups?.[0];
     if (!latest) return;
     foundationBusy = true;
@@ -668,6 +682,7 @@
   }
 
   async function restoreTestLatestBackup(): Promise<void> {
+    if (!requireAiOsReady('Restore test')) return;
     const latest = status?.backups?.[0];
     if (!latest) return;
     foundationBusy = true;
@@ -683,6 +698,7 @@
   }
 
   async function cleanupSystem(): Promise<void> {
+    if (!requireAiOsReady('Cleanup')) return;
     foundationBusy = true;
     actionError = '';
     try {
@@ -696,6 +712,7 @@
   }
 
   async function startJob(): Promise<void> {
+    if (!requireAiOsReady('Job queueing')) return;
     jobBusy = true;
     actionError = '';
     try {
@@ -730,6 +747,7 @@
   }
 
   async function cancelJob(jobId: string): Promise<void> {
+    if (!requireAiOsReady('Job cancellation')) return;
     try {
       await cancelAiJob(jobId);
       await refreshJobs();
@@ -739,6 +757,7 @@
   }
 
   async function ingestScratchMemory(): Promise<void> {
+    if (!requireAiOsReady('Memory ingest')) return;
     memoryBusy = true;
     actionError = '';
     try {
@@ -757,6 +776,7 @@
   }
 
   async function searchMemory(): Promise<void> {
+    if (!requireAiOsReady('Memory search')) return;
     memoryBusy = true;
     actionError = '';
     try {
@@ -770,6 +790,7 @@
   }
 
   async function runGenericAgent(): Promise<void> {
+    if (!requireAiOsReady('Agent loop')) return;
     agentBusy = true;
     actionError = '';
     try {
@@ -790,6 +811,7 @@
   }
 
   async function runCommandBar(): Promise<void> {
+    if (!requireAiOsReady('Command bar')) return;
     commandBusy = true;
     actionError = '';
     try {
@@ -811,6 +833,7 @@
   }
 
   async function proposePatch(): Promise<void> {
+    if (!requireAiOsReady('Design patch proposal')) return;
     designBusy = true;
     actionError = '';
     try {
@@ -833,6 +856,7 @@
   }
 
   async function applyPatchRecord(patch: AiDesignPatch): Promise<void> {
+    if (!requireAiOsReady('Design patch apply')) return;
     designBusy = true;
     actionError = '';
     try {
@@ -847,6 +871,7 @@
   }
 
   async function revertPatchRecord(patch: AiDesignPatch): Promise<void> {
+    if (!requireAiOsReady('Design patch revert')) return;
     designBusy = true;
     actionError = '';
     try {
@@ -861,6 +886,7 @@
   }
 
   async function invokeMedia(): Promise<void> {
+    if (!requireAiOsReady('Media generation')) return;
     multimodalBusy = true;
     actionError = '';
     try {
@@ -885,6 +911,7 @@
   }
 
   async function runCapabilityBenchmark(): Promise<void> {
+    if (!requireAiOsReady('Benchmark')) return;
     benchmarkBusy = true;
     actionError = '';
     try {
@@ -907,6 +934,7 @@
   }
 
   async function runMachineAutotune(): Promise<void> {
+    if (!requireAiOsReady('Autotune')) return;
     autotuneBusy = true;
     actionError = '';
     autotuneResult = 'Running autotune probe...';
@@ -934,6 +962,7 @@
   }
 
   async function toggleUnit(unit: AiBackgroundUnit): Promise<void> {
+    if (!requireAiOsReady('Ambient unit toggle')) return;
     try {
       await toggleBackgroundUnit(unit.id, !unit.enabled);
       await refresh();
@@ -943,6 +972,7 @@
   }
 
   async function runUnit(unit: AiBackgroundUnit): Promise<void> {
+    if (!requireAiOsReady('Ambient unit run')) return;
     try {
       await runBackgroundUnit(unit.id);
       await refresh();
@@ -1072,9 +1102,9 @@
     <span>Allow confirmed write/system actions for this run</span>
   </label>
   <div class="action-row">
-    <button class="button primary" type="button" disabled={commandBusy} on:click={runCommandBar}>
+    <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} on:click={runCommandBar}>
       <Play size={17} />
-      <span>{commandBusy ? 'Working' : 'Do it'}</span>
+      <span>{aiOsActionBlocked ? aiOsBlockedLabel : commandBusy ? 'Working' : 'Do it'}</span>
     </button>
     <button class="button" type="button" on:click={refresh}>
       <RefreshCw size={17} />
@@ -1167,9 +1197,9 @@
     <p class="muted">Machine profile is unavailable. Start AI OS or refresh once providers and telemetry are reachable.</p>
   {/if}
   <div class="action-row">
-    <button class="button primary" type="button" disabled={autotuneBusy} on:click={runMachineAutotune}>
+    <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} on:click={runMachineAutotune}>
       <Zap size={17} />
-      <span>{autotuneBusy ? 'Running' : 'Run Autotune'}</span>
+      <span>{aiOsActionBlocked ? aiOsBlockedLabel : autotuneBusy ? 'Running' : 'Run Autotune'}</span>
     </button>
     <button class="button" type="button" on:click={refresh}>
       <RefreshCw size={17} />
@@ -1330,9 +1360,9 @@
       <span>Confirm write/system tools</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={commandBusy} on:click={runCommandBar}>
+      <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} on:click={runCommandBar}>
         <Play size={17} />
-        <span>Execute</span>
+        <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Execute'}</span>
       </button>
       <button class="button" type="button" on:click={refresh}>
         <RefreshCw size={17} />
@@ -1398,9 +1428,9 @@
       <span>Arm apply/revert</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={designBusy} on:click={proposePatch}>
+      <button class="button primary" type="button" disabled={designBusy || aiOsActionBlocked} on:click={proposePatch}>
         <Play size={17} />
-        <span>Propose</span>
+        <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Propose'}</span>
       </button>
     </div>
     <pre>{designResult}</pre>
@@ -1429,9 +1459,9 @@
         <textarea id="benchmark-prompt" bind:value={benchmarkPrompt} rows="3"></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={benchmarkBusy} on:click={runCapabilityBenchmark}>
+    <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} on:click={runCapabilityBenchmark}>
       <Zap size={17} />
-      <span>Run Benchmark</span>
+      <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Benchmark'}</span>
     </button>
     <div class="benchmark-list">
       {#each benchmarkRuns.slice(0, 5) as run}
@@ -1468,11 +1498,11 @@
         <small>{patch.target_files.join(', ')}</small>
         <p>{patch.instruction}</p>
         <div class="action-row tight">
-          <button class="button" type="button" disabled={designBusy || patch.status === 'applied'} on:click={() => applyPatchRecord(patch)}>
+          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status === 'applied'} on:click={() => applyPatchRecord(patch)}>
             <Play size={16} />
             <span>Apply</span>
           </button>
-          <button class="button" type="button" disabled={designBusy || patch.status !== 'applied'} on:click={() => revertPatchRecord(patch)}>
+          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status !== 'applied'} on:click={() => revertPatchRecord(patch)}>
             <Square size={16} />
             <span>Revert</span>
           </button>
@@ -1517,19 +1547,19 @@
       </article>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={foundationBusy} on:click={createBackupNow}>
+      <button class="button primary" type="button" disabled={foundationBusy || aiOsActionBlocked} on:click={createBackupNow}>
         <HardDrive size={17} />
         <span>Backup</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || !status?.backups?.length} on:click={verifyLatestBackup}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} on:click={verifyLatestBackup}>
         <ShieldCheck size={17} />
         <span>Verify</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || !status?.backups?.length} on:click={restoreTestLatestBackup}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} on:click={restoreTestLatestBackup}>
         <Database size={17} />
         <span>Restore Test</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy} on:click={cleanupSystem}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked} on:click={cleanupSystem}>
         <Wrench size={17} />
         <span>Cleanup</span>
       </button>
@@ -1599,13 +1629,13 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={inferBusy} on:click={() => runAdHocInference(false)}>
+      <button class="button primary" type="button" disabled={inferBusy || aiOsActionBlocked} on:click={() => runAdHocInference(false)}>
         <Play size={17} />
-        <span>Run</span>
+        <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run'}</span>
       </button>
-      <button class="button" type="button" disabled={inferBusy} on:click={() => runAdHocInference(true)}>
+      <button class="button" type="button" disabled={inferBusy || aiOsActionBlocked} on:click={() => runAdHocInference(true)}>
         <Activity size={17} />
-        <span>Stream</span>
+        <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Stream'}</span>
       </button>
     </div>
     <pre>{inferResult}</pre>
@@ -1639,13 +1669,13 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={jobBusy} on:click={startJob}>
+      <button class="button primary" type="button" disabled={jobBusy || aiOsActionBlocked} on:click={startJob}>
         <Play size={17} />
-        <span>Queue</span>
+        <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Queue'}</span>
       </button>
-      <button class="button" type="button" on:click={refreshJobs}>
+      <button class="button" type="button" disabled={aiOsActionBlocked} on:click={refreshJobs}>
         <RefreshCw size={17} />
-        <span>Jobs</span>
+        <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Jobs'}</span>
       </button>
     </div>
     <div class="job-list">
@@ -1656,7 +1686,7 @@
             <span>{job.status}</span>
           </div>
           <progress max="1" value={job.progress}></progress>
-          <button class="icon-button" type="button" disabled={job.status !== 'running' && job.status !== 'queued'} title="Cancel" aria-label={`Cancel ${job.id}`} on:click={() => cancelJob(job.id)}>
+          <button class="icon-button" type="button" disabled={aiOsActionBlocked || (job.status !== 'running' && job.status !== 'queued')} title="Cancel" aria-label={`Cancel ${job.id}`} on:click={() => cancelJob(job.id)}>
             <Square size={15} />
           </button>
         </article>
@@ -1691,11 +1721,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button" type="button" disabled={memoryBusy} on:click={ingestScratchMemory}>
+      <button class="button" type="button" disabled={memoryBusy || aiOsActionBlocked} on:click={ingestScratchMemory}>
         <Database size={17} />
         <span>Ingest</span>
       </button>
-      <button class="button primary" type="button" disabled={memoryBusy} on:click={searchMemory}>
+      <button class="button primary" type="button" disabled={memoryBusy || aiOsActionBlocked} on:click={searchMemory}>
         <Search size={17} />
         <span>Search</span>
       </button>
@@ -1712,9 +1742,9 @@
       <label for="agent-objective">Objective</label>
       <textarea id="agent-objective" bind:value={agentObjective} rows="5"></textarea>
     </div>
-    <button class="button primary" type="button" disabled={agentBusy} on:click={runGenericAgent}>
+    <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} on:click={runGenericAgent}>
       <Play size={17} />
-      <span>Run Loop</span>
+      <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Loop'}</span>
     </button>
     <pre>{agentResult}</pre>
   </div>
@@ -1780,9 +1810,9 @@
         <textarea id="video-base64" bind:value={videoBase64} rows="2"></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={multimodalBusy} on:click={invokeMedia}>
+    <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} on:click={invokeMedia}>
       <Play size={17} />
-      <span>{multimodalBusy ? 'Creating' : 'Create'}</span>
+      <span>{aiOsActionBlocked ? aiOsBlockedLabel : multimodalBusy ? 'Creating' : 'Create'}</span>
     </button>
     {#if multimodalPreview}
       <div class="media-preview">
@@ -1828,14 +1858,14 @@
             <span>{unit.trigger}</span>
           </div>
           <div class="ambient-actions">
-            <button class="icon-button" type="button" title="Toggle" aria-label={`Toggle ${unit.label}`} on:click={() => toggleUnit(unit)}>
+            <button class="icon-button" type="button" disabled={aiOsActionBlocked} title="Toggle" aria-label={`Toggle ${unit.label}`} on:click={() => toggleUnit(unit)}>
               {#if unit.enabled}
                 <ToggleRight size={18} />
               {:else}
                 <ToggleLeft size={18} />
               {/if}
             </button>
-            <button class="icon-button" type="button" title="Run" aria-label={`Run ${unit.label}`} on:click={() => runUnit(unit)}>
+            <button class="icon-button" type="button" disabled={aiOsActionBlocked} title="Run" aria-label={`Run ${unit.label}`} on:click={() => runUnit(unit)}>
               <Play size={16} />
             </button>
           </div>
