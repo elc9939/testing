@@ -106,6 +106,24 @@ describe('activity source loading', () => {
     expect(snapshot.errors.at(-1)).toContain('cached Activity records');
   });
 
+  it('returns source failures instead of healthy-empty when all sources fail without cache', async () => {
+    getAiStatusMock.mockRejectedValue(new Error('AI OS offline'));
+    getPassiveSnapshotMock.mockRejectedValue(new Error('Passive offline'));
+    listMacroRunsMock.mockRejectedValue(new Error('Macro offline'));
+
+    const snapshot = await loadActivitySnapshot(20, { sourceTimeoutMs: 2 });
+
+    expect(snapshot.partial).toBe(true);
+    expect(snapshot.stale).toBe(false);
+    expect(snapshot.records).toEqual([]);
+    expect(snapshot.sources.every((source) => !source.ok)).toBe(true);
+    expect(snapshot.errors).toEqual([
+      expect.stringContaining('AI OS'),
+      expect.stringContaining('Passive Tasks'),
+      expect.stringContaining('Macro Lab')
+    ]);
+  });
+
   it('persists and clears locally dismissed Activity record ids', () => {
     installLocalStorage();
 

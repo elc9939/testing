@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Activity, ArrowRight, Pause, Play, RefreshCw, RotateCcw, Square, Terminal, XCircle } from 'lucide-svelte';
+  import { Activity, ArrowRight, Pause, Play, RefreshCw, RotateCcw, Settings, Square, Terminal, XCircle } from 'lucide-svelte';
   import {
     activityHasActiveWork,
     activityStatusLabel,
@@ -173,6 +173,24 @@
     return '';
   }
 
+  function activityEmptyTitle(): string {
+    if (partial || sourceFailures.length) return 'No live activity loaded from reachable sources.';
+    if (stale) return 'No cached Activity records.';
+    return 'No durable activity yet.';
+  }
+
+  function activityEmptyDetail(): string {
+    if (partial || sourceFailures.length) {
+      return 'Activity checked the durable work sources it could reach. Start or fix AI OS, Passive Tasks, or Macro Lab in Settings, then retry.';
+    }
+    if (stale) return 'The browser cache is available, but it does not contain any durable work records yet.';
+    return 'When a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run exists in its backend, it will appear here after refresh.';
+  }
+
+  function activityEmptyRefreshTitle(): string {
+    return refreshBlockedReason || 'Retry loading Activity records from connected sources.';
+  }
+
   function actionBlockedReason(record: ActivityRecord, action: ActivityAction): string {
     const key = activityActionKey(record, action);
     if (busyKey === key) return `${action.label} is already running.`;
@@ -337,10 +355,19 @@
 {:else}
   <section class="empty-state">
     <Activity size={20} />
-    <strong>No durable activity yet.</strong>
-    <p>When a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run exists in its backend, it will appear here after refresh.</p>
-    {#if partial}
-      <p>Some sources are unavailable, so this may be incomplete.</p>
+    <strong>{activityEmptyTitle()}</strong>
+    <p>{activityEmptyDetail()}</p>
+    {#if partial || sourceFailures.length || error}
+      <div class="empty-actions">
+        <button class="button" type="button" disabled={Boolean(refreshBlockedReason)} title={activityEmptyRefreshTitle()} on:click={() => refreshActivity()}>
+          <RefreshCw size={16} />
+          <span>{refreshing ? 'Refreshing' : 'Retry Activity'}</span>
+        </button>
+        <a class="button" href={hubHref('/settings')} title="Open Settings to check service endpoints and local services.">
+          <Settings size={16} />
+          <span>Open Settings</span>
+        </a>
+      </div>
     {/if}
   </section>
 {/if}
@@ -584,6 +611,13 @@
     display: grid;
     gap: 6px;
     place-items: start;
+  }
+
+  .empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
   }
 
   .empty-state p {

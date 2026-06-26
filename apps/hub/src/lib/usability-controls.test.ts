@@ -266,11 +266,18 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function activityActionKey');
     expect(source).toContain('refreshBlockedReason = activityRefreshBlockedReason({ loading, refreshing, busyKey })');
     expect(source).toContain('function activityRefreshBlockedReason');
+    expect(source).toContain('function activityEmptyTitle');
+    expect(source).toContain('No live activity loaded from reachable sources.');
+    expect(source).toContain('function activityEmptyDetail');
+    expect(source).toContain('Start or fix AI OS, Passive Tasks, or Macro Lab in Settings');
+    expect(source).toContain('function activityEmptyRefreshTitle');
     expect(source).toContain('function actionBlockedReason');
     expect(source).toContain('Another Activity action is already running.');
     expect(source).toContain('disabled={actionDisabled(record, action)}');
     expect(source).toContain('disabled={Boolean(refreshBlockedReason)}');
     expect(source).toContain("title={refreshBlockedReason || 'Refresh Activity records from connected sources.'}");
+    expect(source).toContain('title={activityEmptyRefreshTitle()}');
+    expect(source).toContain("href={hubHref('/settings')}");
     expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });
 
