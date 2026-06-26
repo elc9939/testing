@@ -88,8 +88,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('showing cached records from');
     expect(source).toContain('one source failed; available work is still listed');
     expect(source).toContain('function sourceReachable');
+    expect(source).toContain('function activityActionKey');
     expect(source).toContain('function actionBlockedReason');
+    expect(source).toContain('Another Activity action is already running.');
     expect(source).toContain('disabled={actionDisabled(record, action)}');
+    expect(source).toContain('disabled={loading || refreshing || Boolean(busyKey)}');
     expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });
 

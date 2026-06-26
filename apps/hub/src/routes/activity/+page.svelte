@@ -79,7 +79,12 @@
   }
 
   async function runAction(record: ActivityRecord, action: ActivityAction): Promise<void> {
-    if (!action.enabled || action.kind === 'open' || action.kind === 'view_logs') return;
+    const blocked = actionBlockedReason(record, action);
+    if (blocked) {
+      actionError = blocked;
+      return;
+    }
+    if (action.kind === 'open' || action.kind === 'view_logs') return;
     if (action.kind === 'dismiss') {
       dismissedIds = dismissActivityRecord(record.id);
       actionMessage = `Dismissed ${record.title} from this browser. The backend record is still recoverable.`;
@@ -156,7 +161,14 @@
     return Boolean(source?.ok);
   }
 
+  function activityActionKey(record: ActivityRecord, action: ActivityAction): string {
+    return `${record.id}:${action.kind}`;
+  }
+
   function actionBlockedReason(record: ActivityRecord, action: ActivityAction): string {
+    const key = activityActionKey(record, action);
+    if (busyKey === key) return `${action.label} is already running.`;
+    if (busyKey) return 'Another Activity action is already running.';
     if (!action.enabled) return `${action.label} is not available for this ${activityStatusLabel(record.status)} item.`;
     if (action.kind === 'open' || action.kind === 'view_logs' || action.kind === 'dismiss') return '';
     const source = sourceStateFor(record);
@@ -164,7 +176,6 @@
       const detail = source?.state === 'timeout' ? 'timed out' : source?.error || 'is offline';
       return `${record.sourceLabel} ${detail}; refresh or open Settings before running ${action.label}.`;
     }
-    if (busyKey === `${record.id}:${action.kind}`) return `${action.label} is already running.`;
     return '';
   }
 
@@ -206,7 +217,7 @@
         <span>Restore</span>
       </button>
     {/if}
-    <button class="button" type="button" disabled={loading || refreshing} on:click={() => refreshActivity()}>
+    <button class="button" type="button" disabled={loading || refreshing || Boolean(busyKey)} title={busyKey ? 'Another Activity action is already running.' : 'Refresh Activity records from connected sources.'} on:click={() => refreshActivity()}>
       <RefreshCw size={16} />
       <span>{refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
