@@ -184,9 +184,19 @@
   $: profileBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: startupChecks = buildStartupChecks(status, actionError);
   $: startupSummary = summarizeStartupChecks(startupChecks);
-  $: canWarmLocalModel = Boolean(providerById(status, 'ollama')?.available && !loadedModels.length);
   $: aiOsReady = Boolean(status);
   $: aiOsActionBlocked = !aiOsReady;
+  $: aiOsActionBlockedReason = aiOsServiceActionBlockedReason({
+    loading,
+    ready: aiOsReady,
+    apiUrl: getAiOsApiUrl()
+  });
+  $: warmupBlockedReason = warmLocalModelBlockedReason({
+    busy: warmupBusy,
+    status,
+    loadedCount: loadedModels.length,
+    aiOsReason: aiOsActionBlockedReason
+  });
   $: aiOsBlockedLabel = loading ? 'Checking AI OS' : 'Connect AI OS';
   $: linkedActivityKind = $page.url.searchParams.get('activity') ?? ($page.url.searchParams.get('job') ? 'job' : '');
   $: linkedActivityId = $page.url.searchParams.get('id') ?? $page.url.searchParams.get('job') ?? '';
@@ -240,6 +250,21 @@
     actionError = `${action} needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
     actionMessage = '';
     return false;
+  }
+
+  function aiOsServiceActionBlockedReason(state: { loading: boolean; ready: boolean; apiUrl: string }): string {
+    if (state.ready) return '';
+    if (state.loading) return `AI OS status is still loading from ${state.apiUrl}.`;
+    return `AI OS is offline or not connected at ${state.apiUrl}. Open Settings or refresh status before using this control.`;
+  }
+
+  function warmLocalModelBlockedReason(state: { busy: boolean; status: AiStatus | null; loadedCount: number; aiOsReason: string }): string {
+    if (state.busy) return 'Local model warmup is already running.';
+    if (!state.status) return state.aiOsReason;
+    const ollama = providerById(state.status, 'ollama');
+    if (!ollama?.available) return ollama?.error ?? 'Ollama is not available in the latest AI OS provider status.';
+    if (state.loadedCount > 0) return 'A local model is already loaded.';
+    return '';
   }
 
   function jobCancelBlockedReason(job: AiJobSnapshot): string {
@@ -1115,7 +1140,7 @@
       <RefreshCw size={17} />
       <span>Reconnect</span>
     </button>
-    <button class="button primary" type="button" disabled={!canWarmLocalModel || warmupBusy} on:click={warmLocalModel}>
+    <button class="button primary" type="button" disabled={Boolean(warmupBlockedReason)} title={warmupBlockedReason || 'Warm a local Ollama model once.'} on:click={warmLocalModel}>
       <Zap size={17} />
       <span>{warmupBusy ? 'Warming' : 'Warm Model'}</span>
     </button>
@@ -1147,20 +1172,20 @@
   </div>
   <p class="auto-route-note">{autoRouteText}</p>
   <div class="field">
-    <label for="command-objective">Request</label>
-    <textarea id="command-objective" bind:value={commandObjective} rows="4"></textarea>
+    <label for="command-objective-primary">Request</label>
+    <textarea id="command-objective-primary" bind:value={commandObjective} rows="4"></textarea>
   </div>
   <div class="example-row" aria-label="Example AI OS requests">
     {#each commandExamples as example}
       <button class="chip-button" type="button" on:click={() => useCommandExample(example)}>{example}</button>
     {/each}
   </div>
-  <label class="checkline" for="command-confirm">
-    <input id="command-confirm" type="checkbox" bind:checked={commandConfirm} />
+  <label class="checkline" for="command-confirm-primary">
+    <input id="command-confirm-primary" type="checkbox" bind:checked={commandConfirm} />
     <span>Allow confirmed write/system actions for this run</span>
   </label>
   <div class="action-row">
-    <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} on:click={runCommandBar}>
+    <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (commandBusy ? 'AI OS command is already running.' : 'Run this AI OS command.')} on:click={runCommandBar}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : commandBusy ? 'Working' : 'Do it'}</span>
     </button>
@@ -1255,7 +1280,7 @@
     <p class="muted">Machine profile is unavailable. Start AI OS or refresh once providers and telemetry are reachable.</p>
   {/if}
   <div class="action-row">
-    <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} on:click={runMachineAutotune}>
+    <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (autotuneBusy ? 'Autotune is already running.' : 'Run a compact AI OS autotune probe.')} on:click={runMachineAutotune}>
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : autotuneBusy ? 'Running' : 'Run Autotune'}</span>
     </button>
@@ -1410,15 +1435,15 @@
       <strong>Command Bar</strong>
     </div>
     <div class="field">
-      <label for="command-objective">Objective</label>
-      <textarea id="command-objective" bind:value={commandObjective} rows="4"></textarea>
+      <label for="command-objective-advanced">Objective</label>
+      <textarea id="command-objective-advanced" bind:value={commandObjective} rows="4"></textarea>
     </div>
-    <label class="checkline" for="command-confirm">
-      <input id="command-confirm" type="checkbox" bind:checked={commandConfirm} />
+    <label class="checkline" for="command-confirm-advanced">
+      <input id="command-confirm-advanced" type="checkbox" bind:checked={commandConfirm} />
       <span>Confirm write/system tools</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} on:click={runCommandBar}>
+      <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (commandBusy ? 'AI OS command is already running.' : 'Execute this AI OS command.')} on:click={runCommandBar}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Execute'}</span>
       </button>
@@ -1486,7 +1511,7 @@
       <span>Arm apply/revert</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={designBusy || aiOsActionBlocked} on:click={proposePatch}>
+      <button class="button primary" type="button" disabled={designBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (designBusy ? 'A design patch action is already running.' : 'Ask AI OS to propose a reversible design patch.')} on:click={proposePatch}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Propose'}</span>
       </button>
@@ -1517,7 +1542,7 @@
         <textarea id="benchmark-prompt" bind:value={benchmarkPrompt} rows="3"></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} on:click={runCapabilityBenchmark}>
+    <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (benchmarkBusy ? 'Benchmark is already running.' : 'Run this AI OS capability benchmark.')} on:click={runCapabilityBenchmark}>
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Benchmark'}</span>
     </button>
@@ -1556,11 +1581,11 @@
         <small>{patch.target_files.join(', ')}</small>
         <p>{patch.instruction}</p>
         <div class="action-row tight">
-          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status === 'applied'} on:click={() => applyPatchRecord(patch)}>
+          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status === 'applied'} title={aiOsActionBlockedReason || (patch.status === 'applied' ? 'This patch is already applied.' : designBusy ? 'A design patch action is already running.' : 'Apply this reversible design patch.')} on:click={() => applyPatchRecord(patch)}>
             <Play size={16} />
             <span>Apply</span>
           </button>
-          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status !== 'applied'} on:click={() => revertPatchRecord(patch)}>
+          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status !== 'applied'} title={aiOsActionBlockedReason || (patch.status !== 'applied' ? 'Apply this patch before it can be reverted.' : designBusy ? 'A design patch action is already running.' : 'Revert this applied design patch.')} on:click={() => revertPatchRecord(patch)}>
             <Square size={16} />
             <span>Revert</span>
           </button>

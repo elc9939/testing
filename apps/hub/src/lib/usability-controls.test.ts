@@ -50,11 +50,22 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/ai-os/+page.svelte');
 
     expect(source).toContain('aiOsActionBlocked = !aiOsReady');
+    expect(source).toContain('aiOsActionBlockedReason = aiOsServiceActionBlockedReason');
+    expect(source).toContain('function aiOsServiceActionBlockedReason');
+    expect(source).toContain('function warmLocalModelBlockedReason');
+    expect(source).toContain('disabled={Boolean(warmupBlockedReason)}');
     expect(source).toContain('function requireAiOsReady');
     expect(source).toContain('disabled={commandBusy || aiOsActionBlocked}');
+    expect(source).toContain("title={aiOsActionBlockedReason || (commandBusy ? 'AI OS command is already running.' : 'Run this AI OS command.')}");
     expect(source).toContain('disabled={autotuneBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={designBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={benchmarkBusy || aiOsActionBlocked}');
+    expect(source).toContain('id="command-objective-primary"');
+    expect(source).toContain('id="command-objective-advanced"');
+    expect(source).toContain('id="command-confirm-primary"');
+    expect(source).toContain('id="command-confirm-advanced"');
+    expect(source).not.toContain('id="command-objective"');
+    expect(source).not.toContain('id="command-confirm"');
     expect(source).toContain('function jobCancelBlockedReason');
     expect(source).toContain('Another job cancellation is already running.');
     expect(source).toContain('disabled={jobCancelDisabled(job)}');
