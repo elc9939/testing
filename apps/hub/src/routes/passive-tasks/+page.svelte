@@ -45,8 +45,10 @@
     triagePassiveCard,
     visiblePassiveNotifications
   } from '$lib/passive-tasks-api';
+  import { getApiUrl } from '$lib/api';
   import { attentionStore } from '$lib/attention-store';
   import { hubHref } from '$lib/routes';
+  import { localNetworkHint } from '$lib/service-config';
 
   const watchedResearchPlaceholder = [
     'example.com',
@@ -58,7 +60,8 @@
 
   let snapshot: PassiveSnapshot | null = null;
   let loading = false;
-  let error = '';
+  let serviceError = '';
+  let actionError = '';
   let message = '';
   let busyId = '';
   let folderText = '';
@@ -88,10 +91,11 @@
   $: digestCards = topPassiveCards(snapshot);
   $: notifications = visiblePassiveNotifications(snapshot);
   $: familyRows = buildFamilyRows(snapshot, settings);
-  $: passiveStateKnown = Boolean(snapshot && settings);
-  $: passiveControlDisabled = loading || Boolean(busyId) || !passiveStateKnown;
-  $: passiveWriteDisabled = passiveControlDisabled;
+  $: passiveServiceReady = Boolean(snapshot && settings && !serviceError);
+  $: passiveStateKnown = passiveServiceReady;
   $: passiveWriteTitle = passiveDisabledReason();
+  $: passiveControlDisabled = Boolean(passiveWriteTitle);
+  $: passiveWriteDisabled = passiveControlDisabled;
   $: worker = snapshot?.worker ?? null;
   $: backupHealth = snapshot?.backupHealth ?? null;
   $: resultRows = [...(snapshot?.results ?? [])]
@@ -191,12 +195,36 @@
   function passiveDisabledReason(): string {
     if (loading) return 'Passive Tasks is loading the latest snapshot.';
     if (busyId) return 'Another Passive Tasks action is already running.';
-    if (!passiveStateKnown) return 'Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.';
+    if (serviceError) return `Passive Tasks API is unavailable: ${serviceError}`;
+    if (!passiveServiceReady) return 'Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.';
     return '';
   }
 
   function passiveActionTitle(enabledTitle: string): string {
     return passiveWriteTitle || enabledTitle;
+  }
+
+  function requirePassiveReady(action: string): boolean {
+    const reason = passiveDisabledReason();
+    if (!reason) return true;
+    actionError = serviceError ? '' : `${action} unavailable: ${reason}`;
+    return false;
+  }
+
+  function passiveConnectionError(value: string): boolean {
+    return /(?:Failed to fetch|CORS|mixed-content|network|offline|unavailable|ECONNREFUSED|connection refused|timed out|timeout|Not Found)/iu.test(
+      value
+    );
+  }
+
+  function recordPassiveActionError(err: unknown, fallback: string): void {
+    const nextError = err instanceof Error ? err.message : fallback;
+    if (passiveConnectionError(nextError)) {
+      serviceError = nextError;
+      actionError = '';
+    } else {
+      actionError = nextError;
+    }
   }
 
   function taskRunTitle(task: PassiveTask, watcher: PassiveWatcher | undefined): string {
@@ -388,26 +416,29 @@
 
   async function load(): Promise<void> {
     loading = true;
-    error = '';
+    serviceError = '';
+    actionError = '';
     try {
       syncEditor(await getPassiveSnapshot());
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Passive task snapshot failed to load.';
+      serviceError = err instanceof Error ? err.message : 'Passive task snapshot failed to load.';
     } finally {
       loading = false;
     }
   }
 
   async function applyAction(id: string, action: () => Promise<PassiveSnapshot>, success: string): Promise<void> {
+    if (!requirePassiveReady('Passive Tasks action')) return;
     busyId = id;
-    error = '';
+    actionError = '';
     message = '';
     try {
       syncEditor(await action());
+      serviceError = '';
       message = success;
       attentionStore.invalidate();
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Passive task action failed.';
+      recordPassiveActionError(err, 'Passive task action failed.');
     } finally {
       busyId = '';
     }
@@ -540,8 +571,17 @@
   </div>
 </section>
 
-{#if error}
-  <section class="card card-pad warning-panel">{error}</section>
+{#if serviceError}
+  <section class="card card-pad warning-panel service-card">
+    <div>
+      <strong>Passive Tasks API unavailable</strong>
+      <span>{serviceError}</span>
+      <small>Target: {getApiUrl()}. {localNetworkHint()}</small>
+    </div>
+    <a class="button compact" href={hubHref('/settings')}>Open Settings</a>
+  </section>
+{:else if actionError}
+  <section class="card card-pad warning-panel">{actionError}</section>
 {:else if message}
   <section class="card card-pad success-panel">{message}</section>
 {/if}
@@ -1149,6 +1189,24 @@
     border-color: var(--warning-border);
     color: var(--warning-text);
     background: var(--warning-bg);
+  }
+
+  .service-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .service-card div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .service-card span,
+  .service-card small {
+    overflow-wrap: anywhere;
   }
 
   .success-panel {
