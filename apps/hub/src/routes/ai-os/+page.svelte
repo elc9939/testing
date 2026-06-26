@@ -114,6 +114,8 @@
   let autotuneResult = '';
   let startupRetryCount = 0;
   let warmupBusy = false;
+  let jobCancelBusyId = '';
+  let backgroundBusyId = '';
 
   let inferPrompt = 'Return one sentence confirming which provider handled this ad hoc capability test.';
   let inferProvider = '';
@@ -238,6 +240,35 @@
     actionError = `${action} needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
     actionMessage = '';
     return false;
+  }
+
+  function jobCancelBlockedReason(job: AiJobSnapshot): string {
+    if (aiOsActionBlocked) return `Cancel needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
+    if (job.status !== 'running' && job.status !== 'queued') return `Cannot cancel a ${job.status} job.`;
+    if (jobCancelBusyId === job.id) return 'Cancellation is already running for this job.';
+    if (jobCancelBusyId) return 'Another job cancellation is already running.';
+    return '';
+  }
+
+  function jobCancelDisabled(job: AiJobSnapshot): boolean {
+    return Boolean(jobCancelBlockedReason(job));
+  }
+
+  function backgroundActionKey(unit: AiBackgroundUnit, action: 'toggle' | 'run'): string {
+    return `${unit.id}:${action}`;
+  }
+
+  function backgroundActionBlockedReason(unit: AiBackgroundUnit, action: 'toggle' | 'run'): string {
+    const label = action === 'toggle' ? 'Toggle ambient unit' : 'Run ambient unit';
+    const key = backgroundActionKey(unit, action);
+    if (aiOsActionBlocked) return `${label} needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
+    if (backgroundBusyId === key) return `${label} is already running.`;
+    if (backgroundBusyId) return 'Another ambient unit action is already running.';
+    return '';
+  }
+
+  function backgroundActionDisabled(unit: AiBackgroundUnit, action: 'toggle' | 'run'): boolean {
+    return Boolean(backgroundActionBlockedReason(unit, action));
   }
 
   function redactMediaPayloads(value: unknown): unknown {
@@ -746,13 +777,22 @@
     }
   }
 
-  async function cancelJob(jobId: string): Promise<void> {
+  async function cancelJob(job: AiJobSnapshot): Promise<void> {
     if (!requireAiOsReady('Job cancellation')) return;
+    const blocked = jobCancelBlockedReason(job);
+    if (blocked) {
+      actionError = blocked;
+      return;
+    }
+    jobCancelBusyId = job.id;
+    actionError = '';
     try {
-      await cancelAiJob(jobId);
+      await cancelAiJob(job.id);
       await refreshJobs();
     } catch (error) {
       setError(error, 'Failed to cancel job.');
+    } finally {
+      jobCancelBusyId = '';
     }
   }
 
@@ -963,21 +1003,39 @@
 
   async function toggleUnit(unit: AiBackgroundUnit): Promise<void> {
     if (!requireAiOsReady('Ambient unit toggle')) return;
+    const blocked = backgroundActionBlockedReason(unit, 'toggle');
+    if (blocked) {
+      actionError = blocked;
+      return;
+    }
+    backgroundBusyId = backgroundActionKey(unit, 'toggle');
+    actionError = '';
     try {
       await toggleBackgroundUnit(unit.id, !unit.enabled);
       await refresh();
     } catch (error) {
       setError(error, 'Failed to toggle background unit.');
+    } finally {
+      backgroundBusyId = '';
     }
   }
 
   async function runUnit(unit: AiBackgroundUnit): Promise<void> {
     if (!requireAiOsReady('Ambient unit run')) return;
+    const blocked = backgroundActionBlockedReason(unit, 'run');
+    if (blocked) {
+      actionError = blocked;
+      return;
+    }
+    backgroundBusyId = backgroundActionKey(unit, 'run');
+    actionError = '';
     try {
       await runBackgroundUnit(unit.id);
       await refresh();
     } catch (error) {
       setError(error, 'Failed to run background unit.');
+    } finally {
+      backgroundBusyId = '';
     }
   }
 
@@ -1686,7 +1744,7 @@
             <span>{job.status}</span>
           </div>
           <progress max="1" value={job.progress}></progress>
-          <button class="icon-button" type="button" disabled={aiOsActionBlocked || (job.status !== 'running' && job.status !== 'queued')} title="Cancel" aria-label={`Cancel ${job.id}`} on:click={() => cancelJob(job.id)}>
+          <button class="icon-button" type="button" disabled={jobCancelDisabled(job)} title={jobCancelBlockedReason(job) || 'Cancel job'} aria-label={`Cancel ${job.id}`} on:click={() => cancelJob(job)}>
             <Square size={15} />
           </button>
         </article>
@@ -1858,14 +1916,14 @@
             <span>{unit.trigger}</span>
           </div>
           <div class="ambient-actions">
-            <button class="icon-button" type="button" disabled={aiOsActionBlocked} title="Toggle" aria-label={`Toggle ${unit.label}`} on:click={() => toggleUnit(unit)}>
+            <button class="icon-button" type="button" disabled={backgroundActionDisabled(unit, 'toggle')} title={backgroundActionBlockedReason(unit, 'toggle') || 'Toggle ambient unit'} aria-label={`Toggle ${unit.label}`} on:click={() => toggleUnit(unit)}>
               {#if unit.enabled}
                 <ToggleRight size={18} />
               {:else}
                 <ToggleLeft size={18} />
               {/if}
             </button>
-            <button class="icon-button" type="button" disabled={aiOsActionBlocked} title="Run" aria-label={`Run ${unit.label}`} on:click={() => runUnit(unit)}>
+            <button class="icon-button" type="button" disabled={backgroundActionDisabled(unit, 'run')} title={backgroundActionBlockedReason(unit, 'run') || 'Run ambient unit'} aria-label={`Run ${unit.label}`} on:click={() => runUnit(unit)}>
               <Play size={16} />
             </button>
           </div>

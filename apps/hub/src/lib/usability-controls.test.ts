@@ -46,6 +46,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={autotuneBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={designBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={benchmarkBusy || aiOsActionBlocked}');
+    expect(source).toContain('function jobCancelBlockedReason');
+    expect(source).toContain('Another job cancellation is already running.');
+    expect(source).toContain('disabled={jobCancelDisabled(job)}');
+    expect(source).toContain('function backgroundActionBlockedReason');
+    expect(source).toContain('Another ambient unit action is already running.');
+    expect(source).toContain("disabled={backgroundActionDisabled(unit, 'toggle')}");
+    expect(source).toContain("disabled={backgroundActionDisabled(unit, 'run')}");
   });
 
   it('guards Macro Lab and Passive task side-effect controls while state is unknown', async () => {
