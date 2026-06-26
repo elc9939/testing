@@ -1,11 +1,49 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 async function routeSource(path: string): Promise<string> {
   return readFile(new URL(path, import.meta.url), 'utf8');
 }
 
+const routesRoot = fileURLToPath(new URL('../routes', import.meta.url));
+
+async function routePageFiles(dir = routesRoot): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const child = resolve(dir, entry.name);
+      if (entry.isDirectory()) return routePageFiles(child);
+      return entry.isFile() && entry.name === '+page.svelte' ? [child] : [];
+    })
+  );
+  return files.flat();
+}
+
 describe('Mini Hub usability control gates', () => {
+  it('keeps disabled route buttons self-explanatory', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await routePageFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const buttons = source.matchAll(/<button\b[\s\S]*?<\/button>/g);
+
+      for (const button of buttons) {
+        const block = button[0];
+        const hasDisabled = /\bdisabled(?:=|\s|>)/.test(block);
+        const hasTitle = /\btitle=/.test(block);
+        if (hasDisabled && !hasTitle) {
+          const line = source.slice(0, button.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('collapses Research service failures and disables AI OS-backed research actions', async () => {
     const source = await routeSource('../routes/research/+page.svelte');
 
