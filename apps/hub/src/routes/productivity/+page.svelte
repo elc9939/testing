@@ -438,6 +438,12 @@
     return 'Open Gmail thread and fetch the latest messages.';
   }
 
+  function productivityReadTitle(enabledTitle: string): string {
+    if (loading) return 'Productivity is still loading the latest connection state.';
+    if (!productivityReady) return 'Connect the API and Google to load live calendar controls. Cached data remains visible.';
+    return enabledTitle;
+  }
+
   function beginProductivityAction(key: string, requiresGoogle = true): boolean {
     if (actionBusyKey) {
       actionError = 'Another Productivity action is already running.';
@@ -1068,11 +1074,11 @@
         <strong>Calendar</strong>
       </div>
       <div class="calendar-controls">
-        <button class="icon-button" type="button" disabled={!productivityReadReady} aria-label="Previous week" on:click={() => shiftCalendar(-7)}>
+        <button class="icon-button" type="button" disabled={!productivityReadReady} title={productivityReadTitle('Show the previous calendar week.')} aria-label="Previous week" on:click={() => shiftCalendar(-7)}>
           <ChevronLeft size={16} />
         </button>
-        <button class="button compact" type="button" disabled={!productivityReadReady} on:click={jumpToToday}>Today</button>
-        <button class="icon-button" type="button" disabled={!productivityReadReady} aria-label="Next week" on:click={() => shiftCalendar(7)}>
+        <button class="button compact" type="button" disabled={!productivityReadReady} title={productivityReadTitle('Jump the calendar window to today.')} on:click={jumpToToday}>Today</button>
+        <button class="icon-button" type="button" disabled={!productivityReadReady} title={productivityReadTitle('Show the next calendar week.')} aria-label="Next week" on:click={() => shiftCalendar(7)}>
           <ChevronRight size={16} />
         </button>
         <span>{calendarRangeLabel}</span>

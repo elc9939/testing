@@ -18,6 +18,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('sourceLibrarySearchDisabled = sourceLibraryLoading || aiOsUnavailable');
     expect(source).toContain('on:submit|preventDefault={searchSourceLibrary}');
     expect(source).toContain('disabled={sourceLibrarySearchDisabled}');
+    expect(source).toContain('function researchServicesRefreshTitle');
+    expect(source).toContain('title={researchServicesRefreshTitle()}');
     expect(source).toContain('Connect AI OS');
     expect(source).toContain('let runActionId =');
     expect(source).toContain('selectedRunActionDisabled = !selectedRun || aiOsUnavailable || Boolean(runActionId)');
@@ -136,7 +138,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function endProductivityAction');
     expect(source).toContain('Another Productivity action is already running.');
     expect(source).toContain('Productivity is still loading the latest connection state.');
+    expect(source).toContain('function productivityReadTitle');
     expect(source).toContain('disabled={productivityWriteDisabled}');
+    expect(source).toContain("title={productivityReadTitle('Show the previous calendar week.')}");
+    expect(source).toContain("title={productivityReadTitle('Jump the calendar window to today.')}");
+    expect(source).toContain("title={productivityReadTitle('Show the next calendar week.')}");
     expect(source).toContain('Open the cached thread preview. Connect the API and Google to fetch full messages.');
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
@@ -173,6 +179,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function modeActionDisabled');
     expect(source).toContain('disabled={modeActionDisabled(item)}');
     expect(source).toContain('title={modeActionBlockedReason(item) || item.action.label}');
+    expect(source).toContain('function todayRefreshTitle');
+    expect(source).toContain('title={todayRefreshTitle()}');
   });
 
   it('keeps Career and Study inline edits read-only when save capability drops', async () => {
@@ -185,9 +193,11 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('disabled={!canSave || rowBusyId === job.id}');
     expect(career).toContain('function careerSaveTitle');
     expect(career).toContain('function careerRowTitle');
+    expect(career).toContain('function careerMailUpdatesTitle');
     expect(career).toContain('Company and role are required before saving a job.');
     expect(career).toContain('disabled={!canSave || saving || !company.trim() || !role.trim()}');
     expect(career).toContain('title={saveJobEditTitle()}');
+    expect(career).toContain('title={careerMailUpdatesTitle()}');
     expect(career).toContain('Offline read-only: start or connect the Mini Hub API before saving Career changes.');
     expect(career).toContain("careerViewStorageKey = 'miniHub.career.view.v1'");
     expect(career).toContain('function hydrateCareerViewState');

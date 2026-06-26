@@ -179,6 +179,13 @@
     await Promise.all([refreshRuns(), refreshSourceLibrary(), refreshMonitors()]);
   }
 
+  function researchServicesRefreshTitle(): string {
+    if (refreshing || monitorsLoading || sourceLibraryLoading) {
+      return 'Research service refresh is already running.';
+    }
+    return 'Retry AI OS research runs, monitors, and source library.';
+  }
+
   async function refreshSourceLibrary(): Promise<void> {
     sourceLibraryLoading = true;
     sourceLibraryError = '';
@@ -831,7 +838,13 @@
         <p>{localNetworkHint()}</p>
       </div>
       <div class="service-actions">
-        <button class="link-button compact" type="button" disabled={refreshing || monitorsLoading || sourceLibraryLoading} on:click={refreshResearchServices}>
+        <button
+          class="link-button compact"
+          type="button"
+          disabled={refreshing || monitorsLoading || sourceLibraryLoading}
+          title={researchServicesRefreshTitle()}
+          on:click={refreshResearchServices}
+        >
           <RefreshCw size={15} />
           <span>Retry Service</span>
         </button>

@@ -476,6 +476,12 @@
     await Promise.all([refreshCapabilities(snapshotGoogleConnected(snapshot)), refreshActionLedger()]);
   }
 
+  function todayRefreshTitle(): string {
+    if ($attentionStore.loading) return 'Today is still loading the attention snapshot.';
+    if ($attentionStore.refreshing) return 'Today is already refreshing attention sources.';
+    return 'Refresh Today from connected sources.';
+  }
+
   onMount(() => {
     void clientData.init();
     void attentionStore.init().then(() => refreshCapabilities(snapshotGoogleConnected($attentionStore.snapshot)));
@@ -514,7 +520,7 @@
         Ready
       {/if}
     </span>
-    <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} on:click={refreshToday}>
+    <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} title={todayRefreshTitle()} on:click={refreshToday}>
       <RefreshCw size={16} />
       <span>{$attentionStore.refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>

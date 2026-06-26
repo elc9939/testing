@@ -108,6 +108,10 @@
     return 'Save job changes.';
   }
 
+  function careerMailUpdatesTitle(): string {
+    return mailUpdatesLoading ? 'Career mail scan is already running.' : 'Scan connected Gmail for likely career updates.';
+  }
+
   function emptyJobDraft(): JobDraft {
     return { company: '', role: '', status: 'lead', applicationUrl: '', notes: '', nextActionAt: '' };
   }
@@ -543,7 +547,7 @@
       <RefreshCw size={17} />
       <span>Scan</span>
     </button>
-    <button class="button" type="button" disabled={mailUpdatesLoading} on:click={refreshCareerMailUpdates}>
+    <button class="button" type="button" disabled={mailUpdatesLoading} title={careerMailUpdatesTitle()} on:click={refreshCareerMailUpdates}>
       <Mail size={17} />
       <span>{mailUpdatesLoading ? 'Sorting' : 'Mail Updates'}</span>
     </button>
