@@ -122,7 +122,7 @@ const routes = [
     source: 'apps/hub/src/routes/settings/+page.svelte',
     service: 'Mini Hub API, AI OS API, Macro Lab API, browser storage',
     safeAction: 'Refresh Feature Wiring; save endpoint/theme changes only when target storage is ready.',
-    safeActionLabels: ['Check Services', 'Run Autotune', 'Retry Profile', 'Save Service URLs', 'Sync Now'],
+    safeActionLabels: ['Check Services', 'Run Autotune', 'Retry Profile', 'Save Passive Settings', 'Retry Passive', 'Save Service URLs', 'Sync Now'],
     expectedBlockedState: 'Feature Wiring table shows missing endpoint/service/setup and fix action.',
     persistence: 'Endpoints, theme, mode, diagnostics, and the Data & Recovery map should explain what reloads from browser/API/service storage.'
   },

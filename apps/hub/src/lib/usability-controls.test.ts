@@ -205,6 +205,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={Boolean(machineAutotuneBlockedReason)}');
     expect(source).toContain('disabled={Boolean(machineSnapshotBlockedReason)}');
     expect(source).toContain("{machineProfileError && !machineProfile ? 'Retry Profile' : 'Refresh Profile'}");
+    expect(source).toContain('passiveSettingsBlockedReason = passiveSettingsControlBlockedReason');
+    expect(source).toContain('function passiveSettingsControlBlockedReason');
+    expect(source).toContain('Passive Tasks API is reporting an error. Retry Passive settings before changing preferences.');
+    expect(source).toContain('disabled={Boolean(passiveSettingsBlockedReason)}');
+    expect(source).toContain("{passiveLoading ? 'Loading' : passiveError ? 'Retry Passive' : 'Refresh'}");
     expect(source).toContain('if (syncBusy || !$clientData.isOnline)');
     expect(source).toContain('disabled={syncBusy || !$clientData.isOnline}');
     expect(source).toContain('disabled={exportBusy}');

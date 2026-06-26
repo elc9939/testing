@@ -113,6 +113,12 @@
   $: machineSnapshotBlockedReason = machineProfileControlBlockedReason('snapshot');
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
   $: passiveSettings = passiveSnapshot?.settings ?? null;
+  $: passiveSettingsBlockedReason = passiveSettingsControlBlockedReason({
+    saving: passiveSaving,
+    loading: passiveLoading,
+    settings: passiveSettings,
+    error: passiveError
+  });
   $: passiveBackupHealth = passiveSnapshot?.backupHealth ?? null;
   $: passiveEnabledWatchers = passiveSnapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
   $: passiveFailures = passiveSnapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
@@ -222,7 +228,29 @@
       .filter(Boolean);
   }
 
+  function passiveSettingsControlBlockedReason(state: {
+    saving: boolean;
+    loading: boolean;
+    settings: PassiveSnapshot['settings'] | null;
+    error: string;
+  } = { saving: passiveSaving, loading: passiveLoading, settings: passiveSettings, error: passiveError }): string {
+    if (state.saving) return 'Passive task settings are already saving.';
+    if (state.loading) return 'Passive task settings are loading.';
+    if (!state.settings) {
+      return state.error
+        ? 'Passive Tasks API is unavailable. Start the Mini Hub API or fix the endpoint, then retry Passive settings.'
+        : 'Load Passive Task settings before changing worker, watcher, task, notification, or scope preferences.';
+    }
+    if (state.error) return 'Passive Tasks API is reporting an error. Retry Passive settings before changing preferences.';
+    return '';
+  }
+
   async function savePassiveSettings(): Promise<void> {
+    const blockedReason = passiveSettingsControlBlockedReason();
+    if (blockedReason) {
+      passiveError = blockedReason;
+      return;
+    }
     if (!passiveSettings) return;
     passiveSaving = true;
     passiveError = '';
@@ -244,6 +272,11 @@
   }
 
   async function updatePassivePreference(patch: Parameters<typeof patchPassiveSettings>[0]): Promise<void> {
+    const blockedReason = passiveSettingsControlBlockedReason();
+    if (blockedReason) {
+      passiveError = blockedReason;
+      return;
+    }
     passiveSaving = true;
     passiveError = '';
     passiveMessage = '';
@@ -991,7 +1024,8 @@
         <input
           type="checkbox"
           checked={passiveSettings.enabled}
-          disabled={passiveSaving}
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'Enable or disable the passive worker.'}
           on:change={(event) => updatePassivePreference({ enabled: event.currentTarget.checked })}
         />
         <span>
@@ -1003,7 +1037,8 @@
         <input
           type="checkbox"
           checked={passiveSettings.idleOnly}
-          disabled={passiveSaving}
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'Prefer idle-only passive work.'}
           on:change={(event) => updatePassivePreference({ idleOnly: event.currentTarget.checked })}
         />
         <span>
@@ -1015,7 +1050,8 @@
         <span>Notifications</span>
         <select
           value={passiveSettings.notificationStyle}
-          disabled={passiveSaving}
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'Choose how passive task notifications are recorded.'}
           on:change={(event) => updatePassivePreference({ notificationStyle: event.currentTarget.value as 'digest' | 'urgent_only' | 'off' })}
         >
           <option value="digest">Digest</option>
@@ -1027,7 +1063,8 @@
         <span>Resource limit</span>
         <select
           value={passiveSettings.resourceLimit}
-          disabled={passiveSaving}
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'Choose the passive task resource limit.'}
           on:change={(event) => updatePassivePreference({ resourceLimit: event.currentTarget.value as 'light' | 'balanced' | 'heavy' })}
         >
           <option value="light">Light</option>
@@ -1039,7 +1076,8 @@
         <span>AI preference</span>
         <select
           value={passiveSettings.localAiPreference}
-          disabled={passiveSaving}
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'Choose the passive task AI routing preference.'}
           on:change={(event) => updatePassivePreference({ localAiPreference: event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed' })}
         >
           <option value="local_first">Local first</option>
@@ -1054,7 +1092,8 @@
           min="1"
           max="10"
           value={passiveSettings.maxRunsPerTick}
-          disabled={passiveSaving}
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'Limit how many passive tasks can run per tick.'}
           on:change={(event) => updatePassivePreference({ maxRunsPerTick: Number(event.currentTarget.value) || 1 })}
         />
       </label>
@@ -1066,7 +1105,8 @@
           <input
             type="checkbox"
             checked={family.familyEnabled}
-            disabled={passiveSaving}
+            disabled={Boolean(passiveSettingsBlockedReason)}
+            title={passiveSettingsBlockedReason || `Enable or disable ${family.label}.`}
             on:change={(event) => updatePassiveFamily(family.family, event.currentTarget.checked)}
           />
           <span>
@@ -1081,25 +1121,55 @@
     <div class="passive-scope-grid">
       <label class="field">
         <span>Watched folders</span>
-        <textarea bind:value={passiveFolders} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
+        <textarea
+          bind:value={passiveFolders}
+          rows="4"
+          placeholder="C:\Users\Edward\Downloads"
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'One watched folder per line.'}
+        ></textarea>
       </label>
       <label class="field">
         <span>Watched research</span>
-        <textarea bind:value={passiveDomains} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
+        <textarea
+          bind:value={passiveDomains}
+          rows="5"
+          placeholder={watchedResearchPlaceholder}
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'One watched research source per line.'}
+        ></textarea>
       </label>
       <label class="field">
         <span>Watched accounts</span>
-        <textarea bind:value={passiveAccounts} rows="4" placeholder="personal@example.com"></textarea>
+        <textarea
+          bind:value={passiveAccounts}
+          rows="4"
+          placeholder="personal@example.com"
+          disabled={Boolean(passiveSettingsBlockedReason)}
+          title={passiveSettingsBlockedReason || 'One watched account per line.'}
+        ></textarea>
       </label>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={passiveSaving} on:click={savePassiveSettings}>
+      <button
+        class="button primary"
+        type="button"
+        disabled={Boolean(passiveSettingsBlockedReason)}
+        title={passiveSettingsBlockedReason || 'Save passive task settings.'}
+        on:click={savePassiveSettings}
+      >
         <Save size={17} />
         <span>{passiveSaving ? 'Saving' : 'Save Passive Settings'}</span>
       </button>
-      <button class="button" type="button" disabled={passiveLoading} on:click={refreshPassiveSettings}>
+      <button
+        class="button"
+        type="button"
+        disabled={passiveLoading}
+        title={passiveLoading ? 'Passive task settings are already loading.' : 'Reload Passive Task settings from the local API.'}
+        on:click={refreshPassiveSettings}
+      >
         <RefreshCw size={17} />
-        <span>{passiveLoading ? 'Loading' : 'Refresh'}</span>
+        <span>{passiveLoading ? 'Loading' : passiveError ? 'Retry Passive' : 'Refresh'}</span>
       </button>
     </div>
     {#if passiveMessage}
