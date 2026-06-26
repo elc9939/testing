@@ -15,6 +15,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={monitorsLoading || aiOsUnavailable}');
     expect(source).toContain('disabled={sourceLibraryLoading || aiOsUnavailable}');
     expect(source).toContain('Connect AI OS');
+    expect(source).toContain('let runActionId =');
+    expect(source).toContain('selectedRunActionDisabled = !selectedRun || aiOsUnavailable || Boolean(runActionId)');
+    expect(source).toContain('disabled={selectedRunActionDisabled}');
+    expect(source).toContain('function reportExportHref');
+    expect(source).toContain('Exports need AI OS; these links open Settings.');
   });
 
   it('keeps AI Lab classify and parse controls independent', async () => {

@@ -87,6 +87,7 @@
   let monitorSchedule: ResearchMonitorSchedule = 'manual';
   let monitorsLoading = false;
   let monitorActionId = '';
+  let runActionId = '';
   let draftHydrated = false;
   let requestedRunId = '';
 
@@ -101,6 +102,12 @@
   $: visibleSourceLibraryError = serviceIssue && sourceLibraryError === serviceIssue ? '' : sourceLibraryError;
   $: runsPanelState = researchRunListState({ loading: refreshing, error: visibleRunError, runCount: runs.length });
   $: serviceBlockedLabel = aiOsUnavailable ? 'Connect AI OS' : loading ? 'Queueing' : `Run ${currentMode?.label ?? 'Research'}`;
+  $: selectedRunActionDisabled = !selectedRun || aiOsUnavailable || Boolean(runActionId);
+  $: selectedRunActionTitle = aiOsUnavailable
+    ? 'Connect AI OS before controlling this research run.'
+    : runActionId
+      ? 'A research run action is already in progress.'
+      : '';
   $: if (draftHydrated) persistResearchDraft();
 
   onMount(() => {
@@ -375,6 +382,12 @@
   }
 
   async function cancelRun(run: ResearchRun): Promise<void> {
+    if (aiOsUnavailable) {
+      error = serviceIssue;
+      return;
+    }
+    if (runActionId) return;
+    runActionId = `${run.id}:cancel`;
     error = '';
     message = '';
     try {
@@ -384,15 +397,26 @@
       message = 'Research run cancelled.';
     } catch (err) {
       error = err instanceof Error ? err.message : 'Could not cancel research run.';
+    } finally {
+      runActionId = '';
     }
   }
 
   async function cancelSelectedRun(): Promise<void> {
-    if (!selectedRun) return;
+    if (!selectedRun || selectedRunActionDisabled) {
+      if (aiOsUnavailable) error = serviceIssue;
+      return;
+    }
     await cancelRun(selectedRun);
   }
 
   async function pauseRun(run: ResearchRun): Promise<void> {
+    if (aiOsUnavailable) {
+      error = serviceIssue;
+      return;
+    }
+    if (runActionId) return;
+    runActionId = `${run.id}:pause`;
     error = '';
     message = '';
     try {
@@ -402,10 +426,18 @@
       message = 'Research run paused.';
     } catch (err) {
       error = err instanceof Error ? err.message : 'Could not pause research run.';
+    } finally {
+      runActionId = '';
     }
   }
 
   async function resumeRun(run: ResearchRun): Promise<void> {
+    if (aiOsUnavailable) {
+      error = serviceIssue;
+      return;
+    }
+    if (runActionId) return;
+    runActionId = `${run.id}:resume`;
     error = '';
     message = '';
     try {
@@ -415,17 +447,37 @@
       message = 'Research run resumed.';
     } catch (err) {
       error = err instanceof Error ? err.message : 'Could not resume research run.';
+    } finally {
+      runActionId = '';
     }
   }
 
   async function pauseSelectedRun(): Promise<void> {
-    if (!selectedRun) return;
+    if (!selectedRun || selectedRunActionDisabled) {
+      if (aiOsUnavailable) error = serviceIssue;
+      return;
+    }
     await pauseRun(selectedRun);
   }
 
   async function resumeSelectedRun(): Promise<void> {
-    if (!selectedRun) return;
+    if (!selectedRun || selectedRunActionDisabled) {
+      if (aiOsUnavailable) error = serviceIssue;
+      return;
+    }
     await resumeRun(selectedRun);
+  }
+
+  function runActionBusy(run: ResearchRun, action: 'pause' | 'resume' | 'cancel'): boolean {
+    return runActionId === `${run.id}:${action}`;
+  }
+
+  function reportExportHref(run: ResearchRun, format: 'markdown' | 'json' | 'html'): string {
+    return aiOsUnavailable ? hubHref(routeMap.settings) : researchExportUrl(run.id, format);
+  }
+
+  function reportExportTitle(format: string): string {
+    return aiOsUnavailable ? `Connect AI OS before exporting this report as ${format}.` : `Export this report as ${format}.`;
   }
 
   function splitList(value: string): string[] {
@@ -1056,29 +1108,32 @@
         </div>
         <div class="export-actions">
           {#if isLiveRun(selectedRun)}
-            <button type="button" on:click={pauseSelectedRun}>
-              <Pause size={15} /> Pause
+            <button type="button" disabled={selectedRunActionDisabled} title={selectedRunActionTitle} on:click={pauseSelectedRun}>
+              <Pause size={15} /> {runActionBusy(selectedRun, 'pause') ? 'Pausing' : 'Pause'}
             </button>
-            <button type="button" on:click={cancelSelectedRun}>
-              <X size={15} /> Cancel
+            <button type="button" disabled={selectedRunActionDisabled} title={selectedRunActionTitle} on:click={cancelSelectedRun}>
+              <X size={15} /> {runActionBusy(selectedRun, 'cancel') ? 'Cancelling' : 'Cancel'}
             </button>
           {:else if isPausedRun(selectedRun)}
-            <button type="button" on:click={resumeSelectedRun}>
-              <Play size={15} /> Resume
+            <button type="button" disabled={selectedRunActionDisabled} title={selectedRunActionTitle} on:click={resumeSelectedRun}>
+              <Play size={15} /> {runActionBusy(selectedRun, 'resume') ? 'Resuming' : 'Resume'}
             </button>
-            <button type="button" on:click={cancelSelectedRun}>
-              <X size={15} /> Cancel
+            <button type="button" disabled={selectedRunActionDisabled} title={selectedRunActionTitle} on:click={cancelSelectedRun}>
+              <X size={15} /> {runActionBusy(selectedRun, 'cancel') ? 'Cancelling' : 'Cancel'}
             </button>
           {/if}
-          <a href={researchExportUrl(selectedRun.id, 'markdown')} target="_blank" rel="noreferrer">
+          <a class:setup-link={aiOsUnavailable} href={reportExportHref(selectedRun, 'markdown')} target={aiOsUnavailable ? undefined : '_blank'} rel="noreferrer" title={reportExportTitle('Markdown')}>
             <Download size={15} /> Markdown
           </a>
-          <a href={researchExportUrl(selectedRun.id, 'json')} target="_blank" rel="noreferrer">
+          <a class:setup-link={aiOsUnavailable} href={reportExportHref(selectedRun, 'json')} target={aiOsUnavailable ? undefined : '_blank'} rel="noreferrer" title={reportExportTitle('JSON')}>
             <Database size={15} /> JSON
           </a>
-          <a href={researchExportUrl(selectedRun.id, 'html')} target="_blank" rel="noreferrer">
+          <a class:setup-link={aiOsUnavailable} href={reportExportHref(selectedRun, 'html')} target={aiOsUnavailable ? undefined : '_blank'} rel="noreferrer" title={reportExportTitle('HTML')}>
             <ExternalLink size={15} /> HTML
           </a>
+          {#if aiOsUnavailable}
+            <small class="export-note">Exports need AI OS; these links open Settings.</small>
+          {/if}
         </div>
       </div>
 
@@ -1827,6 +1882,20 @@
 
   .export-actions button {
     font: inherit;
+  }
+
+  .export-actions button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .export-actions a.setup-link {
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+  }
+
+  .export-note {
+    color: var(--muted);
   }
 
   .progress-track {
