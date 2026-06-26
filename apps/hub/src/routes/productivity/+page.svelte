@@ -139,7 +139,9 @@
   $: googleConnected = googleConnections.length > 0;
   $: productivityReady = canAct && googleConnected;
   $: productivityReadReady = productivityReady && !loading;
-  $: productivityWriteDisabled = !productivityReady || Boolean(actionBusyKey);
+  $: productivityWriteDisabled = loading || !productivityReady || Boolean(actionBusyKey);
+  $: productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey);
+  $: productivityThreadOpenDisabled = Boolean(actionBusyKey);
   $: gmailReady = productivityReady && !gmailLoading;
   $: googleConnectDisabled = !canAct || googleOAuthOpening || Boolean(actionBusyKey);
   $: googleConnectTitle = !canAct
@@ -406,14 +408,39 @@
   }
 
   function productivityActionTitle(enabledTitle: string): string {
+    if (loading) return 'Productivity is still loading the latest connection state.';
     if (!productivityReady) return 'Connect the API and Google before using this action.';
     if (actionBusyKey) return 'Another Productivity action is already running.';
     return enabledTitle;
   }
 
+  function productivityRefreshTitle(): string {
+    if (actionBusyKey) return 'Another Productivity action is already running.';
+    if (loading) return 'Productivity is already loading.';
+    if (backgroundRefreshing) return 'Productivity is already refreshing.';
+    return 'Refresh calendar, mail, and connection data.';
+  }
+
+  function gmailRefreshTitle(): string {
+    if (actionBusyKey) return 'Another Productivity action is already running.';
+    if (!productivityReady) return 'Connect the API and Google to refresh Gmail. Cached mail remains readable.';
+    if (gmailLoading) return 'Priority Gmail is already refreshing.';
+    return 'Refresh priority Gmail threads.';
+  }
+
+  function gmailThreadOpenTitle(): string {
+    if (actionBusyKey) return 'Another Productivity action is already running.';
+    if (!productivityReady) return 'Open the cached thread preview. Connect the API and Google to fetch full messages.';
+    return 'Open Gmail thread and fetch the latest messages.';
+  }
+
   function beginProductivityAction(key: string, requiresGoogle = true): boolean {
     if (actionBusyKey) {
       actionError = 'Another Productivity action is already running.';
+      return false;
+    }
+    if (loading) {
+      actionError = 'Productivity is still loading the latest connection state.';
       return false;
     }
     if (requiresGoogle ? !productivityReady : !canAct) {
@@ -441,7 +468,10 @@
   }
 
   function openNewEvent(): void {
-    if (!productivityReady) return;
+    if (productivityWriteDisabled) {
+      actionError = productivityActionTitle('Create a Google Calendar event.');
+      return;
+    }
     editingEventId = '';
     eventDraft = emptyDraft();
     eventDialogOpen = true;
@@ -454,7 +484,10 @@
   }
 
   function openComposeDialog(): void {
-    if (!productivityReady) return;
+    if (productivityWriteDisabled) {
+      actionError = productivityActionTitle('Compose a Gmail message.');
+      return;
+    }
     composeDraft = emptyComposeDraft();
     composeDialogOpen = true;
   }
@@ -705,6 +738,13 @@
   }
 
   async function openGmailThread(thread: GmailThread): Promise<void> {
+    if (!productivityReady) {
+      selectedGmailThread = thread;
+      replyBody = '';
+      actionError = '';
+      actionMessage = 'Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.';
+      return;
+    }
     if (!beginProductivityAction(`gmail:open:${thread.id}`)) return;
     try {
       selectedGmailThread = await getGmailThread(thread.id);
@@ -917,7 +957,7 @@
       <Send size={17} />
       <span>Compose</span>
     </button>
-    <button class="button" type="button" disabled={loading || backgroundRefreshing || Boolean(actionBusyKey)} title={actionBusyKey ? 'Another Productivity action is already running.' : 'Refresh calendar, mail, and connection data.'} on:click={() => loadOverview()}>
+    <button class="button" type="button" disabled={productivityRefreshDisabled} title={productivityRefreshTitle()} on:click={() => loadOverview()}>
       <RefreshCw size={17} />
       <span>{backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
@@ -1139,7 +1179,7 @@
         <Sparkles size={18} />
         <strong>Priority Inbox</strong>
       </div>
-      <button class="button" type="button" disabled={!gmailReady || Boolean(actionBusyKey)} title={actionBusyKey ? 'Another Productivity action is already running.' : 'Refresh priority Gmail threads.'} on:click={refreshGmail}>
+      <button class="button" type="button" disabled={!gmailReady || Boolean(actionBusyKey)} title={gmailRefreshTitle()} on:click={refreshGmail}>
         <RefreshCw size={17} />
         <span>{gmailLoading ? 'Sorting' : 'Refresh'}</span>
       </button>
@@ -1183,7 +1223,7 @@
               <small class="triage-reason">{insight.reason}{insight.deadlineHint ? ` / ${insight.deadlineHint}` : ''}</small>
             </td>
             <td>
-              <button class="link-button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Open Gmail thread')} on:click={() => openGmailThread(thread)}>
+              <button class="link-button" type="button" disabled={productivityThreadOpenDisabled} title={gmailThreadOpenTitle()} on:click={() => openGmailThread(thread)}>
                 <strong>{thread.subject}</strong>
               </button>
               <p class="mail-summary">{summarizeEmailThread(thread)}</p>
@@ -1192,7 +1232,7 @@
             <td>{thread.from}</td>
             <td>{thread.date}</td>
             <td class="row-actions quick-row-actions">
-              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={`Open ${thread.subject}`} title={productivityActionTitle('Open thread')} on:click={() => openGmailThread(thread)}>
+              <button class="icon-button" type="button" disabled={productivityThreadOpenDisabled} aria-label={`Open ${thread.subject}`} title={gmailThreadOpenTitle()} on:click={() => openGmailThread(thread)}>
                 <Mail size={16} />
                 <span>{isActionBusy(`gmail:open:${thread.id}`) ? 'Opening' : 'Open'}</span>
               </button>

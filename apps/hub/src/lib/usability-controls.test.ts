@@ -117,14 +117,19 @@ describe('Mini Hub usability control gates', () => {
 
     expect(source).toContain('productivityReady = canAct && googleConnected');
     expect(source).toContain("let actionBusyKey = ''");
-    expect(source).toContain('productivityWriteDisabled = !productivityReady || Boolean(actionBusyKey)');
+    expect(source).toContain('productivityWriteDisabled = loading || !productivityReady || Boolean(actionBusyKey)');
+    expect(source).toContain('productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey)');
+    expect(source).toContain('productivityThreadOpenDisabled = Boolean(actionBusyKey)');
     expect(source).toContain('function beginProductivityAction');
     expect(source).toContain('function endProductivityAction');
     expect(source).toContain('Another Productivity action is already running.');
+    expect(source).toContain('Productivity is still loading the latest connection state.');
     expect(source).toContain('disabled={productivityWriteDisabled}');
+    expect(source).toContain('Open the cached thread preview. Connect the API and Google to fetch full messages.');
+    expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
     expect(source).toContain('hubHref(routeMap.settings)');
-    expect(source).toContain('disabled={loading || backgroundRefreshing || Boolean(actionBusyKey)}');
+    expect(source).toContain('disabled={productivityRefreshDisabled}');
   });
 
   it('makes Activity recovery state scannable instead of one vague active count', async () => {
