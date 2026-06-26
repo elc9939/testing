@@ -62,12 +62,18 @@
 
   let apiStatus = 'Not checked';
   let settingsError = '';
+  let settingsMessage = '';
   let serviceCheckedAt = '';
   let endpointMessage = '';
+  let endpointError = '';
   let hubApiInput = '';
   let aiOsInput = '';
   let macroLabInput = '';
   let googleConnected = false;
+  let serviceChecking = false;
+  let syncBusy = false;
+  let exportBusy = false;
+  let endpointSaving = false;
   let themeSaving = false;
   let modeSaving = false;
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
@@ -176,8 +182,14 @@
   }
 
   async function checkServices(): Promise<void> {
-    await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger(), refreshPassiveSettings()]);
-    serviceCheckedAt = new Date().toISOString();
+    if (serviceChecking) return;
+    serviceChecking = true;
+    try {
+      await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger(), refreshPassiveSettings()]);
+      serviceCheckedAt = new Date().toISOString();
+    } finally {
+      serviceChecking = false;
+    }
   }
 
   function syncPassiveEditor(next: PassiveSnapshot): void {
@@ -246,30 +258,55 @@
   }
 
   async function syncNow(): Promise<void> {
+    if (syncBusy || !$clientData.isOnline) {
+      settingsError = $clientData.isOnline ? 'Sync already running.' : 'Offline read-only: start the Mini Hub API before syncing.';
+      return;
+    }
+    syncBusy = true;
     settingsError = '';
+    settingsMessage = '';
     try {
       await clientData.syncNow();
       await refreshActionLedger();
+      settingsMessage = `Synced ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
     } catch (error) {
       settingsError = error instanceof Error ? error.message : 'Sync failed';
+    } finally {
+      syncBusy = false;
     }
   }
 
-  function loadEndpointInputs(): void {
+  function loadEndpointInputs(showMessage = false): void {
+    if (endpointSaving) return;
     hubApiInput = getApiUrl();
     aiOsInput = getAiOsApiUrl();
     macroLabInput = getMacroLabApiUrl();
+    endpointError = '';
+    if (showMessage) endpointMessage = 'Reloaded saved service URLs from this browser.';
   }
 
-  function saveEndpoints(): void {
-    setServiceEndpoints({
-      hubApi: hubApiInput,
-      aiOs: aiOsInput,
-      macroLab: macroLabInput
-    });
-    loadEndpointInputs();
-    endpointMessage = 'Saved. Service requests now use these URLs on this browser.';
-    void checkServices();
+  async function saveEndpoints(): Promise<void> {
+    if (endpointSaving) return;
+    endpointSaving = true;
+    endpointMessage = '';
+    endpointError = '';
+    try {
+      setServiceEndpoints({
+        hubApi: hubApiInput,
+        aiOs: aiOsInput,
+        macroLab: macroLabInput
+      });
+      hubApiInput = getApiUrl();
+      aiOsInput = getAiOsApiUrl();
+      macroLabInput = getMacroLabApiUrl();
+      endpointMessage = 'Saved. Checking services with the new URLs...';
+      await checkServices();
+      endpointMessage = 'Saved. Service requests now use these URLs on this browser.';
+    } catch (error) {
+      endpointError = error instanceof Error ? error.message : 'Service URL save failed.';
+    } finally {
+      endpointSaving = false;
+    }
   }
 
   async function chooseTheme(mode: ThemeMode): Promise<void> {
@@ -309,13 +346,24 @@
   }
 
   function exportCache(): void {
-    const blob = new Blob([JSON.stringify($clientData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'mini-hub-sync-cache.json';
-    link.click();
-    URL.revokeObjectURL(url);
+    if (exportBusy) return;
+    exportBusy = true;
+    settingsError = '';
+    settingsMessage = '';
+    try {
+      const blob = new Blob([JSON.stringify($clientData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'mini-hub-sync-cache.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      settingsMessage = 'Local cache export downloaded.';
+    } catch (error) {
+      settingsError = error instanceof Error ? error.message : 'Cache export failed.';
+    } finally {
+      exportBusy = false;
+    }
   }
 
   async function refreshCapabilities(): Promise<void> {
@@ -622,9 +670,9 @@
     <p class="eyebrow">Settings</p>
     <h1>Workspace</h1>
   </div>
-  <button class="button" type="button" disabled={capabilityLoading} on:click={checkServices}>
+  <button class="button" type="button" disabled={serviceChecking} title={serviceChecking ? 'Service check is already running.' : 'Check all configured local and browser services.'} on:click={checkServices}>
     <RefreshCw size={17} />
-    <span>{capabilityLoading ? 'Checking' : 'Check Services'}</span>
+    <span>{serviceChecking ? 'Checking' : 'Check Services'}</span>
   </button>
 </section>
 
@@ -1075,15 +1123,18 @@
       <div><dt>Local DB</dt><dd>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</dd></div>
     </dl>
     <div class="action-row">
-      <button class="button" type="button" on:click={syncNow}>
+      <button class="button" type="button" disabled={syncBusy || !$clientData.isOnline} title={$clientData.isOnline ? 'Sync local cache with the Mini Hub API.' : 'Offline read-only: start or connect the Mini Hub API before syncing.'} on:click={syncNow}>
         <Cloud size={17} />
-        <span>Sync Now</span>
+        <span>{syncBusy ? 'Syncing' : $clientData.isOnline ? 'Sync Now' : 'Offline Read-only'}</span>
       </button>
-      <button class="button" type="button" on:click={exportCache}>
+      <button class="button" type="button" disabled={exportBusy} title="Download the current browser cache as JSON." on:click={exportCache}>
         <Download size={17} />
-        <span>Export Cache</span>
+        <span>{exportBusy ? 'Exporting' : 'Export Cache'}</span>
       </button>
     </div>
+    {#if settingsMessage}
+      <p class="endpoint-message">{settingsMessage}</p>
+    {/if}
     {#if settingsError || $clientData.error}
       <p class="sync-error">{settingsError || $clientData.error}</p>
     {/if}
@@ -1156,29 +1207,32 @@
     <div class="endpoint-grid">
       <div class="field">
         <label for="hub-api-url">Mini Hub API</label>
-        <input id="hub-api-url" bind:value={hubApiInput} placeholder="http://192.168.1.25:8787" />
+        <input id="hub-api-url" bind:value={hubApiInput} disabled={endpointSaving} placeholder="http://192.168.1.25:8787" />
       </div>
       <div class="field">
         <label for="ai-os-url">AI OS API</label>
-        <input id="ai-os-url" bind:value={aiOsInput} placeholder="http://192.168.1.25:8791" />
+        <input id="ai-os-url" bind:value={aiOsInput} disabled={endpointSaving} placeholder="http://192.168.1.25:8791" />
       </div>
       <div class="field">
         <label for="macro-lab-url">Macro Lab API</label>
-        <input id="macro-lab-url" bind:value={macroLabInput} placeholder="http://192.168.1.25:8792" />
+        <input id="macro-lab-url" bind:value={macroLabInput} disabled={endpointSaving} placeholder="http://192.168.1.25:8792" />
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" on:click={saveEndpoints}>
+      <button class="button primary" type="button" disabled={endpointSaving} title={endpointSaving ? 'Saving service URLs and checking services.' : 'Save service URLs for this browser.'} on:click={saveEndpoints}>
         <Save size={17} />
-        <span>Save Service URLs</span>
+        <span>{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}</span>
       </button>
-      <button class="button" type="button" on:click={loadEndpointInputs}>
+      <button class="button" type="button" disabled={endpointSaving} title="Reload the service URLs saved in this browser." on:click={() => loadEndpointInputs(true)}>
         <Cloud size={17} />
         <span>Reload Values</span>
       </button>
     </div>
     {#if endpointMessage}
       <p class="endpoint-message">{endpointMessage}</p>
+    {/if}
+    {#if endpointError}
+      <p class="sync-error">{endpointError}</p>
     {/if}
   </div>
 </section>

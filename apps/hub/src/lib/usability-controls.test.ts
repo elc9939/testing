@@ -116,4 +116,19 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("{refreshBusy ? 'Refreshing' : 'Refresh'}");
     expect(source).toContain("refreshError ? 'Refresh Failed'");
   });
+
+  it('guards Settings sync, export, and endpoint actions with readable busy states', async () => {
+    const source = await routeSource('../routes/settings/+page.svelte');
+
+    expect(source).toContain('let serviceChecking = false');
+    expect(source).toContain('let syncBusy = false');
+    expect(source).toContain('let exportBusy = false');
+    expect(source).toContain('let endpointSaving = false');
+    expect(source).toContain('if (syncBusy || !$clientData.isOnline)');
+    expect(source).toContain('disabled={syncBusy || !$clientData.isOnline}');
+    expect(source).toContain('disabled={exportBusy}');
+    expect(source).toContain('disabled={endpointSaving}');
+    expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");
+    expect(source).toContain('Offline read-only: start or connect the Mini Hub API before syncing.');
+  });
 });
