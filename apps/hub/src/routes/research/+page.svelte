@@ -102,6 +102,12 @@
   $: visibleSourceLibraryError = serviceIssue && sourceLibraryError === serviceIssue ? '' : sourceLibraryError;
   $: runsPanelState = researchRunListState({ loading: refreshing, error: visibleRunError, runCount: runs.length });
   $: serviceBlockedLabel = aiOsUnavailable ? 'Connect AI OS' : loading ? 'Queueing' : `Run ${currentMode?.label ?? 'Research'}`;
+  $: sourceLibrarySearchDisabled = sourceLibraryLoading || aiOsUnavailable;
+  $: sourceLibrarySearchTitle = aiOsUnavailable
+    ? 'Connect AI OS before searching the archived source library.'
+    : sourceLibraryLoading
+      ? 'Source library search is already running.'
+      : 'Search archived Research Desk source cards.';
   $: selectedRunActionDisabled = !selectedRun || aiOsUnavailable || Boolean(runActionId);
   $: selectedRunActionTitle = aiOsUnavailable
     ? 'Connect AI OS before controlling this research run.'
@@ -109,6 +115,30 @@
       ? 'A research run action is already in progress.'
       : '';
   $: if (draftHydrated) persistResearchDraft();
+
+  function monitorActionBlockedReason(monitor?: ResearchMonitor): string {
+    if (aiOsUnavailable) return 'Connect AI OS before changing research monitors.';
+    if (monitorsLoading) return 'Research monitors are loading or syncing.';
+    if (monitorActionId && (!monitor || !monitorActionId.startsWith(`${monitor.id}:`))) {
+      return 'Another research monitor action is already running.';
+    }
+    if (monitorActionId && monitor && monitorActionId.startsWith(`${monitor.id}:`)) {
+      return 'This research monitor action is already running.';
+    }
+    return '';
+  }
+
+  function monitorActionDisabled(monitor?: ResearchMonitor): boolean {
+    return Boolean(monitorActionBlockedReason(monitor));
+  }
+
+  function monitorActionTitle(enabledTitle: string, monitor?: ResearchMonitor): string {
+    return monitorActionBlockedReason(monitor) || enabledTitle;
+  }
+
+  function monitorActionBusy(monitor: ResearchMonitor, action: 'run' | 'toggle' | 'delete'): boolean {
+    return monitorActionId === `${monitor.id}:${action}`;
+  }
 
   onMount(() => {
     hydrateResearchDraft();
@@ -198,6 +228,7 @@
   }
 
   async function runResearch(): Promise<void> {
+    if (loading) return;
     if (aiOsUnavailable) {
       error = serviceIssue;
       return;
@@ -222,8 +253,9 @@
   }
 
   async function saveCurrentMonitor(): Promise<void> {
-    if (aiOsUnavailable) {
-      monitorError = serviceIssue;
+    const blocked = monitorActionBlockedReason();
+    if (blocked) {
+      monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
     }
     if (!goal.trim()) {
@@ -254,11 +286,12 @@
   }
 
   async function toggleMonitor(monitor: ResearchMonitor): Promise<void> {
-    if (aiOsUnavailable) {
-      monitorError = serviceIssue;
+    const blocked = monitorActionBlockedReason(monitor);
+    if (blocked) {
+      monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
     }
-    monitorActionId = monitor.id;
+    monitorActionId = `${monitor.id}:toggle`;
     monitorError = '';
     monitorMessage = '';
     try {
@@ -272,11 +305,12 @@
   }
 
   async function runMonitor(monitor: ResearchMonitor): Promise<void> {
-    if (aiOsUnavailable) {
-      monitorError = serviceIssue;
+    const blocked = monitorActionBlockedReason(monitor);
+    if (blocked) {
+      monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
     }
-    monitorActionId = monitor.id;
+    monitorActionId = `${monitor.id}:run`;
     monitorError = '';
     monitorMessage = '';
     try {
@@ -293,8 +327,9 @@
   }
 
   async function runDueMonitors(): Promise<void> {
-    if (aiOsUnavailable) {
-      monitorError = serviceIssue;
+    const blocked = monitorActionBlockedReason();
+    if (blocked) {
+      monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
     }
     monitorsLoading = true;
@@ -320,14 +355,18 @@
   }
 
   async function removeMonitor(monitor: ResearchMonitor): Promise<void> {
-    if (aiOsUnavailable) {
-      monitorError = serviceIssue;
+    const blocked = monitorActionBlockedReason(monitor);
+    if (blocked) {
+      monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
     }
-    if (!window.confirm(`Delete research monitor "${monitor.name}"? Archived reports stay saved.`)) return;
-    monitorActionId = monitor.id;
+    monitorActionId = `${monitor.id}:delete`;
     monitorError = '';
     monitorMessage = '';
+    if (!window.confirm(`Delete research monitor "${monitor.name}"? Archived reports stay saved.`)) {
+      monitorActionId = '';
+      return;
+    }
     try {
       await deleteResearchMonitor(monitor.id);
       monitors = monitors.filter((item) => item.id !== monitor.id);
@@ -719,6 +758,14 @@
     sourceLibraryMessage = 'Added archived source to Seed URLs for the next run.';
   }
 
+  async function searchSourceLibrary(): Promise<void> {
+    if (sourceLibrarySearchDisabled) {
+      if (aiOsUnavailable) sourceLibraryError = serviceIssue;
+      return;
+    }
+    await refreshSourceLibrary();
+  }
+
   function normalizeTextUrl(url: string): string {
     return url.trim();
   }
@@ -934,11 +981,11 @@
         <p>Save a reusable research setup, then run it again when you want a fresh report.</p>
       </div>
       <div class="monitor-heading-actions">
-        <button class="link-button compact" type="button" disabled={monitorsLoading || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before running monitors.' : ''} on:click={runDueMonitors}>
+        <button class="link-button compact" type="button" disabled={monitorActionDisabled()} title={monitorActionTitle('Run due daily and weekly monitors.')} on:click={runDueMonitors}>
           <Play size={15} />
-          <span>{aiOsUnavailable ? 'Connect AI OS' : 'Run Due'}</span>
+          <span>{aiOsUnavailable ? 'Connect AI OS' : monitorActionId === 'due-sweep' ? 'Running Due' : 'Run Due'}</span>
         </button>
-        <button class="icon-button" type="button" disabled={monitorsLoading} title="Refresh monitors" on:click={refreshMonitors}>
+        <button class="icon-button" type="button" disabled={monitorsLoading || Boolean(monitorActionId)} title={monitorActionId ? 'Another research monitor action is already running.' : 'Refresh monitors'} on:click={refreshMonitors}>
           <RefreshCw size={17} />
         </button>
       </div>
@@ -957,7 +1004,7 @@
           <option value="weekly">Weekly</option>
         </select>
       </label>
-      <button class="link-button" type="button" disabled={monitorsLoading || !goal.trim() || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before saving monitors.' : ''} on:click={saveCurrentMonitor}>
+      <button class="link-button" type="button" disabled={monitorActionDisabled() || !goal.trim()} title={monitorActionTitle('Save the current workbench as a reusable monitor.')} on:click={saveCurrentMonitor}>
         <Bell size={15} />
         <span>{aiOsUnavailable ? 'Connect AI OS' : 'Save Current Setup'}</span>
       </button>
@@ -983,17 +1030,17 @@
             <p>{monitor.request.goal}</p>
             {#if monitor.last_error}<p class="error-message compact-message">{monitor.last_error}</p>{/if}
             <div class="monitor-actions">
-              <button type="button" disabled={monitorActionId === monitor.id || aiOsUnavailable} on:click={() => runMonitor(monitor)}>
+              <button type="button" disabled={monitorActionDisabled(monitor)} title={monitorActionTitle('Run this monitor now.', monitor)} on:click={() => runMonitor(monitor)}>
                 <Play size={15} />
-                <span>Run Now</span>
+                <span>{monitorActionBusy(monitor, 'run') ? 'Running' : 'Run Now'}</span>
               </button>
               <button type="button" on:click={() => loadMonitorIntoForm(monitor)}>Load</button>
-              <button type="button" disabled={monitorActionId === monitor.id || aiOsUnavailable} on:click={() => toggleMonitor(monitor)}>
-                {monitor.enabled ? 'Disable' : 'Enable'}
+              <button type="button" disabled={monitorActionDisabled(monitor)} title={monitorActionTitle(monitor.enabled ? 'Disable this monitor.' : 'Enable this monitor.', monitor)} on:click={() => toggleMonitor(monitor)}>
+                {monitorActionBusy(monitor, 'toggle') ? 'Saving' : monitor.enabled ? 'Disable' : 'Enable'}
               </button>
-              <button class="danger-button" type="button" disabled={monitorActionId === monitor.id || aiOsUnavailable} on:click={() => removeMonitor(monitor)}>
+              <button class="danger-button" type="button" disabled={monitorActionDisabled(monitor)} title={monitorActionTitle('Delete this monitor without deleting archived reports.', monitor)} on:click={() => removeMonitor(monitor)}>
                 <Trash2 size={15} />
-                <span>Delete</span>
+                <span>{monitorActionBusy(monitor, 'delete') ? 'Deleting' : 'Delete'}</span>
               </button>
             </div>
           </article>
@@ -1013,12 +1060,12 @@
         <h2>Source Library</h2>
         <p>Search reusable source cards already fetched by Research Desk runs.</p>
       </div>
-      <button class="icon-button" type="button" disabled={sourceLibraryLoading} title="Refresh source library" on:click={refreshSourceLibrary}>
+      <button class="icon-button" type="button" disabled={sourceLibrarySearchDisabled} title={sourceLibrarySearchTitle} on:click={refreshSourceLibrary}>
         <RefreshCw size={17} />
       </button>
     </div>
 
-    <form class="source-library-controls" on:submit|preventDefault={refreshSourceLibrary}>
+    <form class="source-library-controls" on:submit|preventDefault={searchSourceLibrary}>
       <label>
         <span>Search archived text</span>
         <input bind:value={sourceQuery} placeholder="evidence, company, model, benchmark..." />
@@ -1027,7 +1074,7 @@
         <span>Domain filter</span>
         <input bind:value={sourceDomain} placeholder="example.com" />
       </label>
-      <button class="link-button" type="submit" disabled={sourceLibraryLoading || aiOsUnavailable} title={aiOsUnavailable ? 'Connect AI OS before searching sources.' : ''}>
+      <button class="link-button" type="submit" disabled={sourceLibrarySearchDisabled} title={sourceLibrarySearchTitle}>
         <Search size={15} />
         <span>{aiOsUnavailable ? 'Connect AI OS' : sourceLibraryLoading ? 'Searching' : 'Search Sources'}</span>
       </button>

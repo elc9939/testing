@@ -12,8 +12,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('serviceIssue = compactResearchServiceIssue');
     expect(source).toContain('class="service-card"');
     expect(source).toContain('disabled={loading || aiOsUnavailable}');
-    expect(source).toContain('disabled={monitorsLoading || aiOsUnavailable}');
-    expect(source).toContain('disabled={sourceLibraryLoading || aiOsUnavailable}');
+    expect(source).toContain('function monitorActionBlockedReason');
+    expect(source).toContain('Another research monitor action is already running.');
+    expect(source).toContain('disabled={monitorActionDisabled(monitor)}');
+    expect(source).toContain('sourceLibrarySearchDisabled = sourceLibraryLoading || aiOsUnavailable');
+    expect(source).toContain('on:submit|preventDefault={searchSourceLibrary}');
+    expect(source).toContain('disabled={sourceLibrarySearchDisabled}');
     expect(source).toContain('Connect AI OS');
     expect(source).toContain('let runActionId =');
     expect(source).toContain('selectedRunActionDisabled = !selectedRun || aiOsUnavailable || Boolean(runActionId)');
