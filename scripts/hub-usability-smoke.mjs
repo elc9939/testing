@@ -14,7 +14,13 @@ const routes = [
     safeAction: 'Refresh Today; blocked source rows should remain partial, not page-fatal.',
     safeActionLabels: ['Refresh'],
     expectedBlockedState: 'Partial source rows and Settings links, not a blank cockpit.',
-    persistence: 'Attention snapshot should reload from cache while live sources refresh.'
+    persistence: 'Attention snapshot should reload from cache while live sources refresh.',
+    requiredMarkers: [
+      { label: 'partial source issues', text: 'sourceIssues' },
+      { label: 'setup warning panels', text: 'warning-panel' },
+      { label: 'unavailable source state', text: "status: 'unavailable'" },
+      { label: 'recommendation action gating', text: 'modeActionDisabled' }
+    ]
   },
   {
     id: 'activity',
@@ -24,7 +30,13 @@ const routes = [
     safeAction: 'Refresh Activity; source failures should show as partial/stale rows.',
     safeActionLabels: ['Refresh'],
     expectedBlockedState: 'Source strip explains timeout/offline/cached state per backend.',
-    persistence: 'Durable runs/jobs/history should reappear after refresh or route changes.'
+    persistence: 'Durable runs/jobs/history should reappear after refresh or route changes.',
+    requiredMarkers: [
+      { label: 'source failure list', text: 'sourceFailures' },
+      { label: 'cached records state', text: 'showing cached records from' },
+      { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
+      { label: 'settings recovery link', text: "href={hubHref('/settings')}" }
+    ]
   },
   {
     id: 'productivity',
@@ -34,7 +46,13 @@ const routes = [
     safeAction: 'Refresh overview; writes stay disabled unless API and Google are ready.',
     safeActionLabels: ['Refresh', 'Connect Google', 'Add Google Account'],
     expectedBlockedState: 'Cached mail/calendar can show; OAuth and write buttons route to setup or stay disabled.',
-    persistence: 'Local snapshot, filters, and selected Google cache should reload from browser storage.'
+    persistence: 'Local snapshot, filters, and selected Google cache should reload from browser storage.',
+    requiredMarkers: [
+      { label: 'write gating', text: 'productivityWriteDisabled' },
+      { label: 'offline cache banner', text: 'offline-banner' },
+      { label: 'cached productivity wording', text: 'cached productivity data can stay visible' },
+      { label: 'OAuth gating', text: 'googleConnectDisabled' }
+    ]
   },
   {
     id: 'career',
@@ -44,7 +62,13 @@ const routes = [
     safeAction: 'Filter/export; add/edit requires online Mini Hub API.',
     safeActionLabels: ['Export', 'Add Job'],
     expectedBlockedState: 'Offline read-only explains cached jobs and disables saves.',
-    persistence: 'Jobs, filters, save confirmations, and exports should survive or clearly report reload from API/cache/browser storage.'
+    persistence: 'Jobs, filters, save confirmations, and exports should survive or clearly report reload from API/cache/browser storage.',
+    requiredMarkers: [
+      { label: 'offline read-only banner', text: 'Offline: cached jobs are readable, saving is disabled.' },
+      { label: 'view storage key', text: 'careerViewStorageKey' },
+      { label: 'save title helper', text: 'careerSaveTitle' },
+      { label: 'saved/reloaded feedback', text: 'success-banner' }
+    ]
   },
   {
     id: 'study',
@@ -54,7 +78,13 @@ const routes = [
     safeAction: 'Review progress; logging requires online Mini Hub API.',
     safeActionLabels: ['Log', 'Export'],
     expectedBlockedState: 'Offline read-only explains cached sessions and disables logging.',
-    persistence: 'Logged sessions, filters, quick-log defaults, and analytics should reload from API/cache/browser storage.'
+    persistence: 'Logged sessions, filters, quick-log defaults, and analytics should reload from API/cache/browser storage.',
+    requiredMarkers: [
+      { label: 'offline read-only banner', text: 'Offline: cached study logs are readable, saving is disabled.' },
+      { label: 'view storage key', text: 'studyViewStorageKey' },
+      { label: 'save title helper', text: 'studySaveTitle' },
+      { label: 'saved/reloaded feedback', text: 'success-banner' }
+    ]
   },
   {
     id: 'analytics',
@@ -64,7 +94,13 @@ const routes = [
     safeAction: 'Refresh cache-backed analytics; healthy-empty is acceptable.',
     safeActionLabels: ['Refresh'],
     expectedBlockedState: 'Loading, healthy-empty, offline, and cache-error states are distinct.',
-    persistence: 'Charts should recompute from cached Career/Study/game data after reload.'
+    persistence: 'Charts should recompute from cached Career/Study/game data after reload.',
+    requiredMarkers: [
+      { label: 'cached/offline state', text: "viewState === 'offline'" },
+      { label: 'healthy empty state', text: 'Healthy Empty' },
+      { label: 'refresh failure state', text: 'Refresh Failed' },
+      { label: 'refresh busy gate', text: 'refreshBusy' }
+    ]
   },
   {
     id: 'research',
@@ -74,7 +110,14 @@ const routes = [
     safeAction: 'Run sample goal only when AI OS is connected; otherwise Connect AI OS is disabled/actionable.',
     safeActionLabels: ['Run', 'Connect AI OS', 'Refresh'],
     expectedBlockedState: 'One compact AI OS setup card; no fake run appears when offline.',
-    persistence: 'Draft goal/options/seed URLs, selected report, loaded monitor, and latest active run should restore after navigation.'
+    persistence: 'Draft goal/options/seed URLs, selected report, loaded monitor, and latest active run should restore after navigation.',
+    requiredMarkers: [
+      { label: 'compact service issue', text: 'serviceIssue = compactResearchServiceIssue' },
+      { label: 'AI OS unavailable gate', text: 'aiOsUnavailable' },
+      { label: 'selected run recovery', text: 'selectedRunId: selectedRun?.id ?? persistedRunId' },
+      { label: 'source library gating', text: 'sourceLibrarySearchDisabled' },
+      { label: 'export setup routing', text: 'reportExportHref' }
+    ]
   },
   {
     id: 'ai-lab',
@@ -84,7 +127,13 @@ const routes = [
     safeAction: 'Classify sample text and parse sample code independently.',
     safeActionLabels: ['Classify', 'Parse'],
     expectedBlockedState: 'Asset/model failures show in the relevant classify or parse panel only.',
-    persistence: 'Sample inputs can be rerun without AI OS; no backend work should disappear.'
+    persistence: 'Sample inputs can be rerun without AI OS; no backend work should disappear.',
+    requiredMarkers: [
+      { label: 'independent classify busy state', text: 'classifyBusy' },
+      { label: 'independent parse busy state', text: 'parseBusy' },
+      { label: 'browser draft status', text: 'draftStatus' },
+      { label: 'result panels', text: 'result-grid' }
+    ]
   },
   {
     id: 'ai-os',
@@ -94,7 +143,14 @@ const routes = [
     safeAction: 'Refresh status; work buttons stay disabled until AI OS status is loaded.',
     safeActionLabels: ['Refresh', 'Do it'],
     expectedBlockedState: 'Unavailable AI OS is a service state, not a whole-app failure.',
-    persistence: 'Jobs, usage, benchmarks, and tool logs should reload from AI OS storage.'
+    persistence: 'Jobs, usage, benchmarks, and tool logs should reload from AI OS storage.',
+    requiredMarkers: [
+      { label: 'AI OS action gate', text: 'aiOsActionBlocked' },
+      { label: 'connection card', text: 'connection-card' },
+      { label: 'settings recovery link', text: 'Open Settings' },
+      { label: 'warmup gate', text: 'warmupBlockedReason' },
+      { label: 'job cancel gate', text: 'jobCancelBlockedReason' }
+    ]
   },
   {
     id: 'macro-lab',
@@ -104,7 +160,13 @@ const routes = [
     safeAction: 'Refresh state; panic/run/reset stay disabled until Macro Lab state is known.',
     safeActionLabels: ['Refresh', 'Panic', 'Run'],
     expectedBlockedState: 'Panic/reset/run controls are disabled until Macro Lab state is known.',
-    persistence: 'Run history and trigger status should reload from Macro Lab storage.'
+    persistence: 'Run history and trigger status should reload from Macro Lab storage.',
+    requiredMarkers: [
+      { label: 'service readiness state', text: 'macroServiceReady' },
+      { label: 'macro control gate', text: 'macroControlDisabled' },
+      { label: 'connection card', text: 'connection-card' },
+      { label: 'history unavailable state', text: 'Run history is unavailable until Macro Lab responds.' }
+    ]
   },
   {
     id: 'passive-tasks',
@@ -114,7 +176,14 @@ const routes = [
     safeAction: 'Refresh snapshot; run controls stay disabled until snapshot/settings load.',
     safeActionLabels: ['Refresh', 'Run Due', 'Startup', 'Idle'],
     expectedBlockedState: 'Run Due/Startup/Idle stay disabled until worker snapshot is loaded.',
-    persistence: 'Worker state, last digest, and run history should reload from backend/cache.'
+    persistence: 'Worker state, last digest, and run history should reload from backend/cache.',
+    requiredMarkers: [
+      { label: 'service readiness state', text: 'passiveServiceReady' },
+      { label: 'write gating', text: 'passiveWriteDisabled' },
+      { label: 'service card', text: 'service-card' },
+      { label: 'offline wording', text: 'Passive Tasks API unavailable' },
+      { label: 'source health empty state', text: 'Source health appears after passive tasks are registered.' }
+    ]
   },
   {
     id: 'settings',
@@ -124,7 +193,14 @@ const routes = [
     safeAction: 'Refresh Feature Wiring; save endpoint/theme changes only when target storage is ready.',
     safeActionLabels: ['Check Services', 'Run Autotune', 'Retry Profile', 'Save Passive Settings', 'Retry Passive', 'Save Service URLs', 'Sync Now'],
     expectedBlockedState: 'Feature Wiring table shows missing endpoint/service/setup and fix action.',
-    persistence: 'Endpoints, theme, mode, diagnostics, and the Data & Recovery map should explain what reloads from browser/API/service storage.'
+    persistence: 'Endpoints, theme, mode, diagnostics, and the Data & Recovery map should explain what reloads from browser/API/service storage.',
+    requiredMarkers: [
+      { label: 'feature wiring table', text: 'Feature Wiring' },
+      { label: 'data recovery map', text: 'persistenceRows' },
+      { label: 'sync gate title', text: 'syncNowTitle' },
+      { label: 'machine profile gate', text: 'machineProfileControlBlockedReason' },
+      { label: 'passive settings gate', text: 'passiveSettingsControlBlockedReason' }
+    ]
   },
   {
     id: 'games',
@@ -134,7 +210,12 @@ const routes = [
     safeAction: 'Open launcher entries; save buttons should show offline/read-only state when API is unavailable.',
     safeActionLabels: ['Legacy Arcade', 'Open'],
     expectedBlockedState: 'Legacy/playground games remain launchable; API-backed saves explain offline state.',
-    persistence: 'High scores/game state should reload from cache/API where supported.'
+    persistence: 'High scores/game state should reload from cache/API where supported.',
+    requiredMarkers: [
+      { label: 'new lab route', text: "hubHref('/games/stick-arena-lab')" },
+      { label: 'legacy fallback route', text: 'legacyHref()' },
+      { label: 'legacy arcade label', text: 'Legacy Arcade' }
+    ]
   }
 ];
 
@@ -213,6 +294,25 @@ function safeActionStatus(route, buttons) {
   };
 }
 
+function sourceMarkerStatus(route, source) {
+  return (route.requiredMarkers ?? []).map((marker) => ({
+    ...marker,
+    found: source.includes(marker.text)
+  }));
+}
+
+function missingMarkers(row) {
+  return (row.markerStatus ?? []).filter((marker) => !marker.found);
+}
+
+function markerSummary(row) {
+  const markers = row.markerStatus ?? [];
+  if (!markers.length) return 'none';
+  const missing = missingMarkers(row);
+  if (!missing.length) return `ok ${markers.length}/${markers.length}`;
+  return `missing ${missing.map((marker) => marker.label).join(', ')}`;
+}
+
 function liveRenderState(row) {
   if (!row) return 'not run';
   if (!row.ok) return `failed ${row.status}`;
@@ -243,6 +343,7 @@ async function sourceSnapshot(route) {
   const errors = count(/(?:error-message|error-banner|warning-panel|offline-banner|service-card|connection-card)/giu, source);
   const settingsLinks = count(/routeMap\.settings|Open Settings|href=\{hubHref\(routeMap\.settings\)\}/giu, source);
   const safeActionRefs = (route.safeActionLabels ?? []).filter((label) => source.toLowerCase().includes(label.toLowerCase()));
+  const markerStatus = sourceMarkerStatus(route, source);
   return {
     ...route,
     title,
@@ -252,6 +353,7 @@ async function sourceSnapshot(route) {
     errors,
     settingsLinks,
     safeActionRefs,
+    markerStatus,
     sourceOk: Boolean(title && heading)
   };
 }
@@ -295,15 +397,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Disabled refs | Safe action refs | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
-  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Disabled refs | Safe action refs | State markers | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
+  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${liveSafeActionSummary(live)} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
     );
   }
 }
@@ -323,6 +425,7 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log('');
     console.log(`- [ ] Open ${live?.url ?? row.path} and confirm title "${row.title || 'MISSING'}" plus heading "${row.heading || 'MISSING'}".`);
     console.log(`- [ ] Confirm service state is understandable for: ${row.service}.`);
+    console.log(`- [ ] Confirm required state/recovery markers: ${markerSummary(row)}.`);
     console.log(`- [ ] Exercise safe action: ${row.safeAction}`);
     console.log(`- [ ] If prerequisites are missing, verify blocked/setup state: ${row.expectedBlockedState}`);
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
@@ -356,7 +459,7 @@ async function main() {
     printMarkdown(rows, liveRows);
   }
 
-  const failures = rows.filter((row) => !row.sourceOk || !row.safeActionRefs.length);
+  const failures = rows.filter((row) => !row.sourceOk || !row.safeActionRefs.length || missingMarkers(row).length);
   const liveFailures = [...liveRows.values()].filter((row) => !row.ok || row.rawNotFound);
   if (failures.length || liveFailures.length) {
     console.error(`Mini Hub usability smoke found ${failures.length} source issue(s) and ${liveFailures.length} live route issue(s).`);

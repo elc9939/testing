@@ -590,7 +590,9 @@ pnpm qa:hub:smoke -- --checklist
 
 The smoke check records each visible hub route's title, main heading, service dependency,
 button/disabled-control counts, expected blocked/setup state, expected safe-action labels,
-and reload persistence expectation. With `HUB_SMOKE_URL` set, it also fetches the rendered
+required state/recovery markers, and reload persistence expectation. It now fails if a
+route loses source markers for the setup, offline/cache, recovery, or control-gating state
+that makes the page understandable. With `HUB_SMOKE_URL` set, it also fetches the rendered
 route HTML and records the live title, heading, enabled/disabled buttons, state/error
 snippets, safe-action availability, and raw `Not Found` leakage so hosted-vs-local handoff
 problems are visible before a manual browser pass.
