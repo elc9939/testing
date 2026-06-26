@@ -141,6 +141,48 @@
   function isActiveRecord(record: ActivityRecord): boolean {
     return ['queued', 'running', 'paused'].includes(record.status);
   }
+
+  function sourceIdFor(record: ActivityRecord): string {
+    if (record.source === 'research' || record.source === 'ai-os') return 'ai-os';
+    return record.source;
+  }
+
+  function sourceStateFor(record: ActivityRecord): ActivitySourceState | undefined {
+    return sources.find((source) => source.id === sourceIdFor(record));
+  }
+
+  function sourceReachable(record: ActivityRecord): boolean {
+    const source = sourceStateFor(record);
+    return Boolean(source?.ok);
+  }
+
+  function actionBlockedReason(record: ActivityRecord, action: ActivityAction): string {
+    if (!action.enabled) return `${action.label} is not available for this ${activityStatusLabel(record.status)} item.`;
+    if (action.kind === 'open' || action.kind === 'view_logs' || action.kind === 'dismiss') return '';
+    const source = sourceStateFor(record);
+    if (!source?.ok) {
+      const detail = source?.state === 'timeout' ? 'timed out' : source?.error || 'is offline';
+      return `${record.sourceLabel} ${detail}; refresh or open Settings before running ${action.label}.`;
+    }
+    if (busyKey === `${record.id}:${action.kind}`) return `${action.label} is already running.`;
+    return '';
+  }
+
+  function actionDisabled(record: ActivityRecord, action: ActivityAction): boolean {
+    return Boolean(actionBlockedReason(record, action));
+  }
+
+  function actionHref(record: ActivityRecord, action: ActivityAction): string {
+    if (action.enabled || sourceReachable(record)) return hubHref(action.route || record.route);
+    return hubHref('/settings');
+  }
+
+  function linkActionTitle(record: ActivityRecord, action: ActivityAction): string {
+    const blocked = actionBlockedReason(record, action);
+    if (blocked) return blocked;
+    if (!sourceReachable(record)) return `Open ${record.sourceLabel}; the backend may still show a setup or offline state.`;
+    return action.label;
+  }
 </script>
 
 <svelte:head>
@@ -305,14 +347,20 @@
     <div class="activity-actions">
       {#each record.actions as action}
         {#if action.kind === 'open' || action.kind === 'view_logs'}
-          <a class:disabled={!action.enabled} href={hubHref(action.route || record.route)}>
+          <a
+            class:disabled={!action.enabled && !sourceReachable(record)}
+            href={actionHref(record, action)}
+            aria-disabled={!action.enabled && !sourceReachable(record)}
+            title={linkActionTitle(record, action)}
+          >
             <svelte:component this={actionIcon(action.kind)} size={15} />
-            <span>{action.label}</span>
+            <span>{!action.enabled && !sourceReachable(record) ? 'Open Settings' : action.label}</span>
           </a>
         {:else}
           <button
             type="button"
-            disabled={!action.enabled || busyKey === `${record.id}:${action.kind}`}
+            disabled={actionDisabled(record, action)}
+            title={actionBlockedReason(record, action)}
             on:click={() => onRun(record, action)}
           >
             <svelte:component this={actionIcon(action.kind)} size={15} />
