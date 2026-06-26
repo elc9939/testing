@@ -84,4 +84,14 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('if (!canSave || editingSessionId || rowBusyId) return');
     expect(study).toContain('disabled={!canSave || rowBusyId === log.id}');
   });
+
+  it('keeps the hub smoke script able to print a repeatable action and reload checklist', async () => {
+    const source = await routeSource('../../../../scripts/hub-usability-smoke.mjs');
+
+    expect(source).toContain('function printChecklist');
+    expect(source).toContain("args.has('--checklist')");
+    expect(source).toContain('Exercise safe action');
+    expect(source).toContain('verify persistence');
+    expect(source).toContain('expectedBlockedState');
+  });
 });

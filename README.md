@@ -580,12 +580,15 @@ Mini Hub usability smoke check:
 pnpm qa:hub:smoke
 $env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
 $env:HUB_SMOKE_URL='https://elc9939.github.io/testing/'; pnpm qa:hub:smoke
+pnpm qa:hub:smoke -- --checklist
 ```
 
 The smoke check records each visible hub route's title, main heading, service dependency,
 button/disabled-control counts, expected blocked/setup state, safe QA action, and reload
 persistence expectation. With `HUB_SMOKE_URL` set, it also verifies that the route responds
 over HTTP so hosted-vs-local handoff problems are visible before a manual browser pass.
+Use `--checklist` when you want a route-by-route manual/Playwright-style pass with explicit
+open, safe-action, blocked-state, and reload-persistence checks.
 
 Python backend checks:
 

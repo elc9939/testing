@@ -199,6 +199,29 @@ function printMarkdown(rows, liveRows) {
   }
 }
 
+function printChecklist(rows, liveRows, baseUrl) {
+  console.log('# Mini Hub Usability Checklist');
+  console.log('');
+  console.log(`Generated: ${new Date().toISOString()}`);
+  console.log(`Target: ${baseUrl || 'source-only; set HUB_SMOKE_URL for live route links'}`);
+  console.log('');
+  console.log('Use this as the repeatable manual/Playwright-style pass after the static smoke table. Each item should either work, be disabled with a clear reason, or route to setup.');
+  console.log('');
+  for (const row of rows) {
+    const live = liveRows.get(row.id);
+    const liveLabel = live ? `${live.ok ? 'live ok' : 'live check'} ${live.status}${live.error ? `: ${live.error}` : ''}` : 'live not run';
+    console.log(`## ${row.heading || row.id} (${row.path})`);
+    console.log('');
+    console.log(`- [ ] Open ${live?.url ?? row.path} and confirm title "${row.title || 'MISSING'}" plus heading "${row.heading || 'MISSING'}".`);
+    console.log(`- [ ] Confirm service state is understandable for: ${row.service}.`);
+    console.log(`- [ ] Exercise safe action: ${row.safeAction}`);
+    console.log(`- [ ] If prerequisites are missing, verify blocked/setup state: ${row.expectedBlockedState}`);
+    console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
+    console.log(`- [ ] Record visible controls/errors: ${row.buttons} buttons, ${row.disabled} disabled-control refs, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    console.log('');
+  }
+}
+
 async function main() {
   const args = new Set(process.argv.slice(2));
   const baseUrl = process.env.HUB_SMOKE_URL ?? '';
@@ -212,6 +235,8 @@ async function main() {
 
   if (args.has('--json')) {
     console.log(JSON.stringify({ checkedAt: new Date().toISOString(), baseUrl: baseUrl || null, routes: rows, live: Object.fromEntries(liveRows) }, null, 2));
+  } else if (args.has('--checklist')) {
+    printChecklist(rows, liveRows, baseUrl);
   } else {
     printMarkdown(rows, liveRows);
   }
