@@ -21,6 +21,7 @@
     Unlink,
     X
   } from 'lucide-svelte';
+  import { routeMap } from '@mini-hub/core';
   import type { CalendarEvent, GmailLabel, GmailThread, TimelineItem } from '@mini-hub/core';
   import { attentionStore } from '$lib/attention-store';
   import { getApiUrl } from '$lib/api';
@@ -63,6 +64,7 @@
     startOfLocalDay,
     summarizeEmailThread
   } from '$lib/productivity-view';
+  import { hubHref } from '$lib/routes';
 
   const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles';
   const productivityCacheKey = 'miniHub.productivity.cache.v1';
@@ -134,6 +136,9 @@
   $: googleConnections = connections.filter((connection) => connection.provider === 'google' && connection.status === 'connected');
   $: googleConnection = googleConnections[0];
   $: googleConnected = googleConnections.length > 0;
+  $: productivityReady = canAct && googleConnected;
+  $: productivityReadReady = productivityReady && !loading;
+  $: gmailReady = productivityReady && !gmailLoading;
   $: selectedCalendar = calendars.find((calendar) => calendar.id === selectedCalendarId);
   $: calendarWeek = buildCalendarWeek(events, calendarCursor);
   $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
@@ -397,6 +402,7 @@
   }
 
   function openNewEvent(): void {
+    if (!productivityReady) return;
     editingEventId = '';
     eventDraft = emptyDraft();
     eventDialogOpen = true;
@@ -409,6 +415,7 @@
   }
 
   function openComposeDialog(): void {
+    if (!productivityReady) return;
     composeDraft = emptyComposeDraft();
     composeDialogOpen = true;
   }
@@ -455,7 +462,7 @@
   }
 
   async function refreshEvents(): Promise<void> {
-    if (!googleConnected) return;
+    if (!productivityReady) return;
     actionError = '';
     const rangeStart = startOfLocalDay(calendarCursor);
     const rangeEnd = addDays(rangeStart, 21);
@@ -474,7 +481,7 @@
   }
 
   async function refreshGmail(): Promise<void> {
-    if (!googleConnected) return;
+    if (!productivityReady) return;
     gmailLoading = true;
     actionError = '';
     try {
@@ -503,6 +510,7 @@
   }
 
   async function connectGoogle(): Promise<void> {
+    if (!canAct) return;
     actionError = '';
     actionMessage = '';
     googleOAuthOpening = true;
@@ -562,6 +570,7 @@
   }
 
   async function disconnectGoogle(connection?: PublicConnection): Promise<void> {
+    if (!productivityReady) return;
     const label = connection?.accountLabel ?? 'the stored Google OAuth grant';
     if (!confirm(`Revoke ${label} for this hub?`)) return;
     actionError = '';
@@ -576,7 +585,7 @@
   }
 
   async function saveEvent(): Promise<void> {
-    if (!eventDraft.title.trim() || !eventDraft.start || !eventDraft.end) return;
+    if (!productivityReady || !eventDraft.title.trim() || !eventDraft.start || !eventDraft.end) return;
     actionError = '';
     try {
       if (editingEventId) {
@@ -597,6 +606,7 @@
   }
 
   function editEvent(event: CalendarEvent): void {
+    if (!productivityReady) return;
     editingEventId = event.id;
     selectedCalendarId = event.calendarId;
     eventDraft = {
@@ -615,6 +625,7 @@
   }
 
   async function removeEvent(event: CalendarEvent): Promise<void> {
+    if (!productivityReady) return;
     if (!confirm(`Delete "${event.title}" from ${event.calendarId}?`)) return;
     actionError = '';
     try {
@@ -628,7 +639,7 @@
   }
 
   async function moveSelectedEvent(event: CalendarEvent): Promise<void> {
-    if (!moveTargetCalendarId || moveTargetCalendarId === event.calendarId) return;
+    if (!productivityReady || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId) return;
     actionError = '';
     try {
       await moveEvent(event.calendarId, event.id, moveTargetCalendarId);
@@ -641,6 +652,7 @@
   }
 
   async function openGmailThread(thread: GmailThread): Promise<void> {
+    if (!productivityReady) return;
     actionError = '';
     try {
       selectedGmailThread = await getGmailThread(thread.id);
@@ -651,7 +663,7 @@
   }
 
   async function sendCompose(sendNow: boolean): Promise<void> {
-    if (!composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()) return;
+    if (!productivityReady || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()) return;
     if (sendNow && !confirm(`Send email to ${composeDraft.to.join(', ')}?`)) return;
     actionError = '';
     try {
@@ -671,7 +683,7 @@
   }
 
   async function sendReply(sendNow: boolean): Promise<void> {
-    if (!selectedGmailThread || !replyBody.trim()) return;
+    if (!productivityReady || !selectedGmailThread || !replyBody.trim()) return;
     if (sendNow && !confirm(`Send reply to "${selectedGmailThread.subject}"?`)) return;
     actionError = '';
     try {
@@ -691,6 +703,7 @@
   }
 
   async function archiveThread(thread: GmailThread): Promise<void> {
+    if (!productivityReady) return;
     actionError = '';
     try {
       await archiveGmailThread(thread.id);
@@ -707,6 +720,7 @@
   }
 
   async function toggleRead(thread: GmailThread): Promise<void> {
+    if (!productivityReady) return;
     actionError = '';
     try {
       if (thread.unread) {
@@ -728,6 +742,7 @@
   }
 
   async function toggleImportant(thread: GmailThread): Promise<void> {
+    if (!productivityReady) return;
     actionError = '';
     try {
       if (isThreadImportant(thread)) {
@@ -760,7 +775,7 @@
   }
 
   async function applySelectedLabel(): Promise<void> {
-    if (!selectedGmailThread || !selectedGmailLabelId) return;
+    if (!productivityReady || !selectedGmailThread || !selectedGmailLabelId) return;
     actionError = '';
     try {
       selectedGmailThread = await modifyGmailThread(selectedGmailThread.id, { addLabelIds: [selectedGmailLabelId] });
@@ -772,11 +787,13 @@
   }
 
   function shiftCalendar(days: number): void {
+    if (!productivityReadReady) return;
     calendarCursor = addDays(calendarCursor, days);
     void refreshEvents();
   }
 
   function jumpToToday(): void {
+    if (!productivityReadReady) return;
     calendarCursor = startOfLocalDay(new Date());
     void refreshEvents();
   }
@@ -818,15 +835,15 @@
     <h1>Productivity Hub</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={!googleConnected || !canAct} on:click={openNewEvent}>
+    <button class="button" type="button" disabled={!productivityReady} title={productivityReady ? 'Create a Google Calendar event.' : 'Connect the API and Google before creating events.'} on:click={openNewEvent}>
       <CalendarPlus size={17} />
       <span>New Event</span>
     </button>
-    <button class="button" type="button" disabled={!googleConnected || !canAct} on:click={openComposeDialog}>
+    <button class="button" type="button" disabled={!productivityReady} title={productivityReady ? 'Compose a Gmail message.' : 'Connect the API and Google before composing mail.'} on:click={openComposeDialog}>
       <Send size={17} />
       <span>Compose</span>
     </button>
-    <button class="button" type="button" disabled={!canAct || loading} on:click={() => loadOverview()}>
+    <button class="button" type="button" disabled={loading || backgroundRefreshing} on:click={() => loadOverview()}>
       <RefreshCw size={17} />
       <span>{backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
@@ -851,7 +868,10 @@
 </section>
 
 {#if !canAct}
-  <section class="card card-pad offline-banner">API unavailable or offline: productivity actions need the local API before OAuth or calendar writes can run.</section>
+  <section class="card card-pad offline-banner">
+    <span>API unavailable or offline: cached productivity data can stay visible, but OAuth, Gmail, and Calendar writes need the local API.</span>
+    <a class="inline-action" href={hubHref(routeMap.settings)}>Open Settings</a>
+  </section>
 {/if}
 {#if actionError}
   <section class="card card-pad error-banner">{actionError}</section>
@@ -930,11 +950,11 @@
         <strong>Calendar</strong>
       </div>
       <div class="calendar-controls">
-        <button class="icon-button" type="button" disabled={!googleConnected} aria-label="Previous week" on:click={() => shiftCalendar(-7)}>
+        <button class="icon-button" type="button" disabled={!productivityReadReady} aria-label="Previous week" on:click={() => shiftCalendar(-7)}>
           <ChevronLeft size={16} />
         </button>
-        <button class="button compact" type="button" disabled={!googleConnected} on:click={jumpToToday}>Today</button>
-        <button class="icon-button" type="button" disabled={!googleConnected} aria-label="Next week" on:click={() => shiftCalendar(7)}>
+        <button class="button compact" type="button" disabled={!productivityReadReady} on:click={jumpToToday}>Today</button>
+        <button class="icon-button" type="button" disabled={!productivityReadReady} aria-label="Next week" on:click={() => shiftCalendar(7)}>
           <ChevronRight size={16} />
         </button>
         <span>{calendarRangeLabel}</span>
@@ -943,11 +963,11 @@
     <div class="calendar-filter-row">
       <div class="field">
         <label for="event-search">Search events</label>
-        <input id="event-search" bind:value={query} disabled={!googleConnected} on:change={refreshEvents} />
+        <input id="event-search" bind:value={query} disabled={!productivityReadReady} on:change={refreshEvents} />
       </div>
       <div class="field">
         <label for="calendar-source">Calendar</label>
-        <select id="calendar-source" bind:value={selectedCalendarId} disabled={!googleConnected} on:change={refreshEvents}>
+        <select id="calendar-source" bind:value={selectedCalendarId} disabled={!productivityReadReady} on:change={refreshEvents}>
           {#each calendars as calendar}
             <option value={calendar.id}>{calendar.summary}</option>
           {/each}
@@ -955,7 +975,7 @@
       </div>
       <div class="field">
         <label for="move-target">Move target</label>
-        <select id="move-target" bind:value={moveTargetCalendarId} disabled={!googleConnected}>
+        <select id="move-target" bind:value={moveTargetCalendarId} disabled={!productivityReady}>
           <option value="">Choose calendar</option>
           {#each calendars as calendar}
             <option value={calendar.id}>{calendar.summary}</option>
@@ -977,6 +997,7 @@
                 type="button"
                 style={eventBlockStyle(event)}
                 title={`${event.title} / ${eventTimeRange(event)}`}
+                disabled={!productivityReady}
                 on:click={() => editEvent(event)}
               >
                 <span>{eventTimeRange(event)}</span>
@@ -1018,13 +1039,13 @@
                   <ExternalLink size={16} />
                 </a>
               {/if}
-              <button class="icon-button" type="button" aria-label={`Edit ${event.title}`} title="Edit" on:click={() => editEvent(event)}>
+              <button class="icon-button" type="button" aria-label={`Edit ${event.title}`} title="Edit" disabled={!productivityReady} on:click={() => editEvent(event)}>
                 <Save size={16} />
               </button>
-              <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title="Move" disabled={!moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>
+              <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title="Move" disabled={!productivityReady || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>
                 <Send size={16} />
               </button>
-              <button class="icon-button danger" type="button" aria-label={`Delete ${event.title}`} title="Delete" on:click={() => removeEvent(event)}>
+              <button class="icon-button danger" type="button" aria-label={`Delete ${event.title}`} title="Delete" disabled={!productivityReady} on:click={() => removeEvent(event)}>
                 <Trash2 size={16} />
               </button>
             </td>
@@ -1044,7 +1065,7 @@
         <Sparkles size={18} />
         <strong>Priority Inbox</strong>
       </div>
-      <button class="button" type="button" disabled={!googleConnected || gmailLoading} on:click={refreshGmail}>
+      <button class="button" type="button" disabled={!gmailReady} on:click={refreshGmail}>
         <RefreshCw size={17} />
         <span>{gmailLoading ? 'Sorting' : 'Refresh'}</span>
       </button>
@@ -1054,11 +1075,11 @@
       <div class="table-header gmail-header">
         <div class="field">
           <label for="gmail-search">Gmail search</label>
-          <input id="gmail-search" bind:value={gmailQuery} disabled={!googleConnected || gmailLoading} on:change={refreshGmail} />
+          <input id="gmail-search" bind:value={gmailQuery} disabled={!gmailReady} on:change={refreshGmail} />
         </div>
         <div class="field">
           <label for="gmail-label">Label</label>
-          <select id="gmail-label" bind:value={selectedGmailLabelId} disabled={!googleConnected || gmailLoading} on:change={refreshGmail}>
+          <select id="gmail-label" bind:value={selectedGmailLabelId} disabled={!gmailReady} on:change={refreshGmail}>
             <option value="">All labels</option>
             {#each gmailLabels as label}
               <option value={label.id}>{label.name}</option>
@@ -1088,7 +1109,7 @@
               <small class="triage-reason">{insight.reason}{insight.deadlineHint ? ` / ${insight.deadlineHint}` : ''}</small>
             </td>
             <td>
-              <button class="link-button" type="button" on:click={() => openGmailThread(thread)}>
+              <button class="link-button" type="button" disabled={!productivityReady} on:click={() => openGmailThread(thread)}>
                 <strong>{thread.subject}</strong>
               </button>
               <p class="mail-summary">{summarizeEmailThread(thread)}</p>
@@ -1097,11 +1118,11 @@
             <td>{thread.from}</td>
             <td>{thread.date}</td>
             <td class="row-actions quick-row-actions">
-              <button class="icon-button" type="button" aria-label={`Open ${thread.subject}`} title="Open" on:click={() => openGmailThread(thread)}>
+              <button class="icon-button" type="button" disabled={!productivityReady} aria-label={`Open ${thread.subject}`} title="Open" on:click={() => openGmailThread(thread)}>
                 <Mail size={16} />
                 <span>Open</span>
               </button>
-              <button class="icon-button" type="button" aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={thread.unread ? 'Mark read' : 'Mark unread'} on:click={() => toggleRead(thread)}>
+              <button class="icon-button" type="button" disabled={!productivityReady} aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={thread.unread ? 'Mark read' : 'Mark unread'} on:click={() => toggleRead(thread)}>
                 <MailOpen size={16} />
                 <span>{thread.unread ? 'Read' : 'Unread'}</span>
               </button>
@@ -1111,6 +1132,7 @@
                 type="button"
                 aria-label={isThreadImportant(thread) ? `Remove important from ${thread.subject}` : `Mark ${thread.subject} important`}
                 title={isThreadImportant(thread) ? 'Remove important' : 'Mark important'}
+                disabled={!productivityReady}
                 on:click={() => toggleImportant(thread)}
               >
                 {#if isThreadImportant(thread)}
@@ -1121,7 +1143,7 @@
                   <span>Important</span>
                 {/if}
               </button>
-              <button class="icon-button" type="button" aria-label={`Archive ${thread.subject}`} title="Archive" on:click={() => archiveThread(thread)}>
+              <button class="icon-button" type="button" disabled={!productivityReady} aria-label={`Archive ${thread.subject}`} title="Archive" on:click={() => archiveThread(thread)}>
                 <Archive size={16} />
                 <span>Archive</span>
               </button>
@@ -1141,11 +1163,11 @@
     </div>
     {#if selectedGmailThread}
       <div class="mail-actions">
-        <button class="button" type="button" disabled={!googleConnected} on:click={toggleSelectedRead}>
+        <button class="button" type="button" disabled={!productivityReady} on:click={toggleSelectedRead}>
           <MailOpen size={17} />
           <span>{selectedGmailThread.unread ? 'Mark Read' : 'Mark Unread'}</span>
         </button>
-        <button class="button" type="button" disabled={!googleConnected} on:click={toggleSelectedImportant}>
+        <button class="button" type="button" disabled={!productivityReady} on:click={toggleSelectedImportant}>
           {#if isThreadImportant(selectedGmailThread)}
             <StarOff size={17} />
             <span>Unmark Important</span>
@@ -1154,11 +1176,11 @@
             <span>Mark Important</span>
           {/if}
         </button>
-        <button class="button" type="button" disabled={!googleConnected} on:click={archiveSelectedThread}>
+        <button class="button" type="button" disabled={!productivityReady} on:click={archiveSelectedThread}>
           <Archive size={17} />
           <span>Archive</span>
         </button>
-        <button class="button" type="button" disabled={!googleConnected || !selectedGmailLabelId} on:click={applySelectedLabel}>
+        <button class="button" type="button" disabled={!productivityReady || !selectedGmailLabelId} on:click={applySelectedLabel}>
           <Tag size={17} />
           <span>Apply Label</span>
         </button>
@@ -1177,14 +1199,14 @@
       </div>
       <div class="field">
         <label for="gmail-reply">Reply</label>
-        <textarea id="gmail-reply" bind:value={replyBody} disabled={!googleConnected} rows="5"></textarea>
+        <textarea id="gmail-reply" bind:value={replyBody} disabled={!productivityReady} rows="5"></textarea>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={!googleConnected || !replyBody.trim()} on:click={() => sendReply(false)}>
+        <button class="button" type="button" disabled={!productivityReady || !replyBody.trim()} on:click={() => sendReply(false)}>
           <Save size={17} />
           <span>Draft Reply</span>
         </button>
-        <button class="button primary" type="button" disabled={!googleConnected || !replyBody.trim()} on:click={() => sendReply(true)}>
+        <button class="button primary" type="button" disabled={!productivityReady || !replyBody.trim()} on:click={() => sendReply(true)}>
           <Reply size={17} />
           <span>Send Reply</span>
         </button>
@@ -1238,7 +1260,7 @@
       <div class="modal-grid">
         <div class="field">
           <label for="calendar">Calendar</label>
-          <select id="calendar" bind:value={selectedCalendarId} disabled={!googleConnected} on:change={refreshEvents}>
+          <select id="calendar" bind:value={selectedCalendarId} disabled={!productivityReady} on:change={refreshEvents}>
             <option value="primary">Primary</option>
             {#each calendars as calendar}
               <option value={calendar.id}>{calendar.summary}</option>
@@ -1247,37 +1269,37 @@
         </div>
         <div class="field">
           <label for="event-title">Title</label>
-          <input id="event-title" bind:value={eventDraft.title} disabled={!googleConnected} />
+          <input id="event-title" bind:value={eventDraft.title} disabled={!productivityReady} />
         </div>
         <div class="field">
           <label for="event-start">Start</label>
-          <input id="event-start" bind:value={eventDraft.start} disabled={!googleConnected} type="datetime-local" />
+          <input id="event-start" bind:value={eventDraft.start} disabled={!productivityReady} type="datetime-local" />
         </div>
         <div class="field">
           <label for="event-end">End</label>
-          <input id="event-end" bind:value={eventDraft.end} disabled={!googleConnected} type="datetime-local" />
+          <input id="event-end" bind:value={eventDraft.end} disabled={!productivityReady} type="datetime-local" />
         </div>
         <div class="field">
           <label for="event-zone">Time zone</label>
-          <input id="event-zone" bind:value={eventDraft.timeZone} disabled={!googleConnected} />
+          <input id="event-zone" bind:value={eventDraft.timeZone} disabled={!productivityReady} />
         </div>
         <div class="field">
           <label for="event-location">Location</label>
-          <input id="event-location" bind:value={eventDraft.location} disabled={!googleConnected} />
+          <input id="event-location" bind:value={eventDraft.location} disabled={!productivityReady} />
         </div>
         <div class="field">
           <label for="event-reminder">Reminder minutes</label>
-          <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={!googleConnected} type="number" min="0" step="5" />
+          <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={!productivityReady} type="number" min="0" step="5" />
         </div>
         <div class="field wide">
           <label for="event-description">Description</label>
-          <textarea id="event-description" bind:value={eventDraft.description} disabled={!googleConnected} rows="3"></textarea>
+          <textarea id="event-description" bind:value={eventDraft.description} disabled={!productivityReady} rows="3"></textarea>
         </div>
         <div class="field wide">
           <label for="event-recurrence">Recurrence rules</label>
           <textarea
             id="event-recurrence"
-            disabled={!googleConnected}
+            disabled={!productivityReady}
             rows="2"
             placeholder="RRULE:FREQ=WEEKLY;COUNT=6"
             value={(eventDraft.recurrence ?? []).join('\n')}
@@ -1286,7 +1308,7 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="button primary" type="submit" disabled={!googleConnected || !canAct}>
+        <button class="button primary" type="submit" disabled={!productivityReady}>
           <Save size={17} />
           <span>{editingEventId ? 'Update Event' : 'Create Event'}</span>
         </button>
@@ -1313,31 +1335,31 @@
       <div class="modal-grid compose-grid">
         <div class="field">
           <label for="compose-to">To</label>
-          <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={!googleConnected} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
+          <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={!productivityReady} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field">
           <label for="compose-cc">Cc</label>
-          <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={!googleConnected} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
+          <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={!productivityReady} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field">
           <label for="compose-bcc">Bcc</label>
-          <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={!googleConnected} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
+          <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={!productivityReady} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field wide">
           <label for="compose-subject">Subject</label>
-          <input id="compose-subject" bind:value={composeDraft.subject} disabled={!googleConnected} />
+          <input id="compose-subject" bind:value={composeDraft.subject} disabled={!productivityReady} />
         </div>
         <div class="field wide">
           <label for="compose-body">Body</label>
-          <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={!googleConnected} rows="7"></textarea>
+          <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={!productivityReady} rows="7"></textarea>
         </div>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(false)}>
+        <button class="button" type="button" disabled={!productivityReady || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(false)}>
           <Save size={17} />
           <span>Save Draft</span>
         </button>
-        <button class="button primary" type="button" disabled={!googleConnected || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(true)}>
+        <button class="button primary" type="button" disabled={!productivityReady || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(true)}>
           <Send size={17} />
           <span>Send Email</span>
         </button>
@@ -1361,9 +1383,19 @@
   }
 
   .offline-banner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
     border-color: var(--warning-border);
     color: var(--warning-text);
     background: var(--warning-bg);
+  }
+
+  .inline-action {
+    color: inherit;
+    font-weight: 850;
   }
 
   .error-banner {

@@ -583,9 +583,9 @@ $env:HUB_SMOKE_URL='https://elc9939.github.io/testing/'; pnpm qa:hub:smoke
 ```
 
 The smoke check records each visible hub route's title, main heading, service dependency,
-button/disabled-control counts, setup/error surfaces, and the safe QA action to try. With
-`HUB_SMOKE_URL` set, it also verifies that the route responds over HTTP so hosted-vs-local
-handoff problems are visible before a manual browser pass.
+button/disabled-control counts, expected blocked/setup state, safe QA action, and reload
+persistence expectation. With `HUB_SMOKE_URL` set, it also verifies that the route responds
+over HTTP so hosted-vs-local handoff problems are visible before a manual browser pass.
 
 Python backend checks:
 

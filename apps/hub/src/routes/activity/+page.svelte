@@ -33,9 +33,12 @@
   $: visibleRecords = showDismissed ? records : records.filter((record) => isActiveRecord(record) || !dismissedIds.has(record.id));
   $: dismissedCount = records.filter((record) => !isActiveRecord(record) && dismissedIds.has(record.id)).length;
   $: sources = snapshot?.sources ?? [];
+  $: runningRecords = visibleRecords.filter((record) => ['queued', 'running'].includes(record.status));
+  $: pausedRecords = visibleRecords.filter((record) => record.status === 'paused');
   $: activeRecords = visibleRecords.filter((record) => ['queued', 'running', 'paused'].includes(record.status));
   $: failedRecords = visibleRecords.filter((record) => ['failed', 'blocked'].includes(record.status));
   $: stableRecords = visibleRecords.filter((record) => !['queued', 'running', 'paused', 'failed', 'blocked'].includes(record.status));
+  $: sourceFailures = sources.filter((source) => !source.ok);
   $: hasActive = activityHasActiveWork(records);
   $: partial = snapshot?.partial ?? false;
   $: stale = snapshot?.stale ?? false;
@@ -180,9 +183,14 @@
 
 <section class="activity-status">
   <article>
-    <span>Active</span>
-    <strong>{activeRecords.length}</strong>
-    <small>{hasActive ? 'Polls while open' : 'No running work'}</small>
+    <span>Running</span>
+    <strong>{runningRecords.length}</strong>
+    <small>{hasActive ? 'Polls while open' : 'No live work'}</small>
+  </article>
+  <article>
+    <span>Paused</span>
+    <strong>{pausedRecords.length}</strong>
+    <small>{pausedRecords.length ? 'Resume or cancel' : 'None'}</small>
   </article>
   <article>
     <span>Failed</span>
@@ -190,9 +198,19 @@
     <small>{failedRecords.length ? 'Needs inspection' : 'Clear'}</small>
   </article>
   <article>
+    <span>Saved</span>
+    <strong>{stableRecords.length}</strong>
+    <small>{stableRecords.length ? 'Reports and history' : 'None yet'}</small>
+  </article>
+  <article>
     <span>Sources</span>
     <strong>{sources.filter((source) => source.ok).length}/{sources.length || 3}</strong>
-    <small>{partial ? 'Partial data' : stale ? 'Cached' : 'Fresh'}</small>
+    <small>{sourceFailures.length ? `${sourceFailures.length} issue${sourceFailures.length === 1 ? '' : 's'}` : stale ? 'Cached' : 'Fresh'}</small>
+  </article>
+  <article>
+    <span>Dismissed</span>
+    <strong>{dismissedCount}</strong>
+    <small>{dismissedCount ? 'Hidden here only' : 'None hidden'}</small>
   </article>
 </section>
 
@@ -204,6 +222,12 @@
         {sourceLine(source)}
       </span>
     {/each}
+    {#if stale || partial}
+      <span class:bad={partial}>
+        <strong>{stale ? 'Cache' : 'Partial'}</strong>
+        {stale ? `showing cached records from ${displayWhen(snapshot?.cachedAt)}` : 'one source failed; available work is still listed'}
+      </span>
+    {/if}
   </section>
 {/if}
 
@@ -303,7 +327,7 @@
 <style>
   .activity-status {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 12px;
   }
@@ -526,7 +550,10 @@
   }
 
   @media (max-width: 760px) {
-    .activity-status,
+    .activity-status {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .activity-row {
       grid-template-columns: 1fr;
     }

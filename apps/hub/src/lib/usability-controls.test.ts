@@ -48,4 +48,26 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('passiveControlDisabled = loading || Boolean(busyId) || !passiveStateKnown');
     expect(passive).toContain('disabled={passiveControlDisabled}');
   });
+
+  it('keeps Productivity Google writes guarded while cached data remains inspectable', async () => {
+    const source = await routeSource('../routes/productivity/+page.svelte');
+
+    expect(source).toContain('productivityReady = canAct && googleConnected');
+    expect(source).toContain('if (!productivityReady) return;');
+    expect(source).toContain('disabled={!productivityReady}');
+    expect(source).toContain('cached productivity data can stay visible');
+    expect(source).toContain('hubHref(routeMap.settings)');
+    expect(source).toContain('disabled={loading || backgroundRefreshing}');
+  });
+
+  it('makes Activity recovery state scannable instead of one vague active count', async () => {
+    const source = await routeSource('../routes/activity/+page.svelte');
+
+    expect(source).toContain('runningRecords');
+    expect(source).toContain('pausedRecords');
+    expect(source).toContain('sourceFailures');
+    expect(source).toContain('<span>Dismissed</span>');
+    expect(source).toContain('showing cached records from');
+    expect(source).toContain('one source failed; available work is still listed');
+  });
 });

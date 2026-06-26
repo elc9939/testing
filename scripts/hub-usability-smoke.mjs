@@ -11,91 +11,117 @@ const routes = [
     path: '/',
     source: 'apps/hub/src/routes/+page.svelte',
     service: 'Mini Hub API + optional Google/AI/Macro sources',
-    safeAction: 'Refresh Today; blocked source rows should remain partial, not page-fatal.'
+    safeAction: 'Refresh Today; blocked source rows should remain partial, not page-fatal.',
+    expectedBlockedState: 'Partial source rows and Settings links, not a blank cockpit.',
+    persistence: 'Attention snapshot should reload from cache while live sources refresh.'
   },
   {
     id: 'activity',
     path: '/activity',
     source: 'apps/hub/src/routes/activity/+page.svelte',
     service: 'AI OS API, Passive Tasks, Macro Lab',
-    safeAction: 'Refresh Activity; source failures should show as partial/stale rows.'
+    safeAction: 'Refresh Activity; source failures should show as partial/stale rows.',
+    expectedBlockedState: 'Source strip explains timeout/offline/cached state per backend.',
+    persistence: 'Durable runs/jobs/history should reappear after refresh or route changes.'
   },
   {
     id: 'productivity',
     path: '/productivity',
     source: 'apps/hub/src/routes/productivity/+page.svelte',
     service: 'Mini Hub API + Google OAuth',
-    safeAction: 'Refresh overview; writes stay disabled unless API and Google are ready.'
+    safeAction: 'Refresh overview; writes stay disabled unless API and Google are ready.',
+    expectedBlockedState: 'Cached mail/calendar can show; OAuth and write buttons route to setup or stay disabled.',
+    persistence: 'Local snapshot, filters, and selected Google cache should reload from browser storage.'
   },
   {
     id: 'career',
     path: '/desk/career',
     source: 'apps/hub/src/routes/desk/career/+page.svelte',
     service: 'Mini Hub API + browser PGlite cache',
-    safeAction: 'Filter/export; add/edit requires online Mini Hub API.'
+    safeAction: 'Filter/export; add/edit requires online Mini Hub API.',
+    expectedBlockedState: 'Offline read-only explains cached jobs and disables saves.',
+    persistence: 'Jobs, filters, and exports should survive reload from API/cache.'
   },
   {
     id: 'study',
     path: '/desk/study',
     source: 'apps/hub/src/routes/desk/study/+page.svelte',
     service: 'Mini Hub API + browser PGlite cache',
-    safeAction: 'Review progress; logging requires online Mini Hub API.'
+    safeAction: 'Review progress; logging requires online Mini Hub API.',
+    expectedBlockedState: 'Offline read-only explains cached sessions and disables logging.',
+    persistence: 'Logged sessions and analytics should reload from API/cache.'
   },
   {
     id: 'analytics',
     path: '/analytics',
     source: 'apps/hub/src/routes/analytics/+page.svelte',
     service: 'Browser cache + optional Mini Hub sync',
-    safeAction: 'Refresh cache-backed analytics; healthy-empty is acceptable.'
+    safeAction: 'Refresh cache-backed analytics; healthy-empty is acceptable.',
+    expectedBlockedState: 'Loading, healthy-empty, offline, and cache-error states are distinct.',
+    persistence: 'Charts should recompute from cached Career/Study/game data after reload.'
   },
   {
     id: 'research',
     path: '/research',
     source: 'apps/hub/src/routes/research/+page.svelte',
     service: 'AI OS API',
-    safeAction: 'Run sample goal only when AI OS is connected; otherwise Connect AI OS is disabled/actionable.'
+    safeAction: 'Run sample goal only when AI OS is connected; otherwise Connect AI OS is disabled/actionable.',
+    expectedBlockedState: 'One compact AI OS setup card; no fake run appears when offline.',
+    persistence: 'Draft goal/options/seed URLs and latest active run should restore after navigation.'
   },
   {
     id: 'ai-lab',
     path: '/ai-lab',
     source: 'apps/hub/src/routes/ai-lab/+page.svelte',
     service: 'Browser-local Transformers.js and Tree-sitter assets',
-    safeAction: 'Classify sample text and parse sample code independently.'
+    safeAction: 'Classify sample text and parse sample code independently.',
+    expectedBlockedState: 'Asset/model failures show in the relevant classify or parse panel only.',
+    persistence: 'Sample inputs can be rerun without AI OS; no backend work should disappear.'
   },
   {
     id: 'ai-os',
     path: '/ai-os',
     source: 'apps/hub/src/routes/ai-os/+page.svelte',
     service: 'AI OS API',
-    safeAction: 'Refresh status; work buttons stay disabled until AI OS status is loaded.'
+    safeAction: 'Refresh status; work buttons stay disabled until AI OS status is loaded.',
+    expectedBlockedState: 'Unavailable AI OS is a service state, not a whole-app failure.',
+    persistence: 'Jobs, usage, benchmarks, and tool logs should reload from AI OS storage.'
   },
   {
     id: 'macro-lab',
     path: '/macro-lab',
     source: 'apps/hub/src/routes/macro-lab/+page.svelte',
     service: 'Macro Lab API',
-    safeAction: 'Refresh state; panic/run/reset stay disabled until Macro Lab state is known.'
+    safeAction: 'Refresh state; panic/run/reset stay disabled until Macro Lab state is known.',
+    expectedBlockedState: 'Panic/reset/run controls are disabled until Macro Lab state is known.',
+    persistence: 'Run history and trigger status should reload from Macro Lab storage.'
   },
   {
     id: 'passive-tasks',
     path: '/passive-tasks',
     source: 'apps/hub/src/routes/passive-tasks/+page.svelte',
     service: 'Mini Hub API passive engine',
-    safeAction: 'Refresh snapshot; run controls stay disabled until snapshot/settings load.'
+    safeAction: 'Refresh snapshot; run controls stay disabled until snapshot/settings load.',
+    expectedBlockedState: 'Run Due/Startup/Idle stay disabled until worker snapshot is loaded.',
+    persistence: 'Worker state, last digest, and run history should reload from backend/cache.'
   },
   {
     id: 'settings',
     path: '/settings',
     source: 'apps/hub/src/routes/settings/+page.svelte',
     service: 'Mini Hub API, AI OS API, Macro Lab API, browser storage',
-    safeAction: 'Refresh Feature Wiring; save endpoint/theme changes only when target storage is ready.'
+    safeAction: 'Refresh Feature Wiring; save endpoint/theme changes only when target storage is ready.',
+    expectedBlockedState: 'Feature Wiring table shows missing endpoint/service/setup and fix action.',
+    persistence: 'Endpoints, theme, mode, and diagnostics should reload from local storage/API.'
   },
   {
     id: 'games',
     path: '/games',
     source: 'apps/hub/src/routes/games/+page.svelte',
     service: 'Browser + optional Mini Hub API saves',
-    safeAction: 'Open launcher entries; save buttons should show offline/read-only state when API is unavailable.'
+    safeAction: 'Open launcher entries; save buttons should show offline/read-only state when API is unavailable.',
+    expectedBlockedState: 'Legacy/playground games remain launchable; API-backed saves explain offline state.',
+    persistence: 'High scores/game state should reload from cache/API where supported.'
   }
 ];
 
@@ -162,13 +188,13 @@ async function fetchRoute(baseUrl, routePath) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Disabled refs | Service | Safe QA action | Live |');
-  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Disabled refs | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
+  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live ? `${live.ok ? 'ok' : 'check'} ${live.status} ${live.error ?? ''}`.trim() : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${row.service} | ${row.safeAction} | ${liveText} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
     );
   }
 }
