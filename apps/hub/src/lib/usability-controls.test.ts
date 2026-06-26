@@ -51,7 +51,12 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('macroControlDisabled = busy || loading || !macroStateKnown');
     expect(macro).toContain('disabled={macroControlDisabled}');
     expect(passive).toContain('passiveControlDisabled = loading || Boolean(busyId) || !passiveStateKnown');
-    expect(passive).toContain('disabled={passiveControlDisabled}');
+    expect(passive).toContain('passiveWriteDisabled = passiveControlDisabled');
+    expect(passive).toContain('function passiveDisabledReason');
+    expect(passive).toContain('disabled={passiveWriteDisabled}');
+    expect(passive).toContain('title={passiveActionTitle');
+    expect(passive).toContain('disabled={passiveWriteDisabled || !canRunTask(task, watcher)}');
+    expect(passive).toContain('Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.');
   });
 
   it('keeps Productivity Google writes guarded while cached data remains inspectable', async () => {

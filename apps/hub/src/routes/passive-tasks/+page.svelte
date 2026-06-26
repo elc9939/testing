@@ -90,6 +90,8 @@
   $: familyRows = buildFamilyRows(snapshot, settings);
   $: passiveStateKnown = Boolean(snapshot && settings);
   $: passiveControlDisabled = loading || Boolean(busyId) || !passiveStateKnown;
+  $: passiveWriteDisabled = passiveControlDisabled;
+  $: passiveWriteTitle = passiveDisabledReason();
   $: worker = snapshot?.worker ?? null;
   $: backupHealth = snapshot?.backupHealth ?? null;
   $: resultRows = [...(snapshot?.results ?? [])]
@@ -184,6 +186,28 @@
     if (!settings?.enabled || !watcher?.enabled) return false;
     if (settings.enabledFamilies[task.family] === false) return false;
     return !['paused', 'cancelled', 'running'].includes(task.status);
+  }
+
+  function passiveDisabledReason(): string {
+    if (loading) return 'Passive Tasks is loading the latest snapshot.';
+    if (busyId) return 'Another Passive Tasks action is already running.';
+    if (!passiveStateKnown) return 'Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.';
+    return '';
+  }
+
+  function passiveActionTitle(enabledTitle: string): string {
+    return passiveWriteTitle || enabledTitle;
+  }
+
+  function taskRunTitle(task: PassiveTask, watcher: PassiveWatcher | undefined): string {
+    if (passiveWriteTitle) return passiveWriteTitle;
+    if (canRunTask(task, watcher)) return 'Run this passive task now.';
+    if (!settings?.enabled) return 'Enable the Passive Tasks engine before running tasks.';
+    if (!watcher?.enabled) return 'Enable this watcher before running its task.';
+    if (settings.enabledFamilies[task.family] === false) return `Enable ${passiveFamilyLabel(task.family)} before running this task.`;
+    if (task.status === 'running') return 'This task is already running.';
+    if (task.status === 'cancelled') return 'Cancelled tasks must be resumed or re-enabled before running.';
+    return 'This task is not runnable right now.';
   }
 
   function buildFamilyRows(nextSnapshot: PassiveSnapshot | null, nextSettings: typeof settings): PassiveFamilyRow[] {
@@ -501,15 +525,15 @@
       <RefreshCw size={16} />
       <span>{loading ? 'Loading' : 'Refresh'}</span>
     </button>
-    <button class="button" type="button" disabled={passiveControlDisabled} title={!passiveStateKnown ? 'Load Passive Tasks before running background work.' : ''} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Run due passive tasks now.')} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
       <Clock3 size={16} />
       <span>{passiveStateKnown ? 'Run Due' : 'Load First'}</span>
     </button>
-    <button class="button" type="button" disabled={passiveControlDisabled} title={!passiveStateKnown ? 'Load Passive Tasks before firing startup events.' : ''} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Fire the startup passive event manually.')} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
       <RefreshCw size={16} />
       <span>{passiveStateKnown ? 'Startup Event' : 'Load First'}</span>
     </button>
-    <button class="button" type="button" disabled={passiveControlDisabled} title={!passiveStateKnown ? 'Load Passive Tasks before running idle ticks.' : ''} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Run idle-capable passive tasks manually.')} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
       <Play size={16} />
       <span>{passiveStateKnown ? 'Idle Tick' : 'Load First'}</span>
     </button>
@@ -592,16 +616,16 @@
                 {/if}
               </span>
               <span class="digest-actions">
-                <button class="icon-action" type="button" title="Mark important" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'important')}>
+                <button class="icon-action" type="button" title={passiveActionTitle('Mark important')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'important')}>
                   <Star size={15} />
                 </button>
-                <button class="icon-action" type="button" title="Snooze 24 hours" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'snoozed')}>
+                <button class="icon-action" type="button" title={passiveActionTitle('Snooze 24 hours')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'snoozed')}>
                   <Clock3 size={15} />
                 </button>
-                <button class="icon-action" type="button" title="Mark reviewed" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'reviewed')}>
+                <button class="icon-action" type="button" title={passiveActionTitle('Mark reviewed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'reviewed')}>
                   <CheckCircle2 size={15} />
                 </button>
-                <button class="icon-action" type="button" title="Dismiss" disabled={Boolean(busyId)} on:click={() => triageCard(card.id, 'dismissed')}>
+                <button class="icon-action" type="button" title={passiveActionTitle('Dismiss')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'dismissed')}>
                   <XCircle size={15} />
                 </button>
                 <a class="button compact" href={hubHref(card.route)}>Inspect</a>
@@ -712,7 +736,7 @@
           <span class="icon-chip"><CheckCircle2 size={16} /></span>
           <strong>Active Watchers</strong>
         </div>
-        <button class="button compact" type="button" disabled={!settings || Boolean(busyId)} on:click={toggleEngine}>
+        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle(settings?.enabled ? 'Pause the passive task engine.' : 'Enable the passive task engine.')} on:click={toggleEngine}>
           {settings?.enabled ? 'Pause Engine' : 'Enable Engine'}
         </button>
       </div>
@@ -725,7 +749,7 @@
                 <strong>{watcher.title}</strong>
                 <small>{watcher.description}</small>
               </span>
-              <button class="button compact" type="button" disabled={Boolean(busyId)} on:click={() => applyAction(`watcher:${watcher.id}`, () => togglePassiveWatcher(watcher.id, !watcher.enabled), `${watcher.title} ${watcher.enabled ? 'disabled' : 'enabled'}.`)}>
+              <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle(watcher.enabled ? 'Disable this watcher.' : 'Enable this watcher.')} on:click={() => applyAction(`watcher:${watcher.id}`, () => togglePassiveWatcher(watcher.id, !watcher.enabled), `${watcher.title} ${watcher.enabled ? 'disabled' : 'enabled'}.`)}>
                 {watcher.enabled ? 'Disable' : 'Enable'}
               </button>
             </div>
@@ -769,19 +793,19 @@
                 <td>{displayWhen(task.nextRunAt)}</td>
                 <td><span class={`state ${task.status}`}>{task.status}</span></td>
                 <td class="table-actions">
-                  <button class="icon-action" type="button" title="Run now" disabled={Boolean(busyId) || !canRunTask(task, watcher)} on:click={() => applyAction(`run:${task.id}`, () => runPassiveTask(task.id, { idle: task.idleOnly, reason: 'dashboard-run' }), `${task.title} ran.`)}>
+                  <button class="icon-action" type="button" title={taskRunTitle(task, watcher)} disabled={passiveWriteDisabled || !canRunTask(task, watcher)} on:click={() => applyAction(`run:${task.id}`, () => runPassiveTask(task.id, { idle: task.idleOnly, reason: 'dashboard-run' }), `${task.title} ran.`)}>
                     <Play size={15} />
                   </button>
                   {#if task.status === 'paused'}
-                    <button class="icon-action" type="button" title="Resume" disabled={Boolean(busyId)} on:click={() => applyAction(`resume:${task.id}`, () => resumePassiveTask(task.id), `${task.title} resumed.`)}>
+                    <button class="icon-action" type="button" title={passiveActionTitle('Resume this passive task.')} disabled={passiveWriteDisabled} on:click={() => applyAction(`resume:${task.id}`, () => resumePassiveTask(task.id), `${task.title} resumed.`)}>
                       <Play size={15} />
                     </button>
                   {:else}
-                    <button class="icon-action" type="button" title="Pause" disabled={Boolean(busyId) || !watcher?.enabled} on:click={() => applyAction(`pause:${task.id}`, () => pausePassiveTask(task.id), `${task.title} paused.`)}>
+                    <button class="icon-action" type="button" title={passiveWriteTitle || (watcher?.enabled ? 'Pause this passive task.' : 'Enable this watcher before pausing its task.')} disabled={passiveWriteDisabled || !watcher?.enabled} on:click={() => applyAction(`pause:${task.id}`, () => pausePassiveTask(task.id), `${task.title} paused.`)}>
                       <Pause size={15} />
                     </button>
                   {/if}
-                  <button class="icon-action danger" type="button" title="Cancel" disabled={Boolean(busyId)} on:click={() => applyAction(`cancel:${task.id}`, () => cancelPassiveTask(task.id), `${task.title} cancelled.`)}>
+                  <button class="icon-action danger" type="button" title={passiveActionTitle('Cancel this passive task.')} disabled={passiveWriteDisabled} on:click={() => applyAction(`cancel:${task.id}`, () => cancelPassiveTask(task.id), `${task.title} cancelled.`)}>
                     <XCircle size={15} />
                   </button>
                 </td>
@@ -988,7 +1012,7 @@
                 <strong>{notification.title}</strong>
                 <small>{notification.body}</small>
               </span>
-              <button class="icon-action" type="button" title="Dismiss" disabled={Boolean(busyId)} on:click={() => applyAction(`dismiss:${notification.id}`, () => dismissPassiveNotification(notification.id), 'Notification dismissed.')}>
+              <button class="icon-action" type="button" title={passiveActionTitle('Dismiss notification')} disabled={passiveWriteDisabled} on:click={() => applyAction(`dismiss:${notification.id}`, () => dismissPassiveNotification(notification.id), 'Notification dismissed.')}>
                 <XCircle size={15} />
               </button>
             </div>
@@ -1005,13 +1029,13 @@
           <span class="icon-chip"><Settings size={16} /></span>
           <strong>Settings</strong>
         </div>
-        <button class="button compact" type="button" disabled={Boolean(busyId)} on:click={saveSettings}>Save</button>
+        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Save passive task settings.')} on:click={saveSettings}>Save</button>
       </div>
       {#if settings}
         <div class="settings-form">
           <label class="field">
             <span>Notifications</span>
-            <select value={settings.notificationStyle} on:change={(event) => setNotificationStyle(event.currentTarget.value as 'digest' | 'urgent_only' | 'off')}>
+            <select value={settings.notificationStyle} disabled={passiveWriteDisabled} title={passiveWriteTitle} on:change={(event) => setNotificationStyle(event.currentTarget.value as 'digest' | 'urgent_only' | 'off')}>
               <option value="digest">Digest</option>
               <option value="urgent_only">Urgent only</option>
               <option value="off">Off</option>
@@ -1019,7 +1043,7 @@
           </label>
           <label class="field">
             <span>Resource limit</span>
-            <select value={settings.resourceLimit} on:change={(event) => setResourceLimit(event.currentTarget.value as 'light' | 'balanced' | 'heavy')}>
+            <select value={settings.resourceLimit} disabled={passiveWriteDisabled} title={passiveWriteTitle} on:change={(event) => setResourceLimit(event.currentTarget.value as 'light' | 'balanced' | 'heavy')}>
               <option value="light">Light</option>
               <option value="balanced">Balanced</option>
               <option value="heavy">Heavy</option>
@@ -1029,7 +1053,8 @@
             <input
               type="checkbox"
               checked={settings.idleOnly}
-              disabled={Boolean(busyId)}
+              disabled={passiveWriteDisabled}
+              title={passiveWriteTitle}
               on:change={(event) => setIdleOnly(event.currentTarget.checked)}
             />
             <span>
@@ -1039,7 +1064,7 @@
           </label>
           <label class="field">
             <span>AI preference</span>
-            <select value={settings.localAiPreference} on:change={(event) => setLocalAiPreference(event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed')}>
+            <select value={settings.localAiPreference} disabled={passiveWriteDisabled} title={passiveWriteTitle} on:change={(event) => setLocalAiPreference(event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed')}>
               <option value="local_first">Local first</option>
               <option value="local_only">Local only</option>
               <option value="cloud_allowed">Cloud allowed</option>
@@ -1052,6 +1077,8 @@
               min="1"
               max="10"
               value={settings.maxRunsPerTick}
+              disabled={passiveWriteDisabled}
+              title={passiveWriteTitle}
               on:change={(event) => setMaxRunsPerTick(Number(event.currentTarget.value))}
             />
           </label>
@@ -1061,7 +1088,8 @@
                 <input
                   type="checkbox"
                   checked={family.familyEnabled}
-                  disabled={Boolean(busyId)}
+                  disabled={passiveWriteDisabled}
+                  title={passiveWriteTitle}
                   on:change={(event) => setFamilyEnabled(family.family, event.currentTarget.checked)}
                 />
                 <span>
@@ -1074,15 +1102,15 @@
           </div>
           <label class="field">
             <span>Watched folders</span>
-            <textarea bind:value={folderText} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
+            <textarea bind:value={folderText} disabled={passiveWriteDisabled} title={passiveWriteTitle} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
           </label>
           <label class="field">
             <span>Watched research</span>
-            <textarea bind:value={domainText} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
+            <textarea bind:value={domainText} disabled={passiveWriteDisabled} title={passiveWriteTitle} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
           </label>
           <label class="field">
             <span>Watched accounts</span>
-            <textarea bind:value={accountText} rows="3" placeholder="personal@example.com"></textarea>
+            <textarea bind:value={accountText} disabled={passiveWriteDisabled} title={passiveWriteTitle} rows="3" placeholder="personal@example.com"></textarea>
           </label>
           <p class="settings-note">
             <FolderOpen size={15} />
