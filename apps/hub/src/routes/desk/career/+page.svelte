@@ -329,7 +329,7 @@
   }
 
   async function addJob(): Promise<void> {
-    if (!company.trim() || !role.trim()) return;
+    if (!canSave || saving || !company.trim() || !role.trim()) return;
     saveError = '';
     saving = true;
     try {
@@ -355,6 +355,7 @@
   }
 
   function startEditJob(job: JobRecord): void {
+    if (!canSave || editingJobId || rowBusyId) return;
     editingJobId = job.id;
     rowError = '';
     jobDraft = {
@@ -375,7 +376,7 @@
   }
 
   async function saveJobEdit(job: JobRecord): Promise<void> {
-    if (!jobDraft.company.trim() || !jobDraft.role.trim()) return;
+    if (!canSave || !jobDraft.company.trim() || !jobDraft.role.trim()) return;
     rowError = '';
     rowBusyId = job.id;
     try {
@@ -396,6 +397,7 @@
   }
 
   async function deleteJob(job: JobRecord): Promise<void> {
+    if (!canSave || rowBusyId) return;
     rowError = '';
     rowBusyId = job.id;
     try {
@@ -535,18 +537,18 @@
       {#each filteredJobs as job}
         <tr>
           {#if editingJobId === job.id}
-            <td><input class="table-input" bind:value={jobDraft.company} disabled={rowBusyId === job.id} /></td>
-            <td><input class="table-input" bind:value={jobDraft.role} disabled={rowBusyId === job.id} /></td>
-            <td><input class="table-input link-input" bind:value={jobDraft.applicationUrl} disabled={rowBusyId === job.id} placeholder="https://..." /></td>
+            <td><input class="table-input" bind:value={jobDraft.company} disabled={!canSave || rowBusyId === job.id} /></td>
+            <td><input class="table-input" bind:value={jobDraft.role} disabled={!canSave || rowBusyId === job.id} /></td>
+            <td><input class="table-input link-input" bind:value={jobDraft.applicationUrl} disabled={!canSave || rowBusyId === job.id} placeholder="https://..." /></td>
             <td>
-              <select class="table-select" bind:value={jobDraft.status} disabled={rowBusyId === job.id}>
+              <select class="table-select" bind:value={jobDraft.status} disabled={!canSave || rowBusyId === job.id}>
                 {#each statuses as item}
                   <option value={item}>{item}</option>
                 {/each}
               </select>
             </td>
-            <td><input class="table-input" bind:value={jobDraft.nextActionAt} disabled={rowBusyId === job.id} type="date" /></td>
-            <td><textarea class="table-textarea" bind:value={jobDraft.notes} disabled={rowBusyId === job.id} rows="2"></textarea></td>
+            <td><input class="table-input" bind:value={jobDraft.nextActionAt} disabled={!canSave || rowBusyId === job.id} type="date" /></td>
+            <td><textarea class="table-textarea" bind:value={jobDraft.notes} disabled={!canSave || rowBusyId === job.id} rows="2"></textarea></td>
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">

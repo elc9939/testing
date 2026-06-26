@@ -274,7 +274,7 @@
   }
 
   async function addLog(): Promise<void> {
-    if (!subject.trim() || minutes < 1) return;
+    if (!canSave || saving || !subject.trim() || minutes < 1) return;
     saveError = '';
     saving = true;
     try {
@@ -293,11 +293,13 @@
   }
 
   function chooseQuickLog(nextSubject: string, nextMinutes: number): void {
+    if (!canSave || saving) return;
     subject = nextSubject;
     minutes = nextMinutes;
   }
 
   function startEditLog(log: StudySession): void {
+    if (!canSave || editingSessionId || rowBusyId) return;
     editingSessionId = log.id;
     rowError = '';
     studyDraft = {
@@ -314,7 +316,7 @@
   }
 
   async function saveLogEdit(log: StudySession): Promise<void> {
-    if (!studyDraft.subject.trim() || studyDraft.minutes < 1) return;
+    if (!canSave || !studyDraft.subject.trim() || studyDraft.minutes < 1) return;
     rowError = '';
     rowBusyId = log.id;
     try {
@@ -331,6 +333,7 @@
   }
 
   async function deleteLog(log: StudySession): Promise<void> {
+    if (!canSave || rowBusyId) return;
     rowError = '';
     rowBusyId = log.id;
     try {
@@ -415,12 +418,12 @@
     </div>
     <div class="quick-row">
       {#each quickSubjects as option}
-        <button class:active={subject === option} type="button" on:click={() => (subject = option)}>{option}</button>
+        <button class:active={subject === option} type="button" disabled={!canSave || saving} on:click={() => (subject = option)}>{option}</button>
       {/each}
     </div>
     <div class="quick-row">
       {#each quickMinutes as option}
-        <button class:active={minutes === option} type="button" on:click={() => chooseQuickLog(subject, option)}>{option}m</button>
+        <button class:active={minutes === option} type="button" disabled={!canSave || saving} on:click={() => chooseQuickLog(subject, option)}>{option}m</button>
       {/each}
     </div>
     <div class="compact-fields">
@@ -582,8 +585,8 @@
         {#each filteredLogs as log}
           <tr>
             {#if editingSessionId === log.id}
-              <td><input class="table-input" bind:value={studyDraft.subject} disabled={rowBusyId === log.id} /></td>
-              <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={rowBusyId === log.id} type="number" min="1" step="5" /></td>
+              <td><input class="table-input" bind:value={studyDraft.subject} disabled={!canSave || rowBusyId === log.id} /></td>
+              <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={!canSave || rowBusyId === log.id} type="number" min="1" step="5" /></td>
               <td>{displayDateTime(log.loggedAt)}</td>
               <td>{displayDateTime(log.updatedAt)}</td>
               <td class="actions-cell">

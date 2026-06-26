@@ -70,4 +70,18 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('showing cached records from');
     expect(source).toContain('one source failed; available work is still listed');
   });
+
+  it('keeps Career and Study inline edits read-only when save capability drops', async () => {
+    const career = await routeSource('../routes/desk/career/+page.svelte');
+    const study = await routeSource('../routes/desk/study/+page.svelte');
+
+    expect(career).toContain('if (!canSave || saving || !company.trim() || !role.trim()) return');
+    expect(career).toContain('if (!canSave || editingJobId || rowBusyId) return');
+    expect(career).toContain('if (!canSave || !jobDraft.company.trim() || !jobDraft.role.trim()) return');
+    expect(career).toContain('disabled={!canSave || rowBusyId === job.id}');
+    expect(study).toContain('if (!canSave || saving || !subject.trim() || minutes < 1) return');
+    expect(study).toContain('if (!canSave || saving) return');
+    expect(study).toContain('if (!canSave || editingSessionId || rowBusyId) return');
+    expect(study).toContain('disabled={!canSave || rowBusyId === log.id}');
+  });
 });
