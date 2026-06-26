@@ -222,6 +222,17 @@ function liveRenderState(row) {
   return 'client-rendered shell';
 }
 
+function safeActionSummary(safeAction) {
+  if (!safeAction?.found) return 'missing';
+  return safeAction.enabled ? 'enabled' : 'disabled/setup';
+}
+
+function liveSafeActionSummary(row) {
+  if (!row) return 'not run';
+  if (row.ok && (row.buttons ?? 0) === 0) return 'not-inspected';
+  return safeActionSummary(row.safeAction);
+}
+
 async function sourceSnapshot(route) {
   const sourcePath = path.join(root, route.source);
   const source = await readFile(sourcePath, 'utf8');
@@ -289,7 +300,7 @@ function printMarkdown(rows, liveRows) {
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
-      ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${live.safeAction?.found ? (live.safeAction.enabled ? 'enabled' : 'not-rendered') : 'not-rendered'} ${live.error ?? ''}`.trim()
+      ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${liveSafeActionSummary(live)} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
       `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
@@ -317,7 +328,7 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
     console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.disabled} disabled-control refs, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
     if (live) {
-      console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, safe action ${live.safeAction?.found ? (live.safeAction.enabled ? 'enabled' : 'not rendered') : 'not rendered'}.`);
+      console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, safe action ${liveSafeActionSummary(live)}.`);
       if ((live.buttons ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; use a browser pass for actual control clicks.');
       if (live.buttonLabels?.length) console.log(`- [ ] Live buttons: ${live.buttonLabels.join('; ')}`);
       if (live.issueSnippets?.length) console.log(`- [ ] Live state snippets: ${live.issueSnippets.join(' | ')}`);
