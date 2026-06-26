@@ -28,12 +28,18 @@
     nextActionAt: string;
   }
 
+  interface CareerViewState {
+    searchQuery: string;
+    statusFilter: string;
+  }
+
   interface LegacyJobDetail {
     label: string;
     value: string;
   }
 
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
+  const careerViewStorageKey = 'miniHub.career.view.v1';
 
   let summary: LegacyImportSummary | null = null;
   let localDevOrigin = false;
@@ -47,6 +53,9 @@
   let statusFilter = 'all';
   let saveError = '';
   let rowError = '';
+  let saveMessage = '';
+  let viewStatus = 'Loading saved Career view.';
+  let viewHydrated = false;
   let saving = false;
   let rowBusyId = '';
   let editingJobId = '';
@@ -71,9 +80,56 @@
   $: matchedCareerMailUpdates = careerMailUpdates.filter((insight) => isKnownApplicationMail(insight, submittedJobs));
   $: unreadCareerMailUpdates = matchedCareerMailUpdates.filter((insight) => insight.thread.unread);
   $: visibleCareerMailUpdates = (unreadCareerMailUpdates.length ? unreadCareerMailUpdates : matchedCareerMailUpdates).slice(0, 5);
+  $: if (viewHydrated) persistCareerViewState();
 
   function emptyJobDraft(): JobDraft {
     return { company: '', role: '', status: 'lead', applicationUrl: '', notes: '', nextActionAt: '' };
+  }
+
+  function normalizeCareerViewState(value: unknown, fallback: CareerViewState): CareerViewState {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
+    const record = value as Partial<CareerViewState>;
+    const nextStatus = typeof record.statusFilter === 'string' ? record.statusFilter : fallback.statusFilter;
+    return {
+      searchQuery: typeof record.searchQuery === 'string' ? record.searchQuery : fallback.searchQuery,
+      statusFilter: nextStatus === 'all' || statuses.includes(nextStatus) ? nextStatus : fallback.statusFilter
+    };
+  }
+
+  function currentCareerViewState(): CareerViewState {
+    return { searchQuery, statusFilter };
+  }
+
+  function hydrateCareerViewState(): void {
+    if (typeof localStorage === 'undefined') {
+      viewHydrated = true;
+      viewStatus = 'Browser storage is unavailable; filters reset on reload.';
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(careerViewStorageKey);
+      if (raw) {
+        const next = normalizeCareerViewState(JSON.parse(raw) as unknown, currentCareerViewState());
+        searchQuery = next.searchQuery;
+        statusFilter = next.statusFilter;
+        viewStatus = 'Reloaded Career filters from this browser.';
+      } else {
+        viewStatus = 'Career filters are saved in this browser.';
+      }
+    } catch {
+      viewStatus = 'Stored Career filters were unreadable; defaults are loaded.';
+    } finally {
+      viewHydrated = true;
+    }
+  }
+
+  function persistCareerViewState(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(careerViewStorageKey, JSON.stringify(currentCareerViewState()));
+    } catch {
+      viewStatus = 'Browser storage is full or blocked; Career filters may not persist.';
+    }
   }
 
   function dateInputValue(value?: string): string {
@@ -331,11 +387,15 @@
   async function addJob(): Promise<void> {
     if (!canSave || saving || !company.trim() || !role.trim()) return;
     saveError = '';
+    rowError = '';
+    saveMessage = '';
     saving = true;
+    const savedCompany = company.trim();
+    const savedRole = role.trim();
     try {
       await clientData.saveJob({
-        company: company.trim(),
-        role: role.trim(),
+        company: savedCompany,
+        role: savedRole,
         status,
         applicationUrl: normalizedApplicationUrl(applicationUrl),
         notes: notes.trim(),
@@ -347,6 +407,7 @@
       applicationUrl = '';
       notes = '';
       nextActionAt = '';
+      saveMessage = `Saved ${savedRole} at ${savedCompany}.`;
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Save failed';
     } finally {
@@ -358,6 +419,7 @@
     if (!canSave || editingJobId || rowBusyId) return;
     editingJobId = job.id;
     rowError = '';
+    saveMessage = '';
     jobDraft = {
       company: job.company,
       role: job.role,
@@ -378,17 +440,22 @@
   async function saveJobEdit(job: JobRecord): Promise<void> {
     if (!canSave || !jobDraft.company.trim() || !jobDraft.role.trim()) return;
     rowError = '';
+    saveError = '';
+    saveMessage = '';
     rowBusyId = job.id;
+    const savedCompany = jobDraft.company.trim();
+    const savedRole = jobDraft.role.trim();
     try {
       await clientData.updateJob(job.id, {
-        company: jobDraft.company.trim(),
-        role: jobDraft.role.trim(),
+        company: savedCompany,
+        role: savedRole,
         status: jobDraft.status,
         applicationUrl: normalizedApplicationUrl(jobDraft.applicationUrl),
         notes: jobDraft.notes.trim(),
         nextActionAt: jobDraft.nextActionAt || null
       });
       cancelEditJob();
+      saveMessage = `Updated ${savedRole} at ${savedCompany}.`;
     } catch (error) {
       rowError = error instanceof Error ? error.message : 'Save failed';
     } finally {
@@ -399,10 +466,13 @@
   async function deleteJob(job: JobRecord): Promise<void> {
     if (!canSave || rowBusyId) return;
     rowError = '';
+    saveError = '';
+    saveMessage = '';
     rowBusyId = job.id;
     try {
       await clientData.deleteJob(job.id);
       if (editingJobId === job.id) cancelEditJob();
+      saveMessage = `Deleted ${job.role} at ${job.company}.`;
     } catch (error) {
       rowError = error instanceof Error ? error.message : 'Delete failed';
     } finally {
@@ -421,10 +491,12 @@
     link.download = 'mini-hub-legacy-career-snapshot.json';
     link.click();
     URL.revokeObjectURL(url);
+    saveMessage = 'Exported legacy Career snapshot from this browser.';
   }
 
   onMount(() => {
     localDevOrigin = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    hydrateCareerViewState();
     void clientData.init();
     void refreshSummary();
     void refreshCareerMailUpdates();
@@ -461,6 +533,9 @@
 {/if}
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>
+{/if}
+{#if saveMessage}
+  <section class="card card-pad success-banner">{saveMessage}</section>
 {/if}
 
 <section class="focus-strip" aria-label="Career focus">
@@ -516,7 +591,10 @@
       {/each}
     </select>
   </div>
-  <div class="filter-count">{filteredJobs.length} / {jobs.length} jobs</div>
+  <div class="filter-count">
+    <strong>{filteredJobs.length} / {jobs.length} jobs</strong>
+    <small>{viewStatus}</small>
+  </div>
 </section>
 
 <section class="card table-card">
@@ -906,9 +984,20 @@
   .filter-count {
     min-height: 38px;
     display: grid;
+    gap: 2px;
     align-items: center;
     color: var(--muted);
     font-weight: 800;
+  }
+
+  .filter-count strong {
+    color: var(--text);
+  }
+
+  .filter-count small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.25;
   }
 
   .empty-career-state {
@@ -1150,6 +1239,14 @@
     border-color: var(--error-border);
     color: var(--error-text);
     background: var(--error-bg);
+    font-weight: 800;
+  }
+
+  .success-banner {
+    margin-bottom: 14px;
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
     font-weight: 800;
   }
 

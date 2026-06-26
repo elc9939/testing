@@ -10,6 +10,12 @@
     minutes: number;
   }
 
+  interface StudyViewState {
+    searchQuery: string;
+    subject: string;
+    minutes: number;
+  }
+
   interface LegacyImportState {
     importedAt?: string;
     jobs?: number;
@@ -59,10 +65,14 @@
   let searchQuery = '';
   let saveError = '';
   let rowError = '';
+  let saveMessage = '';
+  let viewStatus = 'Loading saved Study view.';
+  let viewHydrated = false;
   let saving = false;
   let rowBusyId = '';
   let editingSessionId = '';
   let studyDraft: StudyDraft = emptyStudyDraft();
+  const studyViewStorageKey = 'miniHub.study.view.v1';
   const quickSubjects = ['NeetCode', 'Review', 'Math', 'Project'];
   const quickMinutes = [15, 30, 45, 60];
 
@@ -99,9 +109,58 @@
         legacyGithub.submissions ||
         legacyGithub.lastSync)
   );
+  $: if (viewHydrated) persistStudyViewState();
 
   function emptyStudyDraft(): StudyDraft {
     return { subject: '', minutes: 30 };
+  }
+
+  function normalizeStudyViewState(value: unknown, fallback: StudyViewState): StudyViewState {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
+    const record = value as Partial<StudyViewState>;
+    const nextMinutes = typeof record.minutes === 'number' && Number.isFinite(record.minutes) ? Math.max(1, Math.round(record.minutes)) : fallback.minutes;
+    return {
+      searchQuery: typeof record.searchQuery === 'string' ? record.searchQuery : fallback.searchQuery,
+      subject: typeof record.subject === 'string' && record.subject.trim() ? record.subject : fallback.subject,
+      minutes: nextMinutes
+    };
+  }
+
+  function currentStudyViewState(): StudyViewState {
+    return { searchQuery, subject, minutes: Number(minutes) };
+  }
+
+  function hydrateStudyViewState(): void {
+    if (typeof localStorage === 'undefined') {
+      viewHydrated = true;
+      viewStatus = 'Browser storage is unavailable; filters reset on reload.';
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(studyViewStorageKey);
+      if (raw) {
+        const next = normalizeStudyViewState(JSON.parse(raw) as unknown, currentStudyViewState());
+        searchQuery = next.searchQuery;
+        subject = next.subject;
+        minutes = next.minutes;
+        viewStatus = 'Reloaded Study filters and quick-log defaults from this browser.';
+      } else {
+        viewStatus = 'Study filters and quick-log defaults are saved in this browser.';
+      }
+    } catch {
+      viewStatus = 'Stored Study view was unreadable; defaults are loaded.';
+    } finally {
+      viewHydrated = true;
+    }
+  }
+
+  function persistStudyViewState(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(studyViewStorageKey, JSON.stringify(currentStudyViewState()));
+    } catch {
+      viewStatus = 'Browser storage is full or blocked; Study view may not persist.';
+    }
   }
 
   function matchesLog(log: StudySession): boolean {
@@ -276,15 +335,20 @@
   async function addLog(): Promise<void> {
     if (!canSave || saving || !subject.trim() || minutes < 1) return;
     saveError = '';
+    rowError = '';
+    saveMessage = '';
     saving = true;
+    const savedSubject = subject.trim();
+    const savedMinutes = Number(minutes);
     try {
       await clientData.saveStudySession({
-        subject: subject.trim(),
-        minutes: Number(minutes),
+        subject: savedSubject,
+        minutes: savedMinutes,
         source: 'manual'
       });
       subject = 'NeetCode';
       minutes = 30;
+      saveMessage = `Logged ${savedMinutes} min for ${savedSubject}.`;
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Save failed';
     } finally {
@@ -302,6 +366,7 @@
     if (!canSave || editingSessionId || rowBusyId) return;
     editingSessionId = log.id;
     rowError = '';
+    saveMessage = '';
     studyDraft = {
       subject: log.subject,
       minutes: log.minutes
@@ -318,13 +383,18 @@
   async function saveLogEdit(log: StudySession): Promise<void> {
     if (!canSave || !studyDraft.subject.trim() || studyDraft.minutes < 1) return;
     rowError = '';
+    saveError = '';
+    saveMessage = '';
     rowBusyId = log.id;
+    const savedSubject = studyDraft.subject.trim();
+    const savedMinutes = Number(studyDraft.minutes);
     try {
       await clientData.updateStudySession(log.id, {
-        subject: studyDraft.subject.trim(),
-        minutes: Number(studyDraft.minutes)
+        subject: savedSubject,
+        minutes: savedMinutes
       });
       cancelEditLog();
+      saveMessage = `Updated ${savedSubject} to ${savedMinutes} min.`;
     } catch (error) {
       rowError = error instanceof Error ? error.message : 'Save failed';
     } finally {
@@ -335,10 +405,13 @@
   async function deleteLog(log: StudySession): Promise<void> {
     if (!canSave || rowBusyId) return;
     rowError = '';
+    saveError = '';
+    saveMessage = '';
     rowBusyId = log.id;
     try {
       await clientData.deleteStudySession(log.id);
       if (editingSessionId === log.id) cancelEditLog();
+      saveMessage = `Deleted ${log.minutes} min for ${log.subject}.`;
     } catch (error) {
       rowError = error instanceof Error ? error.message : 'Delete failed';
     } finally {
@@ -347,6 +420,7 @@
   }
 
   onMount(() => {
+    hydrateStudyViewState();
     void clientData.init();
     void refreshSummary();
   });
@@ -374,6 +448,9 @@
 {/if}
 {#if saveError || rowError}
   <section class="card card-pad error-banner">{saveError || rowError}</section>
+{/if}
+{#if saveMessage}
+  <section class="card card-pad success-banner">{saveMessage}</section>
 {/if}
 {#if importedLegacy}
   <section class="card card-pad import-summary">
@@ -535,6 +612,7 @@
         <Search size={16} />
         <input id="study-search" bind:value={searchQuery} placeholder="Subject" />
       </div>
+      <small class="view-status">{viewStatus}</small>
     </div>
   </div>
 
@@ -955,6 +1033,22 @@
     color: var(--error-text);
     background: var(--error-bg);
     font-weight: 800;
+  }
+
+  .success-banner {
+    margin-bottom: 14px;
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
+    font-weight: 800;
+  }
+
+  .view-status {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.25;
   }
 
   @media (max-width: 820px) {

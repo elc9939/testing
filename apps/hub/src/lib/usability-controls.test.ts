@@ -140,10 +140,18 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('if (!canSave || editingJobId || rowBusyId) return');
     expect(career).toContain('if (!canSave || !jobDraft.company.trim() || !jobDraft.role.trim()) return');
     expect(career).toContain('disabled={!canSave || rowBusyId === job.id}');
+    expect(career).toContain("careerViewStorageKey = 'miniHub.career.view.v1'");
+    expect(career).toContain('function hydrateCareerViewState');
+    expect(career).toContain('Reloaded Career filters from this browser.');
+    expect(career).toContain('success-banner');
     expect(study).toContain('if (!canSave || saving || !subject.trim() || minutes < 1) return');
     expect(study).toContain('if (!canSave || saving) return');
     expect(study).toContain('if (!canSave || editingSessionId || rowBusyId) return');
     expect(study).toContain('disabled={!canSave || rowBusyId === log.id}');
+    expect(study).toContain("studyViewStorageKey = 'miniHub.study.view.v1'");
+    expect(study).toContain('function hydrateStudyViewState');
+    expect(study).toContain('Reloaded Study filters and quick-log defaults from this browser.');
+    expect(study).toContain('success-banner');
   });
 
   it('keeps the hub smoke script able to print a repeatable action and reload checklist', async () => {

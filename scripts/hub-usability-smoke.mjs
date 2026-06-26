@@ -40,7 +40,7 @@ const routes = [
     service: 'Mini Hub API + browser PGlite cache',
     safeAction: 'Filter/export; add/edit requires online Mini Hub API.',
     expectedBlockedState: 'Offline read-only explains cached jobs and disables saves.',
-    persistence: 'Jobs, filters, and exports should survive reload from API/cache.'
+    persistence: 'Jobs, filters, save confirmations, and exports should survive or clearly report reload from API/cache/browser storage.'
   },
   {
     id: 'study',
@@ -49,7 +49,7 @@ const routes = [
     service: 'Mini Hub API + browser PGlite cache',
     safeAction: 'Review progress; logging requires online Mini Hub API.',
     expectedBlockedState: 'Offline read-only explains cached sessions and disables logging.',
-    persistence: 'Logged sessions and analytics should reload from API/cache.'
+    persistence: 'Logged sessions, filters, quick-log defaults, and analytics should reload from API/cache/browser storage.'
   },
   {
     id: 'analytics',
