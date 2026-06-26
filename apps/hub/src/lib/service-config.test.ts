@@ -1,3 +1,6 @@
+import { readdir, readFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   defaultServiceRequestTimeoutMs,
@@ -9,10 +12,39 @@ import {
   serviceNetworkContextHint
 } from './service-config';
 
+const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
+
+async function sourceFiles(dir = sourceRoot): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const child = resolve(dir, entry.name);
+      if (entry.isDirectory()) return sourceFiles(child);
+      return entry.isFile() && /\.(?:ts|svelte)$/u.test(entry.name) && !entry.name.endsWith('.test.ts') ? [child] : [];
+    })
+  );
+  return files.flat();
+}
+
 describe('service endpoint resolution', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('keeps browser network calls centralized through service-config', async () => {
+    const offenders: string[] = [];
+
+    for (const file of await sourceFiles()) {
+      const source = await readFile(file, 'utf8');
+      const relativeFile = relative(sourceRoot, file).replace(/\\/gu, '/');
+      if (relativeFile === 'lib/service-config.ts') continue;
+      if (/\b(?:fetch|XMLHttpRequest|EventSource|WebSocket)\s*\(/u.test(source) || /\bsendBeacon\s*\(/u.test(source)) {
+        offenders.push(relativeFile);
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 
   it('does not treat the hosted GitHub Pages app as an API service', () => {
@@ -88,6 +120,19 @@ describe('service endpoint resolution', () => {
         headers: { accept: 'text/event-stream, application/json' }
       })
     ).rejects.toThrow('returned the web app HTML instead of events');
+  });
+
+  it('turns HTML JSON responses into actionable service setup errors', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('<!doctype html><title>Mini Hub</title>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' }
+      })
+    );
+
+    await expect(requestServiceJson('hubApi', serviceFallbackUrl('hubApi'), '/api/health')).rejects.toThrow(
+      'returned the web app HTML instead of JSON'
+    );
   });
 
   it('turns missing streamed routes into endpoint diagnostics', async () => {
