@@ -60,8 +60,9 @@
   $: serviceDetail = status ? `${status.version} at ${getMacroLabApiUrl()}` : `Target: ${getMacroLabApiUrl()}`;
   $: macroServiceReady = Boolean(status && !serviceError);
   $: macroStateKnown = macroServiceReady;
-  $: macroControlTitle = macroDisabledReason();
+  $: macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status });
   $: macroControlDisabled = Boolean(macroControlTitle);
+  $: macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy });
 
   onMount(() => {
     void refresh();
@@ -76,11 +77,19 @@
     editor = stringify(macro);
   }
 
-  function macroDisabledReason(): string {
-    if (loading) return 'Macro Lab is loading the latest desktop automation state.';
-    if (busy) return 'Another Macro Lab action is already running.';
-    if (serviceError) return `Macro Lab service is unavailable: ${serviceError}`;
-    if (!status) return 'Connect Macro Lab before changing macros, triggers, recorder, panic, or run state.';
+  function macroDisabledReason(
+    state: { loading: boolean; busy: boolean; serviceError: string; status: MacroStatus | null } = { loading, busy, serviceError, status }
+  ): string {
+    if (state.loading) return 'Macro Lab is loading the latest desktop automation state.';
+    if (state.busy) return 'Another Macro Lab action is already running.';
+    if (state.serviceError) return `Macro Lab service is unavailable: ${state.serviceError}`;
+    if (!state.status) return 'Connect Macro Lab before changing macros, triggers, recorder, panic, or run state.';
+    return '';
+  }
+
+  function macroRefreshDisabledReason(state: { loading: boolean; busy: boolean }): string {
+    if (state.loading) return 'Macro Lab is already loading the latest state.';
+    if (state.busy) return 'Wait for the current Macro Lab action before refreshing.';
     return '';
   }
 
@@ -232,9 +241,9 @@
     <h1>Macro Lab</h1>
   </div>
   <div class="action-row">
-    <button class="button" disabled={loading || busy} on:click={refresh}><RefreshCw size={16} />Refresh</button>
-    <button class="button danger" disabled={macroControlDisabled} title={macroControlTitle || 'Stop all running automations and disable triggers.'} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
-    <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reset the Macro Lab panic state.'} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
+    <button class="button" type="button" disabled={Boolean(macroRefreshBlockedReason)} title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'} on:click={refresh}><RefreshCw size={16} />Refresh</button>
+    <button class="button danger" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Stop all running automations and disable triggers.'} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
+    <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reset the Macro Lab panic state.'} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
   </div>
 </div>
 

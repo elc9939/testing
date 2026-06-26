@@ -80,7 +80,11 @@ describe('Mini Hub usability control gates', () => {
     const passive = await routeSource('../routes/passive-tasks/+page.svelte');
 
     expect(macro).toContain('macroServiceReady = Boolean(status && !serviceError)');
+    expect(macro).toContain('macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status })');
     expect(macro).toContain('macroControlDisabled = Boolean(macroControlTitle)');
+    expect(macro).toContain('macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy })');
+    expect(macro).toContain('function macroRefreshDisabledReason');
+    expect(macro).toContain("title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'}");
     expect(macro).toContain('function requireMacroReady');
     expect(macro).toContain('if (macroConnectionError(message)) serviceError = message');
     expect(macro).toContain('Macro Lab connection failed: {serviceError}');
