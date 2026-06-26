@@ -259,6 +259,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('let syncBusy = false');
     expect(source).toContain('let exportBusy = false');
     expect(source).toContain('let endpointSaving = false');
+    expect(source).toContain('function capabilityRefreshTitle');
+    expect(source).toContain('title={capabilityRefreshTitle()}');
+    expect(source).toContain('function themeButtonTitle');
+    expect(source).toContain("title={themeButtonTitle('dark')}");
+    expect(source).toContain('function actionLedgerRefreshTitle');
+    expect(source).toContain('title={actionLedgerRefreshTitle()}');
+    expect(source).toContain('function restoreActionTitle');
+    expect(source).toContain('title={restoreActionTitle(action)}');
     expect(source).toContain('machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions)');
     expect(source).toContain("machineProfileControlBlockedReason('autotune', {");
     expect(source).toContain('function machineProfileControlBlockedReason');

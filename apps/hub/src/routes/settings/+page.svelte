@@ -562,6 +562,26 @@
     return action.system === 'macro-lab' && ['snapshot', 'artifact'].includes(action.recoverability.kind) && Boolean(action.recoverability.referenceId);
   }
 
+  function capabilityRefreshTitle(): string {
+    return capabilityLoading ? 'Capability registry refresh is already running.' : 'Refresh service capability readiness from configured endpoints.';
+  }
+
+  function themeButtonTitle(mode: ThemeMode): string {
+    if (themeSaving) return 'Theme preference is already saving.';
+    return `Switch theme to ${mode}.`;
+  }
+
+  function actionLedgerRefreshTitle(): string {
+    return actionLedgerLoading ? 'Action Ledger refresh is already running.' : 'Refresh recent actions from Mini Hub, AI OS, and Macro Lab.';
+  }
+
+  function restoreActionTitle(action: ActionLedgerEntry): string {
+    if (restoreBusyId === action.id) return 'This restore is already running.';
+    if (restoreBusyId) return 'Another restore action is already running.';
+    if (!canRestoreAction(action)) return 'This action does not have a reversible snapshot or recovery artifact.';
+    return `Restore "${action.summary}" from its recorded recovery data.`;
+  }
+
   async function restoreAction(action: ActionLedgerEntry): Promise<void> {
     if (!canRestoreAction(action) || restoreBusyId) return;
     const isAiSnapshot = action.system === 'ai-os';
@@ -774,7 +794,7 @@
       <p class="eyebrow">Machine Control</p>
       <h2>Services And Capabilities</h2>
     </div>
-    <button class="button" type="button" disabled={capabilityLoading} on:click={refreshCapabilities}>
+    <button class="button" type="button" disabled={capabilityLoading} title={capabilityRefreshTitle()} on:click={refreshCapabilities}>
       <Activity size={17} />
       <span>{capabilityLoading ? 'Checking' : 'Refresh Capabilities'}</span>
     </button>
@@ -1221,15 +1241,15 @@
       <strong>Appearance</strong>
     </div>
     <div class="theme-segment" aria-label="Theme">
-      <button class:active={$theme === 'system'} type="button" aria-pressed={$theme === 'system'} disabled={themeSaving} on:click={() => chooseTheme('system')}>
+      <button class:active={$theme === 'system'} type="button" aria-pressed={$theme === 'system'} disabled={themeSaving} title={themeButtonTitle('system')} on:click={() => chooseTheme('system')}>
         <Monitor size={15} />
         <span>System</span>
       </button>
-      <button class:active={$theme === 'light'} type="button" aria-pressed={$theme === 'light'} disabled={themeSaving} on:click={() => chooseTheme('light')}>
+      <button class:active={$theme === 'light'} type="button" aria-pressed={$theme === 'light'} disabled={themeSaving} title={themeButtonTitle('light')} on:click={() => chooseTheme('light')}>
         <Sun size={15} />
         <span>Light</span>
       </button>
-      <button class:active={$theme === 'dark'} type="button" aria-pressed={$theme === 'dark'} disabled={themeSaving} on:click={() => chooseTheme('dark')}>
+      <button class:active={$theme === 'dark'} type="button" aria-pressed={$theme === 'dark'} disabled={themeSaving} title={themeButtonTitle('dark')} on:click={() => chooseTheme('dark')}>
         <Moon size={15} />
         <span>Dark</span>
       </button>
@@ -1327,7 +1347,7 @@
         <Activity size={18} />
         <strong>Action Ledger</strong>
       </span>
-      <button class="button compact" type="button" disabled={actionLedgerLoading} on:click={refreshActionLedger}>
+      <button class="button compact" type="button" disabled={actionLedgerLoading} title={actionLedgerRefreshTitle()} on:click={refreshActionLedger}>
         <RefreshCw size={15} />
         <span>{actionLedgerLoading ? 'Loading' : 'Refresh'}</span>
       </button>
@@ -1353,6 +1373,7 @@
                 class="button compact"
                 type="button"
                 disabled={Boolean(restoreBusyId)}
+                title={restoreActionTitle(action)}
                 on:click={() => restoreAction(action)}
               >
                 <span>{restoreBusyId === action.id ? 'Restoring' : 'Restore'}</span>
