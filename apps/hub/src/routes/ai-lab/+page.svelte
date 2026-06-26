@@ -1,7 +1,15 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { BrainCircuit, FileCode2, Play } from 'lucide-svelte';
   import javascriptGrammarUrl from 'tree-sitter-javascript/tree-sitter-javascript.wasm?url';
-  import { aiLabResultCopy, parseAiLabLabels, type AiLabResultState } from '$lib/ai-lab-state';
+  import {
+    aiLabDraftStorageKey,
+    aiLabResultCopy,
+    normalizeAiLabDraft,
+    parseAiLabLabels,
+    type AiLabDraftState,
+    type AiLabResultState
+  } from '$lib/ai-lab-state';
 
   let text = 'Follow up with two high-fit roles, summarize the study backlog, and classify today as focused work.';
   let labels = 'career, study, games, admin';
@@ -16,8 +24,12 @@
   let parseResultText = '';
   let parseResultState: AiLabResultState = 'idle';
   let parseBusy = false;
+  let draftHydrated = false;
+  let draftStatus = 'Using default browser-local samples.';
   $: classifyResultCopy = aiLabResultCopy(classifyResultState, classifyResultText);
   $: parseResultCopy = aiLabResultCopy(parseResultState, parseResultText);
+  $: classifyBlockedReason = classifyBusy ? 'Classification is already running.' : classifyValidationReason();
+  $: parseBlockedReason = parseBusy ? 'Parser is already running.' : parseValidationReason();
   $: grammarAssetState = grammarUrl.trim()
     ? 'Tree-sitter grammar URL is configured.'
     : 'Tree-sitter needs a WASM grammar URL before parsing can run.';
@@ -40,6 +52,11 @@
       detail: 'This lab is browser-local. Use AI OS for Ollama/API routing, queues, agents, and service health.'
     }
   ];
+  $: if (draftHydrated) persistAiLabDraft();
+
+  onMount(() => {
+    hydrateAiLabDraft();
+  });
 
   function setClassifyResult(state: AiLabResultState, detail = ''): void {
     classifyResultState = state;
@@ -51,16 +68,67 @@
     parseResultText = detail;
   }
 
-  async function classify(): Promise<void> {
+  function classifyValidationReason(): string {
     const parsedLabels = parseAiLabLabels(labels);
-    if (!text.trim()) {
-      setClassifyResult('error', 'Add text before running the classifier.');
+    if (!text.trim()) return 'Add text before running the classifier.';
+    if (!parsedLabels.length) return 'Add at least one comma-separated label.';
+    return '';
+  }
+
+  function parseValidationReason(): string {
+    if (!grammarUrl.trim()) return 'Provide a Tree-sitter WASM grammar URL first.';
+    if (!codeText.trim()) return 'Add code before running the parser.';
+    return '';
+  }
+
+  function currentAiLabDraft(): AiLabDraftState {
+    return { text, labels, codeText, grammarUrl };
+  }
+
+  function applyAiLabDraft(draft: AiLabDraftState): void {
+    text = draft.text;
+    labels = draft.labels;
+    codeText = draft.codeText;
+    grammarUrl = draft.grammarUrl;
+  }
+
+  function hydrateAiLabDraft(): void {
+    if (typeof localStorage === 'undefined') {
+      draftHydrated = true;
+      draftStatus = 'Browser storage is unavailable; samples reset on reload.';
       return;
     }
-    if (!parsedLabels.length) {
-      setClassifyResult('error', 'Add at least one comma-separated label.');
+    try {
+      const raw = localStorage.getItem(aiLabDraftStorageKey);
+      if (raw) {
+        applyAiLabDraft(normalizeAiLabDraft(JSON.parse(raw) as unknown, currentAiLabDraft()));
+        draftStatus = 'Reloaded AI Lab inputs from this browser.';
+      } else {
+        draftStatus = 'Using default browser-local samples.';
+      }
+    } catch {
+      draftStatus = 'Stored AI Lab inputs were unreadable; defaults are loaded.';
+    } finally {
+      draftHydrated = true;
+    }
+  }
+
+  function persistAiLabDraft(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(aiLabDraftStorageKey, JSON.stringify(currentAiLabDraft()));
+    } catch {
+      draftStatus = 'Browser storage is full or blocked; AI Lab inputs may not persist.';
+    }
+  }
+
+  async function classify(): Promise<void> {
+    const blocked = classifyValidationReason();
+    if (blocked) {
+      setClassifyResult('error', blocked);
       return;
     }
+    const parsedLabels = parseAiLabLabels(labels);
     classifyBusy = true;
     setClassifyResult('loading', 'Loading Transformers.js and the local classification model.');
     try {
@@ -79,12 +147,9 @@
   }
 
   async function parseCode(): Promise<void> {
-    if (!grammarUrl.trim()) {
-      setParseResult('error', 'Provide a Tree-sitter WASM grammar URL first.');
-      return;
-    }
-    if (!codeText.trim()) {
-      setParseResult('error', 'Add code before running the parser.');
+    const blocked = parseValidationReason();
+    if (blocked) {
+      setParseResult('error', blocked);
       return;
     }
     parseBusy = true;
@@ -117,6 +182,7 @@
   <div>
     <strong>What this is</strong>
     <p>AI Lab is a small sandbox for browser-side local AI pieces. Use it to try text classification and code parsing without running the full AI OS control room.</p>
+    <small>{draftStatus}</small>
   </div>
   <div>
     <strong>When to use AI OS instead</strong>
@@ -148,10 +214,13 @@
       <label for="labels">Labels</label>
       <input id="labels" bind:value={labels} />
     </div>
-    <button class="button primary" type="button" disabled={classifyBusy} on:click={classify}>
+    <button class="button primary" type="button" disabled={Boolean(classifyBlockedReason)} title={classifyBlockedReason || 'Classify this text using browser-side local assets.'} on:click={classify}>
       <Play size={17} />
       <span>{classifyBusy ? 'Running' : 'Classify'}</span>
     </button>
+    {#if classifyBlockedReason && !classifyBusy}
+      <small class="control-note warning">{classifyBlockedReason}</small>
+    {/if}
   </div>
 
   <div class="card card-pad panel">
@@ -168,10 +237,13 @@
       <label for="code-text">Code</label>
       <textarea id="code-text" bind:value={codeText} rows="7"></textarea>
     </div>
-    <button class="button" type="button" disabled={parseBusy} on:click={parseCode}>
+    <button class="button" type="button" disabled={Boolean(parseBlockedReason)} title={parseBlockedReason || 'Parse this code using the configured Tree-sitter grammar.'} on:click={parseCode}>
       <Play size={17} />
       <span>{parseBusy ? 'Running' : 'Parse'}</span>
     </button>
+    {#if parseBlockedReason && !parseBusy}
+      <small class="control-note warning">{parseBlockedReason}</small>
+    {/if}
   </div>
 </section>
 
@@ -221,6 +293,16 @@
     margin: 0;
     color: var(--muted);
     line-height: 1.45;
+  }
+
+  .plain-guide small,
+  .control-note {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .control-note.warning {
+    color: var(--warning-text);
   }
 
   .readiness-strip {

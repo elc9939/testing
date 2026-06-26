@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { aiLabResultCopy, parseAiLabLabels } from './ai-lab-state';
+import { aiLabResultCopy, normalizeAiLabDraft, parseAiLabLabels, type AiLabDraftState } from './ai-lab-state';
+
+const fallbackDraft: AiLabDraftState = {
+  text: 'sample',
+  labels: 'career, study',
+  codeText: 'const ok = true;',
+  grammarUrl: '/tree-sitter-javascript.wasm'
+};
 
 describe('AI Lab state helpers', () => {
   it('normalizes comma-separated classifier labels', () => {
@@ -13,5 +20,26 @@ describe('AI Lab state helpers', () => {
     expect(aiLabResultCopy('success', 'career: 0.9').title).toBe('Result ready');
     expect(aiLabResultCopy('empty').title).toBe('No output returned');
     expect(aiLabResultCopy('error', 'Missing grammar').title).toBe('Action needed');
+  });
+
+  it('normalizes browser-local draft inputs without trusting malformed storage', () => {
+    expect(
+      normalizeAiLabDraft(
+        {
+          text: 'custom text',
+          labels: ['not', 'a', 'string'],
+          codeText: 'function x() {}',
+          grammarUrl: 123
+        },
+        fallbackDraft
+      )
+    ).toEqual({
+      text: 'custom text',
+      labels: fallbackDraft.labels,
+      codeText: 'function x() {}',
+      grammarUrl: fallbackDraft.grammarUrl
+    });
+
+    expect(normalizeAiLabDraft(null, fallbackDraft)).toEqual(fallbackDraft);
   });
 });

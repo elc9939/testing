@@ -5,11 +5,31 @@ export interface AiLabResultCopy {
   detail: string;
 }
 
+export interface AiLabDraftState {
+  text: string;
+  labels: string;
+  codeText: string;
+  grammarUrl: string;
+}
+
+export const aiLabDraftStorageKey = 'miniHub.aiLab.draft.v1';
+
 export function parseAiLabLabels(value: string): string[] {
   return value
     .split(',')
     .map((label) => label.trim())
     .filter(Boolean);
+}
+
+export function normalizeAiLabDraft(value: unknown, fallback: AiLabDraftState): AiLabDraftState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
+  const record = value as Partial<AiLabDraftState>;
+  return {
+    text: stringValue(record.text, fallback.text),
+    labels: stringValue(record.labels, fallback.labels),
+    codeText: stringValue(record.codeText, fallback.codeText),
+    grammarUrl: stringValue(record.grammarUrl, fallback.grammarUrl)
+  };
 }
 
 export function aiLabResultCopy(state: AiLabResultState, detail = ''): AiLabResultCopy {
@@ -41,4 +61,8 @@ export function aiLabResultCopy(state: AiLabResultState, detail = ''): AiLabResu
     title: 'Ready to test',
     detail: 'Run Classify or Parse to test the browser-side Transformers.js and Tree-sitter pieces.'
   };
+}
+
+function stringValue(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
 }
