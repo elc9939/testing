@@ -109,6 +109,8 @@
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune');
+  $: machineSnapshotBlockedReason = machineProfileControlBlockedReason('snapshot');
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
   $: passiveSettings = passiveSnapshot?.settings ?? null;
   $: passiveBackupHealth = passiveSnapshot?.backupHealth ?? null;
@@ -557,6 +559,25 @@
     return `${mode.label}: ${mode.summary}`;
   }
 
+  function aiOsEndpointIssue(): string {
+    const endpoint = endpointResolutions.find((item) => item.id === 'aiOs');
+    if (endpoint?.state === 'misconfigured') return endpoint.fixAction || 'Save a valid AI OS endpoint before running machine controls.';
+    return '';
+  }
+
+  function machineProfileControlBlockedReason(action: 'autotune' | 'snapshot'): string {
+    const endpointIssue = aiOsEndpointIssue();
+    if (endpointIssue) return endpointIssue;
+    if (action === 'autotune' && autotuneBusy) return 'Autotune is already running.';
+    if (machineProfileLoading) return 'Machine profile is loading.';
+    if (!machineProfile) {
+      return machineProfileError
+        ? 'AI OS is unavailable. Start AI OS or fix the endpoint, then retry the profile check.'
+        : 'Load the AI OS Machine Profile before running this control.';
+    }
+    return '';
+  }
+
   async function refreshMachineProfile(mode = currentMachineMode.id): Promise<void> {
     machineProfileLoading = true;
     machineProfileError = '';
@@ -565,6 +586,7 @@
       machineProfile = result.profile;
       machineSnapshots = result.snapshots;
     } catch (error) {
+      machineProfile = null;
       machineProfileError = error instanceof Error ? error.message : 'Machine profile failed to load.';
     } finally {
       machineProfileLoading = false;
@@ -572,6 +594,10 @@
   }
 
   async function runMachineAutotune(): Promise<void> {
+    if (machineAutotuneBlockedReason) {
+      machineProfileError = machineAutotuneBlockedReason;
+      return;
+    }
     autotuneBusy = true;
     machineProfileMessage = '';
     machineProfileError = '';
@@ -592,6 +618,10 @@
   }
 
   async function saveMachineSnapshot(): Promise<void> {
+    if (machineSnapshotBlockedReason) {
+      machineProfileError = machineSnapshotBlockedReason;
+      return;
+    }
     machineProfileMessage = '';
     machineProfileError = '';
     try {
@@ -762,17 +792,17 @@
       <p class="helper-text">Machine profile has not been loaded yet. Start AI OS, then check services.</p>
     {/if}
     <div class="action-row tight">
-      <button class="button primary" type="button" disabled={autotuneBusy || machineProfileLoading} on:click={runMachineAutotune}>
+      <button class="button primary" type="button" disabled={Boolean(machineAutotuneBlockedReason)} title={machineAutotuneBlockedReason || 'Run a small AI OS benchmark and update the machine profile.'} on:click={runMachineAutotune}>
         <Activity size={17} />
         <span>{autotuneBusy ? 'Running' : 'Run Autotune'}</span>
       </button>
-      <button class="button" type="button" disabled={!machineProfile || machineProfileLoading} on:click={saveMachineSnapshot}>
+      <button class="button" type="button" disabled={Boolean(machineSnapshotBlockedReason)} title={machineSnapshotBlockedReason || 'Save the current AI OS machine profile snapshot.'} on:click={saveMachineSnapshot}>
         <Save size={17} />
         <span>Save Snapshot</span>
       </button>
-      <button class="button" type="button" disabled={machineProfileLoading} on:click={() => refreshMachineProfile()}>
+      <button class="button" type="button" disabled={machineProfileLoading} title={machineProfileLoading ? 'Machine profile is already loading.' : 'Retry the AI OS machine profile check.'} on:click={() => refreshMachineProfile()}>
         <RefreshCw size={17} />
-        <span>Refresh Profile</span>
+        <span>{machineProfileError && !machineProfile ? 'Retry Profile' : 'Refresh Profile'}</span>
       </button>
     </div>
     {#if machineProfileMessage}

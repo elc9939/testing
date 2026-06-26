@@ -200,6 +200,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('let syncBusy = false');
     expect(source).toContain('let exportBusy = false');
     expect(source).toContain('let endpointSaving = false');
+    expect(source).toContain("function machineProfileControlBlockedReason(action: 'autotune' | 'snapshot')");
+    expect(source).toContain('AI OS is unavailable. Start AI OS or fix the endpoint, then retry the profile check.');
+    expect(source).toContain('disabled={Boolean(machineAutotuneBlockedReason)}');
+    expect(source).toContain('disabled={Boolean(machineSnapshotBlockedReason)}');
+    expect(source).toContain("{machineProfileError && !machineProfile ? 'Retry Profile' : 'Refresh Profile'}");
     expect(source).toContain('if (syncBusy || !$clientData.isOnline)');
     expect(source).toContain('disabled={syncBusy || !$clientData.isOnline}');
     expect(source).toContain('disabled={exportBusy}');
