@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Activity, ArrowRight, Cloud, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
+  import { Activity, ArrowRight, Cloud, Database, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
   import type { ActionLedgerEntry, PassiveBackupHealth, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
   import {
     actionLedgerDetail,
@@ -35,6 +35,7 @@
     type MachineModeDefinition,
     type MachineModeId
   } from '$lib/machine-mode';
+  import { persistenceOwnerLabel, persistenceRows, persistenceSummary } from '$lib/persistence-map';
   import { getMacroLabApiUrl, restoreMacroRun } from '$lib/macro-lab-api';
   import { getPassiveSnapshot, passiveFamilyLabel, patchPassiveSettings } from '$lib/passive-tasks-api';
   import { getConnections } from '$lib/productivity-api';
@@ -113,6 +114,7 @@
   $: passiveBackupHealth = passiveSnapshot?.backupHealth ?? null;
   $: passiveEnabledWatchers = passiveSnapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
   $: passiveFailures = passiveSnapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
+  $: persistenceStats = persistenceSummary(persistenceRows);
   $: passiveFamilyRows = passiveSnapshot?.watchers.map((watcher) => ({
     family: watcher.family,
     label: passiveFamilyLabel(watcher.family),
@@ -1140,6 +1142,58 @@
     {/if}
   </div>
 
+  <div class="panel-block persistence-block">
+    <div class="section-title split-title">
+      <span>
+        <Database size={18} />
+        <strong>Data &amp; Recovery</strong>
+      </span>
+      <a class="button compact" href={hubHref('/activity')}>
+        <span>Activity</span>
+        <ArrowRight size={15} />
+      </a>
+    </div>
+    <p class="helper-text">
+      What survives refreshes, browser closes, route changes, and service outages. Cross-device rows depend on the Hub API or the owning local service being reachable.
+    </p>
+    <div class="persistence-summary" aria-label="Persistence summary">
+      <div>
+        <span>Tracked</span>
+        <strong>{persistenceStats.total}</strong>
+      </div>
+      <div>
+        <span>Cross-device</span>
+        <strong>{persistenceStats.crossDevice}</strong>
+      </div>
+      <div>
+        <span>Browser-local</span>
+        <strong>{persistenceStats.browserLocal}</strong>
+      </div>
+      <div>
+        <span>Service-backed</span>
+        <strong>{persistenceStats.serviceBacked}</strong>
+      </div>
+    </div>
+    <div class="persistence-list" aria-label="Data persistence map">
+      {#each persistenceRows as row}
+        <article class="persistence-row">
+          <span class={`owner-chip ${row.owner}`}>{persistenceOwnerLabel(row.owner)}</span>
+          <div class="persistence-main">
+            <strong>{row.feature}</strong>
+            <small>{row.savedWhere}</small>
+            <span>{row.reloadBehavior}</span>
+            <em>{row.offlineBehavior}</em>
+          </div>
+          <span class:yes={row.crossDevice} class="cross-device">{row.crossDevice ? 'Cross-device' : 'This browser'}</span>
+          <a class="button compact" href={hubHref(row.recoveryRoute)}>
+            <span>{row.recoveryLabel}</span>
+            <ArrowRight size={15} />
+          </a>
+        </article>
+      {/each}
+    </div>
+  </div>
+
   <div class="panel-block action-ledger-block">
     <div class="section-title split-title">
       <span>
@@ -1725,6 +1779,130 @@
     border-radius: 6px;
   }
 
+  .persistence-block {
+    display: grid;
+    gap: 10px;
+  }
+
+  .persistence-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .persistence-summary div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 10px;
+    border-right: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .persistence-summary div:last-child {
+    border-right: 0;
+  }
+
+  .persistence-summary span,
+  .persistence-summary strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .persistence-summary span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .persistence-list {
+    display: grid;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .persistence-row {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) 96px auto;
+    gap: 10px;
+    align-items: start;
+    min-height: 78px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .persistence-row:last-child {
+    border-bottom: 0;
+  }
+
+  .persistence-main {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .persistence-main strong,
+  .persistence-main small,
+  .persistence-main span,
+  .persistence-main em {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .persistence-main small,
+  .persistence-main span,
+  .persistence-main em {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .persistence-main em {
+    font-style: normal;
+  }
+
+  .owner-chip,
+  .cross-device {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 78px;
+    min-height: 23px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .owner-chip.hub-api,
+  .owner-chip.ai-os,
+  .owner-chip.macro-lab,
+  .owner-chip.passive-engine,
+  .owner-chip.google {
+    color: var(--text);
+    background: var(--surface-soft);
+  }
+
+  .cross-device {
+    justify-self: end;
+  }
+
+  .cross-device.yes {
+    border-color: var(--success-border);
+    color: var(--success-text);
+    background: var(--success-bg);
+  }
+
   .action-ledger-row {
     display: grid;
     grid-template-columns: 76px minmax(0, 1fr) 82px 94px 84px;
@@ -2144,6 +2322,7 @@
       grid-template-columns: 1fr;
     }
 
+    .persistence-summary,
     .passive-summary,
     .passive-control-grid,
     .passive-family-grid,
@@ -2151,16 +2330,27 @@
       grid-template-columns: 1fr;
     }
 
+    .persistence-row {
+      grid-template-columns: 1fr;
+    }
+
+    .cross-device {
+      justify-self: start;
+    }
+
     .passive-backup-health {
       grid-template-columns: 1fr;
     }
 
+    .persistence-summary div,
+    .persistence-summary div:last-child,
     .passive-summary div,
     .passive-summary div:last-child {
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
 
+    .persistence-summary div:last-child,
     .passive-summary div:last-child {
       border-bottom: 0;
     }

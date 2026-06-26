@@ -96,7 +96,8 @@ The Svelte app under `apps/hub` provides these main pages:
   compute, research monitor sweeps, career radar, local file intelligence, and project
   drift detection.
 - Settings: service and machine control, capability health, endpoint configuration, theme,
-  sync status, passive task preferences, legacy import/export, dark mode.
+  sync status, Data & Recovery persistence map, passive task preferences, legacy
+  import/export, dark mode.
 
 The product direction is intentionally shifting toward a unified local-first Personal AI OS:
 Today should show what needs attention, AI OS should become the intelligence/capability
@@ -136,6 +137,10 @@ browser storage on their owning page. Completed or failed Activity records can b
 from the Activity view, but dismissal is only a local browser filter. It does not delete,
 cancel, archive, or mutate the backend record, and active queued/running/paused work stays
 visible until the owning service reports a stable state.
+
+Settings also includes a Data & Recovery map that explains where each major surface saves
+state, what rehydrates after refresh/browser close, what remains browser-local, and which
+page to open when work needs to be recovered.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,

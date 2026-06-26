@@ -199,5 +199,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={endpointSaving}');
     expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");
     expect(source).toContain('Offline read-only: start or connect the Mini Hub API before syncing.');
+    expect(source).toContain('<strong>Data &amp; Recovery</strong>');
+    expect(source).toContain('persistenceRows');
+    expect(source).toContain('persistenceStats.crossDevice');
+    expect(source).toContain('What survives refreshes, browser closes, route changes, and service outages.');
   });
 });

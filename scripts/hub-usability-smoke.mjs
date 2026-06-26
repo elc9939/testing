@@ -112,7 +112,7 @@ const routes = [
     service: 'Mini Hub API, AI OS API, Macro Lab API, browser storage',
     safeAction: 'Refresh Feature Wiring; save endpoint/theme changes only when target storage is ready.',
     expectedBlockedState: 'Feature Wiring table shows missing endpoint/service/setup and fix action.',
-    persistence: 'Endpoints, theme, mode, and diagnostics should reload from local storage/API.'
+    persistence: 'Endpoints, theme, mode, diagnostics, and the Data & Recovery map should explain what reloads from browser/API/service storage.'
   },
   {
     id: 'games',
