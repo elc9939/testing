@@ -172,6 +172,12 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('if (!canSave || editingJobId || rowBusyId) return');
     expect(career).toContain('if (!canSave || !jobDraft.company.trim() || !jobDraft.role.trim()) return');
     expect(career).toContain('disabled={!canSave || rowBusyId === job.id}');
+    expect(career).toContain('function careerSaveTitle');
+    expect(career).toContain('function careerRowTitle');
+    expect(career).toContain('Company and role are required before saving a job.');
+    expect(career).toContain('disabled={!canSave || saving || !company.trim() || !role.trim()}');
+    expect(career).toContain('title={saveJobEditTitle()}');
+    expect(career).toContain('Offline read-only: start or connect the Mini Hub API before saving Career changes.');
     expect(career).toContain("careerViewStorageKey = 'miniHub.career.view.v1'");
     expect(career).toContain('function hydrateCareerViewState');
     expect(career).toContain('Reloaded Career filters from this browser.');
@@ -180,6 +186,12 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('if (!canSave || saving) return');
     expect(study).toContain('if (!canSave || editingSessionId || rowBusyId) return');
     expect(study).toContain('disabled={!canSave || rowBusyId === log.id}');
+    expect(study).toContain('function studySaveTitle');
+    expect(study).toContain('function studyRowTitle');
+    expect(study).toContain('Add a study label before logging progress.');
+    expect(study).toContain('disabled={!canSave || saving || !subject.trim() || minutes < 1}');
+    expect(study).toContain('title={saveLogEditTitle()}');
+    expect(study).toContain('Offline read-only: start or connect the Mini Hub API before saving Study changes.');
     expect(study).toContain("studyViewStorageKey = 'miniHub.study.view.v1'");
     expect(study).toContain('function hydrateStudyViewState');
     expect(study).toContain('Reloaded Study filters and quick-log defaults from this browser.');

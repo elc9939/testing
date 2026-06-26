@@ -111,6 +111,34 @@
   );
   $: if (viewHydrated) persistStudyViewState();
 
+  function studySaveTitle(enabledTitle: string): string {
+    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Study changes.';
+    if (saving) return 'A Study save is already running.';
+    return enabledTitle;
+  }
+
+  function addLogTitle(): string {
+    if (!canSave || saving) return studySaveTitle('Log this study session.');
+    if (!subject.trim()) return 'Add a study label before logging progress.';
+    if (minutes < 1) return 'Minutes must be at least 1 before logging progress.';
+    return 'Log this study session.';
+  }
+
+  function studyRowTitle(enabledTitle: string, rowId?: string): string {
+    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Study logs.';
+    if (rowBusyId === rowId) return 'This Study row action is already running.';
+    if (rowBusyId) return 'Another Study row action is already running.';
+    if (editingSessionId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another study log.';
+    return enabledTitle;
+  }
+
+  function saveLogEditTitle(): string {
+    if (!canSave || rowBusyId) return studyRowTitle('Save study log changes.', editingSessionId);
+    if (!studyDraft.subject.trim()) return 'Add a study label before saving this log.';
+    if (studyDraft.minutes < 1) return 'Minutes must be at least 1 before saving this log.';
+    return 'Save study log changes.';
+  }
+
   function emptyStudyDraft(): StudyDraft {
     return { subject: '', minutes: 30 };
   }
@@ -495,25 +523,25 @@
     </div>
     <div class="quick-row">
       {#each quickSubjects as option}
-        <button class:active={subject === option} type="button" disabled={!canSave || saving} on:click={() => (subject = option)}>{option}</button>
+        <button class:active={subject === option} type="button" disabled={!canSave || saving} title={studySaveTitle(`Use ${option} as the study label.`)} on:click={() => (subject = option)}>{option}</button>
       {/each}
     </div>
     <div class="quick-row">
       {#each quickMinutes as option}
-        <button class:active={minutes === option} type="button" disabled={!canSave || saving} on:click={() => chooseQuickLog(subject, option)}>{option}m</button>
+        <button class:active={minutes === option} type="button" disabled={!canSave || saving} title={studySaveTitle(`Use ${option} minutes.`)} on:click={() => chooseQuickLog(subject, option)}>{option}m</button>
       {/each}
     </div>
     <div class="compact-fields">
       <div class="field">
         <label for="subject">Label</label>
-        <input id="subject" bind:value={subject} disabled={!canSave || saving} />
+        <input id="subject" bind:value={subject} disabled={!canSave || saving} title={studySaveTitle('Study label.')} />
       </div>
       <div class="field minutes-field">
         <label for="minutes">Minutes</label>
-        <input id="minutes" bind:value={minutes} disabled={!canSave || saving} type="number" min="1" step="5" />
+        <input id="minutes" bind:value={minutes} disabled={!canSave || saving} title={studySaveTitle('Study minutes.')} type="number" min="1" step="5" />
       </div>
     </div>
-    <button class="button primary" type="button" disabled={!canSave || saving} on:click={addLog}>
+    <button class="button primary" type="button" disabled={!canSave || saving || !subject.trim() || minutes < 1} title={addLogTitle()} on:click={addLog}>
       <Plus size={17} />
       <span>{saving ? 'Saving' : 'Log Progress'}</span>
     </button>
@@ -663,16 +691,16 @@
         {#each filteredLogs as log}
           <tr>
             {#if editingSessionId === log.id}
-              <td><input class="table-input" bind:value={studyDraft.subject} disabled={!canSave || rowBusyId === log.id} /></td>
-              <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={!canSave || rowBusyId === log.id} type="number" min="1" step="5" /></td>
+              <td><input class="table-input" bind:value={studyDraft.subject} disabled={!canSave || rowBusyId === log.id} title={studyRowTitle('Study label.', log.id)} /></td>
+              <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={!canSave || rowBusyId === log.id} title={studyRowTitle('Study minutes.', log.id)} type="number" min="1" step="5" /></td>
               <td>{displayDateTime(log.loggedAt)}</td>
               <td>{displayDateTime(log.updatedAt)}</td>
               <td class="actions-cell">
                 <div class="row-actions">
-                  <button class="icon-button" type="button" aria-label="Save study log" title="Save log" disabled={!canSave || rowBusyId === log.id} on:click={() => saveLogEdit(log)}>
+                  <button class="icon-button" type="button" aria-label="Save study log" title={saveLogEditTitle()} disabled={!canSave || rowBusyId === log.id || !studyDraft.subject.trim() || studyDraft.minutes < 1} on:click={() => saveLogEdit(log)}>
                     <Save size={16} />
                   </button>
-                  <button class="icon-button" type="button" aria-label="Cancel study log edit" title="Cancel" disabled={rowBusyId === log.id} on:click={cancelEditLog}>
+                  <button class="icon-button" type="button" aria-label="Cancel study log edit" title={rowBusyId === log.id ? 'This Study row action is already running.' : 'Cancel study log edit.'} disabled={rowBusyId === log.id} on:click={cancelEditLog}>
                     <X size={16} />
                   </button>
                 </div>
@@ -684,10 +712,10 @@
               <td>{displayDateTime(log.updatedAt)}</td>
               <td class="actions-cell">
                 <div class="row-actions">
-                  <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title="Edit" disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
+                  <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title={studyRowTitle('Edit', log.id)} disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
                     <Edit3 size={16} />
                   </button>
-                  <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title="Delete" disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
+                  <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title={studyRowTitle('Delete this study log.', log.id)} disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
                     <Trash2 size={16} />
                   </button>
                 </div>

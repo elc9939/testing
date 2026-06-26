@@ -82,6 +82,32 @@
   $: visibleCareerMailUpdates = (unreadCareerMailUpdates.length ? unreadCareerMailUpdates : matchedCareerMailUpdates).slice(0, 5);
   $: if (viewHydrated) persistCareerViewState();
 
+  function careerSaveTitle(enabledTitle: string): string {
+    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Career changes.';
+    if (saving) return 'A Career save is already running.';
+    return enabledTitle;
+  }
+
+  function addJobTitle(): string {
+    if (!canSave || saving) return careerSaveTitle('Add this job.');
+    if (!company.trim() || !role.trim()) return 'Company and role are required before saving a job.';
+    return 'Add this job to Career Desk.';
+  }
+
+  function careerRowTitle(enabledTitle: string, rowId?: string): string {
+    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Career rows.';
+    if (rowBusyId === rowId) return 'This Career row action is already running.';
+    if (rowBusyId) return 'Another Career row action is already running.';
+    if (editingJobId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another job.';
+    return enabledTitle;
+  }
+
+  function saveJobEditTitle(): string {
+    if (!canSave || rowBusyId) return careerRowTitle('Save job changes.', editingJobId);
+    if (!jobDraft.company.trim() || !jobDraft.role.trim()) return 'Company and role are required before saving this job.';
+    return 'Save job changes.';
+  }
+
   function emptyJobDraft(): JobDraft {
     return { company: '', role: '', status: 'lead', applicationUrl: '', notes: '', nextActionAt: '' };
   }
@@ -615,25 +641,25 @@
       {#each filteredJobs as job}
         <tr>
           {#if editingJobId === job.id}
-            <td><input class="table-input" bind:value={jobDraft.company} disabled={!canSave || rowBusyId === job.id} /></td>
-            <td><input class="table-input" bind:value={jobDraft.role} disabled={!canSave || rowBusyId === job.id} /></td>
-            <td><input class="table-input link-input" bind:value={jobDraft.applicationUrl} disabled={!canSave || rowBusyId === job.id} placeholder="https://..." /></td>
+            <td><input class="table-input" bind:value={jobDraft.company} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Company name.', job.id)} /></td>
+            <td><input class="table-input" bind:value={jobDraft.role} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Role title.', job.id)} /></td>
+            <td><input class="table-input link-input" bind:value={jobDraft.applicationUrl} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Application link.', job.id)} placeholder="https://..." /></td>
             <td>
-              <select class="table-select" bind:value={jobDraft.status} disabled={!canSave || rowBusyId === job.id}>
+              <select class="table-select" bind:value={jobDraft.status} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Application status.', job.id)}>
                 {#each statuses as item}
                   <option value={item}>{item}</option>
                 {/each}
               </select>
             </td>
-            <td><input class="table-input" bind:value={jobDraft.nextActionAt} disabled={!canSave || rowBusyId === job.id} type="date" /></td>
-            <td><textarea class="table-textarea" bind:value={jobDraft.notes} disabled={!canSave || rowBusyId === job.id} rows="2"></textarea></td>
+            <td><input class="table-input" bind:value={jobDraft.nextActionAt} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Next action date.', job.id)} type="date" /></td>
+            <td><textarea class="table-textarea" bind:value={jobDraft.notes} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Job notes.', job.id)} rows="2"></textarea></td>
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">
-                <button class="icon-button" type="button" aria-label="Save job" title="Save job" disabled={!canSave || rowBusyId === job.id} on:click={() => saveJobEdit(job)}>
+                <button class="icon-button" type="button" aria-label="Save job" title={saveJobEditTitle()} disabled={!canSave || rowBusyId === job.id || !jobDraft.company.trim() || !jobDraft.role.trim()} on:click={() => saveJobEdit(job)}>
                   <Save size={16} />
                 </button>
-                <button class="icon-button" type="button" aria-label="Cancel job edit" title="Cancel" disabled={rowBusyId === job.id} on:click={cancelEditJob}>
+                <button class="icon-button" type="button" aria-label="Cancel job edit" title={rowBusyId === job.id ? 'This Career row action is already running.' : 'Cancel job edit.'} disabled={rowBusyId === job.id} on:click={cancelEditJob}>
                   <X size={16} />
                 </button>
               </div>
@@ -686,10 +712,10 @@
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">
-                <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title="Edit" disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
+                <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title={careerRowTitle('Edit', job.id)} disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
                   <Edit3 size={16} />
                 </button>
-                <button class="icon-button danger" type="button" aria-label={`Delete ${job.company}`} title="Delete" disabled={!canSave || rowBusyId === job.id} on:click={() => deleteJob(job)}>
+                <button class="icon-button danger" type="button" aria-label={`Delete ${job.company}`} title={careerRowTitle('Delete this job.', job.id)} disabled={!canSave || rowBusyId === job.id} on:click={() => deleteJob(job)}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -763,15 +789,15 @@
     <form class="form compact-form" on:submit|preventDefault={addJob}>
       <div class="field">
         <label for="company">Company</label>
-        <input id="company" bind:value={company} disabled={!canSave || saving} autocomplete="organization" />
+        <input id="company" bind:value={company} disabled={!canSave || saving} title={careerSaveTitle('Company name.')} autocomplete="organization" />
       </div>
       <div class="field">
         <label for="role">Role</label>
-        <input id="role" bind:value={role} disabled={!canSave || saving} autocomplete="off" />
+        <input id="role" bind:value={role} disabled={!canSave || saving} title={careerSaveTitle('Role title.')} autocomplete="off" />
       </div>
       <div class="field">
         <label for="status">Status</label>
-        <select id="status" bind:value={status} disabled={!canSave || saving}>
+        <select id="status" bind:value={status} disabled={!canSave || saving} title={careerSaveTitle('Application status.')}>
           {#each statuses as item}
             <option value={item}>{item}</option>
           {/each}
@@ -779,17 +805,17 @@
       </div>
       <div class="field">
         <label for="application-url">Application link</label>
-        <input id="application-url" bind:value={applicationUrl} disabled={!canSave || saving} inputmode="url" placeholder="https://..." />
+        <input id="application-url" bind:value={applicationUrl} disabled={!canSave || saving} title={careerSaveTitle('Application link.')} inputmode="url" placeholder="https://..." />
       </div>
       <div class="field">
         <label for="next-action">Next action</label>
-        <input id="next-action" bind:value={nextActionAt} disabled={!canSave || saving} type="date" />
+        <input id="next-action" bind:value={nextActionAt} disabled={!canSave || saving} title={careerSaveTitle('Next action date.')} type="date" />
       </div>
       <div class="field wide">
         <label for="notes">Notes</label>
-        <textarea id="notes" bind:value={notes} disabled={!canSave || saving} rows="2"></textarea>
+        <textarea id="notes" bind:value={notes} disabled={!canSave || saving} title={careerSaveTitle('Job notes.')} rows="2"></textarea>
       </div>
-      <button class="button primary" type="submit" disabled={!canSave || saving}>
+      <button class="button primary" type="submit" disabled={!canSave || saving || !company.trim() || !role.trim()} title={addJobTitle()}>
         <Plus size={17} />
         <span>{saving ? 'Saving' : 'Add Job'}</span>
       </button>
