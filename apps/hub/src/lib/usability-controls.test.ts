@@ -44,6 +44,26 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps route buttons explicit about submit behavior', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await routePageFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const buttons = source.matchAll(/<button\b[\s\S]*?>/g);
+
+      for (const button of buttons) {
+        const block = button[0];
+        if (!/\btype=/.test(block)) {
+          const line = source.slice(0, button.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('keeps disabled route form controls self-explanatory', async () => {
     const offenders: string[] = [];
     const pageFiles = await routePageFiles();

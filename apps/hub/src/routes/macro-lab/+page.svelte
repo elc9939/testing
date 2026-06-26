@@ -289,10 +289,10 @@
   <aside class="macro-list card">
     <div class="panel-head">
       <strong>Macros</strong>
-      <button class="icon-button" disabled={macroControlDisabled} title={macroControlTitle || 'Create a new macro.'} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
+      <button class="icon-button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Create a new macro.'} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
     </div>
     {#each macros as macro}
-      <button class:active={selectedMacro?.id === macro.id} class="macro-row" on:click={() => selectMacro(macro)}>
+      <button class:active={selectedMacro?.id === macro.id} class="macro-row" type="button" on:click={() => selectMacro(macro)}>
         <span>
           <strong>{macro.name}</strong>
           <small>{macro.group}</small>
@@ -315,20 +315,20 @@
           <span class="muted"> {selectedMacro.id}</span>
         </div>
         <div class="action-row compact">
-          <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle whether this macro can run.'} on:click={() => toggleSelected('enabled')}>
+          <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle whether this macro can run.'} on:click={() => toggleSelected('enabled')}>
             {#if selectedMacro.enabled}<ToggleRight size={16} />Enabled{:else}<ToggleLeft size={16} />Disabled{/if}
           </button>
-          <button class:selected={selectedMacro.armed} class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle the explicit armed state for system-level actions.'} on:click={() => toggleSelected('armed')}>
+          <button class:selected={selectedMacro.armed} class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle the explicit armed state for system-level actions.'} on:click={() => toggleSelected('armed')}>
             <Shield size={16} />{selectedMacro.armed ? 'Armed' : 'Safe'}
           </button>
         </div>
       </div>
       <textarea bind:value={editor} spellcheck="false"></textarea>
       <div class="action-row">
-        <button class="button primary" disabled={macroControlDisabled} title={macroControlTitle || 'Save the selected macro definition.'} on:click={saveSelected}><Save size={16} />Save</button>
-        <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro without side effects.'} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
-        <button class="button danger" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro with confirmed side effects.'} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
-        <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reload Macro Lab triggers from saved definitions.'} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
+        <button class="button primary" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Save the selected macro definition.'} on:click={saveSelected}><Save size={16} />Save</button>
+        <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro without side effects.'} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
+        <button class="button danger" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro with confirmed side effects.'} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
+        <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reload Macro Lab triggers from saved definitions.'} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
       </div>
     {:else}
       <div class="empty-panel">
@@ -368,8 +368,8 @@
       <Clipboard size={17} />
     </div>
     <div class="action-row">
-      <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Record keyboard and mouse input.'} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
-      <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Stop the current recorder.'} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
+      <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Record keyboard and mouse input.'} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
+      <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Stop the current recorder.'} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
     </div>
     {#if result}
       <pre>{result}</pre>
