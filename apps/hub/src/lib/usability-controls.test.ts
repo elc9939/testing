@@ -44,6 +44,28 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps disabled route form controls self-explanatory', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await routePageFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const controls = source.matchAll(/<(?:input|select|textarea)\b[\s\S]*?(?:<\/textarea>|<\/select>|>)/g);
+
+      for (const control of controls) {
+        const block = control[0];
+        const hasDisabled = /\bdisabled(?:=|\s|>)/.test(block);
+        const hasExplanation = /\b(?:title|aria-describedby)=/.test(block);
+        if (hasDisabled && !hasExplanation) {
+          const line = source.slice(0, control.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('collapses Research service failures and disables AI OS-backed research actions', async () => {
     const source = await routeSource('../routes/research/+page.svelte');
 
@@ -177,10 +199,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Another Productivity action is already running.');
     expect(source).toContain('Productivity is still loading the latest connection state.');
     expect(source).toContain('function productivityReadTitle');
+    expect(source).toContain('function gmailReadTitle');
     expect(source).toContain('disabled={productivityWriteDisabled}');
     expect(source).toContain("title={productivityReadTitle('Show the previous calendar week.')}");
     expect(source).toContain("title={productivityReadTitle('Jump the calendar window to today.')}");
     expect(source).toContain("title={productivityReadTitle('Show the next calendar week.')}");
+    expect(source).toContain("title={gmailReadTitle('Filter priority Gmail threads.')}");
+    expect(source).toContain("title={productivityActionTitle('Edit the event title.')}");
+    expect(source).toContain("title={productivityActionTitle('Edit the message body.')}");
     expect(source).toContain('Open the cached thread preview. Connect the API and Google to fetch full messages.');
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
@@ -315,6 +341,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={actionLedgerRefreshTitle()}');
     expect(source).toContain('function restoreActionTitle');
     expect(source).toContain('title={restoreActionTitle(action)}');
+    expect(source).toContain('function endpointInputTitle');
+    expect(source).toContain("title={endpointInputTitle('AI OS API')}");
     expect(source).toContain('machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions)');
     expect(source).toContain("machineProfileControlBlockedReason('autotune', {");
     expect(source).toContain('function machineProfileControlBlockedReason');

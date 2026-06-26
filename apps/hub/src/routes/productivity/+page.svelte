@@ -444,6 +444,13 @@
     return enabledTitle;
   }
 
+  function gmailReadTitle(enabledTitle: string): string {
+    if (loading) return 'Productivity is still loading the latest connection state.';
+    if (!productivityReady) return 'Connect the API and Google to load live Gmail controls. Cached mail remains visible.';
+    if (gmailLoading) return 'Priority Gmail is already refreshing.';
+    return enabledTitle;
+  }
+
   function beginProductivityAction(key: string, requiresGoogle = true): boolean {
     if (actionBusyKey) {
       actionError = 'Another Productivity action is already running.';
@@ -1087,11 +1094,11 @@
     <div class="calendar-filter-row">
       <div class="field">
         <label for="event-search">Search events</label>
-        <input id="event-search" bind:value={query} disabled={!productivityReadReady} on:change={refreshEvents} />
+        <input id="event-search" bind:value={query} disabled={!productivityReadReady} title={productivityReadTitle('Filter visible calendar events.')} on:change={refreshEvents} />
       </div>
       <div class="field">
         <label for="calendar-source">Calendar</label>
-        <select id="calendar-source" bind:value={selectedCalendarId} disabled={!productivityReadReady} on:change={refreshEvents}>
+        <select id="calendar-source" bind:value={selectedCalendarId} disabled={!productivityReadReady} title={productivityReadTitle('Choose which Google Calendar to browse.')} on:change={refreshEvents}>
           {#each calendars as calendar}
             <option value={calendar.id}>{calendar.summary}</option>
           {/each}
@@ -1099,7 +1106,7 @@
       </div>
       <div class="field">
         <label for="move-target">Move target</label>
-        <select id="move-target" bind:value={moveTargetCalendarId} disabled={productivityWriteDisabled}>
+        <select id="move-target" bind:value={moveTargetCalendarId} disabled={productivityWriteDisabled} title={productivityActionTitle('Choose the target calendar for moving events.')}>
           <option value="">Choose calendar</option>
           {#each calendars as calendar}
             <option value={calendar.id}>{calendar.summary}</option>
@@ -1199,11 +1206,11 @@
       <div class="table-header gmail-header">
         <div class="field">
           <label for="gmail-search">Gmail search</label>
-          <input id="gmail-search" bind:value={gmailQuery} disabled={!gmailReady} on:change={refreshGmail} />
+          <input id="gmail-search" bind:value={gmailQuery} disabled={!gmailReady} title={gmailReadTitle('Filter priority Gmail threads.')} on:change={refreshGmail} />
         </div>
         <div class="field">
           <label for="gmail-label">Label</label>
-          <select id="gmail-label" bind:value={selectedGmailLabelId} disabled={!gmailReady} on:change={refreshGmail}>
+          <select id="gmail-label" bind:value={selectedGmailLabelId} disabled={!gmailReady} title={gmailReadTitle('Choose a Gmail label filter or target label.')} on:change={refreshGmail}>
             <option value="">All labels</option>
             {#each gmailLabels as label}
               <option value={label.id}>{label.name}</option>
@@ -1323,7 +1330,7 @@
       </div>
       <div class="field">
         <label for="gmail-reply">Reply</label>
-        <textarea id="gmail-reply" bind:value={replyBody} disabled={productivityWriteDisabled} rows="5"></textarea>
+        <textarea id="gmail-reply" bind:value={replyBody} disabled={productivityWriteDisabled} title={productivityActionTitle('Write a reply for the selected Gmail thread.')} rows="5"></textarea>
       </div>
       <div class="action-row">
         <button class="button" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={productivityActionTitle('Save reply as a Gmail draft')} on:click={() => sendReply(false)}>
@@ -1384,7 +1391,7 @@
       <div class="modal-grid">
         <div class="field">
           <label for="calendar">Calendar</label>
-          <select id="calendar" bind:value={selectedCalendarId} disabled={productivityWriteDisabled} on:change={refreshEvents}>
+          <select id="calendar" bind:value={selectedCalendarId} disabled={productivityWriteDisabled} title={productivityActionTitle('Choose the calendar for this event.')} on:change={refreshEvents}>
             <option value="primary">Primary</option>
             {#each calendars as calendar}
               <option value={calendar.id}>{calendar.summary}</option>
@@ -1393,37 +1400,38 @@
         </div>
         <div class="field">
           <label for="event-title">Title</label>
-          <input id="event-title" bind:value={eventDraft.title} disabled={productivityWriteDisabled} />
+          <input id="event-title" bind:value={eventDraft.title} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the event title.')} />
         </div>
         <div class="field">
           <label for="event-start">Start</label>
-          <input id="event-start" bind:value={eventDraft.start} disabled={productivityWriteDisabled} type="datetime-local" />
+          <input id="event-start" bind:value={eventDraft.start} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the event start time.')} type="datetime-local" />
         </div>
         <div class="field">
           <label for="event-end">End</label>
-          <input id="event-end" bind:value={eventDraft.end} disabled={productivityWriteDisabled} type="datetime-local" />
+          <input id="event-end" bind:value={eventDraft.end} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the event end time.')} type="datetime-local" />
         </div>
         <div class="field">
           <label for="event-zone">Time zone</label>
-          <input id="event-zone" bind:value={eventDraft.timeZone} disabled={productivityWriteDisabled} />
+          <input id="event-zone" bind:value={eventDraft.timeZone} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the event time zone.')} />
         </div>
         <div class="field">
           <label for="event-location">Location</label>
-          <input id="event-location" bind:value={eventDraft.location} disabled={productivityWriteDisabled} />
+          <input id="event-location" bind:value={eventDraft.location} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the event location.')} />
         </div>
         <div class="field">
           <label for="event-reminder">Reminder minutes</label>
-          <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={productivityWriteDisabled} type="number" min="0" step="5" />
+          <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the event reminder minutes.')} type="number" min="0" step="5" />
         </div>
         <div class="field wide">
           <label for="event-description">Description</label>
-          <textarea id="event-description" bind:value={eventDraft.description} disabled={productivityWriteDisabled} rows="3"></textarea>
+          <textarea id="event-description" bind:value={eventDraft.description} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the event description.')} rows="3"></textarea>
         </div>
         <div class="field wide">
           <label for="event-recurrence">Recurrence rules</label>
           <textarea
             id="event-recurrence"
             disabled={productivityWriteDisabled}
+            title={productivityActionTitle('Edit recurrence rules for this event.')}
             rows="2"
             placeholder="RRULE:FREQ=WEEKLY;COUNT=6"
             value={(eventDraft.recurrence ?? []).join('\n')}
@@ -1459,23 +1467,23 @@
       <div class="modal-grid compose-grid">
         <div class="field">
           <label for="compose-to">To</label>
-          <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={productivityWriteDisabled} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
+          <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit message recipients.')} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field">
           <label for="compose-cc">Cc</label>
-          <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={productivityWriteDisabled} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
+          <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit carbon-copy recipients.')} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field">
           <label for="compose-bcc">Bcc</label>
-          <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={productivityWriteDisabled} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
+          <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit blind-copy recipients.')} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field wide">
           <label for="compose-subject">Subject</label>
-          <input id="compose-subject" bind:value={composeDraft.subject} disabled={productivityWriteDisabled} />
+          <input id="compose-subject" bind:value={composeDraft.subject} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the message subject.')} />
         </div>
         <div class="field wide">
           <label for="compose-body">Body</label>
-          <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={productivityWriteDisabled} rows="7"></textarea>
+          <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={productivityWriteDisabled} title={productivityActionTitle('Edit the message body.')} rows="7"></textarea>
         </div>
       </div>
       <div class="action-row">

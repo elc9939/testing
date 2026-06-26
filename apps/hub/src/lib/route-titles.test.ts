@@ -57,6 +57,7 @@ describe('route document titles', () => {
       "href: routeMap.today, label: 'Today'",
       "href: routeMap.activity, label: 'Activity'",
       "href: routeMap.productivity, label: 'Hub'",
+      "href: routeMap.games, label: 'Games'",
       "href: routeMap.careerDesk, label: 'Career'",
       "href: routeMap.studyDesk, label: 'Study'",
       "href: routeMap.analytics, label: 'Analytics'",

@@ -335,6 +335,11 @@
     if (showMessage) endpointMessage = 'Reloaded saved service URLs from this browser.';
   }
 
+  function endpointInputTitle(service: string): string {
+    if (endpointSaving) return 'Service URLs are saving; wait before editing endpoints.';
+    return `Edit the ${service} URL saved in this browser.`;
+  }
+
   async function saveEndpoints(): Promise<void> {
     if (endpointSaving) return;
     endpointSaving = true;
@@ -1409,15 +1414,15 @@
     <div class="endpoint-grid">
       <div class="field">
         <label for="hub-api-url">Mini Hub API</label>
-        <input id="hub-api-url" bind:value={hubApiInput} disabled={endpointSaving} placeholder="http://192.168.1.25:8787" />
+        <input id="hub-api-url" bind:value={hubApiInput} disabled={endpointSaving} title={endpointInputTitle('Mini Hub API')} placeholder="http://192.168.1.25:8787" />
       </div>
       <div class="field">
         <label for="ai-os-url">AI OS API</label>
-        <input id="ai-os-url" bind:value={aiOsInput} disabled={endpointSaving} placeholder="http://192.168.1.25:8791" />
+        <input id="ai-os-url" bind:value={aiOsInput} disabled={endpointSaving} title={endpointInputTitle('AI OS API')} placeholder="http://192.168.1.25:8791" />
       </div>
       <div class="field">
         <label for="macro-lab-url">Macro Lab API</label>
-        <input id="macro-lab-url" bind:value={macroLabInput} disabled={endpointSaving} placeholder="http://192.168.1.25:8792" />
+        <input id="macro-lab-url" bind:value={macroLabInput} disabled={endpointSaving} title={endpointInputTitle('Macro Lab API')} placeholder="http://192.168.1.25:8792" />
       </div>
     </div>
     <div class="action-row">
