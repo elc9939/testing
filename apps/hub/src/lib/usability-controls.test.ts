@@ -105,4 +105,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={!labReady}');
     expect(source).toContain('disabled={!canSave || saving}');
   });
+
+  it('shows Analytics refresh as a guarded async action with readable failures', async () => {
+    const source = await routeSource('../routes/analytics/+page.svelte');
+
+    expect(source).toContain('let refreshBusy = false');
+    expect(source).toContain('if (refreshBusy) return');
+    expect(source).toContain('refreshError = error instanceof Error');
+    expect(source).toContain('disabled={refreshBusy}');
+    expect(source).toContain("{refreshBusy ? 'Refreshing' : 'Refresh'}");
+    expect(source).toContain("refreshError ? 'Refresh Failed'");
+  });
 });

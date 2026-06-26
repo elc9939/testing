@@ -9,6 +9,8 @@
   let sparklinePath = '';
   let renderStatus = 'Preparing browser analytics';
   let renderError = '';
+  let refreshError = '';
+  let refreshBusy = false;
 
   $: rows = buildAnalyticsMetricRows($clientData);
   $: viewState = analyticsViewState($clientData, rows);
@@ -42,11 +44,21 @@
   }
 
   async function refresh(): Promise<void> {
-    await clientData.init();
-    if ($clientData.isOnline) {
-      await clientData.syncNow().catch(() => undefined);
+    if (refreshBusy) return;
+    refreshBusy = true;
+    refreshError = '';
+    try {
+      await clientData.init();
+      if ($clientData.isOnline) {
+        await clientData.syncNow();
+      }
+      await render(rows, trendValues);
+    } catch (error) {
+      refreshError = error instanceof Error ? error.message : 'Analytics refresh failed.';
+      renderStatus = 'Refresh failed; showing the last local cache state.';
+    } finally {
+      refreshBusy = false;
     }
-    await render(rows, trendValues);
   }
 
   onMount(() => {
@@ -63,17 +75,17 @@
     <p class="eyebrow">Analytics</p>
     <h1>Local Insights</h1>
   </div>
-  <button class="button" type="button" on:click={refresh}>
+  <button class="button" type="button" disabled={refreshBusy} title={refreshBusy ? 'Analytics refresh is already running.' : 'Refresh local cache analytics.'} on:click={refresh}>
     <RefreshCw size={17} />
-    <span>Refresh</span>
+    <span>{refreshBusy ? 'Refreshing' : 'Refresh'}</span>
   </button>
 </section>
 
-<section class={`card card-pad analytics-state ${viewState}`}>
-  <strong>{viewState === 'ready' ? 'Connected Data' : viewState === 'offline' ? 'Cached Data' : viewState === 'empty' ? 'Healthy Empty' : viewState === 'error' ? 'Action Needed' : 'Loading'}</strong>
+<section class={`card card-pad analytics-state ${refreshError ? 'error' : viewState}`}>
+  <strong>{refreshError ? 'Refresh Failed' : viewState === 'ready' ? 'Connected Data' : viewState === 'offline' ? 'Cached Data' : viewState === 'empty' ? 'Healthy Empty' : viewState === 'error' ? 'Action Needed' : 'Loading'}</strong>
   <p>{viewMessage}</p>
-  {#if renderError}
-    <p class="error-text">{renderError}</p>
+  {#if refreshError || renderError}
+    <p class="error-text">{refreshError || renderError}</p>
   {/if}
 </section>
 
