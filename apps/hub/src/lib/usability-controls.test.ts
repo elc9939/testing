@@ -63,11 +63,15 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/productivity/+page.svelte');
 
     expect(source).toContain('productivityReady = canAct && googleConnected');
-    expect(source).toContain('if (!productivityReady) return;');
-    expect(source).toContain('disabled={!productivityReady}');
+    expect(source).toContain("let actionBusyKey = ''");
+    expect(source).toContain('productivityWriteDisabled = !productivityReady || Boolean(actionBusyKey)');
+    expect(source).toContain('function beginProductivityAction');
+    expect(source).toContain('function endProductivityAction');
+    expect(source).toContain('Another Productivity action is already running.');
+    expect(source).toContain('disabled={productivityWriteDisabled}');
     expect(source).toContain('cached productivity data can stay visible');
     expect(source).toContain('hubHref(routeMap.settings)');
-    expect(source).toContain('disabled={loading || backgroundRefreshing}');
+    expect(source).toContain('disabled={loading || backgroundRefreshing || Boolean(actionBusyKey)}');
   });
 
   it('makes Activity recovery state scannable instead of one vague active count', async () => {

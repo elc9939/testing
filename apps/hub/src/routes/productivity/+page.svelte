@@ -123,6 +123,7 @@
   let cacheLoadedAt = '';
   let actionError = '';
   let actionMessage = '';
+  let actionBusyKey = '';
   let googleOAuthOpening = false;
   let googleOAuthPopup: Window | null = null;
   let editingEventId = '';
@@ -138,7 +139,14 @@
   $: googleConnected = googleConnections.length > 0;
   $: productivityReady = canAct && googleConnected;
   $: productivityReadReady = productivityReady && !loading;
+  $: productivityWriteDisabled = !productivityReady || Boolean(actionBusyKey);
   $: gmailReady = productivityReady && !gmailLoading;
+  $: googleConnectDisabled = !canAct || googleOAuthOpening || Boolean(actionBusyKey);
+  $: googleConnectTitle = !canAct
+    ? 'Start or connect the local API before opening Google OAuth.'
+    : actionBusyKey
+      ? 'Another Productivity action is already running.'
+      : 'Open Google OAuth account picker.';
   $: selectedCalendar = calendars.find((calendar) => calendar.id === selectedCalendarId);
   $: calendarWeek = buildCalendarWeek(events, calendarCursor);
   $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
@@ -397,6 +405,37 @@
     actionError = error instanceof Error ? error.message : fallback;
   }
 
+  function productivityActionTitle(enabledTitle: string): string {
+    if (!productivityReady) return 'Connect the API and Google before using this action.';
+    if (actionBusyKey) return 'Another Productivity action is already running.';
+    return enabledTitle;
+  }
+
+  function beginProductivityAction(key: string, requiresGoogle = true): boolean {
+    if (actionBusyKey) {
+      actionError = 'Another Productivity action is already running.';
+      return false;
+    }
+    if (requiresGoogle ? !productivityReady : !canAct) {
+      actionError = requiresGoogle
+        ? 'Connect the API and Google before using this action.'
+        : 'Start or connect the local API before using this action.';
+      return false;
+    }
+    actionBusyKey = key;
+    actionError = '';
+    actionMessage = '';
+    return true;
+  }
+
+  function endProductivityAction(key: string): void {
+    if (actionBusyKey === key) actionBusyKey = '';
+  }
+
+  function isActionBusy(key: string): boolean {
+    return actionBusyKey === key;
+  }
+
   function notifyAttentionChanged(): void {
     attentionStore.invalidate();
   }
@@ -510,9 +549,7 @@
   }
 
   async function connectGoogle(): Promise<void> {
-    if (!canAct) return;
-    actionError = '';
-    actionMessage = '';
+    if (!beginProductivityAction('google:connect', false)) return;
     googleOAuthOpening = true;
     const popup =
       typeof window !== 'undefined'
@@ -544,6 +581,7 @@
       setError(error, 'Google OAuth is not configured');
     } finally {
       googleOAuthOpening = false;
+      endProductivityAction('google:connect');
     }
   }
 
@@ -570,10 +608,12 @@
   }
 
   async function disconnectGoogle(connection?: PublicConnection): Promise<void> {
-    if (!productivityReady) return;
+    if (!beginProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`)) return;
     const label = connection?.accountLabel ?? 'the stored Google OAuth grant';
-    if (!confirm(`Revoke ${label} for this hub?`)) return;
-    actionError = '';
+    if (!confirm(`Revoke ${label} for this hub?`)) {
+      endProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`);
+      return;
+    }
     try {
       await revokeGoogle(connection?.id);
       actionMessage = connection ? `${connection.accountLabel} revoked.` : 'Google connection revoked.';
@@ -581,12 +621,15 @@
       notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to revoke Google connection');
+    } finally {
+      endProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`);
     }
   }
 
   async function saveEvent(): Promise<void> {
-    if (!productivityReady || !eventDraft.title.trim() || !eventDraft.start || !eventDraft.end) return;
-    actionError = '';
+    if (!eventDraft.title.trim() || !eventDraft.start || !eventDraft.end) return;
+    const key = editingEventId ? `event:save:${editingEventId}` : 'event:create';
+    if (!beginProductivityAction(key)) return;
     try {
       if (editingEventId) {
         await updateEvent({ ...draftForApi(), eventId: editingEventId });
@@ -602,6 +645,8 @@
       notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to save event');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
@@ -625,9 +670,12 @@
   }
 
   async function removeEvent(event: CalendarEvent): Promise<void> {
-    if (!productivityReady) return;
-    if (!confirm(`Delete "${event.title}" from ${event.calendarId}?`)) return;
-    actionError = '';
+    const key = `event:delete:${event.id}`;
+    if (!beginProductivityAction(key)) return;
+    if (!confirm(`Delete "${event.title}" from ${event.calendarId}?`)) {
+      endProductivityAction(key);
+      return;
+    }
     try {
       await deleteEvent(event.calendarId, event.id);
       actionMessage = 'Event deleted.';
@@ -635,12 +683,15 @@
       notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to delete event');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
   async function moveSelectedEvent(event: CalendarEvent): Promise<void> {
-    if (!productivityReady || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId) return;
-    actionError = '';
+    if (!moveTargetCalendarId || moveTargetCalendarId === event.calendarId) return;
+    const key = `event:move:${event.id}`;
+    if (!beginProductivityAction(key)) return;
     try {
       await moveEvent(event.calendarId, event.id, moveTargetCalendarId);
       actionMessage = 'Event moved.';
@@ -648,24 +699,31 @@
       notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to move event');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
   async function openGmailThread(thread: GmailThread): Promise<void> {
-    if (!productivityReady) return;
-    actionError = '';
+    if (!beginProductivityAction(`gmail:open:${thread.id}`)) return;
     try {
       selectedGmailThread = await getGmailThread(thread.id);
       replyBody = '';
     } catch (error) {
       setError(error, 'Failed to open Gmail thread');
+    } finally {
+      endProductivityAction(`gmail:open:${thread.id}`);
     }
   }
 
   async function sendCompose(sendNow: boolean): Promise<void> {
-    if (!productivityReady || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()) return;
-    if (sendNow && !confirm(`Send email to ${composeDraft.to.join(', ')}?`)) return;
-    actionError = '';
+    if (!composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()) return;
+    const key = sendNow ? 'gmail:compose:send' : 'gmail:compose:draft';
+    if (!beginProductivityAction(key)) return;
+    if (sendNow && !confirm(`Send email to ${composeDraft.to.join(', ')}?`)) {
+      endProductivityAction(key);
+      return;
+    }
     try {
       if (sendNow) {
         await sendGmailMessage(composeDraft);
@@ -679,13 +737,19 @@
       await refreshGmail();
     } catch (error) {
       setError(error, sendNow ? 'Failed to send email' : 'Failed to save draft');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
   async function sendReply(sendNow: boolean): Promise<void> {
-    if (!productivityReady || !selectedGmailThread || !replyBody.trim()) return;
-    if (sendNow && !confirm(`Send reply to "${selectedGmailThread.subject}"?`)) return;
-    actionError = '';
+    if (!selectedGmailThread || !replyBody.trim()) return;
+    const key = sendNow ? `gmail:reply:send:${selectedGmailThread.id}` : `gmail:reply:draft:${selectedGmailThread.id}`;
+    if (!beginProductivityAction(key)) return;
+    if (sendNow && !confirm(`Send reply to "${selectedGmailThread.subject}"?`)) {
+      endProductivityAction(key);
+      return;
+    }
     try {
       if (sendNow) {
         await replyGmailThread({ threadId: selectedGmailThread.id, bodyText: replyBody });
@@ -699,12 +763,13 @@
       await refreshGmail();
     } catch (error) {
       setError(error, sendNow ? 'Failed to send reply' : 'Failed to save reply draft');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
   async function archiveThread(thread: GmailThread): Promise<void> {
-    if (!productivityReady) return;
-    actionError = '';
+    if (!beginProductivityAction(`gmail:archive:${thread.id}`)) return;
     try {
       await archiveGmailThread(thread.id);
       priorityThreads = priorityThreads.filter((insight) => insight.thread.id !== thread.id);
@@ -716,12 +781,14 @@
       notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to archive thread');
+    } finally {
+      endProductivityAction(`gmail:archive:${thread.id}`);
     }
   }
 
   async function toggleRead(thread: GmailThread): Promise<void> {
-    if (!productivityReady) return;
-    actionError = '';
+    const key = `gmail:read:${thread.id}`;
+    if (!beginProductivityAction(key)) return;
     try {
       if (thread.unread) {
         await markGmailThreadRead(thread.id);
@@ -738,12 +805,14 @@
       notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to update read state');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
   async function toggleImportant(thread: GmailThread): Promise<void> {
-    if (!productivityReady) return;
-    actionError = '';
+    const key = `gmail:important:${thread.id}`;
+    if (!beginProductivityAction(key)) return;
     try {
       if (isThreadImportant(thread)) {
         await modifyGmailThread(thread.id, { removeLabelIds: ['IMPORTANT'] });
@@ -756,6 +825,8 @@
       notifyAttentionChanged();
     } catch (error) {
       setError(error, 'Failed to update important state');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
@@ -775,14 +846,17 @@
   }
 
   async function applySelectedLabel(): Promise<void> {
-    if (!productivityReady || !selectedGmailThread || !selectedGmailLabelId) return;
-    actionError = '';
+    if (!selectedGmailThread || !selectedGmailLabelId) return;
+    const key = `gmail:label:${selectedGmailThread.id}`;
+    if (!beginProductivityAction(key)) return;
     try {
       selectedGmailThread = await modifyGmailThread(selectedGmailThread.id, { addLabelIds: [selectedGmailLabelId] });
       actionMessage = 'Label applied.';
       await refreshGmail();
     } catch (error) {
       setError(error, 'Failed to apply label');
+    } finally {
+      endProductivityAction(key);
     }
   }
 
@@ -835,31 +909,31 @@
     <h1>Productivity Hub</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={!productivityReady} title={productivityReady ? 'Create a Google Calendar event.' : 'Connect the API and Google before creating events.'} on:click={openNewEvent}>
+    <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Create a Google Calendar event.')} on:click={openNewEvent}>
       <CalendarPlus size={17} />
       <span>New Event</span>
     </button>
-    <button class="button" type="button" disabled={!productivityReady} title={productivityReady ? 'Compose a Gmail message.' : 'Connect the API and Google before composing mail.'} on:click={openComposeDialog}>
+    <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Compose a Gmail message.')} on:click={openComposeDialog}>
       <Send size={17} />
       <span>Compose</span>
     </button>
-    <button class="button" type="button" disabled={loading || backgroundRefreshing} on:click={() => loadOverview()}>
+    <button class="button" type="button" disabled={loading || backgroundRefreshing || Boolean(actionBusyKey)} title={actionBusyKey ? 'Another Productivity action is already running.' : 'Refresh calendar, mail, and connection data.'} on:click={() => loadOverview()}>
       <RefreshCw size={17} />
       <span>{backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
     {#if googleConnected}
-      <button class="button" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
+      <button class="button" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
         <Link size={17} />
         <span>{googleOAuthOpening ? 'Opening...' : 'Add Google Account'}</span>
       </button>
       {#if googleConnections.length === 1}
-        <button class="button" type="button" disabled={!canAct} on:click={() => disconnectGoogle(googleConnection)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Revoke this Google account connection.')} on:click={() => disconnectGoogle(googleConnection)}>
           <Unlink size={17} />
-          <span>Revoke</span>
+          <span>{isActionBusy(`google:disconnect:${googleConnection?.id ?? 'default'}`) ? 'Revoking' : 'Revoke'}</span>
         </button>
       {/if}
     {:else}
-      <button class="button primary" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
+      <button class="button primary" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
         <Link size={17} />
         <span>{googleOAuthOpening ? 'Opening...' : 'Connect Google'}</span>
       </button>
@@ -896,7 +970,7 @@
       account picker in a popup, stores the token in your local API, and returns to this hub tab automatically.
     </p>
   </div>
-  <button class="button compact" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
+  <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
     <Link size={15} />
     <span>{googleOAuthOpening ? 'Opening...' : googleConnected ? 'Add Another' : 'Connect Google'}</span>
   </button>
@@ -906,7 +980,7 @@
   <section class="account-panel" aria-label="Connected Google accounts">
     <div class="account-panel-title">
       <strong>Connected Google Accounts</strong>
-      <button class="button compact" type="button" disabled={!canAct || googleOAuthOpening} on:click={connectGoogle}>
+      <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
         <Link size={15} />
         <span>{googleOAuthOpening ? 'Opening...' : 'Add'}</span>
       </button>
@@ -918,7 +992,7 @@
             <strong>{connection.accountLabel}</strong>
             <small>{connection.status}{connection.lastSyncAt ? ` - ${displayTime(connection.lastSyncAt)}` : ''}</small>
           </span>
-          <button class="icon-button" type="button" disabled={!canAct} title="Revoke account" aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
+          <button class="icon-button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Revoke account')} aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
             <Unlink size={16} />
           </button>
         </article>
@@ -975,7 +1049,7 @@
       </div>
       <div class="field">
         <label for="move-target">Move target</label>
-        <select id="move-target" bind:value={moveTargetCalendarId} disabled={!productivityReady}>
+        <select id="move-target" bind:value={moveTargetCalendarId} disabled={productivityWriteDisabled}>
           <option value="">Choose calendar</option>
           {#each calendars as calendar}
             <option value={calendar.id}>{calendar.summary}</option>
@@ -997,7 +1071,7 @@
                 type="button"
                 style={eventBlockStyle(event)}
                 title={`${event.title} / ${eventTimeRange(event)}`}
-                disabled={!productivityReady}
+                disabled={productivityWriteDisabled}
                 on:click={() => editEvent(event)}
               >
                 <span>{eventTimeRange(event)}</span>
@@ -1039,13 +1113,13 @@
                   <ExternalLink size={16} />
                 </a>
               {/if}
-              <button class="icon-button" type="button" aria-label={`Edit ${event.title}`} title="Edit" disabled={!productivityReady} on:click={() => editEvent(event)}>
+              <button class="icon-button" type="button" aria-label={`Edit ${event.title}`} title={productivityActionTitle('Edit event')} disabled={productivityWriteDisabled} on:click={() => editEvent(event)}>
                 <Save size={16} />
               </button>
-              <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title="Move" disabled={!productivityReady || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>
+              <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title={productivityActionTitle('Move event')} disabled={productivityWriteDisabled || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>
                 <Send size={16} />
               </button>
-              <button class="icon-button danger" type="button" aria-label={`Delete ${event.title}`} title="Delete" disabled={!productivityReady} on:click={() => removeEvent(event)}>
+              <button class="icon-button danger" type="button" aria-label={`Delete ${event.title}`} title={productivityActionTitle('Delete event')} disabled={productivityWriteDisabled} on:click={() => removeEvent(event)}>
                 <Trash2 size={16} />
               </button>
             </td>
@@ -1065,7 +1139,7 @@
         <Sparkles size={18} />
         <strong>Priority Inbox</strong>
       </div>
-      <button class="button" type="button" disabled={!gmailReady} on:click={refreshGmail}>
+      <button class="button" type="button" disabled={!gmailReady || Boolean(actionBusyKey)} title={actionBusyKey ? 'Another Productivity action is already running.' : 'Refresh priority Gmail threads.'} on:click={refreshGmail}>
         <RefreshCw size={17} />
         <span>{gmailLoading ? 'Sorting' : 'Refresh'}</span>
       </button>
@@ -1109,7 +1183,7 @@
               <small class="triage-reason">{insight.reason}{insight.deadlineHint ? ` / ${insight.deadlineHint}` : ''}</small>
             </td>
             <td>
-              <button class="link-button" type="button" disabled={!productivityReady} on:click={() => openGmailThread(thread)}>
+              <button class="link-button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Open Gmail thread')} on:click={() => openGmailThread(thread)}>
                 <strong>{thread.subject}</strong>
               </button>
               <p class="mail-summary">{summarizeEmailThread(thread)}</p>
@@ -1118,34 +1192,34 @@
             <td>{thread.from}</td>
             <td>{thread.date}</td>
             <td class="row-actions quick-row-actions">
-              <button class="icon-button" type="button" disabled={!productivityReady} aria-label={`Open ${thread.subject}`} title="Open" on:click={() => openGmailThread(thread)}>
+              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={`Open ${thread.subject}`} title={productivityActionTitle('Open thread')} on:click={() => openGmailThread(thread)}>
                 <Mail size={16} />
-                <span>Open</span>
+                <span>{isActionBusy(`gmail:open:${thread.id}`) ? 'Opening' : 'Open'}</span>
               </button>
-              <button class="icon-button" type="button" disabled={!productivityReady} aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={thread.unread ? 'Mark read' : 'Mark unread'} on:click={() => toggleRead(thread)}>
+              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={productivityActionTitle(thread.unread ? 'Mark read' : 'Mark unread')} on:click={() => toggleRead(thread)}>
                 <MailOpen size={16} />
-                <span>{thread.unread ? 'Read' : 'Unread'}</span>
+                <span>{isActionBusy(`gmail:read:${thread.id}`) ? 'Working' : thread.unread ? 'Read' : 'Unread'}</span>
               </button>
               <button
                 class:active={isThreadImportant(thread)}
                 class="icon-button"
                 type="button"
                 aria-label={isThreadImportant(thread) ? `Remove important from ${thread.subject}` : `Mark ${thread.subject} important`}
-                title={isThreadImportant(thread) ? 'Remove important' : 'Mark important'}
-                disabled={!productivityReady}
+                disabled={productivityWriteDisabled}
+                title={productivityActionTitle(isThreadImportant(thread) ? 'Remove important' : 'Mark important')}
                 on:click={() => toggleImportant(thread)}
               >
                 {#if isThreadImportant(thread)}
                   <StarOff size={16} />
-                  <span>Unmark</span>
+                  <span>{isActionBusy(`gmail:important:${thread.id}`) ? 'Working' : 'Unmark'}</span>
                 {:else}
                   <Star size={16} />
-                  <span>Important</span>
+                  <span>{isActionBusy(`gmail:important:${thread.id}`) ? 'Working' : 'Important'}</span>
                 {/if}
               </button>
-              <button class="icon-button" type="button" disabled={!productivityReady} aria-label={`Archive ${thread.subject}`} title="Archive" on:click={() => archiveThread(thread)}>
+              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={`Archive ${thread.subject}`} title={productivityActionTitle('Archive')} on:click={() => archiveThread(thread)}>
                 <Archive size={16} />
-                <span>Archive</span>
+                <span>{isActionBusy(`gmail:archive:${thread.id}`) ? 'Archiving' : 'Archive'}</span>
               </button>
             </td>
           </tr>
@@ -1163,11 +1237,11 @@
     </div>
     {#if selectedGmailThread}
       <div class="mail-actions">
-        <button class="button" type="button" disabled={!productivityReady} on:click={toggleSelectedRead}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Toggle read state')} on:click={toggleSelectedRead}>
           <MailOpen size={17} />
           <span>{selectedGmailThread.unread ? 'Mark Read' : 'Mark Unread'}</span>
         </button>
-        <button class="button" type="button" disabled={!productivityReady} on:click={toggleSelectedImportant}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Toggle important state')} on:click={toggleSelectedImportant}>
           {#if isThreadImportant(selectedGmailThread)}
             <StarOff size={17} />
             <span>Unmark Important</span>
@@ -1176,13 +1250,13 @@
             <span>Mark Important</span>
           {/if}
         </button>
-        <button class="button" type="button" disabled={!productivityReady} on:click={archiveSelectedThread}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Archive selected thread')} on:click={archiveSelectedThread}>
           <Archive size={17} />
           <span>Archive</span>
         </button>
-        <button class="button" type="button" disabled={!productivityReady || !selectedGmailLabelId} on:click={applySelectedLabel}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !selectedGmailLabelId} title={productivityActionTitle('Apply selected label')} on:click={applySelectedLabel}>
           <Tag size={17} />
-          <span>Apply Label</span>
+          <span>{selectedGmailThread && isActionBusy(`gmail:label:${selectedGmailThread.id}`) ? 'Applying' : 'Apply Label'}</span>
         </button>
       </div>
       <div class="message-stack">
@@ -1199,16 +1273,16 @@
       </div>
       <div class="field">
         <label for="gmail-reply">Reply</label>
-        <textarea id="gmail-reply" bind:value={replyBody} disabled={!productivityReady} rows="5"></textarea>
+        <textarea id="gmail-reply" bind:value={replyBody} disabled={productivityWriteDisabled} rows="5"></textarea>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={!productivityReady || !replyBody.trim()} on:click={() => sendReply(false)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={productivityActionTitle('Save reply as a Gmail draft')} on:click={() => sendReply(false)}>
           <Save size={17} />
-          <span>Draft Reply</span>
+          <span>{selectedGmailThread && isActionBusy(`gmail:reply:draft:${selectedGmailThread.id}`) ? 'Saving' : 'Draft Reply'}</span>
         </button>
-        <button class="button primary" type="button" disabled={!productivityReady || !replyBody.trim()} on:click={() => sendReply(true)}>
+        <button class="button primary" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={productivityActionTitle('Send this Gmail reply')} on:click={() => sendReply(true)}>
           <Reply size={17} />
-          <span>Send Reply</span>
+          <span>{selectedGmailThread && isActionBusy(`gmail:reply:send:${selectedGmailThread.id}`) ? 'Sending' : 'Send Reply'}</span>
         </button>
       </div>
     {:else}
@@ -1260,7 +1334,7 @@
       <div class="modal-grid">
         <div class="field">
           <label for="calendar">Calendar</label>
-          <select id="calendar" bind:value={selectedCalendarId} disabled={!productivityReady} on:change={refreshEvents}>
+          <select id="calendar" bind:value={selectedCalendarId} disabled={productivityWriteDisabled} on:change={refreshEvents}>
             <option value="primary">Primary</option>
             {#each calendars as calendar}
               <option value={calendar.id}>{calendar.summary}</option>
@@ -1269,37 +1343,37 @@
         </div>
         <div class="field">
           <label for="event-title">Title</label>
-          <input id="event-title" bind:value={eventDraft.title} disabled={!productivityReady} />
+          <input id="event-title" bind:value={eventDraft.title} disabled={productivityWriteDisabled} />
         </div>
         <div class="field">
           <label for="event-start">Start</label>
-          <input id="event-start" bind:value={eventDraft.start} disabled={!productivityReady} type="datetime-local" />
+          <input id="event-start" bind:value={eventDraft.start} disabled={productivityWriteDisabled} type="datetime-local" />
         </div>
         <div class="field">
           <label for="event-end">End</label>
-          <input id="event-end" bind:value={eventDraft.end} disabled={!productivityReady} type="datetime-local" />
+          <input id="event-end" bind:value={eventDraft.end} disabled={productivityWriteDisabled} type="datetime-local" />
         </div>
         <div class="field">
           <label for="event-zone">Time zone</label>
-          <input id="event-zone" bind:value={eventDraft.timeZone} disabled={!productivityReady} />
+          <input id="event-zone" bind:value={eventDraft.timeZone} disabled={productivityWriteDisabled} />
         </div>
         <div class="field">
           <label for="event-location">Location</label>
-          <input id="event-location" bind:value={eventDraft.location} disabled={!productivityReady} />
+          <input id="event-location" bind:value={eventDraft.location} disabled={productivityWriteDisabled} />
         </div>
         <div class="field">
           <label for="event-reminder">Reminder minutes</label>
-          <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={!productivityReady} type="number" min="0" step="5" />
+          <input id="event-reminder" bind:value={eventDraft.reminders.overrides[0].minutes} disabled={productivityWriteDisabled} type="number" min="0" step="5" />
         </div>
         <div class="field wide">
           <label for="event-description">Description</label>
-          <textarea id="event-description" bind:value={eventDraft.description} disabled={!productivityReady} rows="3"></textarea>
+          <textarea id="event-description" bind:value={eventDraft.description} disabled={productivityWriteDisabled} rows="3"></textarea>
         </div>
         <div class="field wide">
           <label for="event-recurrence">Recurrence rules</label>
           <textarea
             id="event-recurrence"
-            disabled={!productivityReady}
+            disabled={productivityWriteDisabled}
             rows="2"
             placeholder="RRULE:FREQ=WEEKLY;COUNT=6"
             value={(eventDraft.recurrence ?? []).join('\n')}
@@ -1308,9 +1382,9 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="button primary" type="submit" disabled={!productivityReady}>
+        <button class="button primary" type="submit" disabled={productivityWriteDisabled || !eventDraft.title.trim() || !eventDraft.start || !eventDraft.end} title={productivityActionTitle(editingEventId ? 'Update this Google Calendar event.' : 'Create this Google Calendar event.')}>
           <Save size={17} />
-          <span>{editingEventId ? 'Update Event' : 'Create Event'}</span>
+          <span>{isActionBusy(editingEventId ? `event:save:${editingEventId}` : 'event:create') ? 'Saving Event' : editingEventId ? 'Update Event' : 'Create Event'}</span>
         </button>
         <button class="button" type="button" on:click={closeEventDialog}>Cancel</button>
       </div>
@@ -1335,33 +1409,33 @@
       <div class="modal-grid compose-grid">
         <div class="field">
           <label for="compose-to">To</label>
-          <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={!productivityReady} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
+          <input id="compose-to" value={addressesValue(composeDraft.to)} disabled={productivityWriteDisabled} on:input={(event) => (composeDraft.to = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field">
           <label for="compose-cc">Cc</label>
-          <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={!productivityReady} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
+          <input id="compose-cc" value={addressesValue(composeDraft.cc)} disabled={productivityWriteDisabled} on:input={(event) => (composeDraft.cc = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field">
           <label for="compose-bcc">Bcc</label>
-          <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={!productivityReady} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
+          <input id="compose-bcc" value={addressesValue(composeDraft.bcc)} disabled={productivityWriteDisabled} on:input={(event) => (composeDraft.bcc = splitAddresses(inputValue(event)))} />
         </div>
         <div class="field wide">
           <label for="compose-subject">Subject</label>
-          <input id="compose-subject" bind:value={composeDraft.subject} disabled={!productivityReady} />
+          <input id="compose-subject" bind:value={composeDraft.subject} disabled={productivityWriteDisabled} />
         </div>
         <div class="field wide">
           <label for="compose-body">Body</label>
-          <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={!productivityReady} rows="7"></textarea>
+          <textarea id="compose-body" bind:value={composeDraft.bodyText} disabled={productivityWriteDisabled} rows="7"></textarea>
         </div>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={!productivityReady || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(false)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={productivityActionTitle('Save this message as a Gmail draft.')} on:click={() => sendCompose(false)}>
           <Save size={17} />
-          <span>Save Draft</span>
+          <span>{isActionBusy('gmail:compose:draft') ? 'Saving Draft' : 'Save Draft'}</span>
         </button>
-        <button class="button primary" type="button" disabled={!productivityReady || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} on:click={() => sendCompose(true)}>
+        <button class="button primary" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={productivityActionTitle('Send this Gmail message.')} on:click={() => sendCompose(true)}>
           <Send size={17} />
-          <span>Send Email</span>
+          <span>{isActionBusy('gmail:compose:send') ? 'Sending Email' : 'Send Email'}</span>
         </button>
       </div>
     </div>
