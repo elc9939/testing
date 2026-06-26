@@ -56,6 +56,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('aiOsActionBlocked = !aiOsReady');
     expect(source).toContain('aiOsActionBlockedReason = aiOsServiceActionBlockedReason');
     expect(source).toContain('function aiOsServiceActionBlockedReason');
+    expect(source).toContain('function aiOsRefreshTitle');
+    expect(source).toContain('function aiOsActionTitle');
+    expect(source).toContain('function foundationActionTitle');
     expect(source).toContain('function warmLocalModelBlockedReason');
     expect(source).toContain('disabled={Boolean(warmupBlockedReason)}');
     expect(source).toContain('function requireAiOsReady');
@@ -64,6 +67,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={autotuneBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={designBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={benchmarkBusy || aiOsActionBlocked}');
+    expect(source).toContain("title={aiOsRefreshTitle()}");
+    expect(source).toContain("title={foundationActionTitle('Create a verified AI OS backup now.')}");
+    expect(source).toContain("title={foundationActionTitle('Verify the latest AI OS backup.', true)}");
+    expect(source).toContain("title={aiOsActionTitle('Run one ad hoc inference call.', inferBusy, 'Inference is already running.')}");
+    expect(source).toContain("title={aiOsActionTitle('Queue this AI OS job.', jobBusy, 'A job queue request is already running.')}");
+    expect(source).toContain("title={aiOsActionTitle('Ingest this scratch text into semantic memory.', memoryBusy, 'A memory action is already running.')}");
+    expect(source).toContain("title={aiOsActionTitle('Run the generic agent loop.', agentBusy, 'Agent loop is already running.')}");
+    expect(source).toContain("title={aiOsActionTitle('Invoke the selected multimodal capability.', multimodalBusy, 'Multimodal generation is already running.')}");
     expect(source).toContain('id="command-objective-primary"');
     expect(source).toContain('id="command-objective-advanced"');
     expect(source).toContain('id="command-confirm-primary"');

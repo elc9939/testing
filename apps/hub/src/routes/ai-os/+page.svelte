@@ -258,6 +258,23 @@
     return `AI OS is offline or not connected at ${state.apiUrl}. Open Settings or refresh status before using this control.`;
   }
 
+  function aiOsRefreshTitle(enabledTitle = 'Refresh AI OS status from the local service.'): string {
+    return loading ? 'AI OS status refresh is already running.' : enabledTitle;
+  }
+
+  function aiOsActionTitle(enabledTitle: string, busy: boolean, busyTitle: string): string {
+    if (aiOsActionBlockedReason) return aiOsActionBlockedReason;
+    if (busy) return busyTitle;
+    return enabledTitle;
+  }
+
+  function foundationActionTitle(enabledTitle: string, needsBackup = false): string {
+    if (aiOsActionBlockedReason) return aiOsActionBlockedReason;
+    if (foundationBusy) return 'A foundation health action is already running.';
+    if (needsBackup && !status?.backups?.length) return 'Create a backup before using this action.';
+    return enabledTitle;
+  }
+
   function warmLocalModelBlockedReason(state: { busy: boolean; status: AiStatus | null; loadedCount: number; aiOsReason: string }): string {
     if (state.busy) return 'Local model warmup is already running.';
     if (!state.status) return state.aiOsReason;
@@ -1088,7 +1105,7 @@
     <p class="eyebrow">Personal AI OS</p>
     <h1>Ask AI OS</h1>
   </div>
-  <button class="button" type="button" disabled={loading} on:click={refresh}>
+  <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle()} on:click={refresh}>
     <RefreshCw size={17} />
     <span>{loading ? 'Refreshing' : 'Refresh'}</span>
   </button>
@@ -1119,7 +1136,7 @@
       <strong>Local AI Startup</strong>
       <span>{startupSummary}</span>
     </div>
-    <button class="button" type="button" disabled={loading} on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Check AI OS startup health now.')} on:click={refresh}>
       <RefreshCw size={17} />
       <span>{loading ? 'Checking' : 'Check Now'}</span>
     </button>
@@ -1136,7 +1153,7 @@
     {/each}
   </div>
   <div class="action-row tight startup-actions">
-    <button class="button" type="button" disabled={loading} on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Reconnect to the local AI OS service.')} on:click={refresh}>
       <RefreshCw size={17} />
       <span>Reconnect</span>
     </button>
@@ -1630,19 +1647,19 @@
       </article>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={foundationBusy || aiOsActionBlocked} on:click={createBackupNow}>
+      <button class="button primary" type="button" disabled={foundationBusy || aiOsActionBlocked} title={foundationActionTitle('Create a verified AI OS backup now.')} on:click={createBackupNow}>
         <HardDrive size={17} />
         <span>Backup</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} on:click={verifyLatestBackup}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} title={foundationActionTitle('Verify the latest AI OS backup.', true)} on:click={verifyLatestBackup}>
         <ShieldCheck size={17} />
         <span>Verify</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} on:click={restoreTestLatestBackup}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} title={foundationActionTitle('Run a non-destructive restore test for the latest backup.', true)} on:click={restoreTestLatestBackup}>
         <Database size={17} />
         <span>Restore Test</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked} on:click={cleanupSystem}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked} title={foundationActionTitle('Run AI OS cleanup with configured resource limits.')} on:click={cleanupSystem}>
         <Wrench size={17} />
         <span>Cleanup</span>
       </button>
@@ -1712,11 +1729,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={inferBusy || aiOsActionBlocked} on:click={() => runAdHocInference(false)}>
+      <button class="button primary" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsActionTitle('Run one ad hoc inference call.', inferBusy, 'Inference is already running.')} on:click={() => runAdHocInference(false)}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run'}</span>
       </button>
-      <button class="button" type="button" disabled={inferBusy || aiOsActionBlocked} on:click={() => runAdHocInference(true)}>
+      <button class="button" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsActionTitle('Stream one ad hoc inference call.', inferBusy, 'Inference is already running.')} on:click={() => runAdHocInference(true)}>
         <Activity size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Stream'}</span>
       </button>
@@ -1752,11 +1769,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={jobBusy || aiOsActionBlocked} on:click={startJob}>
+      <button class="button primary" type="button" disabled={jobBusy || aiOsActionBlocked} title={aiOsActionTitle('Queue this AI OS job.', jobBusy, 'A job queue request is already running.')} on:click={startJob}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Queue'}</span>
       </button>
-      <button class="button" type="button" disabled={aiOsActionBlocked} on:click={refreshJobs}>
+      <button class="button" type="button" disabled={aiOsActionBlocked} title={aiOsActionTitle('Refresh AI OS job rows.', false, '')} on:click={refreshJobs}>
         <RefreshCw size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Jobs'}</span>
       </button>
@@ -1804,11 +1821,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button" type="button" disabled={memoryBusy || aiOsActionBlocked} on:click={ingestScratchMemory}>
+      <button class="button" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsActionTitle('Ingest this scratch text into semantic memory.', memoryBusy, 'A memory action is already running.')} on:click={ingestScratchMemory}>
         <Database size={17} />
         <span>Ingest</span>
       </button>
-      <button class="button primary" type="button" disabled={memoryBusy || aiOsActionBlocked} on:click={searchMemory}>
+      <button class="button primary" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsActionTitle('Search semantic memory.', memoryBusy, 'A memory action is already running.')} on:click={searchMemory}>
         <Search size={17} />
         <span>Search</span>
       </button>
@@ -1825,7 +1842,7 @@
       <label for="agent-objective">Objective</label>
       <textarea id="agent-objective" bind:value={agentObjective} rows="5"></textarea>
     </div>
-    <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} on:click={runGenericAgent}>
+    <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} title={aiOsActionTitle('Run the generic agent loop.', agentBusy, 'Agent loop is already running.')} on:click={runGenericAgent}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Loop'}</span>
     </button>
@@ -1893,7 +1910,7 @@
         <textarea id="video-base64" bind:value={videoBase64} rows="2"></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} on:click={invokeMedia}>
+    <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} title={aiOsActionTitle('Invoke the selected multimodal capability.', multimodalBusy, 'Multimodal generation is already running.')} on:click={invokeMedia}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : multimodalBusy ? 'Creating' : 'Create'}</span>
     </button>
