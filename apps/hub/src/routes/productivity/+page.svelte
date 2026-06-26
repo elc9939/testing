@@ -143,10 +143,14 @@
   $: productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey);
   $: productivityThreadOpenDisabled = Boolean(actionBusyKey);
   $: gmailReady = productivityReady && !gmailLoading;
-  $: googleConnectDisabled = !canAct || googleOAuthOpening || Boolean(actionBusyKey);
-  $: googleConnectTitle = !canAct
+  $: googleConnectDisabled = loading || !canAct || googleOAuthOpening || Boolean(actionBusyKey);
+  $: googleConnectTitle = loading
+    ? 'Productivity is still loading the latest connection state.'
+    : !canAct
     ? 'Start or connect the local API before opening Google OAuth.'
-    : actionBusyKey
+    : googleOAuthOpening
+      ? 'Google OAuth popup is already opening.'
+      : actionBusyKey
       ? 'Another Productivity action is already running.'
       : 'Open Google OAuth account picker.';
   $: selectedCalendar = calendars.find((calendar) => calendar.id === selectedCalendarId);

@@ -120,6 +120,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('productivityWriteDisabled = loading || !productivityReady || Boolean(actionBusyKey)');
     expect(source).toContain('productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey)');
     expect(source).toContain('productivityThreadOpenDisabled = Boolean(actionBusyKey)');
+    expect(source).toContain('googleConnectDisabled = loading || !canAct || googleOAuthOpening || Boolean(actionBusyKey)');
     expect(source).toContain('function beginProductivityAction');
     expect(source).toContain('function endProductivityAction');
     expect(source).toContain('Another Productivity action is already running.');
