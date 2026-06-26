@@ -42,6 +42,7 @@
   $: hasActive = activityHasActiveWork(records);
   $: partial = snapshot?.partial ?? false;
   $: stale = snapshot?.stale ?? false;
+  $: refreshBlockedReason = activityRefreshBlockedReason({ loading, refreshing, busyKey });
 
   onMount(() => {
     dismissedIds = readDismissedActivityIds();
@@ -165,6 +166,13 @@
     return `${record.id}:${action.kind}`;
   }
 
+  function activityRefreshBlockedReason(state: { loading: boolean; refreshing: boolean; busyKey: string }): string {
+    if (state.loading) return 'Activity is already loading records from connected sources.';
+    if (state.refreshing) return 'Activity is already refreshing in the background.';
+    if (state.busyKey) return 'Another Activity action is already running.';
+    return '';
+  }
+
   function actionBlockedReason(record: ActivityRecord, action: ActivityAction): string {
     const key = activityActionKey(record, action);
     if (busyKey === key) return `${action.label} is already running.`;
@@ -217,7 +225,7 @@
         <span>Restore</span>
       </button>
     {/if}
-    <button class="button" type="button" disabled={loading || refreshing || Boolean(busyKey)} title={busyKey ? 'Another Activity action is already running.' : 'Refresh Activity records from connected sources.'} on:click={() => refreshActivity()}>
+    <button class="button" type="button" disabled={Boolean(refreshBlockedReason)} title={refreshBlockedReason || 'Refresh Activity records from connected sources.'} on:click={() => refreshActivity()}>
       <RefreshCw size={16} />
       <span>{refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
