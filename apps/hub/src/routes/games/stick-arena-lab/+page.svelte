@@ -3,15 +3,18 @@
   import { RotateCcw, Save } from 'lucide-svelte';
   import type { StickArenaLabHandle } from '@mini-hub/game-engine';
   import { canAutoSave, clientData } from '$lib/client-data';
+  import { hubHref } from '$lib/routes';
 
   let mount: HTMLDivElement;
   let lab: StickArenaLabHandle | null = null;
   let status = 'Loading engine';
   let telemetry: string[] = [];
   let saveStatus = '';
+  let saving = false;
   let startedAt = Date.now();
 
   $: canSave = canAutoSave($clientData);
+  $: labReady = Boolean(lab);
 
   onMount(async () => {
     void clientData.init();
@@ -33,8 +36,13 @@
   });
 
   async function saveRun(label = 'manual'): Promise<void> {
-    if (!canSave) return;
+    if (!canSave) {
+      saveStatus = 'Offline read-only: telemetry stays visible, but saving needs the Mini Hub API.';
+      return;
+    }
+    if (saving) return;
     saveStatus = 'Saving';
+    saving = true;
     try {
       const durationMs = Date.now() - startedAt;
       await clientData.saveGameRun({
@@ -51,10 +59,16 @@
       saveStatus = 'Saved';
     } catch (error) {
       saveStatus = error instanceof Error ? error.message : 'Save failed';
+    } finally {
+      saving = false;
     }
   }
 
   async function resetLab(): Promise<void> {
+    if (!lab) {
+      status = 'Engine is still loading.';
+      return;
+    }
     lab?.reset();
     startedAt = Date.now();
     await saveRun('reset');
@@ -71,16 +85,23 @@
     <h1>Ability Lab</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" on:click={resetLab}>
+    <button class="button" type="button" disabled={!labReady} title={labReady ? 'Reset the local ability lab.' : 'Wait for the game engine to finish loading.'} on:click={resetLab}>
       <RotateCcw size={17} />
       <span>Reset</span>
     </button>
-    <button class="button" type="button" disabled={!canSave} on:click={() => saveRun()}>
+    <button class="button" type="button" disabled={!canSave || saving} title={canSave ? 'Save this run to Mini Hub.' : 'Start the Mini Hub API before saving game runs.'} on:click={() => saveRun()}>
       <Save size={17} />
-      <span>Save Run</span>
+      <span>{saving ? 'Saving' : 'Save Run'}</span>
     </button>
   </div>
 </section>
+
+{#if !canSave}
+  <section class="card card-pad offline-banner">
+    <span>Offline read-only: the lab is playable, but run saving needs the Mini Hub API.</span>
+    <a href={hubHref('/settings')}>Open Settings</a>
+  </section>
+{/if}
 
 <section class="lab-layout">
   <div class="arena card" bind:this={mount} aria-label="Stick Arena Pixi Rapier canvas"></div>
@@ -88,7 +109,7 @@
     <strong>Status</strong>
     <p class="muted">{status}</p>
     <strong>Saving</strong>
-    <p class="muted">{canSave ? saveStatus || 'Ready' : 'Offline read-only'}</p>
+    <p class="muted">{saveStatus || (canSave ? 'Ready' : 'Offline read-only')}</p>
     <strong>Telemetry</strong>
     {#if telemetry.length}
       <ul>
@@ -126,6 +147,23 @@
     padding-left: 18px;
     color: var(--muted);
     font-size: 13px;
+  }
+
+  .offline-banner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+  }
+
+  .offline-banner a {
+    color: inherit;
+    font-weight: 850;
   }
 
   @media (max-width: 900px) {

@@ -94,4 +94,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('verify persistence');
     expect(source).toContain('expectedBlockedState');
   });
+
+  it('explains Stick Arena lab loading and offline save controls', async () => {
+    const source = await routeSource('../routes/games/stick-arena-lab/+page.svelte');
+
+    expect(source).toContain('labReady = Boolean(lab)');
+    expect(source).toContain('if (!lab)');
+    expect(source).toContain('Offline read-only: the lab is playable');
+    expect(source).toContain("href={hubHref('/settings')}");
+    expect(source).toContain('disabled={!labReady}');
+    expect(source).toContain('disabled={!canSave || saving}');
+  });
 });
