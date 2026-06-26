@@ -200,7 +200,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('let syncBusy = false');
     expect(source).toContain('let exportBusy = false');
     expect(source).toContain('let endpointSaving = false');
-    expect(source).toContain("function machineProfileControlBlockedReason(action: 'autotune' | 'snapshot')");
+    expect(source).toContain('machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions)');
+    expect(source).toContain("machineProfileControlBlockedReason('autotune', {");
+    expect(source).toContain('function machineProfileControlBlockedReason');
     expect(source).toContain('AI OS is unavailable. Start AI OS or fix the endpoint, then retry the profile check.');
     expect(source).toContain('disabled={Boolean(machineAutotuneBlockedReason)}');
     expect(source).toContain('disabled={Boolean(machineSnapshotBlockedReason)}');

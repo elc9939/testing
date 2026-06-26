@@ -109,8 +109,6 @@
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
-  $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune');
-  $: machineSnapshotBlockedReason = machineProfileControlBlockedReason('snapshot');
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
   $: passiveSettings = passiveSnapshot?.settings ?? null;
   $: passiveSettingsBlockedReason = passiveSettingsControlBlockedReason({
@@ -136,6 +134,21 @@
     serviceEndpointResolution('aiOs', aiOsInput, serviceFallbackUrl('aiOs'), currentOrigin()),
     serviceEndpointResolution('macroLab', macroLabInput, serviceFallbackUrl('macroLab'), currentOrigin())
   ];
+  $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
+  $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
+    endpointIssue: machineAiOsEndpointIssue,
+    busy: autotuneBusy,
+    loading: machineProfileLoading,
+    profile: machineProfile,
+    error: machineProfileError
+  });
+  $: machineSnapshotBlockedReason = machineProfileControlBlockedReason('snapshot', {
+    endpointIssue: machineAiOsEndpointIssue,
+    busy: autotuneBusy,
+    loading: machineProfileLoading,
+    profile: machineProfile,
+    error: machineProfileError
+  });
   $: featureWiringRows = buildFeatureWiringRows({
     checkedAt: serviceCheckedAt,
     endpoints: endpointResolutions,
@@ -592,19 +605,33 @@
     return `${mode.label}: ${mode.summary}`;
   }
 
-  function aiOsEndpointIssue(): string {
-    const endpoint = endpointResolutions.find((item) => item.id === 'aiOs');
+  function aiOsEndpointIssue(resolutions = endpointResolutions): string {
+    const endpoint = resolutions.find((item) => item.id === 'aiOs');
     if (endpoint?.state === 'misconfigured') return endpoint.fixAction || 'Save a valid AI OS endpoint before running machine controls.';
     return '';
   }
 
-  function machineProfileControlBlockedReason(action: 'autotune' | 'snapshot'): string {
-    const endpointIssue = aiOsEndpointIssue();
-    if (endpointIssue) return endpointIssue;
-    if (action === 'autotune' && autotuneBusy) return 'Autotune is already running.';
-    if (machineProfileLoading) return 'Machine profile is loading.';
-    if (!machineProfile) {
-      return machineProfileError
+  function machineProfileControlBlockedReason(
+    action: 'autotune' | 'snapshot',
+    state: {
+      endpointIssue: string;
+      busy: boolean;
+      loading: boolean;
+      profile: AiMachineProfile | null;
+      error: string;
+    } = {
+      endpointIssue: aiOsEndpointIssue(),
+      busy: autotuneBusy,
+      loading: machineProfileLoading,
+      profile: machineProfile,
+      error: machineProfileError
+    }
+  ): string {
+    if (state.endpointIssue) return state.endpointIssue;
+    if (action === 'autotune' && state.busy) return 'Autotune is already running.';
+    if (state.loading) return 'Machine profile is loading.';
+    if (!state.profile) {
+      return state.error
         ? 'AI OS is unavailable. Start AI OS or fix the endpoint, then retry the profile check.'
         : 'Load the AI OS Machine Profile before running this control.';
     }
