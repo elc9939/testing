@@ -28,8 +28,8 @@
   let draftStatus = 'Using default browser-local samples.';
   $: classifyResultCopy = aiLabResultCopy(classifyResultState, classifyResultText);
   $: parseResultCopy = aiLabResultCopy(parseResultState, parseResultText);
-  $: classifyBlockedReason = classifyBusy ? 'Classification is already running.' : classifyValidationReason();
-  $: parseBlockedReason = parseBusy ? 'Parser is already running.' : parseValidationReason();
+  $: classifyBlockedReason = classifyBusy ? 'Classification is already running.' : classifyValidationReason({ text, labels });
+  $: parseBlockedReason = parseBusy ? 'Parser is already running.' : parseValidationReason({ grammarUrl, codeText });
   $: grammarAssetState = grammarUrl.trim()
     ? 'Tree-sitter grammar URL is configured.'
     : 'Tree-sitter needs a WASM grammar URL before parsing can run.';
@@ -68,16 +68,16 @@
     parseResultText = detail;
   }
 
-  function classifyValidationReason(): string {
-    const parsedLabels = parseAiLabLabels(labels);
-    if (!text.trim()) return 'Add text before running the classifier.';
+  function classifyValidationReason(state: { text: string; labels: string } = { text, labels }): string {
+    const parsedLabels = parseAiLabLabels(state.labels);
+    if (!state.text.trim()) return 'Add text before running the classifier.';
     if (!parsedLabels.length) return 'Add at least one comma-separated label.';
     return '';
   }
 
-  function parseValidationReason(): string {
-    if (!grammarUrl.trim()) return 'Provide a Tree-sitter WASM grammar URL first.';
-    if (!codeText.trim()) return 'Add code before running the parser.';
+  function parseValidationReason(state: { grammarUrl: string; codeText: string } = { grammarUrl, codeText }): string {
+    if (!state.grammarUrl.trim()) return 'Provide a Tree-sitter WASM grammar URL first.';
+    if (!state.codeText.trim()) return 'Add code before running the parser.';
     return '';
   }
 
@@ -123,7 +123,7 @@
   }
 
   async function classify(): Promise<void> {
-    const blocked = classifyValidationReason();
+    const blocked = classifyValidationReason({ text, labels });
     if (blocked) {
       setClassifyResult('error', blocked);
       return;
@@ -147,7 +147,7 @@
   }
 
   async function parseCode(): Promise<void> {
-    const blocked = parseValidationReason();
+    const blocked = parseValidationReason({ grammarUrl, codeText });
     if (blocked) {
       setParseResult('error', blocked);
       return;
@@ -248,7 +248,7 @@
 </section>
 
 <section class="result-grid" aria-label="AI Lab results">
-  <article class={`card card-pad result-panel ${classifyResultState}`} aria-live="polite">
+  <article class={`card card-pad result-panel ${classifyResultState}`} aria-live="polite" aria-busy={classifyBusy}>
     <div class="section-title">
       <BrainCircuit size={18} />
       <strong>Classifier: {classifyResultCopy.title}</strong>
@@ -261,7 +261,7 @@
     {/if}
   </article>
 
-  <article class={`card card-pad result-panel ${parseResultState}`} aria-live="polite">
+  <article class={`card card-pad result-panel ${parseResultState}`} aria-live="polite" aria-busy={parseBusy}>
     <div class="section-title">
       <FileCode2 size={18} />
       <strong>Parser: {parseResultCopy.title}</strong>

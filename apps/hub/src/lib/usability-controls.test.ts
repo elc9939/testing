@@ -35,11 +35,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('let classifyBusy = false');
     expect(source).toContain('let parseBusy = false');
     expect(source).toContain('classifyBlockedReason = classifyBusy ?');
+    expect(source).toContain('classifyValidationReason({ text, labels })');
     expect(source).toContain('parseBlockedReason = parseBusy ?');
+    expect(source).toContain('parseValidationReason({ grammarUrl, codeText })');
     expect(source).toContain('function classifyValidationReason');
     expect(source).toContain('function parseValidationReason');
     expect(source).toContain('disabled={Boolean(classifyBlockedReason)}');
     expect(source).toContain('disabled={Boolean(parseBlockedReason)}');
+    expect(source).toContain('aria-busy={classifyBusy}');
+    expect(source).toContain('aria-busy={parseBusy}');
     expect(source).toContain('draftStatus =');
     expect(source).toContain('Reloaded AI Lab inputs from this browser.');
     expect(source).toContain('class="result-grid"');
