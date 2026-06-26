@@ -46,7 +46,8 @@
   let selectedId = '';
   let editor = '';
   let result = '';
-  let error = '';
+  let serviceError = '';
+  let actionError = '';
   let loading = false;
   let busy = false;
 
@@ -57,8 +58,10 @@
   $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'loading' : 'unknown';
   $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'loading' : 'unknown';
   $: serviceDetail = status ? `${status.version} at ${getMacroLabApiUrl()}` : `Target: ${getMacroLabApiUrl()}`;
-  $: macroStateKnown = Boolean(status);
-  $: macroControlDisabled = busy || loading || !macroStateKnown;
+  $: macroServiceReady = Boolean(status && !serviceError);
+  $: macroStateKnown = macroServiceReady;
+  $: macroControlTitle = macroDisabledReason();
+  $: macroControlDisabled = Boolean(macroControlTitle);
 
   onMount(() => {
     void refresh();
@@ -73,23 +76,50 @@
     editor = stringify(macro);
   }
 
+  function macroDisabledReason(): string {
+    if (loading) return 'Macro Lab is loading the latest desktop automation state.';
+    if (busy) return 'Another Macro Lab action is already running.';
+    if (serviceError) return `Macro Lab service is unavailable: ${serviceError}`;
+    if (!status) return 'Connect Macro Lab before changing macros, triggers, recorder, panic, or run state.';
+    return '';
+  }
+
+  function requireMacroReady(action: string): boolean {
+    const reason = macroDisabledReason();
+    if (!reason) return true;
+    actionError = `${action} unavailable: ${reason}`;
+    return false;
+  }
+
+  function macroConnectionError(message: string): boolean {
+    return /(?:Failed to fetch|CORS|mixed-content|network|offline|unavailable|ECONNREFUSED|connection refused|timed out|timeout|Not Found)/iu.test(message);
+  }
+
+  function recordMacroActionError(caught: unknown, fallback: string): void {
+    const message = caught instanceof Error ? caught.message : fallback;
+    actionError = message;
+    if (macroConnectionError(message)) serviceError = message;
+  }
+
   async function refresh(): Promise<void> {
     loading = true;
-    error = '';
+    serviceError = '';
+    actionError = '';
     try {
       [status, actions, macros, runs] = await Promise.all([getMacroStatus(), listMacroActions(), listMacros(), listMacroRuns(30)]);
       if (!selectedId && macros[0]) selectMacro(macros[0]);
       else if (selectedMacro) editor = stringify(selectedMacro);
     } catch (caught) {
-      error = caught instanceof Error ? caught.message : 'Failed to load Macro Lab.';
+      serviceError = caught instanceof Error ? caught.message : 'Failed to load Macro Lab.';
     } finally {
       loading = false;
     }
   }
 
   async function saveSelected(): Promise<void> {
+    if (!requireMacroReady('Save macro')) return;
     busy = true;
-    error = '';
+    actionError = '';
     try {
       const parsed = JSON.parse(editor) as MacroDefinition;
       const saved = await saveMacro(parsed);
@@ -97,15 +127,16 @@
       await refresh();
       selectMacro(saved);
     } catch (caught) {
-      error = caught instanceof Error ? caught.message : 'Save failed.';
+      recordMacroActionError(caught, 'Save failed.');
     } finally {
       busy = false;
     }
   }
 
   async function newMacro(): Promise<void> {
+    if (!requireMacroReady('Create macro')) return;
     busy = true;
-    error = '';
+    actionError = '';
     try {
       const id = `macro_${Date.now().toString(36)}`;
       const macro: MacroDefinition = {
@@ -126,7 +157,7 @@
       await refresh();
       selectMacro(created);
     } catch (caught) {
-      error = caught instanceof Error ? caught.message : 'Create failed.';
+      recordMacroActionError(caught, 'Create failed.');
     } finally {
       busy = false;
     }
@@ -134,15 +165,16 @@
 
   async function toggleSelected(field: 'enabled' | 'armed'): Promise<void> {
     if (!selectedMacro) return;
+    if (!requireMacroReady('Toggle macro')) return;
     busy = true;
-    error = '';
+    actionError = '';
     try {
       const saved = await patchMacro(selectedMacro.id, { [field]: !selectedMacro[field] } as Partial<MacroDefinition>);
       result = stringify({ [field]: saved[field] });
       await refresh();
       selectMacro(saved);
     } catch (caught) {
-      error = caught instanceof Error ? caught.message : 'Toggle failed.';
+      recordMacroActionError(caught, 'Toggle failed.');
     } finally {
       busy = false;
     }
@@ -150,23 +182,25 @@
 
   async function runSelected(dryRun: boolean, confirm = false): Promise<void> {
     if (!selectedMacro) return;
+    if (!requireMacroReady(dryRun ? 'Dry run macro' : 'Run macro')) return;
     busy = true;
-    error = '';
+    actionError = '';
     try {
       const run = await runMacro(selectedMacro.id, dryRun, confirm);
       result = stringify(run);
       runs = await listMacroRuns(30);
       status = await getMacroStatus();
     } catch (caught) {
-      error = caught instanceof Error ? caught.message : 'Run failed.';
+      recordMacroActionError(caught, 'Run failed.');
     } finally {
       busy = false;
     }
   }
 
   async function callControl(kind: 'panic' | 'reset' | 'reload' | 'record' | 'stop-record'): Promise<void> {
+    if (!requireMacroReady(`Macro ${kind}`)) return;
     busy = true;
-    error = '';
+    actionError = '';
     try {
       const value =
         kind === 'panic'
@@ -181,7 +215,7 @@
       result = stringify(value);
       await refresh();
     } catch (caught) {
-      error = caught instanceof Error ? caught.message : `${kind} failed.`;
+      recordMacroActionError(caught, `${kind} failed.`);
     } finally {
       busy = false;
     }
@@ -199,13 +233,13 @@
   </div>
   <div class="action-row">
     <button class="button" disabled={loading || busy} on:click={refresh}><RefreshCw size={16} />Refresh</button>
-    <button class="button danger" disabled={macroControlDisabled} title={!macroStateKnown ? 'Connect Macro Lab before using panic controls.' : ''} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
-    <button class="button" disabled={macroControlDisabled} title={!macroStateKnown ? 'Connect Macro Lab before resetting panic state.' : ''} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
+    <button class="button danger" disabled={macroControlDisabled} title={macroControlTitle || 'Stop all running automations and disable triggers.'} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
+    <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reset the Macro Lab panic state.'} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
   </div>
 </div>
 
-{#if error}
-  <div class="notice error">{error}</div>
+{#if serviceError}
+  <div class="notice error">Macro Lab connection failed: {serviceError}</div>
   <section class="card card-pad connection-card">
     <div>
       <strong>Desktop service</strong>
@@ -214,6 +248,9 @@
     </div>
     <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>
   </section>
+{/if}
+{#if actionError}
+  <div class="notice error">{actionError}</div>
 {/if}
 
 <section class="status-strip">
@@ -243,7 +280,7 @@
   <aside class="macro-list card">
     <div class="panel-head">
       <strong>Macros</strong>
-      <button class="icon-button" disabled={macroControlDisabled} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
+      <button class="icon-button" disabled={macroControlDisabled} title={macroControlTitle || 'Create a new macro.'} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
     </div>
     {#each macros as macro}
       <button class:active={selectedMacro?.id === macro.id} class="macro-row" on:click={() => selectMacro(macro)}>
@@ -257,7 +294,7 @@
     {#if loading && !macros.length}
       <p class="empty-note">Loading macro definitions from Macro Lab...</p>
     {:else if !macros.length}
-      <p class="empty-note">{error ? 'Macro definitions are unavailable until the service responds.' : 'No macros are registered yet. Create one with the plus button.'}</p>
+      <p class="empty-note">{serviceError ? 'Macro definitions are unavailable until the service responds.' : 'No macros are registered yet. Create one with the plus button.'}</p>
     {/if}
   </aside>
 
@@ -269,26 +306,26 @@
           <span class="muted"> {selectedMacro.id}</span>
         </div>
         <div class="action-row compact">
-          <button class="button" disabled={macroControlDisabled} on:click={() => toggleSelected('enabled')}>
+          <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle whether this macro can run.'} on:click={() => toggleSelected('enabled')}>
             {#if selectedMacro.enabled}<ToggleRight size={16} />Enabled{:else}<ToggleLeft size={16} />Disabled{/if}
           </button>
-          <button class:selected={selectedMacro.armed} class="button" disabled={macroControlDisabled} on:click={() => toggleSelected('armed')}>
+          <button class:selected={selectedMacro.armed} class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle the explicit armed state for system-level actions.'} on:click={() => toggleSelected('armed')}>
             <Shield size={16} />{selectedMacro.armed ? 'Armed' : 'Safe'}
           </button>
         </div>
       </div>
       <textarea bind:value={editor} spellcheck="false"></textarea>
       <div class="action-row">
-        <button class="button primary" disabled={macroControlDisabled} on:click={saveSelected}><Save size={16} />Save</button>
-        <button class="button" disabled={macroControlDisabled} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
-        <button class="button danger" disabled={macroControlDisabled} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
-        <button class="button" disabled={macroControlDisabled} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
+        <button class="button primary" disabled={macroControlDisabled} title={macroControlTitle || 'Save the selected macro definition.'} on:click={saveSelected}><Save size={16} />Save</button>
+        <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro without side effects.'} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
+        <button class="button danger" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro with confirmed side effects.'} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
+        <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reload Macro Lab triggers from saved definitions.'} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
       </div>
     {:else}
       <div class="empty-panel">
         <Keyboard size={20} />
         <strong>{loading ? 'Loading macro editor' : 'No macro selected'}</strong>
-        <p>{error ? 'Connect the Macro Lab service to edit and run macros.' : 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.'}</p>
+        <p>{serviceError ? 'Connect the Macro Lab service to edit and run macros.' : 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.'}</p>
       </div>
     {/if}
   </main>
@@ -311,7 +348,7 @@
       {#if loading && !actions.length}
         <p class="empty-note">Loading action catalog...</p>
       {:else if !actions.length}
-        <p class="empty-note">{error ? 'Action catalog unavailable until Macro Lab responds.' : 'No action types are registered yet.'}</p>
+        <p class="empty-note">{serviceError ? 'Action catalog unavailable until Macro Lab responds.' : 'No action types are registered yet.'}</p>
       {/if}
     </div>
   </div>
@@ -322,8 +359,8 @@
       <Clipboard size={17} />
     </div>
     <div class="action-row">
-      <button class="button" disabled={macroControlDisabled} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
-      <button class="button" disabled={macroControlDisabled} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
+      <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Record keyboard and mouse input.'} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
+      <button class="button" disabled={macroControlDisabled} title={macroControlTitle || 'Stop the current recorder.'} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
     </div>
     {#if result}
       <pre>{result}</pre>
@@ -347,7 +384,7 @@
     {#if loading && !runs.length}
       <p class="empty-note">Loading recent Macro Lab runs...</p>
     {:else if !runs.length}
-      <p class="empty-note">{error ? 'Run history is unavailable until Macro Lab responds.' : 'No macro runs have been recorded yet.'}</p>
+      <p class="empty-note">{serviceError ? 'Run history is unavailable until Macro Lab responds.' : 'No macro runs have been recorded yet.'}</p>
     {:else if highlightedRunId && !runs.some((run) => run.id === highlightedRunId)}
       <p class="empty-note">The linked Activity run is not in the latest {runs.length} Macro Lab runs. Refresh or open Activity for the durable record.</p>
     {/if}
