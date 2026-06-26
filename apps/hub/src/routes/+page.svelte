@@ -228,6 +228,34 @@
     );
   }
 
+  function modeRecommendationCapability(item: ModeRecommendation): CapabilityRegistryEntry | undefined {
+    if (!item.capabilityId) return undefined;
+    return capabilitySnapshot?.capabilities.find((capability) => capability.id === item.capabilityId);
+  }
+
+  function modeActionBlockedReason(item: ModeRecommendation): string {
+    if (!item.action) return 'This recommendation does not expose a direct action.';
+    if (modeActionBusyId && modeActionBusyId !== item.id) return 'Another Today recommendation is already running.';
+    if (modeActionBusyId === item.id) return 'This recommendation is running.';
+    if (capabilityLoading && !capabilitySnapshot) return 'Capability status is still loading.';
+    if (!capabilitySnapshot) return 'Check local services before running this recommendation.';
+
+    const aiService = capabilitySnapshot.capabilities.find((capability) => capability.id === 'ai-os.service');
+    if (!aiService?.available) {
+      return aiService?.lastError ?? 'AI OS is not reachable; open Settings to connect the local service.';
+    }
+
+    const requiredCapability = modeRecommendationCapability(item);
+    if (requiredCapability && !requiredCapability.available) {
+      return requiredCapability.lastError ?? `${requiredCapability.label} is not ready yet.`;
+    }
+    return '';
+  }
+
+  function modeActionDisabled(item: ModeRecommendation): boolean {
+    return Boolean(modeActionBlockedReason(item));
+  }
+
   function actionStatusClass(action: ActionLedgerEntry): string {
     if (action.status === 'succeeded') return 'success';
     if (action.status === 'failed' || action.status === 'blocked') return 'failed';
@@ -308,6 +336,11 @@
 
   async function runModeRecommendation(item: ModeRecommendation): Promise<void> {
     if (!item.action || modeActionBusyId) return;
+    const blockedReason = modeActionBlockedReason(item);
+    if (blockedReason) {
+      modeActionError = blockedReason;
+      return;
+    }
     if (item.action.confirm && typeof window !== 'undefined' && !window.confirm(item.action.confirm)) {
       logModeAction(item, 'blocked');
       await refreshActionLedger();
@@ -810,7 +843,8 @@
                 <button
                   class="button compact mode-action-button"
                   type="button"
-                  disabled={Boolean(modeActionBusyId)}
+                  disabled={modeActionDisabled(item)}
+                  title={modeActionBlockedReason(item) || item.action.label}
                   on:click={() => runModeRecommendation(item)}
                 >
                   <span>{modeActionBusyId === item.id ? 'Running' : item.action.label}</span>

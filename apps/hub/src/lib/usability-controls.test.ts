@@ -89,6 +89,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });
 
+  it('keeps Today recommendation actions tied to live capability readiness', async () => {
+    const source = await routeSource('../routes/+page.svelte');
+
+    expect(source).toContain('function modeActionBlockedReason');
+    expect(source).toContain('AI OS is not reachable; open Settings to connect the local service.');
+    expect(source).toContain('function modeActionDisabled');
+    expect(source).toContain('disabled={modeActionDisabled(item)}');
+    expect(source).toContain('title={modeActionBlockedReason(item) || item.action.label}');
+  });
+
   it('keeps Career and Study inline edits read-only when save capability drops', async () => {
     const career = await routeSource('../routes/desk/career/+page.svelte');
     const study = await routeSource('../routes/desk/study/+page.svelte');
