@@ -479,6 +479,16 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('function careerSaveTitle');
     expect(career).toContain('function careerRowTitle');
     expect(career).toContain('function careerMailUpdatesTitle');
+    expect(career).toContain('let careerSummaryLoading = false');
+    expect(career).toContain('let careerExportLoading = false');
+    expect(career).toContain('function careerSummaryTitle');
+    expect(career).toContain('function careerExportTitle');
+    expect(career).toContain('if (careerSummaryLoading) return');
+    expect(career).toContain('if (careerExportLoading) return');
+    expect(career).toContain('disabled={careerSummaryLoading}');
+    expect(career).toContain('disabled={careerExportLoading}');
+    expect(career).toContain("{careerSummaryLoading ? 'Scanning' : 'Scan'}");
+    expect(career).toContain("{careerExportLoading ? 'Exporting' : 'Export'}");
     expect(career).toContain('Company and role are required before saving a job.');
     expect(career).toContain('disabled={!canSave || saving || !company.trim() || !role.trim()}');
     expect(career).toContain('title={saveJobEditTitle()}');
@@ -494,6 +504,11 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('disabled={!canSave || rowBusyId === log.id}');
     expect(study).toContain('function studySaveTitle');
     expect(study).toContain('function studyRowTitle');
+    expect(study).toContain('let studySummaryLoading = false');
+    expect(study).toContain('function studySummaryTitle');
+    expect(study).toContain('if (studySummaryLoading) return');
+    expect(study).toContain('disabled={studySummaryLoading}');
+    expect(study).toContain("{studySummaryLoading ? 'Scanning' : 'Scan'}");
     expect(study).toContain('Add a study label before logging progress.');
     expect(study).toContain('disabled={!canSave || saving || !subject.trim() || minutes < 1}');
     expect(study).toContain('title={saveLogEditTitle()}');

@@ -69,6 +69,7 @@
   let viewStatus = 'Loading saved Study view.';
   let viewHydrated = false;
   let saving = false;
+  let studySummaryLoading = false;
   let rowBusyId = '';
   let editingSessionId = '';
   let studyDraft: StudyDraft = emptyStudyDraft();
@@ -137,6 +138,10 @@
     if (!studyDraft.subject.trim()) return 'Add a study label before saving this log.';
     if (studyDraft.minutes < 1) return 'Minutes must be at least 1 before saving this log.';
     return 'Save study log changes.';
+  }
+
+  function studySummaryTitle(): string {
+    return studySummaryLoading ? 'Legacy Study scan is already running.' : 'Scan this browser for legacy Study Desk data.';
   }
 
   function emptyStudyDraft(): StudyDraft {
@@ -356,8 +361,21 @@
   }
 
   async function refreshSummary(): Promise<void> {
-    const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
-    summary = inspectLegacyStorage(localStorage);
+    if (studySummaryLoading) return;
+    studySummaryLoading = true;
+    saveError = '';
+    saveMessage = '';
+    try {
+      if (typeof localStorage === 'undefined') {
+        throw new Error('Browser storage is unavailable; legacy Study scan cannot run.');
+      }
+      const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
+      summary = inspectLegacyStorage(localStorage);
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : 'Legacy Study scan failed';
+    } finally {
+      studySummaryLoading = false;
+    }
   }
 
   async function addLog(): Promise<void> {
@@ -464,9 +482,9 @@
     <h1>Study</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" on:click={refreshSummary}>
+    <button class="button" type="button" disabled={studySummaryLoading} title={studySummaryTitle()} on:click={refreshSummary}>
       <RefreshCw size={17} />
-      <span>Scan</span>
+      <span>{studySummaryLoading ? 'Scanning' : 'Scan'}</span>
     </button>
   </div>
 </section>

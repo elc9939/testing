@@ -57,6 +57,8 @@
   let viewStatus = 'Loading saved Career view.';
   let viewHydrated = false;
   let saving = false;
+  let careerSummaryLoading = false;
+  let careerExportLoading = false;
   let rowBusyId = '';
   let editingJobId = '';
   let jobDraft: JobDraft = emptyJobDraft();
@@ -110,6 +112,14 @@
 
   function careerMailUpdatesTitle(): string {
     return mailUpdatesLoading ? 'Career mail scan is already running.' : 'Scan connected Gmail for likely career updates.';
+  }
+
+  function careerSummaryTitle(): string {
+    return careerSummaryLoading ? 'Legacy Career scan is already running.' : 'Scan this browser for legacy Career Desk data.';
+  }
+
+  function careerExportTitle(): string {
+    return careerExportLoading ? 'Career export is already preparing.' : 'Download the current legacy Career snapshot from this browser.';
   }
 
   function emptyJobDraft(): JobDraft {
@@ -410,8 +420,21 @@
   }
 
   async function refreshSummary(): Promise<void> {
-    const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
-    summary = inspectLegacyStorage(localStorage);
+    if (careerSummaryLoading) return;
+    careerSummaryLoading = true;
+    saveError = '';
+    saveMessage = '';
+    try {
+      if (typeof localStorage === 'undefined') {
+        throw new Error('Browser storage is unavailable; legacy Career scan cannot run.');
+      }
+      const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
+      summary = inspectLegacyStorage(localStorage);
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : 'Legacy Career scan failed';
+    } finally {
+      careerSummaryLoading = false;
+    }
   }
 
   async function addJob(): Promise<void> {
@@ -511,17 +534,30 @@
   }
 
   async function exportSnapshot(): Promise<void> {
-    const { exportLegacySnapshot } = await import('@mini-hub/db/migration');
-    const blob = new Blob([JSON.stringify(exportLegacySnapshot(localStorage), null, 2)], {
-      type: 'application/json'
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'mini-hub-legacy-career-snapshot.json';
-    link.click();
-    URL.revokeObjectURL(url);
-    saveMessage = 'Exported legacy Career snapshot from this browser.';
+    if (careerExportLoading) return;
+    careerExportLoading = true;
+    saveError = '';
+    saveMessage = '';
+    try {
+      if (typeof localStorage === 'undefined') {
+        throw new Error('Browser storage is unavailable; legacy Career export cannot run.');
+      }
+      const { exportLegacySnapshot } = await import('@mini-hub/db/migration');
+      const blob = new Blob([JSON.stringify(exportLegacySnapshot(localStorage), null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'mini-hub-legacy-career-snapshot.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      saveMessage = 'Exported legacy Career snapshot from this browser.';
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : 'Legacy Career export failed';
+    } finally {
+      careerExportLoading = false;
+    }
   }
 
   onMount(() => {
@@ -543,17 +579,17 @@
     <h1>Career</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" on:click={refreshSummary}>
+    <button class="button" type="button" disabled={careerSummaryLoading} title={careerSummaryTitle()} on:click={refreshSummary}>
       <RefreshCw size={17} />
-      <span>Scan</span>
+      <span>{careerSummaryLoading ? 'Scanning' : 'Scan'}</span>
     </button>
     <button class="button" type="button" disabled={mailUpdatesLoading} title={careerMailUpdatesTitle()} on:click={refreshCareerMailUpdates}>
       <Mail size={17} />
       <span>{mailUpdatesLoading ? 'Sorting' : 'Mail Updates'}</span>
     </button>
-    <button class="button" type="button" on:click={exportSnapshot}>
+    <button class="button" type="button" disabled={careerExportLoading} title={careerExportTitle()} on:click={exportSnapshot}>
       <Download size={17} />
-      <span>Export</span>
+      <span>{careerExportLoading ? 'Exporting' : 'Export'}</span>
     </button>
   </div>
 </section>
