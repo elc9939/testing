@@ -606,6 +606,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('missingMarkers(row).length');
     expect(source).toContain('missingScenarioFields(row).length');
     expect(source).toContain('function extractButtonStates');
+    expect(source).toContain('function extractLinkStates');
     expect(source).toContain('function fetchRouteAttempt');
     expect(source).toContain('function safeActionStatus');
     expect(source).toContain('function safeActionSummary');
@@ -617,12 +618,17 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('rawNotFound');
     expect(source).toContain('retry:');
     expect(source).toContain('Live DOM snapshot');
+    expect(source).toContain('Live links');
     expect(source).toContain('Exercise safe action');
     expect(source).toContain('Sample input/setup');
     expect(source).toContain('Expected result/output quality');
     expect(source).toContain('verify persistence');
     expect(source).toContain('Reload proof');
     expect(source).toContain('expectedBlockedState');
+    expect(source).toContain('source links');
+    expect(source).toContain('disabled-link refs');
+    expect(source).toContain('enabled links');
+    expect(source).toContain('row.links');
   });
 
   it('explains Stick Arena lab loading and offline save controls', async () => {

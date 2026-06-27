@@ -317,6 +317,23 @@ function extractButtonStates(html) {
     .filter((button) => button.label !== '(icon only)' || button.title);
 }
 
+function extractLinkStates(html) {
+  return [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/giu)]
+    .map((match) => {
+      const attrs = match[1] ?? '';
+      const label = stripHtml(match[2] ?? '');
+      const href = /href="([^"]*)"/iu.exec(attrs)?.[1] ?? '';
+      const title = /title="([^"]*)"/iu.exec(attrs)?.[1] ?? '';
+      return {
+        label: label || title || href || '(empty link)',
+        disabled: /\baria-disabled="true"/iu.test(attrs) || /\bclass="[^"]*\bdisabled\b[^"]*"/iu.test(attrs),
+        title,
+        href
+      };
+    })
+    .filter((link) => link.label !== '(empty link)' || link.href || link.title);
+}
+
 function visibleIssueSnippets(html) {
   const text = stripHtml(html);
   const issuePatterns = [
@@ -333,16 +350,16 @@ function visibleIssueSnippets(html) {
   return Array.from(snippets);
 }
 
-function safeActionStatus(route, buttons) {
+function safeActionStatus(route, controls) {
   const labels = route.safeActionLabels ?? [];
   if (!labels.length) return { found: false, enabled: false, labels: [] };
-  const matches = buttons.filter((button) =>
-    labels.some((label) => button.label.toLowerCase().includes(label.toLowerCase()) || button.title.toLowerCase().includes(label.toLowerCase()))
+  const matches = controls.filter((control) =>
+    labels.some((label) => control.label.toLowerCase().includes(label.toLowerCase()) || control.title.toLowerCase().includes(label.toLowerCase()))
   );
   return {
     found: matches.length > 0,
-    enabled: matches.some((button) => !button.disabled),
-    labels: matches.slice(0, 6).map((button) => `${button.disabled ? 'disabled' : 'enabled'}:${button.label}`)
+    enabled: matches.some((control) => !control.disabled),
+    labels: matches.slice(0, 6).map((control) => `${control.disabled ? 'disabled' : 'enabled'}:${control.label}`)
   };
 }
 
@@ -384,7 +401,7 @@ function liveRenderState(row) {
   if (!row) return 'not run';
   if (!row.ok) return `failed ${row.status}`;
   if (row.rawNotFound) return 'raw Not Found';
-  if ((row.buttons ?? 0) > 0) return 'rendered controls';
+  if ((row.buttons ?? 0) + (row.links ?? 0) > 0) return 'rendered controls';
   if (row.title || row.heading) return 'rendered shell';
   return 'client-rendered shell';
 }
@@ -396,7 +413,7 @@ function safeActionSummary(safeAction) {
 
 function liveSafeActionSummary(row) {
   if (!row) return 'not run';
-  if (row.ok && (row.buttons ?? 0) === 0) return 'not-inspected';
+  if (row.ok && (row.buttons ?? 0) + (row.links ?? 0) === 0) return 'not-inspected';
   return safeActionSummary(row.safeAction);
 }
 
@@ -406,7 +423,9 @@ async function sourceSnapshot(route) {
   const title = extract(/<title>([\s\S]*?)<\/title>/iu, source);
   const heading = extract(/<h1[^>]*>([\s\S]*?)<\/h1>/iu, source);
   const buttons = count(/<button\b/giu, source);
+  const links = count(/<a\b/giu, source);
   const disabled = count(/\bdisabled(?:=|\s|>)/giu, source);
+  const disabledLinks = count(/\baria-disabled=|\bclass:disabled=|\bclass="[^"]*\bdisabled\b[^"]*"/giu, source);
   const forms = extractFormStates(source);
   const errors = count(/(?:error-message|error-banner|warning-panel|offline-banner|service-card|connection-card)/giu, source);
   const settingsLinks = count(/routeMap\.settings|Open Settings|href=\{hubHref\(routeMap\.settings\)\}/giu, source);
@@ -417,7 +436,9 @@ async function sourceSnapshot(route) {
     title,
     heading,
     buttons,
+    links,
     disabled,
+    disabledLinks,
     forms: forms.length,
     unguardedForms: forms.filter((form) => !form.guarded).length,
     errors,
@@ -436,7 +457,8 @@ async function fetchRouteAttempt(baseUrl, route, attempt) {
     const response = await fetch(url, { signal: controller.signal });
     const text = await response.text();
     const buttons = extractButtonStates(text);
-    const safeAction = safeActionStatus(route, buttons);
+    const links = extractLinkStates(text);
+    const safeAction = safeActionStatus(route, [...buttons, ...links]);
     return {
       url,
       status: response.status,
@@ -445,9 +467,13 @@ async function fetchRouteAttempt(baseUrl, route, attempt) {
       heading: extractHtml(/<h1[^>]*>([\s\S]*?)<\/h1>/iu, text),
       contentType: response.headers.get('content-type') ?? '',
       buttons: buttons.length,
+      links: links.length,
       enabledButtons: buttons.filter((button) => !button.disabled).length,
       disabledButtons: buttons.filter((button) => button.disabled).length,
+      enabledLinks: links.filter((link) => !link.disabled).length,
+      disabledLinks: links.filter((link) => link.disabled).length,
       buttonLabels: buttons.slice(0, 12).map((button) => `${button.disabled ? 'disabled' : 'enabled'}:${button.label}`),
+      linkLabels: links.slice(0, 12).map((link) => `${link.disabled ? 'disabled' : 'enabled'}:${link.label}`),
       issueSnippets: visibleIssueSnippets(text),
       safeAction,
       rawNotFound: /\bNot Found\b/u.test(stripHtml(text)),
@@ -477,15 +503,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Disabled refs | Forms | Safe action refs | State markers | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
-  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | Forms | Safe action refs | State markers | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
+  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
-      ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
+      ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} buttons ${live.enabledButtons ?? 0}/${live.buttons ?? 0} links ${live.enabledLinks ?? 0}/${live.links ?? 0} safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
     );
   }
 }
@@ -512,11 +538,12 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] If prerequisites are missing, verify blocked/setup state: ${row.expectedBlockedState}`);
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
     console.log(`- [ ] Reload proof: ${row.reloadProof}`);
-    console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.disabled} disabled-control refs, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
     if (live) {
-      console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, safe action ${liveSafeActionSummary(live)}.`);
-      if ((live.buttons ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; use a browser pass for actual control clicks.');
+      console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, ${live.enabledLinks ?? 0}/${live.links ?? 0} enabled links, safe action ${liveSafeActionSummary(live)}.`);
+      if ((live.buttons ?? 0) + (live.links ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; use a browser pass for actual control clicks.');
       if (live.buttonLabels?.length) console.log(`- [ ] Live buttons: ${live.buttonLabels.join('; ')}`);
+      if (live.linkLabels?.length) console.log(`- [ ] Live links: ${live.linkLabels.join('; ')}`);
       if (live.issueSnippets?.length) console.log(`- [ ] Live state snippets: ${live.issueSnippets.join(' | ')}`);
     }
     console.log('');
