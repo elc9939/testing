@@ -31,6 +31,7 @@
   import { localNetworkHint } from '$lib/service-config';
   import {
     compactResearchServiceIssue,
+    isResearchServiceError,
     isResearchRunActive,
     normalizeResearchDraft,
     researchDraftStorageKey,
@@ -101,9 +102,9 @@
   $: excludeDomains = splitList(excludeDomainsText);
   $: serviceIssue = compactResearchServiceIssue([error, monitorError, sourceLibraryError]);
   $: aiOsUnavailable = Boolean(serviceIssue);
-  $: visibleRunError = serviceIssue && error === serviceIssue ? '' : error;
-  $: visibleMonitorError = serviceIssue && monitorError === serviceIssue ? '' : monitorError;
-  $: visibleSourceLibraryError = serviceIssue && sourceLibraryError === serviceIssue ? '' : sourceLibraryError;
+  $: visibleRunError = serviceIssue && isResearchServiceError(error) ? '' : error;
+  $: visibleMonitorError = serviceIssue && isResearchServiceError(monitorError) ? '' : monitorError;
+  $: visibleSourceLibraryError = serviceIssue && isResearchServiceError(sourceLibraryError) ? '' : sourceLibraryError;
   $: runsPanelState = researchRunListState({ loading: refreshing, error: visibleRunError, runCount: runs.length });
   $: serviceBlockedLabel = aiOsUnavailable ? 'Connect AI OS' : loading ? 'Queueing' : `Run ${currentMode?.label ?? 'Research'}`;
   $: sourceLibrarySearchDisabled = sourceLibraryLoading || aiOsUnavailable;

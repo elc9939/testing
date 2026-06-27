@@ -304,6 +304,10 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/research/+page.svelte');
 
     expect(source).toContain('serviceIssue = compactResearchServiceIssue');
+    expect(source).toContain('isResearchServiceError');
+    expect(source).toContain('visibleRunError = serviceIssue && isResearchServiceError(error) ?');
+    expect(source).toContain('visibleMonitorError = serviceIssue && isResearchServiceError(monitorError) ?');
+    expect(source).toContain('visibleSourceLibraryError = serviceIssue && isResearchServiceError(sourceLibraryError) ?');
     expect(source).toContain('class="service-card"');
     expect(source).toContain('disabled={loading || aiOsUnavailable}');
     expect(source).toContain('function monitorActionBlockedReason');
