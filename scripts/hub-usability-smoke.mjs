@@ -41,7 +41,9 @@ const routes = [
     requiredMarkers: [
       { label: 'source failure list', text: 'sourceFailures' },
       { label: 'expected source rows', text: 'expectedActivitySources' },
+      { label: 'passive source id alignment', text: "{ id: 'passive', label: 'Passive Tasks' }" },
       { label: 'source health rows', text: 'sourceHealthRows' },
+      { label: 'checking source state', text: 'checking source status' },
       { label: 'compact source diagnostics', text: 'compactActivitySourceError' },
       { label: 'source detail tooltip', text: 'sourceHealthTitle' },
       { label: 'no source snapshot state', text: 'No source snapshot yet; refresh Activity or open Settings.' },

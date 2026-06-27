@@ -569,10 +569,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('runningRecords');
     expect(source).toContain('pausedRecords');
     expect(source).toContain('expectedActivitySources');
+    expect(source).toContain("{ id: 'passive', label: 'Passive Tasks' }");
     expect(source).toContain('sourceHealthRows');
     expect(source).toContain('sourceFailures');
     expect(source).toContain('function fallbackActivitySources');
     expect(source).toContain('function compactActivitySourceError');
+    expect(source).toContain("if (source.state === 'checking') return 'checking source status'");
+    expect(source).toContain("const fallbackState: ActivitySourceState['state'] = state.loading || state.refreshing ? 'checking' : 'error'");
     expect(source).toContain('wrong endpoint or missing route');
     expect(source).toContain('service offline or unreachable');
     expect(source).toContain('browser blocked request');

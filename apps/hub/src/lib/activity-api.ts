@@ -10,7 +10,7 @@ export interface ActivitySourceState {
   id: string;
   label: string;
   ok: boolean;
-  state: 'ok' | 'error' | 'timeout';
+  state: 'ok' | 'error' | 'timeout' | 'checking';
   error?: string;
   count: number;
 }

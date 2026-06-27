@@ -22,7 +22,7 @@
 
   const expectedActivitySources = [
     { id: 'ai-os', label: 'AI OS' },
-    { id: 'passive-tasks', label: 'Passive Tasks' },
+    { id: 'passive', label: 'Passive Tasks' },
     { id: 'macro-lab', label: 'Macro Lab' }
   ];
 
@@ -168,6 +168,7 @@
   function sourceLine(source: ActivitySourceState): string {
     if (source.ok) return `${source.count} record${source.count === 1 ? '' : 's'}`;
     const cached = source.count ? `; ${source.count} cached record${source.count === 1 ? '' : 's'} still visible` : '';
+    if (source.state === 'checking') return 'checking source status';
     if (source.state === 'timeout') return `timed out${cached || '; cached work remains visible'}`;
     return `${compactActivitySourceError(source.error)}${cached}`;
   }
@@ -189,6 +190,7 @@
 
   function sourceHealthTitle(source: ActivitySourceState): string {
     if (source.ok) return `${source.label} is reachable with ${source.count} Activity record${source.count === 1 ? '' : 's'}.`;
+    if (source.state === 'checking') return `${source.label}: checking source status.`;
     const summary = compactActivitySourceError(source.error);
     const detail = source.error?.trim();
     return detail ? `${source.label}: ${summary}. ${detail}` : `${source.label}: ${summary}. Refresh Activity or open Settings.`;
@@ -198,10 +200,11 @@
     const detail = state.loading || state.refreshing
       ? 'Checking source status from AI OS, Passive Tasks, and Macro Lab.'
       : 'No source snapshot yet; refresh Activity or open Settings.';
+    const fallbackState: ActivitySourceState['state'] = state.loading || state.refreshing ? 'checking' : 'error';
     return expectedActivitySources.map((source) => ({
       ...source,
       ok: false,
-      state: 'error' as const,
+      state: fallbackState,
       error: detail,
       count: 0
     }));
