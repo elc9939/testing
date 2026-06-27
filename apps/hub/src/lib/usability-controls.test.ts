@@ -8,6 +8,10 @@ async function routeSource(path: string): Promise<string> {
 }
 
 const routesRoot = fileURLToPath(new URL('../routes', import.meta.url));
+const sharedControlFiles = [
+  fileURLToPath(new URL('./AssistantDock.svelte', import.meta.url)),
+  fileURLToPath(new URL('../routes/+layout.svelte', import.meta.url))
+];
 
 async function routePageFiles(dir = routesRoot): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -19,6 +23,10 @@ async function routePageFiles(dir = routesRoot): Promise<string[]> {
     })
   );
   return files.flat();
+}
+
+async function controlSurfaceFiles(): Promise<string[]> {
+  return [...(await routePageFiles()), ...sharedControlFiles];
 }
 
 function firstTag(block: string): string {
@@ -78,7 +86,7 @@ function visibleControlText(block: string): string {
 describe('Mini Hub usability control gates', () => {
   it('keeps disabled route buttons self-explanatory', async () => {
     const offenders: string[] = [];
-    const pageFiles = await routePageFiles();
+    const pageFiles = await controlSurfaceFiles();
 
     for (const pageFile of pageFiles) {
       const source = await readFile(pageFile, 'utf8');
@@ -100,7 +108,7 @@ describe('Mini Hub usability control gates', () => {
 
   it('keeps route buttons explicit about submit behavior', async () => {
     const offenders: string[] = [];
-    const pageFiles = await routePageFiles();
+    const pageFiles = await controlSurfaceFiles();
 
     for (const pageFile of pageFiles) {
       const source = await readFile(pageFile, 'utf8');
@@ -120,7 +128,7 @@ describe('Mini Hub usability control gates', () => {
 
   it('keeps icon-only route buttons labelled', async () => {
     const offenders: string[] = [];
-    const pageFiles = await routePageFiles();
+    const pageFiles = await controlSurfaceFiles();
 
     for (const pageFile of pageFiles) {
       const source = await readFile(pageFile, 'utf8');
@@ -143,7 +151,7 @@ describe('Mini Hub usability control gates', () => {
 
   it('keeps disabled route form controls self-explanatory', async () => {
     const offenders: string[] = [];
-    const pageFiles = await routePageFiles();
+    const pageFiles = await controlSurfaceFiles();
 
     for (const pageFile of pageFiles) {
       const source = await readFile(pageFile, 'utf8');
@@ -165,7 +173,7 @@ describe('Mini Hub usability control gates', () => {
 
   it('avoids empty title fallbacks on disabled route controls', async () => {
     const offenders: string[] = [];
-    const pageFiles = await routePageFiles();
+    const pageFiles = await controlSurfaceFiles();
 
     for (const pageFile of pageFiles) {
       const source = await readFile(pageFile, 'utf8');
@@ -235,6 +243,21 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Reloaded AI Lab inputs from this browser.');
     expect(source).toContain('class="result-grid"');
     expect(source).not.toContain('let busy = false');
+  });
+
+  it('keeps the assistant dock command controls explainable', async () => {
+    const source = await routeSource('./AssistantDock.svelte');
+
+    expect(source).toContain('sendBlockedReason = assistantSendBlockedReason');
+    expect(source).toContain('function assistantSendBlockedReason');
+    expect(source).toContain('Assistant is already working on the current request.');
+    expect(source).toContain('Type a message before sending.');
+    expect(source).toContain('disabled={Boolean(sendBlockedReason)}');
+    expect(source).toContain("title={sendBlockedReason || 'Send this message to the assistant.'}");
+    expect(source).toContain('Route ambiguous assistant requests through the AI OS command/tool planner when possible.');
+    expect(source).toContain('Permit write or system tools only after an explicit confirmation pass.');
+    expect(source).toContain('{currentMachineMode.shortLabel} - App helper');
+    expect(source).not.toContain('Â·');
   });
 
   it('blocks AI OS service-backed work until a status snapshot is loaded', async () => {

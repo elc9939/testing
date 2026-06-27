@@ -63,6 +63,7 @@
   $: capabilityReadyCount = capabilitySnapshot ? capabilitySnapshot.summary.ready + capabilitySnapshot.summary.running : 0;
   $: capabilityTotal = capabilitySnapshot?.summary.total ?? 0;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
+  $: sendBlockedReason = assistantSendBlockedReason({ busy, draft });
 
   function newMessageId(): string {
     if (globalThis.crypto && 'randomUUID' in globalThis.crypto) return globalThis.crypto.randomUUID();
@@ -86,10 +87,16 @@
 
   async function submit(): Promise<void> {
     const text = draft.trim();
-    if (!text || busy) return;
+    if (assistantSendBlockedReason({ busy, draft })) return;
     draft = '';
     addMessage({ role: 'user', text });
     await handleIntent(resolveAssistantIntent(text, toolMode), text, confirmActions);
+  }
+
+  function assistantSendBlockedReason(state: { busy: boolean; draft: string }): string {
+    if (state.busy) return 'Assistant is already working on the current request.';
+    if (!state.draft.trim()) return 'Type a message before sending.';
+    return '';
   }
 
   async function handleAction(action: AssistantAction): Promise<void> {
@@ -471,11 +478,11 @@
           <span class="title-row"><Bot size={17} /> Assistant</span>
           <small>
             {#if capabilityTotal}
-              {currentMachineMode.shortLabel} · {capabilityReadyCount}/{capabilityTotal} ready
+              {currentMachineMode.shortLabel} - {capabilityReadyCount}/{capabilityTotal} ready
             {:else if providerCount}
-              {currentMachineMode.shortLabel} · {availableProviderCount}/{providerCount} providers
+              {currentMachineMode.shortLabel} - {availableProviderCount}/{providerCount} providers
             {:else}
-              {currentMachineMode.shortLabel} · App helper
+              {currentMachineMode.shortLabel} - App helper
             {/if}
           </small>
         </div>
@@ -526,11 +533,11 @@
       </div>
 
       <div class="mode-row">
-        <label>
+        <label title="Route ambiguous assistant requests through the AI OS command/tool planner when possible.">
           <input type="checkbox" bind:checked={toolMode} />
           <span>Tool mode</span>
         </label>
-        <label>
+        <label title="Permit write or system tools only after an explicit confirmation pass.">
           <input type="checkbox" bind:checked={confirmActions} />
           <span>Confirm writes</span>
         </label>
@@ -549,7 +556,7 @@
             }
           }}
         ></textarea>
-        <button class="send-button" type="submit" disabled={busy || !draft.trim()} aria-label="Send">
+        <button class="send-button" type="submit" disabled={Boolean(sendBlockedReason)} aria-label="Send" title={sendBlockedReason || 'Send this message to the assistant.'}>
           <Send size={17} />
         </button>
       </form>
