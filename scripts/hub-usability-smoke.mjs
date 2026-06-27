@@ -41,6 +41,7 @@ const routes = [
       { label: 'source failure list', text: 'sourceFailures' },
       { label: 'cached records state', text: 'showing cached records from' },
       { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
+      { label: 'recovery model strip', text: 'Activity recovery model' },
       { label: 'settings recovery link', text: "href={hubHref('/settings')}" }
     ]
   },

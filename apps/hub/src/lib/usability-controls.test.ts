@@ -474,6 +474,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('pausedRecords');
     expect(source).toContain('sourceFailures');
     expect(source).toContain('<span>Dismissed</span>');
+    expect(source).toContain('Activity recovery model');
+    expect(source).toContain('What comes back after you leave');
+    expect(source).toContain('activityRecoveryRows');
+    expect(source).toContain('activityRecoveryStats');
+    expect(source).toContain('service-backed work areas');
+    expect(source).toContain('browser cache layer');
+    expect(source).toContain('cross-device via Hub API');
+    expect(source).toContain('Data &amp; Recovery');
     expect(source).toContain('showing cached records from');
     expect(source).toContain('one source failed; available work is still listed');
     expect(source).toContain('function sourceReachable');

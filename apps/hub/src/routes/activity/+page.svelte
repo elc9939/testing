@@ -17,6 +17,7 @@
     type ActivitySnapshot,
     type ActivitySourceState
   } from '$lib/activity-api';
+  import { persistenceRows, persistenceSummary } from '$lib/persistence-map';
   import { hubHref } from '$lib/routes';
 
   let snapshot: ActivitySnapshot | null = null;
@@ -42,6 +43,8 @@
   $: hasActive = activityHasActiveWork(records);
   $: partial = snapshot?.partial ?? false;
   $: stale = snapshot?.stale ?? false;
+  $: activityRecoveryRows = persistenceRows.filter((row) => ['activity', 'research', 'ai-os', 'macro-lab', 'passive-tasks'].includes(row.id));
+  $: activityRecoveryStats = persistenceSummary(activityRecoveryRows);
   $: refreshBlockedReason = activityRefreshBlockedReason({ loading, refreshing, busyKey });
 
   onMount(() => {
@@ -304,6 +307,31 @@
   </article>
 </section>
 
+<section class="recovery-summary" aria-label="Activity recovery model">
+  <div>
+    <strong>What comes back after you leave</strong>
+    <p>Real work reloads from its owning service. Activity keeps a browser cache too, so stale records can remain visible when a local service is down.</p>
+  </div>
+  <div class="recovery-facts">
+    <span>
+      <strong>{activityRecoveryStats.serviceBacked}</strong>
+      <small>service-backed work areas</small>
+    </span>
+    <span>
+      <strong>{activityRecoveryStats.browserLocal}</strong>
+      <small>browser cache layer</small>
+    </span>
+    <span>
+      <strong>{activityRecoveryStats.crossDevice}</strong>
+      <small>cross-device via Hub API</small>
+    </span>
+  </div>
+  <a class="button" href={hubHref('/settings')} title="Open Settings Data & Recovery for the full save/reload map.">
+    <Settings size={16} />
+    <span>Data &amp; Recovery</span>
+  </a>
+</section>
+
 {#if sources.length}
   <section class="source-strip" aria-label="Activity source health">
     {#each sources as source}
@@ -438,6 +466,7 @@
   }
 
   .activity-status article,
+  .recovery-summary,
   .source-strip,
   .activity-row,
   .empty-state {
@@ -460,6 +489,44 @@
     display: block;
     margin: 4px 0;
     font-size: 22px;
+  }
+
+  .recovery-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .recovery-summary p {
+    margin: 4px 0 0;
+    color: var(--muted);
+  }
+
+  .recovery-facts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .recovery-facts span {
+    min-width: 116px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .recovery-facts strong {
+    display: block;
+    font-size: 16px;
+  }
+
+  .recovery-facts small {
+    color: var(--muted);
   }
 
   .source-strip {
@@ -667,6 +734,10 @@
     }
 
     .activity-row {
+      grid-template-columns: 1fr;
+    }
+
+    .recovery-summary {
       grid-template-columns: 1fr;
     }
 
