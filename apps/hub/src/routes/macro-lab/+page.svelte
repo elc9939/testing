@@ -104,6 +104,15 @@
     return false;
   }
 
+  function confirmMacroSideEffectRun(macro: MacroDefinition): boolean {
+    const state = macro.armed ? 'armed' : 'not armed';
+    const ok = window.confirm(
+      `Run "${macro.name}" with real desktop side effects? This macro is ${state}. Use Dry Run first if you only want a safe preview.`
+    );
+    if (!ok) actionError = 'Confirmed macro run skipped.';
+    return ok;
+  }
+
   function macroConnectionError(message: string): boolean {
     return /(?:Failed to fetch|CORS|mixed-content|network|offline|unavailable|ECONNREFUSED|connection refused|timed out|timeout|Not Found)/iu.test(message);
   }
@@ -199,6 +208,7 @@
   async function runSelected(dryRun: boolean, confirm = false): Promise<void> {
     if (!selectedMacro) return;
     if (!requireMacroReady(dryRun ? 'Dry run macro' : 'Run macro')) return;
+    if (!dryRun && confirm && !confirmMacroSideEffectRun(selectedMacro)) return;
     busy = true;
     actionError = '';
     try {
@@ -334,7 +344,7 @@
       <div class="action-row">
         <button class="button primary" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Save the selected macro definition.'} on:click={saveSelected}><Save size={16} />Save</button>
         <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro without side effects.'} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
-        <button class="button danger" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro with confirmed side effects.'} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
+        <button class="button danger" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Ask for confirmation before running this macro with real desktop side effects.'} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
         <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reload Macro Lab triggers from saved definitions.'} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
       </div>
     {:else}

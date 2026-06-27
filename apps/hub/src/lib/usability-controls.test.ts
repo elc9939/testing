@@ -516,7 +516,11 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('connection-card service-card');
     expect(macro).toContain('Macro Lab connection failed');
     expect(macro).toContain('<p>{serviceError}</p>');
-    expect(macro).toContain("title={macroControlTitle || 'Run this macro with confirmed side effects.'}");
+    expect(macro).toContain('function confirmMacroSideEffectRun');
+    expect(macro).toContain('window.confirm(');
+    expect(macro).toContain('Confirmed macro run skipped.');
+    expect(macro).toContain('!dryRun && confirm && !confirmMacroSideEffectRun(selectedMacro)');
+    expect(macro).toContain("title={macroControlTitle || 'Ask for confirmation before running this macro with real desktop side effects.'}");
     expect(macro).toContain('disabled={macroControlDisabled}');
     expect(passive).toContain('passiveServiceReady = Boolean(snapshot && settings && !serviceError)');
     expect(passive).toContain('passiveWriteTitle = passiveDisabledReason({ loading, busyId, serviceError, serviceReady: passiveServiceReady })');

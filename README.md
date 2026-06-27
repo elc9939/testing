@@ -458,7 +458,8 @@ Current scope:
 
 - Macro definitions and run history.
 - JSON macro editor in the UI.
-- Dry-run and confirmed execution modes.
+- Dry-run and confirmed execution modes; confirmed side-effect runs ask in the browser
+  before the hub sends `confirm=true` to the Macro Lab service.
 - Local input/window/file/clipboard/shell-oriented action primitives.
 - Folder/time/hotkey-style trigger plumbing.
 - Panic/armed safety controls.

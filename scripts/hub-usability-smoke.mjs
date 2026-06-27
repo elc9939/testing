@@ -214,11 +214,11 @@ const routes = [
     path: '/macro-lab',
     source: 'apps/hub/src/routes/macro-lab/+page.svelte',
     service: 'Macro Lab API',
-    safeAction: 'Refresh state; panic/run/reset stay disabled until Macro Lab state is known.',
+    safeAction: 'Refresh state; panic/reset/confirmed run stay disabled until Macro Lab state is known.',
     sampleInput: 'No input. Click Refresh. Use Dry Run only on a safe macro when Macro Lab is ready.',
     expectedResult: 'Panic/reset/run controls stay disabled until Macro Lab state is known; dry-run/run history reports success or setup errors.',
     reloadProof: 'Reload after a dry run; run history and selected macro state should reappear from Macro Lab storage.',
-    safeActionLabels: ['Refresh', 'Panic', 'Run'],
+    safeActionLabels: ['Refresh', 'Panic', 'Dry Run', 'Run Confirmed'],
     expectedBlockedState: 'Panic/reset/run controls are disabled until Macro Lab state is known.',
     persistence: 'Run history and trigger status should reload from Macro Lab storage.',
     requiredMarkers: [
@@ -226,6 +226,7 @@ const routes = [
       { label: 'macro control gate', text: 'macroControlDisabled' },
       { label: 'connection card', text: 'connection-card' },
       { label: 'compact service card', text: 'service-card' },
+      { label: 'confirmed run prompt', text: 'confirmMacroSideEffectRun' },
       { label: 'history unavailable state', text: 'Run history is unavailable until Macro Lab responds.' }
     ]
   },
