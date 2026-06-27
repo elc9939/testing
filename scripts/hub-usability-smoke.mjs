@@ -614,6 +614,14 @@ function liveRenderState(row) {
   return 'client-rendered shell';
 }
 
+function liveHydrationState(row) {
+  if (!row) return 'not run';
+  if (!row.ok) return 'live fetch failed';
+  if (row.rawNotFound) return 'raw Not Found';
+  if ((row.buttons ?? 0) + (row.links ?? 0) > 0) return 'hydrated controls visible';
+  return 'client shell only; browser pass needed';
+}
+
 function safeActionSummary(safeAction) {
   if (!safeAction?.found) return 'missing';
   return safeAction.enabled ? 'enabled' : 'disabled/setup';
@@ -722,15 +730,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | Ambiguous | Forms | Safe action refs | State markers | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
-  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | Ambiguous | Forms | Safe action refs | State markers | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live | Hydration QA |');
+  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} buttons ${live.enabledButtons ?? 0}/${live.buttons ?? 0} links ${live.enabledLinks ?? 0}/${live.links ?? 0} safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} | ${liveHydrationState(live)} |`
     );
   }
 }
@@ -758,13 +766,14 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
     console.log(`- [ ] Reload proof: ${row.reloadProof}`);
     console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, ambiguous controls ${row.sourceAmbiguousControls}, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    console.log(`- [ ] Hydration status: ${liveHydrationState(live)}.`);
     if (row.sourceButtonLabels) console.log(`- [ ] Source buttons: ${row.sourceButtonLabels}`);
     if (row.sourceLinkLabels) console.log(`- [ ] Source links: ${row.sourceLinkLabels}`);
     if (row.sourceAmbiguousControls) console.log(`- [ ] Ambiguous source controls needing labels/titles: ${row.sourceAmbiguousControlLabels}`);
     if (row.sourceIssueSnippets?.length) console.log(`- [ ] Source state snippets: ${row.sourceIssueSnippets.join(' | ')}`);
     if (live) {
       console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, ${live.enabledLinks ?? 0}/${live.links ?? 0} enabled links, safe action ${liveSafeActionSummary(live)}.`);
-      if ((live.buttons ?? 0) + (live.links ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; use a browser pass for actual control clicks.');
+      if ((live.buttons ?? 0) + (live.links ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; this proves routing and raw Not Found leakage only. Use a hydrated browser pass for actual control clicks.');
       if (live.buttonLabels) console.log(`- [ ] Live buttons: ${live.buttonLabels}`);
       if (live.linkLabels) console.log(`- [ ] Live links: ${live.linkLabels}`);
       if (live.ambiguousControls) console.log(`- [ ] Ambiguous live controls needing browser inspection: ${live.ambiguousControlLabels}`);
@@ -777,6 +786,7 @@ function printChecklist(rows, liveRows, baseUrl) {
 async function main() {
   const args = new Set(process.argv.slice(2));
   const baseUrl = process.env.HUB_SMOKE_URL ?? '';
+  const requireHydrated = args.has('--require-hydrated') || process.env.HUB_SMOKE_REQUIRE_HYDRATED === '1';
   const rows = await Promise.all(routes.map(sourceSnapshot));
   const liveRows = new Map();
   if (baseUrl) {
@@ -803,8 +813,11 @@ async function main() {
       row.sourceAmbiguousControls
   );
   const liveFailures = [...liveRows.values()].filter((row) => !row.ok || row.rawNotFound);
-  if (failures.length || liveFailures.length) {
-    console.error(`Mini Hub usability smoke found ${failures.length} source issue(s) and ${liveFailures.length} live route issue(s).`);
+  const hydrationFailures = requireHydrated ? [...liveRows.values()].filter((row) => row.ok && !row.rawNotFound && (row.buttons ?? 0) + (row.links ?? 0) === 0) : [];
+  if (failures.length || liveFailures.length || hydrationFailures.length) {
+    console.error(
+      `Mini Hub usability smoke found ${failures.length} source issue(s), ${liveFailures.length} live route issue(s), and ${hydrationFailures.length} hydration inspection issue(s).`
+    );
     process.exitCode = 1;
   }
 }

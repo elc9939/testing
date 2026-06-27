@@ -708,10 +708,17 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled/setup');
     expect(source).toContain('not-inspected');
     expect(source).toContain('function liveRenderState');
+    expect(source).toContain('function liveHydrationState');
     expect(source).toContain('client-rendered shell');
+    expect(source).toContain('client shell only; browser pass needed');
+    expect(source).toContain('HUB_SMOKE_REQUIRE_HYDRATED');
+    expect(source).toContain("args.has('--require-hydrated')");
     expect(source).toContain('rawNotFound');
     expect(source).toContain('retry:');
     expect(source).toContain('Live DOM snapshot');
+    expect(source).toContain('Hydration status');
+    expect(source).toContain('Hydration QA');
+    expect(source).toContain('routing and raw Not Found leakage only');
     expect(source).toContain('Live links');
     expect(source).toContain('Source buttons');
     expect(source).toContain('Source links');

@@ -604,19 +604,22 @@ pnpm qa:hub:smoke
 $env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
 $env:HUB_SMOKE_URL='https://elc9939.github.io/testing/'; pnpm qa:hub:smoke
 pnpm qa:hub:smoke -- --checklist
+$env:HUB_SMOKE_REQUIRE_HYDRATED='1'; $env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
 ```
 
 The smoke check records each visible hub route's title, main heading, service dependency,
 button/disabled-control/form counts, expected blocked/setup state, expected safe-action
 labels, required state/recovery markers, and reload persistence expectation. It now fails
 if a route loses source markers for the setup, offline/cache, recovery, or control-gating
-state that makes the page understandable, or if a route form can fall back to browser-native
-submission instead of Svelte's guarded handler. With `HUB_SMOKE_URL` set, it also fetches
-the rendered route HTML and records the live title, heading, enabled/disabled buttons,
-state/error snippets, safe-action availability, guarded form state, and raw `Not Found`
-leakage so hosted-vs-local handoff problems are visible before a manual browser pass.
-Use `--checklist` when you want a route-by-route manual/Playwright-style pass with explicit
-open, safe-action, blocked-state, form-safety, and reload-persistence checks.
+state that makes the page understandable, if a route form can fall back to browser-native
+submission instead of Svelte's guarded handler, or if a visible control has no source-level
+label/title. With `HUB_SMOKE_URL` set, it also fetches the route HTML and records live title,
+heading, enabled/disabled controls, state/error snippets, safe-action availability, raw
+`Not Found` leakage, and a **Hydration QA** column. Hosted GitHub Pages usually returns a
+client-rendered shell, which proves routing and `Not Found` handling but not hydrated button
+behavior; use `--checklist` for the manual/Playwright-style pass, and use
+`HUB_SMOKE_REQUIRE_HYDRATED=1` only when the target can expose hydrated controls to the
+script.
 
 Python backend checks:
 
