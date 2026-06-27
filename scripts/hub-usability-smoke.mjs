@@ -74,6 +74,7 @@ const routes = [
       { label: 'api offline write detail', text: 'OAuth, Gmail, and Calendar writes need the local API' },
       { label: 'google setup write detail', text: 'Use Connect Google or Add Google Account before sending mail' },
       { label: 'calendar event disabled title', text: 'calendarEventBlockTitle' },
+      { label: 'calendar move confirmation', text: 'Calendar move skipped.' },
       { label: 'offline cache banner', text: 'offline-banner' },
       { label: 'cached productivity wording', text: 'cached productivity data can stay visible' },
       { label: 'OAuth gating', text: 'googleConnectDisabled' }

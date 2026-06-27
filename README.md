@@ -361,6 +361,8 @@ Implemented now:
   read calls are bounded so a slow Calendar/Gmail/API source returns an actionable error
   instead of leaving the page in an indefinite loading state; OAuth setup and write actions
   use longer bounded timeouts.
+- Productivity confirms real Google sends, event deletes, OAuth revokes, and calendar
+  moves before calling the API.
 - Mini Hub action ledger endpoint for synced personal data writes/deletes with risk and
   recoverability metadata. Updates and deletes now attach before-state snapshots for
   Career Desk, Study Desk, settings, and game state where possible, and

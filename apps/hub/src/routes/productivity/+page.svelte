@@ -516,7 +516,7 @@
     if (moveTargetCalendarId === event.calendarId) {
       return productivityValidatedActionTitle('Move event', 'Choose a different calendar before moving this event.');
     }
-    return productivityActionTitle('Move event');
+    return productivityActionTitle('Ask for confirmation before moving this event.');
   }
 
   function selectedLabelActionTitle(): string {
@@ -837,6 +837,11 @@
     if (!moveTargetCalendarId || moveTargetCalendarId === event.calendarId) return;
     const key = `event:move:${event.id}`;
     if (!beginProductivityAction(key)) return;
+    if (!confirm(`Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}?`)) {
+      actionMessage = 'Calendar move skipped.';
+      endProductivityAction(key);
+      return;
+    }
     try {
       await moveEvent(event.calendarId, event.id, moveTargetCalendarId);
       actionMessage = 'Event moved.';
