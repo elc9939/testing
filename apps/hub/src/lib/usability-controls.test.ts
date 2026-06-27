@@ -664,6 +664,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function scenarioSummary');
     expect(source).toContain('function extractFormStates');
     expect(source).toContain('function formSummary');
+    expect(source).toContain('function attrValue');
     expect(source).toContain('State markers');
     expect(source).toContain('Scenario');
     expect(source).toContain('Forms');
@@ -673,6 +674,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('missingScenarioFields(row).length');
     expect(source).toContain('function extractButtonStates');
     expect(source).toContain('function extractLinkStates');
+    expect(source).toContain('function stripMarkupTags');
+    expect(source).toContain('function svelteExpressionText');
+    expect(source).toContain('function cleanControlLabel');
+    expect(source).toContain('function truncateLabel');
+    expect(source).toContain('function controlSummary');
     expect(source).toContain('function fetchRouteAttempt');
     expect(source).toContain('function safeActionStatus');
     expect(source).toContain('function safeActionSummary');
@@ -685,6 +691,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('retry:');
     expect(source).toContain('Live DOM snapshot');
     expect(source).toContain('Live links');
+    expect(source).toContain('Source buttons');
+    expect(source).toContain('Source links');
+    expect(source).toContain('Source state snippets');
     expect(source).toContain('Exercise safe action');
     expect(source).toContain('Sample input/setup');
     expect(source).toContain('Expected result/output quality');
@@ -695,6 +704,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled-link refs');
     expect(source).toContain('enabled links');
     expect(source).toContain('row.links');
+    expect(source).toContain('sourceButtonLabels');
+    expect(source).toContain('sourceLinkLabels');
+    expect(source).toContain('sourceIssueSnippets');
   });
 
   it('explains Stick Arena lab loading and offline save controls', async () => {

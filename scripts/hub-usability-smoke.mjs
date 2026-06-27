@@ -265,11 +265,56 @@ function stripSvelte(value) {
   return value.replace(/\{[^}]*\}/gu, '').replace(/\s+/gu, ' ').trim();
 }
 
+function expressionChoices(value) {
+  if (/^\s*[#/:@]/u.test(value)) return '';
+  const choices = [];
+  const pattern = /'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)"|`([^`\\]*(?:\\.[^`\\]*)*)`/gu;
+  for (const match of value.matchAll(pattern)) {
+    const choice = (match[1] ?? match[2] ?? match[3] ?? '')
+      .replace(/\$\{[^}]*\}/gu, '')
+      .replace(/\\(['"`])/gu, '$1')
+      .trim();
+    if (choice && !choices.includes(choice)) choices.push(choice);
+  }
+  return choices.slice(0, 4).join('/');
+}
+
+function stripMarkupTags(value) {
+  let output = '';
+  let inTag = false;
+  let quote = '';
+  let braces = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (inTag) {
+      if (quote) {
+        if (char === quote) quote = '';
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        continue;
+      }
+      if (char === '{') braces += 1;
+      if (char === '}') braces = Math.max(0, braces - 1);
+      if (char === '>' && braces === 0) inTag = false;
+      continue;
+    }
+    if (char === '<') {
+      inTag = true;
+      continue;
+    }
+    output += char;
+  }
+  return output;
+}
+
 function stripHtml(value) {
-  return value
-    .replace(/<script[\s\S]*?<\/script>/giu, ' ')
-    .replace(/<style[\s\S]*?<\/style>/giu, ' ')
-    .replace(/<[^>]+>/gu, ' ')
+  return stripMarkupTags(
+    value
+      .replace(/<script[\s\S]*?<\/script>/giu, ' ')
+      .replace(/<style[\s\S]*?<\/style>/giu, ' ')
+  )
     .replace(/&amp;/gu, '&')
     .replace(/&lt;/gu, '<')
     .replace(/&gt;/gu, '>')
@@ -277,6 +322,85 @@ function stripHtml(value) {
     .replace(/&#39;/gu, "'")
     .replace(/\s+/gu, ' ')
     .trim();
+}
+
+function svelteExpressionText(value) {
+  let output = '';
+  let quote = '';
+  let braces = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (quote) {
+      output += char;
+      if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      output += char;
+      continue;
+    }
+    if (char === '{') {
+      braces += 1;
+      if (braces > 1) output += char;
+      continue;
+    }
+    if (char === '}') {
+      braces = Math.max(0, braces - 1);
+      if (braces > 0) output += char;
+      continue;
+    }
+    if (braces > 0) output += char;
+  }
+  return output;
+}
+
+function cleanControlLabel(value) {
+  let output = '';
+  let inExpression = false;
+  let quote = '';
+  let braces = 0;
+  let expression = '';
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (inExpression) {
+      expression += char;
+      if (quote) {
+        if (char === quote) quote = '';
+        continue;
+      }
+      if (char === '"' || char === "'" || char === '`') {
+        quote = char;
+        continue;
+      }
+      if (char === '{') braces += 1;
+      if (char === '}') {
+        braces = Math.max(0, braces - 1);
+        if (braces === 0) {
+          output += ` ${expressionChoices(svelteExpressionText(expression))} `;
+          expression = '';
+          inExpression = false;
+        }
+      }
+      continue;
+    }
+    if (char === '{') {
+      inExpression = true;
+      braces = 1;
+      expression = char;
+      continue;
+    }
+    output += char;
+  }
+  if (expression) output += ` ${expressionChoices(svelteExpressionText(expression))} `;
+  return output
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function truncateLabel(value, max = 84) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, Math.max(0, max - 3)).trim()}...`;
 }
 
 function extract(pattern, source) {
@@ -303,39 +427,93 @@ function extractFormStates(source) {
   });
 }
 
+function attrValue(attrs, name) {
+  const pattern = new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)'|\\{([^}]*)\\})`, 'iu');
+  const match = pattern.exec(attrs);
+  if (!match) return '';
+  if (match[1] !== undefined) return match[1];
+  if (match[2] !== undefined) return match[2];
+  if (match[3] !== undefined) return `{${match[3]}}`;
+  return '';
+}
+
+function firstTag(block) {
+  let quote = '';
+  let braces = 0;
+  for (let index = 0; index < block.length; index += 1) {
+    const char = block[index];
+    if (quote) {
+      if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '{') braces += 1;
+    if (char === '}') braces = Math.max(0, braces - 1);
+    if (char === '>' && braces === 0) return block.slice(0, index + 1);
+  }
+  return block;
+}
+
+function elementParts(block, tagName) {
+  const open = firstTag(block);
+  const closingLength = `</${tagName}>`.length;
+  return {
+    attrs: open
+      .replace(new RegExp(`^<${tagName}\\b`, 'iu'), '')
+      .replace(/>$/u, '')
+      .trim(),
+    content: block.slice(open.length, Math.max(open.length, block.length - closingLength))
+  };
+}
+
 function extractButtonStates(html) {
-  return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/giu)]
+  return [...html.matchAll(/<button\b[\s\S]*?<\/button>/giu)]
     .map((match) => {
-      const attrs = match[1] ?? '';
-      const label = stripHtml(match[2] ?? '');
+      const { attrs, content } = elementParts(match[0] ?? '', 'button');
+      const title = cleanControlLabel(attrValue(attrs, 'title'));
+      const ariaLabel = cleanControlLabel(attrValue(attrs, 'aria-label'));
+      const label = cleanControlLabel(stripHtml(content)) || ariaLabel || title || '(dynamic label)';
       return {
-        label: label || '(icon only)',
+        label,
         disabled: /\bdisabled(?:=|\s|>)/iu.test(attrs),
-        title: /title="([^"]*)"/iu.exec(attrs)?.[1] ?? ''
+        title
       };
     })
-    .filter((button) => button.label !== '(icon only)' || button.title);
+    .filter((button) => button.label !== '(dynamic label)' || button.title);
 }
 
 function extractLinkStates(html) {
-  return [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/giu)]
+  return [...html.matchAll(/<a\b[\s\S]*?<\/a>/giu)]
     .map((match) => {
-      const attrs = match[1] ?? '';
-      const label = stripHtml(match[2] ?? '');
-      const href = /href="([^"]*)"/iu.exec(attrs)?.[1] ?? '';
-      const title = /title="([^"]*)"/iu.exec(attrs)?.[1] ?? '';
+      const { attrs, content } = elementParts(match[0] ?? '', 'a');
+      const title = cleanControlLabel(attrValue(attrs, 'title'));
+      const href = attrValue(attrs, 'href');
+      const label = cleanControlLabel(stripHtml(content)) || title || cleanControlLabel(href) || '(dynamic link)';
       return {
-        label: label || title || href || '(empty link)',
-        disabled: /\baria-disabled="true"/iu.test(attrs) || /\bclass="[^"]*\bdisabled\b[^"]*"/iu.test(attrs),
+        label,
+        disabled:
+          /\baria-disabled=(?:"true"|'true'|\{[^}]+\})/iu.test(attrs) ||
+          /\bclass:disabled=/iu.test(attrs) ||
+          /\bclass="[^"]*\bdisabled\b[^"]*"/iu.test(attrs),
         title,
         href
       };
     })
-    .filter((link) => link.label !== '(empty link)' || link.href || link.title);
+    .filter((link) => link.label !== '(dynamic link)' || link.href || link.title);
+}
+
+function controlSummary(controls, limit = 8) {
+  return controls
+    .slice(0, limit)
+    .map((control) => `${control.disabled ? 'disabled' : 'enabled'}:${truncateLabel(control.label)}`)
+    .join('; ');
 }
 
 function visibleIssueSnippets(html) {
-  const text = stripHtml(html);
+  const text = cleanControlLabel(stripHtml(html));
   const issuePatterns = [
     /\b(?:offline|unavailable|misconfigured|not configured|needs setup|failed|error|not found|connect|setup|stale|cached|partial|loading)\b[^.?!]{0,140}[.?!]?/giu
   ];
@@ -422,8 +600,10 @@ async function sourceSnapshot(route) {
   const source = await readFile(sourcePath, 'utf8');
   const title = extract(/<title>([\s\S]*?)<\/title>/iu, source);
   const heading = extract(/<h1[^>]*>([\s\S]*?)<\/h1>/iu, source);
-  const buttons = count(/<button\b/giu, source);
-  const links = count(/<a\b/giu, source);
+  const sourceButtons = extractButtonStates(source);
+  const sourceLinks = extractLinkStates(source);
+  const buttons = sourceButtons.length;
+  const links = sourceLinks.length;
   const disabled = count(/\bdisabled(?:=|\s|>)/giu, source);
   const disabledLinks = count(/\baria-disabled=|\bclass:disabled=|\bclass="[^"]*\bdisabled\b[^"]*"/giu, source);
   const forms = extractFormStates(source);
@@ -439,6 +619,9 @@ async function sourceSnapshot(route) {
     links,
     disabled,
     disabledLinks,
+    sourceButtonLabels: controlSummary(sourceButtons),
+    sourceLinkLabels: controlSummary(sourceLinks),
+    sourceIssueSnippets: visibleIssueSnippets(source),
     forms: forms.length,
     unguardedForms: forms.filter((form) => !form.guarded).length,
     errors,
@@ -472,8 +655,8 @@ async function fetchRouteAttempt(baseUrl, route, attempt) {
       disabledButtons: buttons.filter((button) => button.disabled).length,
       enabledLinks: links.filter((link) => !link.disabled).length,
       disabledLinks: links.filter((link) => link.disabled).length,
-      buttonLabels: buttons.slice(0, 12).map((button) => `${button.disabled ? 'disabled' : 'enabled'}:${button.label}`),
-      linkLabels: links.slice(0, 12).map((link) => `${link.disabled ? 'disabled' : 'enabled'}:${link.label}`),
+      buttonLabels: controlSummary(buttons, 12),
+      linkLabels: controlSummary(links, 12),
       issueSnippets: visibleIssueSnippets(text),
       safeAction,
       rawNotFound: /\bNot Found\b/u.test(stripHtml(text)),
@@ -539,11 +722,14 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
     console.log(`- [ ] Reload proof: ${row.reloadProof}`);
     console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    if (row.sourceButtonLabels) console.log(`- [ ] Source buttons: ${row.sourceButtonLabels}`);
+    if (row.sourceLinkLabels) console.log(`- [ ] Source links: ${row.sourceLinkLabels}`);
+    if (row.sourceIssueSnippets?.length) console.log(`- [ ] Source state snippets: ${row.sourceIssueSnippets.join(' | ')}`);
     if (live) {
       console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, ${live.enabledLinks ?? 0}/${live.links ?? 0} enabled links, safe action ${liveSafeActionSummary(live)}.`);
       if ((live.buttons ?? 0) + (live.links ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; use a browser pass for actual control clicks.');
-      if (live.buttonLabels?.length) console.log(`- [ ] Live buttons: ${live.buttonLabels.join('; ')}`);
-      if (live.linkLabels?.length) console.log(`- [ ] Live links: ${live.linkLabels.join('; ')}`);
+      if (live.buttonLabels) console.log(`- [ ] Live buttons: ${live.buttonLabels}`);
+      if (live.linkLabels) console.log(`- [ ] Live links: ${live.linkLabels}`);
       if (live.issueSnippets?.length) console.log(`- [ ] Live state snippets: ${live.issueSnippets.join(' | ')}`);
     }
     console.log('');
