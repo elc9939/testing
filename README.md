@@ -67,7 +67,9 @@ The Svelte app under `apps/hub` provides these main pages:
   flow through the shared attention model where supported. The browser keeps a last-good
   cached attention snapshot and bounds refresh/action requests, so a slow local API does not
   leave the cockpit spinning forever; cached attention is shown read-only until the hub
-  responds again.
+  responds again. Today also shows a compact **Save & Recovery** strip with browser-cache
+  row count, last sync status, current save mode, and links to Activity plus the full
+  Settings -> Data & Recovery map.
 - Activity: a durable recovery surface for long-running or recently finished work. It
   projects persisted Research runs, AI OS jobs/backups/benchmarks, Passive Task runs, and
   Macro Lab run history into one list with source health, progress, errors, and deep links
@@ -141,6 +143,16 @@ visible until the owning service reports a stable state.
 Settings also includes a Data & Recovery map that explains where each major surface saves
 state, what rehydrates after refresh/browser close, what remains browser-local, and which
 page to open when work needs to be recovered.
+
+### Will progress save if I close the site?
+
+Use Today -> Save & Recovery for the quick answer. Browser-local drafts, attention cache,
+AI Lab inputs, and service endpoint settings stay in the current browser. Career, Study,
+supported games, Passive Tasks, and synced settings save through the Mini Hub API when it is
+online; offline mode is intentionally read-only. Research, AI OS, Macro Lab, backups,
+benchmarks, and passive/background runs are recovered through Activity because their real
+records live in the owning local service. Google Mail/Calendar state remains authoritative
+in Google, while Mini Hub keeps a browser-side last-good display cache.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,
