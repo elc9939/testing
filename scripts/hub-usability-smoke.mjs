@@ -251,6 +251,16 @@ function count(pattern, source) {
   return [...source.matchAll(pattern)].length;
 }
 
+function extractFormStates(source) {
+  return [...source.matchAll(/<form\b[\s\S]*?>/giu)].map((match) => {
+    const tag = match[0] ?? '';
+    return {
+      guarded: /\bon:submit\|preventDefault=/u.test(tag),
+      tag: tag.replace(/\s+/gu, ' ').trim()
+    };
+  });
+}
+
 function extractButtonStates(html) {
   return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/giu)]
     .map((match) => {
@@ -292,6 +302,12 @@ function safeActionStatus(route, buttons) {
     enabled: matches.some((button) => !button.disabled),
     labels: matches.slice(0, 6).map((button) => `${button.disabled ? 'disabled' : 'enabled'}:${button.label}`)
   };
+}
+
+function formSummary(row) {
+  if (!row.forms) return 'none';
+  if (!row.unguardedForms) return `ok ${row.forms}/${row.forms}`;
+  return `unguarded ${row.unguardedForms}/${row.forms}`;
 }
 
 function sourceMarkerStatus(route, source) {
@@ -340,6 +356,7 @@ async function sourceSnapshot(route) {
   const heading = extract(/<h1[^>]*>([\s\S]*?)<\/h1>/iu, source);
   const buttons = count(/<button\b/giu, source);
   const disabled = count(/\bdisabled(?:=|\s|>)/giu, source);
+  const forms = extractFormStates(source);
   const errors = count(/(?:error-message|error-banner|warning-panel|offline-banner|service-card|connection-card)/giu, source);
   const settingsLinks = count(/routeMap\.settings|Open Settings|href=\{hubHref\(routeMap\.settings\)\}/giu, source);
   const safeActionRefs = (route.safeActionLabels ?? []).filter((label) => source.toLowerCase().includes(label.toLowerCase()));
@@ -350,6 +367,8 @@ async function sourceSnapshot(route) {
     heading,
     buttons,
     disabled,
+    forms: forms.length,
+    unguardedForms: forms.filter((form) => !form.guarded).length,
     errors,
     settingsLinks,
     safeActionRefs,
@@ -397,15 +416,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Disabled refs | Safe action refs | State markers | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
-  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Disabled refs | Forms | Safe action refs | State markers | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
+  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${liveSafeActionSummary(live)} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
     );
   }
 }
@@ -429,7 +448,7 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] Exercise safe action: ${row.safeAction}`);
     console.log(`- [ ] If prerequisites are missing, verify blocked/setup state: ${row.expectedBlockedState}`);
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
-    console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.disabled} disabled-control refs, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.disabled} disabled-control refs, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
     if (live) {
       console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, safe action ${liveSafeActionSummary(live)}.`);
       if ((live.buttons ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; use a browser pass for actual control clicks.');
@@ -459,7 +478,7 @@ async function main() {
     printMarkdown(rows, liveRows);
   }
 
-  const failures = rows.filter((row) => !row.sourceOk || !row.safeActionRefs.length || missingMarkers(row).length);
+  const failures = rows.filter((row) => !row.sourceOk || !row.safeActionRefs.length || missingMarkers(row).length || row.unguardedForms);
   const liveFailures = [...liveRows.values()].filter((row) => !row.ok || row.rawNotFound);
   if (failures.length || liveFailures.length) {
     console.error(`Mini Hub usability smoke found ${failures.length} source issue(s) and ${liveFailures.length} live route issue(s).`);

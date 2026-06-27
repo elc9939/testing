@@ -171,6 +171,26 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps control surface forms from falling back to browser-native submission', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await controlSurfaceFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const forms = source.matchAll(/<form\b[\s\S]*?>/g);
+
+      for (const form of forms) {
+        const tag = form[0];
+        if (!/\bon:submit\|preventDefault=/.test(tag)) {
+          const line = source.slice(0, form.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('avoids empty title fallbacks on disabled route controls', async () => {
     const offenders: string[] = [];
     const pageFiles = await controlSurfaceFiles();
@@ -459,7 +479,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function sourceMarkerStatus');
     expect(source).toContain('function missingMarkers');
     expect(source).toContain('function markerSummary');
+    expect(source).toContain('function extractFormStates');
+    expect(source).toContain('function formSummary');
     expect(source).toContain('State markers');
+    expect(source).toContain('Forms');
+    expect(source).toContain('unguardedForms');
     expect(source).toContain('Confirm required state/recovery markers');
     expect(source).toContain('missingMarkers(row).length');
     expect(source).toContain('function extractButtonStates');
