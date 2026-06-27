@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { aiLabResultCopy, normalizeAiLabDraft, parseAiLabLabels, type AiLabDraftState } from './ai-lab-state';
+import {
+  aiLabAssetErrorDetail,
+  aiLabResultCopy,
+  normalizeAiLabDraft,
+  parseAiLabLabels,
+  type AiLabDraftState
+} from './ai-lab-state';
 
 const fallbackDraft: AiLabDraftState = {
   text: 'sample',
@@ -41,5 +47,14 @@ describe('AI Lab state helpers', () => {
     });
 
     expect(normalizeAiLabDraft(null, fallbackDraft)).toEqual(fallbackDraft);
+  });
+
+  it('turns browser-local asset failures into actionable AI Lab copy', () => {
+    expect(aiLabAssetErrorDetail('classify', new Error('Failed to fetch model.json'))).toContain(
+      'Transformers.js could not load'
+    );
+    expect(aiLabAssetErrorDetail('parse', new Error('WebAssembly grammar load failed'))).toContain('configured WASM grammar');
+    expect(aiLabAssetErrorDetail('parse', new Error('Quota exceeded'))).toContain('Browser storage or cache access');
+    expect(aiLabAssetErrorDetail('classify', new Error('Runtime exploded'))).toContain('not an AI OS outage');
   });
 });

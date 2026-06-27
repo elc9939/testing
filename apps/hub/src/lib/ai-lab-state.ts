@@ -63,6 +63,30 @@ export function aiLabResultCopy(state: AiLabResultState, detail = ''): AiLabResu
   };
 }
 
+export function aiLabAssetErrorDetail(kind: 'classify' | 'parse', error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const lower = message.toLowerCase();
+  const original = message ? ` Original error: ${message}` : '';
+
+  if (kind === 'parse' && /wasm|grammar|language|webassembly/.test(lower)) {
+    return `Tree-sitter could not load the configured WASM grammar. Restore Samples or paste a reachable grammar URL.${original}`;
+  }
+
+  if (/fetch|network|download|load failed|failed to load|could not load/.test(lower)) {
+    return kind === 'classify'
+      ? `Transformers.js could not load the local browser model assets. Check network access for the first model download, then try Classify again.${original}`
+      : `Tree-sitter could not load its browser parser assets. Check that the grammar URL is reachable from this page, then try Parse again.${original}`;
+  }
+
+  if (/indexeddb|quota|cache|storage|opfs/.test(lower)) {
+    return `Browser storage or cache access blocked this local AI run. Free storage or allow site storage, then try again.${original}`;
+  }
+
+  return kind === 'classify'
+    ? `Classification failed before returning labels. This is a browser-local asset or model runtime issue, not an AI OS outage.${original}`
+    : `Parsing failed before returning a syntax tree. This is a browser-local Tree-sitter issue, not an AI OS outage.${original}`;
+}
+
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
 }

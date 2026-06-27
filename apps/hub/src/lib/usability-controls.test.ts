@@ -361,6 +361,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function restoreAiLabSamples');
     expect(source).toContain('function restoreSamplesTitle');
     expect(source).toContain('Restored default AI Lab samples in this browser.');
+    expect(source).toContain('aiLabAssetErrorDetail');
     expect(source).toContain('function classifyValidationReason');
     expect(source).toContain('function parseValidationReason');
     expect(source).toContain('disabled={sampleControlsDisabled}');
@@ -369,6 +370,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={Boolean(parseBlockedReason)}');
     expect(source).toContain('aria-busy={classifyBusy}');
     expect(source).toContain('aria-busy={parseBusy}');
+    expect(source).toContain('AI Lab local capability status');
+    expect(source).toContain('This lab is browser-local.');
     expect(source).toContain('draftStatus =');
     expect(source).toContain('Reloaded AI Lab inputs from this browser.');
     expect(source).toContain('class="result-grid"');

@@ -4,6 +4,7 @@
   import javascriptGrammarUrl from 'tree-sitter-javascript/tree-sitter-javascript.wasm?url';
   import {
     aiLabDraftStorageKey,
+    aiLabAssetErrorDetail,
     aiLabResultCopy,
     normalizeAiLabDraft,
     parseAiLabLabels,
@@ -161,7 +162,7 @@
         setClassifyResult('success', rows.map((row) => `${row.label}: ${row.score.toFixed(3)}`).join('\n'));
       }
     } catch (error) {
-      setClassifyResult('error', error instanceof Error ? error.message : 'Classification failed.');
+      setClassifyResult('error', aiLabAssetErrorDetail('classify', error));
     } finally {
       classifyBusy = false;
     }
@@ -181,7 +182,7 @@
       const serialized = JSON.stringify(parsed, null, 2);
       setParseResult(serialized && serialized !== '{}' ? 'success' : 'empty', serialized || 'Parser returned no syntax tree.');
     } catch (error) {
-      setParseResult('error', error instanceof Error ? error.message : 'Parse failed.');
+      setParseResult('error', aiLabAssetErrorDetail('parse', error));
     } finally {
       parseBusy = false;
     }
@@ -217,7 +218,7 @@
   </div>
 </section>
 
-<section class="card card-pad readiness-strip" aria-label="AI Lab readiness">
+<section class="card card-pad readiness-strip" aria-label="AI Lab local capability status">
   {#each readinessRows as row}
     <div>
       <span>{row.label}</span>
@@ -423,6 +424,10 @@
 
   .result-panel.empty {
     border-color: var(--border-strong);
+  }
+
+  .result-panel.success {
+    border-color: var(--success-border);
   }
 
   .error-output {
