@@ -171,6 +171,72 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps route links labelled and routed', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await controlSurfaceFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const links = source.matchAll(/<a\b[\s\S]*?<\/a>/g);
+
+      for (const link of links) {
+        const block = link[0];
+        const open = firstTag(block);
+        const hasHref = /\bhref=/.test(open);
+        const hasEmptyHref = /\bhref=(["'])\s*(?:#|javascript:void\(0\))?\s*\1/.test(open);
+        const hasAccessibleLabel = /\b(?:aria-label|title)=/.test(open);
+        const hasVisibleText = Boolean(visibleControlText(block));
+        if (!hasHref || hasEmptyHref || (!hasVisibleText && !hasAccessibleLabel)) {
+          const line = source.slice(0, link.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps disabled route links self-explanatory', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await controlSurfaceFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const links = source.matchAll(/<a\b[\s\S]*?<\/a>/g);
+
+      for (const link of links) {
+        const open = firstTag(link[0]);
+        const disabled = /\baria-disabled=|\bclass:disabled=|\bclass=(["'])[^"']*\bdisabled\b[^"']*\1/.test(open);
+        if (disabled && !/\btitle=/.test(open)) {
+          const line = source.slice(0, link.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps external route links isolated from the opener', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await controlSurfaceFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const links = source.matchAll(/<a\b[\s\S]*?<\/a>/g);
+
+      for (const link of links) {
+        const open = firstTag(link[0]);
+        if (/\btarget=(["'])_blank\1/.test(open) && !/\brel=(["'])[^"']*\bnoreferrer\b[^"']*\1/.test(open)) {
+          const line = source.slice(0, link.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('keeps disabled route form controls self-explanatory', async () => {
     const offenders: string[] = [];
     const pageFiles = await controlSurfaceFiles();
