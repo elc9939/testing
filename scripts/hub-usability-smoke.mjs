@@ -160,6 +160,7 @@ const routes = [
       { label: 'offline monitor empty state', text: 'Topic monitors are unavailable until AI OS is connected' },
       { label: 'source library gating', text: 'sourceLibrarySearchDisabled' },
       { label: 'offline source empty state', text: 'Source Library is unavailable until AI OS is connected' },
+      { label: 'research cancel prompt', text: 'Research cancellation skipped.' },
       { label: 'export setup routing', text: 'reportExportHref' }
     ]
   },
@@ -206,7 +207,8 @@ const routes = [
       { label: 'connection card', text: 'connection-card' },
       { label: 'settings recovery link', text: 'Open Settings' },
       { label: 'warmup gate', text: 'warmupBlockedReason' },
-      { label: 'job cancel gate', text: 'jobCancelBlockedReason' }
+      { label: 'job cancel gate', text: 'jobCancelBlockedReason' },
+      { label: 'job cancel prompt', text: 'AI OS job cancellation skipped.' }
     ]
   },
   {
@@ -247,6 +249,7 @@ const routes = [
       { label: 'write gating', text: 'passiveWriteDisabled' },
       { label: 'service card', text: 'service-card' },
       { label: 'offline wording', text: 'Passive Tasks API unavailable' },
+      { label: 'passive cancel prompt', text: 'Passive task cancellation skipped.' },
       { label: 'source health empty state', text: 'Source health appears after passive tasks are registered.' }
     ]
   },

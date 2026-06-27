@@ -552,6 +552,10 @@
       return;
     }
     if (runActionId) return;
+    if (!window.confirm(`Cancel research run "${run.goal || run.id}"? Saved reports and Activity records remain recoverable.`)) {
+      message = 'Research cancellation skipped.';
+      return;
+    }
     runActionId = `${run.id}:cancel`;
     error = '';
     message = '';

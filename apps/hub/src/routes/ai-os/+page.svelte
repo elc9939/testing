@@ -897,6 +897,10 @@
       actionError = blocked;
       return;
     }
+    if (!window.confirm(`Cancel AI OS job "${job.id}"? Partial results and Activity records remain recoverable when the service has saved them.`)) {
+      actionMessage = 'AI OS job cancellation skipped.';
+      return;
+    }
     jobCancelBusyId = job.id;
     actionError = '';
     try {

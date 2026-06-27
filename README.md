@@ -140,6 +140,8 @@ from the Activity view, but dismissal is only a local browser filter. It does no
 cancel, archive, or mutate the backend record, and active queued/running/paused work stays
 visible until the owning service reports a stable state. Cancelling active work from
 Activity asks for confirmation before it tells the owning backend to stop the run/job.
+Owning pages such as Research, AI OS jobs, and Passive Tasks use the same confirmation
+pattern for direct cancel controls.
 
 Settings also includes a Data & Recovery map that explains where each major surface saves
 state, what rehydrates after refresh/browser close, what remains browser-local, and which

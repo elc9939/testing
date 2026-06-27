@@ -370,6 +370,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('selectedRunActionBlockedReason = !selectedRun');
     expect(source).toContain('Select a research run before controlling it.');
     expect(source).toContain('disabled={selectedRunActionDisabled}');
+    expect(source).toContain('Cancel research run "${run.goal || run.id}"?');
+    expect(source).toContain('Research cancellation skipped.');
     expect(source).toContain('function reportExportHref');
     expect(source).toContain('Exports need AI OS; these links open Settings.');
     expect(source).toContain('selectedRunId: selectedRun?.id ?? persistedRunId');
@@ -491,6 +493,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('id="command-confirm"');
     expect(source).toContain('function jobCancelBlockedReason');
     expect(source).toContain('Another job cancellation is already running.');
+    expect(source).toContain('Cancel AI OS job "${job.id}"?');
+    expect(source).toContain('AI OS job cancellation skipped.');
     expect(source).toContain('disabled={jobCancelDisabled(job)}');
     expect(source).toContain('function backgroundActionBlockedReason');
     expect(source).toContain('Another ambient unit action is already running.');
@@ -539,12 +543,16 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('<strong>{passiveCountLabel(snapshot?.triggers.length ?? 0)}</strong>');
     expect(passive).toContain('function passiveDisabledReason');
     expect(passive).toContain('function requirePassiveReady');
+    expect(passive).toContain('function cancelTask');
+    expect(passive).toContain('Cancel passive task "${task.title}"?');
+    expect(passive).toContain('Passive task cancellation skipped.');
     expect(passive).toContain('if (passiveConnectionError(nextError))');
     expect(passive).toContain('Passive Tasks API unavailable');
     expect(passive).toContain('Target: {getApiUrl()}. {localNetworkHint()}');
     expect(passive).toContain('disabled={passiveWriteDisabled}');
     expect(passive).toContain('title={passiveActionTitle');
     expect(passive).toContain('disabled={passiveWriteDisabled || !canRunTask(task, watcher)}');
+    expect(passive).toContain("title={passiveActionTitle('Ask for confirmation before cancelling this passive task.')}");
     expect(passive).toContain('Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.');
   });
 

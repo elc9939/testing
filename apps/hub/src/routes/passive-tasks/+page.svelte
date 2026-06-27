@@ -573,6 +573,14 @@
     );
   }
 
+  async function cancelTask(task: PassiveTask): Promise<void> {
+    if (!window.confirm(`Cancel passive task "${task.title}"? The run record stays visible in Passive Tasks and Activity when the service saves it.`)) {
+      message = 'Passive task cancellation skipped.';
+      return;
+    }
+    await applyAction(`cancel:${task.id}`, () => cancelPassiveTask(task.id), `${task.title} cancelled.`);
+  }
+
   function cardSource(card: PassiveResultCard): string {
     return card.sourceRefs[0]?.label ?? passiveFamilyLabel(card.family);
   }
@@ -885,7 +893,7 @@
                       <Pause size={15} />
                     </button>
                   {/if}
-                  <button class="icon-action danger" type="button" title={passiveActionTitle('Cancel this passive task.')} disabled={passiveWriteDisabled} on:click={() => applyAction(`cancel:${task.id}`, () => cancelPassiveTask(task.id), `${task.title} cancelled.`)}>
+                  <button class="icon-action danger" type="button" title={passiveActionTitle('Ask for confirmation before cancelling this passive task.')} disabled={passiveWriteDisabled} on:click={() => cancelTask(task)}>
                     <XCircle size={15} />
                   </button>
                 </td>
