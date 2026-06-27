@@ -699,6 +699,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function cleanControlLabel');
     expect(source).toContain('function truncateLabel');
     expect(source).toContain('function controlSummary');
+    expect(source).toContain('function ambiguousControls');
+    expect(source).toContain('function ambiguousSummary');
     expect(source).toContain('function fetchRouteAttempt');
     expect(source).toContain('function safeActionStatus');
     expect(source).toContain('function safeActionSummary');
@@ -713,6 +715,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Live links');
     expect(source).toContain('Source buttons');
     expect(source).toContain('Source links');
+    expect(source).toContain('Ambiguous source controls needing labels/titles');
+    expect(source).toContain('Ambiguous live controls needing browser inspection');
     expect(source).toContain('Source state snippets');
     expect(source).toContain('Exercise safe action');
     expect(source).toContain('Sample input/setup');
@@ -726,6 +730,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('row.links');
     expect(source).toContain('sourceButtonLabels');
     expect(source).toContain('sourceLinkLabels');
+    expect(source).toContain('sourceAmbiguousControls');
     expect(source).toContain('sourceIssueSnippets');
   });
 

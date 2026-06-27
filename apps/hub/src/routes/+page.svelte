@@ -687,6 +687,7 @@
           href={externalHref(actionRoute(item, openAction)) ? actionRoute(item, openAction) : hubHref(actionRoute(item, openAction))}
           target={externalHref(actionRoute(item, openAction)) ? '_blank' : undefined}
           rel={externalHref(actionRoute(item, openAction)) ? 'noreferrer' : undefined}
+          title={`Open ${item.title} from ${sourceLabel(item)}.`}
         >
           <time datetime={item.dueAt}>{displayEventTime(item)}</time>
           <strong>{item.title}</strong>
@@ -722,7 +723,7 @@
           {#each priorityQueue as item}
             {@const openAction = inspectAction(item)}
             <div class="queue-row">
-              <a class="queue-link" href={hubHref(item.route)}>
+              <a class="queue-link" href={hubHref(item.route)} title={`Open ${item.title} in ${sourceLabel(item)}.`}>
                 <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
                 <span class="queue-main">
                   <strong>{item.title}</strong>
@@ -802,7 +803,7 @@
         <div class="compact-list">
           {#each mailItems as item}
             <div class="compact-row">
-              <a class="compact-link" href={hubHref('/productivity')}>
+              <a class="compact-link" href={hubHref('/productivity')} title={`Open mail item ${item.title}.`}>
                 <span class={`priority-pill ${priorityClass(item)}`}>{item.priority}</span>
                 <span class="compact-main">
                   <strong>{item.title}</strong>
@@ -857,7 +858,7 @@
         <div class="compact-list">
           {#each focusItems as item}
             <div class="compact-row">
-              <a class="compact-link" href={hubHref(item.route)}>
+              <a class="compact-link" href={hubHref(item.route)} title={`Open ${item.title} in ${sourceLabel(item)}.`}>
                 <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
                 <span class="compact-main">
                   <strong>{item.title}</strong>
@@ -905,7 +906,7 @@
       {#if systemItems.length}
         <div class="service-list">
           {#each systemItems as item}
-            <a class="service-row" href={hubHref(item.route)}>
+            <a class="service-row" href={hubHref(item.route)} title={`Open ${item.title} status.`}>
               <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
               <span>
                 <strong>{item.title}</strong>
@@ -938,7 +939,7 @@
         <div class="mode-rec-list">
           {#each modeRecommendations.slice(0, 4) as item}
             <div class="mode-rec-row">
-              <a class="mode-rec-link" href={hubHref(item.route)}>
+              <a class="mode-rec-link" href={hubHref(item.route)} title={`Open ${item.label}.`}>
                 <span class="mode-rec-tag">{item.tag}</span>
                 <span class="mode-rec-main">
                   <strong>{item.label}</strong>
@@ -999,7 +1000,7 @@
         {#if capabilityIssues.length}
           <div class="service-list">
             {#each capabilityIssues as capability}
-              <a class="service-row" href={hubHref(capability.route)}>
+              <a class="service-row" href={hubHref(capability.route)} title={`Open ${capability.label} setup or status.`}>
                 <span class={`capability-state ${capability.state}`}>{capabilityStateLabel(capability.state)}</span>
                 <span>
                   <strong>{capability.label}</strong>
@@ -1034,7 +1035,7 @@
       {#if actionLedgerItems.length}
         <div class="ledger-list">
           {#each actionLedgerItems as item}
-            <a class="ledger-row" href={hubHref(ledgerRoute(item))}>
+            <a class="ledger-row" href={hubHref(ledgerRoute(item))} title={`Open action log: ${item.summary}.`}>
               <span class={`activity-state ${actionStatusClass(item)}`}>{actionLedgerStatusLabel(item.status)}</span>
               <span class="ledger-main">
                 <strong>{item.summary}</strong>
@@ -1086,7 +1087,7 @@
   </summary>
   <section class="grid three launcher" aria-label="Launcher">
     {#each launcherEntries as entry}
-      <a class="launch-card" href={hubHref(entry.route)}>
+      <a class="launch-card" href={hubHref(entry.route)} title={`Open ${entry.name}.`}>
         <div>
           <strong>{entry.name}</strong>
           <span>{entry.group}</span>

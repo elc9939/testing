@@ -1472,7 +1472,7 @@
                 <small>{sourceHost(source)} - {source.text_length} chars - score {sourceScore(source)}{source.cached ? ' - cached' : ''}</small>
               </summary>
               <div class="source-card-body">
-                <a class="source-url" href={source.canonical_url} target="_blank" rel="noreferrer">{source.canonical_url}</a>
+                <a class="source-url" href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open source URL ${source.canonical_url}.`}>{source.canonical_url}</a>
                 {#if source.description}<p>{source.description}</p>{/if}
                 <dl class="source-meta">
                   <div><dt>Author</dt><dd>{source.author ?? 'n/a'}</dd></div>
@@ -1497,7 +1497,7 @@
                       {#each source.links.slice(0, 12) as link}
                         {@const href = linkHref(link)}
                         {#if href}
-                          <a href={href} target="_blank" rel="noreferrer">{linkLabel(link)}</a>
+                          <a href={href} target="_blank" rel="noreferrer" title={`Open extracted link ${linkLabel(link)}.`}>{linkLabel(link)}</a>
                         {:else}
                           <span>{linkLabel(link)}</span>
                         {/if}

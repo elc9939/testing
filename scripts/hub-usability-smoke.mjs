@@ -441,6 +441,10 @@ function attrValue(attrs, name) {
   return '';
 }
 
+function hasAttr(attrs, name) {
+  return new RegExp(`\\b${name}(?:=|\\s|$)`, 'iu').test(attrs);
+}
+
 function firstTag(block) {
   let quote = '';
   let braces = 0;
@@ -474,45 +478,67 @@ function elementParts(block, tagName) {
 }
 
 function extractButtonStates(html) {
-  return [...html.matchAll(/<button\b[\s\S]*?<\/button>/giu)]
-    .map((match) => {
-      const { attrs, content } = elementParts(match[0] ?? '', 'button');
-      const title = cleanControlLabel(attrValue(attrs, 'title'));
-      const ariaLabel = cleanControlLabel(attrValue(attrs, 'aria-label'));
-      const label = cleanControlLabel(stripHtml(content)) || ariaLabel || title || '(dynamic label)';
-      return {
-        label,
-        disabled: /\bdisabled(?:=|\s|>)/iu.test(attrs),
-        title
-      };
-    })
-    .filter((button) => button.label !== '(dynamic label)' || button.title);
+  return [...html.matchAll(/<button\b[\s\S]*?<\/button>/giu)].map((match) => {
+    const { attrs, content } = elementParts(match[0] ?? '', 'button');
+    const title = cleanControlLabel(attrValue(attrs, 'title'));
+    const ariaLabel = cleanControlLabel(attrValue(attrs, 'aria-label'));
+    const hasTitle = hasAttr(attrs, 'title');
+    const hasAriaLabel = hasAttr(attrs, 'aria-label');
+    const visibleLabel = cleanControlLabel(stripHtml(content));
+    const label = visibleLabel || ariaLabel || title || '(dynamic label)';
+    const line = html.slice(0, match.index ?? 0).split('\n').length;
+    return {
+      label,
+      disabled: /\bdisabled(?:=|\s|>)/iu.test(attrs),
+      title,
+      ariaLabel,
+      line,
+      ambiguous: !visibleLabel && !hasAriaLabel && !hasTitle
+    };
+  });
 }
 
 function extractLinkStates(html) {
-  return [...html.matchAll(/<a\b[\s\S]*?<\/a>/giu)]
-    .map((match) => {
-      const { attrs, content } = elementParts(match[0] ?? '', 'a');
-      const title = cleanControlLabel(attrValue(attrs, 'title'));
-      const href = attrValue(attrs, 'href');
-      const label = cleanControlLabel(stripHtml(content)) || title || cleanControlLabel(href) || '(dynamic link)';
-      return {
-        label,
-        disabled:
-          /\baria-disabled=(?:"true"|'true'|\{[^}]+\})/iu.test(attrs) ||
-          /\bclass:disabled=/iu.test(attrs) ||
-          /\bclass="[^"]*\bdisabled\b[^"]*"/iu.test(attrs),
-        title,
-        href
-      };
-    })
-    .filter((link) => link.label !== '(dynamic link)' || link.href || link.title);
+  return [...html.matchAll(/<a\b[\s\S]*?<\/a>/giu)].map((match) => {
+    const { attrs, content } = elementParts(match[0] ?? '', 'a');
+    const title = cleanControlLabel(attrValue(attrs, 'title'));
+    const href = attrValue(attrs, 'href');
+    const hasTitle = hasAttr(attrs, 'title');
+    const visibleLabel = cleanControlLabel(stripHtml(content));
+    const hrefLabel = cleanControlLabel(href);
+    const label = visibleLabel || title || hrefLabel || '(dynamic link)';
+    const line = html.slice(0, match.index ?? 0).split('\n').length;
+    return {
+      label,
+      disabled:
+        /\baria-disabled=(?:"true"|'true'|\{[^}]+\})/iu.test(attrs) ||
+        /\bclass:disabled=/iu.test(attrs) ||
+        /\bclass="[^"]*\bdisabled\b[^"]*"/iu.test(attrs),
+      title,
+      href,
+      line,
+      ambiguous: !visibleLabel && !hasTitle && !hrefLabel
+    };
+  });
 }
 
 function controlSummary(controls, limit = 8) {
   return controls
     .slice(0, limit)
     .map((control) => `${control.disabled ? 'disabled' : 'enabled'}:${truncateLabel(control.label)}`)
+    .join('; ');
+}
+
+function ambiguousControls(controls) {
+  return controls.filter((control) => control.ambiguous);
+}
+
+function ambiguousSummary(controls, limit = 6) {
+  const ambiguous = ambiguousControls(controls);
+  if (!ambiguous.length) return 'none';
+  return ambiguous
+    .slice(0, limit)
+    .map((control) => `line ${control.line}: ${truncateLabel(control.label)}`)
     .join('; ');
 }
 
@@ -606,6 +632,7 @@ async function sourceSnapshot(route) {
   const heading = extract(/<h1[^>]*>([\s\S]*?)<\/h1>/iu, source);
   const sourceButtons = extractButtonStates(source);
   const sourceLinks = extractLinkStates(source);
+  const sourceAmbiguousControls = ambiguousControls([...sourceButtons, ...sourceLinks]);
   const buttons = sourceButtons.length;
   const links = sourceLinks.length;
   const disabled = count(/\bdisabled(?:=|\s|>)/giu, source);
@@ -625,6 +652,8 @@ async function sourceSnapshot(route) {
     disabledLinks,
     sourceButtonLabels: controlSummary(sourceButtons),
     sourceLinkLabels: controlSummary(sourceLinks),
+    sourceAmbiguousControls: sourceAmbiguousControls.length,
+    sourceAmbiguousControlLabels: ambiguousSummary([...sourceButtons, ...sourceLinks]),
     sourceIssueSnippets: visibleIssueSnippets(source),
     forms: forms.length,
     unguardedForms: forms.filter((form) => !form.guarded).length,
@@ -645,6 +674,7 @@ async function fetchRouteAttempt(baseUrl, route, attempt) {
     const text = await response.text();
     const buttons = extractButtonStates(text);
     const links = extractLinkStates(text);
+    const ambiguous = ambiguousControls([...buttons, ...links]);
     const safeAction = safeActionStatus(route, [...buttons, ...links]);
     return {
       url,
@@ -661,6 +691,8 @@ async function fetchRouteAttempt(baseUrl, route, attempt) {
       disabledLinks: links.filter((link) => link.disabled).length,
       buttonLabels: controlSummary(buttons, 12),
       linkLabels: controlSummary(links, 12),
+      ambiguousControls: ambiguous.length,
+      ambiguousControlLabels: ambiguousSummary([...buttons, ...links]),
       issueSnippets: visibleIssueSnippets(text),
       safeAction,
       rawNotFound: /\bNot Found\b/u.test(stripHtml(text)),
@@ -690,15 +722,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | Forms | Safe action refs | State markers | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
-  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | Ambiguous | Forms | Safe action refs | State markers | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
+  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} buttons ${live.enabledButtons ?? 0}/${live.buttons ?? 0} links ${live.enabledLinks ?? 0}/${live.links ?? 0} safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
     );
   }
 }
@@ -725,15 +757,17 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] If prerequisites are missing, verify blocked/setup state: ${row.expectedBlockedState}`);
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
     console.log(`- [ ] Reload proof: ${row.reloadProof}`);
-    console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, ambiguous controls ${row.sourceAmbiguousControls}, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
     if (row.sourceButtonLabels) console.log(`- [ ] Source buttons: ${row.sourceButtonLabels}`);
     if (row.sourceLinkLabels) console.log(`- [ ] Source links: ${row.sourceLinkLabels}`);
+    if (row.sourceAmbiguousControls) console.log(`- [ ] Ambiguous source controls needing labels/titles: ${row.sourceAmbiguousControlLabels}`);
     if (row.sourceIssueSnippets?.length) console.log(`- [ ] Source state snippets: ${row.sourceIssueSnippets.join(' | ')}`);
     if (live) {
       console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, ${live.enabledLinks ?? 0}/${live.links ?? 0} enabled links, safe action ${liveSafeActionSummary(live)}.`);
       if ((live.buttons ?? 0) + (live.links ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; use a browser pass for actual control clicks.');
       if (live.buttonLabels) console.log(`- [ ] Live buttons: ${live.buttonLabels}`);
       if (live.linkLabels) console.log(`- [ ] Live links: ${live.linkLabels}`);
+      if (live.ambiguousControls) console.log(`- [ ] Ambiguous live controls needing browser inspection: ${live.ambiguousControlLabels}`);
       if (live.issueSnippets?.length) console.log(`- [ ] Live state snippets: ${live.issueSnippets.join(' | ')}`);
     }
     console.log('');
@@ -759,7 +793,15 @@ async function main() {
     printMarkdown(rows, liveRows);
   }
 
-  const failures = rows.filter((row) => !row.sourceOk || !row.safeActionRefs.length || missingMarkers(row).length || missingScenarioFields(row).length || row.unguardedForms);
+  const failures = rows.filter(
+    (row) =>
+      !row.sourceOk ||
+      !row.safeActionRefs.length ||
+      missingMarkers(row).length ||
+      missingScenarioFields(row).length ||
+      row.unguardedForms ||
+      row.sourceAmbiguousControls
+  );
   const liveFailures = [...liveRows.values()].filter((row) => !row.ok || row.rawNotFound);
   if (failures.length || liveFailures.length) {
     console.error(`Mini Hub usability smoke found ${failures.length} source issue(s) and ${liveFailures.length} live route issue(s).`);

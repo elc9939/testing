@@ -944,7 +944,7 @@
     {#if capabilityIssues.length}
       <div class="issue-strip" aria-label="Capability issues">
         {#each capabilityIssues as capability}
-          <a class="issue-row" href={hubHref(capability.route)}>
+          <a class="issue-row" href={hubHref(capability.route)} title={`Open ${capability.label} setup or status.`}>
             <span class={`state-chip ${capability.state}`}>{capabilityStateLabel(capability.state)}</span>
             <span>
               <strong>{capability.label}</strong>
@@ -1361,7 +1361,7 @@
             <em>{row.offlineBehavior}</em>
           </div>
           <span class:yes={row.crossDevice} class="cross-device">{row.crossDevice ? 'Cross-device' : 'This browser'}</span>
-          <a class="button compact" href={hubHref(row.recoveryRoute)}>
+          <a class="button compact" href={hubHref(row.recoveryRoute)} title={`Open ${row.feature} recovery: ${row.recoveryLabel}.`}>
             <span>{row.recoveryLabel}</span>
             <ArrowRight size={15} />
           </a>
