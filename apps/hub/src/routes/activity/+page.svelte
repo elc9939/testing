@@ -20,6 +20,12 @@
   import { persistenceRows, persistenceSummary } from '$lib/persistence-map';
   import { hubHref } from '$lib/routes';
 
+  const expectedActivitySources = [
+    { id: 'ai-os', label: 'AI OS' },
+    { id: 'passive-tasks', label: 'Passive Tasks' },
+    { id: 'macro-lab', label: 'Macro Lab' }
+  ];
+
   let snapshot: ActivitySnapshot | null = null;
   let loading = false;
   let refreshing = false;
@@ -34,12 +40,20 @@
   $: visibleRecords = showDismissed ? records : records.filter((record) => isActiveRecord(record) || !dismissedIds.has(record.id));
   $: dismissedCount = records.filter((record) => !isActiveRecord(record) && dismissedIds.has(record.id)).length;
   $: sources = snapshot?.sources ?? [];
+  $: sourceHealthRows = sources.length ? sources : fallbackActivitySources({ loading, refreshing });
   $: runningRecords = visibleRecords.filter((record) => ['queued', 'running'].includes(record.status));
   $: pausedRecords = visibleRecords.filter((record) => record.status === 'paused');
   $: activeRecords = visibleRecords.filter((record) => ['queued', 'running', 'paused'].includes(record.status));
   $: failedRecords = visibleRecords.filter((record) => ['failed', 'blocked'].includes(record.status));
   $: stableRecords = visibleRecords.filter((record) => !['queued', 'running', 'paused', 'failed', 'blocked'].includes(record.status));
-  $: sourceFailures = sources.filter((source) => !source.ok);
+  $: sourceFailures = sourceHealthRows.filter((source) => !source.ok);
+  $: sourceHealthSummary = activitySourceHealthSummary({
+    hasSourceSnapshot: sources.length > 0,
+    loading,
+    refreshing,
+    sourceFailureCount: sourceFailures.length,
+    stale
+  });
   $: hasActive = activityHasActiveWork(records);
   $: partial = snapshot?.partial ?? false;
   $: stale = snapshot?.stale ?? false;
@@ -158,6 +172,32 @@
     return `${source.error || 'unavailable'}${cached}`;
   }
 
+  function fallbackActivitySources(state: { loading: boolean; refreshing: boolean }): ActivitySourceState[] {
+    const detail = state.loading || state.refreshing
+      ? 'Checking source status from AI OS, Passive Tasks, and Macro Lab.'
+      : 'No source snapshot yet; refresh Activity or open Settings.';
+    return expectedActivitySources.map((source) => ({
+      ...source,
+      ok: false,
+      state: 'error' as const,
+      error: detail,
+      count: 0
+    }));
+  }
+
+  function activitySourceHealthSummary(state: {
+    hasSourceSnapshot: boolean;
+    loading: boolean;
+    refreshing: boolean;
+    sourceFailureCount: number;
+    stale: boolean;
+  }): string {
+    if (!state.hasSourceSnapshot) return state.loading || state.refreshing ? 'Checking' : 'No snapshot';
+    if (state.sourceFailureCount) return `${state.sourceFailureCount} issue${state.sourceFailureCount === 1 ? '' : 's'}`;
+    if (state.stale) return 'Cached';
+    return 'Fresh';
+  }
+
   function isActiveRecord(record: ActivityRecord): boolean {
     return ['queued', 'running', 'paused'].includes(record.status);
   }
@@ -168,7 +208,7 @@
   }
 
   function sourceStateFor(record: ActivityRecord): ActivitySourceState | undefined {
-    return sources.find((source) => source.id === sourceIdFor(record));
+    return sourceHealthRows.find((source) => source.id === sourceIdFor(record));
   }
 
   function sourceReachable(record: ActivityRecord): boolean {
@@ -309,8 +349,8 @@
   </article>
   <article>
     <span>Sources</span>
-    <strong>{sources.filter((source) => source.ok).length}/{sources.length || 3}</strong>
-    <small>{sourceFailures.length ? `${sourceFailures.length} issue${sourceFailures.length === 1 ? '' : 's'}` : stale ? 'Cached' : 'Fresh'}</small>
+    <strong>{sourceHealthRows.filter((source) => source.ok).length}/{sourceHealthRows.length}</strong>
+    <small>{sourceHealthSummary}</small>
   </article>
   <article>
     <span>Dismissed</span>
@@ -344,22 +384,20 @@
   </a>
 </section>
 
-{#if sources.length}
-  <section class="source-strip" aria-label="Activity source health">
-    {#each sources as source}
-      <span class:bad={!source.ok}>
-        <strong>{source.label}</strong>
-        {sourceLine(source)}
-      </span>
-    {/each}
-    {#if stale || partial}
-      <span class:bad={partial}>
-        <strong>{stale ? 'Cache' : 'Partial'}</strong>
-        {stale ? `showing cached records from ${displayWhen(snapshot?.cachedAt)}` : 'one source failed; available work is still listed'}
-      </span>
-    {/if}
-  </section>
-{/if}
+<section class="source-strip" aria-label="Activity source health">
+  {#each sourceHealthRows as source}
+    <span class:bad={!source.ok && sources.length > 0} class:pending={!sources.length}>
+      <strong>{source.label}</strong>
+      {sourceLine(source)}
+    </span>
+  {/each}
+  {#if stale || partial}
+    <span class:bad={partial}>
+      <strong>{stale ? 'Cache' : 'Partial'}</strong>
+      {stale ? `showing cached records from ${displayWhen(snapshot?.cachedAt)}` : 'one source failed; available work is still listed'}
+    </span>
+  {/if}
+</section>
 
 {#if loading && !records.length}
   <section class="activity-list">
@@ -562,6 +600,11 @@
   .source-strip span.bad {
     color: var(--error-text);
     background: var(--error-bg);
+  }
+
+  .source-strip span.pending {
+    border: 1px dashed var(--border);
+    background: var(--surface-soft);
   }
 
   .activity-list {

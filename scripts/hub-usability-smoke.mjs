@@ -40,6 +40,9 @@ const routes = [
     persistence: 'Durable runs/jobs/history should reappear after refresh or route changes.',
     requiredMarkers: [
       { label: 'source failure list', text: 'sourceFailures' },
+      { label: 'expected source rows', text: 'expectedActivitySources' },
+      { label: 'source health rows', text: 'sourceHealthRows' },
+      { label: 'no source snapshot state', text: 'No source snapshot yet; refresh Activity or open Settings.' },
       { label: 'cached records state', text: 'showing cached records from' },
       { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
       { label: 'recovery model strip', text: 'Activity recovery model' },

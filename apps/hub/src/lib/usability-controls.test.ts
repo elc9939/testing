@@ -554,7 +554,14 @@ describe('Mini Hub usability control gates', () => {
 
     expect(source).toContain('runningRecords');
     expect(source).toContain('pausedRecords');
+    expect(source).toContain('expectedActivitySources');
+    expect(source).toContain('sourceHealthRows');
     expect(source).toContain('sourceFailures');
+    expect(source).toContain('function fallbackActivitySources');
+    expect(source).toContain('Checking source status from AI OS, Passive Tasks, and Macro Lab.');
+    expect(source).toContain('No source snapshot yet; refresh Activity or open Settings.');
+    expect(source).toContain('function activitySourceHealthSummary');
+    expect(source).toContain('<strong>{sourceHealthRows.filter((source) => source.ok).length}/{sourceHealthRows.length}</strong>');
     expect(source).toContain('<span>Dismissed</span>');
     expect(source).toContain('Activity recovery model');
     expect(source).toContain('What comes back after you leave');
