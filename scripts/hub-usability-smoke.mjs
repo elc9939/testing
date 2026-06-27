@@ -12,6 +12,9 @@ const routes = [
     source: 'apps/hub/src/routes/+page.svelte',
     service: 'Mini Hub API + optional Google/AI/Macro sources',
     safeAction: 'Refresh Today; blocked source rows should remain partial, not page-fatal.',
+    sampleInput: 'No input. Click Refresh from the Today header.',
+    expectedResult: 'Attention rows refresh, or partial source cards explain which local/Google service is offline and link to Settings.',
+    reloadProof: 'Reload the route; cached attention/source health should remain visible while live sources refresh.',
     safeActionLabels: ['Refresh'],
     expectedBlockedState: 'Partial source rows and Settings links, not a blank cockpit.',
     persistence: 'Attention snapshot should reload from cache while live sources refresh.',
@@ -28,6 +31,9 @@ const routes = [
     source: 'apps/hub/src/routes/activity/+page.svelte',
     service: 'AI OS API, Passive Tasks, Macro Lab',
     safeAction: 'Refresh Activity; source failures should show as partial/stale rows.',
+    sampleInput: 'No input. Click Refresh on Activity.',
+    expectedResult: 'Active, paused, failed, stale, cached, and dismissed records stay grouped; failed sources do not hide cached work.',
+    reloadProof: 'Dismiss a non-active item if present, reload, then use Restore dismissed records to recover it in this browser.',
     safeActionLabels: ['Refresh'],
     expectedBlockedState: 'Source strip explains timeout/offline/cached state per backend.',
     persistence: 'Durable runs/jobs/history should reappear after refresh or route changes.',
@@ -44,6 +50,9 @@ const routes = [
     source: 'apps/hub/src/routes/productivity/+page.svelte',
     service: 'Mini Hub API + Google OAuth',
     safeAction: 'Refresh overview; writes stay disabled unless API and Google are ready.',
+    sampleInput: 'No input. Click Refresh overview, or Connect/Add Google only when intentionally testing OAuth.',
+    expectedResult: 'Cached mail/calendar remain readable; Gmail/calendar writes stay disabled until Mini Hub API and Google are connected.',
+    reloadProof: 'Reload after selecting an account/filter; cached productivity state should rehydrate before live refresh completes.',
     safeActionLabels: ['Refresh', 'Connect Google', 'Add Google Account'],
     expectedBlockedState: 'Cached mail/calendar can show; OAuth and write buttons route to setup or stay disabled.',
     persistence: 'Local snapshot, filters, and selected Google cache should reload from browser storage.',
@@ -60,6 +69,9 @@ const routes = [
     source: 'apps/hub/src/routes/desk/career/+page.svelte',
     service: 'Mini Hub API + browser PGlite cache',
     safeAction: 'Filter/export; add/edit requires online Mini Hub API.',
+    sampleInput: 'Type a harmless filter such as "test"; click Scan or Export. Only add a QA job when Mini Hub API is online.',
+    expectedResult: 'Filter state and legacy scan/export status are explicit; add/edit/delete controls explain offline read-only state.',
+    reloadProof: 'Reload after changing the filter; the browser should report reloaded Career filters. API-backed jobs should reappear from cache/API.',
     safeActionLabels: ['Export', 'Add Job'],
     expectedBlockedState: 'Offline read-only explains cached jobs and disables saves.',
     persistence: 'Jobs, filters, save confirmations, and exports should survive or clearly report reload from API/cache/browser storage.',
@@ -76,6 +88,9 @@ const routes = [
     source: 'apps/hub/src/routes/desk/study/+page.svelte',
     service: 'Mini Hub API + browser PGlite cache',
     safeAction: 'Review progress; logging requires online Mini Hub API.',
+    sampleInput: 'Choose a quick label/minutes. Only click Log Progress when Mini Hub API is online; otherwise inspect disabled titles.',
+    expectedResult: 'Study progress and analytics update after a save, or offline read-only explains why logging is disabled.',
+    reloadProof: 'Reload after changing quick-log defaults or filters; the browser should report reloaded Study view/defaults.',
     safeActionLabels: ['Log', 'Export'],
     expectedBlockedState: 'Offline read-only explains cached sessions and disables logging.',
     persistence: 'Logged sessions, filters, quick-log defaults, and analytics should reload from API/cache/browser storage.',
@@ -92,6 +107,9 @@ const routes = [
     source: 'apps/hub/src/routes/analytics/+page.svelte',
     service: 'Browser cache + optional Mini Hub sync',
     safeAction: 'Refresh cache-backed analytics; healthy-empty is acceptable.',
+    sampleInput: 'No input. Click Refresh.',
+    expectedResult: 'Analytics either render from cached Career/Study/game data or show a distinct healthy-empty/offline/cache-error state.',
+    reloadProof: 'Reload after Career/Study changes; charts and counts should recompute from the cache or explain why data is unavailable.',
     safeActionLabels: ['Refresh'],
     expectedBlockedState: 'Loading, healthy-empty, offline, and cache-error states are distinct.',
     persistence: 'Charts should recompute from cached Career/Study/game data after reload.',
@@ -108,6 +126,9 @@ const routes = [
     source: 'apps/hub/src/routes/research/+page.svelte',
     service: 'AI OS API',
     safeAction: 'Run sample goal only when AI OS is connected; otherwise Connect AI OS is disabled/actionable.',
+    sampleInput: 'Goal: "Compare two sources about local AI model routing and list open questions." Keep depth/pages small.',
+    expectedResult: 'Offline AI OS shows one service card and no fake run; online AI OS queues a run, polls progress, and keeps the selected report visible.',
+    reloadProof: 'Navigate away and back or reload; draft goal/options/seed URLs and selected/latest active run should restore.',
     safeActionLabels: ['Run', 'Connect AI OS', 'Refresh'],
     expectedBlockedState: 'One compact AI OS setup card; no fake run appears when offline.',
     persistence: 'Draft goal/options/seed URLs, selected report, loaded monitor, and latest active run should restore after navigation.',
@@ -125,6 +146,9 @@ const routes = [
     source: 'apps/hub/src/routes/ai-lab/+page.svelte',
     service: 'Browser-local Transformers.js and Tree-sitter assets',
     safeAction: 'Classify sample text and parse sample code independently.',
+    sampleInput: 'Classify: "I finished a study block and need to apply to jobs." Parse: "function add(a, b) { return a + b; }".',
+    expectedResult: 'Classify and Parse show independent loading/result/error states; model or WASM failures are local to that panel.',
+    reloadProof: 'Reload and rerun each sample; AI Lab should work without AI OS and should not lose backend work because it has none.',
     safeActionLabels: ['Classify', 'Parse'],
     expectedBlockedState: 'Asset/model failures show in the relevant classify or parse panel only.',
     persistence: 'Sample inputs can be rerun without AI OS; no backend work should disappear.',
@@ -141,6 +165,9 @@ const routes = [
     source: 'apps/hub/src/routes/ai-os/+page.svelte',
     service: 'AI OS API',
     safeAction: 'Refresh status; work buttons stay disabled until AI OS status is loaded.',
+    sampleInput: 'No input for refresh. For command bar, use a harmless read-only request such as "check AI status".',
+    expectedResult: 'AI OS offline is a service state with Settings recovery; online work logs provider/model/cost/latency and gates writes.',
+    reloadProof: 'Reload after a job/benchmark/tool call; durable AI OS jobs, logs, and benchmarks should rehydrate from AI OS storage.',
     safeActionLabels: ['Refresh', 'Do it'],
     expectedBlockedState: 'Unavailable AI OS is a service state, not a whole-app failure.',
     persistence: 'Jobs, usage, benchmarks, and tool logs should reload from AI OS storage.',
@@ -158,6 +185,9 @@ const routes = [
     source: 'apps/hub/src/routes/macro-lab/+page.svelte',
     service: 'Macro Lab API',
     safeAction: 'Refresh state; panic/run/reset stay disabled until Macro Lab state is known.',
+    sampleInput: 'No input. Click Refresh. Use Dry Run only on a safe macro when Macro Lab is ready.',
+    expectedResult: 'Panic/reset/run controls stay disabled until Macro Lab state is known; dry-run/run history reports success or setup errors.',
+    reloadProof: 'Reload after a dry run; run history and selected macro state should reappear from Macro Lab storage.',
     safeActionLabels: ['Refresh', 'Panic', 'Run'],
     expectedBlockedState: 'Panic/reset/run controls are disabled until Macro Lab state is known.',
     persistence: 'Run history and trigger status should reload from Macro Lab storage.',
@@ -174,6 +204,9 @@ const routes = [
     source: 'apps/hub/src/routes/passive-tasks/+page.svelte',
     service: 'Mini Hub API passive engine',
     safeAction: 'Refresh snapshot; run controls stay disabled until snapshot/settings load.',
+    sampleInput: 'No input. Click Refresh. Run Due/Startup/Idle only after the worker snapshot and settings are loaded.',
+    expectedResult: 'Passive run controls are gated while loading/offline; worker state, digest, and source health explain unknown/empty states.',
+    reloadProof: 'Reload after a passive run or settings save; worker state, last digest, and run history should return from backend/cache.',
     safeActionLabels: ['Refresh', 'Run Due', 'Startup', 'Idle'],
     expectedBlockedState: 'Run Due/Startup/Idle stay disabled until worker snapshot is loaded.',
     persistence: 'Worker state, last digest, and run history should reload from backend/cache.',
@@ -191,6 +224,9 @@ const routes = [
     source: 'apps/hub/src/routes/settings/+page.svelte',
     service: 'Mini Hub API, AI OS API, Macro Lab API, browser storage',
     safeAction: 'Refresh Feature Wiring; save endpoint/theme changes only when target storage is ready.',
+    sampleInput: 'No destructive input. Click Check Services and inspect Feature Wiring/Data & Recovery.',
+    expectedResult: 'Each feature row reports working/offline/misconfigured/setup-needed with endpoint and fix action.',
+    reloadProof: 'Change a harmless setting such as theme/mode, reload, and confirm browser/API-backed settings rehydrate visibly.',
     safeActionLabels: ['Check Services', 'Run Autotune', 'Retry Profile', 'Save Passive Settings', 'Retry Passive', 'Save Service URLs', 'Sync Now'],
     expectedBlockedState: 'Feature Wiring table shows missing endpoint/service/setup and fix action.',
     persistence: 'Endpoints, theme, mode, diagnostics, and the Data & Recovery map should explain what reloads from browser/API/service storage.',
@@ -208,6 +244,9 @@ const routes = [
     source: 'apps/hub/src/routes/games/+page.svelte',
     service: 'Browser + optional Mini Hub API saves',
     safeAction: 'Open launcher entries; save buttons should show offline/read-only state when API is unavailable.',
+    sampleInput: 'Open a launcher entry. Avoid destructive/reset actions unless intentionally testing that game.',
+    expectedResult: 'Legacy/playground games launch; API-backed save/status controls explain offline/read-only state when Mini Hub API is unavailable.',
+    reloadProof: 'Reload after a supported score/state change; game state should return from cache/API or clearly explain local-only behavior.',
     safeActionLabels: ['Legacy Arcade', 'Open'],
     expectedBlockedState: 'Legacy/playground games remain launchable; API-backed saves explain offline state.',
     persistence: 'High scores/game state should reload from cache/API where supported.',
@@ -329,6 +368,15 @@ function markerSummary(row) {
   return `missing ${missing.map((marker) => marker.label).join(', ')}`;
 }
 
+function missingScenarioFields(row) {
+  return ['sampleInput', 'expectedResult', 'reloadProof'].filter((field) => !String(row[field] ?? '').trim());
+}
+
+function scenarioSummary(row) {
+  const missing = missingScenarioFields(row);
+  return missing.length ? `missing ${missing.join(', ')}` : 'ok';
+}
+
 function liveRenderState(row) {
   if (!row) return 'not run';
   if (!row.ok) return `failed ${row.status}`;
@@ -426,15 +474,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Disabled refs | Forms | Safe action refs | State markers | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
-  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Disabled refs | Forms | Safe action refs | State markers | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live |');
+  console.log('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`
     );
   }
 }
@@ -454,10 +502,13 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log('');
     console.log(`- [ ] Open ${live?.url ?? row.path} and confirm title "${row.title || 'MISSING'}" plus heading "${row.heading || 'MISSING'}".`);
     console.log(`- [ ] Confirm service state is understandable for: ${row.service}.`);
-    console.log(`- [ ] Confirm required state/recovery markers: ${markerSummary(row)}.`);
+    console.log(`- [ ] Confirm required state/recovery markers: ${markerSummary(row)}; scenario fields: ${scenarioSummary(row)}.`);
     console.log(`- [ ] Exercise safe action: ${row.safeAction}`);
+    console.log(`- [ ] Sample input/setup: ${row.sampleInput}`);
+    console.log(`- [ ] Expected result/output quality: ${row.expectedResult}`);
     console.log(`- [ ] If prerequisites are missing, verify blocked/setup state: ${row.expectedBlockedState}`);
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
+    console.log(`- [ ] Reload proof: ${row.reloadProof}`);
     console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.disabled} disabled-control refs, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
     if (live) {
       console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, safe action ${liveSafeActionSummary(live)}.`);
@@ -488,7 +539,7 @@ async function main() {
     printMarkdown(rows, liveRows);
   }
 
-  const failures = rows.filter((row) => !row.sourceOk || !row.safeActionRefs.length || missingMarkers(row).length || row.unguardedForms);
+  const failures = rows.filter((row) => !row.sourceOk || !row.safeActionRefs.length || missingMarkers(row).length || missingScenarioFields(row).length || row.unguardedForms);
   const liveFailures = [...liveRows.values()].filter((row) => !row.ok || row.rawNotFound);
   if (failures.length || liveFailures.length) {
     console.error(`Mini Hub usability smoke found ${failures.length} source issue(s) and ${liveFailures.length} live route issue(s).`);

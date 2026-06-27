@@ -572,17 +572,24 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function printChecklist');
     expect(source).toContain("args.has('--checklist')");
     expect(source).toContain('safeActionLabels');
+    expect(source).toContain('sampleInput');
+    expect(source).toContain('expectedResult');
+    expect(source).toContain('reloadProof');
     expect(source).toContain('requiredMarkers');
     expect(source).toContain('function sourceMarkerStatus');
     expect(source).toContain('function missingMarkers');
     expect(source).toContain('function markerSummary');
+    expect(source).toContain('function missingScenarioFields');
+    expect(source).toContain('function scenarioSummary');
     expect(source).toContain('function extractFormStates');
     expect(source).toContain('function formSummary');
     expect(source).toContain('State markers');
+    expect(source).toContain('Scenario');
     expect(source).toContain('Forms');
     expect(source).toContain('unguardedForms');
     expect(source).toContain('Confirm required state/recovery markers');
     expect(source).toContain('missingMarkers(row).length');
+    expect(source).toContain('missingScenarioFields(row).length');
     expect(source).toContain('function extractButtonStates');
     expect(source).toContain('function fetchRouteAttempt');
     expect(source).toContain('function safeActionStatus');
@@ -596,7 +603,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('retry:');
     expect(source).toContain('Live DOM snapshot');
     expect(source).toContain('Exercise safe action');
+    expect(source).toContain('Sample input/setup');
+    expect(source).toContain('Expected result/output quality');
     expect(source).toContain('verify persistence');
+    expect(source).toContain('Reload proof');
     expect(source).toContain('expectedBlockedState');
   });
 
