@@ -280,14 +280,21 @@ describe('Mini Hub usability control gates', () => {
   it('keeps AI Lab classify and parse controls independent', async () => {
     const source = await routeSource('../routes/ai-lab/+page.svelte');
 
+    expect(source).toContain('defaultAiLabDraft');
     expect(source).toContain('let classifyBusy = false');
     expect(source).toContain('let parseBusy = false');
+    expect(source).toContain('sampleControlsDisabled = classifyBusy || parseBusy');
     expect(source).toContain('classifyBlockedReason = classifyBusy ?');
     expect(source).toContain('classifyValidationReason({ text, labels })');
     expect(source).toContain('parseBlockedReason = parseBusy ?');
     expect(source).toContain('parseValidationReason({ grammarUrl, codeText })');
+    expect(source).toContain('function restoreAiLabSamples');
+    expect(source).toContain('function restoreSamplesTitle');
+    expect(source).toContain('Restored default AI Lab samples in this browser.');
     expect(source).toContain('function classifyValidationReason');
     expect(source).toContain('function parseValidationReason');
+    expect(source).toContain('disabled={sampleControlsDisabled}');
+    expect(source).toContain('title={restoreSamplesTitle()}');
     expect(source).toContain('disabled={Boolean(classifyBlockedReason)}');
     expect(source).toContain('disabled={Boolean(parseBlockedReason)}');
     expect(source).toContain('aria-busy={classifyBusy}');

@@ -145,16 +145,17 @@ const routes = [
     path: '/ai-lab',
     source: 'apps/hub/src/routes/ai-lab/+page.svelte',
     service: 'Browser-local Transformers.js and Tree-sitter assets',
-    safeAction: 'Classify sample text and parse sample code independently.',
-    sampleInput: 'Classify: "I finished a study block and need to apply to jobs." Parse: "function add(a, b) { return a + b; }".',
+    safeAction: 'Restore samples, then classify sample text and parse sample code independently.',
+    sampleInput: 'Click Restore Samples, then Classify. Parse sample code: "function add(a, b) { return a + b; }" is equivalent to the bundled sample shape.',
     expectedResult: 'Classify and Parse show independent loading/result/error states; model or WASM failures are local to that panel.',
     reloadProof: 'Reload and rerun each sample; AI Lab should work without AI OS and should not lose backend work because it has none.',
-    safeActionLabels: ['Classify', 'Parse'],
+    safeActionLabels: ['Restore Samples', 'Classify', 'Parse'],
     expectedBlockedState: 'Asset/model failures show in the relevant classify or parse panel only.',
     persistence: 'Sample inputs can be rerun without AI OS; no backend work should disappear.',
     requiredMarkers: [
       { label: 'independent classify busy state', text: 'classifyBusy' },
       { label: 'independent parse busy state', text: 'parseBusy' },
+      { label: 'sample restore control', text: 'restoreAiLabSamples' },
       { label: 'browser draft status', text: 'draftStatus' },
       { label: 'result panels', text: 'result-grid' }
     ]

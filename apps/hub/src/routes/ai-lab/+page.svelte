@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { BrainCircuit, FileCode2, Play } from 'lucide-svelte';
+  import { BrainCircuit, FileCode2, Play, RotateCcw } from 'lucide-svelte';
   import javascriptGrammarUrl from 'tree-sitter-javascript/tree-sitter-javascript.wasm?url';
   import {
     aiLabDraftStorageKey,
@@ -11,13 +11,20 @@
     type AiLabResultState
   } from '$lib/ai-lab-state';
 
-  let text = 'Follow up with two high-fit roles, summarize the study backlog, and classify today as focused work.';
-  let labels = 'career, study, games, admin';
-  let codeText = `function scoreCareerFit(role) {
+  const defaultAiLabDraft: AiLabDraftState = {
+    text: 'Follow up with two high-fit roles, summarize the study backlog, and classify today as focused work.',
+    labels: 'career, study, games, admin',
+    codeText: `function scoreCareerFit(role) {
   const tags = role.tags ?? [];
   return tags.includes('ai') && role.remote ? 0.95 : 0.62;
-}`;
-  let grammarUrl = javascriptGrammarUrl;
+}`,
+    grammarUrl: javascriptGrammarUrl
+  };
+
+  let text = defaultAiLabDraft.text;
+  let labels = defaultAiLabDraft.labels;
+  let codeText = defaultAiLabDraft.codeText;
+  let grammarUrl = defaultAiLabDraft.grammarUrl;
   let classifyResultText = '';
   let classifyResultState: AiLabResultState = 'idle';
   let classifyBusy = false;
@@ -30,6 +37,7 @@
   $: parseResultCopy = aiLabResultCopy(parseResultState, parseResultText);
   $: classifyBlockedReason = classifyBusy ? 'Classification is already running.' : classifyValidationReason({ text, labels });
   $: parseBlockedReason = parseBusy ? 'Parser is already running.' : parseValidationReason({ grammarUrl, codeText });
+  $: sampleControlsDisabled = classifyBusy || parseBusy;
   $: grammarAssetState = grammarUrl.trim()
     ? 'Tree-sitter grammar URL is configured.'
     : 'Tree-sitter needs a WASM grammar URL before parsing can run.';
@@ -90,6 +98,19 @@
     labels = draft.labels;
     codeText = draft.codeText;
     grammarUrl = draft.grammarUrl;
+  }
+
+  function restoreAiLabSamples(): void {
+    if (sampleControlsDisabled) return;
+    applyAiLabDraft(defaultAiLabDraft);
+    setClassifyResult('idle');
+    setParseResult('idle');
+    draftStatus = 'Restored default AI Lab samples in this browser.';
+  }
+
+  function restoreSamplesTitle(): string {
+    if (sampleControlsDisabled) return 'Wait for the current AI Lab experiment before restoring samples.';
+    return 'Restore the known-good AI Lab sample inputs for Classify and Parse.';
   }
 
   function hydrateAiLabDraft(): void {
@@ -175,6 +196,12 @@
   <div>
     <p class="eyebrow">AI Lab</p>
     <h1>Browser Experiments</h1>
+  </div>
+  <div class="action-row">
+    <button class="button" type="button" disabled={sampleControlsDisabled} title={restoreSamplesTitle()} on:click={restoreAiLabSamples}>
+      <RotateCcw size={17} />
+      <span>Restore Samples</span>
+    </button>
   </div>
 </section>
 
