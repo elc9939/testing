@@ -21,7 +21,7 @@
   } from 'lucide-svelte';
   import { routeMap } from '@mini-hub/core';
   import AssistantDock from '$lib/AssistantDock.svelte';
-  import { clientData } from '$lib/client-data';
+  import { clientData, type ClientDataState } from '$lib/client-data';
   import { runPassiveEvent } from '$lib/passive-tasks-api';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
   import { applyTheme, normalizeTheme, setTheme, theme, watchSystemTheme, type ThemeMode } from '$lib/theme';
@@ -44,7 +44,25 @@
 
   $: path = hubRouteFromPath($page.url.pathname);
   $: themeLabel = $theme === 'dark' ? 'Dark' : $theme === 'light' ? 'Light' : 'System';
+  $: syncPillText = layoutSyncPillText($clientData.status);
+  $: syncPillTitle = layoutSyncPillTitle($clientData);
   const passiveEventThrottlePrefix = 'miniHub.passive.event.v1';
+
+  function layoutSyncPillText(status: ClientDataState['status']): string {
+    if (status === 'offline-readonly') return 'Offline read-only';
+    if (status === 'syncing') return 'Syncing';
+    if (status === 'error') return 'Sync needs review';
+    return 'Auto-save ready';
+  }
+
+  function layoutSyncPillTitle(state: ClientDataState): string {
+    if (!state.initialized) return 'Opening the browser cache. Open Settings Data & Recovery to see what will reload.';
+    if (state.status === 'syncing') return 'Syncing saved Hub API data now. Open Settings Data & Recovery for the save/reload map.';
+    if (state.status === 'offline-readonly') return 'Offline read-only: cached pages stay readable, but save buttons wait for the Mini Hub API.';
+    if (state.status === 'error') return `Sync/cache needs review: ${state.error || 'open Settings Data & Recovery for details.'}`;
+    const synced = state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleString() : 'not synced in this browser yet';
+    return `Online auto-save ready. Last sync: ${synced}. Open Settings Data & Recovery for what survives closing the site.`;
+  }
 
   function cycleTheme(): void {
     const modes: ThemeMode[] = ['system', 'light', 'dark'];
@@ -104,9 +122,9 @@
       <span class="brand-mark">MH</span>
       <span>Mini Hub</span>
     </a>
-    <div class:offline={$clientData.status === 'offline-readonly'} class="sync-pill">
-      {$clientData.status === 'offline-readonly' ? 'Offline read-only' : $clientData.status}
-    </div>
+    <a class:offline={$clientData.status === 'offline-readonly'} class:error={$clientData.status === 'error'} class="sync-pill" href={hubHref(routeMap.settings)} title={syncPillTitle} aria-label={`Save status: ${syncPillText}. Open Settings Data and Recovery.`}>
+      {syncPillText}
+    </a>
     <button class="theme-cycle" type="button" aria-label={`Theme: ${themeLabel}. Change theme`} on:click={cycleTheme}>
       {#if $theme === 'dark'}
         <Moon size={15} />
@@ -314,6 +332,7 @@
   }
 
   .sync-pill {
+    display: block;
     margin: 0 6px 8px;
     padding: 5px 7px;
     border: 1px solid var(--border);
@@ -322,12 +341,24 @@
     background: var(--surface-muted);
     font-size: 12px;
     font-weight: 800;
+    text-decoration: none;
   }
 
   .sync-pill.offline {
     border-color: var(--warning-border);
     color: var(--warning-text);
     background: var(--warning-bg);
+  }
+
+  .sync-pill.error {
+    border-color: var(--error-border);
+    color: var(--error-text);
+    background: var(--error-bg);
+  }
+
+  .sync-pill:hover {
+    color: var(--text);
+    background: var(--active);
   }
 
   .theme-cycle {

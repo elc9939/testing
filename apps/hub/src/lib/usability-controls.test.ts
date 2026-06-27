@@ -84,6 +84,19 @@ function visibleControlText(block: string): string {
 }
 
 describe('Mini Hub usability control gates', () => {
+  it('keeps the global save status recoverable from every route', async () => {
+    const source = await routeSource('../routes/+layout.svelte');
+
+    expect(source).toContain('function layoutSyncPillText');
+    expect(source).toContain('function layoutSyncPillTitle');
+    expect(source).toContain('Auto-save ready');
+    expect(source).toContain('Offline read-only: cached pages stay readable, but save buttons wait for the Mini Hub API.');
+    expect(source).toContain('Online auto-save ready. Last sync:');
+    expect(source).toContain('Open Settings Data & Recovery for what survives closing the site.');
+    expect(source).toContain('class="sync-pill" href={hubHref(routeMap.settings)}');
+    expect(source).toContain('aria-label={`Save status: ${syncPillText}. Open Settings Data and Recovery.`}');
+  });
+
   it('keeps disabled route buttons self-explanatory', async () => {
     const offenders: string[] = [];
     const pageFiles = await controlSurfaceFiles();

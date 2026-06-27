@@ -146,13 +146,14 @@ page to open when work needs to be recovered.
 
 ### Will progress save if I close the site?
 
-Use Today -> Save & Recovery for the quick answer. Browser-local drafts, attention cache,
-AI Lab inputs, and service endpoint settings stay in the current browser. Career, Study,
-supported games, Passive Tasks, and synced settings save through the Mini Hub API when it is
-online; offline mode is intentionally read-only. Research, AI OS, Macro Lab, backups,
-benchmarks, and passive/background runs are recovered through Activity because their real
-records live in the owning local service. Google Mail/Calendar state remains authoritative
-in Google, while Mini Hub keeps a browser-side last-good display cache.
+Use the left-rail save-status pill or Today -> Save & Recovery for the quick answer; both
+route to Settings -> Data & Recovery for the full map. Browser-local drafts, attention
+cache, AI Lab inputs, and service endpoint settings stay in the current browser. Career,
+Study, supported games, Passive Tasks, and synced settings save through the Mini Hub API
+when it is online; offline mode is intentionally read-only. Research, AI OS, Macro Lab,
+backups, benchmarks, and passive/background runs are recovered through Activity because
+their real records live in the owning local service. Google Mail/Calendar state remains
+authoritative in Google, while Mini Hub keeps a browser-side last-good display cache.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,
