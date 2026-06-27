@@ -656,7 +656,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={activityEmptyRefreshTitle()}');
     expect(source).toContain('title={activityActionTitle(record, action)}');
     expect(source).toContain('backend records are not deleted');
-    expect(source).toContain('use only for active work you want to stop');
+    expect(source).toContain('window.confirm(`Cancel "${record.title}" in ${record.sourceLabel}?');
+    expect(source).toContain('Cancel skipped.');
+    expect(source).toContain('asks for confirmation before stopping active work');
     expect(source).toContain("href={hubHref('/settings')}");
     expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });

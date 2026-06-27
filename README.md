@@ -138,7 +138,8 @@ and recent durable work should be recoverable there, while purely visual drafts 
 browser storage on their owning page. Completed or failed Activity records can be dismissed
 from the Activity view, but dismissal is only a local browser filter. It does not delete,
 cancel, archive, or mutate the backend record, and active queued/running/paused work stays
-visible until the owning service reports a stable state.
+visible until the owning service reports a stable state. Cancelling active work from
+Activity asks for confirmation before it tells the owning backend to stop the run/job.
 
 Settings also includes a Data & Recovery map that explains where each major surface saves
 state, what rehydrates after refresh/browser close, what remains browser-local, and which

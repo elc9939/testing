@@ -109,6 +109,11 @@
       actionError = '';
       return;
     }
+    if (action.kind === 'cancel' && !window.confirm(`Cancel "${record.title}" in ${record.sourceLabel}? This asks the owning service to stop active work; saved records remain recoverable in Activity.`)) {
+      actionMessage = 'Cancel skipped.';
+      actionError = '';
+      return;
+    }
     busyKey = `${record.id}:${action.kind}`;
     actionError = '';
     actionMessage = '';
@@ -306,7 +311,7 @@
     if (action.kind === 'open') return `Open ${record.title} in ${record.sourceLabel}.`;
     if (action.kind === 'view_logs') return `View logs for ${record.title}.`;
     if (action.kind === 'resume') return `Resume ${record.title} from Activity.`;
-    if (action.kind === 'cancel') return `Cancel ${record.title}; use only for active work you want to stop.`;
+    if (action.kind === 'cancel') return `Cancel ${record.title}; asks for confirmation before stopping active work.`;
     if (action.kind === 'retry') return `Retry ${record.title} from its owning service.`;
     if (action.kind === 'dismiss') return `Hide ${record.title} in this browser; backend records are not deleted.`;
     return `${action.label} ${record.title}.`;
