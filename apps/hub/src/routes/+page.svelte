@@ -146,6 +146,30 @@
     return attentionSourceLabel(item.source);
   }
 
+  function todayCountLabel(value: number): string {
+    if ($attentionStore.loading && !attentionSnapshot) return '...';
+    if (!attentionSnapshot) return 'n/a';
+    return String(value);
+  }
+
+  function mailEmptyMessage(): string {
+    if ($attentionStore.loading && !attentionSnapshot) return 'Loading Gmail attention from the hub...';
+    if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
+    return googleConnected ? 'No priority Gmail threads are active.' : 'Gmail is not connected or could not refresh.';
+  }
+
+  function focusEmptyMessage(): string {
+    if ($attentionStore.loading && !attentionSnapshot) return 'Loading Career and Study attention from the hub...';
+    if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
+    return 'No due career or study signals are active.';
+  }
+
+  function systemEmptyMessage(): string {
+    if ($attentionStore.loading && !attentionSnapshot) return 'Loading local service and AI OS signals...';
+    if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
+    return 'No service, AI OS, Macro Lab, or Research issues are active.';
+  }
+
   function priorityClass(item: AttentionItem): string {
     if (item.status === 'blocked' || item.priority >= 85) return 'high';
     if (item.priority >= 65) return 'medium';
@@ -552,23 +576,23 @@
 <section class="signal-strip" aria-label="Attention signals">
   <div>
     <span>Queue</span>
-    <strong>{attentionItems.length}</strong>
+    <strong>{todayCountLabel(attentionItems.length)}</strong>
   </div>
   <div>
     <span>Mail</span>
-    <strong>{mailItems.length}</strong>
+    <strong>{todayCountLabel(mailItems.length)}</strong>
   </div>
   <div>
     <span>Calendar</span>
-    <strong>{calendarItems.length}</strong>
+    <strong>{todayCountLabel(calendarItems.length)}</strong>
   </div>
   <div>
     <span>System</span>
-    <strong>{systemItems.length}</strong>
+    <strong>{todayCountLabel(systemItems.length)}</strong>
   </div>
   <div>
     <span>Source issues</span>
-    <strong>{sourceIssues.length}</strong>
+    <strong>{todayCountLabel(sourceIssues.length)}</strong>
   </div>
 </section>
 
@@ -737,7 +761,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{googleConnected ? 'No priority Gmail threads are active.' : 'Gmail is not connected or could not refresh.'}</p>
+        <p class="empty-note">{mailEmptyMessage()}</p>
       {/if}
     </article>
 
@@ -788,7 +812,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">No due career or study signals are active.</p>
+        <p class="empty-note">{focusEmptyMessage()}</p>
       {/if}
     </article>
   </div>
@@ -814,7 +838,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">No service, AI OS, Macro Lab, or Research issues are active.</p>
+        <p class="empty-note">{systemEmptyMessage()}</p>
       {/if}
     </article>
 

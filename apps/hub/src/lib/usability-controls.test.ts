@@ -440,6 +440,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={modeActionBlockedReason(item) || item.action.label}');
     expect(source).toContain('function todayRefreshTitle');
     expect(source).toContain('title={todayRefreshTitle()}');
+    expect(source).toContain('function todayCountLabel');
+    expect(source).toContain("if ($attentionStore.loading && !attentionSnapshot) return '...'");
+    expect(source).toContain("if (!attentionSnapshot) return 'n/a'");
+    expect(source).toContain('<strong>{todayCountLabel(attentionItems.length)}</strong>');
+    expect(source).toContain('function mailEmptyMessage');
+    expect(source).toContain('Loading Gmail attention from the hub...');
+    expect(source).toContain('function focusEmptyMessage');
+    expect(source).toContain('Loading Career and Study attention from the hub...');
+    expect(source).toContain('function systemEmptyMessage');
+    expect(source).toContain('Loading local service and AI OS signals...');
   });
 
   it('keeps Career and Study inline edits read-only when save capability drops', async () => {
