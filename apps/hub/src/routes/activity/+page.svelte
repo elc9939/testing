@@ -113,6 +113,16 @@
     actionError = '';
   }
 
+  function dismissedToggleTitle(): string {
+    return showDismissed
+      ? 'Hide records dismissed in this browser; active work remains visible.'
+      : `Show ${dismissedCount} Activity record${dismissedCount === 1 ? '' : 's'} dismissed in this browser.`;
+  }
+
+  function restoreDismissedTitle(): string {
+    return 'Restore Activity records hidden in this browser. Durable backend records are not changed.';
+  }
+
   function displayWhen(value: string | undefined): string {
     if (!value) return 'n/a';
     const date = new Date(value);
@@ -235,11 +245,11 @@
   </div>
   <div class="action-row">
     {#if dismissedCount}
-      <button class="button" type="button" on:click={() => (showDismissed = !showDismissed)}>
+      <button class="button" type="button" title={dismissedToggleTitle()} on:click={() => (showDismissed = !showDismissed)}>
         <XCircle size={16} />
         <span>{showDismissed ? 'Hide dismissed' : `Show dismissed (${dismissedCount})`}</span>
       </button>
-      <button class="button" type="button" on:click={restoreDismissed}>
+      <button class="button" type="button" title={restoreDismissedTitle()} on:click={restoreDismissed}>
         <RotateCcw size={16} />
         <span>Restore</span>
       </button>
@@ -348,7 +358,7 @@
     <XCircle size={20} />
     <strong>All current Activity records are dismissed.</strong>
     <p>Dismiss only hides records in this browser. Durable research, AI OS, passive, and Macro Lab records still live in their owning backend.</p>
-    <button class="button" type="button" on:click={restoreDismissed}>
+    <button class="button" type="button" title={restoreDismissedTitle()} on:click={restoreDismissed}>
       <RotateCcw size={16} />
       <span>Restore dismissed records</span>
     </button>

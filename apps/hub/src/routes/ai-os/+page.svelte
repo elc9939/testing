@@ -626,6 +626,10 @@
     commandObjective = example;
   }
 
+  function commandExampleTitle(example: string): string {
+    return commandObjective === example ? 'This example is already loaded in the request box.' : 'Load this example into the AI OS request box.';
+  }
+
   function toolLabel(toolId: string): string {
     return status?.tools.find((tool) => tool.id === toolId)?.label ?? toolId;
   }
@@ -1230,7 +1234,7 @@
   </div>
   <div class="example-row" aria-label="Example AI OS requests">
     {#each commandExamples as example}
-      <button class="chip-button" type="button" on:click={() => useCommandExample(example)}>{example}</button>
+      <button class="chip-button" type="button" title={commandExampleTitle(example)} on:click={() => useCommandExample(example)}>{example}</button>
     {/each}
   </div>
   <label class="checkline" for="command-confirm-primary">

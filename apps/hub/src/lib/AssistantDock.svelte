@@ -85,6 +85,17 @@
     open = true;
   }
 
+  function exampleTitle(value: string): string {
+    return draft === value ? 'This assistant example is already loaded.' : 'Load this example into the assistant message box.';
+  }
+
+  function assistantActionTitle(action: AssistantAction): string {
+    if (busy) return 'Assistant is already working on the current request.';
+    if (action.kind === 'navigate') return `Open ${action.label}.`;
+    if (action.kind === 'confirm-command') return 'Run this assistant request with confirmed write/system actions enabled.';
+    return 'Retry this assistant request.';
+  }
+
   async function submit(): Promise<void> {
     const text = draft.trim();
     if (assistantSendBlockedReason({ busy, draft })) return;
@@ -493,7 +504,7 @@
 
       <div class="quick-grid" aria-label="Assistant examples">
         {#each examples as example}
-          <button type="button" on:click={() => setExample(example)}>{example}</button>
+          <button type="button" title={exampleTitle(example)} on:click={() => setExample(example)}>{example}</button>
         {/each}
       </div>
 
@@ -514,7 +525,7 @@
               {#if message.actions?.length}
                 <div class="message-actions">
                   {#each message.actions as action}
-                    <button type="button" on:click={() => handleAction(action)}>
+                    <button type="button" disabled={busy} title={assistantActionTitle(action)} on:click={() => handleAction(action)}>
                       <span>{action.label}</span>
                       <ChevronRight size={14} />
                     </button>

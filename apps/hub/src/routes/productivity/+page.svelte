@@ -1486,7 +1486,7 @@
           <Save size={17} />
           <span>{isActionBusy(editingEventId ? `event:save:${editingEventId}` : 'event:create') ? 'Saving Event' : editingEventId ? 'Update Event' : 'Create Event'}</span>
         </button>
-        <button class="button" type="button" on:click={closeEventDialog}>Cancel</button>
+        <button class="button" type="button" title="Close the event editor without saving changes." on:click={closeEventDialog}>Cancel</button>
       </div>
       </form>
     </div>

@@ -106,6 +106,28 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps clickable route buttons labelled or explicitly gated', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await controlSurfaceFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const buttons = source.matchAll(/<button\b[\s\S]*?<\/button>/g);
+
+      for (const button of buttons) {
+        const open = firstTag(button[0]);
+        const hasAction = /\bon:click=/.test(open) || /\btype=(["'])submit\1/.test(open);
+        const hasGateOrLabel = /\b(?:aria-label|disabled|title)=/.test(open);
+        if (hasAction && !hasGateOrLabel) {
+          const line = source.slice(0, button.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('keeps route buttons explicit about submit behavior', async () => {
     const offenders: string[] = [];
     const pageFiles = await controlSurfaceFiles();
@@ -229,8 +251,19 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function runResearchTitle');
     expect(source).toContain('Research run is already being queued.');
     expect(source).toContain('function refreshRunsTitle');
+    expect(source).toContain('if (refreshing) return');
     expect(source).toContain('function refreshMonitorsTitle');
     expect(source).toContain('function saveCurrentMonitorTitle');
+    expect(source).toContain('function researchModeTitle');
+    expect(source).toContain('function advancedToggleTitle');
+    expect(source).toContain('function researchRunSelectionTitle');
+    expect(source).toContain('function sourceSeedTitle');
+    expect(source).toContain('function sourceSeedDisabled');
+    expect(source).toContain('function sourceSeedAlreadyAdded');
+    expect(source).toContain('title={researchModeTitle(item)}');
+    expect(source).toContain('title={advancedToggleTitle()}');
+    expect(source).toContain('title={researchRunSelectionTitle(run)}');
+    expect(source).toContain('disabled={sourceSeedDisabled(source.canonical_url)}');
     expect(source).toContain('Enter a research goal before saving a monitor.');
     expect(source).toContain('Connect AI OS');
     expect(source).toContain('let runActionId =');
@@ -274,6 +307,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Type a message before sending.');
     expect(source).toContain('disabled={Boolean(sendBlockedReason)}');
     expect(source).toContain("title={sendBlockedReason || 'Send this message to the assistant.'}");
+    expect(source).toContain('function exampleTitle');
+    expect(source).toContain('function assistantActionTitle');
+    expect(source).toContain('title={exampleTitle(example)}');
+    expect(source).toContain('disabled={busy}');
+    expect(source).toContain('title={assistantActionTitle(action)}');
     expect(source).toContain('Route ambiguous assistant requests through the AI OS command/tool planner when possible.');
     expect(source).toContain('Permit write or system tools only after an explicit confirmation pass.');
     expect(source).toContain('{currentMachineMode.shortLabel} - App helper');
@@ -313,6 +351,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status before running command actions.')}");
     expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status and machine profile.')}");
     expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status before using advanced command controls.')}");
+    expect(source).toContain('function commandExampleTitle');
+    expect(source).toContain('title={commandExampleTitle(example)}');
     expect(source).not.toContain('<button class="button" type="button" on:click={refresh}>');
     expect(source).toContain("title={foundationActionTitle('Create a verified AI OS backup now.')}");
     expect(source).toContain("title={foundationActionTitle('Verify the latest AI OS backup.', true)}");
@@ -345,6 +385,8 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('macroControlDisabled = Boolean(macroControlTitle)');
     expect(macro).toContain('macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy })');
     expect(macro).toContain('function macroRefreshDisabledReason');
+    expect(macro).toContain('function macroRowTitle');
+    expect(macro).toContain('title={macroRowTitle(macro)}');
     expect(macro).toContain("title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'}");
     expect(macro).toContain('function requireMacroReady');
     expect(macro).toContain('if (macroConnectionError(message)) serviceError = message');
@@ -410,6 +452,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Add at least one recipient before saving or sending.');
     expect(source).toContain("title={productivityActionTitle('Edit the event title.')}");
     expect(source).toContain("title={productivityActionTitle('Edit the message body.')}");
+    expect(source).toContain('title="Close the event editor without saving changes."');
     expect(source).toContain('Open the cached thread preview. Connect the API and Google to fetch full messages.');
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
@@ -436,10 +479,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Start or fix AI OS, Passive Tasks, or Macro Lab in Settings');
     expect(source).toContain('cached record');
     expect(source).toContain('function activityEmptyRefreshTitle');
+    expect(source).toContain('function dismissedToggleTitle');
+    expect(source).toContain('function restoreDismissedTitle');
     expect(source).toContain('function actionBlockedReason');
     expect(source).toContain('Another Activity action is already running.');
     expect(source).toContain('disabled={actionDisabled(record, action)}');
     expect(source).toContain('disabled={Boolean(refreshBlockedReason)}');
+    expect(source).toContain('title={dismissedToggleTitle()}');
+    expect(source).toContain('title={restoreDismissedTitle()}');
     expect(source).toContain("title={refreshBlockedReason || 'Refresh Activity records from connected sources.'}");
     expect(source).toContain('title={activityEmptyRefreshTitle()}');
     expect(source).toContain("href={hubHref('/settings')}");

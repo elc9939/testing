@@ -41,7 +41,9 @@
 
   type SourceLike = Pick<ResearchSource, 'url' | 'canonical_url'>;
 
-  const modes: Array<{ id: ResearchMode; label: string; hint: string }> = [
+  type ResearchModeOption = { id: ResearchMode; label: string; hint: string };
+
+  const modes: ResearchModeOption[] = [
     { id: 'quick_search', label: 'Quick Search', hint: 'Search, rank, summarize.' },
     { id: 'deep_research', label: 'Deep Research', hint: 'More queries and source comparison.' },
     { id: 'url_scrape', label: 'URL Scrape', hint: 'Read exact pages.' },
@@ -162,6 +164,37 @@
     return monitorActionTitle('Save the current workbench as a reusable monitor.');
   }
 
+  function researchModeTitle(item: ResearchModeOption): string {
+    return mode === item.id ? `${item.label} mode is selected.` : `Use ${item.label}: ${item.hint}`;
+  }
+
+  function advancedToggleTitle(): string {
+    return advancedOpen
+      ? 'Hide advanced research knobs; current values stay saved in this browser.'
+      : 'Show advanced research knobs for provider, model, domains, limits, and indexing.';
+  }
+
+  function researchRunSelectionTitle(run: ResearchRun): string {
+    const title = run.report.title || 'this research run';
+    return selectedRun?.id === run.id ? `${title} is the selected report.` : `Open ${title} from saved research runs.`;
+  }
+
+  function sourceSeedAlreadyAdded(url: string): boolean {
+    const next = normalizeTextUrl(url);
+    return Boolean(next && seedUrls.some((item) => normalizeTextUrl(item) === next));
+  }
+
+  function sourceSeedDisabled(url: string): boolean {
+    return !normalizeTextUrl(url) || sourceSeedAlreadyAdded(url);
+  }
+
+  function sourceSeedTitle(url: string): string {
+    const next = normalizeTextUrl(url);
+    if (!next) return 'This archived source does not have a usable URL.';
+    if (sourceSeedAlreadyAdded(url)) return 'This source is already listed in Seed URLs.';
+    return 'Add this archived source URL to Seed URLs.';
+  }
+
   function monitorActionBusy(monitor: ResearchMonitor, action: 'run' | 'toggle' | 'delete'): boolean {
     return monitorActionId === `${monitor.id}:${action}`;
   }
@@ -175,6 +208,7 @@
   });
 
   async function refreshRuns(): Promise<void> {
+    if (refreshing) return;
     refreshing = true;
     error = '';
     try {
@@ -881,7 +915,7 @@
     <form class="query-panel" on:submit|preventDefault={runResearch}>
       <div class="mode-grid" aria-label="Research mode">
         {#each modes as item}
-          <button class:active={mode === item.id} type="button" on:click={() => (mode = item.id)}>
+          <button class:active={mode === item.id} type="button" title={researchModeTitle(item)} on:click={() => (mode = item.id)}>
             <strong>{item.label}</strong>
             <small>{item.hint}</small>
           </button>
@@ -912,7 +946,7 @@
         </label>
       </div>
 
-      <button class="link-button" type="button" on:click={() => (advancedOpen = !advancedOpen)}>
+      <button class="link-button" type="button" title={advancedToggleTitle()} on:click={() => (advancedOpen = !advancedOpen)}>
         {advancedOpen ? 'Hide knobs' : 'Show knobs'}
       </button>
 
@@ -987,7 +1021,7 @@
       {#if runs.length}
         <div class="run-list">
           {#each runs as run}
-            <button class:active={selectedRun?.id === run.id} type="button" on:click={() => setSelectedRun(run)}>
+            <button class:active={selectedRun?.id === run.id} type="button" title={researchRunSelectionTitle(run)} on:click={() => setSelectedRun(run)}>
               <span class={`status ${run.status}`}>{statusLabel(run)}</span>
               <strong>{run.report.title}</strong>
               <small>{runMeta(run)}</small>
@@ -1014,7 +1048,7 @@
       {:else}
         <p class:error-message={Boolean(visibleRunError)} class="empty-note">{runsPanelState}</p>
         {#if visibleRunError || serviceIssue}
-          <button class="link-button compact" type="button" on:click={refreshRuns}>
+          <button class="link-button compact" type="button" disabled={refreshing} title={refreshRunsTitle()} on:click={refreshRuns}>
             <RefreshCw size={15} />
             <span>Retry Runs</span>
           </button>
@@ -1163,7 +1197,7 @@
                 <ExternalLink size={15} />
                 <span>Open</span>
               </a>
-              <button type="button" on:click={() => addSeedUrl(source.canonical_url)}>
+              <button type="button" disabled={sourceSeedDisabled(source.canonical_url)} title={sourceSeedTitle(source.canonical_url)} on:click={() => addSeedUrl(source.canonical_url)}>
                 <Search size={15} />
                 <span>Use as Seed</span>
               </button>

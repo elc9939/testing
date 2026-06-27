@@ -77,6 +77,10 @@
     editor = stringify(macro);
   }
 
+  function macroRowTitle(macro: MacroDefinition): string {
+    return selectedMacro?.id === macro.id ? `${macro.name} is selected.` : `Open ${macro.name} in the Macro Lab editor.`;
+  }
+
   function macroDisabledReason(
     state: { loading: boolean; busy: boolean; serviceError: string; status: MacroStatus | null } = { loading, busy, serviceError, status }
   ): string {
@@ -292,7 +296,7 @@
       <button class="icon-button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Create a new macro.'} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
     </div>
     {#each macros as macro}
-      <button class:active={selectedMacro?.id === macro.id} class="macro-row" type="button" on:click={() => selectMacro(macro)}>
+      <button class:active={selectedMacro?.id === macro.id} class="macro-row" type="button" title={macroRowTitle(macro)} on:click={() => selectMacro(macro)}>
         <span>
           <strong>{macro.name}</strong>
           <small>{macro.group}</small>
