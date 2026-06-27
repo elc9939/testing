@@ -10,6 +10,7 @@
     CheckCircle2,
     Clock3,
     Cpu,
+    Database,
     Eye,
     Inbox,
     MailCheck,
@@ -100,6 +101,15 @@
     attentionCount: attentionItems.length
   });
   $: actionLedgerItems = actionLedgerSnapshot?.actions.slice(0, 6) ?? [];
+  $: cachedCoreRows =
+    $clientData.jobs.length +
+    $clientData.studySessions.length +
+    $clientData.careerActions.length +
+    $clientData.gameRuns.length +
+    $clientData.gameStates.length;
+  $: saveStatusLabel = todaySaveStatusLabel();
+  $: saveStatusDetail = todaySaveStatusDetail();
+  $: lastSyncLabel = todayLastSyncLabel();
 
   function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
     if (!snapshot) return false;
@@ -506,6 +516,36 @@
     return 'Refresh Today from connected sources.';
   }
 
+  function todaySaveStatusLabel(): string {
+    if (!$clientData.initialized) return 'Loading cache';
+    if ($clientData.status === 'syncing') return 'Syncing';
+    if ($clientData.status === 'error') return 'Needs attention';
+    if (!$clientData.isOnline || $clientData.status === 'offline-readonly') return 'Offline read-only';
+    return 'Auto-save ready';
+  }
+
+  function todaySaveStatusDetail(): string {
+    if (!$clientData.initialized) return 'Opening the browser cache and local workspace snapshot.';
+    if ($clientData.error) return $clientData.error;
+    if (!$clientData.isOnline || $clientData.status === 'offline-readonly') {
+      return 'Cached pages stay readable; saves wait for the Hub API.';
+    }
+    return 'Career, Study, supported games, settings, and activity cache can save through their owners.';
+  }
+
+  function todayLastSyncLabel(): string {
+    if (!$clientData.initialized) return 'loading';
+    if (!$clientData.lastSyncedAt) return 'never';
+    const date = new Date($clientData.lastSyncedAt);
+    if (Number.isNaN(date.getTime())) return $clientData.lastSyncedAt;
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  }
+
   onMount(() => {
     void clientData.init();
     void attentionStore.init().then(() => refreshCapabilities(snapshotGoogleConnected($attentionStore.snapshot)));
@@ -593,6 +633,43 @@
   <div>
     <span>Source issues</span>
     <strong>{todayCountLabel(sourceIssues.length)}</strong>
+  </div>
+</section>
+
+<section class="card save-recovery-strip" aria-label="Save and recovery status">
+  <div class="save-recovery-title">
+    <span class="icon-chip"><Database size={16} /></span>
+    <div>
+      <strong>Save & Recovery</strong>
+      <small>{saveStatusLabel}</small>
+    </div>
+  </div>
+  <div class="save-recovery-facts">
+    <div>
+      <span>Browser cache</span>
+      <strong>{cachedCoreRows} row{cachedCoreRows === 1 ? '' : 's'}</strong>
+      <small>Reloads on this browser before live sources refresh.</small>
+    </div>
+    <div>
+      <span>Last sync</span>
+      <strong>{lastSyncLabel}</strong>
+      <small>{saveStatusDetail}</small>
+    </div>
+    <div>
+      <span>Long work</span>
+      <strong>Activity</strong>
+      <small>Research, AI OS, Passive, and Macro runs are recovered from Activity.</small>
+    </div>
+  </div>
+  <div class="save-recovery-actions">
+    <a class="button compact" href={hubHref('/activity')} title="Open durable Activity and Handoff records.">
+      <Activity size={15} />
+      <span>Activity</span>
+    </a>
+    <a class="button compact" href={hubHref('/settings')} title="Open Settings Data & Recovery for the full save and reload map.">
+      <Settings size={15} />
+      <span>Data Map</span>
+    </a>
   </div>
 </section>
 
@@ -1083,6 +1160,75 @@
 
   .signal-strip strong {
     font-size: 18px;
+  }
+
+  .save-recovery-strip {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr) auto;
+    align-items: stretch;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .save-recovery-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 10px;
+    border-right: 1px solid var(--border);
+  }
+
+  .save-recovery-title div,
+  .save-recovery-facts div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .save-recovery-title small,
+  .save-recovery-facts span,
+  .save-recovery-facts small {
+    color: var(--muted);
+  }
+
+  .save-recovery-title strong,
+  .save-recovery-title small,
+  .save-recovery-facts strong,
+  .save-recovery-facts small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .save-recovery-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-width: 0;
+  }
+
+  .save-recovery-facts div {
+    padding: 9px 10px;
+    border-right: 1px solid var(--border);
+  }
+
+  .save-recovery-facts span {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .save-recovery-facts strong {
+    font-size: 13px;
+  }
+
+  .save-recovery-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px;
   }
 
   .now-strip {
@@ -1647,13 +1793,20 @@
 
   @media (max-width: 1120px) {
     .cockpit-grid,
-    .now-strip {
+    .now-strip,
+    .save-recovery-strip {
       grid-template-columns: 1fr;
     }
 
-    .strip-title {
+    .strip-title,
+    .save-recovery-title {
       border-right: 0;
       border-bottom: 1px solid var(--border);
+    }
+
+    .save-recovery-actions {
+      justify-content: flex-start;
+      border-top: 1px solid var(--border);
     }
   }
 
@@ -1694,6 +1847,15 @@
       justify-content: flex-start;
       min-width: 0;
       padding: 0 10px 10px 104px;
+    }
+
+    .save-recovery-facts {
+      grid-template-columns: 1fr;
+    }
+
+    .save-recovery-facts div {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
     }
   }
 

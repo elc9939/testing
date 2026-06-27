@@ -594,6 +594,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Loading Career and Study attention from the hub...');
     expect(source).toContain('function systemEmptyMessage');
     expect(source).toContain('Loading local service and AI OS signals...');
+    expect(source).toContain('cachedCoreRows =');
+    expect(source).toContain('function todaySaveStatusLabel');
+    expect(source).toContain('function todaySaveStatusDetail');
+    expect(source).toContain('function todayLastSyncLabel');
+    expect(source).toContain('Save & Recovery');
+    expect(source).toContain('aria-label="Save and recovery status"');
+    expect(source).toContain('Cached pages stay readable; saves wait for the Hub API.');
+    expect(source).toContain('Research, AI OS, Passive, and Macro runs are recovered from Activity.');
+    expect(source).toContain("href={hubHref('/activity')}");
+    expect(source).toContain('Data Map');
   });
 
   it('keeps Career and Study inline edits read-only when save capability drops', async () => {

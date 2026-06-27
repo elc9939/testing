@@ -22,7 +22,8 @@ const routes = [
       { label: 'partial source issues', text: 'sourceIssues' },
       { label: 'setup warning panels', text: 'warning-panel' },
       { label: 'unavailable source state', text: "status: 'unavailable'" },
-      { label: 'recommendation action gating', text: 'modeActionDisabled' }
+      { label: 'recommendation action gating', text: 'modeActionDisabled' },
+      { label: 'save and recovery strip', text: 'Save & Recovery' }
     ]
   },
   {
