@@ -68,8 +68,11 @@ const routes = [
     requiredMarkers: [
       { label: 'write gating', text: 'productivityWriteDisabled' },
       { label: 'write mode summary', text: 'productivityWriteStatus = productivityWriteStateLabel()' },
+      { label: 'read mode summary', text: 'productivityReadStatus = productivityReadStateLabel()' },
+      { label: 'cached read-only state', text: 'Cached read-only' },
       { label: 'api offline write detail', text: 'OAuth, Gmail, and Calendar writes need the local API' },
       { label: 'google setup write detail', text: 'Use Connect Google or Add Google Account before sending mail' },
+      { label: 'calendar event disabled title', text: 'calendarEventBlockTitle' },
       { label: 'offline cache banner', text: 'offline-banner' },
       { label: 'cached productivity wording', text: 'cached productivity data can stay visible' },
       { label: 'OAuth gating', text: 'googleConnectDisabled' }

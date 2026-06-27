@@ -159,6 +159,8 @@
   $: cacheStatus = cacheLoadedAt ? `Cached ${displayTime(cacheLoadedAt)}` : 'No local cache yet';
   $: productivityWriteStatus = productivityWriteStateLabel();
   $: productivityWriteDetail = productivityWriteStateDetail();
+  $: productivityReadStatus = productivityReadStateLabel();
+  $: productivityReadDetail = productivityReadStateDetail();
   $: productivityCacheDetail = cacheLoadedAt
     ? 'Calendar, mail, filters, and selected account restore from this browser before live refresh finishes.'
     : 'No browser snapshot has been saved yet; connect Google and refresh to create one.';
@@ -445,6 +447,24 @@
     return 'Gmail and Calendar write controls can use connected Google accounts.';
   }
 
+  function productivityReadStateLabel(): string {
+    if (loading) return 'Loading';
+    if (productivityReady) return 'Live reads';
+    if (cacheLoadedAt) return 'Cached read-only';
+    if (!canAct) return 'API offline';
+    if (!googleConnected) return 'Google setup';
+    return 'Unavailable';
+  }
+
+  function productivityReadStateDetail(): string {
+    if (loading) return 'Loading cached productivity data first, then live Google data when available.';
+    if (productivityReady) return 'Calendar and Gmail reads can refresh from connected Google accounts.';
+    if (cacheLoadedAt) return 'Showing the last browser snapshot; live refresh, search, and edits wait for the local API and Google.';
+    if (!canAct) return 'Start or connect the local API to load live Gmail and Calendar data.';
+    if (!googleConnected) return 'Connect Google to load live Gmail and Calendar data.';
+    return 'Open Settings to inspect Productivity wiring.';
+  }
+
   function productivityRefreshTitle(): string {
     if (actionBusyKey) return 'Another Productivity action is already running.';
     if (loading) return 'Productivity is already loading.';
@@ -469,6 +489,12 @@
     if (loading) return 'Productivity is still loading the latest connection state.';
     if (!productivityReady) return 'Connect the API and Google to load live calendar controls. Cached data remains visible.';
     return enabledTitle;
+  }
+
+  function calendarEventBlockTitle(event: CalendarEvent): string {
+    const eventSummary = `${event.title} / ${eventTimeRange(event)}`;
+    if (productivityWriteDisabled) return `${eventSummary}. ${productivityActionTitle('Edit this event.')}`;
+    return `${eventSummary}. Edit this event.`;
   }
 
   function productivityValidatedActionTitle(enabledTitle: string, validationReason: string): string {
@@ -1086,6 +1112,11 @@
     <small>{productivityWriteDetail}</small>
   </div>
   <div>
+    <span>Read Mode</span>
+    <strong>{productivityReadStatus}</strong>
+    <small>{productivityReadDetail}</small>
+  </div>
+  <div>
     <span>API</span>
     <strong>{canAct ? 'Reachable' : 'Offline'}</strong>
     <small>{productivityApiDetail}</small>
@@ -1220,7 +1251,7 @@
                 class="event-block"
                 type="button"
                 style={eventBlockStyle(event)}
-                title={`${event.title} / ${eventTimeRange(event)}`}
+                title={calendarEventBlockTitle(event)}
                 disabled={productivityWriteDisabled}
                 on:click={() => editEvent(event)}
               >
@@ -1259,7 +1290,7 @@
             <td>{calendarName(event.calendarId)}</td>
             <td class="row-actions">
               {#if event.htmlLink}
-                <a class="icon-button" href={event.htmlLink} target="_blank" rel="noreferrer" aria-label="Open in Google Calendar" title="Open">
+                <a class="icon-button" href={event.htmlLink} target="_blank" rel="noreferrer" aria-label="Open in Google Calendar" title="Open this event in Google Calendar.">
                   <ExternalLink size={16} />
                 </a>
               {/if}
