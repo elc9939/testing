@@ -106,7 +106,7 @@ const routes = [
     sampleInput: 'Choose a quick label/minutes. Only click Log Progress when Mini Hub API is online; otherwise inspect disabled titles.',
     expectedResult: 'Study progress and analytics update after a save, or offline read-only explains why logging is disabled.',
     reloadProof: 'Reload after changing quick-log defaults or filters; the browser should report reloaded Study view/defaults.',
-    safeActionLabels: ['Log', 'Export'],
+    safeActionLabels: ['Log'],
     expectedBlockedState: 'Offline read-only explains cached sessions and disables logging.',
     persistence: 'Logged sessions, filters, quick-log defaults, and analytics should reload from API/cache/browser storage.',
     requiredMarkers: [
@@ -145,7 +145,7 @@ const routes = [
     sampleInput: 'Goal: "Compare two sources about local AI model routing and list open questions." Keep depth/pages small.',
     expectedResult: 'Offline AI OS shows one service card and no fake run; online AI OS queues a run, polls progress, and keeps the selected report visible.',
     reloadProof: 'Navigate away and back or reload; draft goal/options/seed URLs and selected/latest active run should restore.',
-    safeActionLabels: ['Run', 'Connect AI OS', 'Refresh'],
+    safeActionLabels: ['Run', 'Connect AI OS', 'Retry Service'],
     expectedBlockedState: 'One compact AI OS setup card; no fake run appears when offline.',
     persistence: 'Draft goal/options/seed URLs, selected report, loaded monitor, and latest active run should restore after navigation.',
     requiredMarkers: [
@@ -587,14 +587,18 @@ function visibleIssueSnippets(html) {
 
 function safeActionStatus(route, controls) {
   const labels = route.safeActionLabels ?? [];
-  if (!labels.length) return { found: false, enabled: false, labels: [] };
+  if (!labels.length) return { found: false, enabled: false, labels: [], missingLabels: [] };
   const matches = controls.filter((control) =>
     labels.some((label) => control.label.toLowerCase().includes(label.toLowerCase()) || control.title.toLowerCase().includes(label.toLowerCase()))
+  );
+  const missingLabels = labels.filter(
+    (label) => !controls.some((control) => control.label.toLowerCase().includes(label.toLowerCase()) || control.title.toLowerCase().includes(label.toLowerCase()))
   );
   return {
     found: matches.length > 0,
     enabled: matches.some((control) => !control.disabled),
-    labels: matches.slice(0, 6).map((control) => `${control.disabled ? 'disabled' : 'enabled'}:${control.label}`)
+    labels: matches.slice(0, 6).map((control) => `${control.disabled ? 'disabled' : 'enabled'}:${control.label}`),
+    missingLabels
   };
 }
 
@@ -651,6 +655,7 @@ function liveHydrationState(row) {
 
 function safeActionSummary(safeAction) {
   if (!safeAction?.found) return 'missing';
+  if (safeAction.missingLabels?.length) return `missing ${safeAction.missingLabels.join(', ')}`;
   return safeAction.enabled ? 'enabled' : 'disabled/setup';
 }
 
@@ -658,6 +663,11 @@ function liveSafeActionSummary(row) {
   if (!row) return 'not run';
   if (row.ok && (row.buttons ?? 0) + (row.links ?? 0) === 0) return 'not-inspected';
   return safeActionSummary(row.safeAction);
+}
+
+function sourceSafeActionSummary(row) {
+  if (row.missingSafeActionRefs?.length) return `missing ${row.missingSafeActionRefs.join(', ')}`;
+  return row.safeActionRefs.join(', ') || 'MISSING';
 }
 
 async function sourceSnapshot(route) {
@@ -675,7 +685,13 @@ async function sourceSnapshot(route) {
   const forms = extractFormStates(source);
   const errors = count(/(?:error-message|error-banner|warning-panel|offline-banner|service-card|connection-card)/giu, source);
   const settingsLinks = count(/routeMap\.settings|Open Settings|href=\{hubHref\(routeMap\.settings\)\}/giu, source);
-  const safeActionRefs = (route.safeActionLabels ?? []).filter((label) => source.toLowerCase().includes(label.toLowerCase()));
+  const sourceControls = [...sourceButtons, ...sourceLinks];
+  const safeActionRefs = (route.safeActionLabels ?? []).filter((label) =>
+    sourceControls.some((control) => control.label.toLowerCase().includes(label.toLowerCase()) || control.title.toLowerCase().includes(label.toLowerCase()))
+  );
+  const missingSafeActionRefs = (route.safeActionLabels ?? []).filter(
+    (label) => !sourceControls.some((control) => control.label.toLowerCase().includes(label.toLowerCase()) || control.title.toLowerCase().includes(label.toLowerCase()))
+  );
   const markerStatus = sourceMarkerStatus(route, source);
   return {
     ...route,
@@ -695,6 +711,7 @@ async function sourceSnapshot(route) {
     errors,
     settingsLinks,
     safeActionRefs,
+    missingSafeActionRefs,
     markerStatus,
     sourceOk: Boolean(title && heading)
   };
@@ -765,7 +782,7 @@ function printMarkdown(rows, liveRows) {
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} buttons ${live.enabledButtons ?? 0}/${live.buttons ?? 0} links ${live.enabledLinks ?? 0}/${live.links ?? 0} safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} | ${liveHydrationState(live)} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${sourceSafeActionSummary(row)} | ${markerSummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} | ${liveHydrationState(live)} |`
     );
   }
 }
@@ -794,6 +811,7 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] Reload proof: ${row.reloadProof}`);
     console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, ambiguous controls ${row.sourceAmbiguousControls}, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
     console.log(`- [ ] Hydration status: ${liveHydrationState(live)}.`);
+    if (row.missingSafeActionRefs?.length) console.log(`- [ ] Missing source safe-action labels: ${row.missingSafeActionRefs.join(', ')}.`);
     if (row.sourceButtonLabels) console.log(`- [ ] Source buttons: ${row.sourceButtonLabels}`);
     if (row.sourceLinkLabels) console.log(`- [ ] Source links: ${row.sourceLinkLabels}`);
     if (row.sourceAmbiguousControls) console.log(`- [ ] Ambiguous source controls needing labels/titles: ${row.sourceAmbiguousControlLabels}`);
@@ -834,6 +852,7 @@ async function main() {
     (row) =>
       !row.sourceOk ||
       !row.safeActionRefs.length ||
+      row.missingSafeActionRefs.length ||
       missingMarkers(row).length ||
       missingScenarioFields(row).length ||
       row.unguardedForms ||

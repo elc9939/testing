@@ -769,6 +769,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Confirm required state/recovery markers');
     expect(source).toContain('missingMarkers(row).length');
     expect(source).toContain('missingScenarioFields(row).length');
+    expect(source).toContain('row.missingSafeActionRefs.length');
     expect(source).toContain('function extractButtonStates');
     expect(source).toContain('function extractLinkStates');
     expect(source).toContain('function stripMarkupTags');
@@ -782,6 +783,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function safeActionStatus');
     expect(source).toContain('function safeActionSummary');
     expect(source).toContain('function liveSafeActionSummary');
+    expect(source).toContain('function sourceSafeActionSummary');
+    expect(source).toContain('missingLabels');
+    expect(source).toContain('missingSafeActionRefs');
     expect(source).toContain('disabled/setup');
     expect(source).toContain('not-inspected');
     expect(source).toContain('function liveRenderState');
@@ -812,6 +816,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled-link refs');
     expect(source).toContain('enabled links');
     expect(source).toContain('row.links');
+    expect(source).toContain('const sourceControls = [...sourceButtons, ...sourceLinks]');
     expect(source).toContain('sourceButtonLabels');
     expect(source).toContain('sourceLinkLabels');
     expect(source).toContain('sourceAmbiguousControls');
