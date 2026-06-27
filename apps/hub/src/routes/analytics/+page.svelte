@@ -18,7 +18,42 @@
   $: trendValues = buildStudyMinutesTrend($clientData.studySessions);
   $: hasMetrics = rows.some((row) => row.value > 0);
   $: hasTrend = trendValues.some((value) => value > 0);
+  $: cachedRecordCount = rows.reduce((sum, row) => sum + row.value, 0);
   $: if (plotHost) void render(rows, trendValues);
+
+  function displayTime(value: string): string {
+    if (!value) return 'n/a';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  }
+
+  function analyticsCacheStatus(): string {
+    if (!$clientData.initialized) return 'Cache loading';
+    if (refreshError) return 'Refresh failed; using last loaded cache';
+    if (renderError) return 'Renderer failed; data still cached';
+    if ($clientData.status === 'syncing') return 'Syncing; showing browser cache';
+    if ($clientData.status === 'offline-readonly') return 'Offline read-only cache';
+    if ($clientData.status === 'error') return 'Cache needs attention';
+    return 'Browser cache ready';
+  }
+
+  function analyticsSyncDetail(): string {
+    if (!$clientData.initialized) return 'Loading PGlite/browser cache.';
+    if ($clientData.lastSyncedAt) return `Last sync ${displayTime($clientData.lastSyncedAt)}`;
+    if ($clientData.status === 'offline-readonly') return 'No live sync; showing saved browser data.';
+    if ($clientData.status === 'error') return $clientData.error || 'Cache status reported an error.';
+    return 'No completed sync recorded in this browser yet.';
+  }
+
+  function analyticsRecordSummary(): string {
+    return `${cachedRecordCount} cached analytics signal${cachedRecordCount === 1 ? '' : 's'}`;
+  }
 
   async function render(nextRows = rows, nextTrend = trendValues): Promise<void> {
     if (!plotHost) return;
@@ -87,6 +122,11 @@
   {#if refreshError || renderError}
     <p class="error-text">{refreshError || renderError}</p>
   {/if}
+  <div class="state-meta" aria-label="Analytics cache status">
+    <span>{analyticsCacheStatus()}</span>
+    <span>{analyticsSyncDetail()}</span>
+    <span>{analyticsRecordSummary()}</span>
+  </div>
 </section>
 
 <section class="grid two">
@@ -138,6 +178,24 @@
     margin: 0;
     color: var(--muted);
     line-height: 1.45;
+  }
+
+  .state-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .state-meta span {
+    min-height: 26px;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
   }
 
   .analytics-state.error {

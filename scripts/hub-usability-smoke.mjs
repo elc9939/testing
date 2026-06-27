@@ -117,7 +117,8 @@ const routes = [
       { label: 'cached/offline state', text: "viewState === 'offline'" },
       { label: 'healthy empty state', text: 'Healthy Empty' },
       { label: 'refresh failure state', text: 'Refresh Failed' },
-      { label: 'refresh busy gate', text: 'refreshBusy' }
+      { label: 'refresh busy gate', text: 'refreshBusy' },
+      { label: 'cache status row', text: 'Analytics cache status' }
     ]
   },
   {

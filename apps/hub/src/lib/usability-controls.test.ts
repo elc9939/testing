@@ -638,6 +638,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('let refreshBusy = false');
     expect(source).toContain('if (refreshBusy) return');
     expect(source).toContain('refreshError = error instanceof Error');
+    expect(source).toContain('cachedRecordCount = rows.reduce');
+    expect(source).toContain('function analyticsCacheStatus');
+    expect(source).toContain('function analyticsSyncDetail');
+    expect(source).toContain('function analyticsRecordSummary');
+    expect(source).toContain('aria-label="Analytics cache status"');
+    expect(source).toContain('Last sync');
+    expect(source).toContain('No completed sync recorded in this browser yet.');
     expect(source).toContain('disabled={refreshBusy}');
     expect(source).toContain("{refreshBusy ? 'Refreshing' : 'Refresh'}");
     expect(source).toContain("refreshError ? 'Refresh Failed'");
