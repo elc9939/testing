@@ -21,6 +21,60 @@ async function routePageFiles(dir = routesRoot): Promise<string[]> {
   return files.flat();
 }
 
+function firstTag(block: string): string {
+  let quote = '';
+  let braces = 0;
+  for (let index = 0; index < block.length; index += 1) {
+    const char = block[index];
+    if (quote) {
+      if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '{') braces += 1;
+    if (char === '}') braces = Math.max(0, braces - 1);
+    if (char === '>' && braces === 0) return block.slice(0, index + 1);
+  }
+  return block;
+}
+
+function visibleControlText(block: string): string {
+  let output = '';
+  let inTag = false;
+  let quote = '';
+  let braces = 0;
+  for (let index = 0; index < block.length; index += 1) {
+    const char = block[index];
+    if (inTag) {
+      if (quote) {
+        if (char === quote) quote = '';
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        continue;
+      }
+      if (char === '{') braces += 1;
+      if (char === '}') braces = Math.max(0, braces - 1);
+      if (char === '>' && braces === 0) inTag = false;
+      continue;
+    }
+    if (char === '<') {
+      inTag = true;
+      continue;
+    }
+    output += char;
+  }
+  return output
+    .replace(/\{[#/:@][^}]*\}/g, ' ')
+    .replace(/&[a-z0-9#]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 describe('Mini Hub usability control gates', () => {
   it('keeps disabled route buttons self-explanatory', async () => {
     const offenders: string[] = [];
@@ -55,6 +109,29 @@ describe('Mini Hub usability control gates', () => {
       for (const button of buttons) {
         const block = button[0];
         if (!/\btype=/.test(block)) {
+          const line = source.slice(0, button.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps icon-only route buttons labelled', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await routePageFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const buttons = source.matchAll(/<button\b[\s\S]*?<\/button>/g);
+
+      for (const button of buttons) {
+        const block = button[0];
+        const open = firstTag(block);
+        const hasAccessibleLabel = /\b(?:aria-label|title)=/.test(open);
+        const hasVisibleText = Boolean(visibleControlText(block));
+        if (!hasVisibleText && !hasAccessibleLabel) {
           const line = source.slice(0, button.index ?? 0).split('\n').length;
           offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
         }
