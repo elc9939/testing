@@ -462,8 +462,11 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('title={macroRowTitle(macro)}');
     expect(macro).toContain("title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'}");
     expect(macro).toContain('function requireMacroReady');
-    expect(macro).toContain('if (macroConnectionError(message)) serviceError = message');
-    expect(macro).toContain('Macro Lab connection failed: {serviceError}');
+    expect(macro).toContain('if (macroConnectionError(message)) {');
+    expect(macro).toContain("actionError = ''");
+    expect(macro).toContain('connection-card service-card');
+    expect(macro).toContain('Macro Lab connection failed');
+    expect(macro).toContain('<p>{serviceError}</p>');
     expect(macro).toContain("title={macroControlTitle || 'Run this macro with confirmed side effects.'}");
     expect(macro).toContain('disabled={macroControlDisabled}');
     expect(passive).toContain('passiveServiceReady = Boolean(snapshot && settings && !serviceError)');

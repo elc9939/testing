@@ -111,7 +111,10 @@
   function recordMacroActionError(caught: unknown, fallback: string): void {
     const message = caught instanceof Error ? caught.message : fallback;
     actionError = message;
-    if (macroConnectionError(message)) serviceError = message;
+    if (macroConnectionError(message)) {
+      serviceError = message;
+      actionError = '';
+    }
   }
 
   async function refresh(): Promise<void> {
@@ -252,11 +255,11 @@
 </div>
 
 {#if serviceError}
-  <div class="notice error">Macro Lab connection failed: {serviceError}</div>
-  <section class="card card-pad connection-card">
+  <section class="card card-pad connection-card service-card">
     <div>
-      <strong>Desktop service</strong>
+      <strong>Macro Lab connection failed</strong>
       <span>{getMacroLabApiUrl()}</span>
+      <p>{serviceError}</p>
       <p>{localNetworkHint()}</p>
     </div>
     <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>

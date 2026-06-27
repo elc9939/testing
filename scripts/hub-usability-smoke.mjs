@@ -199,6 +199,7 @@ const routes = [
       { label: 'service readiness state', text: 'macroServiceReady' },
       { label: 'macro control gate', text: 'macroControlDisabled' },
       { label: 'connection card', text: 'connection-card' },
+      { label: 'compact service card', text: 'service-card' },
       { label: 'history unavailable state', text: 'Run history is unavailable until Macro Lab responds.' }
     ]
   },
