@@ -258,6 +258,10 @@ const routes = [
     expectedBlockedState: 'Legacy/playground games remain launchable; API-backed saves explain offline state.',
     persistence: 'High scores/game state should reload from cache/API where supported.',
     requiredMarkers: [
+      { label: 'save and recovery status', text: 'Games save and recovery status' },
+      { label: 'cached game runs', text: 'gameRunCount = $clientData.gameRuns.length' },
+      { label: 'cached game state', text: 'gameStateCount = $clientData.gameStates.length' },
+      { label: 'offline save wording', text: 'API-backed run/state saves are disabled' },
       { label: 'new lab route', text: "hubHref('/games/stick-arena-lab')" },
       { label: 'legacy fallback route', text: 'legacyHref()' },
       { label: 'legacy arcade label', text: 'Legacy Arcade' }

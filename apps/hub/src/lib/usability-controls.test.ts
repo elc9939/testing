@@ -746,8 +746,18 @@ describe('Mini Hub usability control gates', () => {
   });
 
   it('explains Stick Arena lab loading and offline save controls', async () => {
+    const games = await routeSource('../routes/games/+page.svelte');
     const source = await routeSource('../routes/games/stick-arena-lab/+page.svelte');
 
+    expect(games).toContain('Games save and recovery status');
+    expect(games).toContain('gameRunCount = $clientData.gameRuns.length');
+    expect(games).toContain('gameStateCount = $clientData.gameStates.length');
+    expect(games).toContain("gameSaveMode = $clientData.isOnline ? 'API-backed saves enabled' : 'Offline read-only'");
+    expect(games).toContain('Supported game runs and state save through the Mini Hub API');
+    expect(games).toContain('Games remain playable, but API-backed run/state saves are disabled');
+    expect(games).toContain('Open Settings Data & Recovery for game cache and API status.');
+    expect(games).toContain('title="Open Stick Arena Ability Lab."');
+    expect(games).toContain('title="Open the legacy arcade."');
     expect(source).toContain('labReady = Boolean(lab)');
     expect(source).toContain('saveDisabled = !labReady || !canSave || saving');
     expect(source).toContain('resetDisabled = !labReady || labControlBusy');

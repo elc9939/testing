@@ -1,6 +1,21 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { ArrowRight, Gamepad2 } from 'lucide-svelte';
+  import { clientData } from '$lib/client-data';
   import { hubHref, legacyHref } from '$lib/routes';
+
+  $: gameRunCount = $clientData.gameRuns.length;
+  $: gameStateCount = $clientData.gameStates.length;
+  $: lastGameRun = $clientData.gameRuns[0] ?? null;
+  $: gameSaveMode = $clientData.isOnline ? 'API-backed saves enabled' : 'Offline read-only';
+  $: gameSaveDetail = $clientData.isOnline
+    ? 'Supported game runs and state save through the Mini Hub API, then reload from the local browser cache.'
+    : 'Games remain playable, but API-backed run/state saves are disabled until Mini Hub reconnects.';
+  $: lastGameRunLabel = lastGameRun ? new Date(lastGameRun.updatedAt).toLocaleString() : 'No saved game run in cache.';
+
+  onMount(() => {
+    void clientData.init();
+  });
 </script>
 
 <svelte:head>
@@ -14,8 +29,30 @@
   </div>
 </section>
 
+<section class="card card-pad save-recovery-strip" aria-label="Games save and recovery status">
+  <div>
+    <span>Save Mode</span>
+    <strong>{gameSaveMode}</strong>
+    <small>{gameSaveDetail}</small>
+  </div>
+  <div>
+    <span>Cached Runs</span>
+    <strong>{gameRunCount}</strong>
+    <small>Last run: {lastGameRunLabel}</small>
+  </div>
+  <div>
+    <span>Cached State</span>
+    <strong>{gameStateCount}</strong>
+    <small>Stick Arena uses API/cache saves; legacy games keep their existing local behavior.</small>
+  </div>
+  <a class="button compact" href={hubHref('/settings')} title="Open Settings Data & Recovery for game cache and API status.">
+    <span>Recovery</span>
+    <ArrowRight size={15} />
+  </a>
+</section>
+
 <section class="grid two">
-  <a class="card game-link" href={hubHref('/games/stick-arena-lab')}>
+  <a class="card game-link" href={hubHref('/games/stick-arena-lab')} title="Open Stick Arena Ability Lab.">
     <Gamepad2 size={22} />
     <div>
       <strong>Stick Arena Ability Lab</strong>
@@ -24,7 +61,7 @@
     <ArrowRight size={18} />
   </a>
 
-  <a class="card game-link legacy" href={legacyHref()}>
+  <a class="card game-link legacy" href={legacyHref()} title="Open the legacy arcade.">
     <Gamepad2 size={22} />
     <div>
       <strong>Legacy Arcade</strong>
@@ -50,7 +87,39 @@
     color: var(--muted);
   }
 
+  .save-recovery-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .save-recovery-strip div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .save-recovery-strip span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .save-recovery-strip small {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
   .legacy {
     border-style: dashed;
+  }
+
+  @media (max-width: 860px) {
+    .save-recovery-strip {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
