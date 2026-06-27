@@ -9,6 +9,36 @@ export function getApiUrl(): string {
 
 export const apiUrl = getApiUrl();
 
+export interface HubHealth {
+  ok: boolean;
+  service: string;
+  checkedAt?: string;
+  storage?: {
+    coreData?: {
+      enabled: boolean;
+      status: 'persistent' | 'memory_only' | 'missing' | 'error';
+      path?: string;
+      exists: boolean;
+      bytes?: number;
+      updatedAt?: string;
+      detail: string;
+      recordCounts: {
+        workspaces: number;
+        members: number;
+        jobs: number;
+        studySessions: number;
+        careerActions: number;
+        gameRuns: number;
+        gameStates: number;
+        settings: number;
+        achievements: number;
+        notes: number;
+        syncEvents: number;
+      };
+    };
+  };
+}
+
 export async function requestApiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   return requestServiceJson<T>('hubApi', getApiUrl(), path, init, { credentials: 'include' });
 }
@@ -17,8 +47,8 @@ export async function requestApiJsonWithTimeout<T>(path: string, init: RequestIn
   return withTimeout(requestApiJson<T>(path, init), `Mini Hub API request ${path}`, timeoutMs);
 }
 
-export async function getHealth(): Promise<{ ok: boolean; service: string }> {
-  return requestApiJson<{ ok: boolean; service: string }>('/api/health');
+export async function getHealth(): Promise<HubHealth> {
+  return requestApiJson<HubHealth>('/api/health');
 }
 
 export async function getHubActionLedger(limit = 50): Promise<ActionLedgerEntry[]> {

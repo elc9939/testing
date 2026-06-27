@@ -21,6 +21,7 @@ import { syncRoutes } from './routes/sync';
 import { workspaceRoutes } from './routes/workspaces';
 import {
   actionLedgerPath,
+  coreDataHealth,
   coreDataPath,
   createMemoryStore,
   defaultStore,
@@ -114,7 +115,16 @@ export function createApp(options: CreateAppOptions = {}) {
   });
 
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
-  app.get('/api/health', (c) => c.json({ ok: true, service: 'mini-hub-api' }));
+  app.get('/api/health', (c) =>
+    c.json({
+      ok: true,
+      service: 'mini-hub-api',
+      checkedAt: new Date().toISOString(),
+      storage: {
+        coreData: coreDataHealth(store)
+      }
+    })
+  );
   app.route('/api/workspaces', workspaceRoutes(store));
   app.route('/api/sync', syncRoutes(store));
   app.route('/api/settings', settingsRoutes(store));

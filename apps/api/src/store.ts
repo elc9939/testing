@@ -36,7 +36,7 @@ import {
   type SyncEvent,
   type Workspace
 } from '@mini-hub/core';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 
@@ -71,6 +71,29 @@ export interface WorkspaceMember {
   workspaceId: string;
   userId: string;
   role: 'owner' | 'admin' | 'member' | 'viewer';
+}
+
+export interface CoreDataHealth {
+  enabled: boolean;
+  status: 'persistent' | 'memory_only' | 'missing' | 'error';
+  path?: string;
+  exists: boolean;
+  bytes?: number;
+  updatedAt?: string;
+  detail: string;
+  recordCounts: {
+    workspaces: number;
+    members: number;
+    jobs: number;
+    studySessions: number;
+    careerActions: number;
+    gameRuns: number;
+    gameStates: number;
+    settings: number;
+    achievements: number;
+    notes: number;
+    syncEvents: number;
+  };
 }
 
 export interface MemoryStore {
@@ -190,6 +213,66 @@ export function persistCoreData(store: MemoryStore): void {
     syncEvents: store.syncEvents
   });
   writeJsonFile(store.coreDataPersistencePath, state);
+}
+
+export function coreDataHealth(store: MemoryStore): CoreDataHealth {
+  const recordCounts = {
+    workspaces: store.workspaces.size,
+    members: store.members.length,
+    jobs: store.jobs.length,
+    studySessions: store.studySessions.length,
+    careerActions: store.careerActions.length,
+    gameRuns: store.gameRuns.length,
+    gameStates: store.gameStates.size,
+    settings: store.settings ? 1 : 0,
+    achievements: store.achievements.length,
+    notes: store.notes.length,
+    syncEvents: store.syncEvents.length
+  };
+  const path = store.coreDataPersistencePath;
+  if (!path) {
+    return {
+      enabled: false,
+      status: 'memory_only',
+      exists: false,
+      detail: 'Core personal records are in memory only for this API process.',
+      recordCounts
+    };
+  }
+
+  if (!existsSync(path)) {
+    return {
+      enabled: true,
+      status: 'missing',
+      path,
+      exists: false,
+      detail: 'Core personal records are configured for disk persistence, but no snapshot file exists yet.',
+      recordCounts
+    };
+  }
+
+  try {
+    const stat = statSync(path);
+    return {
+      enabled: true,
+      status: 'persistent',
+      path,
+      exists: true,
+      bytes: stat.size,
+      updatedAt: stat.mtime.toISOString(),
+      detail: 'Core personal records are persisted to the local API snapshot file.',
+      recordCounts
+    };
+  } catch (error) {
+    return {
+      enabled: true,
+      status: 'error',
+      path,
+      exists: true,
+      detail: `Core personal data persistence could not be inspected: ${error instanceof Error ? error.message : 'unknown error'}`,
+      recordCounts
+    };
+  }
 }
 
 export function enableIntegrationPersistence(store: MemoryStore, path: string): void {

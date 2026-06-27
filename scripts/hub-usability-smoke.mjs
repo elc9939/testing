@@ -377,7 +377,7 @@ async function sourceSnapshot(route) {
   };
 }
 
-async function fetchRoute(baseUrl, route) {
+async function fetchRouteAttempt(baseUrl, route, attempt) {
   const url = new URL(route.path.replace(/^\//u, ''), baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
@@ -399,7 +399,8 @@ async function fetchRoute(baseUrl, route) {
       buttonLabels: buttons.slice(0, 12).map((button) => `${button.disabled ? 'disabled' : 'enabled'}:${button.label}`),
       issueSnippets: visibleIssueSnippets(text),
       safeAction,
-      rawNotFound: /\bNot Found\b/u.test(stripHtml(text))
+      rawNotFound: /\bNot Found\b/u.test(stripHtml(text)),
+      attempts: attempt
     };
   } catch (error) {
     return {
@@ -408,11 +409,20 @@ async function fetchRoute(baseUrl, route) {
       ok: false,
       title: '',
       contentType: '',
-      error: error instanceof Error ? error.message : 'fetch failed'
+      error: error instanceof Error ? error.message : 'fetch failed',
+      attempts: attempt
     };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchRoute(baseUrl, route) {
+  const first = await fetchRouteAttempt(baseUrl, route, 1);
+  if (first.status !== 0) return first;
+  const second = await fetchRouteAttempt(baseUrl, route, 2);
+  if (second.ok) return { ...second, previousError: first.error };
+  return { ...second, previousError: first.error ?? second.error };
 }
 
 function printMarkdown(rows, liveRows) {
@@ -421,7 +431,7 @@ function printMarkdown(rows, liveRows) {
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
-      ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${liveSafeActionSummary(live)} ${live.error ?? ''}`.trim()
+      ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
       `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.disabled} | ${formSummary(row)} | ${row.safeActionRefs.join(', ') || 'MISSING'} | ${markerSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} |`

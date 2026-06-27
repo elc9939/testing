@@ -304,7 +304,9 @@ The hub is currently optimized for a private single-user setup:
 - The local API persists core personal records to `MINI_HUB_DATA_DIR/core-data.json`:
   workspaces, Career jobs/actions, Study sessions, game runs/state, settings, notes,
   achievements, and sync events. This lets same-machine progress survive API restarts
-  even before a Postgres source of truth is configured.
+  even before a Postgres source of truth is configured. `/api/health` reports whether
+  that snapshot is persistent, memory-only, missing, or unhealthy, and Settings -> Workspace
+  shows the same core-data status with record counts.
 - Browser/Tauri clients keep a local PGlite cache.
 - Offline mode is read-only: cached data stays visible, but saves are disabled.
 - Legacy `localStorage` data is imported so old Career Desk, Study Desk, game state,

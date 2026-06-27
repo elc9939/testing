@@ -10,7 +10,7 @@
     loadActionLedger,
     type ActionLedgerSnapshot
   } from '$lib/action-ledger';
-  import { getApiUrl, getHealth, restoreHubActionLedgerEntry } from '$lib/api';
+  import { getApiUrl, getHealth, restoreHubActionLedgerEntry, type HubHealth } from '$lib/api';
   import { getAiOsApiUrl, getMachineProfile, restoreAiActionSnapshot, runAutotune, snapshotMachineProfile, type AiMachineProfile, type AiMachineProfileSnapshot } from '$lib/ai-os-api';
   import {
     capabilityServiceLabel,
@@ -62,6 +62,7 @@
   }
 
   let apiStatus = 'Not checked';
+  let hubHealth: HubHealth | null = null;
   let settingsError = '';
   let settingsMessage = '';
   let serviceCheckedAt = '';
@@ -118,6 +119,7 @@
     error: passiveError
   });
   $: passiveBackupHealth = passiveSnapshot?.backupHealth ?? null;
+  $: hubCoreDataStatus = formatHubCoreDataHealth(hubHealth);
   $: passiveEnabledWatchers = passiveSnapshot?.watchers.filter((watcher) => watcher.enabled).length ?? 0;
   $: passiveFailures = passiveSnapshot?.runs.filter((run) => ['failed', 'blocked'].includes(run.status)).length ?? 0;
   $: persistenceStats = persistenceSummary(persistenceRows);
@@ -198,8 +200,10 @@
     apiStatus = 'Checking';
     try {
       const health = await getHealth();
-      apiStatus = `${health.service}: ${health.ok ? 'ok' : 'not ok'}`;
+      hubHealth = health;
+      apiStatus = `${health.service}: ${health.ok ? 'ok' : 'not ok'}${health.storage?.coreData ? ` - core data ${health.storage.coreData.status.replace('_', '-')}` : ''}`;
     } catch (error) {
+      hubHealth = null;
       apiStatus = error instanceof Error ? error.message : 'API unavailable';
     }
   }
@@ -457,6 +461,19 @@
   function apiStatusError(value: string): string {
     if (!value || value === 'Not checked' || value === 'Checking' || apiStatusReady(value)) return '';
     return value;
+  }
+
+  function formatHubCoreDataHealth(health: HubHealth | null): string {
+    const core = health?.storage?.coreData;
+    if (!core) return 'Run Check Services to inspect API persistence.';
+    const counts = core.recordCounts;
+    const countText = `${counts.jobs} jobs, ${counts.studySessions} study logs, ${counts.careerActions} career actions, ${counts.gameRuns} game runs, ${counts.syncEvents} sync events`;
+    if (core.status === 'persistent') {
+      return `Persistent snapshot ${core.updatedAt ? `saved ${new Date(core.updatedAt).toLocaleString()}` : 'is available'} (${formatBytes(core.bytes)}; ${countText}).`;
+    }
+    if (core.status === 'memory_only') return `Memory-only for this API process (${countText}). Start the configured local API for disk persistence.`;
+    if (core.status === 'missing') return `Persistence is configured, but no core-data snapshot exists yet (${countText}). Save a Career, Study, Settings, or game item to create it.`;
+    return `${core.detail} (${countText}).`;
   }
 
   function capabilityServiceReady(service: CapabilityService): boolean {
@@ -1280,6 +1297,7 @@
       <div><dt>Device</dt><dd>{$clientData.deviceId}</dd></div>
       <div><dt>API</dt><dd>{getApiUrl()}</dd></div>
       <div><dt>API check</dt><dd>{apiStatus}</dd></div>
+      <div><dt>Core data</dt><dd>{hubCoreDataStatus}</dd></div>
       <div><dt>Local DB</dt><dd>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</dd></div>
     </dl>
     <div class="action-row">

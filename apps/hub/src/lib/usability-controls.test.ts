@@ -487,6 +487,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Confirm required state/recovery markers');
     expect(source).toContain('missingMarkers(row).length');
     expect(source).toContain('function extractButtonStates');
+    expect(source).toContain('function fetchRouteAttempt');
     expect(source).toContain('function safeActionStatus');
     expect(source).toContain('function safeActionSummary');
     expect(source).toContain('function liveSafeActionSummary');
@@ -495,6 +496,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function liveRenderState');
     expect(source).toContain('client-rendered shell');
     expect(source).toContain('rawNotFound');
+    expect(source).toContain('retry:');
     expect(source).toContain('Live DOM snapshot');
     expect(source).toContain('Exercise safe action');
     expect(source).toContain('verify persistence');
@@ -531,6 +533,7 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/settings/+page.svelte');
 
     expect(source).toContain('let serviceChecking = false');
+    expect(source).toContain('let hubHealth: HubHealth | null = null');
     expect(source).toContain('let syncBusy = false');
     expect(source).toContain('let exportBusy = false');
     expect(source).toContain('let endpointSaving = false');
@@ -560,6 +563,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={syncBusy || !$clientData.isOnline}');
     expect(source).toContain('function syncNowTitle');
     expect(source).toContain('Sync is already running.');
+    expect(source).toContain('function formatHubCoreDataHealth');
+    expect(source).toContain('hubCoreDataStatus = formatHubCoreDataHealth(hubHealth)');
+    expect(source).toContain('<div><dt>Core data</dt><dd>{hubCoreDataStatus}</dd></div>');
+    expect(source).toContain('Persistent snapshot');
+    expect(source).toContain('Memory-only for this API process');
     expect(source).toContain('disabled={exportBusy}');
     expect(source).toContain('disabled={endpointSaving}');
     expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");

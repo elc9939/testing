@@ -102,7 +102,73 @@ describe('mini hub api', () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/health');
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, service: 'mini-hub-api' });
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      service: 'mini-hub-api',
+      storage: {
+        coreData: {
+          enabled: false,
+          status: 'memory_only',
+          exists: false,
+          recordCounts: {
+            workspaces: 1,
+            members: 1
+          }
+        }
+      }
+    });
+  });
+
+  it('reports core data persistence health when disk persistence is enabled', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-health-core-data-'));
+    const path = coreDataPath(dir);
+
+    try {
+      const store = createMemoryStore();
+      enableCoreDataPersistence(store, path);
+      const app = createApp({ useLogger: false, store });
+
+      const saveResponse = await app.request('/api/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: 'personal',
+          company: 'Health Labs',
+          role: 'Persistence Analyst',
+          status: 'lead',
+          notes: 'Health proof'
+        })
+      });
+      expect(saveResponse.status).toBe(201);
+
+      const healthResponse = await app.request('/api/health');
+      expect(healthResponse.status).toBe(200);
+      const health = (await healthResponse.json()) as {
+        storage: {
+          coreData: {
+            status: string;
+            path: string;
+            exists: boolean;
+            bytes: number;
+            updatedAt: string;
+            recordCounts: { jobs: number; syncEvents: number };
+          };
+        };
+      };
+      expect(health.storage.coreData).toMatchObject({
+        status: 'persistent',
+        path,
+        exists: true,
+        recordCounts: {
+          jobs: 1,
+          syncEvents: 1
+        }
+      });
+      expect(health.storage.coreData.bytes).toBeGreaterThan(0);
+      expect(Date.parse(health.storage.coreData.updatedAt)).not.toBeNaN();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('persists core Mini Hub records and sync events across store restarts', async () => {
