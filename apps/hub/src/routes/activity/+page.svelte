@@ -169,7 +169,29 @@
     if (source.ok) return `${source.count} record${source.count === 1 ? '' : 's'}`;
     const cached = source.count ? `; ${source.count} cached record${source.count === 1 ? '' : 's'} still visible` : '';
     if (source.state === 'timeout') return `timed out${cached || '; cached work remains visible'}`;
-    return `${source.error || 'unavailable'}${cached}`;
+    return `${compactActivitySourceError(source.error)}${cached}`;
+  }
+
+  function compactActivitySourceError(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'unavailable';
+    if (/timed out|timeout/iu.test(text)) return 'timed out; cached work remains visible';
+    if (/github pages|returned.*html|static site|wrong endpoint|missing route|404|not found/iu.test(text)) {
+      return 'wrong endpoint or missing route';
+    }
+    if (/cors|mixed-content|firewall|blocked/iu.test(text)) return 'browser blocked request';
+    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable/iu.test(text)) {
+      return 'service offline or unreachable';
+    }
+    if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) return 'auth or permission needed';
+    return text.length > 96 ? `${text.slice(0, 93)}...` : text;
+  }
+
+  function sourceHealthTitle(source: ActivitySourceState): string {
+    if (source.ok) return `${source.label} is reachable with ${source.count} Activity record${source.count === 1 ? '' : 's'}.`;
+    const summary = compactActivitySourceError(source.error);
+    const detail = source.error?.trim();
+    return detail ? `${source.label}: ${summary}. ${detail}` : `${source.label}: ${summary}. Refresh Activity or open Settings.`;
   }
 
   function fallbackActivitySources(state: { loading: boolean; refreshing: boolean }): ActivitySourceState[] {
@@ -386,7 +408,7 @@
 
 <section class="source-strip" aria-label="Activity source health">
   {#each sourceHealthRows as source}
-    <span class:bad={!source.ok && sources.length > 0} class:pending={!sources.length}>
+    <span class:bad={!source.ok && sources.length > 0} class:pending={!sources.length} title={sourceHealthTitle(source)}>
       <strong>{source.label}</strong>
       {sourceLine(source)}
     </span>

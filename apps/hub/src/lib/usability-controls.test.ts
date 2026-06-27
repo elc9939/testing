@@ -572,6 +572,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('sourceHealthRows');
     expect(source).toContain('sourceFailures');
     expect(source).toContain('function fallbackActivitySources');
+    expect(source).toContain('function compactActivitySourceError');
+    expect(source).toContain('wrong endpoint or missing route');
+    expect(source).toContain('service offline or unreachable');
+    expect(source).toContain('browser blocked request');
+    expect(source).toContain('function sourceHealthTitle');
+    expect(source).toContain('title={sourceHealthTitle(source)}');
     expect(source).toContain('Checking source status from AI OS, Passive Tasks, and Macro Lab.');
     expect(source).toContain('No source snapshot yet; refresh Activity or open Settings.');
     expect(source).toContain('function activitySourceHealthSummary');

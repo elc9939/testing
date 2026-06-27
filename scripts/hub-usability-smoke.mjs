@@ -42,6 +42,8 @@ const routes = [
       { label: 'source failure list', text: 'sourceFailures' },
       { label: 'expected source rows', text: 'expectedActivitySources' },
       { label: 'source health rows', text: 'sourceHealthRows' },
+      { label: 'compact source diagnostics', text: 'compactActivitySourceError' },
+      { label: 'source detail tooltip', text: 'sourceHealthTitle' },
       { label: 'no source snapshot state', text: 'No source snapshot yet; refresh Activity or open Settings.' },
       { label: 'cached records state', text: 'showing cached records from' },
       { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
