@@ -517,6 +517,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Productivity is still loading the latest connection state.');
     expect(source).toContain('function productivityReadTitle');
     expect(source).toContain('function productivityValidatedActionTitle');
+    expect(source).toContain('function productivityWriteStateLabel');
+    expect(source).toContain('function productivityWriteStateDetail');
+    expect(source).toContain('productivityWriteStatus = productivityWriteStateLabel()');
+    expect(source).toContain('Write Mode');
+    expect(source).toContain('OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.');
+    expect(source).toContain('Use Connect Google or Add Google Account before sending mail or changing calendar events.');
     expect(source).toContain('function gmailReadTitle');
     expect(source).toContain('function moveEventTitle');
     expect(source).toContain('function selectedLabelActionTitle');

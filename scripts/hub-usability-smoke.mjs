@@ -60,6 +60,9 @@ const routes = [
     persistence: 'Local snapshot, filters, and selected Google cache should reload from browser storage.',
     requiredMarkers: [
       { label: 'write gating', text: 'productivityWriteDisabled' },
+      { label: 'write mode summary', text: 'productivityWriteStatus = productivityWriteStateLabel()' },
+      { label: 'api offline write detail', text: 'OAuth, Gmail, and Calendar writes need the local API' },
+      { label: 'google setup write detail', text: 'Use Connect Google or Add Google Account before sending mail' },
       { label: 'offline cache banner', text: 'offline-banner' },
       { label: 'cached productivity wording', text: 'cached productivity data can stay visible' },
       { label: 'OAuth gating', text: 'googleConnectDisabled' }

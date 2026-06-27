@@ -157,6 +157,17 @@
   $: calendarWeek = buildCalendarWeek(events, calendarCursor);
   $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
   $: cacheStatus = cacheLoadedAt ? `Cached ${displayTime(cacheLoadedAt)}` : 'No local cache yet';
+  $: productivityWriteStatus = productivityWriteStateLabel();
+  $: productivityWriteDetail = productivityWriteStateDetail();
+  $: productivityCacheDetail = cacheLoadedAt
+    ? 'Calendar, mail, filters, and selected account restore from this browser before live refresh finishes.'
+    : 'No browser snapshot has been saved yet; connect Google and refresh to create one.';
+  $: productivityConnectionDetail = googleConnected
+    ? `${googleConnections.length} account${googleConnections.length === 1 ? '' : 's'} available for Gmail and Calendar actions.`
+    : 'Connect Google to enable live Gmail, Calendar, and write actions.';
+  $: productivityApiDetail = canAct
+    ? `Using Mini Hub API at ${getApiUrl()} for OAuth and writes.`
+    : `Mini Hub API is unavailable at ${getApiUrl()}; cached data remains read-only.`;
 
   function emptyDraft(): CalendarEventDraft {
     const start = new Date(Date.now() + 60 * 60 * 1000);
@@ -416,6 +427,22 @@
     if (!productivityReady) return 'Connect the API and Google before using this action.';
     if (actionBusyKey) return 'Another Productivity action is already running.';
     return enabledTitle;
+  }
+
+  function productivityWriteStateLabel(): string {
+    if (loading) return 'Loading';
+    if (actionBusyKey) return 'Busy';
+    if (!canAct) return 'API offline';
+    if (!googleConnected) return 'Google setup';
+    return 'Write-ready';
+  }
+
+  function productivityWriteStateDetail(): string {
+    if (loading) return 'Waiting for the latest API, Google, Gmail, and Calendar connection state.';
+    if (actionBusyKey) return 'Another Productivity action is running; write controls stay locked until it finishes.';
+    if (!canAct) return 'OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.';
+    if (!googleConnected) return 'Use Connect Google or Add Google Account before sending mail or changing calendar events.';
+    return 'Gmail and Calendar write controls can use connected Google accounts.';
   }
 
   function productivityRefreshTitle(): string {
@@ -1053,12 +1080,36 @@
 {/if}
 
 <section class="status-strip" aria-label="Productivity status">
-  <div><span>Google</span><strong>{googleConnected ? 'Connected' : 'Not connected'}</strong></div>
-  <div><span>Accounts</span><strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'None'}</strong></div>
-  <div><span>Calendars</span><strong>{calendars.length}</strong></div>
-  <div><span>Priority Mail</span><strong>{priorityThreads.length}</strong></div>
-  <div><span>Timeline</span><strong>{timeline.length}</strong></div>
-  <div><span>Local snapshot</span><strong>{cacheStatus}</strong></div>
+  <div>
+    <span>Write Mode</span>
+    <strong>{productivityWriteStatus}</strong>
+    <small>{productivityWriteDetail}</small>
+  </div>
+  <div>
+    <span>API</span>
+    <strong>{canAct ? 'Reachable' : 'Offline'}</strong>
+    <small>{productivityApiDetail}</small>
+  </div>
+  <div>
+    <span>Google</span>
+    <strong>{googleConnected ? 'Connected' : 'Not connected'}</strong>
+    <small>{productivityConnectionDetail}</small>
+  </div>
+  <div>
+    <span>Accounts</span>
+    <strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'None'}</strong>
+    <small>{googleConnected ? 'Use Add Google Account for another inbox/calendar.' : 'OAuth setup is required for live data.'}</small>
+  </div>
+  <div>
+    <span>Loaded</span>
+    <strong>{calendars.length} calendars / {priorityThreads.length} threads</strong>
+    <small>{timeline.length} unified timeline item{timeline.length === 1 ? '' : 's'} loaded.</small>
+  </div>
+  <div>
+    <span>Local snapshot</span>
+    <strong>{cacheStatus}</strong>
+    <small>{productivityCacheDetail}</small>
+  </div>
 </section>
 
 <section class="google-setup-panel" aria-label="Google account setup">
@@ -1618,6 +1669,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .status-strip small {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.3;
   }
 
   .google-setup-panel {
