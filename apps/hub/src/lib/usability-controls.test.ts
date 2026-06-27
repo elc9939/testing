@@ -381,6 +381,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('aiLabAssetErrorDetail');
     expect(source).toContain('function classifyValidationReason');
     expect(source).toContain('function parseValidationReason');
+    expect(source).toContain('function classifyInputTitle');
+    expect(source).toContain('Classification is running with the submitted text and labels; wait before editing these inputs.');
+    expect(source).toContain('function parseInputTitle');
+    expect(source).toContain('Parsing is running with the submitted code and grammar URL; wait before editing these inputs.');
+    expect(source).toContain('disabled={classifyBusy} title={classifyInputTitle');
+    expect(source).toContain('disabled={parseBusy} title={parseInputTitle');
     expect(source).toContain('disabled={sampleControlsDisabled}');
     expect(source).toContain('title={restoreSamplesTitle()}');
     expect(source).toContain('disabled={Boolean(classifyBlockedReason)}');

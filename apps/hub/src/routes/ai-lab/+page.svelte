@@ -90,6 +90,16 @@
     return '';
   }
 
+  function classifyInputTitle(enabledTitle: string): string {
+    if (classifyBusy) return 'Classification is running with the submitted text and labels; wait before editing these inputs.';
+    return enabledTitle;
+  }
+
+  function parseInputTitle(enabledTitle: string): string {
+    if (parseBusy) return 'Parsing is running with the submitted code and grammar URL; wait before editing these inputs.';
+    return enabledTitle;
+  }
+
   function currentAiLabDraft(): AiLabDraftState {
     return { text, labels, codeText, grammarUrl };
   }
@@ -236,11 +246,11 @@
     </div>
     <div class="field">
       <label for="text">Text</label>
-      <textarea id="text" bind:value={text} rows="7"></textarea>
+      <textarea id="text" bind:value={text} disabled={classifyBusy} title={classifyInputTitle('Edit the text to classify.')} rows="7"></textarea>
     </div>
     <div class="field">
       <label for="labels">Labels</label>
-      <input id="labels" bind:value={labels} />
+      <input id="labels" bind:value={labels} disabled={classifyBusy} title={classifyInputTitle('Edit comma-separated classifier labels.')} />
     </div>
     <button class="button primary" type="button" disabled={Boolean(classifyBlockedReason)} title={classifyBlockedReason || 'Classify this text using browser-side local assets.'} on:click={classify}>
       <Play size={17} />
@@ -258,12 +268,12 @@
     </div>
     <div class="field">
       <label for="grammar">Grammar WASM URL</label>
-      <input id="grammar" bind:value={grammarUrl} />
+      <input id="grammar" bind:value={grammarUrl} disabled={parseBusy} title={parseInputTitle('Edit the Tree-sitter WASM grammar URL.')} />
       <small class:warning={!grammarUrl.trim()}>{grammarAssetState}</small>
     </div>
     <div class="field">
       <label for="code-text">Code</label>
-      <textarea id="code-text" bind:value={codeText} rows="7"></textarea>
+      <textarea id="code-text" bind:value={codeText} disabled={parseBusy} title={parseInputTitle('Edit the code to parse.')} rows="7"></textarea>
     </div>
     <button class="button" type="button" disabled={Boolean(parseBlockedReason)} title={parseBlockedReason || 'Parse this code using the configured Tree-sitter grammar.'} on:click={parseCode}>
       <Play size={17} />

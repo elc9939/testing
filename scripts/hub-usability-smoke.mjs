@@ -174,6 +174,8 @@ const routes = [
     requiredMarkers: [
       { label: 'independent classify busy state', text: 'classifyBusy' },
       { label: 'independent parse busy state', text: 'parseBusy' },
+      { label: 'classify input lock title', text: 'classifyInputTitle' },
+      { label: 'parse input lock title', text: 'parseInputTitle' },
       { label: 'sample restore control', text: 'restoreAiLabSamples' },
       { label: 'browser-local capability status', text: 'AI Lab local capability status' },
       { label: 'asset failure helper', text: 'aiLabAssetErrorDetail' },
