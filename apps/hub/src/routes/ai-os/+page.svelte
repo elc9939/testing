@@ -1242,9 +1242,9 @@
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : commandBusy ? 'Working' : 'Do it'}</span>
     </button>
-    <button class="button" type="button" on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Refresh AI OS status before running command actions.')} on:click={refresh}>
       <RefreshCw size={17} />
-      <span>Refresh status</span>
+      <span>{loading ? 'Refreshing' : 'Refresh status'}</span>
     </button>
   </div>
   {#if commandResult}
@@ -1337,9 +1337,9 @@
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : autotuneBusy ? 'Running' : 'Run Autotune'}</span>
     </button>
-    <button class="button" type="button" on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Refresh AI OS status and machine profile.')} on:click={refresh}>
       <RefreshCw size={17} />
-      <span>Refresh Profile</span>
+      <span>{loading ? 'Refreshing' : 'Refresh Profile'}</span>
     </button>
   </div>
   {#if autotuneResult}
@@ -1500,9 +1500,9 @@
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Execute'}</span>
       </button>
-      <button class="button" type="button" on:click={refresh}>
+      <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Refresh AI OS status before using advanced command controls.')} on:click={refresh}>
         <RefreshCw size={17} />
-        <span>Refresh</span>
+        <span>{loading ? 'Refreshing' : 'Refresh'}</span>
       </button>
     </div>
     <pre>{commandResult}</pre>

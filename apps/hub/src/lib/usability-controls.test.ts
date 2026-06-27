@@ -310,6 +310,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={designBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={benchmarkBusy || aiOsActionBlocked}');
     expect(source).toContain("title={aiOsRefreshTitle()}");
+    expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status before running command actions.')}");
+    expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status and machine profile.')}");
+    expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status before using advanced command controls.')}");
+    expect(source).not.toContain('<button class="button" type="button" on:click={refresh}>');
     expect(source).toContain("title={foundationActionTitle('Create a verified AI OS backup now.')}");
     expect(source).toContain("title={foundationActionTitle('Verify the latest AI OS backup.', true)}");
     expect(source).toContain("title={aiOsActionTitle('Run one ad hoc inference call.', inferBusy, 'Inference is already running.')}");
