@@ -91,6 +91,7 @@
   let monitorsLoading = false;
   let monitorActionId = '';
   let runActionId = '';
+  let serviceProbePending = true;
   let draftHydrated = false;
   let requestedRunId = '';
   let persistedRunId = '';
@@ -106,10 +107,24 @@
   $: visibleMonitorError = serviceIssue && isResearchServiceError(monitorError) ? '' : monitorError;
   $: visibleSourceLibraryError = serviceIssue && isResearchServiceError(sourceLibraryError) ? '' : sourceLibraryError;
   $: runsPanelState = researchRunListState({ loading: refreshing, error: visibleRunError, runCount: runs.length });
-  $: serviceBlockedLabel = aiOsUnavailable ? 'Connect AI OS' : loading ? 'Queueing' : `Run ${currentMode?.label ?? 'Research'}`;
-  $: sourceLibrarySearchDisabled = sourceLibraryLoading || aiOsUnavailable;
+  $: researchRunBlockedReason = researchRunDisabledReason({
+    loading,
+    serviceProbePending,
+    aiOsUnavailable
+  });
+  $: researchRunDisabled = Boolean(researchRunBlockedReason);
+  $: serviceBlockedLabel = aiOsUnavailable
+    ? 'Connect AI OS'
+    : serviceProbePending
+      ? 'Checking AI OS'
+      : loading
+        ? 'Queueing'
+        : `Run ${currentMode?.label ?? 'Research'}`;
+  $: sourceLibrarySearchDisabled = sourceLibraryLoading || aiOsUnavailable || serviceProbePending;
   $: sourceLibrarySearchTitle = aiOsUnavailable
     ? 'Connect AI OS before searching the archived source library.'
+    : serviceProbePending
+      ? 'Research Desk is checking whether AI OS is reachable.'
     : sourceLibraryLoading
       ? 'Source library search is already running.'
       : 'Search archived Research Desk source cards.';
@@ -117,6 +132,8 @@
     ? 'Select a research run before controlling it.'
     : aiOsUnavailable
     ? 'Connect AI OS before controlling this research run.'
+    : serviceProbePending
+    ? 'Research Desk is checking AI OS before run controls are enabled.'
     : runActionId
       ? 'A research run action is already in progress.'
       : '';
@@ -125,9 +142,19 @@
   $: if (draftHydrated) persistResearchDraft();
 
   function runResearchTitle(): string {
-    if (aiOsUnavailable) return 'Connect AI OS before starting a research run.';
-    if (loading) return 'Research run is already being queued.';
+    if (researchRunBlockedReason) return researchRunBlockedReason;
     return `Start a ${currentMode?.label ?? 'Research'} run.`;
+  }
+
+  function researchRunDisabledReason(state: {
+    loading: boolean;
+    serviceProbePending: boolean;
+    aiOsUnavailable: boolean;
+  }): string {
+    if (state.aiOsUnavailable) return 'Connect AI OS before starting a research run.';
+    if (state.serviceProbePending) return 'Research Desk is checking whether AI OS is reachable before starting a run.';
+    if (state.loading) return 'Research run is already being queued.';
+    return '';
   }
 
   function refreshRunsTitle(): string {
@@ -142,6 +169,7 @@
 
   function monitorActionBlockedReason(monitor?: ResearchMonitor): string {
     if (aiOsUnavailable) return 'Connect AI OS before changing research monitors.';
+    if (serviceProbePending) return 'Research Desk is checking AI OS before monitor actions are enabled.';
     if (monitorsLoading) return 'Research monitors are loading or syncing.';
     if (monitorActionId && (!monitor || !monitorActionId.startsWith(`${monitor.id}:`))) {
       return 'Another research monitor action is already running.';
@@ -203,10 +231,17 @@
   onMount(() => {
     hydrateResearchDraft();
     requestedRunId = requestedResearchRunId();
-    void refreshRuns();
-    void refreshSourceLibrary();
-    void refreshMonitors();
+    void initialResearchServiceCheck();
   });
+
+  async function initialResearchServiceCheck(): Promise<void> {
+    serviceProbePending = true;
+    try {
+      await refreshResearchServices();
+    } finally {
+      serviceProbePending = false;
+    }
+  }
 
   async function refreshRuns(): Promise<void> {
     if (refreshing) return;
@@ -297,9 +332,8 @@
   }
 
   async function runResearch(): Promise<void> {
-    if (loading) return;
-    if (aiOsUnavailable) {
-      error = serviceIssue;
+    if (researchRunBlockedReason) {
+      error = aiOsUnavailable && serviceIssue ? serviceIssue : researchRunBlockedReason;
       return;
     }
     if (!goal.trim()) {
@@ -910,6 +944,14 @@
         <a class="link-button compact" href={hubHref(routeMap.settings)}>Open Settings</a>
       </div>
     </section>
+  {:else if serviceProbePending}
+    <section class="service-card pending" aria-live="polite">
+      <div>
+        <strong>Checking AI OS service</strong>
+        <span>{getAiOsApiUrl()}</span>
+        <p>Research Desk is checking runs, monitors, and the source library before enabling service-backed actions.</p>
+      </div>
+    </section>
   {/if}
 
   <section class="workbench">
@@ -1005,7 +1047,7 @@
       {/if}
 
       <div class="form-actions">
-        <button class="primary-button" type="submit" disabled={loading || aiOsUnavailable} title={runResearchTitle()}>
+        <button class="primary-button" type="submit" disabled={researchRunDisabled} title={runResearchTitle()}>
           <Search size={17} />
           <span>{serviceBlockedLabel}</span>
         </button>
@@ -1559,6 +1601,11 @@
     border: 1px solid var(--warning-border);
     border-radius: 8px;
     background: var(--warning-bg);
+  }
+
+  .service-card.pending {
+    border-style: dashed;
+    background: var(--surface-soft);
   }
 
   .service-card > div:first-child {

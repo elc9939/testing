@@ -144,6 +144,9 @@ const routes = [
     requiredMarkers: [
       { label: 'compact service issue', text: 'serviceIssue = compactResearchServiceIssue' },
       { label: 'AI OS unavailable gate', text: 'aiOsUnavailable' },
+      { label: 'initial service probe', text: 'serviceProbePending' },
+      { label: 'run blocked reason', text: 'researchRunBlockedReason = researchRunDisabledReason' },
+      { label: 'checking service card', text: 'Checking AI OS service' },
       { label: 'selected run recovery', text: 'selectedRunId: selectedRun?.id ?? persistedRunId' },
       { label: 'source library gating', text: 'sourceLibrarySearchDisabled' },
       { label: 'export setup routing', text: 'reportExportHref' }
