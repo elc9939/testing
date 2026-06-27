@@ -290,6 +290,18 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function aiOsActionTitle');
     expect(source).toContain('function foundationActionTitle');
     expect(source).toContain('function warmLocalModelBlockedReason');
+    expect(source).toContain('function aiOsMetricLabel');
+    expect(source).toContain('function aiOsCountLabel');
+    expect(source).toContain('function aiOsRamDetail');
+    expect(source).toContain('function aiOsGpuDetail');
+    expect(source).toContain('function aiOsModelSummary');
+    expect(source).toContain('function noGpuRowsMessage');
+    expect(source).toContain('Loading GPU, VRAM, and temperature telemetry.');
+    expect(source).toContain('AI OS is not connected, so GPU telemetry is not checked.');
+    expect(source).toContain('Model load has not been checked yet.');
+    expect(source).toContain('<strong>{aiOsMetricLabel(hardware?.cpu_percent,');
+    expect(source).toContain('<small>{aiOsGpuDetail(primaryGpu)}</small>');
+    expect(source).toContain('<p class="muted">{noGpuRowsMessage()}</p>');
     expect(source).toContain('disabled={Boolean(warmupBlockedReason)}');
     expect(source).toContain('function requireAiOsReady');
     expect(source).toContain('disabled={commandBusy || aiOsActionBlocked}');

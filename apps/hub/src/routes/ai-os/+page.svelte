@@ -361,6 +361,42 @@
     return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'n/a';
   }
 
+  function aiOsMetricLabel(value: number | undefined, suffix = ''): string {
+    if (loading && !status) return '...';
+    if (!status) return 'n/a';
+    return numberLabel(value, suffix);
+  }
+
+  function aiOsCountLabel(value: number): string {
+    if (loading && !status) return '...';
+    if (!status) return 'n/a';
+    return String(value);
+  }
+
+  function aiOsRamDetail(): string {
+    if (loading && !status) return 'Loading memory telemetry from AI OS.';
+    if (!status) return 'AI OS is not connected yet.';
+    return `${hardware?.memory_used_gb ?? 'n/a'} / ${hardware?.memory_total_gb ?? 'n/a'} GB`;
+  }
+
+  function aiOsGpuDetail(gpu: Record<string, unknown> | undefined): string {
+    if (loading && !status) return 'Loading GPU, VRAM, and temperature telemetry.';
+    if (!status) return 'AI OS is not connected, so GPU telemetry is not checked.';
+    return `${gpuName(gpu)} · ${gpuMemoryLabel(gpu)} · ${gpuTemperatureLabel(gpu)}`;
+  }
+
+  function aiOsModelSummary(models: Array<Record<string, unknown>>): string {
+    if (loading && !status) return 'Loading model residency from AI OS.';
+    if (!status) return 'Model load has not been checked yet.';
+    return modelLoadSummary(models);
+  }
+
+  function noGpuRowsMessage(): string {
+    if (loading && !status) return 'Loading GPU telemetry rows from AI OS...';
+    if (!status) return 'Connect AI OS to inspect GPU utilization, VRAM, and temperature.';
+    return 'No GPU telemetry rows yet.';
+  }
+
   function metricValue(source: Record<string, unknown> | undefined, key: string): string {
     const value = source?.[key];
     if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
@@ -1220,35 +1256,35 @@
   <article class="card card-pad metric">
     <Cpu size={19} />
     <span>CPU</span>
-    <strong>{numberLabel(hardware?.cpu_percent, '%')}</strong>
+    <strong>{aiOsMetricLabel(hardware?.cpu_percent, '%')}</strong>
   </article>
   <article class="card card-pad metric">
     <Activity size={19} />
     <span>RAM</span>
-    <strong>{numberLabel(hardware?.memory_percent, '%')}</strong>
-    <small>{hardware?.memory_used_gb ?? 'n/a'} / {hardware?.memory_total_gb ?? 'n/a'} GB</small>
+    <strong>{aiOsMetricLabel(hardware?.memory_percent, '%')}</strong>
+    <small>{aiOsRamDetail()}</small>
   </article>
   <article class="card card-pad metric">
     <HardDrive size={19} />
     <span>GPU</span>
-    <strong>{numberLabel(metricNumber(primaryGpu, 'utilization_percent'), '%')}</strong>
-    <small>{gpuName(primaryGpu)} · {gpuMemoryLabel(primaryGpu)} · {gpuTemperatureLabel(primaryGpu)}</small>
+    <strong>{aiOsMetricLabel(metricNumber(primaryGpu, 'utilization_percent'), '%')}</strong>
+    <small>{aiOsGpuDetail(primaryGpu)}</small>
   </article>
   <article class="card card-pad metric">
     <BrainCircuit size={19} />
     <span>Model Load</span>
-    <strong>{loadedModels.length}</strong>
-    <small>{modelLoadSummary(loadedModels)}</small>
+    <strong>{aiOsCountLabel(loadedModels.length)}</strong>
+    <small>{aiOsModelSummary(loadedModels)}</small>
   </article>
   <article class="card card-pad metric">
     <Zap size={19} />
     <span>Tokens/sec</span>
-    <strong>{numberLabel(hardware?.recent_tokens_per_second)}</strong>
+    <strong>{aiOsMetricLabel(hardware?.recent_tokens_per_second)}</strong>
   </article>
   <article class="card card-pad metric">
     <BrainCircuit size={19} />
     <span>Reachable</span>
-    <strong>{availableProviders.length}/{providers.length}</strong>
+    <strong>{status ? `${availableProviders.length}/${providers.length}` : aiOsCountLabel(availableProviders.length)}</strong>
   </article>
 </section>
 
@@ -1364,7 +1400,7 @@
             <small>{numberLabel(metricNumber(gpu, 'utilization_percent'), '%')} · {gpuMemoryLabel(gpu)} · {gpuTemperatureLabel(gpu)}</small>
           </article>
         {:else}
-          <p class="muted">No GPU telemetry rows yet.</p>
+          <p class="muted">{noGpuRowsMessage()}</p>
         {/each}
         {#each loadedModels as model}
           <article class="model-row">
