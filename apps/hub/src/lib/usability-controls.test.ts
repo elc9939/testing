@@ -732,6 +732,9 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('disabled={!canSave || saving || !company.trim() || !role.trim()}');
     expect(career).toContain('title={saveJobEditTitle()}');
     expect(career).toContain('title={careerMailUpdatesTitle()}');
+    expect(career).toContain('Delete "${job.role}" at ${job.company}?');
+    expect(career).toContain('Career delete skipped.');
+    expect(career).toContain('Ask for confirmation before deleting this saved job.');
     expect(career).toContain('Offline read-only: start or connect the Mini Hub API before saving Career changes.');
     expect(career).toContain("careerViewStorageKey = 'miniHub.career.view.v1'");
     expect(career).toContain('function hydrateCareerViewState');
@@ -751,6 +754,9 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('Add a study label before logging progress.');
     expect(study).toContain('disabled={!canSave || saving || !subject.trim() || minutes < 1}');
     expect(study).toContain('title={saveLogEditTitle()}');
+    expect(study).toContain('Delete ${log.minutes} min for "${log.subject}"?');
+    expect(study).toContain('Study delete skipped.');
+    expect(study).toContain('Ask for confirmation before deleting this saved study log.');
     expect(study).toContain('Offline read-only: start or connect the Mini Hub API before saving Study changes.');
     expect(study).toContain("studyViewStorageKey = 'miniHub.study.view.v1'");
     expect(study).toContain('function hydrateStudyViewState');

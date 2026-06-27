@@ -518,6 +518,12 @@
 
   async function deleteJob(job: JobRecord): Promise<void> {
     if (!canSave || rowBusyId) return;
+    if (!window.confirm(`Delete "${job.role}" at ${job.company}? This removes the saved Career Desk record from this workspace.`)) {
+      saveMessage = 'Career delete skipped.';
+      rowError = '';
+      saveError = '';
+      return;
+    }
     rowError = '';
     saveError = '';
     saveMessage = '';
@@ -755,7 +761,7 @@
                 <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title={careerRowTitle('Edit', job.id)} disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
                   <Edit3 size={16} />
                 </button>
-                <button class="icon-button danger" type="button" aria-label={`Delete ${job.company}`} title={careerRowTitle('Delete this job.', job.id)} disabled={!canSave || rowBusyId === job.id} on:click={() => deleteJob(job)}>
+                <button class="icon-button danger" type="button" aria-label={`Delete ${job.company}`} title={careerRowTitle('Ask for confirmation before deleting this saved job.', job.id)} disabled={!canSave || rowBusyId === job.id} on:click={() => deleteJob(job)}>
                   <Trash2 size={16} />
                 </button>
               </div>

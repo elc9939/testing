@@ -365,6 +365,8 @@ Implemented now:
   recoverability metadata. Updates and deletes now attach before-state snapshots for
   Career Desk, Study Desk, settings, and game state where possible, and
   `/api/action-ledger/:id/restore` can restore those snapshots with explicit confirmation.
+  Career Desk and Study Desk delete buttons ask for browser confirmation before removing
+  saved records from the workspace.
   Restore attempts are first-class Mini Hub actions too: cancelled confirmations are
   recorded as blocked dry-runs, unsupported restores as failures, and successful restores
   link to the follow-up sync event that wrote the restored data.

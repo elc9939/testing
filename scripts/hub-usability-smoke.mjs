@@ -95,6 +95,7 @@ const routes = [
       { label: 'offline read-only banner', text: 'Offline: cached jobs are readable, saving is disabled.' },
       { label: 'view storage key', text: 'careerViewStorageKey' },
       { label: 'save title helper', text: 'careerSaveTitle' },
+      { label: 'delete confirmation', text: 'Career delete skipped.' },
       { label: 'saved/reloaded feedback', text: 'success-banner' }
     ]
   },
@@ -114,6 +115,7 @@ const routes = [
       { label: 'offline read-only banner', text: 'Offline: cached study logs are readable, saving is disabled.' },
       { label: 'view storage key', text: 'studyViewStorageKey' },
       { label: 'save title helper', text: 'studySaveTitle' },
+      { label: 'delete confirmation', text: 'Study delete skipped.' },
       { label: 'saved/reloaded feedback', text: 'success-banner' }
     ]
   },

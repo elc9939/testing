@@ -450,6 +450,12 @@
 
   async function deleteLog(log: StudySession): Promise<void> {
     if (!canSave || rowBusyId) return;
+    if (!window.confirm(`Delete ${log.minutes} min for "${log.subject}"? This removes the saved Study Desk log from this workspace.`)) {
+      saveMessage = 'Study delete skipped.';
+      rowError = '';
+      saveError = '';
+      return;
+    }
     rowError = '';
     saveError = '';
     saveMessage = '';
@@ -733,7 +739,7 @@
                   <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title={studyRowTitle('Edit', log.id)} disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
                     <Edit3 size={16} />
                   </button>
-                  <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title={studyRowTitle('Delete this study log.', log.id)} disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
+                  <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title={studyRowTitle('Ask for confirmation before deleting this saved study log.', log.id)} disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
                     <Trash2 size={16} />
                   </button>
                 </div>
