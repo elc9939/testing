@@ -21,9 +21,11 @@ import { syncRoutes } from './routes/sync';
 import { workspaceRoutes } from './routes/workspaces';
 import {
   actionLedgerPath,
+  coreDataPath,
   createMemoryStore,
   defaultStore,
   enableActionLedgerPersistence,
+  enableCoreDataPersistence,
   enableIntegrationPersistence,
   enablePassiveTaskPersistence,
   ensurePersonalWorkspace,
@@ -134,6 +136,7 @@ export function createApp(options: CreateAppOptions = {}) {
 export type AppType = ReturnType<typeof createApp>;
 
 if (process.env.NODE_ENV !== 'test') {
+  enableCoreDataPersistence(defaultStore, coreDataPath(env.dataDir));
   enableIntegrationPersistence(defaultStore, integrationConnectionsPath(env.dataDir));
   enableActionLedgerPersistence(defaultStore, actionLedgerPath(env.dataDir));
   enablePassiveTaskPersistence(defaultStore, passiveTasksPath(env.dataDir));

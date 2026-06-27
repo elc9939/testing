@@ -22,6 +22,9 @@ describe('persistence map', () => {
     expect(persistenceRows.find((row) => row.id === 'research')?.savedWhere).toContain('AI OS storage');
     expect(persistenceRows.find((row) => row.id === 'ai-lab')?.crossDevice).toBe(false);
     expect(persistenceRows.find((row) => row.id === 'career')?.crossDevice).toBe(true);
+    expect(persistenceRows.find((row) => row.id === 'career')?.savedWhere).toContain('core-data snapshot');
+    expect(persistenceRows.find((row) => row.id === 'study')?.reloadBehavior).toContain('local API restart');
+    expect(persistenceRows.find((row) => row.id === 'games')?.savedWhere).toContain('core-data snapshot');
   });
 
   it('summarizes browser-local and service-backed durability clearly', () => {

@@ -2,7 +2,7 @@ import { workspaceSchema } from '@mini-hub/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
-import { ensurePersonalWorkspace, type MemoryStore } from '../store';
+import { ensurePersonalWorkspace, persistCoreData, type MemoryStore } from '../store';
 
 const createWorkspaceBody = z.object({
   name: z.string().min(1)
@@ -47,6 +47,7 @@ export function workspaceRoutes(store: MemoryStore): Hono<AppBindings> {
       userId: user.id,
       role: 'owner'
     });
+    persistCoreData(store);
 
     return c.json({ workspace }, 201);
   });

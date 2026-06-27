@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
-import { ensurePersonalWorkspace, userWorkspaceIds } from '../store';
+import { ensurePersonalWorkspace, persistCoreData, userWorkspaceIds } from '../store';
 
 const pushBody = z.object({
   events: z.array(z.unknown()).default([])
@@ -23,6 +23,7 @@ export function syncRoutes(store: MemoryStore): Hono<AppBindings> {
     const workspaceIds = userWorkspaceIds(store, user.id);
     const allowed = events.filter((event) => workspaceIds.has(event.workspaceId));
     store.syncEvents.push(...allowed);
+    if (allowed.length) persistCoreData(store);
 
     return c.json({
       accepted: allowed.length,

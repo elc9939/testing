@@ -2,9 +2,19 @@ import {
   personalUserId,
   personalWorkspaceId,
   actionLedgerEntrySchema,
+  achievementSchema,
+  careerActionSchema,
+  gameRunSchema,
+  gameStateSchema,
   integrationConnectionSchema,
+  jobSchema,
+  noteSchema,
   passiveEnginePersistedStateSchema,
   passiveWorkerStateSchema,
+  personalSettingsSchema,
+  studySessionSchema,
+  syncEventSchema,
+  workspaceSchema,
   type ActionLedgerEntry,
   type Achievement,
   type CareerActionRecord,
@@ -26,11 +36,31 @@ import {
   type SyncEvent,
   type Workspace
 } from '@mini-hub/core';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 
 const actionLedgerRetentionLimit = 1000;
+const workspaceMemberSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: z.string().min(1),
+  userId: z.string().min(1),
+  role: z.enum(['owner', 'admin', 'member', 'viewer'])
+});
+const coreDataPersistedStateSchema = z.object({
+  version: z.literal(1),
+  workspaces: z.array(workspaceSchema).default([]),
+  members: z.array(workspaceMemberSchema).default([]),
+  jobs: z.array(jobSchema).default([]),
+  studySessions: z.array(studySessionSchema).default([]),
+  careerActions: z.array(careerActionSchema).default([]),
+  gameRuns: z.array(gameRunSchema).default([]),
+  settings: personalSettingsSchema.nullable().default(null),
+  gameStates: z.array(gameStateSchema).default([]),
+  achievements: z.array(achievementSchema).default([]),
+  notes: z.array(noteSchema).default([]),
+  syncEvents: z.array(syncEventSchema).default([])
+});
 const actionLedgerPersistedStateSchema = z.object({
   version: z.literal(1),
   events: z.array(actionLedgerEntrySchema).default([])
@@ -54,6 +84,7 @@ export interface MemoryStore {
   gameStates: Map<string, GameState>;
   achievements: Achievement[];
   notes: NoteRecord[];
+  coreDataPersistencePath?: string;
   integrationConnections: Map<string, IntegrationConnection>;
   integrationPersistencePath?: string;
   syncEvents: SyncEvent[];
@@ -100,12 +131,65 @@ export function integrationConnectionsPath(dataDir: string): string {
   return join(dataDir, 'integration-connections.json');
 }
 
+export function coreDataPath(dataDir: string): string {
+  return join(dataDir, 'core-data.json');
+}
+
 export function passiveTasksPath(dataDir: string): string {
   return join(dataDir, 'passive-tasks.json');
 }
 
 export function actionLedgerPath(dataDir: string): string {
   return join(dataDir, 'action-ledger.json');
+}
+
+function writeJsonFile(path: string, value: unknown): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const tempPath = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  writeFileSync(tempPath, JSON.stringify(value, null, 2), 'utf8');
+  renameSync(tempPath, path);
+}
+
+export function enableCoreDataPersistence(store: MemoryStore, path: string): void {
+  store.coreDataPersistencePath = path;
+  mkdirSync(dirname(path), { recursive: true });
+  if (!existsSync(path)) return;
+
+  try {
+    const parsed = coreDataPersistedStateSchema.parse(JSON.parse(readFileSync(path, 'utf8')) as unknown);
+    store.workspaces = new Map(parsed.workspaces.map((workspace) => [workspace.id, workspace]));
+    store.members = parsed.members;
+    store.jobs = parsed.jobs;
+    store.studySessions = parsed.studySessions;
+    store.careerActions = parsed.careerActions;
+    store.gameRuns = parsed.gameRuns;
+    store.settings = parsed.settings;
+    store.gameStates = new Map(parsed.gameStates.map((state) => [state.gameId, state]));
+    store.achievements = parsed.achievements;
+    store.notes = parsed.notes;
+    store.syncEvents = parsed.syncEvents;
+  } catch (error) {
+    console.warn(`Could not load persisted Mini Hub core data: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
+export function persistCoreData(store: MemoryStore): void {
+  if (!store.coreDataPersistencePath) return;
+  const state = coreDataPersistedStateSchema.parse({
+    version: 1,
+    workspaces: Array.from(store.workspaces.values()),
+    members: store.members,
+    jobs: store.jobs,
+    studySessions: store.studySessions,
+    careerActions: store.careerActions,
+    gameRuns: store.gameRuns,
+    settings: store.settings,
+    gameStates: Array.from(store.gameStates.values()),
+    achievements: store.achievements,
+    notes: store.notes,
+    syncEvents: store.syncEvents
+  });
+  writeJsonFile(store.coreDataPersistencePath, state);
 }
 
 export function enableIntegrationPersistence(store: MemoryStore, path: string): void {
@@ -126,9 +210,8 @@ export function enableIntegrationPersistence(store: MemoryStore, path: string): 
 
 export function persistIntegrationConnections(store: MemoryStore): void {
   if (!store.integrationPersistencePath) return;
-  mkdirSync(dirname(store.integrationPersistencePath), { recursive: true });
   const connections = Array.from(store.integrationConnections.values());
-  writeFileSync(store.integrationPersistencePath, JSON.stringify(connections, null, 2), 'utf8');
+  writeJsonFile(store.integrationPersistencePath, connections);
 }
 
 export function enablePassiveTaskPersistence(store: MemoryStore, path: string): void {
@@ -161,7 +244,6 @@ export function enablePassiveTaskPersistence(store: MemoryStore, path: string): 
 
 export function persistPassiveTasks(store: MemoryStore): void {
   if (!store.passivePersistencePath) return;
-  mkdirSync(dirname(store.passivePersistencePath), { recursive: true });
   const state = passiveEnginePersistedStateSchema.parse({
     version: 1,
     settings: store.passiveSettings,
@@ -173,7 +255,7 @@ export function persistPassiveTasks(store: MemoryStore): void {
     results: store.passiveResults.slice(0, 500),
     notifications: store.passiveNotifications.slice(0, 200)
   });
-  writeFileSync(store.passivePersistencePath, JSON.stringify(state, null, 2), 'utf8');
+  writeJsonFile(store.passivePersistencePath, state);
 }
 
 export function enableActionLedgerPersistence(store: MemoryStore, path: string): void {
@@ -192,12 +274,11 @@ export function enableActionLedgerPersistence(store: MemoryStore, path: string):
 
 export function persistActionLedgerEvents(store: MemoryStore): void {
   if (!store.actionLedgerPersistencePath) return;
-  mkdirSync(dirname(store.actionLedgerPersistencePath), { recursive: true });
   const state = actionLedgerPersistedStateSchema.parse({
     version: 1,
     events: store.actionEvents.slice(-actionLedgerRetentionLimit).map(redactActionLedgerEvent)
   });
-  writeFileSync(store.actionLedgerPersistencePath, JSON.stringify(state, null, 2), 'utf8');
+  writeJsonFile(store.actionLedgerPersistencePath, state);
 }
 
 export const defaultStore = createMemoryStore();
@@ -248,6 +329,7 @@ export function userWorkspaceIds(store: MemoryStore, userId: string): Set<string
 export function ensurePersonalWorkspace(store: MemoryStore): Workspace {
   let workspace = store.workspaces.get(personalWorkspaceId);
   const now = new Date().toISOString();
+  let changed = false;
   if (!workspace) {
     workspace = {
       id: personalWorkspaceId,
@@ -257,6 +339,7 @@ export function ensurePersonalWorkspace(store: MemoryStore): Workspace {
       updatedAt: now
     };
     store.workspaces.set(workspace.id, workspace);
+    changed = true;
   }
 
   if (!store.members.some((member) => member.workspaceId === personalWorkspaceId && member.userId === personalUserId)) {
@@ -266,8 +349,10 @@ export function ensurePersonalWorkspace(store: MemoryStore): Workspace {
       userId: personalUserId,
       role: 'owner'
     });
+    changed = true;
   }
 
+  if (changed) persistCoreData(store);
   return workspace;
 }
 
@@ -281,6 +366,7 @@ export function appendSyncEvent(
     createdAt: new Date().toISOString()
   };
   store.syncEvents.push(event);
+  persistCoreData(store);
   return event;
 }
 

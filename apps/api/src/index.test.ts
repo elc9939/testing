@@ -7,7 +7,7 @@ import { env } from './env';
 import { triageGmailThreads } from './integrations/email-triage';
 import { GoogleGmailConnector } from './integrations/google';
 import { createOAuthState, decryptTokenSet, encryptTokenSet, upsertConnection, verifyOAuthState } from './integrations/token-vault';
-import { enableIntegrationPersistence, integrationConnectionsPath } from './store';
+import { coreDataPath, enableCoreDataPersistence, enableIntegrationPersistence, integrationConnectionsPath } from './store';
 
 describe('mini hub api', () => {
   afterEach(() => {
@@ -103,6 +103,104 @@ describe('mini hub api', () => {
     const response = await app.request('/api/health');
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, service: 'mini-hub-api' });
+  });
+
+  it('persists core Mini Hub records and sync events across store restarts', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mini-hub-core-data-'));
+    const path = coreDataPath(dir);
+
+    try {
+      const firstStore = createMemoryStore();
+      enableCoreDataPersistence(firstStore, path);
+      const firstApp = createApp({ useLogger: false, store: firstStore });
+
+      const jobResponse = await firstApp.request('/api/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: 'personal',
+          company: 'Persistence Labs',
+          role: 'Research Engineer',
+          status: 'lead',
+          notes: 'Restart proof'
+        })
+      });
+      expect(jobResponse.status).toBe(201);
+
+      const studyResponse = await firstApp.request('/api/study', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: 'personal',
+          subject: 'Local-first persistence',
+          minutes: 45,
+          source: 'test'
+        })
+      });
+      expect(studyResponse.status).toBe(201);
+
+      const settingsResponse = await firstApp.request('/api/settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          theme: 'dark',
+          preferences: { machineMode: 'balanced' }
+        })
+      });
+      expect(settingsResponse.status).toBe(200);
+
+      const gameStateResponse = await firstApp.request('/api/game-state/stick-arena-lab', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ state: { highScore: 9001 } })
+      });
+      expect(gameStateResponse.status).toBe(200);
+
+      const pushedSyncResponse = await firstApp.request('/api/sync/push', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          events: [
+            {
+              id: 'external-note-sync',
+              workspaceId: 'personal',
+              entityType: 'note',
+              entityId: 'note-1',
+              operation: 'insert',
+              payload: { id: 'note-1', title: 'Pushed sync event' },
+              deviceId: 'test-device',
+              createdAt: new Date().toISOString()
+            }
+          ]
+        })
+      });
+      expect(pushedSyncResponse.status).toBe(200);
+
+      const secondStore = createMemoryStore();
+      enableCoreDataPersistence(secondStore, path);
+      const secondApp = createApp({ useLogger: false, store: secondStore });
+
+      const jobs = (await (await secondApp.request('/api/jobs')).json()) as { jobs: Array<{ company: string; role: string }> };
+      expect(jobs.jobs).toContainEqual(expect.objectContaining({ company: 'Persistence Labs', role: 'Research Engineer' }));
+
+      const sessions = (await (await secondApp.request('/api/study')).json()) as { sessions: Array<{ subject: string; minutes: number }> };
+      expect(sessions.sessions).toContainEqual(expect.objectContaining({ subject: 'Local-first persistence', minutes: 45 }));
+
+      const settings = (await (await secondApp.request('/api/settings')).json()) as { settings: { theme?: string; preferences?: Record<string, unknown> } };
+      expect(settings.settings).toMatchObject({ theme: 'dark', preferences: { machineMode: 'balanced' } });
+
+      const gameState = (await (await secondApp.request('/api/game-state/stick-arena-lab')).json()) as {
+        state: { state?: Record<string, unknown> } | null;
+      };
+      expect(gameState.state?.state).toMatchObject({ highScore: 9001 });
+
+      const sync = (await (await secondApp.request('/api/sync/pull')).json()) as { changes: Array<{ entityType: string }> };
+      expect(sync.changes.map((event) => event.entityType)).toEqual(
+        expect.arrayContaining(['job', 'study_session', 'settings', 'game_state', 'note'])
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('serves assistant chat through the Mini Hub Ollama fallback', async () => {

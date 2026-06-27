@@ -301,6 +301,10 @@ The hub is currently optimized for a private single-user setup:
 
 - The Hono API runs in personal mode by default.
 - Postgres is supported as the source of truth when configured.
+- The local API persists core personal records to `MINI_HUB_DATA_DIR/core-data.json`:
+  workspaces, Career jobs/actions, Study sessions, game runs/state, settings, notes,
+  achievements, and sync events. This lets same-machine progress survive API restarts
+  even before a Postgres source of truth is configured.
 - Browser/Tauri clients keep a local PGlite cache.
 - Offline mode is read-only: cached data stays visible, but saves are disabled.
 - Legacy `localStorage` data is imported so old Career Desk, Study Desk, game state,
