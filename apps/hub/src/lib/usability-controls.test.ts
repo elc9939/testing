@@ -573,6 +573,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function dismissedToggleTitle');
     expect(source).toContain('function restoreDismissedTitle');
     expect(source).toContain('function actionBlockedReason');
+    expect(source).toContain('function activityActionTitle');
     expect(source).toContain('Another Activity action is already running.');
     expect(source).toContain('disabled={actionDisabled(record, action)}');
     expect(source).toContain('disabled={Boolean(refreshBlockedReason)}');
@@ -580,6 +581,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={restoreDismissedTitle()}');
     expect(source).toContain("title={refreshBlockedReason || 'Refresh Activity records from connected sources.'}");
     expect(source).toContain('title={activityEmptyRefreshTitle()}');
+    expect(source).toContain('title={activityActionTitle(record, action)}');
+    expect(source).toContain('backend records are not deleted');
+    expect(source).toContain('use only for active work you want to stop');
     expect(source).toContain("href={hubHref('/settings')}");
     expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });

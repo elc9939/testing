@@ -232,7 +232,19 @@
     const blocked = actionBlockedReason(record, action);
     if (blocked) return blocked;
     if (!sourceReachable(record)) return `Open ${record.sourceLabel}; the backend may still show a setup or offline state.`;
-    return action.label;
+    return activityActionTitle(record, action);
+  }
+
+  function activityActionTitle(record: ActivityRecord, action: ActivityAction): string {
+    const blocked = actionBlockedReason(record, action);
+    if (blocked) return blocked;
+    if (action.kind === 'open') return `Open ${record.title} in ${record.sourceLabel}.`;
+    if (action.kind === 'view_logs') return `View logs for ${record.title}.`;
+    if (action.kind === 'resume') return `Resume ${record.title} from Activity.`;
+    if (action.kind === 'cancel') return `Cancel ${record.title}; use only for active work you want to stop.`;
+    if (action.kind === 'retry') return `Retry ${record.title} from its owning service.`;
+    if (action.kind === 'dismiss') return `Hide ${record.title} in this browser; backend records are not deleted.`;
+    return `${action.label} ${record.title}.`;
   }
 </script>
 
@@ -445,7 +457,7 @@
           <button
             type="button"
             disabled={actionDisabled(record, action)}
-            title={actionBlockedReason(record, action)}
+            title={activityActionTitle(record, action)}
             on:click={() => onRun(record, action)}
           >
             <svelte:component this={actionIcon(action.kind)} size={15} />
