@@ -409,6 +409,12 @@ describe('Mini Hub usability control gates', () => {
   it('blocks AI OS service-backed work until a status snapshot is loaded', async () => {
     const source = await routeSource('../routes/ai-os/+page.svelte');
 
+    expect(source).toContain("type StartupState = 'ready' | 'degraded' | 'offline' | 'unknown' | 'checking'");
+    expect(source).toContain('startupChecks = buildStartupChecks(status, actionError, loading)');
+    expect(source).toContain('Checking ${getAiOsApiUrl()} for the local AI OS service.');
+    expect(source).toContain("if (checks.some((check) => check.state === 'checking')) return 'Checking AI OS'");
+    expect(source).toContain("if (state === 'checking') return 'Checking'");
+    expect(source).toContain('.startup-check.checking');
     expect(source).toContain('aiOsActionBlocked = !aiOsReady');
     expect(source).toContain('aiOsActionBlockedReason = aiOsServiceActionBlockedReason');
     expect(source).toContain('function aiOsServiceActionBlockedReason');

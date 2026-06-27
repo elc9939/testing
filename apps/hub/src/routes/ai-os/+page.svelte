@@ -81,7 +81,7 @@
     state: string;
   }
 
-  type StartupState = 'ready' | 'degraded' | 'offline' | 'unknown';
+  type StartupState = 'ready' | 'degraded' | 'offline' | 'unknown' | 'checking';
 
   interface StartupCheck {
     id: string;
@@ -182,7 +182,7 @@
   $: profilePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: profileBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: profileBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
-  $: startupChecks = buildStartupChecks(status, actionError);
+  $: startupChecks = buildStartupChecks(status, actionError, loading);
   $: startupSummary = summarizeStartupChecks(startupChecks);
   $: aiOsReady = Boolean(status);
   $: aiOsActionBlocked = !aiOsReady;
@@ -481,7 +481,36 @@
     return nextStatus?.providers.find((provider) => provider.id === id);
   }
 
-  function buildStartupChecks(nextStatus: AiStatus | null, error: string): StartupCheck[] {
+  function buildStartupChecks(nextStatus: AiStatus | null, error: string, checking: boolean): StartupCheck[] {
+    if (!nextStatus && checking) {
+      return [
+        {
+          id: 'service',
+          label: 'AI OS service',
+          state: 'checking',
+          detail: `Checking ${getAiOsApiUrl()} for the local AI OS service.`
+        },
+        {
+          id: 'ollama',
+          label: 'Ollama provider',
+          state: 'unknown',
+          detail: 'Waiting for AI OS before checking Ollama.'
+        },
+        {
+          id: 'gpu',
+          label: 'GPU telemetry',
+          state: 'unknown',
+          detail: 'Waiting for AI OS before checking GPU counters.'
+        },
+        {
+          id: 'model',
+          label: 'Model load',
+          state: 'unknown',
+          detail: 'Waiting for AI OS before checking Ollama /api/ps.'
+        }
+      ];
+    }
+
     if (!nextStatus) {
       const detail = error || `AI OS is not answering at ${getAiOsApiUrl()}. GPU telemetry needs the local AI OS API to be running.`;
       return [
@@ -530,6 +559,7 @@
   }
 
   function summarizeStartupChecks(checks: StartupCheck[]): string {
+    if (checks.some((check) => check.state === 'checking')) return 'Checking AI OS';
     if (checks.some((check) => check.state === 'offline')) return 'AI OS offline';
     if (checks.some((check) => check.state === 'degraded')) return 'Connected with setup items';
     if (checks.some((check) => check.state === 'unknown')) return 'Connected, waiting for first local run';
@@ -540,6 +570,7 @@
     if (state === 'ready') return 'Ready';
     if (state === 'degraded') return 'Needs attention';
     if (state === 'offline') return 'Offline';
+    if (state === 'checking') return 'Checking';
     return 'Not checked';
   }
 
@@ -2140,6 +2171,11 @@
   .startup-check.degraded {
     border-color: var(--warning-border);
     background: var(--warning-bg);
+  }
+
+  .startup-check.checking {
+    border-style: dashed;
+    background: var(--surface-soft);
   }
 
   .startup-check.offline {

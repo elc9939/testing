@@ -188,6 +188,8 @@ const routes = [
     persistence: 'Jobs, usage, benchmarks, and tool logs should reload from AI OS storage.',
     requiredMarkers: [
       { label: 'AI OS action gate', text: 'aiOsActionBlocked' },
+      { label: 'startup checking state', text: "state === 'checking'" },
+      { label: 'startup checking summary', text: 'Checking AI OS' },
       { label: 'connection card', text: 'connection-card' },
       { label: 'settings recovery link', text: 'Open Settings' },
       { label: 'warmup gate', text: 'warmupBlockedReason' },
