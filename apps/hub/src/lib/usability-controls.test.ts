@@ -327,6 +327,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function researchServicesRefreshTitle');
     expect(source).toContain('title={researchServicesRefreshTitle()}');
     expect(source).toContain('function runResearchTitle');
+    expect(source).toContain('function researchRunsEmptyMessage');
+    expect(source).toContain('Reports are unavailable until AI OS is connected. Saved runs will reload after Retry Service succeeds.');
+    expect(source).toContain('function monitorEmptyMessage');
+    expect(source).toContain('Topic monitors are unavailable until AI OS is connected. Saved monitors will reload after Retry Service succeeds.');
+    expect(source).toContain('function sourceLibraryEmptyMessage');
+    expect(source).toContain('Source Library is unavailable until AI OS is connected. Archived sources will reload after Retry Service succeeds.');
+    expect(source).toContain('{researchRunsEmptyMessage()}');
+    expect(source).toContain('{monitorEmptyMessage()}');
+    expect(source).toContain('{sourceLibraryEmptyMessage()}');
     expect(source).toContain('Research run is already being queued.');
     expect(source).toContain('function refreshRunsTitle');
     expect(source).toContain('if (refreshing) return');

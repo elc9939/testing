@@ -167,6 +167,24 @@
     return 'Refresh research monitors from AI OS.';
   }
 
+  function researchRunsEmptyMessage(): string {
+    if (serviceProbePending || refreshing) return 'Loading archived research runs.';
+    if (aiOsUnavailable) return 'Reports are unavailable until AI OS is connected. Saved runs will reload after Retry Service succeeds.';
+    return runsPanelState;
+  }
+
+  function monitorEmptyMessage(): string {
+    if (serviceProbePending) return 'Checking AI OS before loading saved topic monitors.';
+    if (aiOsUnavailable) return 'Topic monitors are unavailable until AI OS is connected. Saved monitors will reload after Retry Service succeeds.';
+    return 'No topic monitors yet. Fill in a goal and knobs above, then save the setup here.';
+  }
+
+  function sourceLibraryEmptyMessage(): string {
+    if (serviceProbePending) return 'Checking AI OS before searching archived source cards.';
+    if (aiOsUnavailable) return 'Source Library is unavailable until AI OS is connected. Archived sources will reload after Retry Service succeeds.';
+    return 'No archived sources matched. Run a research job first, or relax the search/domain filter.';
+  }
+
   function monitorActionBlockedReason(monitor?: ResearchMonitor): string {
     if (aiOsUnavailable) return 'Connect AI OS before changing research monitors.';
     if (serviceProbePending) return 'Research Desk is checking AI OS before monitor actions are enabled.';
@@ -1089,7 +1107,7 @@
           {/each}
         </div>
       {:else}
-        <p class:error-message={Boolean(visibleRunError)} class="empty-note">{runsPanelState}</p>
+        <p class:error-message={Boolean(visibleRunError || aiOsUnavailable)} class="empty-note">{researchRunsEmptyMessage()}</p>
         {#if visibleRunError || serviceIssue}
           <button class="link-button compact" type="button" disabled={refreshing} title={refreshRunsTitle()} on:click={refreshRuns}>
             <RefreshCw size={15} />
@@ -1178,7 +1196,7 @@
     {:else if monitorsLoading}
       <p class="empty-note">Loading research monitors...</p>
     {:else}
-      <p class="empty-note">No topic monitors yet. Fill in a goal and knobs above, then save the setup here.</p>
+      <p class:error-message={aiOsUnavailable} class="empty-note">{monitorEmptyMessage()}</p>
     {/if}
   </section>
 
@@ -1251,7 +1269,7 @@
     {:else if sourceLibraryLoading}
       <p class="empty-note">Searching archived source cards...</p>
     {:else}
-      <p class="empty-note">No archived sources matched. Run a research job first, or relax the search/domain filter.</p>
+      <p class:error-message={aiOsUnavailable} class="empty-note">{sourceLibraryEmptyMessage()}</p>
     {/if}
   </section>
 

@@ -150,9 +150,12 @@ const routes = [
       { label: 'AI OS unavailable gate', text: 'aiOsUnavailable' },
       { label: 'initial service probe', text: 'serviceProbePending' },
       { label: 'run blocked reason', text: 'researchRunBlockedReason = researchRunDisabledReason' },
+      { label: 'offline reports empty state', text: 'Reports are unavailable until AI OS is connected' },
       { label: 'checking service card', text: 'Checking AI OS service' },
       { label: 'selected run recovery', text: 'selectedRunId: selectedRun?.id ?? persistedRunId' },
+      { label: 'offline monitor empty state', text: 'Topic monitors are unavailable until AI OS is connected' },
       { label: 'source library gating', text: 'sourceLibrarySearchDisabled' },
+      { label: 'offline source empty state', text: 'Source Library is unavailable until AI OS is connected' },
       { label: 'export setup routing', text: 'reportExportHref' }
     ]
   },
