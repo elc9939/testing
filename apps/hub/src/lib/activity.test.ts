@@ -182,4 +182,70 @@ describe('buildActivityRecords', () => {
     expect(record.actions.find((action) => action.kind === 'resume')?.enabled).toBe(true);
     expect(record.actions.find((action) => action.kind === 'cancel')?.enabled).toBe(true);
   });
+
+  it('keeps completed research reports findable and locally dismissible', () => {
+    const records = buildActivityRecords({
+      aiStatus: status({
+        research_runs: [
+          researchRun({
+            id: 'research_report',
+            status: 'succeeded',
+            progress: 1,
+            updated_at: '2026-06-20T11:00:00.000Z',
+            sources: [
+              {
+                id: 'source_1',
+                url: 'https://example.com/a',
+                canonical_url: 'https://example.com/a',
+                title: 'Example source',
+                description: '',
+                text: '',
+                text_length: 0,
+                links: [],
+                tables: [],
+                metadata: {},
+                score: 1,
+                rank: 1,
+                cached: false,
+                fetched_at: '2026-06-20T10:20:00.000Z'
+              }
+            ],
+            report: {
+              title: 'Saved report: activity recovery',
+              tldr: '',
+              detailed_summary: '',
+              key_facts: [],
+              disagreements: [],
+              source_table: [],
+              open_questions: [],
+              next_research_suggestions: [],
+              reliability_notes: [],
+              timeline: []
+            }
+          })
+        ]
+      })
+    });
+
+    const record = records[0];
+    expect(record).toMatchObject({
+      id: 'research:research_report',
+      source: 'research',
+      sourceLabel: 'Research Desk',
+      title: 'Saved report: activity recovery',
+      status: 'succeeded',
+      route: '/research?run=research_report',
+      metadata: { runId: 'research_report', goal: 'durable research' }
+    });
+    expect(record.detail).toContain('1 source');
+    expect(record.actions.find((action) => action.kind === 'open')).toMatchObject({
+      enabled: true,
+      route: '/research?run=research_report'
+    });
+    expect(record.actions.find((action) => action.kind === 'view_logs')?.enabled).toBe(true);
+    expect(record.actions.find((action) => action.kind === 'dismiss')?.enabled).toBe(true);
+    expect(record.actions.some((action) => action.kind === 'cancel')).toBe(false);
+    expect(record.actions.some((action) => action.kind === 'resume')).toBe(false);
+    expect(activityHasActiveWork(records)).toBe(false);
+  });
 });

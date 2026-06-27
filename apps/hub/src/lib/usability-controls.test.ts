@@ -410,6 +410,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('No live activity loaded from reachable sources.');
     expect(source).toContain('function activityEmptyDetail');
     expect(source).toContain('Start or fix AI OS, Passive Tasks, or Macro Lab in Settings');
+    expect(source).toContain('cached record');
     expect(source).toContain('function activityEmptyRefreshTitle');
     expect(source).toContain('function actionBlockedReason');
     expect(source).toContain('Another Activity action is already running.');

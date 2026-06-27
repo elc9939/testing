@@ -64,36 +64,21 @@ describe('activity source loading', () => {
 
   it('falls back to cached Activity records when all live sources fail', async () => {
     installLocalStorage();
-    localStorage.setItem(
-      'miniHub.activity.snapshot.v1',
-      JSON.stringify({
-        version: 1,
-        cachedAt: '2026-06-23T10:00:00.000Z',
-        snapshot: {
-          checkedAt: '2026-06-23T09:59:00.000Z',
-          stale: false,
-          partial: false,
-          active: true,
-          records: [
-            {
-              id: 'research:cached',
-              source: 'research',
-              sourceLabel: 'Research Desk',
-              title: 'Cached research',
-              detail: 'Still recoverable from cache.',
-              status: 'running',
-              startedAt: '2026-06-23T09:50:00.000Z',
-              updatedAt: '2026-06-23T09:55:00.000Z',
-              route: '/research?run=cached',
-              actions: [],
-              metadata: {}
-            }
-          ],
-          sources: [],
-          errors: []
-        }
-      })
-    );
+    writeActivityCache([
+      {
+        id: 'research:cached',
+        source: 'research',
+        sourceLabel: 'Research Desk',
+        title: 'Cached research',
+        detail: 'Still recoverable from cache.',
+        status: 'running',
+        startedAt: '2026-06-23T09:50:00.000Z',
+        updatedAt: '2026-06-23T09:55:00.000Z',
+        route: '/research?run=cached',
+        actions: [],
+        metadata: {}
+      }
+    ]);
     getAiStatusMock.mockRejectedValue(new Error('AI OS offline'));
     getPassiveSnapshotMock.mockRejectedValue(new Error('Passive offline'));
     listMacroRunsMock.mockRejectedValue(new Error('Macro offline'));
@@ -104,6 +89,75 @@ describe('activity source loading', () => {
     expect(snapshot.partial).toBe(true);
     expect(snapshot.records.map((record) => record.id)).toEqual(['research:cached']);
     expect(snapshot.errors.at(-1)).toContain('cached Activity records');
+  });
+
+  it('merges cached records only for live sources that failed', async () => {
+    installLocalStorage();
+    writeActivityCache([
+      {
+        id: 'research:cached-ai',
+        source: 'research',
+        sourceLabel: 'Research Desk',
+        title: 'Cached AI research',
+        detail: 'Cached AI OS work stays recoverable.',
+        status: 'running',
+        startedAt: '2026-06-23T09:50:00.000Z',
+        updatedAt: '2026-06-23T10:00:00.000Z',
+        route: '/research?run=cached-ai',
+        actions: [],
+        metadata: {}
+      },
+      {
+        id: 'macro:stale-macro',
+        source: 'macro-lab',
+        sourceLabel: 'Macro Lab',
+        title: 'Stale macro',
+        detail: 'Should not appear because Macro Lab answered live.',
+        status: 'succeeded',
+        startedAt: '2026-06-23T09:40:00.000Z',
+        updatedAt: '2026-06-23T09:41:00.000Z',
+        route: '/macro-lab?run=stale-macro',
+        actions: [],
+        metadata: {}
+      }
+    ]);
+    getAiStatusMock.mockRejectedValue(new Error('AI OS offline'));
+    getPassiveSnapshotMock.mockResolvedValue({
+      runs: [
+        {
+          id: 'passive_live',
+          taskId: 'task_live',
+          watcherId: 'watcher_live',
+          family: 'app_health',
+          status: 'succeeded',
+          startedAt: '2026-06-23T10:04:00.000Z',
+          finishedAt: '2026-06-23T10:05:00.000Z',
+          cards: [],
+          changed: [],
+          metadata: {}
+        }
+      ]
+    });
+    listMacroRunsMock.mockResolvedValue([]);
+
+    const snapshot = await loadActivitySnapshot(20, { sourceTimeoutMs: 2 });
+
+    expect(snapshot.stale).toBe(true);
+    expect(snapshot.partial).toBe(true);
+    expect(snapshot.records.map((record) => record.id)).toEqual(['passive:passive_live', 'research:cached-ai']);
+    expect(snapshot.sources.find((source) => source.id === 'ai-os')).toMatchObject({
+      ok: false,
+      count: 1
+    });
+    expect(snapshot.sources.find((source) => source.id === 'passive')).toMatchObject({
+      ok: true,
+      count: 1
+    });
+    expect(snapshot.sources.find((source) => source.id === 'macro-lab')).toMatchObject({
+      ok: true,
+      count: 0
+    });
+    expect(snapshot.errors.at(-1)).toContain('sources that failed live refresh');
   });
 
   it('returns source failures instead of healthy-empty when all sources fail without cache', async () => {
@@ -152,4 +206,23 @@ function installLocalStorage(): void {
       }
     }
   });
+}
+
+function writeActivityCache(records: Array<Record<string, unknown>>): void {
+  localStorage.setItem(
+    'miniHub.activity.snapshot.v1',
+    JSON.stringify({
+      version: 1,
+      cachedAt: '2026-06-23T10:00:00.000Z',
+      snapshot: {
+        checkedAt: '2026-06-23T09:59:00.000Z',
+        stale: false,
+        partial: false,
+        active: true,
+        records,
+        sources: [],
+        errors: []
+      }
+    })
+  );
 }

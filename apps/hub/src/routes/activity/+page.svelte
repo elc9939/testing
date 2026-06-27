@@ -140,8 +140,9 @@
 
   function sourceLine(source: ActivitySourceState): string {
     if (source.ok) return `${source.count} record${source.count === 1 ? '' : 's'}`;
-    if (source.state === 'timeout') return 'timed out; cached work remains visible';
-    return source.error || 'unavailable';
+    const cached = source.count ? `; ${source.count} cached record${source.count === 1 ? '' : 's'} still visible` : '';
+    if (source.state === 'timeout') return `timed out${cached || '; cached work remains visible'}`;
+    return `${source.error || 'unavailable'}${cached}`;
   }
 
   function isActiveRecord(record: ActivityRecord): boolean {

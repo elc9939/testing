@@ -74,6 +74,12 @@ function researchRecords(runs: ResearchRun[]): ActivityRecord[] {
   return runs.map((run) => {
     const route = `/research?run=${encodeURIComponent(run.id)}`;
     const status = normalizeStatus(run.status);
+    const controls = [
+      action('open', 'Open', true, route),
+      ...(status === 'paused' ? [action('resume', 'Resume', true)] : []),
+      ...(status === 'queued' || status === 'running' || status === 'paused' ? [action('cancel', 'Cancel', true)] : []),
+      action('view_logs', 'View Logs', true, route)
+    ];
     return {
       id: `research:${run.id}`,
       source: 'research',
@@ -86,12 +92,7 @@ function researchRecords(runs: ResearchRun[]): ActivityRecord[] {
       progress: progressValue(run.progress),
       error: run.error,
       route,
-      actions: dismissibleActions(status, [
-        action('open', 'Open', true, route),
-        action('resume', 'Resume', status === 'paused'),
-        action('cancel', 'Cancel', status === 'queued' || status === 'running' || status === 'paused'),
-        action('view_logs', 'View Logs', true, route)
-      ]),
+      actions: dismissibleActions(status, controls),
       metadata: { runId: run.id, mode: run.mode, goal: run.goal }
     };
   });

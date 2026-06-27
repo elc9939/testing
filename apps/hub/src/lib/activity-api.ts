@@ -153,33 +153,43 @@ export async function loadActivitySnapshot(
     passive.status === 'rejected' ? `Passive Tasks: ${errorMessage(passive.reason)}` : '',
     macro.status === 'rejected' ? `Macro Lab: ${errorMessage(macro.reason)}` : ''
   ].filter(Boolean);
-  const records = buildActivityRecords({ aiStatus, passiveSnapshot, macroRuns }, limit);
+  const liveRecords = buildActivityRecords({ aiStatus, passiveSnapshot, macroRuns }, limit);
   const snapshot: ActivitySnapshot = {
     checkedAt,
     stale: false,
     partial: errors.length > 0,
-    active: activityHasActiveWork(records),
-    records,
+    active: activityHasActiveWork(liveRecords),
+    records: liveRecords,
     sources: [
-      source('ai-os', 'AI OS', ai.status === 'fulfilled', records.filter((record) => record.source === 'ai-os' || record.source === 'research').length, ai.status === 'rejected' ? errorMessage(ai.reason) : undefined),
-      source('passive', 'Passive Tasks', passive.status === 'fulfilled', records.filter((record) => record.source === 'passive').length, passive.status === 'rejected' ? errorMessage(passive.reason) : undefined),
-      source('macro-lab', 'Macro Lab', macro.status === 'fulfilled', records.filter((record) => record.source === 'macro-lab').length, macro.status === 'rejected' ? errorMessage(macro.reason) : undefined)
+      source('ai-os', 'AI OS', ai.status === 'fulfilled', 0, ai.status === 'rejected' ? errorMessage(ai.reason) : undefined),
+      source('passive', 'Passive Tasks', passive.status === 'fulfilled', 0, passive.status === 'rejected' ? errorMessage(passive.reason) : undefined),
+      source('macro-lab', 'Macro Lab', macro.status === 'fulfilled', 0, macro.status === 'rejected' ? errorMessage(macro.reason) : undefined)
     ],
     errors
   };
 
-  const cached = errors.length && records.length === 0 ? readActivityCache() : null;
-  if (cached?.records.length) {
-    return {
-      ...snapshot,
-      cachedAt: cached.cachedAt,
-      stale: true,
-      partial: true,
-      active: activityHasActiveWork(cached.records),
-      records: cached.records,
-      errors: [...errors, 'Showing cached Activity records because live sources are unavailable.']
-    };
+  const cached = errors.length ? readActivityCache() : null;
+  const failedSourceIds = new Set([
+    ai.status === 'rejected' ? 'ai-os' : '',
+    passive.status === 'rejected' ? 'passive' : '',
+    macro.status === 'rejected' ? 'macro-lab' : ''
+  ].filter(Boolean));
+  const cachedFallbackRecords = cached?.records.filter((record) => failedSourceIds.has(activitySourceId(record))) ?? [];
+  if (cachedFallbackRecords.length) {
+    snapshot.records = mergeActivityRecords(liveRecords, cachedFallbackRecords, limit);
+    snapshot.cachedAt = cached?.cachedAt;
+    snapshot.stale = true;
+    snapshot.partial = true;
+    snapshot.active = activityHasActiveWork(snapshot.records);
+    snapshot.errors = [...errors, 'Showing cached Activity records for sources that failed live refresh.'];
+  } else {
+    snapshot.active = activityHasActiveWork(snapshot.records);
   }
+
+  snapshot.sources = snapshot.sources.map((item) => ({
+    ...item,
+    count: snapshot.records.filter((record) => activitySourceId(record) === item.id).length
+  }));
 
   snapshot.cachedAt = writeActivityCache(snapshot);
   return snapshot;
@@ -201,4 +211,22 @@ export async function performActivityAction(record: ActivityRecord, actionKind: 
   if (actionKind === 'retry' && record.id.startsWith('passive:')) {
     await runPassiveTask(String(record.metadata.taskId ?? ''), { manual: true, reason: 'activity-retry' });
   }
+}
+
+function activitySourceId(record: ActivityRecord): 'ai-os' | 'passive' | 'macro-lab' {
+  if (record.source === 'research' || record.source === 'ai-os') return 'ai-os';
+  if (record.source === 'passive') return 'passive';
+  return 'macro-lab';
+}
+
+function mergeActivityRecords(liveRecords: ActivityRecord[], cachedRecords: ActivityRecord[], limit: number): ActivityRecord[] {
+  const liveIds = new Set(liveRecords.map((record) => record.id));
+  return [...liveRecords, ...cachedRecords.filter((record) => !liveIds.has(record.id))]
+    .sort((a, b) => dateValue(b.updatedAt || b.startedAt) - dateValue(a.updatedAt || a.startedAt) || a.title.localeCompare(b.title))
+    .slice(0, limit);
+}
+
+function dateValue(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
