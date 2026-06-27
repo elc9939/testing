@@ -342,6 +342,14 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('passiveRefreshBlockedReason = passiveRefreshDisabledReason({ loading, busyId })');
     expect(passive).toContain('function passiveRefreshDisabledReason');
     expect(passive).toContain("title={passiveRefreshBlockedReason || 'Reload the latest Passive Tasks snapshot.'}");
+    expect(passive).toContain('function passiveEngineLabel');
+    expect(passive).toContain('function passiveScheduleLabel');
+    expect(passive).toContain('function passiveBackupStatusLabel');
+    expect(passive).toContain('function passiveCountLabel');
+    expect(passive).toContain('if (!settings) return serviceError ?');
+    expect(passive).toContain("if (!snapshot) return 'n/a'");
+    expect(passive).toContain('<strong>{passiveEngineLabel()}</strong>');
+    expect(passive).toContain('<strong>{passiveCountLabel(snapshot?.triggers.length ?? 0)}</strong>');
     expect(passive).toContain('function passiveDisabledReason');
     expect(passive).toContain('function requirePassiveReady');
     expect(passive).toContain('if (passiveConnectionError(nextError))');

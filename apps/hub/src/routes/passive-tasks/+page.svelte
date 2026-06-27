@@ -143,7 +143,33 @@
     return `${Math.round(ms / 60_000)} min`;
   }
 
+  function passiveEngineLabel(): string {
+    if (loading && !snapshot) return 'Loading';
+    if (!settings) return serviceError ? 'Offline' : 'Unknown';
+    return settings.enabled ? 'On' : 'Off';
+  }
+
+  function passiveScheduleLabel(): string {
+    if (loading && !snapshot) return 'Loading';
+    if (!settings) return serviceError ? 'Offline' : 'Unknown';
+    return settings.idleOnly ? 'Idle only' : 'Normal';
+  }
+
+  function passiveBackupStatusLabel(): string {
+    if (backupHealth) return backupStatusLabel(backupHealth);
+    if (loading && !snapshot) return 'Loading';
+    return snapshot ? 'n/a' : serviceError ? 'Offline' : 'Unknown';
+  }
+
+  function passiveCountLabel(value: number): string {
+    if (loading && !snapshot) return '...';
+    if (!snapshot) return 'n/a';
+    return String(value);
+  }
+
   function workerStateLabel(): string {
+    if (loading && !snapshot) return 'Loading';
+    if (!snapshot) return serviceError ? 'Offline' : 'Unknown';
     if (!worker?.startedAt) return 'Not started';
     if (!worker.enabled) return 'Disabled';
     return worker.running ? 'Running' : 'Idle';
@@ -603,11 +629,11 @@
 <section class="signal-strip" aria-label="Passive task signals">
   <div>
     <span>Engine</span>
-    <strong>{settings?.enabled ? 'On' : 'Off'}</strong>
+    <strong>{passiveEngineLabel()}</strong>
   </div>
   <div>
     <span>Schedule</span>
-    <strong>{settings?.idleOnly ? 'Idle only' : 'Normal'}</strong>
+    <strong>{passiveScheduleLabel()}</strong>
   </div>
   <div>
     <span>Worker</span>
@@ -615,31 +641,31 @@
   </div>
   <div>
     <span>Backups</span>
-    <strong>{backupHealth ? backupStatusLabel(backupHealth) : 'n/a'}</strong>
+    <strong>{passiveBackupStatusLabel()}</strong>
   </div>
   <div>
     <span>Triggers</span>
-    <strong>{snapshot?.triggers.length ?? 0}</strong>
+    <strong>{passiveCountLabel(snapshot?.triggers.length ?? 0)}</strong>
   </div>
   <div>
     <span>Active</span>
-    <strong>{activeTasks.length}</strong>
+    <strong>{passiveCountLabel(activeTasks.length)}</strong>
   </div>
   <div>
     <span>Paused</span>
-    <strong>{pausedTasks.length}</strong>
+    <strong>{passiveCountLabel(pausedTasks.length)}</strong>
   </div>
   <div>
     <span>Failures</span>
-    <strong>{failedRuns.length}</strong>
+    <strong>{passiveCountLabel(failedRuns.length)}</strong>
   </div>
   <div>
     <span>Digest</span>
-    <strong>{digestCards.length}</strong>
+    <strong>{passiveCountLabel(digestCards.length)}</strong>
   </div>
   <div>
     <span>Results</span>
-    <strong>{snapshot?.results.length ?? 0}</strong>
+    <strong>{passiveCountLabel(snapshot?.results.length ?? 0)}</strong>
   </div>
 </section>
 
