@@ -60,7 +60,7 @@
     runBenchmark,
     verifyAiBackup
   } from '$lib/ai-os-api';
-  import { clientData } from '$lib/client-data';
+  import { clientData, type ClientDataState } from '$lib/client-data';
   import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import { buildModeRecommendations, type ModeRecommendation } from '$lib/mode-recommendations';
   import { recordBrowserAction } from '$lib/browser-action-ledger';
@@ -107,9 +107,9 @@
     $clientData.careerActions.length +
     $clientData.gameRuns.length +
     $clientData.gameStates.length;
-  $: saveStatusLabel = todaySaveStatusLabel();
-  $: saveStatusDetail = todaySaveStatusDetail();
-  $: lastSyncLabel = todayLastSyncLabel();
+  $: saveStatusLabel = todaySaveStatusLabel($clientData);
+  $: saveStatusDetail = todaySaveStatusDetail($clientData);
+  $: lastSyncLabel = todayLastSyncLabel($clientData);
 
   function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
     if (!snapshot) return false;
@@ -516,28 +516,29 @@
     return 'Refresh Today from connected sources.';
   }
 
-  function todaySaveStatusLabel(): string {
-    if (!$clientData.initialized) return 'Loading cache';
-    if ($clientData.status === 'syncing') return 'Syncing';
-    if ($clientData.status === 'error') return 'Needs attention';
-    if (!$clientData.isOnline || $clientData.status === 'offline-readonly') return 'Offline read-only';
+  function todaySaveStatusLabel(state: ClientDataState): string {
+    if (state.status === 'error') return 'Needs attention';
+    if (!state.initialized) return 'Loading cache';
+    if (state.status === 'syncing') return 'Syncing';
+    if (!state.isOnline || state.status === 'offline-readonly') return 'Offline read-only';
     return 'Auto-save ready';
   }
 
-  function todaySaveStatusDetail(): string {
-    if (!$clientData.initialized) return 'Opening the browser cache and local workspace snapshot.';
-    if ($clientData.error) return $clientData.error;
-    if (!$clientData.isOnline || $clientData.status === 'offline-readonly') {
+  function todaySaveStatusDetail(state: ClientDataState): string {
+    if (state.error) return state.error;
+    if (!state.initialized) return 'Opening the browser cache and local workspace snapshot.';
+    if (!state.isOnline || state.status === 'offline-readonly') {
       return 'Cached pages stay readable; saves wait for the Hub API.';
     }
     return 'Career, Study, supported games, settings, and activity cache can save through their owners.';
   }
 
-  function todayLastSyncLabel(): string {
-    if (!$clientData.initialized) return 'loading';
-    if (!$clientData.lastSyncedAt) return 'never';
-    const date = new Date($clientData.lastSyncedAt);
-    if (Number.isNaN(date.getTime())) return $clientData.lastSyncedAt;
+  function todayLastSyncLabel(state: ClientDataState): string {
+    if (state.status === 'error') return 'needs review';
+    if (!state.initialized) return 'loading';
+    if (!state.lastSyncedAt) return 'never';
+    const date = new Date(state.lastSyncedAt);
+    if (Number.isNaN(date.getTime())) return state.lastSyncedAt;
     return new Intl.DateTimeFormat(undefined, {
       month: 'short',
       day: 'numeric',
