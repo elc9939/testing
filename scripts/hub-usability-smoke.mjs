@@ -657,6 +657,27 @@ function visibleIssueSnippets(html) {
   return Array.from(snippets);
 }
 
+const stateSurfaceRefPattern =
+  /(?:error-message|error-banner|warning-panel|offline-banner|service-card|connection-card|notice(?:\s+(?:error|success))?|sync-error|sync-success|empty-state|empty-note|helper-text|engine-banner|source-strip|activity-status|recovery-summary|save-recovery-strip|feature-wiring-panel|persistence-row|action-ledger-row|state-chip|capability-state|source-status|analytics-state|activity-state|service-row|oauth-callback|plain-guide|readiness-strip|result-panel|control-note|error-output)/giu;
+
+function stateSurfaceRefs(source) {
+  const refs = new Map();
+  for (const match of source.matchAll(stateSurfaceRefPattern)) {
+    const ref = (match[0] ?? '').trim();
+    if (!ref) continue;
+    refs.set(ref, (refs.get(ref) ?? 0) + 1);
+  }
+  return Array.from(refs.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([ref, count]) => `${ref}${count > 1 ? ` x${count}` : ''}`);
+}
+
+function stateSurfaceSummary(row) {
+  const refs = row.stateSurfaceRefs ?? [];
+  if (!refs.length) return 'none';
+  return refs.slice(0, 5).join('; ');
+}
+
 const stateCategoryPatterns = {
   loading: /\b(?:loading|refreshing|checking|scanning|syncing|opening|busy|preparing|finishing|saving)\b/iu,
   offline: /\b(?:offline|unavailable|not connected|not reachable|connection failed|service is unavailable|read-only|cannot reach)\b/iu,
@@ -789,7 +810,7 @@ async function sourceSnapshot(route) {
   const disabled = count(/\bdisabled(?:=|\s|>)/giu, source);
   const disabledLinks = count(/\baria-disabled=|\bclass:disabled=|\bclass="[^"]*\bdisabled\b[^"]*"/giu, source);
   const forms = extractFormStates(source);
-  const errors = count(/(?:error-message|error-banner|warning-panel|offline-banner|service-card|connection-card)/giu, source);
+  const surfaces = stateSurfaceRefs(source);
   const settingsLinks = count(/routeMap\.settings|Open Settings|href=\{hubHref\(routeMap\.settings\)\}/giu, source);
   const sourceControls = [...sourceButtons, ...sourceLinks];
   const safeActionRefs = (route.safeActionLabels ?? []).filter((label) =>
@@ -816,7 +837,8 @@ async function sourceSnapshot(route) {
     sourceStateCategories,
     forms: forms.length,
     unguardedForms: forms.filter((form) => !form.guarded).length,
-    errors,
+    stateSurfaceRefs: surfaces,
+    stateSurfaces: surfaces.reduce((total, ref) => total + (Number(ref.match(/ x(\d+)$/u)?.[1]) || 1), 0),
     settingsLinks,
     safeActionRefs,
     missingSafeActionRefs,
@@ -883,15 +905,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | Ambiguous | Forms | Safe action refs | State markers | State categories | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live | Hydration QA |');
-  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | State surfaces | Ambiguous | Forms | Safe action refs | State markers | State categories | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live | Hydration QA |');
+  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} buttons ${live.enabledButtons ?? 0}/${live.buttons ?? 0} links ${live.enabledLinks ?? 0}/${live.links ?? 0} safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${sourceSafeActionSummary(row)} | ${markerSummary(row)} | ${stateCategorySummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} | ${liveHydrationState(live)} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.stateSurfaces} | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${sourceSafeActionSummary(row)} | ${markerSummary(row)} | ${stateCategorySummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} | ${liveHydrationState(live)} |`
     );
   }
 }
@@ -919,7 +941,8 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] If prerequisites are missing, verify blocked/setup state: ${row.expectedBlockedState}`);
     console.log(`- [ ] Reload or navigate away/back, then verify persistence: ${row.persistence}`);
     console.log(`- [ ] Reload proof: ${row.reloadProof}`);
-    console.log(`- [ ] Record visible controls/errors: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, ambiguous controls ${row.sourceAmbiguousControls}, forms ${formSummary(row)}, ${row.errors} setup/error surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    console.log(`- [ ] Record visible controls/state surfaces: ${row.buttons} source buttons, ${row.links} source links, ${row.disabled} disabled-control refs, ${row.disabledLinks} disabled-link refs, ambiguous controls ${row.sourceAmbiguousControls}, forms ${formSummary(row)}, ${row.stateSurfaces} state surface refs, ${row.settingsLinks} Settings links. Live status: ${liveLabel}.`);
+    console.log(`- [ ] Source state surfaces: ${stateSurfaceSummary(row)}.`);
     console.log(`- [ ] Hydration status: ${liveHydrationState(live)}.`);
     if (row.missingSafeActionRefs?.length) console.log(`- [ ] Missing source safe-action labels: ${row.missingSafeActionRefs.join(', ')}.`);
     if (row.sourceButtonLabels) console.log(`- [ ] Source buttons: ${row.sourceButtonLabels}`);

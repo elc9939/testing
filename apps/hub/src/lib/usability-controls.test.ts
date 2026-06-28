@@ -855,6 +855,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Live links');
     expect(source).toContain('Source buttons');
     expect(source).toContain('Source links');
+    expect(source).toContain('State surfaces');
+    expect(source).toContain('Record visible controls/state surfaces');
+    expect(source).toContain('Source state surfaces');
+    expect(source).toContain('stateSurfaceRefPattern');
+    expect(source).toContain('function stateSurfaceRefs');
+    expect(source).toContain('function stateSurfaceSummary');
     expect(source).toContain('Ambiguous source controls needing labels/titles');
     expect(source).toContain('Ambiguous live controls needing browser inspection');
     expect(source).toContain('Source state snippets');
@@ -873,6 +879,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('sourceLinkLabels');
     expect(source).toContain('sourceAmbiguousControls');
     expect(source).toContain('sourceIssueSnippets');
+    expect(source).toContain('stateSurfaceRefs: surfaces');
+    expect(source).toContain('stateSurfaces: surfaces.reduce');
   });
 
   it('explains Stick Arena lab loading and offline save controls', async () => {
