@@ -210,6 +210,19 @@ describe('activity source loading', () => {
     expect(snapshot.errors.at(-1)).toContain('Browser Activity cache could not be updated');
   });
 
+  it('keeps live Activity usable when browser storage access is blocked', async () => {
+    installBlockedLocalStorageAccess();
+    getAiStatusMock.mockResolvedValue({ providers: [], capabilities: [], hardware: { gpus: [] }, jobs: [], background: [], tools: [] });
+    getPassiveSnapshotMock.mockResolvedValue({ runs: [] });
+    listMacroRunsMock.mockResolvedValue([]);
+
+    const snapshot = await loadActivitySnapshot(20, { sourceTimeoutMs: 2 });
+
+    expect(snapshot.partial).toBe(false);
+    expect(snapshot.records).toEqual([]);
+    expect(snapshot.errors.at(-1)).toContain('Browser Activity cache is unavailable');
+  });
+
   it('persists and clears locally dismissed Activity record ids', () => {
     installLocalStorage();
 
@@ -229,6 +242,16 @@ describe('activity source loading', () => {
     const dismissed = dismissActivityRecord('macro:finished');
 
     expect(Array.from(dismissed)).toEqual(['macro:finished']);
+  });
+
+  it('keeps dismiss and restore usable when browser storage access is blocked', () => {
+    installBlockedLocalStorageAccess();
+
+    const dismissed = dismissActivityRecord('macro:finished');
+
+    expect(Array.from(dismissed)).toEqual(['macro:finished']);
+    expect(Array.from(readDismissedActivityIds())).toEqual([]);
+    expect(Array.from(clearDismissedActivityRecords())).toEqual([]);
   });
 });
 
@@ -276,6 +299,15 @@ function installThrowingLocalStorage(): void {
         throw new Error('quota exceeded');
       },
       removeItem: () => undefined
+    }
+  });
+}
+
+function installBlockedLocalStorageAccess(): void {
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    get: () => {
+      throw new Error('Browser storage blocked');
     }
   });
 }

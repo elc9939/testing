@@ -85,6 +85,20 @@ describe('attention store helpers', () => {
     expect(result.error).toContain('Browser attention cache is unavailable');
   });
 
+  it('keeps live Today data usable when browser storage access is blocked', () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw new Error('Browser storage blocked');
+      }
+    });
+
+    const result = writeAttentionSnapshotCache(snapshot());
+
+    expect(result.cachedAt).toBeUndefined();
+    expect(result.error).toContain('Browser attention cache is unavailable');
+  });
+
   it('keeps live Today data usable when browser cache writes fail', () => {
     Object.defineProperty(globalThis, 'localStorage', {
       configurable: true,

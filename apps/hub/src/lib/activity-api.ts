@@ -37,10 +37,19 @@ interface ActivityDismissedCache {
   ids: string[];
 }
 
-export function readActivityCache(): ActivitySnapshot | null {
-  if (typeof localStorage === 'undefined') return null;
+function getBrowserStorage(): Storage | null {
   try {
-    const parsed = JSON.parse(localStorage.getItem(activityCacheKey) ?? 'null') as Partial<ActivityCache> | null;
+    return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function readActivityCache(): ActivitySnapshot | null {
+  const storage = getBrowserStorage();
+  if (!storage) return null;
+  try {
+    const parsed = JSON.parse(storage.getItem(activityCacheKey) ?? 'null') as Partial<ActivityCache> | null;
     if (!parsed || parsed.version !== 1 || !parsed.cachedAt || !parsed.snapshot || !Array.isArray(parsed.snapshot.records)) return null;
     return { ...parsed.snapshot, cachedAt: parsed.cachedAt, stale: true };
   } catch {
@@ -50,13 +59,14 @@ export function readActivityCache(): ActivitySnapshot | null {
 
 function writeActivityCache(snapshot: ActivitySnapshot): { cachedAt?: string; error?: string } {
   const cachedAt = new Date().toISOString();
-  if (typeof localStorage === 'undefined') {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return {
       error: 'Browser Activity cache is unavailable; live records are visible but may not survive refresh.'
     };
   }
   try {
-    localStorage.setItem(activityCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies ActivityCache));
+    storage.setItem(activityCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies ActivityCache));
     return { cachedAt };
   } catch {
     return {
@@ -66,9 +76,10 @@ function writeActivityCache(snapshot: ActivitySnapshot): { cachedAt?: string; er
 }
 
 export function readDismissedActivityIds(): Set<string> {
-  if (typeof localStorage === 'undefined') return new Set();
+  const storage = getBrowserStorage();
+  if (!storage) return new Set();
   try {
-    const parsed = JSON.parse(localStorage.getItem(activityDismissedKey) ?? 'null') as Partial<ActivityDismissedCache> | null;
+    const parsed = JSON.parse(storage.getItem(activityDismissedKey) ?? 'null') as Partial<ActivityDismissedCache> | null;
     if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.ids)) return new Set();
     return new Set(parsed.ids.filter((id): id is string => typeof id === 'string' && id.length > 0));
   } catch {
@@ -78,9 +89,10 @@ export function readDismissedActivityIds(): Set<string> {
 
 function writeDismissedActivityIds(ids: Set<string>): Set<string> {
   const next = new Set(Array.from(ids).filter(Boolean).slice(-200));
-  if (typeof localStorage === 'undefined') return next;
+  const storage = getBrowserStorage();
+  if (!storage) return next;
   try {
-    localStorage.setItem(activityDismissedKey, JSON.stringify({ version: 1, ids: Array.from(next) } satisfies ActivityDismissedCache));
+    storage.setItem(activityDismissedKey, JSON.stringify({ version: 1, ids: Array.from(next) } satisfies ActivityDismissedCache));
   } catch {
     // Dismiss still applies for the current page session even when browser storage is blocked.
   }
@@ -94,8 +106,13 @@ export function dismissActivityRecord(recordId: string): Set<string> {
 }
 
 export function clearDismissedActivityRecords(): Set<string> {
-  if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem(activityDismissedKey);
+  const storage = getBrowserStorage();
+  if (storage) {
+    try {
+      storage.removeItem(activityDismissedKey);
+    } catch {
+      // Restore dismissed records for the current page even if browser storage is blocked.
+    }
   }
   return new Set();
 }

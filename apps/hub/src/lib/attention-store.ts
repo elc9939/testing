@@ -39,10 +39,19 @@ function browserOnline(): boolean {
   return typeof navigator === 'undefined' ? true : navigator.onLine;
 }
 
-function readCachedSnapshot(): AttentionCache | null {
-  if (typeof localStorage === 'undefined') return null;
+function getBrowserStorage(): Storage | null {
   try {
-    const parsed = JSON.parse(localStorage.getItem(attentionCacheKey) ?? 'null') as Partial<AttentionCache> | null;
+    return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readCachedSnapshot(): AttentionCache | null {
+  const storage = getBrowserStorage();
+  if (!storage) return null;
+  try {
+    const parsed = JSON.parse(storage.getItem(attentionCacheKey) ?? 'null') as Partial<AttentionCache> | null;
     if (!parsed || parsed.version !== 1 || !parsed.cachedAt || !parsed.snapshot) return null;
     if (!Array.isArray(parsed.snapshot.items) || !Array.isArray(parsed.snapshot.sources)) return null;
     return parsed as AttentionCache;
@@ -53,13 +62,14 @@ function readCachedSnapshot(): AttentionCache | null {
 
 export function writeAttentionSnapshotCache(snapshot: AttentionSnapshot): { cachedAt?: string; error?: string } {
   const cachedAt = new Date().toISOString();
-  if (typeof localStorage === 'undefined') {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return {
       error: 'Browser attention cache is unavailable; live Today data is visible but may not survive refresh.'
     };
   }
   try {
-    localStorage.setItem(attentionCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies AttentionCache));
+    storage.setItem(attentionCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies AttentionCache));
     return { cachedAt };
   } catch {
     return {
