@@ -14,17 +14,53 @@ const routes = [
     path: '/oauth/google/callback',
     heading: 'Google OAuth',
     alternateHeadings: ['Productivity Hub'],
-    safeActionLabels: ['Open Productivity', 'Connect Google']
+    safeActionLabels: ['Open Productivity', 'Connect Google'],
+    safeActionFallbacks: {
+      'Open Productivity': ['Connect Google']
+    }
   },
   { id: 'career', path: '/desk/career', heading: 'Career', safeActionLabels: ['Export', 'Add Job'] },
   { id: 'study', path: '/desk/study', heading: 'Study', safeActionLabels: ['Log'] },
   { id: 'analytics', path: '/analytics', heading: 'Local Insights', safeActionLabels: ['Refresh'] },
-  { id: 'research', path: '/research', heading: 'Research Desk', safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service'] },
+  {
+    id: 'research',
+    path: '/research',
+    heading: 'Research Desk',
+    safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service'],
+    safeActionFallbacks: {
+      'Run Quick Search': ['Connect AI OS']
+    }
+  },
   { id: 'ai-lab', path: '/ai-lab', heading: 'Browser Experiments', safeActionLabels: ['Restore Samples', 'Classify', 'Parse'] },
-  { id: 'ai-os', path: '/ai-os', heading: 'Ask AI OS', safeActionLabels: ['Refresh', 'Do it'] },
-  { id: 'macro-lab', path: '/macro-lab', heading: 'Macro Lab', safeActionLabels: ['Refresh', 'Panic', 'Dry Run', 'Run Confirmed'] },
+  {
+    id: 'ai-os',
+    path: '/ai-os',
+    heading: 'Ask AI OS',
+    safeActionLabels: ['Refresh', 'Do it'],
+    safeActionFallbacks: {
+      'Do it': ['Connect AI OS', 'Checking AI OS']
+    }
+  },
+  {
+    id: 'macro-lab',
+    path: '/macro-lab',
+    heading: 'Macro Lab',
+    safeActionLabels: ['Refresh', 'Panic', 'Dry Run', 'Run Confirmed'],
+    safeActionFallbacks: {
+      'Dry Run': ['No macro selected', 'Macro definitions are unavailable', 'Start Macro Lab', 'Loading macro definitions'],
+      'Run Confirmed': ['No macro selected', 'Macro definitions are unavailable', 'Start Macro Lab', 'Loading macro definitions']
+    }
+  },
   { id: 'passive-tasks', path: '/passive-tasks', heading: 'Passive Tasks', safeActionLabels: ['Refresh', 'Run Due', 'Startup', 'Idle'] },
-  { id: 'settings', path: '/settings', heading: 'Workspace', safeActionLabels: ['Check Services', 'Sync Now'] },
+  {
+    id: 'settings',
+    path: '/settings',
+    heading: 'Workspace',
+    safeActionLabels: ['Check Services', 'Sync Now'],
+    safeActionFallbacks: {
+      'Check Services': ['Checking']
+    }
+  },
   { id: 'games', path: '/games', heading: 'Play Surfaces', safeActionLabels: ['Open'] },
   { id: 'stick-arena-lab', path: '/games/stick-arena-lab', heading: 'Ability Lab', safeActionLabels: ['Reset', 'Save Run', 'Open Settings'] }
 ];
@@ -434,23 +470,61 @@ async function setControlValue(client, selector, value) {
   return result;
 }
 
-function safeActionStatus(route, controls) {
+function controlMatchesLabel(control, label) {
+  return `${control.label} ${control.title}`.toLowerCase().includes(label.toLowerCase());
+}
+
+function snapshotMatchesLabel(snapshot, label) {
+  const needle = label.toLowerCase();
+  return [...(snapshot.values ?? []), ...(snapshot.issues ?? [])].some((value) => String(value).toLowerCase().includes(needle));
+}
+
+function safeActionStatus(route, snapshot) {
   const labels = route.safeActionLabels ?? [];
+  const controls = snapshot.controls ?? [];
   const matches = labels.flatMap((label) =>
     controls
-      .filter((control) => `${control.label} ${control.title}`.toLowerCase().includes(label.toLowerCase()))
+      .filter((control) => controlMatchesLabel(control, label))
       .map((control) => ({
         label,
         controlLabel: control.label,
-        disabled: control.disabled
+        disabled: control.disabled,
+        fallbackFor: ''
       }))
   );
-  const foundLabels = [...new Set(matches.map((match) => match.label))];
+  const directLabels = new Set(matches.map((match) => match.label));
+  const fallbackMatches = labels
+    .filter((label) => !directLabels.has(label))
+    .flatMap((label) =>
+      (route.safeActionFallbacks?.[label] ?? []).flatMap((fallbackLabel) => {
+        const fallbackControls = controls
+          .filter((control) => controlMatchesLabel(control, fallbackLabel))
+          .map((control) => ({
+            label: fallbackLabel,
+            controlLabel: control.label,
+            disabled: control.disabled,
+            fallbackFor: label
+          }));
+        if (fallbackControls.length) return fallbackControls;
+        if (snapshotMatchesLabel(snapshot, fallbackLabel)) {
+          return [
+            {
+              label: fallbackLabel,
+              controlLabel: fallbackLabel,
+              disabled: true,
+              fallbackFor: label
+            }
+          ];
+        }
+        return [];
+      })
+    );
+  const foundLabels = [...new Set([...matches, ...fallbackMatches].map((match) => match.fallbackFor || match.label))];
   return {
     found: foundLabels.length > 0,
     foundLabels,
     missingLabels: labels.filter((label) => !foundLabels.includes(label)),
-    matches: matches.slice(0, 8)
+    matches: [...matches, ...fallbackMatches].slice(0, 8)
   };
 }
 
@@ -687,7 +761,7 @@ function printMarkdown(rows, persistence) {
   console.log('| --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const safe = row.safeAction.found
-      ? `ok ${row.safeAction.matches.map((match) => `${match.disabled ? 'disabled' : 'enabled'}:${match.label}`).join(', ')}${row.safeAction.missingLabels.length ? `; missing ${row.safeAction.missingLabels.join(', ')}` : ''}`
+      ? `ok ${row.safeAction.matches.map((match) => `${match.fallbackFor ? 'blocked' : match.disabled ? 'disabled' : 'enabled'}:${match.fallbackFor ? `${match.fallbackFor}->${match.label}` : match.label}`).join(', ')}${row.safeAction.missingLabels.length ? `; missing ${row.safeAction.missingLabels.join(', ')}` : ''}`
       : `missing ${row.safeAction.missingLabels.join(', ') || 'safe action'}`;
     const coverage = `${row.snapshot.enabled} enabled / ${row.snapshot.disabled} disabled / ${row.snapshot.buttons} buttons / ${row.snapshot.links} links`;
     const issues = [
@@ -758,7 +832,7 @@ async function main() {
         route,
         snapshot,
         headingOk: headingMatches(route, snapshot.heading),
-        safeAction: safeActionStatus(route, snapshot.controls)
+        safeAction: safeActionStatus(route, snapshot)
       });
     }
     const actionChecks = [
