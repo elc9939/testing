@@ -84,6 +84,31 @@ const routes = [
     ]
   },
   {
+    id: 'google-oauth-callback',
+    path: '/oauth/google/callback',
+    source: 'apps/hub/src/routes/oauth/google/callback/+page.svelte',
+    service: 'Mini Hub API Google OAuth exchange',
+    safeAction: 'Open Productivity if the popup/redirect handoff does not complete automatically.',
+    sampleInput: 'Open the callback without code/state to verify it returns to Productivity with a missing-code message instead of stranding the user.',
+    expectedResult: 'OAuth completion posts to the opener or redirects back to the original hub; fallback link remains visible while the callback is finishing.',
+    reloadProof: 'Reloading the callback should still finish into Productivity with either connected or actionable error state.',
+    safeActionLabels: ['Open Productivity'],
+    expectedBlockedState: 'Missing code/state, OAuth errors, or exchange failures return to Productivity with an actionable message.',
+    persistence: 'Google grants live in the local Hub API; the callback preserves same-origin return state across hosted/local handoffs.',
+    expectedStates: ['loading', 'error', 'setup'],
+    requiredMarkers: [
+      { label: 'callback heading', text: '<h1>Google OAuth</h1>' },
+      { label: 'fallback productivity link', text: 'Open Productivity' },
+      { label: 'fallback link title', text: 'Return to Productivity if Google OAuth does not redirect automatically.' },
+      { label: 'state return decoder', text: 'googleOAuthStateReturnTo' },
+      { label: 'same-hub redirect resolver', text: 'googleOAuthRedirectForCurrentHub' },
+      { label: 'stored return target', text: 'storedReturnTo' },
+      { label: 'opener handoff', text: 'window.opener.postMessage' },
+      { label: 'missing code state', text: 'missing-code' },
+      { label: 'usable authorization code wording', text: 'Google OAuth did not return a usable authorization code.' }
+    ]
+  },
+  {
     id: 'career',
     path: '/desk/career',
     source: 'apps/hub/src/routes/desk/career/+page.svelte',
@@ -633,7 +658,7 @@ function visibleIssueSnippets(html) {
 }
 
 const stateCategoryPatterns = {
-  loading: /\b(?:loading|refreshing|checking|scanning|syncing|opening|busy|preparing)\b/iu,
+  loading: /\b(?:loading|refreshing|checking|scanning|syncing|opening|busy|preparing|finishing|saving)\b/iu,
   offline: /\b(?:offline|unavailable|not connected|not reachable|connection failed|service is unavailable|read-only|cannot reach)\b/iu,
   setup: /\b(?:setup|connect|open settings|not configured|misconfigured|needs|requires|target:)\b/iu,
   cached: /\b(?:cached|cache|browser storage|last browser snapshot|stale|localstorage|this browser)\b/iu,

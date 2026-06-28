@@ -615,6 +615,21 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={productivityRefreshDisabled}');
   });
 
+  it('keeps the Google OAuth callback recoverable if popup handoff stalls', async () => {
+    const source = await routeSource('../routes/oauth/google/callback/+page.svelte');
+
+    expect(source).toContain('<h1>Google OAuth</h1>');
+    expect(source).toContain('googleOAuthRedirectForCurrentHub');
+    expect(source).toContain('googleOAuthStateReturnTo');
+    expect(source).toContain('storedReturnTo');
+    expect(source).toContain('window.opener.postMessage');
+    expect(source).toContain('Google OAuth did not return a usable authorization code.');
+    expect(source).toContain('missing-code');
+    expect(source).toContain("href={hubHref('/productivity')}");
+    expect(source).toContain('Open Productivity');
+    expect(source).toContain('Return to Productivity if Google OAuth does not redirect automatically.');
+  });
+
   it('makes Activity recovery state scannable instead of one vague active count', async () => {
     const source = await routeSource('../routes/activity/+page.svelte');
 
@@ -780,6 +795,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('expectedStates');
     expect(source).toContain("id: 'stick-arena-lab'");
     expect(source).toContain("path: '/games/stick-arena-lab'");
+    expect(source).toContain("id: 'google-oauth-callback'");
+    expect(source).toContain("path: '/oauth/google/callback'");
     expect(source).toContain('function sourceMarkerStatus');
     expect(source).toContain('function missingMarkers');
     expect(source).toContain('function markerSummary');

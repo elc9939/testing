@@ -109,8 +109,10 @@
 
 <main class="oauth-callback" aria-live="polite">
   <section>
+    <h1>Google OAuth</h1>
     <strong>{title}</strong>
     <p>{detail}</p>
+    <a class="button compact" href={hubHref('/productivity')} title="Return to Productivity if Google OAuth does not redirect automatically.">Open Productivity</a>
   </section>
 </main>
 
@@ -138,8 +140,18 @@
     font-size: 16px;
   }
 
+  .oauth-callback h1 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
   .oauth-callback p {
     margin: 8px 0 0;
     color: var(--muted);
+  }
+
+  .oauth-callback a {
+    margin-top: 14px;
   }
 </style>
