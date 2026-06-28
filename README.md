@@ -650,6 +650,7 @@ fills a sample Research goal to verify the offline run guard does not fake a que
 fills Career/Study forms to verify service-backed save controls are guarded when the Hub API
 is unavailable,
 seeds cached Google Calendar/Gmail rows to verify Productivity stays inspectable while writes are locked,
+forces Macro Lab and Passive Tasks offline to verify side-effect controls stay disabled,
 test-fires AI Lab Tree-sitter Parse, verifies the Tree-sitter asset-error copy with an
 intentionally bad grammar URL, runs Transformers.js Classify, and verifies browser-storage
 reload for Activity cache, Productivity Google cache, Research Desk drafts, and AI Lab drafts. Set

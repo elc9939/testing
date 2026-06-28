@@ -950,6 +950,82 @@ async function runProductivityCacheWriteGuardChecks(client, baseUrl) {
   return checks;
 }
 
+async function runLocalServiceSideEffectGuardChecks(client, baseUrl) {
+  const checks = [];
+
+  await navigate(
+    client,
+    routeUrl(baseUrl, '/macro-lab?macroLabUrl=http%3A%2F%2F127.0.0.1%3A9')
+  );
+  checks.push({
+    id: 'macro-lab-side-effect-guard',
+    route: '/macro-lab',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const body = document.body?.innerText || '';
+        const serviceCards = document.querySelectorAll('.service-card').length;
+        const labels = ['Panic', 'Reset', 'Record', 'Stop', 'Dry Run', 'Run Confirmed'];
+        const buttons = labels.flatMap((label) =>
+          [...document.querySelectorAll('button')]
+            .filter((button) => clean(button.innerText || button.textContent).includes(label))
+            .map((button) => ({ label, disabled: Boolean(button.disabled), title: button.getAttribute('title') || '' }))
+        );
+        const panicReset = buttons.filter((button) => ['Panic', 'Reset'].includes(button.label));
+        const badButtons = buttons.filter((button) => {
+          if (!button.disabled) return true;
+          return !/Macro Lab service is unavailable|Connect Macro Lab|loading the latest|already running/i.test(button.title);
+        });
+        const emptyEditor = /Connect the Macro Lab service to edit and run macros|Macro definitions are unavailable/i.test(body);
+        const offlineKnown = /Macro Lab connection failed|Macro Lab service is unavailable|Failed to fetch/i.test(body);
+        return {
+          ok: offlineKnown && serviceCards <= 1 && panicReset.length >= 2 && badButtons.length === 0 && (buttons.length >= 4 || emptyEditor),
+          state: offlineKnown ? 'offline-guard' : 'waiting',
+          detail: \`offlineKnown=\${offlineKnown}; serviceCards=\${serviceCards}; guardedButtons=\${buttons.length - badButtons.length}/\${buttons.length}; emptyEditor=\${emptyEditor}\`
+        };
+      })()`,
+      15_000
+    ))
+  });
+
+  await navigate(
+    client,
+    routeUrl(baseUrl, '/passive-tasks?apiUrl=http%3A%2F%2F127.0.0.1%3A9', { skipApiUrlOverride: true })
+  );
+  checks.push({
+    id: 'passive-task-run-guard',
+    route: '/passive-tasks',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const body = document.body?.innerText || '';
+        const serviceCards = document.querySelectorAll('.service-card').length;
+        const labels = ['Run Due', 'Startup Event', 'Idle Tick'];
+        const buttons = labels.flatMap((label) =>
+          [...document.querySelectorAll('button')]
+            .filter((button) => clean(button.innerText || button.textContent).includes(label))
+            .map((button) => ({ label, disabled: Boolean(button.disabled), title: button.getAttribute('title') || '' }))
+        );
+        const badButtons = buttons.filter((button) => {
+          if (!button.disabled) return true;
+          return !/Passive Tasks API is unavailable|loading the latest|already running|Load Passive Tasks/i.test(button.title);
+        });
+        const offlineKnown = /Passive Tasks API unavailable|Passive Tasks API is unavailable|Failed to fetch/i.test(body);
+        return {
+          ok: offlineKnown && serviceCards <= 1 && buttons.length === labels.length && badButtons.length === 0,
+          state: offlineKnown ? 'offline-guard' : 'waiting',
+          detail: \`offlineKnown=\${offlineKnown}; serviceCards=\${serviceCards}; guardedButtons=\${buttons.length - badButtons.length}/\${buttons.length}\`
+        };
+      })()`,
+      15_000
+    ))
+  });
+
+  return checks;
+}
+
 async function runDeskApiSaveChecks(client, baseUrl) {
   const checks = [];
 
@@ -1291,6 +1367,7 @@ async function main() {
       ...(await runResearchActionChecks(client, baseUrl)),
       ...(await runDeskWriteGuardChecks(client, baseUrl)),
       ...(await runProductivityCacheWriteGuardChecks(client, baseUrl)),
+      ...(await runLocalServiceSideEffectGuardChecks(client, baseUrl)),
       ...(await runAiLabActionChecks(client, baseUrl))
     ];
     const persistence = await runPersistenceChecks(client, baseUrl);
