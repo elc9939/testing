@@ -71,8 +71,9 @@ const routes = [
     expectedStates: ['loading', 'cached', 'setup', 'disabled'],
     requiredMarkers: [
       { label: 'write gating', text: 'productivityWriteDisabled' },
-      { label: 'write mode summary', text: 'productivityWriteStatus = productivityWriteStateLabel()' },
-      { label: 'read mode summary', text: 'productivityReadStatus = productivityReadStateLabel()' },
+      { label: 'explicit status state', text: 'productivityStatusState = {' },
+      { label: 'write mode summary', text: 'productivityWriteStatus = productivityWriteStateLabel(productivityStatusState)' },
+      { label: 'read mode summary', text: 'productivityReadStatus = productivityReadStateLabel(productivityStatusState)' },
       { label: 'cached read-only state', text: 'Cached read-only' },
       { label: 'api offline write detail', text: 'OAuth, Gmail, and Calendar writes need the local API' },
       { label: 'google setup write detail', text: 'Use Connect Google or Add Google Account before sending mail' },

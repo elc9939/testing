@@ -102,6 +102,15 @@
     redirectUrl?: string;
   }
 
+  interface ProductivityStatusState {
+    loading: boolean;
+    actionBusyKey: string;
+    canAct: boolean;
+    googleConnected: boolean;
+    productivityReady: boolean;
+    cacheLoadedAt: string;
+  }
+
   let catalog: ConnectorCatalogEntry[] = [];
   let connections: PublicConnection[] = [];
   let calendars: CalendarSummary[] = [];
@@ -157,10 +166,18 @@
   $: calendarWeek = buildCalendarWeek(events, calendarCursor);
   $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
   $: cacheStatus = cacheLoadedAt ? `Cached ${displayTime(cacheLoadedAt)}` : 'No local cache yet';
-  $: productivityWriteStatus = productivityWriteStateLabel();
-  $: productivityWriteDetail = productivityWriteStateDetail();
-  $: productivityReadStatus = productivityReadStateLabel();
-  $: productivityReadDetail = productivityReadStateDetail();
+  $: productivityStatusState = {
+    loading,
+    actionBusyKey,
+    canAct,
+    googleConnected,
+    productivityReady,
+    cacheLoadedAt
+  };
+  $: productivityWriteStatus = productivityWriteStateLabel(productivityStatusState);
+  $: productivityWriteDetail = productivityWriteStateDetail(productivityStatusState);
+  $: productivityReadStatus = productivityReadStateLabel(productivityStatusState);
+  $: productivityReadDetail = productivityReadStateDetail(productivityStatusState);
   $: productivityCacheDetail = cacheLoadedAt
     ? 'Calendar, mail, filters, and selected account restore from this browser before live refresh finishes.'
     : 'No browser snapshot has been saved yet; connect Google and refresh to create one.';
@@ -431,37 +448,37 @@
     return enabledTitle;
   }
 
-  function productivityWriteStateLabel(): string {
-    if (loading) return 'Loading';
-    if (actionBusyKey) return 'Busy';
-    if (!canAct) return 'API offline';
-    if (!googleConnected) return 'Google setup';
+  function productivityWriteStateLabel(state: ProductivityStatusState): string {
+    if (state.loading) return 'Loading';
+    if (state.actionBusyKey) return 'Busy';
+    if (!state.canAct) return 'API offline';
+    if (!state.googleConnected) return 'Google setup';
     return 'Write-ready';
   }
 
-  function productivityWriteStateDetail(): string {
-    if (loading) return 'Waiting for the latest API, Google, Gmail, and Calendar connection state.';
-    if (actionBusyKey) return 'Another Productivity action is running; write controls stay locked until it finishes.';
-    if (!canAct) return 'OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.';
-    if (!googleConnected) return 'Use Connect Google or Add Google Account before sending mail or changing calendar events.';
+  function productivityWriteStateDetail(state: ProductivityStatusState): string {
+    if (state.loading) return 'Waiting for the latest API, Google, Gmail, and Calendar connection state.';
+    if (state.actionBusyKey) return 'Another Productivity action is running; write controls stay locked until it finishes.';
+    if (!state.canAct) return 'OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.';
+    if (!state.googleConnected) return 'Use Connect Google or Add Google Account before sending mail or changing calendar events.';
     return 'Gmail and Calendar write controls can use connected Google accounts.';
   }
 
-  function productivityReadStateLabel(): string {
-    if (loading) return 'Loading';
-    if (productivityReady) return 'Live reads';
-    if (cacheLoadedAt) return 'Cached read-only';
-    if (!canAct) return 'API offline';
-    if (!googleConnected) return 'Google setup';
+  function productivityReadStateLabel(state: ProductivityStatusState): string {
+    if (state.loading) return 'Loading';
+    if (state.productivityReady) return 'Live reads';
+    if (state.cacheLoadedAt) return 'Cached read-only';
+    if (!state.canAct) return 'API offline';
+    if (!state.googleConnected) return 'Google setup';
     return 'Unavailable';
   }
 
-  function productivityReadStateDetail(): string {
-    if (loading) return 'Loading cached productivity data first, then live Google data when available.';
-    if (productivityReady) return 'Calendar and Gmail reads can refresh from connected Google accounts.';
-    if (cacheLoadedAt) return 'Showing the last browser snapshot; live refresh, search, and edits wait for the local API and Google.';
-    if (!canAct) return 'Start or connect the local API to load live Gmail and Calendar data.';
-    if (!googleConnected) return 'Connect Google to load live Gmail and Calendar data.';
+  function productivityReadStateDetail(state: ProductivityStatusState): string {
+    if (state.loading) return 'Loading cached productivity data first, then live Google data when available.';
+    if (state.productivityReady) return 'Calendar and Gmail reads can refresh from connected Google accounts.';
+    if (state.cacheLoadedAt) return 'Showing the last browser snapshot; live refresh, search, and edits wait for the local API and Google.';
+    if (!state.canAct) return 'Start or connect the local API to load live Gmail and Calendar data.';
+    if (!state.googleConnected) return 'Connect Google to load live Gmail and Calendar data.';
     return 'Open Settings to inspect Productivity wiring.';
   }
 
