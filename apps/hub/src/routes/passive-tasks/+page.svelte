@@ -88,7 +88,6 @@
   $: highlightedRunId = $page.url.searchParams.get('run') ?? '';
   $: highlightedRunPresent = highlightedRunId ? (snapshot?.runs ?? []).some((run) => run.id === highlightedRunId) : true;
   $: tasksWithErrorLogs = (snapshot?.tasks ?? []).filter((task) => task.errorLog.length > 0).slice(0, 6);
-  $: digestCards = topPassiveCards(snapshot);
   $: notifications = visiblePassiveNotifications(snapshot);
   $: familyRows = buildFamilyRows(snapshot, settings);
   $: passiveServiceReady = Boolean(snapshot && settings && !serviceError);
@@ -99,15 +98,22 @@
   $: passiveRefreshBlockedReason = passiveRefreshDisabledReason({ loading, busyId });
   $: worker = snapshot?.worker ?? null;
   $: backupHealth = snapshot?.backupHealth ?? null;
-  $: resultRows = [...(snapshot?.results ?? [])]
-    .sort((a, b) => dateValue(b.createdAt) - dateValue(a.createdAt))
-    .slice(0, 8);
-  $: triggerRows = [...(snapshot?.triggers ?? [])]
-    .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt) || a.label.localeCompare(b.label))
-    .slice(0, 8);
   $: sourceRows = [...(snapshot?.sources ?? [])].sort(
     (a, b) => sourceStatusRank(a) - sourceStatusRank(b) || a.label.localeCompare(b.label)
   );
+  $: rawDigestCards = topPassiveCards(snapshot);
+  $: summarizedDigestCards = rawDigestCards.filter((card) => summarizedServiceIssueCard(card, sourceRows));
+  $: digestCards = rawDigestCards.filter((card) => !summarizedServiceIssueCard(card, sourceRows));
+  $: rawResultRows = [...(snapshot?.results ?? [])]
+    .sort((a, b) => dateValue(b.createdAt) - dateValue(a.createdAt))
+    .slice(0, 8);
+  $: summarizedResultRows = rawResultRows.filter((result) => summarizedServiceIssueCard(result, sourceRows));
+  $: resultRows = rawResultRows.filter((result) => !summarizedServiceIssueCard(result, sourceRows));
+  $: triggerRows = [...(snapshot?.triggers ?? [])]
+    .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt) || a.label.localeCompare(b.label))
+    .slice(0, 8);
+  $: summarizedServiceIssueCount = new Set([...summarizedDigestCards, ...summarizedResultRows].map((card) => card.id)).size;
+  $: sourceIssueSummary = summarizedServiceIssueLine(summarizedServiceIssueCount, sourceRows);
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -403,6 +409,45 @@
     return parts.join(' - ') || 'No run evidence yet';
   }
 
+  function compactText(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]+/gu, ' ').trim();
+  }
+
+  function serviceIssueText(card: PassiveResultCard): string {
+    return compactText(
+      [
+        card.title,
+        card.summary,
+        card.why,
+        card.sourceRefs.map((source) => `${source.id} ${source.label}`).join(' ')
+      ].join(' ')
+    );
+  }
+
+  function sourceIssueText(source: PassiveSourceStatus): string {
+    return compactText([source.id, source.label, source.error ?? ''].join(' '));
+  }
+
+  function summarizedServiceIssueCard(card: PassiveResultCard, sources: PassiveSourceStatus[]): boolean {
+    const text = serviceIssueText(card);
+    if (!/\b(unavailable|offline|failed|fetch|refused|timeout|timed|missing|not found|setup|restore)\b/u.test(text)) return false;
+    return sources.some((source) => {
+      if (source.status === 'ok') return false;
+      const sourceText = sourceIssueText(source);
+      const sourceWords = sourceText.split(' ').filter((word) => word.length >= 3);
+      return sourceWords.some((word) => text.includes(word));
+    });
+  }
+
+  function summarizedServiceIssueLine(count: number, sources: PassiveSourceStatus[]): string {
+    if (!count) return '';
+    const failingSources = sources.filter((source) => source.status !== 'ok').length;
+    const sourceText = failingSources
+      ? `${failingSources} source health row${failingSources === 1 ? '' : 's'}`
+      : 'Source Health';
+    return `${count} repeated service issue card${count === 1 ? '' : 's'} summarized in ${sourceText} below.`;
+  }
+
   function sourceList(card: PassiveResultCard): string {
     const labels = card.sourceRefs.slice(0, 3).map((source) => source.label).filter(Boolean);
     if (!labels.length) return '';
@@ -687,6 +732,12 @@
         </div>
         <a class="button compact" href={hubHref('/')}>Today</a>
       </div>
+      {#if sourceIssueSummary}
+        <p class="compact-service-note">
+          <AlertTriangle size={15} />
+          <span>{sourceIssueSummary}</span>
+        </p>
+      {/if}
       {#if digestCards.length}
         <div class="digest-list">
           {#each digestCards as card}
@@ -754,8 +805,20 @@
             </div>
           {/each}
         </div>
+        {#if summarizedResultRows.length}
+          <p class="compact-service-note">
+            <AlertTriangle size={15} />
+            <span>{summarizedResultRows.length} repeated service issue result{summarizedResultRows.length === 1 ? '' : 's'} shown in Source Health instead.</span>
+          </p>
+        {/if}
       {:else}
-        <p class="empty-note">No passive results have been persisted yet.</p>
+        <p class="empty-note">
+          {#if summarizedResultRows.length}
+            {summarizedResultRows.length} repeated service issue result{summarizedResultRows.length === 1 ? '' : 's'} summarized in Source Health.
+          {:else}
+            No passive results have been persisted yet.
+          {/if}
+        </p>
       {/if}
     </article>
 
@@ -1363,6 +1426,20 @@
   .watcher-list,
   .run-list {
     display: grid;
+  }
+
+  .compact-service-note {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--warning-text);
+    background: var(--warning-bg);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
   }
 
   .digest-row,
