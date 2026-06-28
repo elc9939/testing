@@ -645,8 +645,10 @@ fills Career/Study forms to verify service-backed save controls are guarded when
 is unavailable,
 test-fires AI Lab Tree-sitter Parse, and verifies browser-storage draft reload for Research
 Desk and AI Lab. Set `HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
-Set `HUB_HYDRATED_AI_LAB_CLASSIFY=1` when you intentionally want the slower Transformers.js
-classification smoke, which may download browser model assets.
+Run `pnpm qa:hub:hydrated:ai` when you intentionally want the slower full AI Lab smoke:
+it runs the same route recovery checks and also presses Classify against the browser-side
+Transformers.js model. The first run may download browser model assets, so the default
+hydrated smoke keeps that step opt-in.
 
 Python backend checks:
 

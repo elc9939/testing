@@ -976,9 +976,13 @@ describe('Mini Hub usability control gates', () => {
 
   it('keeps the hydrated smoke script dependency-free and focused on route recovery', async () => {
     const source = await routeSource('../../../../scripts/hub-hydrated-smoke.mjs');
+    const fullAiSource = await routeSource('../../../../scripts/hub-hydrated-smoke-full-ai.mjs');
     const packageJson = await routeSource('../../../../package.json');
 
     expect(packageJson).toContain('"qa:hub:hydrated": "node scripts/hub-hydrated-smoke.mjs"');
+    expect(packageJson).toContain('"qa:hub:hydrated:ai": "node scripts/hub-hydrated-smoke-full-ai.mjs"');
+    expect(fullAiSource).toContain("process.env.HUB_HYDRATED_AI_LAB_CLASSIFY = '1'");
+    expect(fullAiSource).toContain("await import('./hub-hydrated-smoke.mjs')");
     expect(source).toContain('Chrome DevTools websocket');
     expect(source).toContain('HUB_HYDRATED_URL');
     expect(source).toContain('HUB_HYDRATED_BROWSER');
