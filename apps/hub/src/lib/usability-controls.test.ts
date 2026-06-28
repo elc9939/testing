@@ -988,6 +988,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('safeActionStatus');
     expect(source).toContain('matches: matches.slice(0, 8)');
     expect(source).toContain("`${match.disabled ? 'disabled' : 'enabled'}:${match.label}`");
+    expect(source).toContain('runAiLabActionChecks');
+    expect(source).toContain('clickButtonByText');
+    expect(source).toContain('Hydrated Action Check');
+    expect(source).toContain('ai-lab-parse');
+    expect(source).toContain('Parser: Result ready');
+    expect(source).toContain('HUB_HYDRATED_AI_LAB_CLASSIFY');
+    expect(source).toContain('Skipped by default because Transformers.js may download model assets.');
     expect(source).toContain('unexplainedDisabled');
     expect(source).toContain('rawNotFound');
     expect(source).toContain('Mini Hub hydrated smoke found');

@@ -639,9 +639,11 @@ expose hydrated controls to the script.
 For real hydrated DOM evidence without adding Playwright/Puppeteer, run
 `pnpm qa:hub:hydrated` while a local hub dev/preview server is running. It launches a
 temporary headless Chrome/Edge profile through the Chrome DevTools Protocol, opens every
-main route, records the hydrated heading/control state, checks safe-action visibility, and
-verifies browser-storage draft reload for Research Desk and AI Lab. Set
-`HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
+main route, records the hydrated heading/control state, checks safe-action visibility,
+test-fires AI Lab Tree-sitter Parse, and verifies browser-storage draft reload for Research
+Desk and AI Lab. Set `HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
+Set `HUB_HYDRATED_AI_LAB_CLASSIFY=1` when you intentionally want the slower Transformers.js
+classification smoke, which may download browser model assets.
 
 Python backend checks:
 
