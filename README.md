@@ -349,6 +349,9 @@ Implemented now:
   The hosted callback keeps same-origin return state as the final fallback, so adding a
   school account from GitHub Pages does not bounce into a localhost hub page just because
   the local API is configured for development.
+  If the callback is opened manually without a Google code/state, it now stays on a
+  Google OAuth recovery page with an actionable Productivity link instead of instantly
+  swapping into the Productivity route.
   Direct API-started OAuth URLs still support the API-hosted callback. The Productivity
   page includes an account setup panel that explains this flow for personal plus school
   accounts.

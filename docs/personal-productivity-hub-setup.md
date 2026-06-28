@@ -49,6 +49,11 @@ API, waits for the token to be stored, posts a completion message back to the or
 and then closes. If there is no opener tab, it redirects to the trusted hub URL that started the
 flow instead of leaving the browser on `127.0.0.1`.
 
+If `/oauth/google/callback` is opened manually without a Google `code` and signed `state`, the
+hub now keeps you on a Google OAuth recovery page with an `Open Productivity` link. That makes
+route/title diagnostics clear while real OAuth popup and redirect completions still hand off to
+Productivity automatically.
+
 The hub UI requests same-site callbacks dynamically, so the local API can keep
 `GOOGLE_REDIRECT_URI` pointed at the API callback for direct API-started OAuth URLs. If you want
 hosted callback behavior to be the default for direct API-started OAuth URLs too, set:
