@@ -141,6 +141,7 @@
   let gmailLoading = false;
   let backgroundRefreshing = false;
   let cacheLoadedAt = '';
+  let cacheWarning = '';
   let actionError = '';
   let actionMessage = '';
   let actionBusyKey = '';
@@ -212,9 +213,11 @@
   $: eventSaveButtonTitle = eventSaveActionTitle(productivityControlTitleState);
   $: composeDraftButtonTitle = composeActionTitle(productivityControlTitleState, false);
   $: composeSendButtonTitle = composeActionTitle(productivityControlTitleState, true);
-  $: productivityCacheDetail = cacheLoadedAt
-    ? 'Calendar, mail, filters, and selected account restore from this browser before live refresh finishes.'
-    : 'No browser snapshot has been saved yet; connect Google and refresh to create one.';
+  $: productivityCacheDetail = cacheWarning
+    ? cacheWarning
+    : cacheLoadedAt
+      ? 'Calendar, mail, filters, and selected account restore from this browser before live refresh finishes.'
+      : 'No browser snapshot has been saved yet; connect Google and refresh to create one.';
   $: productivityConnectionDetail = googleConnected
     ? `${googleConnections.length} account${googleConnections.length === 1 ? '' : 's'} available for Gmail and Calendar actions.`
     : 'Connect Google to enable live Gmail, Calendar, and write actions.';
@@ -441,10 +444,10 @@
     selectedGmailLabelId = cached.selectedGmailLabelId;
     selectedGmailThread = gmailThreads[0] ?? null;
     cacheLoadedAt = cached.cachedAt;
+    cacheWarning = '';
   }
 
   function persistProductivityCache(): void {
-    if (typeof localStorage === 'undefined') return;
     const cachedAt = new Date().toISOString();
     const payload: ProductivityCache = {
       version: 1,
@@ -461,8 +464,17 @@
       gmailQuery,
       selectedGmailLabelId
     };
-    localStorage.setItem(productivityCacheKey, JSON.stringify(payload));
-    cacheLoadedAt = cachedAt;
+    if (typeof localStorage === 'undefined') {
+      cacheWarning = 'Browser productivity cache is unavailable; live Google data is visible but may not survive refresh.';
+      return;
+    }
+    try {
+      localStorage.setItem(productivityCacheKey, JSON.stringify(payload));
+      cacheLoadedAt = cachedAt;
+      cacheWarning = '';
+    } catch {
+      cacheWarning = 'Browser productivity cache could not be updated; live Google data is visible but may not survive refresh.';
+    }
   }
 
   function draftForApi(): CalendarEventDraft {
@@ -1186,6 +1198,12 @@
 {#if !canAct}
   <section class="card card-pad offline-banner">
     <span>{productivityApiBannerText}</span>
+    <a class="inline-action" href={hubHref(routeMap.settings)}>Open Settings</a>
+  </section>
+{/if}
+{#if cacheWarning}
+  <section class="card card-pad offline-banner">
+    <span>{cacheWarning}</span>
     <a class="inline-action" href={hubHref(routeMap.settings)}>Open Settings</a>
   </section>
 {/if}

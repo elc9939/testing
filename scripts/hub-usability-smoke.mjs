@@ -83,6 +83,8 @@ const routes = [
       { label: 'calendar move confirmation', text: 'Calendar move skipped.' },
       { label: 'offline cache banner', text: 'offline-banner' },
       { label: 'cached productivity wording', text: 'cached productivity data can stay visible' },
+      { label: 'browser cache warning state', text: 'cacheWarning' },
+      { label: 'browser cache write guard', text: 'Browser productivity cache could not be updated' },
       { label: 'OAuth gating', text: 'googleConnectDisabled' }
     ]
   },

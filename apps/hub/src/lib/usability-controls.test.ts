@@ -637,6 +637,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function productivityReadStateLabel');
     expect(source).toContain('function productivityReadStateDetail');
     expect(source).toContain('state.cacheLoadedAt');
+    expect(source).toContain("let cacheWarning = ''");
+    expect(source).toContain('productivityCacheDetail = cacheWarning');
+    expect(source).toContain('Browser productivity cache is unavailable');
+    expect(source).toContain('Browser productivity cache could not be updated');
+    expect(source).toContain('{#if cacheWarning}');
     expect(source).toContain('Write Mode');
     expect(source).toContain('Read Mode');
     expect(source).toContain('Checking API');
