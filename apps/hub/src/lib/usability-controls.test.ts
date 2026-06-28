@@ -778,6 +778,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('reloadProof');
     expect(source).toContain('requiredMarkers');
     expect(source).toContain('expectedStates');
+    expect(source).toContain("id: 'stick-arena-lab'");
+    expect(source).toContain("path: '/games/stick-arena-lab'");
     expect(source).toContain('function sourceMarkerStatus');
     expect(source).toContain('function missingMarkers');
     expect(source).toContain('function markerSummary');
@@ -879,6 +881,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("href={hubHref('/settings')}");
     expect(source).toContain('disabled={resetDisabled}');
     expect(source).toContain('disabled={saveDisabled}');
+    expect(source).toContain('clientData.saveGameRun');
+    expect(source).toContain('clientData.saveGameState');
+    expect(source).toContain('Telemetry');
   });
 
   it('shows Analytics refresh as a guarded async action with readable failures', async () => {

@@ -310,6 +310,32 @@ const routes = [
       { label: 'legacy fallback route', text: 'legacyHref()' },
       { label: 'legacy arcade label', text: 'Legacy Arcade' }
     ]
+  },
+  {
+    id: 'stick-arena-lab',
+    path: '/games/stick-arena-lab',
+    source: 'apps/hub/src/routes/games/stick-arena-lab/+page.svelte',
+    service: 'Browser game engine + optional Mini Hub API saves',
+    safeAction: 'Open the lab; Reset waits for the engine, Save Run waits for engine/API readiness.',
+    sampleInput: 'No text input. Wait for the Pixi/Rapier lab to load, then use Reset locally; only save when Mini Hub API is online.',
+    expectedResult: 'Engine loading/unavailable, offline read-only saving, telemetry, reset, and save state are all visible instead of silent.',
+    reloadProof: 'Reload the route; the lab should recreate locally and saved game runs/state remain API/cache-backed when saving is available.',
+    safeActionLabels: ['Reset', 'Save Run', 'Open Settings'],
+    expectedBlockedState: 'Engine/API prerequisites disable reset/save with clear titles and banners.',
+    persistence: 'Runs and game state save through Mini Hub when online; telemetry stays visible during the current browser session.',
+    expectedStates: ['loading', 'offline', 'disabled', 'ready'],
+    requiredMarkers: [
+      { label: 'engine loading state', text: 'Loading engine' },
+      { label: 'engine unavailable state', text: 'Game engine unavailable' },
+      { label: 'offline save banner', text: 'Offline read-only: the lab is playable' },
+      { label: 'reset gate', text: 'resetDisabled' },
+      { label: 'save gate', text: 'saveDisabled' },
+      { label: 'save title helper', text: 'function saveTitle' },
+      { label: 'game run save', text: 'clientData.saveGameRun' },
+      { label: 'game state save', text: 'clientData.saveGameState' },
+      { label: 'telemetry output', text: 'Telemetry' },
+      { label: 'engine import', text: "createStickArenaLab" }
+    ]
   }
 ];
 
