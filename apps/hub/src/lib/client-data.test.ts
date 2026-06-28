@@ -38,6 +38,32 @@ class MemoryStorage implements Storage {
   }
 }
 
+class ThrowingStorage implements Storage {
+  get length(): number {
+    throw new Error('Browser storage blocked');
+  }
+
+  clear(): void {
+    throw new Error('Browser storage blocked');
+  }
+
+  getItem(): string | null {
+    throw new Error('Browser storage blocked');
+  }
+
+  key(): string | null {
+    throw new Error('Browser storage blocked');
+  }
+
+  removeItem(): void {
+    throw new Error('Browser storage blocked');
+  }
+
+  setItem(): void {
+    throw new Error('Browser storage blocked');
+  }
+}
+
 const job: JobRecord = {
   id: 'job_1',
   workspaceId: 'personal',
@@ -192,5 +218,22 @@ describe('client data sync state', () => {
     ).rejects.toThrow('Offline read-only mode');
     expect(requestApiJsonMock).not.toHaveBeenCalled();
     expect(get(store).status).toBe('offline-readonly');
+  });
+
+  it('keeps sync usable when browser storage is blocked', async () => {
+    vi.stubGlobal('localStorage', new ThrowingStorage());
+    requestApiJsonMock.mockResolvedValue({
+      cursor: '2026-06-26T15:00:00.000Z',
+      changes: []
+    });
+
+    const store = createClientDataStore();
+    await store.syncNow();
+    const state = get(store);
+
+    expect(requestApiJsonMock).toHaveBeenCalledWith('/api/sync/pull?since=');
+    expect(state.status).toBe('idle');
+    expect(state.cursor).toBe('2026-06-26T15:00:00.000Z');
+    expect(state.deviceId).toMatch(/^web:/);
   });
 });

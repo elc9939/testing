@@ -27,6 +27,7 @@ const deviceIdStorageKey = 'miniHub.deviceId.v1';
 const cursorStorageKey = 'miniHub.syncCursor.v1';
 const legacyAutoImportStorageKey = 'miniHub.legacyAutoImport.v1';
 const localCacheFallbackStorageKey = 'miniHub.localCacheFallback.v1';
+const storageProbeKey = 'miniHub.storageProbe.v1';
 
 export interface ClientDataState {
   initialized: boolean;
@@ -53,14 +54,44 @@ function browserOnline(): boolean {
   return typeof navigator === 'undefined' ? true : navigator.onLine;
 }
 
+function getBrowserStorage(): Storage | null {
+  try {
+    return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function browserStorageUsable(): boolean {
+  const storage = getBrowserStorage();
+  if (!storage) return false;
+  try {
+    storage.setItem(storageProbeKey, '1');
+    storage.removeItem(storageProbeKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function readStorage(key: string, fallback = ''): string {
-  if (typeof localStorage === 'undefined') return fallback;
-  return localStorage.getItem(key) ?? fallback;
+  const storage = getBrowserStorage();
+  if (!storage) return fallback;
+  try {
+    return storage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function writeStorage(key: string, value: string): void {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(key, value);
+  const storage = getBrowserStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Browser storage is a recovery aid; API/PGlite-backed state should keep working if it is blocked.
+  }
 }
 
 function ensureDeviceId(): string {
@@ -128,7 +159,7 @@ export function createClientDataStore() {
     if (db) return db;
     const { createMiniHubPglite } = await import('@mini-hub/db/local');
     const configuredDataDir = import.meta.env.PUBLIC_PGLITE_DATA_DIR || '';
-    const persistentUnavailable = !configuredDataDir && readStorage(localCacheFallbackStorageKey) === 'memory';
+    const persistentUnavailable = !configuredDataDir && (!browserStorageUsable() || readStorage(localCacheFallbackStorageKey) === 'memory');
     const requestedDataDir = persistentUnavailable ? 'memory://mini-hub-fallback' : configuredDataDir || 'idb://mini-hub';
     try {
       db = await createMiniHubPglite({ dataDir: requestedDataDir });
@@ -769,7 +800,8 @@ export function createClientDataStore() {
   }
 
   async function autoImportLegacyIfNeeded(): Promise<void> {
-    if (typeof localStorage === 'undefined') return;
+    const storage = getBrowserStorage();
+    if (!storage) return;
 
     const state = get(store);
     if (!canAutoSave(state)) return;
@@ -782,11 +814,16 @@ export function createClientDataStore() {
     if (readStorage(legacyAutoImportStorageKey) === 'done' && cachedEntityCount > 0) return;
 
     const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
-    const summary = inspectLegacyStorage(localStorage);
+    let summary: LegacyImportSummary;
+    try {
+      summary = inspectLegacyStorage(storage);
+    } catch {
+      return;
+    }
     if (!legacySummaryHasData(summary)) return;
 
     try {
-      await importLegacySnapshot(localStorage);
+      await importLegacySnapshot(storage);
       writeStorage(legacyAutoImportStorageKey, 'done');
     } catch (error) {
       setPartial({
