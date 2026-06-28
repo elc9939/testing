@@ -44,6 +44,19 @@
 
   type ResearchModeOption = { id: ResearchMode; label: string; hint: string };
 
+  interface ResearchMonitorActionState {
+    aiOsUnavailable: boolean;
+    serviceProbePending: boolean;
+    monitorsLoading: boolean;
+    monitorActionId: string;
+  }
+
+  interface ResearchServicesRefreshState {
+    refreshing: boolean;
+    monitorsLoading: boolean;
+    sourceLibraryLoading: boolean;
+  }
+
   const modes: ResearchModeOption[] = [
     { id: 'quick_search', label: 'Quick Search', hint: 'Search, rank, summarize.' },
     { id: 'deep_research', label: 'Deep Research', hint: 'More queries and source comparison.' },
@@ -139,11 +152,31 @@
       : '';
   $: selectedRunActionDisabled = Boolean(selectedRunActionBlockedReason);
   $: selectedRunActionTitle = selectedRunActionBlockedReason || 'Control the selected research run.';
+  $: monitorActionState = {
+    aiOsUnavailable,
+    serviceProbePending,
+    monitorsLoading,
+    monitorActionId
+  };
+  $: researchServicesRefreshState = {
+    refreshing,
+    monitorsLoading,
+    sourceLibraryLoading
+  };
+  $: researchRunButtonTitle = runResearchTitle({
+    blockedReason: researchRunBlockedReason,
+    label: currentMode?.label ?? 'Research'
+  });
+  $: refreshRunsButtonTitle = refreshRunsTitle(refreshing);
+  $: refreshMonitorsButtonTitle = refreshMonitorsTitle(monitorActionState);
+  $: researchServicesButtonTitle = researchServicesRefreshTitle(researchServicesRefreshState);
+  $: saveCurrentMonitorButtonTitle = saveCurrentMonitorTitle(monitorActionState, goal);
+  $: advancedToggleButtonTitle = advancedToggleTitle(advancedOpen);
   $: if (draftHydrated) persistResearchDraft();
 
-  function runResearchTitle(): string {
-    if (researchRunBlockedReason) return researchRunBlockedReason;
-    return `Start a ${currentMode?.label ?? 'Research'} run.`;
+  function runResearchTitle(state: { blockedReason: string; label: string }): string {
+    if (state.blockedReason) return state.blockedReason;
+    return `Start a ${state.label} run.`;
   }
 
   function researchRunDisabledReason(state: {
@@ -157,13 +190,13 @@
     return '';
   }
 
-  function refreshRunsTitle(): string {
-    return refreshing ? 'Research runs are already refreshing.' : 'Refresh research runs from AI OS.';
+  function refreshRunsTitle(isRefreshing: boolean): string {
+    return isRefreshing ? 'Research runs are already refreshing.' : 'Refresh research runs from AI OS.';
   }
 
-  function refreshMonitorsTitle(): string {
-    if (monitorActionId) return 'Another research monitor action is already running.';
-    if (monitorsLoading) return 'Research monitors are already refreshing.';
+  function refreshMonitorsTitle(state: ResearchMonitorActionState): string {
+    if (state.monitorActionId) return 'Another research monitor action is already running.';
+    if (state.monitorsLoading) return 'Research monitors are already refreshing.';
     return 'Refresh research monitors from AI OS.';
   }
 
@@ -185,38 +218,38 @@
     return 'No archived sources matched. Run a research job first, or relax the search/domain filter.';
   }
 
-  function monitorActionBlockedReason(monitor?: ResearchMonitor): string {
-    if (aiOsUnavailable) return 'Connect AI OS before changing research monitors.';
-    if (serviceProbePending) return 'Research Desk is checking AI OS before monitor actions are enabled.';
-    if (monitorsLoading) return 'Research monitors are loading or syncing.';
-    if (monitorActionId && (!monitor || !monitorActionId.startsWith(`${monitor.id}:`))) {
+  function monitorActionBlockedReason(state: ResearchMonitorActionState, monitor?: ResearchMonitor): string {
+    if (state.aiOsUnavailable) return 'Connect AI OS before changing research monitors.';
+    if (state.serviceProbePending) return 'Research Desk is checking AI OS before monitor actions are enabled.';
+    if (state.monitorsLoading) return 'Research monitors are loading or syncing.';
+    if (state.monitorActionId && (!monitor || !state.monitorActionId.startsWith(`${monitor.id}:`))) {
       return 'Another research monitor action is already running.';
     }
-    if (monitorActionId && monitor && monitorActionId.startsWith(`${monitor.id}:`)) {
+    if (state.monitorActionId && monitor && state.monitorActionId.startsWith(`${monitor.id}:`)) {
       return 'This research monitor action is already running.';
     }
     return '';
   }
 
-  function monitorActionDisabled(monitor?: ResearchMonitor): boolean {
-    return Boolean(monitorActionBlockedReason(monitor));
+  function monitorActionDisabled(state: ResearchMonitorActionState, monitor?: ResearchMonitor): boolean {
+    return Boolean(monitorActionBlockedReason(state, monitor));
   }
 
-  function monitorActionTitle(enabledTitle: string, monitor?: ResearchMonitor): string {
-    return monitorActionBlockedReason(monitor) || enabledTitle;
+  function monitorActionTitle(state: ResearchMonitorActionState, enabledTitle: string, monitor?: ResearchMonitor): string {
+    return monitorActionBlockedReason(state, monitor) || enabledTitle;
   }
 
-  function saveCurrentMonitorTitle(): string {
-    if (!goal.trim()) return 'Enter a research goal before saving a monitor.';
-    return monitorActionTitle('Save the current workbench as a reusable monitor.');
+  function saveCurrentMonitorTitle(state: ResearchMonitorActionState, currentGoal: string): string {
+    if (!currentGoal.trim()) return 'Enter a research goal before saving a monitor.';
+    return monitorActionTitle(state, 'Save the current workbench as a reusable monitor.');
   }
 
   function researchModeTitle(item: ResearchModeOption): string {
     return mode === item.id ? `${item.label} mode is selected.` : `Use ${item.label}: ${item.hint}`;
   }
 
-  function advancedToggleTitle(): string {
-    return advancedOpen
+  function advancedToggleTitle(isOpen: boolean): string {
+    return isOpen
       ? 'Hide advanced research knobs; current values stay saved in this browser.'
       : 'Show advanced research knobs for provider, model, domains, limits, and indexing.';
   }
@@ -291,8 +324,8 @@
     await Promise.all([refreshRuns(), refreshSourceLibrary(), refreshMonitors()]);
   }
 
-  function researchServicesRefreshTitle(): string {
-    if (refreshing || monitorsLoading || sourceLibraryLoading) {
+  function researchServicesRefreshTitle(state: ResearchServicesRefreshState): string {
+    if (state.refreshing || state.monitorsLoading || state.sourceLibraryLoading) {
       return 'Research service refresh is already running.';
     }
     return 'Retry AI OS research runs, monitors, and source library.';
@@ -374,7 +407,7 @@
   }
 
   async function saveCurrentMonitor(): Promise<void> {
-    const blocked = monitorActionBlockedReason();
+    const blocked = monitorActionBlockedReason(monitorActionState);
     if (blocked) {
       monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
@@ -408,7 +441,7 @@
   }
 
   async function toggleMonitor(monitor: ResearchMonitor): Promise<void> {
-    const blocked = monitorActionBlockedReason(monitor);
+    const blocked = monitorActionBlockedReason(monitorActionState, monitor);
     if (blocked) {
       monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
@@ -428,7 +461,7 @@
   }
 
   async function runMonitor(monitor: ResearchMonitor): Promise<void> {
-    const blocked = monitorActionBlockedReason(monitor);
+    const blocked = monitorActionBlockedReason(monitorActionState, monitor);
     if (blocked) {
       monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
@@ -451,7 +484,7 @@
   }
 
   async function runDueMonitors(): Promise<void> {
-    const blocked = monitorActionBlockedReason();
+    const blocked = monitorActionBlockedReason(monitorActionState);
     if (blocked) {
       monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
@@ -479,7 +512,7 @@
   }
 
   async function removeMonitor(monitor: ResearchMonitor): Promise<void> {
-    const blocked = monitorActionBlockedReason(monitor);
+    const blocked = monitorActionBlockedReason(monitorActionState, monitor);
     if (blocked) {
       monitorError = aiOsUnavailable ? serviceIssue : blocked;
       return;
@@ -939,7 +972,7 @@
       <h1>Research Desk</h1>
       <p>Search, scrape, crawl, compare, cite, and archive source-backed reports through AI OS.</p>
     </div>
-    <button class="icon-button" type="button" disabled={refreshing} title={refreshRunsTitle()} on:click={refreshRuns}>
+    <button class="icon-button" type="button" disabled={refreshing} title={refreshRunsButtonTitle} on:click={refreshRuns}>
       <RefreshCw size={17} />
     </button>
   </section>
@@ -957,7 +990,7 @@
           class="link-button compact"
           type="button"
           disabled={refreshing || monitorsLoading || sourceLibraryLoading}
-          title={researchServicesRefreshTitle()}
+          title={researchServicesButtonTitle}
           on:click={refreshResearchServices}
         >
           <RefreshCw size={15} />
@@ -1011,7 +1044,7 @@
         </label>
       </div>
 
-      <button class="link-button" type="button" title={advancedToggleTitle()} on:click={() => (advancedOpen = !advancedOpen)}>
+      <button class="link-button" type="button" title={advancedToggleButtonTitle} on:click={() => (advancedOpen = !advancedOpen)}>
         {advancedOpen ? 'Hide knobs' : 'Show knobs'}
       </button>
 
@@ -1069,7 +1102,7 @@
       {/if}
 
       <div class="form-actions">
-        <button class="primary-button" type="submit" disabled={researchRunDisabled} title={runResearchTitle()}>
+        <button class="primary-button" type="submit" disabled={researchRunDisabled} title={researchRunButtonTitle}>
           <Search size={17} />
           <span>{serviceBlockedLabel}</span>
         </button>
@@ -1113,7 +1146,7 @@
       {:else}
         <p class:error-message={Boolean(visibleRunError || aiOsUnavailable)} class="empty-note">{researchRunsEmptyMessage()}</p>
         {#if visibleRunError || serviceIssue}
-          <button class="link-button compact" type="button" disabled={refreshing} title={refreshRunsTitle()} on:click={refreshRuns}>
+          <button class="link-button compact" type="button" disabled={refreshing} title={refreshRunsButtonTitle} on:click={refreshRuns}>
             <RefreshCw size={15} />
             <span>Retry Runs</span>
           </button>
@@ -1130,11 +1163,11 @@
         <p>Save a reusable research setup, then run it again when you want a fresh report.</p>
       </div>
       <div class="monitor-heading-actions">
-        <button class="link-button compact" type="button" disabled={monitorActionDisabled()} title={monitorActionTitle('Run due daily and weekly monitors.')} on:click={runDueMonitors}>
+        <button class="link-button compact" type="button" disabled={monitorActionDisabled(monitorActionState)} title={monitorActionTitle(monitorActionState, 'Run due daily and weekly monitors.')} on:click={runDueMonitors}>
           <Play size={15} />
           <span>{aiOsUnavailable ? 'Connect AI OS' : monitorActionId === 'due-sweep' ? 'Running Due' : 'Run Due'}</span>
         </button>
-        <button class="icon-button" type="button" disabled={monitorsLoading || Boolean(monitorActionId)} title={refreshMonitorsTitle()} on:click={refreshMonitors}>
+        <button class="icon-button" type="button" disabled={monitorsLoading || Boolean(monitorActionId)} title={refreshMonitorsButtonTitle} on:click={refreshMonitors}>
           <RefreshCw size={17} />
         </button>
       </div>
@@ -1153,7 +1186,7 @@
           <option value="weekly">Weekly</option>
         </select>
       </label>
-      <button class="link-button" type="button" disabled={monitorActionDisabled() || !goal.trim()} title={saveCurrentMonitorTitle()} on:click={saveCurrentMonitor}>
+      <button class="link-button" type="button" disabled={monitorActionDisabled(monitorActionState) || !goal.trim()} title={saveCurrentMonitorButtonTitle} on:click={saveCurrentMonitor}>
         <Bell size={15} />
         <span>{aiOsUnavailable ? 'Connect AI OS' : 'Save Current Setup'}</span>
       </button>
@@ -1179,17 +1212,17 @@
             <p>{monitor.request.goal}</p>
             {#if monitor.last_error}<p class="error-message compact-message">{monitor.last_error}</p>{/if}
             <div class="monitor-actions">
-              <button type="button" disabled={monitorActionDisabled(monitor)} title={monitorActionTitle('Run this monitor now.', monitor)} on:click={() => runMonitor(monitor)}>
+              <button type="button" disabled={monitorActionDisabled(monitorActionState, monitor)} title={monitorActionTitle(monitorActionState, 'Run this monitor now.', monitor)} on:click={() => runMonitor(monitor)}>
                 <Play size={15} />
                 <span>{monitorActionBusy(monitor, 'run') ? 'Running' : 'Run Now'}</span>
               </button>
               <button type="button" title={monitor.id === selectedMonitorId ? 'This monitor is loaded in the workbench.' : 'Load this monitor into the workbench.'} on:click={() => loadMonitorIntoForm(monitor)}>
                 {monitor.id === selectedMonitorId ? 'Loaded' : 'Load'}
               </button>
-              <button type="button" disabled={monitorActionDisabled(monitor)} title={monitorActionTitle(monitor.enabled ? 'Disable this monitor.' : 'Enable this monitor.', monitor)} on:click={() => toggleMonitor(monitor)}>
+              <button type="button" disabled={monitorActionDisabled(monitorActionState, monitor)} title={monitorActionTitle(monitorActionState, monitor.enabled ? 'Disable this monitor.' : 'Enable this monitor.', monitor)} on:click={() => toggleMonitor(monitor)}>
                 {monitorActionBusy(monitor, 'toggle') ? 'Saving' : monitor.enabled ? 'Disable' : 'Enable'}
               </button>
-              <button class="danger-button" type="button" disabled={monitorActionDisabled(monitor)} title={monitorActionTitle('Delete this monitor without deleting archived reports.', monitor)} on:click={() => removeMonitor(monitor)}>
+              <button class="danger-button" type="button" disabled={monitorActionDisabled(monitorActionState, monitor)} title={monitorActionTitle(monitorActionState, 'Delete this monitor without deleting archived reports.', monitor)} on:click={() => removeMonitor(monitor)}>
                 <Trash2 size={15} />
                 <span>{monitorActionBusy(monitor, 'delete') ? 'Deleting' : 'Delete'}</span>
               </button>
