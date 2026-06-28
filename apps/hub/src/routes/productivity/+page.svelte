@@ -111,6 +111,16 @@
     cacheLoadedAt: string;
   }
 
+  interface ProductivityControlTitleState extends ProductivityStatusState {
+    backgroundRefreshing: boolean;
+    gmailLoading: boolean;
+    selectedGmailLabelId: string;
+    replyBody: string;
+    editingEventId: string;
+    eventDraft: CalendarEventDraft;
+    composeDraft: GmailComposeDraft;
+  }
+
   let catalog: ConnectorCatalogEntry[] = [];
   let connections: PublicConnection[] = [];
   let calendars: CalendarSummary[] = [];
@@ -178,6 +188,25 @@
   $: productivityWriteDetail = productivityWriteStateDetail(productivityStatusState);
   $: productivityReadStatus = productivityReadStateLabel(productivityStatusState);
   $: productivityReadDetail = productivityReadStateDetail(productivityStatusState);
+  $: productivityControlTitleState = {
+    ...productivityStatusState,
+    backgroundRefreshing,
+    gmailLoading,
+    selectedGmailLabelId,
+    replyBody,
+    editingEventId,
+    eventDraft,
+    composeDraft
+  };
+  $: productivityRefreshButtonTitle = productivityRefreshTitle(productivityControlTitleState);
+  $: gmailRefreshButtonTitle = gmailRefreshTitle(productivityControlTitleState);
+  $: gmailThreadOpenButtonTitle = gmailThreadOpenTitle(productivityControlTitleState);
+  $: selectedLabelButtonTitle = selectedLabelActionTitle(productivityControlTitleState);
+  $: replyDraftButtonTitle = replyActionTitle(productivityControlTitleState, false);
+  $: replySendButtonTitle = replyActionTitle(productivityControlTitleState, true);
+  $: eventSaveButtonTitle = eventSaveActionTitle(productivityControlTitleState);
+  $: composeDraftButtonTitle = composeActionTitle(productivityControlTitleState, false);
+  $: composeSendButtonTitle = composeActionTitle(productivityControlTitleState, true);
   $: productivityCacheDetail = cacheLoadedAt
     ? 'Calendar, mail, filters, and selected account restore from this browser before live refresh finishes.'
     : 'No browser snapshot has been saved yet; connect Google and refresh to create one.';
@@ -482,23 +511,23 @@
     return 'Open Settings to inspect Productivity wiring.';
   }
 
-  function productivityRefreshTitle(): string {
-    if (actionBusyKey) return 'Another Productivity action is already running.';
-    if (loading) return 'Productivity is already loading.';
-    if (backgroundRefreshing) return 'Productivity is already refreshing.';
+  function productivityRefreshTitle(state: ProductivityControlTitleState): string {
+    if (state.actionBusyKey) return 'Another Productivity action is already running.';
+    if (state.loading) return 'Productivity is already loading.';
+    if (state.backgroundRefreshing) return 'Productivity is already refreshing.';
     return 'Refresh calendar, mail, and connection data.';
   }
 
-  function gmailRefreshTitle(): string {
-    if (actionBusyKey) return 'Another Productivity action is already running.';
-    if (!productivityReady) return 'Connect the API and Google to refresh Gmail. Cached mail remains readable.';
-    if (gmailLoading) return 'Priority Gmail is already refreshing.';
+  function gmailRefreshTitle(state: ProductivityControlTitleState): string {
+    if (state.actionBusyKey) return 'Another Productivity action is already running.';
+    if (!state.productivityReady) return 'Connect the API and Google to refresh Gmail. Cached mail remains readable.';
+    if (state.gmailLoading) return 'Priority Gmail is already refreshing.';
     return 'Refresh priority Gmail threads.';
   }
 
-  function gmailThreadOpenTitle(): string {
-    if (actionBusyKey) return 'Another Productivity action is already running.';
-    if (!productivityReady) return 'Open the cached thread preview. Connect the API and Google to fetch full messages.';
+  function gmailThreadOpenTitle(state: ProductivityControlTitleState): string {
+    if (state.actionBusyKey) return 'Another Productivity action is already running.';
+    if (!state.productivityReady) return 'Open the cached thread preview. Connect the API and Google to fetch full messages.';
     return 'Open Gmail thread and fetch the latest messages.';
   }
 
@@ -536,31 +565,48 @@
     return productivityActionTitle('Ask for confirmation before moving this event.');
   }
 
-  function selectedLabelActionTitle(): string {
-    return productivityValidatedActionTitle('Apply selected label', selectedGmailLabelId ? '' : 'Choose a Gmail label before applying it.');
+  function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'actionBusyKey' | 'productivityReady'>, enabledTitle: string): string {
+    if (state.loading) return 'Productivity is still loading the latest connection state.';
+    if (!state.productivityReady) return 'Connect the API and Google before using this action.';
+    if (state.actionBusyKey) return 'Another Productivity action is already running.';
+    return enabledTitle;
   }
 
-  function replyActionTitle(send: boolean): string {
-    return productivityValidatedActionTitle(
+  function productivityValidatedActionTitleForState(
+    state: Pick<ProductivityControlTitleState, 'loading' | 'actionBusyKey' | 'productivityReady'>,
+    enabledTitle: string,
+    validationReason: string
+  ): string {
+    const blocked = productivityActionTitleForState(state, enabledTitle);
+    return blocked === enabledTitle ? validationReason || enabledTitle : blocked;
+  }
+
+  function selectedLabelActionTitle(state: ProductivityControlTitleState): string {
+    return productivityValidatedActionTitleForState(state, 'Apply selected label', state.selectedGmailLabelId ? '' : 'Choose a Gmail label before applying it.');
+  }
+
+  function replyActionTitle(state: ProductivityControlTitleState, send: boolean): string {
+    return productivityValidatedActionTitleForState(
+      state,
       send ? 'Send this Gmail reply' : 'Save reply as a Gmail draft',
-      replyBody.trim() ? '' : 'Write a reply before saving or sending it.'
+      state.replyBody.trim() ? '' : 'Write a reply before saving or sending it.'
     );
   }
 
-  function eventSaveActionTitle(): string {
-    const action = editingEventId ? 'Update this Google Calendar event.' : 'Create this Google Calendar event.';
-    if (!eventDraft.title.trim()) return productivityValidatedActionTitle(action, 'Add an event title before saving.');
-    if (!eventDraft.start) return productivityValidatedActionTitle(action, 'Add an event start time before saving.');
-    if (!eventDraft.end) return productivityValidatedActionTitle(action, 'Add an event end time before saving.');
-    return productivityActionTitle(action);
+  function eventSaveActionTitle(state: ProductivityControlTitleState): string {
+    const action = state.editingEventId ? 'Update this Google Calendar event.' : 'Create this Google Calendar event.';
+    if (!state.eventDraft.title.trim()) return productivityValidatedActionTitleForState(state, action, 'Add an event title before saving.');
+    if (!state.eventDraft.start) return productivityValidatedActionTitleForState(state, action, 'Add an event start time before saving.');
+    if (!state.eventDraft.end) return productivityValidatedActionTitleForState(state, action, 'Add an event end time before saving.');
+    return productivityActionTitleForState(state, action);
   }
 
-  function composeActionTitle(send: boolean): string {
+  function composeActionTitle(state: ProductivityControlTitleState, send: boolean): string {
     const action = send ? 'Send this Gmail message.' : 'Save this message as a Gmail draft.';
-    if (!composeDraft.to.length) return productivityValidatedActionTitle(action, 'Add at least one recipient before saving or sending.');
-    if (!composeDraft.subject.trim()) return productivityValidatedActionTitle(action, 'Add a subject before saving or sending.');
-    if (!composeDraft.bodyText.trim()) return productivityValidatedActionTitle(action, 'Write a message body before saving or sending.');
-    return productivityActionTitle(action);
+    if (!state.composeDraft.to.length) return productivityValidatedActionTitleForState(state, action, 'Add at least one recipient before saving or sending.');
+    if (!state.composeDraft.subject.trim()) return productivityValidatedActionTitleForState(state, action, 'Add a subject before saving or sending.');
+    if (!state.composeDraft.bodyText.trim()) return productivityValidatedActionTitleForState(state, action, 'Write a message body before saving or sending.');
+    return productivityActionTitleForState(state, action);
   }
 
   function beginProductivityAction(key: string, requiresGoogle = true): boolean {
@@ -1091,7 +1137,7 @@
       <Send size={17} />
       <span>Compose</span>
     </button>
-    <button class="button" type="button" disabled={productivityRefreshDisabled} title={productivityRefreshTitle()} on:click={() => loadOverview()}>
+    <button class="button" type="button" disabled={productivityRefreshDisabled} title={productivityRefreshButtonTitle} on:click={() => loadOverview()}>
       <RefreshCw size={17} />
       <span>{backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
@@ -1342,7 +1388,7 @@
         <Sparkles size={18} />
         <strong>Priority Inbox</strong>
       </div>
-      <button class="button" type="button" disabled={!gmailReady || Boolean(actionBusyKey)} title={gmailRefreshTitle()} on:click={refreshGmail}>
+      <button class="button" type="button" disabled={!gmailReady || Boolean(actionBusyKey)} title={gmailRefreshButtonTitle} on:click={refreshGmail}>
         <RefreshCw size={17} />
         <span>{gmailLoading ? 'Sorting' : 'Refresh'}</span>
       </button>
@@ -1386,7 +1432,7 @@
               <small class="triage-reason">{insight.reason}{insight.deadlineHint ? ` / ${insight.deadlineHint}` : ''}</small>
             </td>
             <td>
-              <button class="link-button" type="button" disabled={productivityThreadOpenDisabled} title={gmailThreadOpenTitle()} on:click={() => openGmailThread(thread)}>
+              <button class="link-button" type="button" disabled={productivityThreadOpenDisabled} title={gmailThreadOpenButtonTitle} on:click={() => openGmailThread(thread)}>
                 <strong>{thread.subject}</strong>
               </button>
               <p class="mail-summary">{summarizeEmailThread(thread)}</p>
@@ -1395,7 +1441,7 @@
             <td>{thread.from}</td>
             <td>{thread.date}</td>
             <td class="row-actions quick-row-actions">
-              <button class="icon-button" type="button" disabled={productivityThreadOpenDisabled} aria-label={`Open ${thread.subject}`} title={gmailThreadOpenTitle()} on:click={() => openGmailThread(thread)}>
+              <button class="icon-button" type="button" disabled={productivityThreadOpenDisabled} aria-label={`Open ${thread.subject}`} title={gmailThreadOpenButtonTitle} on:click={() => openGmailThread(thread)}>
                 <Mail size={16} />
                 <span>{isActionBusy(`gmail:open:${thread.id}`) ? 'Opening' : 'Open'}</span>
               </button>
@@ -1457,7 +1503,7 @@
           <Archive size={17} />
           <span>Archive</span>
         </button>
-        <button class="button" type="button" disabled={productivityWriteDisabled || !selectedGmailLabelId} title={selectedLabelActionTitle()} on:click={applySelectedLabel}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !selectedGmailLabelId} title={selectedLabelButtonTitle} on:click={applySelectedLabel}>
           <Tag size={17} />
           <span>{selectedGmailThread && isActionBusy(`gmail:label:${selectedGmailThread.id}`) ? 'Applying' : 'Apply Label'}</span>
         </button>
@@ -1479,11 +1525,11 @@
         <textarea id="gmail-reply" bind:value={replyBody} disabled={productivityWriteDisabled} title={productivityActionTitle('Write a reply for the selected Gmail thread.')} rows="5"></textarea>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={replyActionTitle(false)} on:click={() => sendReply(false)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={replyDraftButtonTitle} on:click={() => sendReply(false)}>
           <Save size={17} />
           <span>{selectedGmailThread && isActionBusy(`gmail:reply:draft:${selectedGmailThread.id}`) ? 'Saving' : 'Draft Reply'}</span>
         </button>
-        <button class="button primary" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={replyActionTitle(true)} on:click={() => sendReply(true)}>
+        <button class="button primary" type="button" disabled={productivityWriteDisabled || !replyBody.trim()} title={replySendButtonTitle} on:click={() => sendReply(true)}>
           <Reply size={17} />
           <span>{selectedGmailThread && isActionBusy(`gmail:reply:send:${selectedGmailThread.id}`) ? 'Sending' : 'Send Reply'}</span>
         </button>
@@ -1586,7 +1632,7 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="button primary" type="submit" disabled={productivityWriteDisabled || !eventDraft.title.trim() || !eventDraft.start || !eventDraft.end} title={eventSaveActionTitle()}>
+        <button class="button primary" type="submit" disabled={productivityWriteDisabled || !eventDraft.title.trim() || !eventDraft.start || !eventDraft.end} title={eventSaveButtonTitle}>
           <Save size={17} />
           <span>{isActionBusy(editingEventId ? `event:save:${editingEventId}` : 'event:create') ? 'Saving Event' : editingEventId ? 'Update Event' : 'Create Event'}</span>
         </button>
@@ -1633,11 +1679,11 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="button" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={composeActionTitle(false)} on:click={() => sendCompose(false)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={composeDraftButtonTitle} on:click={() => sendCompose(false)}>
           <Save size={17} />
           <span>{isActionBusy('gmail:compose:draft') ? 'Saving Draft' : 'Save Draft'}</span>
         </button>
-        <button class="button primary" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={composeActionTitle(true)} on:click={() => sendCompose(true)}>
+        <button class="button primary" type="button" disabled={productivityWriteDisabled || !composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()} title={composeSendButtonTitle} on:click={() => sendCompose(true)}>
           <Send size={17} />
           <span>{isActionBusy('gmail:compose:send') ? 'Sending Email' : 'Send Email'}</span>
         </button>
