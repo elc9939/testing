@@ -649,6 +649,7 @@ main route, records the hydrated browser title, heading, and control state, chec
 fills a sample Research goal to verify the offline run guard does not fake a queued task,
 fills Career/Study forms to verify service-backed save controls are guarded when the Hub API
 is unavailable,
+seeds cached Google Calendar/Gmail rows to verify Productivity stays inspectable while writes are locked,
 test-fires AI Lab Tree-sitter Parse, verifies the Tree-sitter asset-error copy with an
 intentionally bad grammar URL, runs Transformers.js Classify, and verifies browser-storage
 reload for Activity cache, Research Desk drafts, and AI Lab drafts. Set

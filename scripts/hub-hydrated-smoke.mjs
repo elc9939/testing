@@ -149,6 +149,131 @@ const persistenceSeeds = [
   }
 ];
 
+const productivityCacheSeed = {
+  version: 1,
+  cachedAt: '2026-06-23T11:00:00.000Z',
+  catalog: [
+    {
+      id: 'google',
+      label: 'Google Workspace',
+      status: 'implemented',
+      auth: 'oauth2',
+      notes: 'Hydrated smoke cached Google fixture.',
+      capabilities: [
+        { id: 'gmail.read', label: 'Read Gmail', access: 'read', status: 'available' },
+        { id: 'gmail.write', label: 'Modify Gmail', access: 'write', status: 'requires-api' },
+        { id: 'calendar.read', label: 'Read Calendar', access: 'read', status: 'available' },
+        { id: 'calendar.write', label: 'Modify Calendar', access: 'write', status: 'requires-api' }
+      ]
+    }
+  ],
+  connections: [
+    {
+      id: 'google-hydrated',
+      provider: 'google',
+      accountLabel: 'hydrated@example.com',
+      scopes: ['gmail.modify', 'gmail.send', 'calendar.events'],
+      status: 'connected',
+      lastSyncAt: '2026-06-23T10:55:00.000Z',
+      updatedAt: '2026-06-23T10:55:00.000Z'
+    }
+  ],
+  calendars: [
+    {
+      id: 'google-hydrated::primary',
+      summary: 'Hydrated Smoke Calendar',
+      primary: true,
+      timeZone: 'America/Los_Angeles'
+    },
+    {
+      id: 'google-hydrated::school',
+      summary: 'Hydrated Smoke School',
+      timeZone: 'America/Los_Angeles'
+    }
+  ],
+  events: [
+    {
+      id: 'hydrated-event-1',
+      calendarId: 'google-hydrated::primary',
+      provider: 'google',
+      title: 'Hydrated Cache Interview',
+      description: 'Cached calendar event for the Productivity write guard smoke.',
+      location: 'Video call',
+      start: '2026-06-29T17:00:00.000Z',
+      end: '2026-06-29T17:30:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      status: 'confirmed',
+      htmlLink: 'https://calendar.google.com/calendar/event?eid=hydrated-event-1',
+      recurrence: [],
+      reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }] },
+      raw: {}
+    }
+  ],
+  timeline: [
+    {
+      id: 'timeline:hydrated-event-1',
+      source: 'google_calendar',
+      sourceId: 'hydrated-event-1',
+      kind: 'event',
+      title: 'Hydrated Cache Interview',
+      when: '2026-06-29T17:00:00.000Z',
+      end: '2026-06-29T17:30:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      actionUrl: 'https://calendar.google.com/calendar/event?eid=hydrated-event-1',
+      canEdit: true,
+      canComplete: false,
+      metadata: {}
+    }
+  ],
+  priorityThreads: [
+    {
+      thread: {
+        id: 'google-hydrated::thread-1',
+        historyId: '101',
+        snippet: 'Please confirm the deadline package before Monday.',
+        labelIds: ['INBOX', 'UNREAD'],
+        subject: 'Hydrated cached deadline mail',
+        from: 'Advisor <advisor@example.com>',
+        date: 'Jun 23',
+        unread: true,
+        messages: [
+          {
+            id: 'msg-hydrated-1',
+            threadId: 'google-hydrated::thread-1',
+            labelIds: ['INBOX', 'UNREAD'],
+            snippet: 'Please confirm the deadline package before Monday.',
+            subject: 'Hydrated cached deadline mail',
+            from: 'Advisor <advisor@example.com>',
+            to: 'Edward <edward@example.com>',
+            cc: '',
+            date: 'Tue, 23 Jun 2026 10:00:00 -0700',
+            internalDate: '1782243600000',
+            messageIdHeader: '<hydrated-smoke@example.com>',
+            references: '',
+            inReplyTo: '',
+            bodyText: 'Please confirm the deadline package before Monday so the cached preview has useful content.',
+            bodyHtml: '',
+            headers: {}
+          }
+        ]
+      },
+      priority: 86,
+      category: 'deadline',
+      reason: 'Mentions a deadline and asks for confirmation.',
+      deadlineHint: 'Jun 29',
+      source: 'heuristic'
+    }
+  ],
+  gmailLabels: [
+    { id: 'IMPORTANT', name: 'Important', type: 'system' },
+    { id: 'Label_Study', name: 'Study', type: 'user' }
+  ],
+  selectedCalendarId: 'google-hydrated::primary',
+  query: '',
+  gmailQuery: 'in:inbox newer_than:14d deadline',
+  selectedGmailLabelId: 'Label_Study'
+};
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -173,10 +298,10 @@ async function removeProfileDir(profileDir) {
   }
 }
 
-function routeUrl(baseUrl, routePath) {
+function routeUrl(baseUrl, routePath, options = {}) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const url = new URL(routePath.replace(/^\//u, ''), normalizedBase);
-  if (process.env.HUB_HYDRATED_API_URL) {
+  if (process.env.HUB_HYDRATED_API_URL && !options.skipApiUrlOverride) {
     url.searchParams.set('apiUrl', process.env.HUB_HYDRATED_API_URL);
   }
   return url.toString();
@@ -720,6 +845,102 @@ async function runDeskWriteGuardChecks(client, baseUrl) {
   return checks;
 }
 
+async function runProductivityCacheWriteGuardChecks(client, baseUrl) {
+  const checks = [];
+  await navigate(client, routeUrl(baseUrl, '/'));
+  await setLocalStorage(client, 'miniHub.productivity.cache.v1', productivityCacheSeed);
+  await navigate(
+    client,
+    routeUrl(baseUrl, '/productivity?apiUrl=http%3A%2F%2F127.0.0.1%3A9', { skipApiUrlOverride: true })
+  );
+
+  checks.push({
+    id: 'productivity-cache-write-guard',
+    route: '/productivity',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const body = document.body?.innerText || '';
+        const eventBlock = [...document.querySelectorAll('.event-block')].find((button) =>
+          clean(button.innerText || button.textContent).includes('Hydrated Cache Interview')
+        );
+        const eventTitle = eventBlock?.getAttribute('title') || '';
+        const cachedEventVisible = body.includes('Hydrated Cache Interview');
+        const cachedThreadVisible = body.includes('Hydrated cached deadline mail') && body.includes('Please confirm the deadline package');
+        const offlineKnown = /API unavailable|Mini Hub API is unavailable|cached read-only|cached data remains read-only/i.test(body);
+        const writeNeedles = [
+          /\\bRead\\b/i,
+          /\\bImportant\\b/i,
+          /\\bArchive\\b/i,
+          /\\bApply Label\\b/i,
+          /\\bDraft Reply\\b/i,
+          /\\bSend Reply\\b/i
+        ];
+        const writeButtons = [...document.querySelectorAll('.gmail-workspace button')].filter((button) => {
+          const label = clean(button.innerText || button.textContent || button.getAttribute('aria-label'));
+          return writeNeedles.some((pattern) => pattern.test(label));
+        });
+        const badWrites = writeButtons.filter((button) => {
+          const title = button.getAttribute('title') || '';
+          return !button.disabled || !/Connect the API and Google|checking the local API|latest connection state|Another Productivity action/i.test(title);
+        });
+        const eventInspectable = Boolean(eventBlock && !eventBlock.disabled && /Open cached event details/i.test(eventTitle));
+        return {
+          ok: cachedEventVisible && cachedThreadVisible && offlineKnown && eventInspectable && writeButtons.length >= 6 && badWrites.length === 0,
+          state: eventInspectable && badWrites.length === 0 ? 'cache-readonly' : 'waiting',
+          detail: \`cachedEvent=\${cachedEventVisible}; cachedThread=\${cachedThreadVisible}; offlineKnown=\${offlineKnown}; eventInspectable=\${eventInspectable}; disabledWrites=\${writeButtons.length - badWrites.length}/\${writeButtons.length}\`
+        };
+      })()`,
+      15_000
+    ))
+  });
+
+  if (checks.at(-1)?.ok) {
+    await evaluate(
+      client,
+      `(() => {
+        const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const eventBlock = [...document.querySelectorAll('.event-block')].find((button) =>
+          clean(button.innerText || button.textContent).includes('Hydrated Cache Interview')
+        );
+        eventBlock?.click();
+        return { ok: Boolean(eventBlock) };
+      })()`
+    );
+  }
+
+  checks.push({
+    id: 'productivity-cached-event-readonly-details',
+    route: '/productivity',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const dialog = document.querySelector('[role="dialog"]');
+        const titleInput = document.querySelector('#event-title');
+        const description = document.querySelector('#event-description');
+        const saveButton = dialog
+          ? [...dialog.querySelectorAll('button')].find((button) => clean(button.innerText || button.textContent).includes('Update Event'))
+          : null;
+        const saveTitle = saveButton?.getAttribute('title') || '';
+        const eventLoaded = titleInput?.value === 'Hydrated Cache Interview';
+        const messageVisible = /Showing cached event details/i.test(document.body?.innerText || '');
+        const fieldsReadonly = Boolean(titleInput?.disabled && description?.disabled);
+        const saveBlocked = Boolean(saveButton?.disabled && /Connect the API and Google|checking the local API|latest connection state/i.test(saveTitle));
+        return {
+          ok: Boolean(dialog) && eventLoaded && messageVisible && fieldsReadonly && saveBlocked,
+          state: Boolean(dialog) ? 'readonly-details' : 'waiting',
+          detail: \`dialog=\${Boolean(dialog)}; eventLoaded=\${eventLoaded}; message=\${messageVisible}; fieldsReadonly=\${fieldsReadonly}; saveBlocked=\${saveBlocked}; saveTitle="\${saveTitle}"\`
+        };
+      })()`,
+      10_000
+    ))
+  });
+
+  return checks;
+}
+
 async function runDeskApiSaveChecks(client, baseUrl) {
   const checks = [];
 
@@ -1058,6 +1279,7 @@ async function main() {
     const actionChecks = [
       ...(await runResearchActionChecks(client, baseUrl)),
       ...(await runDeskWriteGuardChecks(client, baseUrl)),
+      ...(await runProductivityCacheWriteGuardChecks(client, baseUrl)),
       ...(await runAiLabActionChecks(client, baseUrl))
     ];
     const persistence = await runPersistenceChecks(client, baseUrl);

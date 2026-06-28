@@ -164,6 +164,7 @@
   $: productivityReadReady = productivityReady && !loading;
   $: productivityWriteDisabled = loading || !productivityReady || Boolean(actionBusyKey);
   $: productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey);
+  $: productivityEventInspectDisabled = Boolean(actionBusyKey);
   $: productivityThreadOpenDisabled = Boolean(actionBusyKey);
   $: gmailReady = productivityReady && !gmailLoading;
   $: googleConnectDisabled = loading || !canAct || googleOAuthOpening || Boolean(actionBusyKey);
@@ -572,6 +573,8 @@
 
   function calendarEventBlockTitle(event: CalendarEvent): string {
     const eventSummary = `${event.title} / ${eventTimeRange(event)}`;
+    if (actionBusyKey) return `${eventSummary}. Another Productivity action is already running.`;
+    if (!productivityReady) return `${eventSummary}. Open cached event details. Connect the API and Google to edit or save.`;
     if (productivityWriteDisabled) return `${eventSummary}. ${productivityActionTitle('Edit this event.')}`;
     return `${eventSummary}. Edit this event.`;
   }
@@ -897,7 +900,8 @@
   }
 
   function editEvent(event: CalendarEvent): void {
-    if (!productivityReady) return;
+    if (actionBusyKey) return;
+    const cachedPreview = !productivityReady;
     editingEventId = event.id;
     selectedCalendarId = event.calendarId;
     eventDraft = {
@@ -913,6 +917,10 @@
       reminders: event.reminders
     };
     eventDialogOpen = true;
+    if (cachedPreview) {
+      actionError = '';
+      actionMessage = 'Showing cached event details. Connect the API and Google to edit, move, delete, or save.';
+    }
   }
 
   async function removeEvent(event: CalendarEvent): Promise<void> {
@@ -1364,7 +1372,7 @@
                 type="button"
                 style={eventBlockStyle(event)}
                 title={calendarEventBlockTitle(event)}
-                disabled={productivityWriteDisabled}
+                disabled={productivityEventInspectDisabled}
                 on:click={() => editEvent(event)}
               >
                 <span>{eventTimeRange(event)}</span>
@@ -1406,7 +1414,7 @@
                   <ExternalLink size={16} />
                 </a>
               {/if}
-              <button class="icon-button" type="button" aria-label={`Edit ${event.title}`} title={productivityActionTitle('Edit event')} disabled={productivityWriteDisabled} on:click={() => editEvent(event)}>
+              <button class="icon-button" type="button" aria-label={`Open details for ${event.title}`} title={calendarEventBlockTitle(event)} disabled={productivityEventInspectDisabled} on:click={() => editEvent(event)}>
                 <Save size={16} />
               </button>
               <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title={moveEventTitle(event)} disabled={productivityWriteDisabled || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>

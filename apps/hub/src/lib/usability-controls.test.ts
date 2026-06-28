@@ -608,6 +608,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("let actionBusyKey = ''");
     expect(source).toContain('productivityWriteDisabled = loading || !productivityReady || Boolean(actionBusyKey)');
     expect(source).toContain('productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey)');
+    expect(source).toContain('productivityEventInspectDisabled = Boolean(actionBusyKey)');
     expect(source).toContain('productivityThreadOpenDisabled = Boolean(actionBusyKey)');
     expect(source).toContain('googleConnectDisabled = loading || !canAct || googleOAuthOpening || Boolean(actionBusyKey)');
     expect(source).toContain('function beginProductivityAction');
@@ -663,6 +664,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Use Connect Google or Add Google Account before sending mail or changing calendar events.');
     expect(source).toContain('function gmailReadTitle');
     expect(source).toContain('function calendarEventBlockTitle');
+    expect(source).toContain('Open cached event details. Connect the API and Google to edit or save.');
+    expect(source).toContain('Showing cached event details. Connect the API and Google to edit, move, delete, or save.');
     expect(source).toContain('function moveEventTitle');
     expect(source).toContain('Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}?');
     expect(source).toContain('Calendar move skipped.');
@@ -672,6 +675,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function eventSaveActionTitle');
     expect(source).toContain('function composeActionTitle');
     expect(source).toContain('disabled={productivityWriteDisabled}');
+    expect(source).toContain('disabled={productivityEventInspectDisabled}');
     expect(source).toContain('title={calendarEventBlockTitle(event)}');
     expect(source).toContain('Open this event in Google Calendar.');
     expect(source).toContain("title={productivityReadTitle('Show the previous calendar week.')}");
@@ -1047,6 +1051,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('titleOk: titleMatches(route, snapshot.title)');
     expect(source).toContain('!row.titleOk');
     expect(source).toContain('miniHub.activity.snapshot.v1');
+    expect(source).toContain('miniHub.productivity.cache.v1');
+    expect(source).toContain('Hydrated Cache Interview');
+    expect(source).toContain('Hydrated cached deadline mail');
     expect(source).toContain('Hydrated cached Activity run');
     expect(source).toContain('Recovered from browser Activity cache.');
     expect(source).toContain('miniHub.research.draft.v1');
@@ -1071,9 +1078,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('setControlValue');
     expect(source).toContain('runResearchActionChecks');
     expect(source).toContain('runDeskWriteGuardChecks');
+    expect(source).toContain('runProductivityCacheWriteGuardChecks');
     expect(source).toContain('research-offline-run-guard');
     expect(source).toContain('career-add-job-guard');
     expect(source).toContain('study-log-guard');
+    expect(source).toContain('productivity-cache-write-guard');
+    expect(source).toContain('productivity-cached-event-readonly-details');
     expect(source).toContain('career-add-job-save-reload');
     expect(source).toContain('career-add-job-reloaded');
     expect(source).toContain('study-log-save-reload');
