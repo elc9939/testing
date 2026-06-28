@@ -14,6 +14,32 @@ import {
 
 const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
 
+class ThrowingStorage implements Storage {
+  get length(): number {
+    throw new Error('Browser storage blocked');
+  }
+
+  clear(): void {
+    throw new Error('Browser storage blocked');
+  }
+
+  getItem(): string | null {
+    throw new Error('Browser storage blocked');
+  }
+
+  key(): string | null {
+    throw new Error('Browser storage blocked');
+  }
+
+  removeItem(): void {
+    throw new Error('Browser storage blocked');
+  }
+
+  setItem(): void {
+    throw new Error('Browser storage blocked');
+  }
+}
+
 async function sourceFiles(dir = sourceRoot): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
@@ -30,6 +56,8 @@ describe('service endpoint resolution', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.doUnmock('$app/environment');
   });
 
   it('keeps browser network calls centralized through service-config', async () => {
@@ -65,6 +93,17 @@ describe('service endpoint resolution', () => {
 
     expect(resolved.state).toBe('ready');
     expect(resolved.resolvedUrl).toBe('http://127.0.0.1:8792');
+  });
+
+  it('keeps endpoint resolution usable when browser storage is blocked', async () => {
+    vi.resetModules();
+    vi.doMock('$app/environment', () => ({ browser: true }));
+    vi.stubGlobal('localStorage', new ThrowingStorage());
+
+    const { getStoredServiceEndpoints, setServiceEndpoint } = await import('./service-config');
+
+    expect(() => setServiceEndpoint('aiOs', 'http://127.0.0.1:8791')).not.toThrow();
+    expect(getStoredServiceEndpoints()).toEqual([]);
   });
 
   it('defaults empty endpoints to the desktop service fallback', () => {

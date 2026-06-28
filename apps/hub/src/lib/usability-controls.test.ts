@@ -92,6 +92,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('syncPillText = layoutSyncPillText($clientData)');
     expect(source).toContain("if (!state.initialized) return 'Loading cache'");
     expect(source).toContain('if (canAutoSave($clientData))');
+    expect(source).toContain('function readPassiveEventLastRun');
+    expect(source).toContain('function writePassiveEventLastRun');
+    expect(source).toContain('Passive event throttling is best-effort; app startup should stay usable.');
     expect(source).toContain('Auto-save ready');
     expect(source).toContain('Offline read-only: cached pages stay readable, but save buttons wait for the Mini Hub API.');
     expect(source).toContain('Online auto-save ready. Last sync:');

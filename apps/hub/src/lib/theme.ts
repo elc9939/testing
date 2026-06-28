@@ -17,9 +17,22 @@ export function resolveTheme(mode: ThemeMode): ResolvedThemeMode {
   return mode === 'system' ? getSystemTheme() : mode;
 }
 
+function getThemeStorage(): Storage | null {
+  try {
+    return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function readInitialTheme(): ThemeMode {
-  if (typeof localStorage === 'undefined') return 'system';
-  return normalizeTheme(localStorage.getItem(legacyStorageKeys.theme));
+  const storage = getThemeStorage();
+  if (!storage) return 'system';
+  try {
+    return normalizeTheme(storage.getItem(legacyStorageKeys.theme));
+  } catch {
+    return 'system';
+  }
 }
 
 export const theme = writable<ThemeMode>(readInitialTheme());
@@ -35,8 +48,13 @@ export function applyTheme(mode: ThemeMode): void {
 
 export function setTheme(mode: ThemeMode): void {
   const next = normalizeTheme(mode);
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(legacyStorageKeys.theme, next);
+  const storage = getThemeStorage();
+  if (storage) {
+    try {
+      storage.setItem(legacyStorageKeys.theme, next);
+    } catch {
+      // Theme persistence is best-effort; keep the visible theme switch working.
+    }
   }
   theme.set(next);
   applyTheme(next);

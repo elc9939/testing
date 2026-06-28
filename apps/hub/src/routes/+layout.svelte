@@ -75,13 +75,29 @@
     }
   }
 
+  function readPassiveEventLastRun(key: string): number {
+    try {
+      return Number(localStorage.getItem(key) ?? '0');
+    } catch {
+      return 0;
+    }
+  }
+
+  function writePassiveEventLastRun(key: string): void {
+    try {
+      localStorage.setItem(key, String(Date.now()));
+    } catch {
+      // Passive event throttling is best-effort; app startup should stay usable.
+    }
+  }
+
   function emitPassiveBrowserEvent(eventName: string, reason: string, throttleMinutes: number): void {
     if (typeof window === 'undefined' || !navigator.onLine) return;
     const key = `${passiveEventThrottlePrefix}.${eventName}`;
-    const lastRun = Number(localStorage.getItem(key) ?? '0');
+    const lastRun = readPassiveEventLastRun(key);
     if (Number.isFinite(lastRun) && Date.now() - lastRun < throttleMinutes * 60_000) return;
     void runPassiveEvent(eventName, { reason, limit: 1 })
-      .then(() => localStorage.setItem(key, String(Date.now())))
+      .then(() => writePassiveEventLastRun(key))
       .catch(() => undefined);
   }
 

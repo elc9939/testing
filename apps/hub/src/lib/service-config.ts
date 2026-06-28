@@ -48,10 +48,20 @@ const serviceHealthPaths: Record<ServiceId, string> = {
 
 export const defaultServiceRequestTimeoutMs = 15_000;
 
-function readStoredEndpoints(): Partial<Record<ServiceId, string>> {
-  if (!browser) return {};
+function getBrowserStorage(): Storage | null {
+  if (!browser) return null;
   try {
-    const parsed = JSON.parse(localStorage.getItem(storageKey) ?? '{}') as unknown;
+    return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredEndpoints(): Partial<Record<ServiceId, string>> {
+  const storage = getBrowserStorage();
+  if (!storage) return {};
+  try {
+    const parsed = JSON.parse(storage.getItem(storageKey) ?? '{}') as unknown;
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Partial<Record<ServiceId, string>>) : {};
   } catch {
     return {};
@@ -59,8 +69,13 @@ function readStoredEndpoints(): Partial<Record<ServiceId, string>> {
 }
 
 function writeStoredEndpoints(endpoints: Partial<Record<ServiceId, string>>): void {
-  if (!browser) return;
-  localStorage.setItem(storageKey, JSON.stringify(endpoints));
+  const storage = getBrowserStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(storageKey, JSON.stringify(endpoints));
+  } catch {
+    // Endpoint persistence is best-effort; callers still use defaults and Settings diagnostics.
+  }
 }
 
 function queryEndpoint(id: ServiceId): string {
