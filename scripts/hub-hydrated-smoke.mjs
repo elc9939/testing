@@ -837,7 +837,7 @@ async function runAiLabActionChecks(client, baseUrl) {
     });
   }
 
-  if (process.env.HUB_HYDRATED_AI_LAB_CLASSIFY === '1') {
+  if (process.env.HUB_HYDRATED_AI_LAB_CLASSIFY !== '0') {
     try {
       await clickButtonByText(client, 'Classify');
       const classify = await waitForCondition(
@@ -869,7 +869,7 @@ async function runAiLabActionChecks(client, baseUrl) {
       route: '/ai-lab',
       ok: true,
       state: 'skipped',
-      detail: 'Skipped by default because Transformers.js may download model assets. Set HUB_HYDRATED_AI_LAB_CLASSIFY=1 to run it.'
+      detail: 'Skipped because HUB_HYDRATED_AI_LAB_CLASSIFY=0. Default hydrated smoke runs the real Transformers.js classify path.'
     });
   }
 

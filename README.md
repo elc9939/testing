@@ -649,12 +649,12 @@ main route, records the hydrated heading/control state, checks safe-action visib
 fills a sample Research goal to verify the offline run guard does not fake a queued task,
 fills Career/Study forms to verify service-backed save controls are guarded when the Hub API
 is unavailable,
-test-fires AI Lab Tree-sitter Parse, and verifies browser-storage draft reload for Research
-Desk and AI Lab. Set `HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
-Run `pnpm qa:hub:hydrated:ai` when you intentionally want the slower full AI Lab smoke:
-it runs the same route recovery checks and also presses Classify against the browser-side
-Transformers.js model. The first run may download browser model assets, so the default
-hydrated smoke keeps that step opt-in.
+test-fires AI Lab Tree-sitter Parse and Transformers.js Classify, and verifies
+browser-storage draft reload for Research Desk and AI Lab. Set `HUB_HYDRATED_BROWSER` if
+Chrome/Edge is not in a standard location.
+The first AI Lab Classify run may download browser model assets; set
+`HUB_HYDRATED_AI_LAB_CLASSIFY=0` for a quick/offline smoke that skips only that model path.
+`pnpm qa:hub:hydrated:ai` remains as a compatibility alias for the full hydrated AI Lab path.
 Run `pnpm qa:hub:hydrated:writes` when a disposable Mini Hub API is running and you want
 real Career/Study save-and-reload evidence. Set `HUB_HYDRATED_API_URL` to that temporary API
 origin; the script passes it through the same `apiUrl` endpoint override used by Settings.

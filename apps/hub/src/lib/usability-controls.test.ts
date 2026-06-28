@@ -1031,7 +1031,7 @@ describe('Mini Hub usability control gates', () => {
     expect(packageJson).toContain('"qa:hub:hydrated": "node scripts/hub-hydrated-smoke.mjs"');
     expect(packageJson).toContain('"qa:hub:hydrated:ai": "node scripts/hub-hydrated-smoke-full-ai.mjs"');
     expect(packageJson).toContain('"qa:hub:hydrated:writes": "node scripts/hub-hydrated-smoke-desk-writes.mjs"');
-    expect(fullAiSource).toContain("process.env.HUB_HYDRATED_AI_LAB_CLASSIFY = '1'");
+    expect(fullAiSource).toContain("process.env.HUB_HYDRATED_AI_LAB_CLASSIFY = process.env.HUB_HYDRATED_AI_LAB_CLASSIFY || '1'");
     expect(fullAiSource).toContain("await import('./hub-hydrated-smoke.mjs')");
     expect(deskWritesSource).toContain("process.env.HUB_HYDRATED_DESK_WRITES = '1'");
     expect(deskWritesSource).toContain("await import('./hub-hydrated-smoke.mjs')");
@@ -1079,9 +1079,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('queued message visible');
     expect(source).toContain('Hydrated Action Check');
     expect(source).toContain('ai-lab-parse');
+    expect(source).toContain('ai-lab-classify');
     expect(source).toContain('Parser: Result ready');
     expect(source).toContain('HUB_HYDRATED_AI_LAB_CLASSIFY');
-    expect(source).toContain('Skipped by default because Transformers.js may download model assets.');
+    expect(source).toContain("process.env.HUB_HYDRATED_AI_LAB_CLASSIFY !== '0'");
+    expect(source).toContain('Default hydrated smoke runs the real Transformers.js classify path.');
     expect(source).toContain('unexplainedDisabled');
     expect(source).toContain('rawNotFound');
     expect(source).toContain('Mini Hub hydrated smoke found');
