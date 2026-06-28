@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import { RotateCcw, Save } from 'lucide-svelte';
   import type { StickArenaLabHandle } from '@mini-hub/game-engine';
-  import { canAutoSave, clientData } from '$lib/client-data';
+  import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { hubHref } from '$lib/routes';
 
   let mount: HTMLDivElement;
@@ -18,6 +18,10 @@
     labReady: boolean;
     labLoading: boolean;
     canSave: boolean;
+    clientInitialized: boolean;
+    clientOnline: boolean;
+    clientStatus: string;
+    clientError: string;
     status: string;
   }
 
@@ -27,12 +31,16 @@
   $: labControlBusy = saving;
   $: resetDisabled = !labReady || labControlBusy;
   $: saveDisabled = !labReady || !canSave || saving;
-  $: saveCapabilityStatus = labReady ? (canSave ? 'Ready' : 'Offline read-only') : labLoading ? 'Engine loading' : 'Engine unavailable';
+  $: saveCapabilityStatus = labReady ? gameRunSaveStatus($clientData) : labLoading ? 'Engine loading' : 'Engine unavailable';
   $: stickArenaLabControlState = {
     saving,
     labReady,
     labLoading,
     canSave,
+    clientInitialized: $clientData.initialized,
+    clientOnline: $clientData.isOnline,
+    clientStatus: $clientData.status,
+    clientError: $clientData.error,
     status
   };
   $: resetButtonTitle = resetTitle(stickArenaLabControlState);
@@ -52,8 +60,27 @@
         ? 'Wait for the game engine to finish loading before saving.'
         : `Game engine is unavailable: ${state.status}`;
     }
-    if (!state.canSave) return 'Start the Mini Hub API before saving game runs.';
+    if (!state.canSave) return gameRunSaveBlockedReason(state);
     return 'Save this run to Mini Hub.';
+  }
+
+  function gameRunSaveStatus(state: ClientDataState): string {
+    if (canAutoSave(state)) return 'Ready';
+    if (!state.initialized) return 'Loading cache';
+    if (state.error) return 'API not ready';
+    if (!state.isOnline) return 'Offline read-only';
+    if (state.status === 'syncing') return 'Syncing';
+    return 'API not ready';
+  }
+
+  function gameRunSaveBlockedReason(
+    state: Pick<StickArenaLabControlState, 'clientInitialized' | 'clientOnline' | 'clientStatus' | 'clientError'>
+  ): string {
+    if (!state.clientInitialized) return 'Loading local cache before game run saves are enabled.';
+    if (!state.clientOnline) return 'Offline read-only: connect the Mini Hub API before saving game runs.';
+    if (state.clientError) return `Mini Hub API is not ready for game saves: ${state.clientError}`;
+    if (state.clientStatus === 'syncing') return 'Game run saves wait while Mini Hub sync is running.';
+    return `Game run saves wait for Mini Hub status ${state.clientStatus}.`;
   }
 
   onMount(async () => {
@@ -81,7 +108,7 @@
       return;
     }
     if (!canSave) {
-      saveStatus = 'Offline read-only: telemetry stays visible, but saving needs the Mini Hub API.';
+      saveStatus = gameRunSaveBlockedReason(stickArenaLabControlState);
       return;
     }
     if (saving) return;
@@ -146,7 +173,7 @@
 
 {#if !canSave}
   <section class="card card-pad offline-banner">
-    <span>Offline read-only: the lab is playable, but run saving needs the Mini Hub API.</span>
+    <span>The lab is playable; {gameRunSaveBlockedReason(stickArenaLabControlState)}</span>
     <a href={hubHref('/settings')}>Open Settings</a>
   </section>
 {/if}

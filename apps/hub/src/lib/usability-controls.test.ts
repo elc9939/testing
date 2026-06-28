@@ -1092,9 +1092,14 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/games/stick-arena-lab/+page.svelte');
 
     expect(games).toContain('Games save and recovery status');
+    expect(games).toContain("import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data'");
     expect(games).toContain('gameRunCount = $clientData.gameRuns.length');
     expect(games).toContain('gameStateCount = $clientData.gameStates.length');
-    expect(games).toContain("gameSaveMode = $clientData.isOnline ? 'API-backed saves enabled' : 'Offline read-only'");
+    expect(games).toContain('gameSaveReady = canAutoSave($clientData)');
+    expect(games).toContain("gameSaveMode = gameSaveReady ? 'API-backed saves enabled'");
+    expect(games).toContain('function gameSaveBlockedDetail');
+    expect(games).toContain('Opening the browser cache before game save status is known.');
+    expect(games).toContain('API-backed run/state saves wait for Mini Hub status');
     expect(games).toContain('Supported game runs and state save through the Mini Hub API');
     expect(games).toContain('Games remain playable, but API-backed run/state saves are disabled');
     expect(games).toContain('Open Settings Data & Recovery for game cache and API status.');
@@ -1104,13 +1109,19 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('saveDisabled = !labReady || !canSave || saving');
     expect(source).toContain('resetDisabled = !labReady || labControlBusy');
     expect(source).toContain('interface StickArenaLabControlState');
+    expect(source).toContain('clientInitialized: boolean');
     expect(source).toContain('stickArenaLabControlState = {');
+    expect(source).toContain('clientInitialized: $clientData.initialized');
     expect(source).toContain('resetButtonTitle = resetTitle(stickArenaLabControlState)');
     expect(source).toContain('saveButtonTitle = saveTitle(stickArenaLabControlState)');
+    expect(source).toContain('function gameRunSaveStatus');
+    expect(source).toContain('function gameRunSaveBlockedReason');
+    expect(source).toContain('Mini Hub API is not ready for game saves');
+    expect(source).toContain('Loading local cache before game run saves are enabled.');
     expect(source).toContain('if (!lab)');
     expect(source).toContain('Engine is still loading; wait for the lab before saving.');
     expect(source).toContain('Loading game engine: reset and save are disabled until the lab is ready.');
-    expect(source).toContain('Offline read-only: the lab is playable');
+    expect(source).toContain('The lab is playable; {gameRunSaveBlockedReason(stickArenaLabControlState)}');
     expect(source).toContain("href={hubHref('/settings')}");
     expect(source).toContain('disabled={resetDisabled}');
     expect(source).toContain('disabled={saveDisabled}');

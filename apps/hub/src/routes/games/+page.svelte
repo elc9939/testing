@@ -1,17 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { ArrowRight, Gamepad2 } from 'lucide-svelte';
-  import { clientData } from '$lib/client-data';
+  import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { hubHref, legacyHref } from '$lib/routes';
 
   $: gameRunCount = $clientData.gameRuns.length;
   $: gameStateCount = $clientData.gameStates.length;
   $: lastGameRun = $clientData.gameRuns[0] ?? null;
-  $: gameSaveMode = $clientData.isOnline ? 'API-backed saves enabled' : 'Offline read-only';
-  $: gameSaveDetail = $clientData.isOnline
+  $: gameSaveReady = canAutoSave($clientData);
+  $: gameSaveMode = gameSaveReady ? 'API-backed saves enabled' : $clientData.initialized ? 'Offline/read-only until API is ready' : 'Loading cache';
+  $: gameSaveDetail = gameSaveReady
     ? 'Supported game runs and state save through the Mini Hub API, then reload from the local browser cache.'
-    : 'Games remain playable, but API-backed run/state saves are disabled until Mini Hub reconnects.';
+    : gameSaveBlockedDetail($clientData);
   $: lastGameRunLabel = lastGameRun ? new Date(lastGameRun.updatedAt).toLocaleString() : 'No saved game run in cache.';
+
+  function gameSaveBlockedDetail(state: ClientDataState): string {
+    if (!state.initialized) return 'Opening the browser cache before game save status is known.';
+    if (state.error) return `Games remain playable, but API-backed run/state saves are disabled: ${state.error}`;
+    if (!state.isOnline) return 'Games remain playable, but API-backed run/state saves are disabled until Mini Hub reconnects.';
+    if (state.status === 'syncing') return 'Games remain playable; save controls wait while Mini Hub sync is running.';
+    return `Games remain playable, but API-backed run/state saves wait for Mini Hub status ${state.status}.`;
+  }
 
   onMount(() => {
     void clientData.init();

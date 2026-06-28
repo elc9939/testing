@@ -360,7 +360,7 @@ const routes = [
     requiredMarkers: [
       { label: 'engine loading state', text: 'Loading engine' },
       { label: 'engine unavailable state', text: 'Game engine unavailable' },
-      { label: 'offline save banner', text: 'Offline read-only: the lab is playable' },
+      { label: 'offline save banner', text: 'The lab is playable; {gameRunSaveBlockedReason(stickArenaLabControlState)}' },
       { label: 'reset gate', text: 'resetDisabled' },
       { label: 'save gate', text: 'saveDisabled' },
       { label: 'save title helper', text: 'function saveTitle' },
