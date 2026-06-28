@@ -1002,12 +1002,18 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('let syncBusy = false');
     expect(source).toContain('let exportBusy = false');
     expect(source).toContain('let endpointSaving = false');
+    expect(source).toContain('interface SettingsControlState');
+    expect(source).toContain('settingsControlState = {');
+    expect(source).toContain('clientOnline: $clientData.isOnline');
+    expect(source).toContain('syncNowButtonTitle = syncNowTitle(settingsControlState)');
+    expect(source).toContain('capabilityRefreshButtonTitle = capabilityRefreshTitle(settingsControlState)');
+    expect(source).toContain('actionLedgerRefreshButtonTitle = actionLedgerRefreshTitle(settingsControlState)');
     expect(source).toContain('function capabilityRefreshTitle');
-    expect(source).toContain('title={capabilityRefreshTitle()}');
+    expect(source).toContain('title={capabilityRefreshButtonTitle}');
     expect(source).toContain('function themeButtonTitle');
     expect(source).toContain("title={themeButtonTitle('dark')}");
     expect(source).toContain('function actionLedgerRefreshTitle');
-    expect(source).toContain('title={actionLedgerRefreshTitle()}');
+    expect(source).toContain('title={actionLedgerRefreshButtonTitle}');
     expect(source).toContain('function restoreActionTitle');
     expect(source).toContain('title={restoreActionTitle(action)}');
     expect(source).toContain('function endpointInputTitle');
@@ -1027,6 +1033,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('if (syncBusy || !$clientData.isOnline)');
     expect(source).toContain('disabled={syncBusy || !$clientData.isOnline}');
     expect(source).toContain('function syncNowTitle');
+    expect(source).toContain('title={syncNowButtonTitle}');
     expect(source).toContain('Sync is already running.');
     expect(source).toContain('function formatHubCoreDataHealth');
     expect(source).toContain('hubCoreDataStatus = formatHubCoreDataHealth(hubHealth)');

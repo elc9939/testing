@@ -61,6 +61,13 @@
     capabilities: CapabilityRegistryEntry[];
   }
 
+  interface SettingsControlState {
+    syncBusy: boolean;
+    clientOnline: boolean;
+    capabilityLoading: boolean;
+    actionLedgerLoading: boolean;
+  }
+
   let apiStatus = 'Not checked';
   let hubHealth: HubHealth | null = null;
   let settingsError = '';
@@ -195,6 +202,15 @@
       detail: 'Browser storage is used for drafts, endpoint settings, cached activity, and offline-readable data.'
     }
   } satisfies Parameters<typeof buildFeatureWiringRows>[0]);
+  $: settingsControlState = {
+    syncBusy,
+    clientOnline: $clientData.isOnline,
+    capabilityLoading,
+    actionLedgerLoading
+  };
+  $: syncNowButtonTitle = syncNowTitle(settingsControlState);
+  $: capabilityRefreshButtonTitle = capabilityRefreshTitle(settingsControlState);
+  $: actionLedgerRefreshButtonTitle = actionLedgerRefreshTitle(settingsControlState);
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -330,9 +346,9 @@
     }
   }
 
-  function syncNowTitle(): string {
-    if (syncBusy) return 'Sync is already running.';
-    if (!$clientData.isOnline) return 'Offline read-only: start or connect the Mini Hub API before syncing.';
+  function syncNowTitle(state: Pick<SettingsControlState, 'syncBusy' | 'clientOnline'>): string {
+    if (state.syncBusy) return 'Sync is already running.';
+    if (!state.clientOnline) return 'Offline read-only: start or connect the Mini Hub API before syncing.';
     return 'Sync local cache with the Mini Hub API.';
   }
 
@@ -590,8 +606,8 @@
     return action.system === 'macro-lab' && ['snapshot', 'artifact'].includes(action.recoverability.kind) && Boolean(action.recoverability.referenceId);
   }
 
-  function capabilityRefreshTitle(): string {
-    return capabilityLoading ? 'Capability registry refresh is already running.' : 'Refresh service capability readiness from configured endpoints.';
+  function capabilityRefreshTitle(state: Pick<SettingsControlState, 'capabilityLoading'>): string {
+    return state.capabilityLoading ? 'Capability registry refresh is already running.' : 'Refresh service capability readiness from configured endpoints.';
   }
 
   function themeButtonTitle(mode: ThemeMode): string {
@@ -599,8 +615,8 @@
     return `Switch theme to ${mode}.`;
   }
 
-  function actionLedgerRefreshTitle(): string {
-    return actionLedgerLoading ? 'Action Ledger refresh is already running.' : 'Refresh recent actions from Mini Hub, AI OS, and Macro Lab.';
+  function actionLedgerRefreshTitle(state: Pick<SettingsControlState, 'actionLedgerLoading'>): string {
+    return state.actionLedgerLoading ? 'Action Ledger refresh is already running.' : 'Refresh recent actions from Mini Hub, AI OS, and Macro Lab.';
   }
 
   function restoreActionTitle(action: ActionLedgerEntry): string {
@@ -822,7 +838,7 @@
       <p class="eyebrow">Machine Control</p>
       <h2>Services And Capabilities</h2>
     </div>
-    <button class="button" type="button" disabled={capabilityLoading} title={capabilityRefreshTitle()} on:click={refreshCapabilities}>
+    <button class="button" type="button" disabled={capabilityLoading} title={capabilityRefreshButtonTitle} on:click={refreshCapabilities}>
       <Activity size={17} />
       <span>{capabilityLoading ? 'Checking' : 'Refresh Capabilities'}</span>
     </button>
@@ -1301,7 +1317,7 @@
       <div><dt>Local DB</dt><dd>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</dd></div>
     </dl>
     <div class="action-row">
-      <button class="button" type="button" disabled={syncBusy || !$clientData.isOnline} title={syncNowTitle()} on:click={syncNow}>
+      <button class="button" type="button" disabled={syncBusy || !$clientData.isOnline} title={syncNowButtonTitle} on:click={syncNow}>
         <Cloud size={17} />
         <span>{syncBusy ? 'Syncing' : $clientData.isOnline ? 'Sync Now' : 'Offline Read-only'}</span>
       </button>
@@ -1376,7 +1392,7 @@
         <Activity size={18} />
         <strong>Action Ledger</strong>
       </span>
-      <button class="button compact" type="button" disabled={actionLedgerLoading} title={actionLedgerRefreshTitle()} on:click={refreshActionLedger}>
+      <button class="button compact" type="button" disabled={actionLedgerLoading} title={actionLedgerRefreshButtonTitle} on:click={refreshActionLedger}>
         <RefreshCw size={15} />
         <span>{actionLedgerLoading ? 'Loading' : 'Refresh'}</span>
       </button>
