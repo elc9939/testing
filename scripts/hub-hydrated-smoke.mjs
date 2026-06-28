@@ -19,7 +19,7 @@ const routes = [
   { id: 'career', path: '/desk/career', heading: 'Career', safeActionLabels: ['Export', 'Add Job'] },
   { id: 'study', path: '/desk/study', heading: 'Study', safeActionLabels: ['Log'] },
   { id: 'analytics', path: '/analytics', heading: 'Local Insights', safeActionLabels: ['Refresh'] },
-  { id: 'research', path: '/research', heading: 'Research Desk', safeActionLabels: ['Run'] },
+  { id: 'research', path: '/research', heading: 'Research Desk', safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service'] },
   { id: 'ai-lab', path: '/ai-lab', heading: 'Browser Experiments', safeActionLabels: ['Restore Samples', 'Classify', 'Parse'] },
   { id: 'ai-os', path: '/ai-os', heading: 'Ask AI OS', safeActionLabels: ['Refresh', 'Do it'] },
   { id: 'macro-lab', path: '/macro-lab', heading: 'Macro Lab', safeActionLabels: ['Refresh', 'Panic', 'Dry Run', 'Run Confirmed'] },
@@ -372,13 +372,21 @@ async function readDomSnapshot(client) {
 
 function safeActionStatus(route, controls) {
   const labels = route.safeActionLabels ?? [];
-  const foundLabels = labels.filter((label) =>
-    controls.some((control) => `${control.label} ${control.title}`.toLowerCase().includes(label.toLowerCase()))
+  const matches = labels.flatMap((label) =>
+    controls
+      .filter((control) => `${control.label} ${control.title}`.toLowerCase().includes(label.toLowerCase()))
+      .map((control) => ({
+        label,
+        controlLabel: control.label,
+        disabled: control.disabled
+      }))
   );
+  const foundLabels = [...new Set(matches.map((match) => match.label))];
   return {
     found: foundLabels.length > 0,
     foundLabels,
-    missingLabels: labels.filter((label) => !foundLabels.includes(label))
+    missingLabels: labels.filter((label) => !foundLabels.includes(label)),
+    matches: matches.slice(0, 8)
   };
 }
 
@@ -429,7 +437,7 @@ function printMarkdown(rows, persistence) {
   console.log('| --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const safe = row.safeAction.found
-      ? `ok ${row.safeAction.foundLabels.join(', ')}${row.safeAction.missingLabels.length ? `; missing ${row.safeAction.missingLabels.join(', ')}` : ''}`
+      ? `ok ${row.safeAction.matches.map((match) => `${match.disabled ? 'disabled' : 'enabled'}:${match.label}`).join(', ')}${row.safeAction.missingLabels.length ? `; missing ${row.safeAction.missingLabels.join(', ')}` : ''}`
       : `missing ${row.safeAction.missingLabels.join(', ') || 'safe action'}`;
     const coverage = `${row.snapshot.enabled} enabled / ${row.snapshot.disabled} disabled / ${row.snapshot.buttons} buttons / ${row.snapshot.links} links`;
     const issues = [

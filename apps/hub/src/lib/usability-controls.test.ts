@@ -983,8 +983,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('miniHub.aiLab.draft.v1');
     expect(source).toContain('Hydrated smoke research draft');
     expect(source).toContain('Hydrated smoke AI Lab draft');
+    expect(source).toContain("safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service']");
     expect(source).toContain('runPersistenceChecks');
     expect(source).toContain('safeActionStatus');
+    expect(source).toContain('matches: matches.slice(0, 8)');
+    expect(source).toContain("`${match.disabled ? 'disabled' : 'enabled'}:${match.label}`");
     expect(source).toContain('unexplainedDisabled');
     expect(source).toContain('rawNotFound');
     expect(source).toContain('Mini Hub hydrated smoke found');
