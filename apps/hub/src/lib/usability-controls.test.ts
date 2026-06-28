@@ -587,6 +587,7 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/productivity/+page.svelte');
 
     expect(source).toContain('productivityReady = canAct && googleConnected');
+    expect(source).toContain("apiChecking = !$clientData.initialized || $clientData.status === 'syncing'");
     expect(source).toContain("let actionBusyKey = ''");
     expect(source).toContain('productivityWriteDisabled = loading || !productivityReady || Boolean(actionBusyKey)');
     expect(source).toContain('productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey)');
@@ -604,6 +605,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('productivityWriteDetail = productivityWriteStateDetail(productivityStatusState)');
     expect(source).toContain('productivityReadStatus = productivityReadStateLabel(productivityStatusState)');
     expect(source).toContain('productivityReadDetail = productivityReadStateDetail(productivityStatusState)');
+    expect(source).toContain('productivityApiBannerText = apiChecking');
     expect(source).toContain('interface ProductivityControlTitleState extends ProductivityStatusState');
     expect(source).toContain('productivityControlTitleState = {');
     expect(source).toContain('productivityRefreshButtonTitle = productivityRefreshTitle(productivityControlTitleState)');
@@ -627,6 +629,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('state.cacheLoadedAt');
     expect(source).toContain('Write Mode');
     expect(source).toContain('Read Mode');
+    expect(source).toContain('Checking API');
+    expect(source).toContain('Opening the browser cache and checking the Mini Hub API before enabling OAuth or writes.');
+    expect(source).toContain('Checking the Mini Hub API before loading live Gmail and Calendar data.');
     expect(source).toContain('Cached read-only');
     expect(source).toContain('Showing the last browser snapshot; live refresh, search, and edits wait for the local API and Google.');
     expect(source).toContain('OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.');
@@ -659,6 +664,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Open the cached thread preview. Connect the API and Google to fetch full messages.');
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
+    expect(source).toContain('{productivityApiBannerText}');
     expect(source).toContain('hubHref(routeMap.settings)');
     expect(source).toContain('disabled={productivityRefreshDisabled}');
   });

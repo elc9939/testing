@@ -106,6 +106,7 @@
     loading: boolean;
     actionBusyKey: string;
     canAct: boolean;
+    apiChecking: boolean;
     googleConnected: boolean;
     productivityReady: boolean;
     cacheLoadedAt: string;
@@ -153,6 +154,7 @@
   let composeDialogOpen = false;
 
   $: canAct = canAutoSave($clientData);
+  $: apiChecking = !$clientData.initialized || $clientData.status === 'syncing';
   $: googleConnections = connections.filter((connection) => connection.provider === 'google' && connection.status === 'connected');
   $: googleConnection = googleConnections[0];
   $: googleConnected = googleConnections.length > 0;
@@ -165,6 +167,8 @@
   $: googleConnectDisabled = loading || !canAct || googleOAuthOpening || Boolean(actionBusyKey);
   $: googleConnectTitle = loading
     ? 'Productivity is still loading the latest connection state.'
+    : apiChecking
+    ? 'Productivity is checking the local API before opening Google OAuth.'
     : !canAct
     ? 'Start or connect the local API before opening Google OAuth.'
     : googleOAuthOpening
@@ -180,6 +184,7 @@
     loading,
     actionBusyKey,
     canAct,
+    apiChecking,
     googleConnected,
     productivityReady,
     cacheLoadedAt
@@ -215,7 +220,12 @@
     : 'Connect Google to enable live Gmail, Calendar, and write actions.';
   $: productivityApiDetail = canAct
     ? `Using Mini Hub API at ${getApiUrl()} for OAuth and writes.`
+    : apiChecking
+      ? `Checking Mini Hub API at ${getApiUrl()}; cached data stays visible while writes wait.`
     : `Mini Hub API is unavailable at ${getApiUrl()}; cached data remains read-only.`;
+  $: productivityApiBannerText = apiChecking
+    ? 'Checking the local API and browser cache: cached productivity data can stay visible, and OAuth, Gmail, and Calendar writes will unlock when the API is ready.'
+    : 'API unavailable or offline: cached productivity data can stay visible, but OAuth, Gmail, and Calendar writes need the local API.';
 
   function emptyDraft(): CalendarEventDraft {
     const start = new Date(Date.now() + 60 * 60 * 1000);
@@ -472,6 +482,7 @@
 
   function productivityActionTitle(enabledTitle: string): string {
     if (loading) return 'Productivity is still loading the latest connection state.';
+    if (apiChecking) return 'Productivity is checking the local API before enabling this action.';
     if (!productivityReady) return 'Connect the API and Google before using this action.';
     if (actionBusyKey) return 'Another Productivity action is already running.';
     return enabledTitle;
@@ -479,6 +490,7 @@
 
   function productivityWriteStateLabel(state: ProductivityStatusState): string {
     if (state.loading) return 'Loading';
+    if (state.apiChecking) return 'Checking API';
     if (state.actionBusyKey) return 'Busy';
     if (!state.canAct) return 'API offline';
     if (!state.googleConnected) return 'Google setup';
@@ -487,6 +499,7 @@
 
   function productivityWriteStateDetail(state: ProductivityStatusState): string {
     if (state.loading) return 'Waiting for the latest API, Google, Gmail, and Calendar connection state.';
+    if (state.apiChecking) return 'Opening the browser cache and checking the Mini Hub API before enabling OAuth or writes.';
     if (state.actionBusyKey) return 'Another Productivity action is running; write controls stay locked until it finishes.';
     if (!state.canAct) return 'OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.';
     if (!state.googleConnected) return 'Use Connect Google or Add Google Account before sending mail or changing calendar events.';
@@ -496,6 +509,8 @@
   function productivityReadStateLabel(state: ProductivityStatusState): string {
     if (state.loading) return 'Loading';
     if (state.productivityReady) return 'Live reads';
+    if (state.apiChecking && state.cacheLoadedAt) return 'Cached while checking';
+    if (state.apiChecking) return 'Checking API';
     if (state.cacheLoadedAt) return 'Cached read-only';
     if (!state.canAct) return 'API offline';
     if (!state.googleConnected) return 'Google setup';
@@ -505,6 +520,8 @@
   function productivityReadStateDetail(state: ProductivityStatusState): string {
     if (state.loading) return 'Loading cached productivity data first, then live Google data when available.';
     if (state.productivityReady) return 'Calendar and Gmail reads can refresh from connected Google accounts.';
+    if (state.apiChecking && state.cacheLoadedAt) return 'Showing the last browser snapshot while Mini Hub checks the API and Google connection state.';
+    if (state.apiChecking) return 'Checking the Mini Hub API before loading live Gmail and Calendar data.';
     if (state.cacheLoadedAt) return 'Showing the last browser snapshot; live refresh, search, and edits wait for the local API and Google.';
     if (!state.canAct) return 'Start or connect the local API to load live Gmail and Calendar data.';
     if (!state.googleConnected) return 'Connect Google to load live Gmail and Calendar data.';
@@ -565,15 +582,16 @@
     return productivityActionTitle('Ask for confirmation before moving this event.');
   }
 
-  function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'actionBusyKey' | 'productivityReady'>, enabledTitle: string): string {
+  function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'productivityReady'>, enabledTitle: string): string {
     if (state.loading) return 'Productivity is still loading the latest connection state.';
+    if (state.apiChecking) return 'Productivity is checking the local API before enabling this action.';
     if (!state.productivityReady) return 'Connect the API and Google before using this action.';
     if (state.actionBusyKey) return 'Another Productivity action is already running.';
     return enabledTitle;
   }
 
   function productivityValidatedActionTitleForState(
-    state: Pick<ProductivityControlTitleState, 'loading' | 'actionBusyKey' | 'productivityReady'>,
+    state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'productivityReady'>,
     enabledTitle: string,
     validationReason: string
   ): string {
@@ -616,6 +634,10 @@
     }
     if (loading) {
       actionError = 'Productivity is still loading the latest connection state.';
+      return false;
+    }
+    if (apiChecking) {
+      actionError = 'Productivity is checking the local API before enabling this action.';
       return false;
     }
     if (requiresGoogle ? !productivityReady : !canAct) {
@@ -1163,7 +1185,7 @@
 
 {#if !canAct}
   <section class="card card-pad offline-banner">
-    <span>API unavailable or offline: cached productivity data can stay visible, but OAuth, Gmail, and Calendar writes need the local API.</span>
+    <span>{productivityApiBannerText}</span>
     <a class="inline-action" href={hubHref(routeMap.settings)}>Open Settings</a>
   </section>
 {/if}
@@ -1186,7 +1208,7 @@
   </div>
   <div>
     <span>API</span>
-    <strong>{canAct ? 'Reachable' : 'Offline'}</strong>
+    <strong>{canAct ? 'Reachable' : apiChecking ? 'Checking' : 'Offline'}</strong>
     <small>{productivityApiDetail}</small>
   </div>
   <div>
