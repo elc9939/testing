@@ -60,6 +60,17 @@ export const persistenceRows = [
     crossDevice: true
   },
   {
+    id: 'analytics',
+    feature: 'Analytics',
+    owner: 'browser',
+    savedWhere: 'Analytics does not keep a separate dataset; it recomputes from the browser cache and any synced Career, Study, and game records already loaded here.',
+    reloadBehavior: 'Reload rebuilds charts and tables from the local cache first, then reflects fresher API-backed records after sync completes.',
+    offlineBehavior: 'Shows cached derived charts or a healthy-empty/offline state; refresh is guarded while cache reads are already running.',
+    recoveryRoute: routeMap.analytics,
+    recoveryLabel: 'Open Analytics',
+    crossDevice: false
+  },
+  {
     id: 'productivity',
     feature: 'Productivity Hub',
     owner: 'google',
@@ -113,6 +124,17 @@ export const persistenceRows = [
     recoveryRoute: routeMap.passiveTasks,
     recoveryLabel: 'Open Passive',
     crossDevice: true
+  },
+  {
+    id: 'settings',
+    feature: 'Settings and service URLs',
+    owner: 'browser',
+    savedWhere: 'Theme choice, endpoint URLs, selected machine mode, diagnostics, and local recovery UI state are saved in this browser; synced preferences also write through the Hub API when online.',
+    reloadBehavior: 'Settings reloads saved service URLs, theme/mode, feature wiring, service health, action ledger, and the Data & Recovery map on page open.',
+    offlineBehavior: 'Browser-local settings stay editable where safe; API-backed sync, machine profile, passive settings, and restore controls explain the missing service before enabling writes.',
+    recoveryRoute: routeMap.settings,
+    recoveryLabel: 'Open Settings',
+    crossDevice: false
   },
   {
     id: 'ai-lab',

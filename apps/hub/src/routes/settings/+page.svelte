@@ -2032,13 +2032,17 @@
     min-width: 0;
   }
 
-  .persistence-main strong,
-  .persistence-main small,
-  .persistence-main span,
-  .persistence-main em {
+  .persistence-main strong {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .persistence-main small,
+  .persistence-main span,
+  .persistence-main em {
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 
   .persistence-main small,

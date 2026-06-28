@@ -157,6 +157,9 @@ when it is online; offline mode is intentionally read-only. Research, AI OS, Mac
 backups, benchmarks, and passive/background runs are recovered through Activity because
 their real records live in the owning local service. Google Mail/Calendar state remains
 authoritative in Google, while Mini Hub keeps a browser-side last-good display cache.
+Analytics does not save its own dataset; it rebuilds from cached/synced Career, Study,
+and game records. Settings service URLs and diagnostics are browser-local, while any
+API-backed preferences only sync when the Mini Hub API is reachable.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,

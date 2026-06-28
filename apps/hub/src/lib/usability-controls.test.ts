@@ -1194,5 +1194,6 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('persistenceRows');
     expect(source).toContain('persistenceStats.crossDevice');
     expect(source).toContain('What survives refreshes, browser closes, route changes, and service outages.');
+    expect(source).toContain('overflow-wrap: anywhere;');
   });
 });
