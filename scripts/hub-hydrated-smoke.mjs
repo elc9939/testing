@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import http from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
@@ -382,6 +383,189 @@ function freePort() {
       });
     });
   });
+}
+
+function sendJson(response, status, payload) {
+  response.writeHead(status, {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    'content-type': 'application/json'
+  });
+  response.end(JSON.stringify(payload));
+}
+
+function readJsonBody(request) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    request.on('data', (chunk) => chunks.push(chunk));
+    request.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        resolve({});
+      }
+    });
+    request.on('error', () => resolve({}));
+  });
+}
+
+function createMockResearchSource() {
+  return {
+    id: 'src-hydrated-mock',
+    url: 'https://example.com/hydrated-research',
+    canonical_url: 'https://example.com/hydrated-research',
+    title: 'Hydrated Research Source',
+    description: 'Mock source used by the hydrated Research Desk smoke.',
+    text: 'Hydrated mock research source text with enough detail to render a preview and report citation.',
+    text_length: 88,
+    links: [{ href: 'https://example.com/follow-up', text: 'Follow up' }],
+    tables: [],
+    metadata: {},
+    score: 0.91,
+    rank: 1,
+    cached: false,
+    fetched_at: '2026-06-23T12:00:00.000Z'
+  };
+}
+
+function createMockResearchReport(goal) {
+  return {
+    title: 'Hydrated Mock Research Report',
+    tldr: `Mock TLDR for ${goal}.`,
+    detailed_summary: 'This mock report proves online Research Desk runs stay visible after navigation, reload, and control actions.',
+    key_facts: ['The mock AI OS accepted the run.', 'The Research Desk rendered a source-backed report.'],
+    disagreements: [],
+    source_table: [{ id: 'src-hydrated-mock', title: 'Hydrated Research Source', score: 0.91, cached: false }],
+    open_questions: ['What real source should replace this mock during manual QA?'],
+    next_research_suggestions: ['Run the same flow against the real AI OS service.'],
+    reliability_notes: ['Mock source only; this is a UI recovery smoke check.'],
+    timeline: [{ title: 'Mock run queued', date: '2026-06-23', source_id: 'src-hydrated-mock' }]
+  };
+}
+
+function createMockResearchRun(input, index = 1) {
+  const now = '2026-06-23T12:00:00.000Z';
+  const source = createMockResearchSource();
+  const goal = typeof input.goal === 'string' && input.goal.trim() ? input.goal.trim() : 'Hydrated mock research goal';
+  return {
+    id: `hydrated-run-${index}`,
+    created_at: now,
+    updated_at: now,
+    mode: input.mode || 'quick_search',
+    goal,
+    status: 'running',
+    query_plan: {
+      search_queries: [goal],
+      crawl_targets: input.seed_urls || []
+    },
+    sources: [source],
+    report: createMockResearchReport(goal),
+    citations: [{ id: 'citation-hydrated', claim: 'Hydrated mock source was rendered.', source_ids: [source.id], quote: 'mock source text' }],
+    logs: [{ at: now, level: 'info', message: 'Hydrated mock run accepted.' }],
+    progress: 0.42,
+    total_steps: 4,
+    completed_steps: 2,
+    current_step: 'Mock AI OS is ranking sources',
+    cancel_requested: false,
+    memory_chunks: 0,
+    provider: 'mock-ai-os',
+    model: 'hydrated-smoke',
+    total_tokens: 12,
+    cost_usd: 0,
+    runtime_ms: 321,
+    cached_pages: 0,
+    options: input
+  };
+}
+
+async function startMockResearchAiOsServer() {
+  const port = await freePort();
+  const runs = [];
+  const server = http.createServer(async (request, response) => {
+    if (request.method === 'OPTIONS') {
+      sendJson(response, 204, {});
+      return;
+    }
+    const url = new URL(request.url || '/', `http://127.0.0.1:${port}`);
+    const pathName = url.pathname;
+    if (pathName === '/api/ai/research/runs' && request.method === 'GET') {
+      sendJson(response, 200, { runs });
+      return;
+    }
+    if (pathName === '/api/ai/research/runs' && request.method === 'POST') {
+      const input = await readJsonBody(request);
+      const run = createMockResearchRun(input, runs.length + 1);
+      runs.unshift(run);
+      sendJson(response, 200, { run });
+      return;
+    }
+    const runMatch = /^\/api\/ai\/research\/runs\/([^/]+)(?:\/(pause|resume|cancel))?$/u.exec(pathName);
+    if (runMatch) {
+      const runId = decodeURIComponent(runMatch[1]);
+      const action = runMatch[2] || '';
+      const index = runs.findIndex((run) => run.id === runId);
+      if (index === -1) {
+        sendJson(response, 404, { error: 'missing mock research run' });
+        return;
+      }
+      const run = runs[index];
+      if (request.method === 'POST' && action === 'pause') {
+        Object.assign(run, { status: 'paused', current_step: 'Paused by hydrated smoke', updated_at: '2026-06-23T12:01:00.000Z' });
+        run.logs = [...run.logs, { at: '2026-06-23T12:01:00.000Z', level: 'info', message: 'Paused by hydrated smoke' }];
+      } else if (request.method === 'POST' && action === 'resume') {
+        Object.assign(run, { status: 'running', current_step: 'Resumed by hydrated smoke', updated_at: '2026-06-23T12:02:00.000Z' });
+        run.logs = [...run.logs, { at: '2026-06-23T12:02:00.000Z', level: 'info', message: 'Resumed by hydrated smoke' }];
+      } else if (request.method === 'POST' && action === 'cancel') {
+        Object.assign(run, {
+          status: 'cancelled',
+          cancel_requested: true,
+          current_step: 'Cancelled by hydrated smoke',
+          updated_at: '2026-06-23T12:03:00.000Z'
+        });
+        run.logs = [...run.logs, { at: '2026-06-23T12:03:00.000Z', level: 'info', message: 'Cancelled by hydrated smoke' }];
+      }
+      sendJson(response, 200, { run });
+      return;
+    }
+    if (pathName === '/api/ai/research/sources' && request.method === 'GET') {
+      const source = createMockResearchSource();
+      sendJson(response, 200, {
+        sources: [
+          {
+            ...source,
+            text_preview: source.text,
+            first_seen_at: '2026-06-23T12:00:00.000Z',
+            last_seen_at: '2026-06-23T12:00:00.000Z',
+            fetch_count: 1,
+            matched_terms: ['hydrated', 'mock']
+          }
+        ]
+      });
+      return;
+    }
+    if (pathName === '/api/ai/research/monitors' && request.method === 'GET') {
+      sendJson(response, 200, { monitors: [] });
+      return;
+    }
+    sendJson(response, 404, { error: `mock route not found: ${pathName}` });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () => new Promise((resolve) => server.close(resolve))
+  };
 }
 
 async function waitForJson(url, timeoutMs = 10_000) {
@@ -778,6 +962,143 @@ async function runResearchActionChecks(client, baseUrl) {
     15_000
   );
   return [{ id: 'research-offline-run-guard', route: '/research', ...result }];
+}
+
+async function runResearchOnlineRecoveryChecks(client, baseUrl) {
+  const mock = await startMockResearchAiOsServer();
+  const route = `/research?aiOsUrl=${encodeURIComponent(mock.url)}`;
+  const checks = [];
+  try {
+    await navigate(client, routeUrl(baseUrl, route));
+    await fillFirstTextarea(client, 'Hydrated mock research goal');
+    checks.push({
+      id: 'research-online-run-ready',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const button = document.querySelector('.form-actions .primary-button');
+          const label = (button?.innerText || button?.textContent || '').replace(/\\s+/g, ' ').trim();
+          const title = button?.getAttribute('title') || '';
+          const body = document.body?.innerText || '';
+          return {
+            ok: Boolean(button && !button.disabled && label.includes('Run Quick Search') && !/AI OS service needs attention/i.test(body)),
+            state: button?.disabled ? 'blocked' : 'ready',
+            detail: \`label="\${label}"; title="\${title}"\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+    if (!checks.at(-1)?.ok) return checks;
+
+    await clickButtonByText(client, 'Run Quick Search');
+    checks.push({
+      id: 'research-online-run-created',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const url = window.location.href;
+          const visible = body.includes('Hydrated Mock Research Report') && body.includes('Mock AI OS is ranking sources');
+          const sourceVisible = body.includes('Hydrated Research Source');
+          const stableUrl = /run=hydrated-run-1/.test(url);
+          return {
+            ok: visible && sourceVisible && stableUrl,
+            state: visible ? 'created' : 'waiting',
+            detail: \`visible=\${visible}; sourceVisible=\${sourceVisible}; stableUrl=\${stableUrl}; url=\${url}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+    if (!checks.at(-1)?.ok) return checks;
+
+    await clickButtonByText(client, 'Pause');
+    checks.push({
+      id: 'research-online-run-paused',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const paused = body.includes('Research run paused.') && body.includes('Paused by hydrated smoke') && body.includes('Resume');
+          return {
+            ok: paused,
+            state: paused ? 'paused' : 'waiting',
+            detail: \`paused=\${paused}\`
+          };
+        })()`,
+        10_000
+      ))
+    });
+    if (!checks.at(-1)?.ok) return checks;
+
+    await clickButtonByText(client, 'Resume');
+    checks.push({
+      id: 'research-online-run-resumed',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const resumed = body.includes('Research run resumed.') && body.includes('Resumed by hydrated smoke') && body.includes('Pause');
+          return {
+            ok: resumed,
+            state: resumed ? 'resumed' : 'waiting',
+            detail: \`resumed=\${resumed}\`
+          };
+        })()`,
+        10_000
+      ))
+    });
+    if (!checks.at(-1)?.ok) return checks;
+
+    await evaluate(client, 'window.confirm = () => true');
+    await clickButtonByText(client, 'Cancel');
+    checks.push({
+      id: 'research-online-run-cancelled',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const cancelled = body.includes('Research run cancelled.') && body.includes('cancelled') && body.includes('Cancelled by hydrated smoke');
+          return {
+            ok: cancelled,
+            state: cancelled ? 'cancelled' : 'waiting',
+            detail: \`cancelled=\${cancelled}\`
+          };
+        })()`,
+        10_000
+      ))
+    });
+    if (!checks.at(-1)?.ok) return checks;
+
+    await navigate(client, routeUrl(baseUrl, '/activity'));
+    await navigate(client, routeUrl(baseUrl, `/research?aiOsUrl=${encodeURIComponent(mock.url)}&run=hydrated-run-1`));
+    checks.push({
+      id: 'research-online-run-rehydrated',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const reloaded = body.includes('Hydrated Mock Research Report') && body.includes('Cancelled by hydrated smoke') && body.includes('Hydrated Research Source');
+          return {
+            ok: reloaded,
+            state: reloaded ? 'rehydrated' : 'waiting',
+            detail: \`reloaded=\${reloaded}; url=\${window.location.href}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+    return checks;
+  } finally {
+    await mock.close();
+  }
 }
 
 async function runAiOsOfflineActionGuardChecks(client, baseUrl) {
@@ -1421,6 +1742,7 @@ async function main() {
     }
     const actionChecks = [
       ...(await runResearchActionChecks(client, baseUrl)),
+      ...(await runResearchOnlineRecoveryChecks(client, baseUrl)),
       ...(await runAiOsOfflineActionGuardChecks(client, baseUrl)),
       ...(await runDeskWriteGuardChecks(client, baseUrl)),
       ...(await runProductivityCacheWriteGuardChecks(client, baseUrl)),
