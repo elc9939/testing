@@ -726,6 +726,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('cross-device via Hub API');
     expect(source).toContain('Data &amp; Recovery');
     expect(source).toContain('showing cached records from');
+    expect(source).toContain('activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot)');
+    expect(source).toContain('function activitySnapshotRecoveryNotes');
+    expect(source).toContain('function compactActivityRecoveryNote');
+    expect(source).toContain('Activity cache and recovery notes');
+    expect(source).toContain('Browser Activity cache');
     expect(source).toContain('one source failed; available work is still listed');
     expect(source).toContain('function sourceReachable');
     expect(source).toContain('function activityActionKey');

@@ -50,6 +50,8 @@ const routes = [
       { label: 'source detail tooltip', text: 'sourceHealthTitle' },
       { label: 'no source snapshot state', text: 'No source snapshot yet; refresh Activity or open Settings.' },
       { label: 'cached records state', text: 'showing cached records from' },
+      { label: 'activity cache recovery notes', text: 'activitySnapshotRecoveryNotes' },
+      { label: 'activity cache warning surface', text: 'Activity cache and recovery notes' },
       { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
       { label: 'recovery model strip', text: 'Activity recovery model' },
       { label: 'cancel confirmation', text: 'asks for confirmation before stopping active work' },

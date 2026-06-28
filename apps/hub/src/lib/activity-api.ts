@@ -48,12 +48,21 @@ export function readActivityCache(): ActivitySnapshot | null {
   }
 }
 
-function writeActivityCache(snapshot: ActivitySnapshot): string {
+function writeActivityCache(snapshot: ActivitySnapshot): { cachedAt?: string; error?: string } {
   const cachedAt = new Date().toISOString();
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(activityCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies ActivityCache));
+  if (typeof localStorage === 'undefined') {
+    return {
+      error: 'Browser Activity cache is unavailable; live records are visible but may not survive refresh.'
+    };
   }
-  return cachedAt;
+  try {
+    localStorage.setItem(activityCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies ActivityCache));
+    return { cachedAt };
+  } catch {
+    return {
+      error: 'Browser Activity cache could not be updated; live records are visible but may not survive refresh.'
+    };
+  }
 }
 
 export function readDismissedActivityIds(): Set<string> {
@@ -69,8 +78,11 @@ export function readDismissedActivityIds(): Set<string> {
 
 function writeDismissedActivityIds(ids: Set<string>): Set<string> {
   const next = new Set(Array.from(ids).filter(Boolean).slice(-200));
-  if (typeof localStorage !== 'undefined') {
+  if (typeof localStorage === 'undefined') return next;
+  try {
     localStorage.setItem(activityDismissedKey, JSON.stringify({ version: 1, ids: Array.from(next) } satisfies ActivityDismissedCache));
+  } catch {
+    // Dismiss still applies for the current page session even when browser storage is blocked.
   }
   return next;
 }
@@ -191,7 +203,13 @@ export async function loadActivitySnapshot(
     count: snapshot.records.filter((record) => activitySourceId(record) === item.id).length
   }));
 
-  snapshot.cachedAt = writeActivityCache(snapshot);
+  const cacheWrite = writeActivityCache(snapshot);
+  if (cacheWrite.cachedAt) {
+    snapshot.cachedAt = cacheWrite.cachedAt;
+  }
+  if (cacheWrite.error) {
+    snapshot.errors = [...snapshot.errors, cacheWrite.error];
+  }
   return snapshot;
 }
 

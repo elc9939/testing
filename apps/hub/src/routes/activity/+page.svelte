@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Activity, ArrowRight, Pause, Play, RefreshCw, RotateCcw, Settings, Square, Terminal, XCircle } from 'lucide-svelte';
+  import { Activity, AlertTriangle, ArrowRight, Pause, Play, RefreshCw, RotateCcw, Settings, Square, Terminal, XCircle } from 'lucide-svelte';
   import {
     activityHasActiveWork,
     activityStatusLabel,
@@ -71,6 +71,7 @@
     dismissedCount,
     refreshBlockedReason
   };
+  $: activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot);
   $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
   $: restoreDismissedButtonTitle = restoreDismissedTitle();
   $: activityEmptyRefreshButtonTitle = activityEmptyRefreshTitle(activityControlState);
@@ -205,6 +206,27 @@
     }
     if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) return 'auth or permission needed';
     return text.length > 96 ? `${text.slice(0, 93)}...` : text;
+  }
+
+  function compactActivityRecoveryNote(message: string): string {
+    if (/cached Activity records for sources that failed live refresh/iu.test(message)) {
+      return 'Showing cached Activity records for sources that failed live refresh.';
+    }
+    if (/Browser Activity cache (?:is unavailable|could not be updated)/iu.test(message)) {
+      return message;
+    }
+    return message.length > 120 ? `${message.slice(0, 117)}...` : message;
+  }
+
+  function activitySnapshotRecoveryNotes(current: ActivitySnapshot | null): string[] {
+    const notes = current?.errors ?? [];
+    return Array.from(
+      new Set(
+        notes
+          .filter((note) => /cache|cached Activity|Browser Activity cache/iu.test(note))
+          .map((note) => compactActivityRecoveryNote(note))
+      )
+    );
   }
 
   function sourceHealthTitle(source: ActivitySourceState): string {
@@ -368,6 +390,17 @@
   <section class="notice error">{actionError}</section>
 {:else if actionMessage}
   <section class="notice success">{actionMessage}</section>
+{/if}
+
+{#if activityRecoveryNotes.length}
+  <section class="notice warning" aria-label="Activity cache and recovery notes">
+    <AlertTriangle size={16} />
+    <div>
+      {#each activityRecoveryNotes as note}
+        <p>{note}</p>
+      {/each}
+    </div>
+  </section>
 {/if}
 
 <section class="activity-status">
@@ -782,6 +815,19 @@
     color: var(--success-text);
     background: var(--success-bg);
     border: 1px solid var(--success-border);
+  }
+
+  .notice.warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--warning-text);
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-border);
+  }
+
+  .notice.warning p {
+    margin: 0;
   }
 
   .empty-state {

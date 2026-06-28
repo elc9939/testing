@@ -171,11 +171,43 @@ describe('activity source loading', () => {
     expect(snapshot.stale).toBe(false);
     expect(snapshot.records).toEqual([]);
     expect(snapshot.sources.every((source) => !source.ok)).toBe(true);
-    expect(snapshot.errors).toEqual([
+    expect(snapshot.errors.slice(0, 3)).toEqual([
       expect.stringContaining('AI OS'),
       expect.stringContaining('Passive Tasks'),
       expect.stringContaining('Macro Lab')
     ]);
+    expect(snapshot.errors.at(-1)).toContain('Browser Activity cache is unavailable');
+  });
+
+  it('keeps live Activity usable when the browser cache cannot be written', async () => {
+    installThrowingLocalStorage();
+    getAiStatusMock.mockResolvedValue({ providers: [], capabilities: [], hardware: { gpus: [] }, jobs: [], background: [], tools: [] });
+    getPassiveSnapshotMock.mockResolvedValue({
+      runs: [
+        {
+          id: 'passive_live',
+          taskId: 'task_live',
+          watcherId: 'watcher_live',
+          family: 'app_health',
+          status: 'succeeded',
+          startedAt: '2026-06-23T10:04:00.000Z',
+          finishedAt: '2026-06-23T10:05:00.000Z',
+          cards: [],
+          changed: [],
+          metadata: {}
+        }
+      ]
+    });
+    listMacroRunsMock.mockResolvedValue([]);
+
+    const snapshot = await loadActivitySnapshot(20, { sourceTimeoutMs: 2 });
+
+    expect(snapshot.records.map((record) => record.id)).toEqual(['passive:passive_live']);
+    expect(snapshot.sources.find((source) => source.id === 'passive')).toMatchObject({
+      ok: true,
+      count: 1
+    });
+    expect(snapshot.errors.at(-1)).toContain('Browser Activity cache could not be updated');
   });
 
   it('persists and clears locally dismissed Activity record ids', () => {
@@ -189,6 +221,14 @@ describe('activity source loading', () => {
 
     expect(Array.from(clearDismissedActivityRecords())).toEqual([]);
     expect(Array.from(readDismissedActivityIds())).toEqual([]);
+  });
+
+  it('keeps dismiss usable for the current page when browser storage rejects writes', () => {
+    installThrowingLocalStorage();
+
+    const dismissed = dismissActivityRecord('macro:finished');
+
+    expect(Array.from(dismissed)).toEqual(['macro:finished']);
   });
 });
 
@@ -225,4 +265,17 @@ function writeActivityCache(records: Array<Record<string, unknown>>): void {
       }
     })
   );
+}
+
+function installThrowingLocalStorage(): void {
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('quota exceeded');
+      },
+      removeItem: () => undefined
+    }
+  });
 }
