@@ -290,7 +290,10 @@ const routes = [
       { label: 'service card', text: 'service-card' },
       { label: 'offline wording', text: 'Passive Tasks API unavailable' },
       { label: 'passive cancel prompt', text: 'Passive task cancellation skipped.' },
-      { label: 'source health empty state', text: 'Source health appears after passive tasks are registered.' }
+      { label: 'source health empty state', text: 'Source health appears after passive tasks are registered.' },
+      { label: 'repeated service issue compaction', text: 'summarizedServiceIssueCard' },
+      { label: 'compact service issue note', text: 'compact-service-note' },
+      { label: 'source health issue summary', text: 'sourceIssueSummary' }
     ]
   },
   {

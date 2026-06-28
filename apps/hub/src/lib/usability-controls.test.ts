@@ -989,6 +989,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('sourceIssueSnippets');
     expect(source).toContain('stateSurfaceRefs: surfaces');
     expect(source).toContain('stateSurfaces: surfaces.reduce');
+    expect(source).toContain('repeated service issue compaction');
+    expect(source).toContain('compact service issue note');
+    expect(source).toContain('source health issue summary');
   });
 
   it('keeps the hydrated smoke script dependency-free and focused on route recovery', async () => {
