@@ -592,6 +592,9 @@ function extractButtonStates(html) {
       disabled: /\bdisabled(?:=|\s|>)/iu.test(attrs),
       title,
       ariaLabel,
+      hasTitle,
+      hasAriaLabel,
+      hasVisibleLabel: Boolean(visibleLabel),
       line,
       ambiguous: !visibleLabel && !hasAriaLabel && !hasTitle
     };
@@ -616,6 +619,9 @@ function extractLinkStates(html) {
         /\bclass="[^"]*\bdisabled\b[^"]*"/iu.test(attrs),
       title,
       href,
+      hasTitle,
+      hasAriaLabel: false,
+      hasVisibleLabel: Boolean(visibleLabel),
       line,
       ambiguous: !visibleLabel && !hasTitle && !hrefLabel
     };
@@ -640,6 +646,40 @@ function ambiguousSummary(controls, limit = 6) {
     .slice(0, limit)
     .map((control) => `line ${control.line}: ${truncateLabel(control.label)}`)
     .join('; ');
+}
+
+function unexplainedDisabledControls(controls) {
+  return controls.filter((control) => control.disabled && !control.hasTitle && !control.hasAriaLabel);
+}
+
+function controlCoverage(controls) {
+  const enabled = controls.filter((control) => !control.disabled).length;
+  const disabled = controls.length - enabled;
+  const titled = controls.filter((control) => control.hasTitle || control.hasAriaLabel).length;
+  const unlabeled = ambiguousControls(controls).length;
+  const unexplainedDisabled = unexplainedDisabledControls(controls);
+  return {
+    enabled,
+    disabled,
+    titled,
+    total: controls.length,
+    unlabeled,
+    unexplainedDisabled: unexplainedDisabled.length,
+    unexplainedDisabledLabels: unexplainedDisabled
+      .slice(0, 6)
+      .map((control) => `line ${control.line}: ${truncateLabel(control.label)}`)
+      .join('; ')
+  };
+}
+
+function controlCoverageSummary(row) {
+  const coverage = row.controlCoverage;
+  if (!coverage) return 'not checked';
+  const issues = [];
+  if (coverage.unlabeled) issues.push(`${coverage.unlabeled} unlabeled`);
+  if (coverage.unexplainedDisabled) issues.push(`${coverage.unexplainedDisabled} disabled unexplained`);
+  const issueText = issues.length ? `; check ${issues.join(', ')}` : '; ok';
+  return `${coverage.enabled} enabled / ${coverage.disabled} disabled / ${coverage.titled} titled${issueText}`;
 }
 
 function visibleIssueSnippets(html) {
@@ -806,6 +846,8 @@ async function sourceSnapshot(route) {
   const sourceButtons = extractButtonStates(source);
   const sourceLinks = extractLinkStates(source);
   const sourceAmbiguousControls = ambiguousControls([...sourceButtons, ...sourceLinks]);
+  const sourceControls = [...sourceButtons, ...sourceLinks];
+  const coverage = controlCoverage(sourceControls);
   const buttons = sourceButtons.length;
   const links = sourceLinks.length;
   const disabled = count(/\bdisabled(?:=|\s|>)/giu, source);
@@ -813,7 +855,6 @@ async function sourceSnapshot(route) {
   const forms = extractFormStates(source);
   const surfaces = stateSurfaceRefs(source);
   const settingsLinks = count(/routeMap\.settings|Open Settings|href=\{hubHref\(routeMap\.settings\)\}/giu, source);
-  const sourceControls = [...sourceButtons, ...sourceLinks];
   const safeActionRefs = (route.safeActionLabels ?? []).filter((label) =>
     sourceControls.some((control) => control.label.toLowerCase().includes(label.toLowerCase()) || control.title.toLowerCase().includes(label.toLowerCase()))
   );
@@ -834,6 +875,7 @@ async function sourceSnapshot(route) {
     sourceLinkLabels: controlSummary(sourceLinks),
     sourceAmbiguousControls: sourceAmbiguousControls.length,
     sourceAmbiguousControlLabels: ambiguousSummary([...sourceButtons, ...sourceLinks]),
+    controlCoverage: coverage,
     sourceIssueSnippets: visibleIssueSnippets(source),
     sourceStateCategories,
     forms: forms.length,
@@ -906,15 +948,15 @@ async function fetchRoute(baseUrl, route) {
 }
 
 function printMarkdown(rows, liveRows) {
-  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | State surfaces | Ambiguous | Forms | Safe action refs | State markers | State categories | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live | Hydration QA |');
-  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Buttons | Links | Disabled refs | Control coverage | State surfaces | Ambiguous | Forms | Safe action refs | State markers | State categories | Scenario | Service | Blocked/setup expectation | Safe QA action | Reload persistence | Live | Hydration QA |');
+  console.log('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const live = liveRows.get(row.id);
     const liveText = live
       ? `${live.ok ? 'ok' : 'check'} ${live.status} ${liveRenderState(live)} buttons ${live.enabledButtons ?? 0}/${live.buttons ?? 0} links ${live.enabledLinks ?? 0}/${live.links ?? 0} safe:${liveSafeActionSummary(live)} ${live.attempts > 1 ? `retry:${live.attempts}` : ''} ${live.error ?? ''}`.trim()
       : 'not run';
     console.log(
-      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${row.stateSurfaces} | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${sourceSafeActionSummary(row)} | ${markerSummary(row)} | ${stateCategorySummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} | ${liveHydrationState(live)} |`
+      `| ${row.path} | ${row.title || 'MISSING'} | ${row.heading || 'MISSING'} | ${row.buttons} | ${row.links} | ${row.disabled} + ${row.disabledLinks} links | ${controlCoverageSummary(row)} | ${row.stateSurfaces} | ${row.sourceAmbiguousControls ? `check ${row.sourceAmbiguousControls}` : 'ok'} | ${formSummary(row)} | ${sourceSafeActionSummary(row)} | ${markerSummary(row)} | ${stateCategorySummary(row)} | ${scenarioSummary(row)} | ${row.service} | ${row.expectedBlockedState} | ${row.safeAction} | ${row.persistence} | ${liveText} | ${liveHydrationState(live)} |`
     );
   }
 }
@@ -936,6 +978,7 @@ function printChecklist(rows, liveRows, baseUrl) {
     console.log(`- [ ] Confirm service state is understandable for: ${row.service}.`);
     console.log(`- [ ] Confirm required state/recovery markers: ${markerSummary(row)}; scenario fields: ${scenarioSummary(row)}.`);
     console.log(`- [ ] Confirm expected state categories are visible in copy/control titles: ${stateCategorySummary(row)}.`);
+    console.log(`- [ ] Confirm control coverage: ${controlCoverageSummary(row)}.`);
     console.log(`- [ ] Exercise safe action: ${row.safeAction}`);
     console.log(`- [ ] Sample input/setup: ${row.sampleInput}`);
     console.log(`- [ ] Expected result/output quality: ${row.expectedResult}`);
@@ -949,6 +992,7 @@ function printChecklist(rows, liveRows, baseUrl) {
     if (row.sourceButtonLabels) console.log(`- [ ] Source buttons: ${row.sourceButtonLabels}`);
     if (row.sourceLinkLabels) console.log(`- [ ] Source links: ${row.sourceLinkLabels}`);
     if (row.sourceAmbiguousControls) console.log(`- [ ] Ambiguous source controls needing labels/titles: ${row.sourceAmbiguousControlLabels}`);
+    if (row.controlCoverage?.unexplainedDisabled) console.log(`- [ ] Disabled controls without explanations: ${row.controlCoverage.unexplainedDisabledLabels}`);
     if (row.sourceIssueSnippets?.length) console.log(`- [ ] Source state snippets: ${row.sourceIssueSnippets.join(' | ')}`);
     if (row.sourceStateCategories?.length) console.log(`- [ ] Source state categories found: ${row.sourceStateCategories.join(', ')}.`);
     if (live) {
@@ -993,7 +1037,8 @@ async function main() {
       missingStateCategories(row).length ||
       missingScenarioFields(row).length ||
       row.unguardedForms ||
-      row.sourceAmbiguousControls
+      row.sourceAmbiguousControls ||
+      row.controlCoverage.unexplainedDisabled
   );
   const liveFailures = [...liveRows.values()].filter((row) => !row.ok || row.rawNotFound);
   const hydrationFailures = requireHydrated ? [...liveRows.values()].filter((row) => row.ok && !row.rawNotFound && (row.buttons ?? 0) + (row.links ?? 0) === 0) : [];

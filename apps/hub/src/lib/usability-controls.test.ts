@@ -907,6 +907,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function controlSummary');
     expect(source).toContain('function ambiguousControls');
     expect(source).toContain('function ambiguousSummary');
+    expect(source).toContain('function unexplainedDisabledControls');
+    expect(source).toContain('function controlCoverage');
+    expect(source).toContain('function controlCoverageSummary');
+    expect(source).toContain('Control coverage');
+    expect(source).toContain('Confirm control coverage');
+    expect(source).toContain('Disabled controls without explanations');
+    expect(source).toContain('row.controlCoverage.unexplainedDisabled');
     expect(source).toContain('function fetchRouteAttempt');
     expect(source).toContain('function safeActionStatus');
     expect(source).toContain('function safeActionSummary');
