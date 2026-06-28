@@ -651,8 +651,8 @@ fills Career/Study forms to verify service-backed save controls are guarded when
 is unavailable,
 test-fires AI Lab Tree-sitter Parse, verifies the Tree-sitter asset-error copy with an
 intentionally bad grammar URL, runs Transformers.js Classify, and verifies browser-storage
-draft reload for Research Desk and AI Lab. Set `HUB_HYDRATED_BROWSER` if Chrome/Edge is
-not in a standard location.
+reload for Activity cache, Research Desk drafts, and AI Lab drafts. Set
+`HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
 The first AI Lab Classify run may download browser model assets; set
 `HUB_HYDRATED_AI_LAB_CLASSIFY=0` for a quick/offline smoke that skips only that model path.
 `pnpm qa:hub:hydrated:ai` remains as a compatibility alias for the full hydrated AI Lab path.

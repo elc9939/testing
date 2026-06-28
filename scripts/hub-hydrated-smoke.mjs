@@ -69,6 +69,43 @@ const routes = [
 
 const persistenceSeeds = [
   {
+    id: 'activity-cache',
+    route: '/activity?aiOsUrl=http%3A%2F%2F127.0.0.1%3A9&macroLabUrl=http%3A%2F%2F127.0.0.1%3A9&apiUrl=http%3A%2F%2F127.0.0.1%3A9',
+    storageKey: 'miniHub.activity.snapshot.v1',
+    expectedValue: 'Hydrated cached Activity run',
+    value: {
+      version: 1,
+      cachedAt: '2026-06-23T10:00:00.000Z',
+      snapshot: {
+        checkedAt: '2026-06-23T09:59:00.000Z',
+        stale: false,
+        partial: false,
+        active: true,
+        records: [
+          {
+            id: 'research:hydrated-cache',
+            source: 'research',
+            sourceLabel: 'Research Desk',
+            title: 'Hydrated cached Activity run',
+            detail: 'Recovered from browser Activity cache.',
+            status: 'running',
+            startedAt: '2026-06-23T09:50:00.000Z',
+            updatedAt: '2026-06-23T09:55:00.000Z',
+            progress: 0.42,
+            route: '/research?run=hydrated-cache',
+            actions: [
+              { kind: 'open', label: 'Open', enabled: true, route: '/research?run=hydrated-cache' },
+              { kind: 'view_logs', label: 'View Logs', enabled: true, route: '/research?run=hydrated-cache' }
+            ],
+            metadata: { runId: 'hydrated-cache', mode: 'quick_search', goal: 'Hydrated cached Activity run' }
+          }
+        ],
+        sources: [],
+        errors: []
+      }
+    }
+  },
+  {
     id: 'research-draft',
     route: '/research',
     storageKey: 'miniHub.research.draft.v1',
@@ -419,6 +456,7 @@ async function readDomSnapshot(client) {
         ambiguous: controls.filter((control) => control.ambiguous).length,
         unexplainedDisabled: controls.filter((control) => control.disabled && !control.hasTitle && !control.hasAriaLabel).length,
         controls,
+        text: bodyText.slice(0, 6000),
         values: [...document.querySelectorAll('input, textarea, select')].map((el) => clean(el.value)).filter(Boolean).slice(0, 30),
         issues: [...new Set([...bodyText.matchAll(issuePattern)].map((match) => clean(match[0])).filter(Boolean))].slice(0, 5)
       };
@@ -555,11 +593,16 @@ async function reloadAndFindValue(client, route, expectedValue, baseUrl) {
   await waitForHydration(client);
   await delay(500);
   const snapshot = await readDomSnapshot(client);
+  const values = [...snapshot.values, snapshot.text || ''];
+  const observedValues = snapshot.values.filter((value) => value.includes(expectedValue));
+  if (!observedValues.length && snapshot.text?.includes(expectedValue)) {
+    observedValues.push(expectedValue);
+  }
   return {
-    ok: snapshot.values.some((value) => value.includes(expectedValue)),
+    ok: values.some((value) => value.includes(expectedValue)),
     route,
     expectedValue,
-    values: snapshot.values.slice(0, 8)
+    values: (observedValues.length ? observedValues : values.filter(Boolean)).slice(0, 8)
   };
 }
 
