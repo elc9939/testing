@@ -22,7 +22,7 @@
     type CapabilityService
   } from '$lib/capability-registry';
   import { canUseBrowserStorage } from '$lib/browser-storage';
-  import { clientData } from '$lib/client-data';
+  import { canAutoSave, clientData } from '$lib/client-data';
   import {
     buildFeatureWiringRows,
     featureWiringStatusLabel,
@@ -64,7 +64,11 @@
 
   interface SettingsControlState {
     syncBusy: boolean;
+    canSync: boolean;
+    clientInitialized: boolean;
     clientOnline: boolean;
+    clientStatus: string;
+    clientError: string;
     capabilityLoading: boolean;
     actionLedgerLoading: boolean;
   }
@@ -113,6 +117,7 @@
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: currentMachineModeDetails = formatMachineModeContext(currentMachineMode);
+  $: canSync = canAutoSave($clientData);
   $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 8);
   $: capabilityGroups = groupCapabilityServices(capabilitySnapshot?.capabilities ?? []);
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
@@ -205,7 +210,11 @@
   } satisfies Parameters<typeof buildFeatureWiringRows>[0]);
   $: settingsControlState = {
     syncBusy,
+    canSync,
+    clientInitialized: $clientData.initialized,
     clientOnline: $clientData.isOnline,
+    clientStatus: $clientData.status,
+    clientError: $clientData.error,
     capabilityLoading,
     actionLedgerLoading
   };
@@ -329,8 +338,9 @@
   }
 
   async function syncNow(): Promise<void> {
-    if (syncBusy || !$clientData.isOnline) {
-      settingsError = $clientData.isOnline ? 'Sync already running.' : 'Offline read-only: start the Mini Hub API before syncing.';
+    const blocked = syncNowBlockedReason(settingsControlState);
+    if (blocked) {
+      settingsError = blocked;
       return;
     }
     syncBusy = true;
@@ -347,9 +357,25 @@
     }
   }
 
-  function syncNowTitle(state: Pick<SettingsControlState, 'syncBusy' | 'clientOnline'>): string {
+  function syncNowBlockedReason(
+    state: Pick<SettingsControlState, 'syncBusy' | 'canSync' | 'clientInitialized' | 'clientOnline' | 'clientStatus' | 'clientError'>
+  ): string {
     if (state.syncBusy) return 'Sync is already running.';
+    if (!state.clientInitialized) return 'Loading local cache before sync controls are enabled.';
     if (!state.clientOnline) return 'Offline read-only: start or connect the Mini Hub API before syncing.';
+    if (!state.canSync) {
+      return state.clientError
+        ? `Mini Hub API is not ready: ${state.clientError}`
+        : `Mini Hub sync is ${state.clientStatus}; wait for an idle online state before syncing.`;
+    }
+    return '';
+  }
+
+  function syncNowTitle(
+    state: Pick<SettingsControlState, 'syncBusy' | 'canSync' | 'clientInitialized' | 'clientOnline' | 'clientStatus' | 'clientError'>
+  ): string {
+    const blocked = syncNowBlockedReason(state);
+    if (blocked) return blocked;
     return 'Sync local cache with the Mini Hub API.';
   }
 
@@ -394,7 +420,7 @@
   async function chooseTheme(mode: ThemeMode): Promise<void> {
     settingsError = '';
     setTheme(mode);
-    if (!$clientData.isOnline) return;
+    if (!canSync) return;
     themeSaving = true;
     try {
       await clientData.saveSettings({ theme: mode });
@@ -407,8 +433,9 @@
 
   async function chooseMachineMode(mode: MachineModeId): Promise<void> {
     settingsError = '';
-    if (!$clientData.isOnline) {
-      settingsError = 'Offline read-only mode';
+    const blocked = machineModeBlockedReason(settingsControlState);
+    if (blocked) {
+      settingsError = blocked;
       return;
     }
     modeSaving = true;
@@ -659,7 +686,22 @@
   }
 
   function modeButtonTitle(mode: MachineModeDefinition): string {
+    const blocked = machineModeBlockedReason(settingsControlState);
+    if (blocked) return blocked;
     return `${mode.label}: ${mode.summary}`;
+  }
+
+  function machineModeBlockedReason(
+    state: Pick<SettingsControlState, 'canSync' | 'clientInitialized' | 'clientOnline' | 'clientStatus' | 'clientError'>
+  ): string {
+    if (!state.clientInitialized) return 'Loading local cache before machine mode can be saved.';
+    if (!state.clientOnline) return 'Offline read-only: connect the Mini Hub API before saving Machine Mode.';
+    if (!state.canSync) {
+      return state.clientError
+        ? `Machine Mode cannot save because Mini Hub API is not ready: ${state.clientError}`
+        : `Machine Mode cannot save while sync is ${state.clientStatus}.`;
+    }
+    return '';
   }
 
   function aiOsEndpointIssue(resolutions = endpointResolutions): string {
@@ -852,7 +894,7 @@
           type="button"
           title={modeButtonTitle(mode)}
           aria-pressed={currentMachineMode.id === mode.id}
-          disabled={modeSaving || !$clientData.isOnline}
+          disabled={modeSaving || !canSync}
           on:click={() => chooseMachineMode(mode.id)}
         >
           <strong>{mode.shortLabel}</strong>
@@ -1299,7 +1341,7 @@
       <strong>Personal Sync</strong>
     </div>
     <dl>
-      <div><dt>Mode</dt><dd>{$clientData.isOnline ? 'Online auto-save' : 'Offline read-only'}</dd></div>
+      <div><dt>Mode</dt><dd>{canSync ? 'Online auto-save' : $clientData.initialized ? 'Offline/read-only until API is ready' : 'Loading local cache'}</dd></div>
       <div><dt>Status</dt><dd>{$clientData.status}</dd></div>
       <div><dt>Last synced</dt><dd>{$clientData.lastSyncedAt ? new Date($clientData.lastSyncedAt).toLocaleString() : 'Never'}</dd></div>
       <div><dt>Legacy</dt><dd>{legacyImport?.importedAt ? `Imported ${new Date(legacyImport.importedAt).toLocaleDateString()}` : 'Auto'}</dd></div>
@@ -1310,9 +1352,9 @@
       <div><dt>Local DB</dt><dd>{import.meta.env.PUBLIC_PGLITE_DATA_DIR || 'idb://mini-hub'}</dd></div>
     </dl>
     <div class="action-row">
-      <button class="button" type="button" disabled={syncBusy || !$clientData.isOnline} title={syncNowButtonTitle} on:click={syncNow}>
+      <button class="button" type="button" disabled={Boolean(syncNowBlockedReason(settingsControlState))} title={syncNowButtonTitle} on:click={syncNow}>
         <Cloud size={17} />
-        <span>{syncBusy ? 'Syncing' : $clientData.isOnline ? 'Sync Now' : 'Offline Read-only'}</span>
+        <span>{syncBusy ? 'Syncing' : canSync ? 'Sync Now' : $clientData.initialized ? 'API Not Ready' : 'Loading Cache'}</span>
       </button>
       <button class="button" type="button" disabled={exportBusy} title="Download the current browser cache as JSON." on:click={exportCache}>
         <Download size={17} />

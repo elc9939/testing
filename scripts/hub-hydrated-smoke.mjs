@@ -58,7 +58,8 @@ const routes = [
     heading: 'Workspace',
     safeActionLabels: ['Check Services', 'Sync Now'],
     safeActionFallbacks: {
-      'Check Services': ['Checking']
+      'Check Services': ['Checking'],
+      'Sync Now': ['API Not Ready', 'Loading Cache', 'Offline Read-only']
     }
   },
   { id: 'games', path: '/games', heading: 'Play Surfaces', safeActionLabels: ['Open'] },
