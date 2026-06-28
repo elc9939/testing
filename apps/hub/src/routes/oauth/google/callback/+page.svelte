@@ -12,6 +12,8 @@
   let title = 'Finishing Google connection';
   let detail = 'Mini Hub is saving the Google OAuth grant through your local API.';
   let stateReturnTo = '';
+  let returnHref = hubHref('/productivity');
+  let returnLinkTitle = 'Return to Productivity if Google OAuth does not redirect automatically.';
 
   function fallbackRedirectUrl(status: string, message?: string): string {
     const target = new URL(hubHref('/productivity'), window.location.origin);
@@ -78,6 +80,21 @@
     window.location.replace(redirectUrl);
   }
 
+  function showManualResult(result: GoogleOAuthExchangeResult): void {
+    returnHref = googleOAuthRedirectForCurrentHub({
+      redirectUrl: result.redirectUrl,
+      stateReturnTo,
+      storedReturnTo: storedReturnTo(),
+      currentOrigin: window.location.origin,
+      fallbackUrl: fallbackRedirectUrl(result.status, result.message),
+      status: result.status,
+      message: result.message
+    });
+    returnLinkTitle = 'Open Productivity with the Google OAuth result message.';
+    title = result.ok ? 'Google connected' : 'Google connection needs attention';
+    detail = result.ok ? 'Open Productivity to continue.' : result.message || 'Open Productivity for the error details.';
+  }
+
   onMount(() => {
     void (async () => {
       const params = new URLSearchParams(window.location.search);
@@ -93,7 +110,12 @@
       }
 
       if (!code || !state) {
-        finish(failureResult('Google OAuth did not return a usable authorization code.', 'missing-code'));
+        const result = failureResult('Google OAuth did not return a usable authorization code.', 'missing-code');
+        if (window.opener && !window.opener.closed) {
+          finish(result);
+          return;
+        }
+        showManualResult(result);
         return;
       }
 
@@ -115,7 +137,7 @@
     <h1>Google OAuth</h1>
     <strong>{title}</strong>
     <p>{detail}</p>
-    <a class="button compact" href={hubHref('/productivity')} title="Return to Productivity if Google OAuth does not redirect automatically.">Open Productivity</a>
+    <a class="button compact" href={returnHref} title={returnLinkTitle}>Open Productivity</a>
   </section>
 </main>
 

@@ -13,11 +13,7 @@ const routes = [
     id: 'google-oauth-callback',
     path: '/oauth/google/callback',
     heading: 'Google OAuth',
-    alternateHeadings: ['Productivity Hub'],
-    safeActionLabels: ['Open Productivity', 'Connect Google'],
-    safeActionFallbacks: {
-      'Open Productivity': ['Connect Google']
-    }
+    safeActionLabels: ['Open Productivity']
   },
   { id: 'career', path: '/desk/career', heading: 'Career', safeActionLabels: ['Export', 'Add Job'] },
   { id: 'study', path: '/desk/study', heading: 'Study', safeActionLabels: ['Log'] },

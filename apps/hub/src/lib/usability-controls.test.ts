@@ -704,11 +704,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
     expect(source).toContain("const storage = getBrowserStorage('session')");
     expect(source).toContain('window.opener.postMessage');
+    expect(source).toContain('function showManualResult');
     expect(source).toContain('Google OAuth did not return a usable authorization code.');
     expect(source).toContain('missing-code');
-    expect(source).toContain("href={hubHref('/productivity')}");
+    expect(source).toContain('showManualResult(result)');
+    expect(source).toContain('href={returnHref}');
     expect(source).toContain('Open Productivity');
-    expect(source).toContain('Return to Productivity if Google OAuth does not redirect automatically.');
+    expect(source).toContain('Open Productivity with the Google OAuth result message.');
   });
 
   it('makes Activity recovery state scannable instead of one vague active count', async () => {
