@@ -210,6 +210,12 @@
   $: highlightedBenchmarkPresent = highlightedBenchmarkId ? benchmarkRuns.some((run) => run.id === highlightedBenchmarkId) : true;
   $: highlightedBackupPresent = highlightedBackupId ? (status?.backups ?? []).some((backup) => backup.id === highlightedBackupId) : true;
   $: highlightedGenerationPresent = highlightedGenerationId ? generationAssets.some((asset) => asset.id === highlightedGenerationId) : true;
+  $: aiOsDefaultRefreshTitle = aiOsRefreshTitle(loading);
+  $: aiOsStartupCheckTitle = aiOsRefreshTitle(loading, 'Check AI OS startup health now.');
+  $: aiOsReconnectTitle = aiOsRefreshTitle(loading, 'Reconnect to the local AI OS service.');
+  $: aiOsCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before running command actions.');
+  $: aiOsProfileRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status and machine profile.');
+  $: aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before using advanced command controls.');
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -258,8 +264,8 @@
     return `AI OS is offline or not connected at ${state.apiUrl}. Open Settings or refresh status before using this control.`;
   }
 
-  function aiOsRefreshTitle(enabledTitle = 'Refresh AI OS status from the local service.'): string {
-    return loading ? 'AI OS status refresh is already running.' : enabledTitle;
+  function aiOsRefreshTitle(isLoading: boolean, enabledTitle = 'Refresh AI OS status from the local service.'): string {
+    return isLoading ? 'AI OS status refresh is already running.' : enabledTitle;
   }
 
   function aiOsActionTitle(enabledTitle: string, busy: boolean, busyTitle: string): string {
@@ -1180,7 +1186,7 @@
     <p class="eyebrow">Personal AI OS</p>
     <h1>Ask AI OS</h1>
   </div>
-  <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle()} on:click={refresh}>
+  <button class="button" type="button" disabled={loading} title={aiOsDefaultRefreshTitle} on:click={refresh}>
     <RefreshCw size={17} />
     <span>{loading ? 'Refreshing' : 'Refresh'}</span>
   </button>
@@ -1211,7 +1217,7 @@
       <strong>Local AI Startup</strong>
       <span>{startupSummary}</span>
     </div>
-    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Check AI OS startup health now.')} on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsStartupCheckTitle} on:click={refresh}>
       <RefreshCw size={17} />
       <span>{loading ? 'Checking' : 'Check Now'}</span>
     </button>
@@ -1228,7 +1234,7 @@
     {/each}
   </div>
   <div class="action-row tight startup-actions">
-    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Reconnect to the local AI OS service.')} on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsReconnectTitle} on:click={refresh}>
       <RefreshCw size={17} />
       <span>Reconnect</span>
     </button>
@@ -1281,7 +1287,7 @@
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : commandBusy ? 'Working' : 'Do it'}</span>
     </button>
-    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Refresh AI OS status before running command actions.')} on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsCommandRefreshTitle} on:click={refresh}>
       <RefreshCw size={17} />
       <span>{loading ? 'Refreshing' : 'Refresh status'}</span>
     </button>
@@ -1376,7 +1382,7 @@
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : autotuneBusy ? 'Running' : 'Run Autotune'}</span>
     </button>
-    <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Refresh AI OS status and machine profile.')} on:click={refresh}>
+    <button class="button" type="button" disabled={loading} title={aiOsProfileRefreshTitle} on:click={refresh}>
       <RefreshCw size={17} />
       <span>{loading ? 'Refreshing' : 'Refresh Profile'}</span>
     </button>
@@ -1539,7 +1545,7 @@
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Execute'}</span>
       </button>
-      <button class="button" type="button" disabled={loading} title={aiOsRefreshTitle('Refresh AI OS status before using advanced command controls.')} on:click={refresh}>
+      <button class="button" type="button" disabled={loading} title={aiOsAdvancedCommandRefreshTitle} on:click={refresh}>
         <RefreshCw size={17} />
         <span>{loading ? 'Refreshing' : 'Refresh'}</span>
       </button>

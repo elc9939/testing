@@ -461,6 +461,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('aiOsActionBlockedReason = aiOsServiceActionBlockedReason');
     expect(source).toContain('function aiOsServiceActionBlockedReason');
     expect(source).toContain('function aiOsRefreshTitle');
+    expect(source).toContain('aiOsDefaultRefreshTitle = aiOsRefreshTitle(loading)');
+    expect(source).toContain("aiOsCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before running command actions.')");
+    expect(source).toContain("aiOsProfileRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status and machine profile.')");
+    expect(source).toContain("aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before using advanced command controls.')");
     expect(source).toContain('function aiOsActionTitle');
     expect(source).toContain('function foundationActionTitle');
     expect(source).toContain('function warmLocalModelBlockedReason');
@@ -483,10 +487,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={autotuneBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={designBusy || aiOsActionBlocked}');
     expect(source).toContain('disabled={benchmarkBusy || aiOsActionBlocked}');
-    expect(source).toContain("title={aiOsRefreshTitle()}");
-    expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status before running command actions.')}");
-    expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status and machine profile.')}");
-    expect(source).toContain("title={aiOsRefreshTitle('Refresh AI OS status before using advanced command controls.')}");
+    expect(source).toContain('title={aiOsDefaultRefreshTitle}');
+    expect(source).toContain('title={aiOsCommandRefreshTitle}');
+    expect(source).toContain('title={aiOsProfileRefreshTitle}');
+    expect(source).toContain('title={aiOsAdvancedCommandRefreshTitle}');
     expect(source).toContain('function commandExampleTitle');
     expect(source).toContain('title={commandExampleTitle(example)}');
     expect(source).not.toContain('<button class="button" type="button" on:click={refresh}>');
