@@ -652,7 +652,7 @@ is unavailable,
 seeds cached Google Calendar/Gmail rows to verify Productivity stays inspectable while writes are locked,
 test-fires AI Lab Tree-sitter Parse, verifies the Tree-sitter asset-error copy with an
 intentionally bad grammar URL, runs Transformers.js Classify, and verifies browser-storage
-reload for Activity cache, Research Desk drafts, and AI Lab drafts. Set
+reload for Activity cache, Productivity Google cache, Research Desk drafts, and AI Lab drafts. Set
 `HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
 The first AI Lab Classify run may download browser model assets; set
 `HUB_HYDRATED_AI_LAB_CLASSIFY=0` for a quick/offline smoke that skips only that model path.

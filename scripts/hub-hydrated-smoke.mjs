@@ -274,6 +274,15 @@ const productivityCacheSeed = {
   selectedGmailLabelId: 'Label_Study'
 };
 
+persistenceSeeds.push({
+  id: 'productivity-cache',
+  route: '/productivity?apiUrl=http%3A%2F%2F127.0.0.1%3A9',
+  skipApiUrlOverride: true,
+  storageKey: 'miniHub.productivity.cache.v1',
+  expectedValue: 'Hydrated cached deadline mail',
+  value: productivityCacheSeed
+});
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -712,8 +721,8 @@ async function setLocalStorage(client, key, value) {
   await evaluate(client, `localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(value))})`);
 }
 
-async function reloadAndFindValue(client, route, expectedValue, baseUrl) {
-  await navigate(client, routeUrl(baseUrl, route));
+async function reloadAndFindValue(client, route, expectedValue, baseUrl, options = {}) {
+  await navigate(client, routeUrl(baseUrl, route, options));
   await client.send('Page.reload', { ignoreCache: true });
   await waitForHydration(client);
   await delay(500);
@@ -1182,7 +1191,9 @@ async function runPersistenceChecks(client, baseUrl) {
     await setLocalStorage(client, seed.storageKey, seed.value);
     results.push({
       id: seed.id,
-      ...(await reloadAndFindValue(client, seed.route, seed.expectedValue, baseUrl))
+      ...(await reloadAndFindValue(client, seed.route, seed.expectedValue, baseUrl, {
+        skipApiUrlOverride: Boolean(seed.skipApiUrlOverride)
+      }))
     });
   }
   return results;

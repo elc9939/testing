@@ -1052,6 +1052,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('!row.titleOk');
     expect(source).toContain('miniHub.activity.snapshot.v1');
     expect(source).toContain('miniHub.productivity.cache.v1');
+    expect(source).toContain('productivity-cache');
+    expect(source).toContain('skipApiUrlOverride');
     expect(source).toContain('Hydrated Cache Interview');
     expect(source).toContain('Hydrated cached deadline mail');
     expect(source).toContain('Hydrated cached Activity run');
