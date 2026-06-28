@@ -620,18 +620,19 @@ $env:HUB_SMOKE_REQUIRE_HYDRATED='1'; $env:HUB_SMOKE_URL='http://127.0.0.1:5173';
 
 The smoke check records each visible hub route's title, main heading, service dependency,
 button/disabled-control/form counts, expected blocked/setup state, expected safe-action
-labels, required state/recovery markers, and reload persistence expectation. It now fails
-if a route loses source markers for the setup, offline/cache, recovery, or control-gating
-state that makes the page understandable, if a listed safe action no longer maps to a
-visible button/link label or title, if a route form can fall back to browser-native
-submission instead of Svelte's guarded handler, or if a visible control has no source-level
-label/title. With `HUB_SMOKE_URL` set, it also fetches the route HTML and records live
-title, heading, enabled/disabled controls, state/error snippets, safe-action availability,
-raw `Not Found` leakage, and a **Hydration QA** column. Hosted GitHub Pages usually returns a
-client-rendered shell, which proves routing and `Not Found` handling but not hydrated button
-behavior; use `--checklist` for the manual/Playwright-style pass, and use
-`HUB_SMOKE_REQUIRE_HYDRATED=1` only when the target can expose hydrated controls to the
-script.
+labels, required state/recovery markers, expected state categories, and reload persistence
+expectation. It now fails if a route loses source markers or user-facing vocabulary for the
+setup, offline/cache, recovery, loading, empty, partial-failure, browser-local, or
+control-gating state that makes the page understandable, if a listed safe action no longer
+maps to a visible button/link label or title, if a route form can fall back to
+browser-native submission instead of Svelte's guarded handler, or if a visible control has no
+source-level label/title. With `HUB_SMOKE_URL` set, it also fetches the route HTML and records
+live title, heading, enabled/disabled controls, state/error snippets, state categories,
+safe-action availability, raw `Not Found` leakage, and a **Hydration QA** column. Hosted
+GitHub Pages usually returns a client-rendered shell, which proves routing and `Not Found`
+handling but not hydrated button behavior; use `--checklist` for the manual/Playwright-style
+pass, and use `HUB_SMOKE_REQUIRE_HYDRATED=1` only when the target can expose hydrated controls
+to the script.
 
 Python backend checks:
 
