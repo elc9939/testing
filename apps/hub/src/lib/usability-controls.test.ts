@@ -1041,6 +1041,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('HUB_HYDRATED_BROWSER');
     expect(source).toContain('HUB_HYDRATED_API_URL');
     expect(source).toContain('HUB_HYDRATED_DESK_WRITES');
+    expect(source).toContain("title: 'Today - Mini Hub'");
+    expect(source).toContain("title: 'Stick Arena Ability Lab - Mini Hub'");
+    expect(source).toContain('function titleMatches');
+    expect(source).toContain('titleOk: titleMatches(route, snapshot.title)');
+    expect(source).toContain('!row.titleOk');
     expect(source).toContain('miniHub.research.draft.v1');
     expect(source).toContain('miniHub.aiLab.draft.v1');
     expect(source).toContain('Hydrated smoke research draft');

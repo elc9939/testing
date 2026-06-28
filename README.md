@@ -645,7 +645,7 @@ expose hydrated controls to the script.
 For real hydrated DOM evidence without adding Playwright/Puppeteer, run
 `pnpm qa:hub:hydrated` while a local hub dev/preview server is running. It launches a
 temporary headless Chrome/Edge profile through the Chrome DevTools Protocol, opens every
-main route, records the hydrated heading/control state, checks safe-action visibility,
+main route, records the hydrated browser title, heading, and control state, checks safe-action visibility,
 fills a sample Research goal to verify the offline run guard does not fake a queued task,
 fills Career/Study forms to verify service-backed save controls are guarded when the Hub API
 is unavailable,

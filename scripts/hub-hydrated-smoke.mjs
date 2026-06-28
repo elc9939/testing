@@ -6,31 +6,34 @@ import os from 'node:os';
 import path from 'node:path';
 
 const routes = [
-  { id: 'today', path: '/', heading: 'Attention Queue', safeActionLabels: ['Refresh'] },
-  { id: 'activity', path: '/activity', heading: 'Activity', safeActionLabels: ['Refresh'] },
-  { id: 'productivity', path: '/productivity', heading: 'Productivity Hub', safeActionLabels: ['Refresh'] },
+  { id: 'today', path: '/', title: 'Today - Mini Hub', heading: 'Attention Queue', safeActionLabels: ['Refresh'] },
+  { id: 'activity', path: '/activity', title: 'Activity - Mini Hub', heading: 'Activity', safeActionLabels: ['Refresh'] },
+  { id: 'productivity', path: '/productivity', title: 'Productivity Hub - Mini Hub', heading: 'Productivity Hub', safeActionLabels: ['Refresh'] },
   {
     id: 'google-oauth-callback',
     path: '/oauth/google/callback',
+    title: 'Google OAuth - Mini Hub',
     heading: 'Google OAuth',
     safeActionLabels: ['Open Productivity']
   },
-  { id: 'career', path: '/desk/career', heading: 'Career', safeActionLabels: ['Export', 'Add Job'] },
-  { id: 'study', path: '/desk/study', heading: 'Study', safeActionLabels: ['Log'] },
-  { id: 'analytics', path: '/analytics', heading: 'Local Insights', safeActionLabels: ['Refresh'] },
+  { id: 'career', path: '/desk/career', title: 'Career Desk - Mini Hub', heading: 'Career', safeActionLabels: ['Export', 'Add Job'] },
+  { id: 'study', path: '/desk/study', title: 'Study Desk - Mini Hub', heading: 'Study', safeActionLabels: ['Log'] },
+  { id: 'analytics', path: '/analytics', title: 'Analytics - Mini Hub', heading: 'Local Insights', safeActionLabels: ['Refresh'] },
   {
     id: 'research',
     path: '/research',
+    title: 'Research Desk - Mini Hub',
     heading: 'Research Desk',
     safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service'],
     safeActionFallbacks: {
       'Run Quick Search': ['Connect AI OS']
     }
   },
-  { id: 'ai-lab', path: '/ai-lab', heading: 'Browser Experiments', safeActionLabels: ['Restore Samples', 'Classify', 'Parse'] },
+  { id: 'ai-lab', path: '/ai-lab', title: 'AI Lab - Mini Hub', heading: 'Browser Experiments', safeActionLabels: ['Restore Samples', 'Classify', 'Parse'] },
   {
     id: 'ai-os',
     path: '/ai-os',
+    title: 'AI OS - Mini Hub',
     heading: 'Ask AI OS',
     safeActionLabels: ['Refresh', 'Do it'],
     safeActionFallbacks: {
@@ -40,6 +43,7 @@ const routes = [
   {
     id: 'macro-lab',
     path: '/macro-lab',
+    title: 'Macro Lab - Mini Hub',
     heading: 'Macro Lab',
     safeActionLabels: ['Refresh', 'Panic', 'Dry Run', 'Run Confirmed'],
     safeActionFallbacks: {
@@ -47,10 +51,11 @@ const routes = [
       'Run Confirmed': ['No macro selected', 'Macro definitions are unavailable', 'Start Macro Lab', 'Loading macro definitions']
     }
   },
-  { id: 'passive-tasks', path: '/passive-tasks', heading: 'Passive Tasks', safeActionLabels: ['Refresh', 'Run Due', 'Startup', 'Idle'] },
+  { id: 'passive-tasks', path: '/passive-tasks', title: 'Passive Tasks - Mini Hub', heading: 'Passive Tasks', safeActionLabels: ['Refresh', 'Run Due', 'Startup', 'Idle'] },
   {
     id: 'settings',
     path: '/settings',
+    title: 'Settings - Mini Hub',
     heading: 'Workspace',
     safeActionLabels: ['Check Services', 'Sync Now'],
     safeActionFallbacks: {
@@ -58,8 +63,8 @@ const routes = [
       'Sync Now': ['API Not Ready', 'Loading Cache', 'Offline Read-only']
     }
   },
-  { id: 'games', path: '/games', heading: 'Play Surfaces', safeActionLabels: ['Open'] },
-  { id: 'stick-arena-lab', path: '/games/stick-arena-lab', heading: 'Ability Lab', safeActionLabels: ['Reset', 'Save Run', 'Open Settings'] }
+  { id: 'games', path: '/games', title: 'Games - Mini Hub', heading: 'Play Surfaces', safeActionLabels: ['Open'] },
+  { id: 'stick-arena-lab', path: '/games/stick-arena-lab', title: 'Stick Arena Ability Lab - Mini Hub', heading: 'Ability Lab', safeActionLabels: ['Reset', 'Save Run', 'Open Settings'] }
 ];
 
 const persistenceSeeds = [
@@ -536,6 +541,10 @@ function headingMatches(route, heading) {
   return [route.heading, ...(route.alternateHeadings ?? [])].includes(heading);
 }
 
+function titleMatches(route, title) {
+  return [route.title, ...(route.alternateTitles ?? [])].includes(title);
+}
+
 async function setLocalStorage(client, key, value) {
   await evaluate(client, `localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(value))})`);
 }
@@ -923,14 +932,15 @@ function controlSummary(controls) {
 }
 
 function printMarkdown(rows, persistence) {
-  console.log('| Route | Heading | Controls | Safe Actions | Issues | Control Preview |');
-  console.log('| --- | --- | --- | --- | --- | --- |');
+  console.log('| Route | Title | Heading | Controls | Safe Actions | Issues | Control Preview |');
+  console.log('| --- | --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
     const safe = row.safeAction.found
       ? `ok ${row.safeAction.matches.map((match) => `${match.fallbackFor ? 'blocked' : match.disabled ? 'disabled' : 'enabled'}:${match.fallbackFor ? `${match.fallbackFor}->${match.label}` : match.label}`).join(', ')}${row.safeAction.missingLabels.length ? `; missing ${row.safeAction.missingLabels.join(', ')}` : ''}`
       : `missing ${row.safeAction.missingLabels.join(', ') || 'safe action'}`;
     const coverage = `${row.snapshot.enabled} enabled / ${row.snapshot.disabled} disabled / ${row.snapshot.buttons} buttons / ${row.snapshot.links} links`;
     const issues = [
+      row.titleOk ? '' : `title expected "${row.route.title}" got "${row.snapshot.title || 'MISSING'}"`,
       row.headingOk ? '' : `heading expected "${row.route.heading}" got "${row.snapshot.heading || 'MISSING'}"`,
       row.snapshot.rawNotFound ? 'raw Not Found' : '',
       row.snapshot.ambiguous ? `${row.snapshot.ambiguous} ambiguous controls` : '',
@@ -940,7 +950,7 @@ function printMarkdown(rows, persistence) {
       .filter(Boolean)
       .join(' | ');
     console.log(
-      `| ${row.route.path} | ${row.snapshot.heading || 'MISSING'} | ${coverage} | ${safe} | ${issues || 'ok'} | ${controlSummary(row.snapshot.controls)} |`
+      `| ${row.route.path} | ${row.snapshot.title || 'MISSING'} | ${row.snapshot.heading || 'MISSING'} | ${coverage} | ${safe} | ${issues || 'ok'} | ${controlSummary(row.snapshot.controls)} |`
     );
   }
   console.log('');
@@ -997,6 +1007,7 @@ async function main() {
       rows.push({
         route,
         snapshot,
+        titleOk: titleMatches(route, snapshot.title),
         headingOk: headingMatches(route, snapshot.heading),
         safeAction: safeActionStatus(route, snapshot)
       });
@@ -1012,6 +1023,7 @@ async function main() {
 
     const failures = rows.filter(
       (row) =>
+        !row.titleOk ||
         !row.headingOk ||
         row.snapshot.rawNotFound ||
         row.snapshot.ambiguous ||
