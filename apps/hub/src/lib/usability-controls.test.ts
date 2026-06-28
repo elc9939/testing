@@ -1079,10 +1079,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('fillFirstTextarea');
     expect(source).toContain('setControlValue');
     expect(source).toContain('runResearchActionChecks');
+    expect(source).toContain('runAiOsOfflineActionGuardChecks');
     expect(source).toContain('runDeskWriteGuardChecks');
     expect(source).toContain('runProductivityCacheWriteGuardChecks');
     expect(source).toContain('runLocalServiceSideEffectGuardChecks');
     expect(source).toContain('research-offline-run-guard');
+    expect(source).toContain('ai-os-offline-action-guard');
     expect(source).toContain('career-add-job-guard');
     expect(source).toContain('study-log-guard');
     expect(source).toContain('productivity-cache-write-guard');

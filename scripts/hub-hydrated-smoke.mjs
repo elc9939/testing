@@ -780,6 +780,62 @@ async function runResearchActionChecks(client, baseUrl) {
   return [{ id: 'research-offline-run-guard', route: '/research', ...result }];
 }
 
+async function runAiOsOfflineActionGuardChecks(client, baseUrl) {
+  await navigate(client, routeUrl(baseUrl, '/ai-os?aiOsUrl=http%3A%2F%2F127.0.0.1%3A9'));
+  const result = await waitForCondition(
+    client,
+    `(() => {
+      const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+      const body = document.body?.innerText || '';
+      const buttons = [...document.querySelectorAll('button')].map((button) => ({
+        label: clean(button.innerText || button.textContent),
+        title: button.getAttribute('title') || '',
+        disabled: Boolean(button.disabled)
+      }));
+      const offlineKnown = /AI OS service OFFLINE|AI OS is offline|AI OS status is still loading|Failed to fetch|Desktop service/i.test(body);
+      const blocked = buttons.filter((button) =>
+        /AI OS is offline or not connected|AI OS status is still loading/i.test(button.title)
+      );
+      const badBlocked = blocked.filter((button) => !button.disabled);
+      const blockedLabels = blocked.map((button) => button.label).join(' | ');
+      const blocks = [...document.querySelectorAll('.card, section, details')].map((block) => ({
+        text: clean(block.innerText || block.textContent),
+        blockedButtonCount: [...block.querySelectorAll('button')].filter(
+          (button) =>
+            button.disabled &&
+            /AI OS is offline or not connected|AI OS status is still loading/i.test(button.getAttribute('title') || '')
+        ).length
+      }));
+      const sectionBlocked = (needle) =>
+        blocks.some((block) => block.text.includes(needle) && block.blockedButtonCount > 0);
+      const hasCommand = blockedLabels.includes('Connect AI OS');
+      const hasWarmup = blockedLabels.includes('Warm Model');
+      const hasAutotune = sectionBlocked('Machine Profile + Autotune');
+      const hasDesign = sectionBlocked('Design Patch Lab');
+      const hasBenchmark = sectionBlocked('Benchmarks');
+      const hasQueue = sectionBlocked('Jobs');
+      const hasAgentOrMedia = sectionBlocked('Agent Engine') || sectionBlocked('Make Media');
+      return {
+        ok:
+          offlineKnown &&
+          blocked.length >= 10 &&
+          badBlocked.length === 0 &&
+          hasCommand &&
+          hasWarmup &&
+          hasAutotune &&
+          hasDesign &&
+          hasBenchmark &&
+          hasQueue &&
+          hasAgentOrMedia,
+        state: offlineKnown ? 'offline-guard' : 'waiting',
+        detail: \`offlineKnown=\${offlineKnown}; disabledBlocked=\${blocked.length - badBlocked.length}/\${blocked.length}; command=\${hasCommand}; warmup=\${hasWarmup}; autotune=\${hasAutotune}; design=\${hasDesign}; benchmark=\${hasBenchmark}; queue=\${hasQueue}; agentOrMedia=\${hasAgentOrMedia}\`
+      };
+    })()`,
+    15_000
+  );
+  return [{ id: 'ai-os-offline-action-guard', route: '/ai-os', ...result }];
+}
+
 async function runDeskWriteGuardChecks(client, baseUrl) {
   if (process.env.HUB_HYDRATED_DESK_WRITES === '1') return runDeskApiSaveChecks(client, baseUrl);
 
@@ -1365,6 +1421,7 @@ async function main() {
     }
     const actionChecks = [
       ...(await runResearchActionChecks(client, baseUrl)),
+      ...(await runAiOsOfflineActionGuardChecks(client, baseUrl)),
       ...(await runDeskWriteGuardChecks(client, baseUrl)),
       ...(await runProductivityCacheWriteGuardChecks(client, baseUrl)),
       ...(await runLocalServiceSideEffectGuardChecks(client, baseUrl)),
