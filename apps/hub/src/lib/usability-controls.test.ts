@@ -1079,8 +1079,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('queued message visible');
     expect(source).toContain('Hydrated Action Check');
     expect(source).toContain('ai-lab-parse');
+    expect(source).toContain('ai-lab-parse-asset-error');
     expect(source).toContain('ai-lab-classify');
     expect(source).toContain('Parser: Result ready');
+    expect(source).toContain('Parser: Action needed');
+    expect(source).toContain('Waiting for parser asset failure.');
+    expect(source).toContain('browser-local Tree-sitter');
     expect(source).toContain('HUB_HYDRATED_AI_LAB_CLASSIFY');
     expect(source).toContain("process.env.HUB_HYDRATED_AI_LAB_CLASSIFY !== '0'");
     expect(source).toContain('Default hydrated smoke runs the real Transformers.js classify path.');

@@ -827,6 +827,32 @@ async function runAiLabActionChecks(client, baseUrl) {
       20_000
     );
     results.push({ id: 'ai-lab-parse', route: '/ai-lab', ...parse });
+    await setControlValue(client, '#grammar', 'data:application/wasm;base64,ZmFrZSB3YXNt');
+    await clickButtonByText(client, 'Parse');
+    const parseAssetError = await waitForCondition(
+      client,
+      `(() => {
+        const text = document.body?.innerText || '';
+        if (text.includes('Parser: Action needed')) {
+          const detail = [...document.querySelectorAll('.result-panel.error pre')]
+            .map((item) => item.textContent?.trim())
+            .filter(Boolean)
+            .join(' ');
+          const readable = /Tree-sitter|WASM grammar|browser-local Tree-sitter|not an AI OS outage/i.test(detail);
+          return {
+            ok: readable,
+            state: readable ? 'readable-error' : 'unclear-error',
+            detail: detail || 'Parser action needed, but no error detail was visible.'
+          };
+        }
+        if (text.includes('Parser: Result ready')) {
+          return { ok: false, state: 'unexpected-success', detail: 'Invalid grammar URL parsed successfully.' };
+        }
+        return { ok: false, state: 'waiting', detail: 'Waiting for parser asset failure.' };
+      })()`,
+      20_000
+    );
+    results.push({ id: 'ai-lab-parse-asset-error', route: '/ai-lab', ...parseAssetError });
   } catch (error) {
     results.push({
       id: 'ai-lab-parse',
