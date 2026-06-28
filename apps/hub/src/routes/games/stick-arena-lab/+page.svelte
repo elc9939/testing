@@ -13,6 +13,14 @@
   let saving = false;
   let startedAt = Date.now();
 
+  interface StickArenaLabControlState {
+    saving: boolean;
+    labReady: boolean;
+    labLoading: boolean;
+    canSave: boolean;
+    status: string;
+  }
+
   $: canSave = canAutoSave($clientData);
   $: labReady = Boolean(lab);
   $: labLoading = !labReady && status === 'Loading engine';
@@ -20,22 +28,31 @@
   $: resetDisabled = !labReady || labControlBusy;
   $: saveDisabled = !labReady || !canSave || saving;
   $: saveCapabilityStatus = labReady ? (canSave ? 'Ready' : 'Offline read-only') : labLoading ? 'Engine loading' : 'Engine unavailable';
+  $: stickArenaLabControlState = {
+    saving,
+    labReady,
+    labLoading,
+    canSave,
+    status
+  };
+  $: resetButtonTitle = resetTitle(stickArenaLabControlState);
+  $: saveButtonTitle = saveTitle(stickArenaLabControlState);
 
-  function resetTitle(): string {
-    if (saving) return 'Wait for the current run save to finish before resetting.';
-    if (labReady) return 'Reset the local ability lab.';
-    if (labLoading) return 'Wait for the game engine to finish loading.';
-    return `Game engine is unavailable: ${status}`;
+  function resetTitle(state: Pick<StickArenaLabControlState, 'saving' | 'labReady' | 'labLoading' | 'status'>): string {
+    if (state.saving) return 'Wait for the current run save to finish before resetting.';
+    if (state.labReady) return 'Reset the local ability lab.';
+    if (state.labLoading) return 'Wait for the game engine to finish loading.';
+    return `Game engine is unavailable: ${state.status}`;
   }
 
-  function saveTitle(): string {
-    if (saving) return 'This run is already saving.';
-    if (!labReady) {
-      return labLoading
+  function saveTitle(state: StickArenaLabControlState): string {
+    if (state.saving) return 'This run is already saving.';
+    if (!state.labReady) {
+      return state.labLoading
         ? 'Wait for the game engine to finish loading before saving.'
-        : `Game engine is unavailable: ${status}`;
+        : `Game engine is unavailable: ${state.status}`;
     }
-    if (!canSave) return 'Start the Mini Hub API before saving game runs.';
+    if (!state.canSave) return 'Start the Mini Hub API before saving game runs.';
     return 'Save this run to Mini Hub.';
   }
 
@@ -116,11 +133,11 @@
     <h1>Ability Lab</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={resetDisabled} title={resetTitle()} on:click={resetLab}>
+    <button class="button" type="button" disabled={resetDisabled} title={resetButtonTitle} on:click={resetLab}>
       <RotateCcw size={17} />
       <span>Reset</span>
     </button>
-    <button class="button" type="button" disabled={saveDisabled} title={saveTitle()} on:click={() => saveRun()}>
+    <button class="button" type="button" disabled={saveDisabled} title={saveButtonTitle} on:click={() => saveRun()}>
       <Save size={17} />
       <span>{saving ? 'Saving' : 'Save Run'}</span>
     </button>

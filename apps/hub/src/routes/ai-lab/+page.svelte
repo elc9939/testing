@@ -34,11 +34,18 @@
   let parseBusy = false;
   let draftHydrated = false;
   let draftStatus = 'Using default browser-local samples.';
+
+  interface AiLabControlState {
+    sampleControlsDisabled: boolean;
+  }
+
   $: classifyResultCopy = aiLabResultCopy(classifyResultState, classifyResultText);
   $: parseResultCopy = aiLabResultCopy(parseResultState, parseResultText);
   $: classifyBlockedReason = classifyBusy ? 'Classification is already running.' : classifyValidationReason({ text, labels });
   $: parseBlockedReason = parseBusy ? 'Parser is already running.' : parseValidationReason({ grammarUrl, codeText });
   $: sampleControlsDisabled = classifyBusy || parseBusy;
+  $: aiLabControlState = { sampleControlsDisabled };
+  $: restoreSamplesButtonTitle = restoreSamplesTitle(aiLabControlState);
   $: grammarAssetState = grammarUrl.trim()
     ? 'Tree-sitter grammar URL is configured.'
     : 'Tree-sitter needs a WASM grammar URL before parsing can run.';
@@ -119,8 +126,8 @@
     draftStatus = 'Restored default AI Lab samples in this browser.';
   }
 
-  function restoreSamplesTitle(): string {
-    if (sampleControlsDisabled) return 'Wait for the current AI Lab experiment before restoring samples.';
+  function restoreSamplesTitle(state: AiLabControlState): string {
+    if (state.sampleControlsDisabled) return 'Wait for the current AI Lab experiment before restoring samples.';
     return 'Restore the known-good AI Lab sample inputs for Classify and Parse.';
   }
 
@@ -209,7 +216,7 @@
     <h1>Browser Experiments</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={sampleControlsDisabled} title={restoreSamplesTitle()} on:click={restoreAiLabSamples}>
+    <button class="button" type="button" disabled={sampleControlsDisabled} title={restoreSamplesButtonTitle} on:click={restoreAiLabSamples}>
       <RotateCcw size={17} />
       <span>Restore Samples</span>
     </button>

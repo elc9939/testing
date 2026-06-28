@@ -77,6 +77,11 @@
   let modeActionError = '';
   let itemActionMessage = '';
 
+  interface TodayRefreshControlState {
+    loading: boolean;
+    refreshing: boolean;
+  }
+
   $: attentionSnapshot = $attentionStore.snapshot;
   $: attentionItems = attentionSnapshot?.items ?? [];
   $: calendarItems = attentionItems.filter((item) => item.source === 'google_calendar').slice(0, 10);
@@ -110,6 +115,11 @@
   $: saveStatusLabel = todaySaveStatusLabel($clientData);
   $: saveStatusDetail = todaySaveStatusDetail($clientData);
   $: lastSyncLabel = todayLastSyncLabel($clientData);
+  $: todayRefreshControlState = {
+    loading: $attentionStore.loading,
+    refreshing: $attentionStore.refreshing
+  };
+  $: todayRefreshButtonTitle = todayRefreshTitle(todayRefreshControlState);
 
   function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
     if (!snapshot) return false;
@@ -510,9 +520,9 @@
     await Promise.all([refreshCapabilities(snapshotGoogleConnected(snapshot)), refreshActionLedger()]);
   }
 
-  function todayRefreshTitle(): string {
-    if ($attentionStore.loading) return 'Today is still loading the attention snapshot.';
-    if ($attentionStore.refreshing) return 'Today is already refreshing attention sources.';
+  function todayRefreshTitle(state: TodayRefreshControlState): string {
+    if (state.loading) return 'Today is still loading the attention snapshot.';
+    if (state.refreshing) return 'Today is already refreshing attention sources.';
     return 'Refresh Today from connected sources.';
   }
 
@@ -585,7 +595,7 @@
         Ready
       {/if}
     </span>
-    <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} title={todayRefreshTitle()} on:click={refreshToday}>
+    <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} title={todayRefreshButtonTitle} on:click={refreshToday}>
       <RefreshCw size={16} />
       <span>{$attentionStore.refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>

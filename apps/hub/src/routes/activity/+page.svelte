@@ -36,6 +36,12 @@
   let dismissedIds = new Set<string>();
   let showDismissed = false;
 
+  interface ActivityControlState {
+    showDismissed: boolean;
+    dismissedCount: number;
+    refreshBlockedReason: string;
+  }
+
   $: records = snapshot?.records ?? [];
   $: visibleRecords = showDismissed ? records : records.filter((record) => isActiveRecord(record) || !dismissedIds.has(record.id));
   $: dismissedCount = records.filter((record) => !isActiveRecord(record) && dismissedIds.has(record.id)).length;
@@ -60,6 +66,14 @@
   $: activityRecoveryRows = persistenceRows.filter((row) => ['activity', 'research', 'ai-os', 'macro-lab', 'passive-tasks'].includes(row.id));
   $: activityRecoveryStats = persistenceSummary(activityRecoveryRows);
   $: refreshBlockedReason = activityRefreshBlockedReason({ loading, refreshing, busyKey });
+  $: activityControlState = {
+    showDismissed,
+    dismissedCount,
+    refreshBlockedReason
+  };
+  $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
+  $: restoreDismissedButtonTitle = restoreDismissedTitle();
+  $: activityEmptyRefreshButtonTitle = activityEmptyRefreshTitle(activityControlState);
 
   onMount(() => {
     dismissedIds = readDismissedActivityIds();
@@ -135,10 +149,10 @@
     actionError = '';
   }
 
-  function dismissedToggleTitle(): string {
-    return showDismissed
+  function dismissedToggleTitle(state: Pick<ActivityControlState, 'showDismissed' | 'dismissedCount'>): string {
+    return state.showDismissed
       ? 'Hide records dismissed in this browser; active work remains visible.'
-      : `Show ${dismissedCount} Activity record${dismissedCount === 1 ? '' : 's'} dismissed in this browser.`;
+      : `Show ${state.dismissedCount} Activity record${state.dismissedCount === 1 ? '' : 's'} dismissed in this browser.`;
   }
 
   function restoreDismissedTitle(): string {
@@ -271,8 +285,8 @@
     return 'When a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run exists in its backend, it will appear here after refresh.';
   }
 
-  function activityEmptyRefreshTitle(): string {
-    return refreshBlockedReason || 'Retry loading Activity records from connected sources.';
+  function activityEmptyRefreshTitle(state: Pick<ActivityControlState, 'refreshBlockedReason'>): string {
+    return state.refreshBlockedReason || 'Retry loading Activity records from connected sources.';
   }
 
   function actionBlockedReason(record: ActivityRecord, action: ActivityAction): string {
@@ -330,11 +344,11 @@
   </div>
   <div class="action-row">
     {#if dismissedCount}
-      <button class="button" type="button" title={dismissedToggleTitle()} on:click={() => (showDismissed = !showDismissed)}>
+      <button class="button" type="button" title={dismissedToggleButtonTitle} on:click={() => (showDismissed = !showDismissed)}>
         <XCircle size={16} />
         <span>{showDismissed ? 'Hide dismissed' : `Show dismissed (${dismissedCount})`}</span>
       </button>
-      <button class="button" type="button" title={restoreDismissedTitle()} on:click={restoreDismissed}>
+      <button class="button" type="button" title={restoreDismissedButtonTitle} on:click={restoreDismissed}>
         <RotateCcw size={16} />
         <span>Restore</span>
       </button>
@@ -466,7 +480,7 @@
     <XCircle size={20} />
     <strong>All current Activity records are dismissed.</strong>
     <p>Dismiss only hides records in this browser. Durable research, AI OS, passive, and Macro Lab records still live in their owning backend.</p>
-    <button class="button" type="button" title={restoreDismissedTitle()} on:click={restoreDismissed}>
+    <button class="button" type="button" title={restoreDismissedButtonTitle} on:click={restoreDismissed}>
       <RotateCcw size={16} />
       <span>Restore dismissed records</span>
     </button>
@@ -478,7 +492,7 @@
     <p>{activityEmptyDetail()}</p>
     {#if partial || sourceFailures.length || error}
       <div class="empty-actions">
-        <button class="button" type="button" disabled={Boolean(refreshBlockedReason)} title={activityEmptyRefreshTitle()} on:click={() => refreshActivity()}>
+        <button class="button" type="button" disabled={Boolean(refreshBlockedReason)} title={activityEmptyRefreshButtonTitle} on:click={() => refreshActivity()}>
           <RefreshCw size={16} />
           <span>{refreshing ? 'Refreshing' : 'Retry Activity'}</span>
         </button>
