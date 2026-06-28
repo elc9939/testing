@@ -573,6 +573,11 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('disabled={passiveWriteDisabled || !canRunTask(task, watcher)}');
     expect(passive).toContain("title={passiveActionTitle('Ask for confirmation before cancelling this passive task.')}");
     expect(passive).toContain('Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.');
+    expect(passive).toContain("{loading ? 'Refreshing' : 'Refresh'}");
+    expect(passive).toContain('<span>Run Due</span>');
+    expect(passive).toContain('<span>Startup Event</span>');
+    expect(passive).toContain('<span>Idle Tick</span>');
+    expect(passive).not.toContain('Load First');
   });
 
   it('keeps Productivity Google writes guarded while cached data remains inspectable', async () => {
@@ -964,6 +969,27 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('sourceIssueSnippets');
     expect(source).toContain('stateSurfaceRefs: surfaces');
     expect(source).toContain('stateSurfaces: surfaces.reduce');
+  });
+
+  it('keeps the hydrated smoke script dependency-free and focused on route recovery', async () => {
+    const source = await routeSource('../../../../scripts/hub-hydrated-smoke.mjs');
+    const packageJson = await routeSource('../../../../package.json');
+
+    expect(packageJson).toContain('"qa:hub:hydrated": "node scripts/hub-hydrated-smoke.mjs"');
+    expect(source).toContain('Chrome DevTools websocket');
+    expect(source).toContain('HUB_HYDRATED_URL');
+    expect(source).toContain('HUB_HYDRATED_BROWSER');
+    expect(source).toContain('miniHub.research.draft.v1');
+    expect(source).toContain('miniHub.aiLab.draft.v1');
+    expect(source).toContain('Hydrated smoke research draft');
+    expect(source).toContain('Hydrated smoke AI Lab draft');
+    expect(source).toContain('runPersistenceChecks');
+    expect(source).toContain('safeActionStatus');
+    expect(source).toContain('unexplainedDisabled');
+    expect(source).toContain('rawNotFound');
+    expect(source).toContain('Mini Hub hydrated smoke found');
+    expect(source).not.toContain("from 'playwright'");
+    expect(source).not.toContain("from 'puppeteer'");
   });
 
   it('explains Stick Arena lab loading and offline save controls', async () => {

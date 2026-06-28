@@ -602,19 +602,19 @@
   <div class="header-actions">
     <button class="button" type="button" disabled={Boolean(passiveRefreshBlockedReason)} title={passiveRefreshBlockedReason || 'Reload the latest Passive Tasks snapshot.'} on:click={load}>
       <RefreshCw size={16} />
-      <span>{loading ? 'Loading' : 'Refresh'}</span>
+      <span>{loading ? 'Refreshing' : 'Refresh'}</span>
     </button>
     <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Run due passive tasks now.')} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
       <Clock3 size={16} />
-      <span>{passiveStateKnown ? 'Run Due' : 'Load First'}</span>
+      <span>Run Due</span>
     </button>
     <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Fire the startup passive event manually.')} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
       <RefreshCw size={16} />
-      <span>{passiveStateKnown ? 'Startup Event' : 'Load First'}</span>
+      <span>Startup Event</span>
     </button>
     <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Run idle-capable passive tasks manually.')} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
       <Play size={16} />
-      <span>{passiveStateKnown ? 'Idle Tick' : 'Load First'}</span>
+      <span>Idle Tick</span>
     </button>
   </div>
 </section>

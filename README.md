@@ -616,6 +616,7 @@ $env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
 $env:HUB_SMOKE_URL='https://elc9939.github.io/testing/'; pnpm qa:hub:smoke
 pnpm qa:hub:smoke -- --checklist
 $env:HUB_SMOKE_REQUIRE_HYDRATED='1'; $env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
+$env:HUB_HYDRATED_URL='http://127.0.0.1:5173'; pnpm qa:hub:hydrated
 ```
 
 The smoke check records each visible hub route's title, main heading, service dependency,
@@ -634,6 +635,13 @@ column. Hosted GitHub Pages usually returns a client-rendered shell, which prove
 and `Not Found` handling but not hydrated button behavior; use `--checklist` for the
 manual/Playwright-style pass, and use `HUB_SMOKE_REQUIRE_HYDRATED=1` only when the target can
 expose hydrated controls to the script.
+
+For real hydrated DOM evidence without adding Playwright/Puppeteer, run
+`pnpm qa:hub:hydrated` while a local hub dev/preview server is running. It launches a
+temporary headless Chrome/Edge profile through the Chrome DevTools Protocol, opens every
+main route, records the hydrated heading/control state, checks safe-action visibility, and
+verifies browser-storage draft reload for Research Desk and AI Lab. Set
+`HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
 
 Python backend checks:
 
