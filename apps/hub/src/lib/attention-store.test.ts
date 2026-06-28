@@ -1,12 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   attentionActionLabel,
   attentionActionTimeoutMs,
   attentionSnapshotTimeoutMs,
   attentionSourceStatusLine,
-  itemSupportsAction
+  itemSupportsAction,
+  writeAttentionSnapshotCache
 } from './attention-store';
-import type { AttentionItem } from '@mini-hub/core';
+import type { AttentionItem, AttentionSnapshot } from '@mini-hub/core';
 
 function item(partial: Partial<AttentionItem>): AttentionItem {
   return {
@@ -40,6 +41,10 @@ function item(partial: Partial<AttentionItem>): AttentionItem {
 }
 
 describe('attention store helpers', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'localStorage');
+  });
+
   it('keeps empty and unavailable states tied to real source status', () => {
     expect(
       attentionSourceStatusLine({
@@ -70,4 +75,39 @@ describe('attention store helpers', () => {
     expect(attentionSnapshotTimeoutMs).toBeGreaterThan(0);
     expect(attentionSnapshotTimeoutMs).toBeLessThan(attentionActionTimeoutMs);
   });
+
+  it('keeps live Today data usable when browser cache storage is unavailable', () => {
+    Reflect.deleteProperty(globalThis, 'localStorage');
+
+    const result = writeAttentionSnapshotCache(snapshot());
+
+    expect(result.cachedAt).toBeUndefined();
+    expect(result.error).toContain('Browser attention cache is unavailable');
+  });
+
+  it('keeps live Today data usable when browser cache writes fail', () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        setItem: () => {
+          throw new Error('quota exceeded');
+        }
+      }
+    });
+
+    const result = writeAttentionSnapshotCache(snapshot());
+
+    expect(result.cachedAt).toBeUndefined();
+    expect(result.error).toContain('Browser attention cache could not be updated');
+  });
 });
+
+function snapshot(): AttentionSnapshot {
+  return {
+    checkedAt: '2026-06-23T10:00:00.000Z',
+    items: [],
+    sources: [],
+    triageState: {},
+    errors: []
+  };
+}

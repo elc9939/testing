@@ -51,12 +51,21 @@ function readCachedSnapshot(): AttentionCache | null {
   }
 }
 
-function writeCachedSnapshot(snapshot: AttentionSnapshot): string {
+export function writeAttentionSnapshotCache(snapshot: AttentionSnapshot): { cachedAt?: string; error?: string } {
   const cachedAt = new Date().toISOString();
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(attentionCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies AttentionCache));
+  if (typeof localStorage === 'undefined') {
+    return {
+      error: 'Browser attention cache is unavailable; live Today data is visible but may not survive refresh.'
+    };
   }
-  return cachedAt;
+  try {
+    localStorage.setItem(attentionCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies AttentionCache));
+    return { cachedAt };
+  } catch {
+    return {
+      error: 'Browser attention cache could not be updated; live Today data is visible but may not survive refresh.'
+    };
+  }
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -153,11 +162,11 @@ export function createAttentionStore() {
     setPartial(background ? { refreshing: true, readOnly: false, error: '' } : { loading: true, readOnly: false, error: '' });
     try {
       const snapshot = await requestApiJsonWithTimeout<AttentionSnapshot>('/api/attention/snapshot', {}, attentionSnapshotTimeoutMs);
-      const cachedAt = writeCachedSnapshot(snapshot);
+      const cacheWrite = writeAttentionSnapshotCache(snapshot);
       setPartial({
         snapshot,
-        cachedAt,
-        error: '',
+        ...(cacheWrite.cachedAt ? { cachedAt: cacheWrite.cachedAt } : {}),
+        error: cacheWrite.error ?? '',
         readOnly: false
       });
       return snapshot;
@@ -192,8 +201,12 @@ export function createAttentionStore() {
         },
         attentionActionTimeoutMs
       );
-      const cachedAt = writeCachedSnapshot(result.snapshot);
-      setPartial({ snapshot: result.snapshot, cachedAt, error: '' });
+      const cacheWrite = writeAttentionSnapshotCache(result.snapshot);
+      setPartial({
+        snapshot: result.snapshot,
+        ...(cacheWrite.cachedAt ? { cachedAt: cacheWrite.cachedAt } : {}),
+        error: cacheWrite.error ?? ''
+      });
       return result.snapshot;
     } catch (error) {
       setPartial({ error: errorMessage(error, 'Attention action failed.') });

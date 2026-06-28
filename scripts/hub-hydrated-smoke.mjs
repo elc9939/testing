@@ -125,7 +125,10 @@ async function removeProfileDir(profileDir) {
       await rm(profileDir, { recursive: true, force: true });
       return;
     } catch (error) {
-      if (attempt === 5) throw error;
+      if (attempt === 5) {
+        console.warn(`Could not remove temporary browser profile ${profileDir}: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
       await delay(250);
     }
   }

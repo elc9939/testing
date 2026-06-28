@@ -1013,6 +1013,7 @@ describe('Mini Hub usability control gates', () => {
     expect(deskWritesSource).toContain("process.env.HUB_HYDRATED_DESK_WRITES = '1'");
     expect(deskWritesSource).toContain("await import('./hub-hydrated-smoke.mjs')");
     expect(source).toContain('Chrome DevTools websocket');
+    expect(source).toContain('Could not remove temporary browser profile');
     expect(source).toContain('HUB_HYDRATED_URL');
     expect(source).toContain('HUB_HYDRATED_BROWSER');
     expect(source).toContain('HUB_HYDRATED_API_URL');
