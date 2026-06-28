@@ -3,6 +3,7 @@
   import { CalendarDays, Edit3, Flame, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
   import type { CareerActionRecord, StudySession } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
+  import { getBrowserStorage } from '$lib/browser-storage';
   import { canAutoSave, clientData } from '$lib/client-data';
 
   interface StudyDraft {
@@ -182,13 +183,14 @@
   }
 
   function hydrateStudyViewState(): void {
-    if (typeof localStorage === 'undefined') {
+    const storage = getBrowserStorage();
+    if (!storage) {
       viewHydrated = true;
       viewStatus = 'Browser storage is unavailable; filters reset on reload.';
       return;
     }
     try {
-      const raw = localStorage.getItem(studyViewStorageKey);
+      const raw = storage.getItem(studyViewStorageKey);
       if (raw) {
         const next = normalizeStudyViewState(JSON.parse(raw) as unknown, currentStudyViewState());
         searchQuery = next.searchQuery;
@@ -206,9 +208,10 @@
   }
 
   function persistStudyViewState(): void {
-    if (typeof localStorage === 'undefined') return;
+    const storage = getBrowserStorage();
+    if (!storage) return;
     try {
-      localStorage.setItem(studyViewStorageKey, JSON.stringify(currentStudyViewState()));
+      storage.setItem(studyViewStorageKey, JSON.stringify(currentStudyViewState()));
     } catch {
       viewStatus = 'Browser storage is full or blocked; Study view may not persist.';
     }
@@ -384,11 +387,12 @@
     saveError = '';
     saveMessage = '';
     try {
-      if (typeof localStorage === 'undefined') {
+      const storage = getBrowserStorage();
+      if (!storage) {
         throw new Error('Browser storage is unavailable; legacy Study scan cannot run.');
       }
       const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
-      summary = inspectLegacyStorage(localStorage);
+      summary = inspectLegacyStorage(storage);
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Legacy Study scan failed';
     } finally {

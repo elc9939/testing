@@ -3,6 +3,7 @@
   import { Download, Edit3, ExternalLink, Mail, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
   import type { CareerActionRecord, JobRecord } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
+  import { getBrowserStorage } from '$lib/browser-storage';
   import { canAutoSave, clientData } from '$lib/client-data';
   import { getConnections, listPriorityGmailThreads, type GmailThreadInsight, type PublicConnection } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
@@ -165,13 +166,14 @@
   }
 
   function hydrateCareerViewState(): void {
-    if (typeof localStorage === 'undefined') {
+    const storage = getBrowserStorage();
+    if (!storage) {
       viewHydrated = true;
       viewStatus = 'Browser storage is unavailable; filters reset on reload.';
       return;
     }
     try {
-      const raw = localStorage.getItem(careerViewStorageKey);
+      const raw = storage.getItem(careerViewStorageKey);
       if (raw) {
         const next = normalizeCareerViewState(JSON.parse(raw) as unknown, currentCareerViewState());
         searchQuery = next.searchQuery;
@@ -188,9 +190,10 @@
   }
 
   function persistCareerViewState(): void {
-    if (typeof localStorage === 'undefined') return;
+    const storage = getBrowserStorage();
+    if (!storage) return;
     try {
-      localStorage.setItem(careerViewStorageKey, JSON.stringify(currentCareerViewState()));
+      storage.setItem(careerViewStorageKey, JSON.stringify(currentCareerViewState()));
     } catch {
       viewStatus = 'Browser storage is full or blocked; Career filters may not persist.';
     }
@@ -449,11 +452,12 @@
     saveError = '';
     saveMessage = '';
     try {
-      if (typeof localStorage === 'undefined') {
+      const storage = getBrowserStorage();
+      if (!storage) {
         throw new Error('Browser storage is unavailable; legacy Career scan cannot run.');
       }
       const { inspectLegacyStorage } = await import('@mini-hub/db/migration');
-      summary = inspectLegacyStorage(localStorage);
+      summary = inspectLegacyStorage(storage);
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Legacy Career scan failed';
     } finally {
@@ -569,11 +573,12 @@
     saveError = '';
     saveMessage = '';
     try {
-      if (typeof localStorage === 'undefined') {
+      const storage = getBrowserStorage();
+      if (!storage) {
         throw new Error('Browser storage is unavailable; legacy Career export cannot run.');
       }
       const { exportLegacySnapshot } = await import('@mini-hub/db/migration');
-      const blob = new Blob([JSON.stringify(exportLegacySnapshot(localStorage), null, 2)], {
+      const blob = new Blob([JSON.stringify(exportLegacySnapshot(storage), null, 2)], {
         type: 'application/json'
       });
       const url = URL.createObjectURL(blob);

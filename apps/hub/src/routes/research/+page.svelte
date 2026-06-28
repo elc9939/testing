@@ -27,6 +27,7 @@
     type ResearchSource,
     type ResearchSourceCard
   } from '$lib/ai-os-api';
+  import { getBrowserStorage } from '$lib/browser-storage';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
   import {
@@ -746,12 +747,13 @@
   }
 
   function hydrateResearchDraft(): void {
-    if (typeof localStorage === 'undefined') {
+    const storage = getBrowserStorage();
+    if (!storage) {
       draftHydrated = true;
       return;
     }
     try {
-      const parsed = JSON.parse(localStorage.getItem(researchDraftStorageKey) ?? 'null') as unknown;
+      const parsed = JSON.parse(storage.getItem(researchDraftStorageKey) ?? 'null') as unknown;
       applyResearchDraft(normalizeResearchDraft(parsed, defaultResearchDraft()));
     } catch {
       // Draft state is visual convenience only; ignore invalid browser storage.
@@ -761,9 +763,10 @@
   }
 
   function persistResearchDraft(): void {
-    if (typeof localStorage === 'undefined') return;
+    const storage = getBrowserStorage();
+    if (!storage) return;
     try {
-      localStorage.setItem(researchDraftStorageKey, JSON.stringify(currentResearchDraft()));
+      storage.setItem(researchDraftStorageKey, JSON.stringify(currentResearchDraft()));
     } catch {
       // Browser storage can be full or unavailable; real run records remain backend-persisted.
     }

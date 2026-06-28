@@ -21,6 +21,7 @@
     type CapabilityRegistrySnapshot,
     type CapabilityService
   } from '$lib/capability-registry';
+  import { canUseBrowserStorage } from '$lib/browser-storage';
   import { clientData } from '$lib/client-data';
   import {
     buildFeatureWiringRows,
@@ -503,15 +504,7 @@
   }
 
   function browserStorageAvailable(): boolean {
-    if (typeof localStorage === 'undefined') return false;
-    try {
-      const key = 'miniHub.storageCheck';
-      localStorage.setItem(key, '1');
-      localStorage.removeItem(key);
-      return true;
-    } catch {
-      return false;
-    }
+    return canUseBrowserStorage();
   }
 
   function featureWiringWhen(row: FeatureWiringRow): string {

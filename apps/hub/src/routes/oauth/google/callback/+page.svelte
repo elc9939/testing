@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { getBrowserStorage } from '$lib/browser-storage';
   import { exchangeGoogleOAuthCode, type GoogleOAuthExchangeResult } from '$lib/productivity-api';
   import {
     googleOAuthRedirectForCurrentHub,
@@ -20,8 +21,10 @@
   }
 
   function storedReturnTo(): string {
+    const storage = getBrowserStorage('session');
+    if (!storage) return '';
     try {
-      return sessionStorage.getItem(googleOAuthReturnToStorageKey) ?? '';
+      return storage.getItem(googleOAuthReturnToStorageKey) ?? '';
     } catch {
       return '';
     }

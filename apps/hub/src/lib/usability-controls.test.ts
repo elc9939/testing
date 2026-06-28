@@ -323,6 +323,8 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/research/+page.svelte');
 
     expect(source).toContain('serviceIssue = compactResearchServiceIssue');
+    expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
+    expect(source).toContain('const storage = getBrowserStorage()');
     expect(source).toContain('isResearchServiceError');
     expect(source).toContain('visibleRunError = serviceIssue && isResearchServiceError(error) ?');
     expect(source).toContain('visibleMonitorError = serviceIssue && isResearchServiceError(monitorError) ?');
@@ -431,6 +433,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('aria-busy={parseBusy}');
     expect(source).toContain('AI Lab local capability status');
     expect(source).toContain('This lab is browser-local.');
+    expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
+    expect(source).toContain('const storage = getBrowserStorage()');
     expect(source).toContain('draftStatus =');
     expect(source).toContain('Reloaded AI Lab inputs from this browser.');
     expect(source).toContain('class="result-grid"');
@@ -641,6 +645,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function productivityReadStateDetail');
     expect(source).toContain('state.cacheLoadedAt');
     expect(source).toContain("let cacheWarning = ''");
+    expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
+    expect(source).toContain("const storage = getBrowserStorage('session')");
+    expect(source).toContain('const storage = getBrowserStorage()');
     expect(source).toContain('productivityCacheDetail = cacheWarning');
     expect(source).toContain('Browser productivity cache is unavailable');
     expect(source).toContain('Browser productivity cache could not be updated');
@@ -694,6 +701,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('googleOAuthRedirectForCurrentHub');
     expect(source).toContain('googleOAuthStateReturnTo');
     expect(source).toContain('storedReturnTo');
+    expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
+    expect(source).toContain("const storage = getBrowserStorage('session')");
     expect(source).toContain('window.opener.postMessage');
     expect(source).toContain('Google OAuth did not return a usable authorization code.');
     expect(source).toContain('missing-code');
@@ -860,6 +869,8 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('Ask for confirmation before deleting this saved job.');
     expect(career).toContain('Offline read-only: start or connect the Mini Hub API before saving Career changes.');
     expect(career).toContain("careerViewStorageKey = 'miniHub.career.view.v1'");
+    expect(career).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
+    expect(career).toContain('const storage = getBrowserStorage()');
     expect(career).toContain('function hydrateCareerViewState');
     expect(career).toContain('Reloaded Career filters from this browser.');
     expect(career).toContain('success-banner');
@@ -890,6 +901,8 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('Ask for confirmation before deleting this saved study log.');
     expect(study).toContain('Offline read-only: start or connect the Mini Hub API before saving Study changes.');
     expect(study).toContain("studyViewStorageKey = 'miniHub.study.view.v1'");
+    expect(study).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
+    expect(study).toContain('const storage = getBrowserStorage()');
     expect(study).toContain('function hydrateStudyViewState');
     expect(study).toContain('Reloaded Study filters and quick-log defaults from this browser.');
     expect(study).toContain('success-banner');
@@ -1132,6 +1145,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('let hubHealth: HubHealth | null = null');
     expect(source).toContain('let syncBusy = false');
     expect(source).toContain('let exportBusy = false');
+    expect(source).toContain("import { canUseBrowserStorage } from '$lib/browser-storage'");
+    expect(source).toContain('return canUseBrowserStorage()');
     expect(source).toContain('let endpointSaving = false');
     expect(source).toContain('interface SettingsControlState');
     expect(source).toContain('settingsControlState = {');

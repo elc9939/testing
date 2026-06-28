@@ -25,6 +25,7 @@
   import type { CalendarEvent, GmailLabel, GmailThread, TimelineItem } from '@mini-hub/core';
   import { attentionStore } from '$lib/attention-store';
   import { getApiUrl } from '$lib/api';
+  import { getBrowserStorage } from '$lib/browser-storage';
   import { canAutoSave, clientData } from '$lib/client-data';
   import { googleOAuthCallbackModeForUrls, googleOAuthReturnToStorageKey } from '$lib/productivity-oauth';
   import {
@@ -277,9 +278,10 @@
   }
 
   function rememberGoogleReturnTo(value: string | undefined): void {
-    if (!value || typeof sessionStorage === 'undefined') return;
+    const storage = getBrowserStorage('session');
+    if (!value || !storage) return;
     try {
-      sessionStorage.setItem(googleOAuthReturnToStorageKey, value);
+      storage.setItem(googleOAuthReturnToStorageKey, value);
     } catch {
       // Session storage is only a best-effort breadcrumb for OAuth diagnostics.
     }
@@ -400,9 +402,10 @@
   }
 
   function readProductivityCache(): ProductivityCache | null {
-    if (typeof localStorage === 'undefined') return null;
+    const storage = getBrowserStorage();
+    if (!storage) return null;
     try {
-      const parsed = JSON.parse(localStorage.getItem(productivityCacheKey) ?? 'null') as Partial<ProductivityCache> | null;
+      const parsed = JSON.parse(storage.getItem(productivityCacheKey) ?? 'null') as Partial<ProductivityCache> | null;
       if (!parsed || parsed.version !== 1 || !parsed.cachedAt) return null;
       return {
         version: 1,
@@ -464,12 +467,13 @@
       gmailQuery,
       selectedGmailLabelId
     };
-    if (typeof localStorage === 'undefined') {
+    const storage = getBrowserStorage();
+    if (!storage) {
       cacheWarning = 'Browser productivity cache is unavailable; live Google data is visible but may not survive refresh.';
       return;
     }
     try {
-      localStorage.setItem(productivityCacheKey, JSON.stringify(payload));
+      storage.setItem(productivityCacheKey, JSON.stringify(payload));
       cacheLoadedAt = cachedAt;
       cacheWarning = '';
     } catch {

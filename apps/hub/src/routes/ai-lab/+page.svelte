@@ -11,6 +11,7 @@
     type AiLabDraftState,
     type AiLabResultState
   } from '$lib/ai-lab-state';
+  import { getBrowserStorage } from '$lib/browser-storage';
 
   const defaultAiLabDraft: AiLabDraftState = {
     text: 'Follow up with two high-fit roles, summarize the study backlog, and classify today as focused work.',
@@ -132,13 +133,14 @@
   }
 
   function hydrateAiLabDraft(): void {
-    if (typeof localStorage === 'undefined') {
+    const storage = getBrowserStorage();
+    if (!storage) {
       draftHydrated = true;
       draftStatus = 'Browser storage is unavailable; samples reset on reload.';
       return;
     }
     try {
-      const raw = localStorage.getItem(aiLabDraftStorageKey);
+      const raw = storage.getItem(aiLabDraftStorageKey);
       if (raw) {
         applyAiLabDraft(normalizeAiLabDraft(JSON.parse(raw) as unknown, currentAiLabDraft()));
         draftStatus = 'Reloaded AI Lab inputs from this browser.';
@@ -153,9 +155,10 @@
   }
 
   function persistAiLabDraft(): void {
-    if (typeof localStorage === 'undefined') return;
+    const storage = getBrowserStorage();
+    if (!storage) return;
     try {
-      localStorage.setItem(aiLabDraftStorageKey, JSON.stringify(currentAiLabDraft()));
+      storage.setItem(aiLabDraftStorageKey, JSON.stringify(currentAiLabDraft()));
     } catch {
       draftStatus = 'Browser storage is full or blocked; AI Lab inputs may not persist.';
     }
