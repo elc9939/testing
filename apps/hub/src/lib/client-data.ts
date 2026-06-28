@@ -45,8 +45,8 @@ export interface ClientDataState {
   gameStates: GameState[];
 }
 
-export function canAutoSave(state: Pick<ClientDataState, 'isOnline'>): boolean {
-  return state.isOnline;
+export function canAutoSave(state: Pick<ClientDataState, 'initialized' | 'isOnline' | 'status'>): boolean {
+  return state.initialized && state.isOnline && state.status === 'idle';
 }
 
 function browserOnline(): boolean {
@@ -488,6 +488,8 @@ export function createClientDataStore() {
       await setMeta('cursor', result.cursor);
       await loadCache();
       setPartial({
+        initialized: true,
+        isOnline: true,
         cursor: result.cursor,
         lastSyncedAt: new Date().toISOString(),
         status: 'idle',

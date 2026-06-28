@@ -106,9 +106,13 @@ describe('client data sync state', () => {
     vi.unstubAllGlobals();
   });
 
-  it('allows auto-save whenever the browser is online', () => {
-    expect(canAutoSave({ isOnline: true })).toBe(true);
-    expect(canAutoSave({ isOnline: false })).toBe(false);
+  it('allows auto-save only after the cache/API state is initialized and idle', () => {
+    expect(canAutoSave({ initialized: true, isOnline: true, status: 'idle' })).toBe(true);
+    expect(canAutoSave({ initialized: false, isOnline: true, status: 'idle' })).toBe(false);
+    expect(canAutoSave({ initialized: true, isOnline: false, status: 'idle' })).toBe(false);
+    expect(canAutoSave({ initialized: true, isOnline: true, status: 'syncing' })).toBe(false);
+    expect(canAutoSave({ initialized: true, isOnline: true, status: 'error' })).toBe(false);
+    expect(canAutoSave({ initialized: true, isOnline: true, status: 'offline-readonly' })).toBe(false);
   });
 
   it('pulls server changes into the local readable cache and exposes saved state after sync', async () => {
@@ -137,10 +141,12 @@ describe('client data sync state', () => {
 
   it('updates local state after successful Career and Study saves', async () => {
     requestApiJsonMock
+      .mockResolvedValueOnce({ cursor: '', changes: [] })
       .mockResolvedValueOnce({ job })
       .mockResolvedValueOnce({ session: studySession });
 
     const store = createClientDataStore();
+    await store.syncNow();
     await store.saveJob({
       company: job.company,
       role: job.role,
@@ -158,11 +164,15 @@ describe('client data sync state', () => {
     expect(state.studySessions).toContainEqual(expect.objectContaining({ id: studySession.id, minutes: studySession.minutes }));
     expect(requestApiJsonMock).toHaveBeenNthCalledWith(
       1,
+      '/api/sync/pull?since='
+    );
+    expect(requestApiJsonMock).toHaveBeenNthCalledWith(
+      2,
       '/api/jobs',
       expect.objectContaining({ method: 'POST' })
     );
     expect(requestApiJsonMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       '/api/study',
       expect.objectContaining({ method: 'POST' })
     );

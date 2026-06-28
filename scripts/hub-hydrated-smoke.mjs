@@ -417,6 +417,23 @@ async function fillFirstTextarea(client, value) {
   return result;
 }
 
+async function setControlValue(client, selector, value) {
+  const result = await evaluate(
+    client,
+    `(() => {
+      const control = document.querySelector(${JSON.stringify(selector)});
+      if (!control) return { ok: false, detail: 'Control not found: ${selector}' };
+      const value = ${JSON.stringify(value)};
+      control.value = value;
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+      return { ok: true, detail: value };
+    })()`
+  );
+  if (!result?.ok) throw new Error(result?.detail || `Could not set ${selector}.`);
+  return result;
+}
+
 function safeActionStatus(route, controls) {
   const labels = route.safeActionLabels ?? [];
   const matches = labels.flatMap((label) =>
@@ -497,6 +514,78 @@ async function runResearchActionChecks(client, baseUrl) {
     15_000
   );
   return [{ id: 'research-offline-run-guard', route: '/research', ...result }];
+}
+
+async function runDeskWriteGuardChecks(client, baseUrl) {
+  const checks = [];
+
+  await navigate(client, routeUrl(baseUrl, '/desk/career'));
+  await setControlValue(client, '#company', 'Hydrated Smoke Labs');
+  await setControlValue(client, '#role', 'QA Reliability Analyst');
+  checks.push({
+    id: 'career-add-job-guard',
+    route: '/desk/career',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const button = [...document.querySelectorAll('button')].find((candidate) =>
+          (candidate.innerText || candidate.textContent || '').includes('Add Job')
+        );
+        const title = button?.getAttribute('title') || '';
+        const disabled = Boolean(button?.disabled);
+        const body = document.body?.innerText || '';
+        if (!button) return { ok: false, state: 'missing-button', detail: 'Add Job button is missing.' };
+        if (disabled) {
+          return {
+            ok: /Offline read-only|API before saving|A Career save is already running/i.test(title),
+            state: 'write-guarded',
+            detail: \`Add Job disabled with title "\${title}". Saved message visible: \${/Saved QA Reliability Analyst at Hydrated Smoke Labs/i.test(body)}\`
+          };
+        }
+        return {
+          ok: true,
+          state: 'online-ready',
+          detail: 'Add Job is enabled after required fields are filled; default smoke does not create persistent API records.'
+        };
+      })()`,
+      12_000
+    ))
+  });
+
+  await navigate(client, routeUrl(baseUrl, '/desk/study'));
+  await setControlValue(client, '#subject', 'Hydrated Smoke Study');
+  await setControlValue(client, '#minutes', '25');
+  checks.push({
+    id: 'study-log-guard',
+    route: '/desk/study',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const button = [...document.querySelectorAll('button')].find((candidate) =>
+          (candidate.innerText || candidate.textContent || '').includes('Log Progress')
+        );
+        const title = button?.getAttribute('title') || '';
+        const disabled = Boolean(button?.disabled);
+        const body = document.body?.innerText || '';
+        if (!button) return { ok: false, state: 'missing-button', detail: 'Log Progress button is missing.' };
+        if (disabled) {
+          return {
+            ok: /Offline read-only|API before saving|A Study save is already running/i.test(title),
+            state: 'write-guarded',
+            detail: \`Log Progress disabled with title "\${title}". Logged message visible: \${/Logged 25 min for Hydrated Smoke Study/i.test(body)}\`
+          };
+        }
+        return {
+          ok: true,
+          state: 'online-ready',
+          detail: 'Log Progress is enabled after required fields are filled; default smoke does not create persistent API records.'
+        };
+      })()`,
+      12_000
+    ))
+  });
+
+  return checks;
 }
 
 async function runAiLabActionChecks(client, baseUrl) {
@@ -672,7 +761,11 @@ async function main() {
         safeAction: safeActionStatus(route, snapshot.controls)
       });
     }
-    const actionChecks = [...(await runResearchActionChecks(client, baseUrl)), ...(await runAiLabActionChecks(client, baseUrl))];
+    const actionChecks = [
+      ...(await runResearchActionChecks(client, baseUrl)),
+      ...(await runDeskWriteGuardChecks(client, baseUrl)),
+      ...(await runAiLabActionChecks(client, baseUrl))
+    ];
     const persistence = await runPersistenceChecks(client, baseUrl);
     printMarkdown(rows, persistence);
     printActionChecks(actionChecks);

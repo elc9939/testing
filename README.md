@@ -641,6 +641,8 @@ For real hydrated DOM evidence without adding Playwright/Puppeteer, run
 temporary headless Chrome/Edge profile through the Chrome DevTools Protocol, opens every
 main route, records the hydrated heading/control state, checks safe-action visibility,
 fills a sample Research goal to verify the offline run guard does not fake a queued task,
+fills Career/Study forms to verify service-backed save controls are guarded when the Hub API
+is unavailable,
 test-fires AI Lab Tree-sitter Parse, and verifies browser-storage draft reload for Research
 Desk and AI Lab. Set `HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
 Set `HUB_HYDRATED_AI_LAB_CLASSIFY=1` when you intentionally want the slower Transformers.js
