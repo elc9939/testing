@@ -399,6 +399,24 @@ async function clickButtonByText(client, label) {
   return result;
 }
 
+async function fillFirstTextarea(client, value) {
+  const result = await evaluate(
+    client,
+    `(() => {
+      const textarea = document.querySelector('textarea');
+      if (!textarea) return { ok: false, detail: 'No textarea found.' };
+      const value = ${JSON.stringify(value)};
+      textarea.focus();
+      textarea.value = value;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      return { ok: true, detail: value };
+    })()`
+  );
+  if (!result?.ok) throw new Error(result?.detail || 'Could not fill textarea.');
+  return result;
+}
+
 function safeActionStatus(route, controls) {
   const labels = route.safeActionLabels ?? [];
   const matches = labels.flatMap((label) =>
@@ -439,6 +457,46 @@ async function reloadAndFindValue(client, route, expectedValue, baseUrl) {
     expectedValue,
     values: snapshot.values.slice(0, 8)
   };
+}
+
+async function runResearchActionChecks(client, baseUrl) {
+  await navigate(client, routeUrl(baseUrl, '/research'));
+  await fillFirstTextarea(client, 'Hydrated smoke: verify Research Desk offline run guard.');
+  const result = await waitForCondition(
+    client,
+    `(() => {
+      const button = document.querySelector('.form-actions .primary-button');
+      const label = (button?.innerText || button?.textContent || '').replace(/\\s+/g, ' ').trim();
+      const title = button?.getAttribute('title') || '';
+      const disabled = Boolean(button?.disabled);
+      const body = document.body?.innerText || '';
+      const serviceCards = document.querySelectorAll('.service-card').length;
+      const queued = /\\bQueued\\b/i.test(body);
+      if (!button) return { ok: false, state: 'missing-button', detail: 'Research run button is missing.' };
+      if (label.includes('Connect AI OS')) {
+        return {
+          ok: disabled && /Connect AI OS before starting a research run/i.test(title) && serviceCards <= 1 && !queued,
+          state: 'offline-guard',
+          detail: disabled
+            ? \`Disabled as "\${label}" with \${serviceCards} service card(s); queued message visible: \${queued}\`
+            : \`"\${label}" is visible but not disabled.\`
+        };
+      }
+      if (label.includes('Checking AI OS')) {
+        return { ok: false, state: 'checking', detail: 'Research Desk is still probing AI OS.' };
+      }
+      if (label.includes('Run Quick Search')) {
+        return {
+          ok: true,
+          state: 'online-ready',
+          detail: 'AI OS appears reachable; default smoke does not start a real research job.'
+        };
+      }
+      return { ok: false, state: 'unexpected', detail: \`Unexpected Research run button label "\${label}" with title "\${title}".\` };
+    })()`,
+    15_000
+  );
+  return [{ id: 'research-offline-run-guard', route: '/research', ...result }];
 }
 
 async function runAiLabActionChecks(client, baseUrl) {
@@ -614,7 +672,7 @@ async function main() {
         safeAction: safeActionStatus(route, snapshot.controls)
       });
     }
-    const actionChecks = await runAiLabActionChecks(client, baseUrl);
+    const actionChecks = [...(await runResearchActionChecks(client, baseUrl)), ...(await runAiLabActionChecks(client, baseUrl))];
     const persistence = await runPersistenceChecks(client, baseUrl);
     printMarkdown(rows, persistence);
     printActionChecks(actionChecks);

@@ -990,6 +990,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("`${match.disabled ? 'disabled' : 'enabled'}:${match.label}`");
     expect(source).toContain('runAiLabActionChecks');
     expect(source).toContain('clickButtonByText');
+    expect(source).toContain('fillFirstTextarea');
+    expect(source).toContain('runResearchActionChecks');
+    expect(source).toContain('research-offline-run-guard');
+    expect(source).toContain('Hydrated smoke: verify Research Desk offline run guard.');
+    expect(source).toContain('Connect AI OS before starting a research run');
+    expect(source).toContain('queued message visible');
     expect(source).toContain('Hydrated Action Check');
     expect(source).toContain('ai-lab-parse');
     expect(source).toContain('Parser: Result ready');
