@@ -39,6 +39,7 @@
     "qa:hub:smoke": "node scripts/hub-usability-smoke.mjs",
     "qa:hub:hydrated": "node scripts/hub-hydrated-smoke.mjs",
     "qa:hub:hydrated:ai": "node scripts/hub-hydrated-smoke-full-ai.mjs",
+    "qa:hub:hydrated:writes": "node scripts/hub-hydrated-smoke-desk-writes.mjs",
     "pose:shot": "node scripts/pose-shot.js",
     "icons": "node scripts/gen-icons.js",
     "task": "node scripts/task.js",

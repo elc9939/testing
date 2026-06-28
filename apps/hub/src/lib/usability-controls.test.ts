@@ -864,6 +864,7 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('function hydrateStudyViewState');
     expect(study).toContain('Reloaded Study filters and quick-log defaults from this browser.');
     expect(study).toContain('success-banner');
+    expect(study).toContain('<details class="secondary-details" open={logs.length > 0}>');
   });
 
   it('keeps the hub smoke script able to print a repeatable action and reload checklist', async () => {
@@ -977,15 +978,21 @@ describe('Mini Hub usability control gates', () => {
   it('keeps the hydrated smoke script dependency-free and focused on route recovery', async () => {
     const source = await routeSource('../../../../scripts/hub-hydrated-smoke.mjs');
     const fullAiSource = await routeSource('../../../../scripts/hub-hydrated-smoke-full-ai.mjs');
+    const deskWritesSource = await routeSource('../../../../scripts/hub-hydrated-smoke-desk-writes.mjs');
     const packageJson = await routeSource('../../../../package.json');
 
     expect(packageJson).toContain('"qa:hub:hydrated": "node scripts/hub-hydrated-smoke.mjs"');
     expect(packageJson).toContain('"qa:hub:hydrated:ai": "node scripts/hub-hydrated-smoke-full-ai.mjs"');
+    expect(packageJson).toContain('"qa:hub:hydrated:writes": "node scripts/hub-hydrated-smoke-desk-writes.mjs"');
     expect(fullAiSource).toContain("process.env.HUB_HYDRATED_AI_LAB_CLASSIFY = '1'");
     expect(fullAiSource).toContain("await import('./hub-hydrated-smoke.mjs')");
+    expect(deskWritesSource).toContain("process.env.HUB_HYDRATED_DESK_WRITES = '1'");
+    expect(deskWritesSource).toContain("await import('./hub-hydrated-smoke.mjs')");
     expect(source).toContain('Chrome DevTools websocket');
     expect(source).toContain('HUB_HYDRATED_URL');
     expect(source).toContain('HUB_HYDRATED_BROWSER');
+    expect(source).toContain('HUB_HYDRATED_API_URL');
+    expect(source).toContain('HUB_HYDRATED_DESK_WRITES');
     expect(source).toContain('miniHub.research.draft.v1');
     expect(source).toContain('miniHub.aiLab.draft.v1');
     expect(source).toContain('Hydrated smoke research draft');
@@ -1010,8 +1017,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('research-offline-run-guard');
     expect(source).toContain('career-add-job-guard');
     expect(source).toContain('study-log-guard');
+    expect(source).toContain('career-add-job-save-reload');
+    expect(source).toContain('career-add-job-reloaded');
+    expect(source).toContain('study-log-save-reload');
+    expect(source).toContain('study-log-reloaded');
     expect(source).toContain('Hydrated Smoke Labs');
     expect(source).toContain('Hydrated Smoke Study');
+    expect(source).toContain('Hydrated API Smoke Labs');
+    expect(source).toContain('Hydrated API Study');
     expect(source).toContain('Hydrated smoke: verify Research Desk offline run guard.');
     expect(source).toContain('Connect AI OS before starting a research run');
     expect(source).toContain('queued message visible');

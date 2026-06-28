@@ -716,7 +716,7 @@
   </section>
 </details>
 
-<details class="secondary-details">
+<details class="secondary-details" open={logs.length > 0}>
   <summary>Manual study logs</summary>
   <section class="card table-card">
     <table>

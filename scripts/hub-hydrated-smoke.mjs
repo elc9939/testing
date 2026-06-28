@@ -133,7 +133,11 @@ async function removeProfileDir(profileDir) {
 
 function routeUrl(baseUrl, routePath) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return new URL(routePath.replace(/^\//u, ''), normalizedBase).toString();
+  const url = new URL(routePath.replace(/^\//u, ''), normalizedBase);
+  if (process.env.HUB_HYDRATED_API_URL) {
+    url.searchParams.set('apiUrl', process.env.HUB_HYDRATED_API_URL);
+  }
+  return url.toString();
 }
 
 function browserCandidates() {
@@ -591,6 +595,8 @@ async function runResearchActionChecks(client, baseUrl) {
 }
 
 async function runDeskWriteGuardChecks(client, baseUrl) {
+  if (process.env.HUB_HYDRATED_DESK_WRITES === '1') return runDeskApiSaveChecks(client, baseUrl);
+
   const checks = [];
 
   await navigate(client, routeUrl(baseUrl, '/desk/career'));
@@ -658,6 +664,140 @@ async function runDeskWriteGuardChecks(client, baseUrl) {
       12_000
     ))
   });
+
+  return checks;
+}
+
+async function runDeskApiSaveChecks(client, baseUrl) {
+  const checks = [];
+
+  await navigate(client, routeUrl(baseUrl, '/desk/career'));
+  await setControlValue(client, '#company', 'Hydrated API Smoke Labs');
+  await setControlValue(client, '#role', 'Saved QA Analyst');
+  checks.push({
+    id: 'career-add-job-save-reload',
+    route: '/desk/career',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const button = [...document.querySelectorAll('button')].find((candidate) =>
+          (candidate.innerText || candidate.textContent || '').includes('Add Job')
+        );
+        const title = button?.getAttribute('title') || '';
+        const disabled = Boolean(button?.disabled);
+        if (!button) return { ok: false, state: 'missing-button', detail: 'Add Job button is missing.' };
+        return {
+          ok: !disabled,
+          state: disabled ? 'blocked' : 'ready',
+          detail: disabled ? \`Add Job is still disabled: \${title}\` : 'Add Job is enabled against the configured Hub API.'
+        };
+      })()`,
+      15_000
+    ))
+  });
+  if (checks.at(-1)?.ok) {
+    await clickButtonByText(client, 'Add Job');
+    checks.push({
+      id: 'career-add-job-persisted',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const saved = /Saved Saved QA Analyst at Hydrated API Smoke Labs/i.test(text);
+          const row = /Hydrated API Smoke Labs/i.test(text) && /Saved QA Analyst/i.test(text);
+          return {
+            ok: saved && row,
+            state: saved && row ? 'saved' : 'waiting',
+            detail: saved && row ? 'Career save banner and row are visible.' : 'Waiting for Career save banner and saved row.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+    await navigate(client, routeUrl(baseUrl, '/desk/career'));
+    checks.push({
+      id: 'career-add-job-reloaded',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const row = /Hydrated API Smoke Labs/i.test(text) && /Saved QA Analyst/i.test(text);
+          return {
+            ok: row,
+            state: row ? 'reloaded' : 'waiting',
+            detail: row ? 'Saved Career row reloaded from API/cache.' : 'Waiting for saved Career row after navigation.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+  }
+
+  await navigate(client, routeUrl(baseUrl, '/desk/study'));
+  await setControlValue(client, '#subject', 'Hydrated API Study');
+  await setControlValue(client, '#minutes', '26');
+  checks.push({
+    id: 'study-log-save-reload',
+    route: '/desk/study',
+    ...(await waitForCondition(
+      client,
+      `(() => {
+        const button = [...document.querySelectorAll('button')].find((candidate) =>
+          (candidate.innerText || candidate.textContent || '').includes('Log Progress')
+        );
+        const title = button?.getAttribute('title') || '';
+        const disabled = Boolean(button?.disabled);
+        if (!button) return { ok: false, state: 'missing-button', detail: 'Log Progress button is missing.' };
+        return {
+          ok: !disabled,
+          state: disabled ? 'blocked' : 'ready',
+          detail: disabled ? \`Log Progress is still disabled: \${title}\` : 'Log Progress is enabled against the configured Hub API.'
+        };
+      })()`,
+      15_000
+    ))
+  });
+  if (checks.at(-1)?.ok) {
+    await clickButtonByText(client, 'Log Progress');
+    checks.push({
+      id: 'study-log-persisted',
+      route: '/desk/study',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const saved = /Logged 26 min for Hydrated API Study/i.test(text);
+          const row = /Hydrated API Study/i.test(text) && /26/.test(text);
+          return {
+            ok: saved && row,
+            state: saved && row ? 'saved' : 'waiting',
+            detail: saved && row ? 'Study save banner and row are visible.' : 'Waiting for Study save banner and saved row.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+    await navigate(client, routeUrl(baseUrl, '/desk/study'));
+    checks.push({
+      id: 'study-log-reloaded',
+      route: '/desk/study',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const row = /Hydrated API Study/i.test(text) && /26/.test(text);
+          return {
+            ok: row,
+            state: row ? 'reloaded' : 'waiting',
+            detail: row ? 'Saved Study row reloaded from API/cache.' : 'Waiting for saved Study row after navigation.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+  }
 
   return checks;
 }

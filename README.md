@@ -649,6 +649,11 @@ Run `pnpm qa:hub:hydrated:ai` when you intentionally want the slower full AI Lab
 it runs the same route recovery checks and also presses Classify against the browser-side
 Transformers.js model. The first run may download browser model assets, so the default
 hydrated smoke keeps that step opt-in.
+Run `pnpm qa:hub:hydrated:writes` when a disposable Mini Hub API is running and you want
+real Career/Study save-and-reload evidence. Set `HUB_HYDRATED_API_URL` to that temporary API
+origin; the script passes it through the same `apiUrl` endpoint override used by Settings.
+This mode creates smoke rows named `Hydrated API Smoke Labs` and `Hydrated API Study`, so
+prefer a temporary `MINI_HUB_DATA_DIR`.
 
 Python backend checks:
 
