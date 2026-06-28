@@ -59,6 +59,14 @@
     intensity: number;
   }
 
+  interface StudyControlState {
+    canSave: boolean;
+    saving: boolean;
+    rowBusyId: string;
+    editingSessionId: string;
+    studySummaryLoading: boolean;
+  }
+
   let summary: LegacyImportSummary | null = null;
   let subject = 'NeetCode';
   let minutes = 30;
@@ -110,38 +118,48 @@
         legacyGithub.submissions ||
         legacyGithub.lastSync)
   );
+  $: studyControlState = {
+    canSave,
+    saving,
+    rowBusyId,
+    editingSessionId,
+    studySummaryLoading
+  };
+  $: addLogButtonTitle = addLogTitle(studyControlState, subject, Number(minutes));
+  $: saveLogEditButtonTitle = saveLogEditTitle(studyControlState, studyDraft);
+  $: studySummaryButtonTitle = studySummaryTitle(studyControlState);
   $: if (viewHydrated) persistStudyViewState();
 
-  function studySaveTitle(enabledTitle: string): string {
-    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Study changes.';
-    if (saving) return 'A Study save is already running.';
+  function studySaveTitle(state: Pick<StudyControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Study changes.';
+    if (state.saving) return 'A Study save is already running.';
     return enabledTitle;
   }
 
-  function addLogTitle(): string {
-    if (!canSave || saving) return studySaveTitle('Log this study session.');
-    if (!subject.trim()) return 'Add a study label before logging progress.';
-    if (minutes < 1) return 'Minutes must be at least 1 before logging progress.';
+  function addLogTitle(state: Pick<StudyControlState, 'canSave' | 'saving'>, nextSubject: string, nextMinutes: number): string {
+    if (!state.canSave || state.saving) return studySaveTitle(state, 'Log this study session.');
+    if (!nextSubject.trim()) return 'Add a study label before logging progress.';
+    if (nextMinutes < 1) return 'Minutes must be at least 1 before logging progress.';
     return 'Log this study session.';
   }
 
-  function studyRowTitle(enabledTitle: string, rowId?: string): string {
-    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Study logs.';
-    if (rowBusyId === rowId) return 'This Study row action is already running.';
-    if (rowBusyId) return 'Another Study row action is already running.';
-    if (editingSessionId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another study log.';
+  function studyRowTitle(state: Pick<StudyControlState, 'canSave' | 'rowBusyId' | 'editingSessionId'>, enabledTitle: string, rowId?: string): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Study logs.';
+    if (state.rowBusyId === rowId) return 'This Study row action is already running.';
+    if (state.rowBusyId) return 'Another Study row action is already running.';
+    if (state.editingSessionId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another study log.';
     return enabledTitle;
   }
 
-  function saveLogEditTitle(): string {
-    if (!canSave || rowBusyId) return studyRowTitle('Save study log changes.', editingSessionId);
-    if (!studyDraft.subject.trim()) return 'Add a study label before saving this log.';
-    if (studyDraft.minutes < 1) return 'Minutes must be at least 1 before saving this log.';
+  function saveLogEditTitle(state: StudyControlState, draft: StudyDraft): string {
+    if (!state.canSave || state.rowBusyId) return studyRowTitle(state, 'Save study log changes.', state.editingSessionId);
+    if (!draft.subject.trim()) return 'Add a study label before saving this log.';
+    if (draft.minutes < 1) return 'Minutes must be at least 1 before saving this log.';
     return 'Save study log changes.';
   }
 
-  function studySummaryTitle(): string {
-    return studySummaryLoading ? 'Legacy Study scan is already running.' : 'Scan this browser for legacy Study Desk data.';
+  function studySummaryTitle(state: Pick<StudyControlState, 'studySummaryLoading'>): string {
+    return state.studySummaryLoading ? 'Legacy Study scan is already running.' : 'Scan this browser for legacy Study Desk data.';
   }
 
   function emptyStudyDraft(): StudyDraft {
@@ -488,7 +506,7 @@
     <h1>Study</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={studySummaryLoading} title={studySummaryTitle()} on:click={refreshSummary}>
+    <button class="button" type="button" disabled={studySummaryLoading} title={studySummaryButtonTitle} on:click={refreshSummary}>
       <RefreshCw size={17} />
       <span>{studySummaryLoading ? 'Scanning' : 'Scan'}</span>
     </button>
@@ -547,25 +565,25 @@
     </div>
     <div class="quick-row">
       {#each quickSubjects as option}
-        <button class:active={subject === option} type="button" disabled={!canSave || saving} title={studySaveTitle(`Use ${option} as the study label.`)} on:click={() => (subject = option)}>{option}</button>
+        <button class:active={subject === option} type="button" disabled={!canSave || saving} title={studySaveTitle(studyControlState, `Use ${option} as the study label.`)} on:click={() => (subject = option)}>{option}</button>
       {/each}
     </div>
     <div class="quick-row">
       {#each quickMinutes as option}
-        <button class:active={minutes === option} type="button" disabled={!canSave || saving} title={studySaveTitle(`Use ${option} minutes.`)} on:click={() => chooseQuickLog(subject, option)}>{option}m</button>
+        <button class:active={minutes === option} type="button" disabled={!canSave || saving} title={studySaveTitle(studyControlState, `Use ${option} minutes.`)} on:click={() => chooseQuickLog(subject, option)}>{option}m</button>
       {/each}
     </div>
     <div class="compact-fields">
       <div class="field">
         <label for="subject">Label</label>
-        <input id="subject" bind:value={subject} disabled={!canSave || saving} title={studySaveTitle('Study label.')} />
+        <input id="subject" bind:value={subject} disabled={!canSave || saving} title={studySaveTitle(studyControlState, 'Study label.')} />
       </div>
       <div class="field minutes-field">
         <label for="minutes">Minutes</label>
-        <input id="minutes" bind:value={minutes} disabled={!canSave || saving} title={studySaveTitle('Study minutes.')} type="number" min="1" step="5" />
+        <input id="minutes" bind:value={minutes} disabled={!canSave || saving} title={studySaveTitle(studyControlState, 'Study minutes.')} type="number" min="1" step="5" />
       </div>
     </div>
-    <button class="button primary" type="button" disabled={!canSave || saving || !subject.trim() || minutes < 1} title={addLogTitle()} on:click={addLog}>
+    <button class="button primary" type="button" disabled={!canSave || saving || !subject.trim() || minutes < 1} title={addLogButtonTitle} on:click={addLog}>
       <Plus size={17} />
       <span>{saving ? 'Saving' : 'Log Progress'}</span>
     </button>
@@ -715,13 +733,13 @@
         {#each filteredLogs as log}
           <tr>
             {#if editingSessionId === log.id}
-              <td><input class="table-input" bind:value={studyDraft.subject} disabled={!canSave || rowBusyId === log.id} title={studyRowTitle('Study label.', log.id)} /></td>
-              <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={!canSave || rowBusyId === log.id} title={studyRowTitle('Study minutes.', log.id)} type="number" min="1" step="5" /></td>
+              <td><input class="table-input" bind:value={studyDraft.subject} disabled={!canSave || rowBusyId === log.id} title={studyRowTitle(studyControlState, 'Study label.', log.id)} /></td>
+              <td><input class="table-input minutes-input" bind:value={studyDraft.minutes} disabled={!canSave || rowBusyId === log.id} title={studyRowTitle(studyControlState, 'Study minutes.', log.id)} type="number" min="1" step="5" /></td>
               <td>{displayDateTime(log.loggedAt)}</td>
               <td>{displayDateTime(log.updatedAt)}</td>
               <td class="actions-cell">
                 <div class="row-actions">
-                  <button class="icon-button" type="button" aria-label="Save study log" title={saveLogEditTitle()} disabled={!canSave || rowBusyId === log.id || !studyDraft.subject.trim() || studyDraft.minutes < 1} on:click={() => saveLogEdit(log)}>
+                  <button class="icon-button" type="button" aria-label="Save study log" title={saveLogEditButtonTitle} disabled={!canSave || rowBusyId === log.id || !studyDraft.subject.trim() || studyDraft.minutes < 1} on:click={() => saveLogEdit(log)}>
                     <Save size={16} />
                   </button>
                   <button class="icon-button" type="button" aria-label="Cancel study log edit" title={rowBusyId === log.id ? 'This Study row action is already running.' : 'Cancel study log edit.'} disabled={rowBusyId === log.id} on:click={cancelEditLog}>
@@ -736,10 +754,10 @@
               <td>{displayDateTime(log.updatedAt)}</td>
               <td class="actions-cell">
                 <div class="row-actions">
-                  <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title={studyRowTitle('Edit', log.id)} disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
+                  <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title={studyRowTitle(studyControlState, 'Edit', log.id)} disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
                     <Edit3 size={16} />
                   </button>
-                  <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title={studyRowTitle('Ask for confirmation before deleting this saved study log.', log.id)} disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
+                  <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title={studyRowTitle(studyControlState, 'Ask for confirmation before deleting this saved study log.', log.id)} disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>
                     <Trash2 size={16} />
                   </button>
                 </div>

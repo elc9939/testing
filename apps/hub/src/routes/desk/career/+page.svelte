@@ -38,6 +38,16 @@
     value: string;
   }
 
+  interface CareerControlState {
+    canSave: boolean;
+    saving: boolean;
+    rowBusyId: string;
+    editingJobId: string;
+    careerSummaryLoading: boolean;
+    careerExportLoading: boolean;
+    mailUpdatesLoading: boolean;
+  }
+
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
 
@@ -82,44 +92,58 @@
   $: matchedCareerMailUpdates = careerMailUpdates.filter((insight) => isKnownApplicationMail(insight, submittedJobs));
   $: unreadCareerMailUpdates = matchedCareerMailUpdates.filter((insight) => insight.thread.unread);
   $: visibleCareerMailUpdates = (unreadCareerMailUpdates.length ? unreadCareerMailUpdates : matchedCareerMailUpdates).slice(0, 5);
+  $: careerControlState = {
+    canSave,
+    saving,
+    rowBusyId,
+    editingJobId,
+    careerSummaryLoading,
+    careerExportLoading,
+    mailUpdatesLoading
+  };
+  $: addJobButtonTitle = addJobTitle(careerControlState, company, role);
+  $: saveJobEditButtonTitle = saveJobEditTitle(careerControlState, jobDraft);
+  $: careerSummaryButtonTitle = careerSummaryTitle(careerControlState);
+  $: careerMailUpdatesButtonTitle = careerMailUpdatesTitle(careerControlState);
+  $: careerExportButtonTitle = careerExportTitle(careerControlState);
   $: if (viewHydrated) persistCareerViewState();
 
-  function careerSaveTitle(enabledTitle: string): string {
-    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Career changes.';
-    if (saving) return 'A Career save is already running.';
+  function careerSaveTitle(state: Pick<CareerControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Career changes.';
+    if (state.saving) return 'A Career save is already running.';
     return enabledTitle;
   }
 
-  function addJobTitle(): string {
-    if (!canSave || saving) return careerSaveTitle('Add this job.');
-    if (!company.trim() || !role.trim()) return 'Company and role are required before saving a job.';
+  function addJobTitle(state: Pick<CareerControlState, 'canSave' | 'saving'>, nextCompany: string, nextRole: string): string {
+    if (!state.canSave || state.saving) return careerSaveTitle(state, 'Add this job.');
+    if (!nextCompany.trim() || !nextRole.trim()) return 'Company and role are required before saving a job.';
     return 'Add this job to Career Desk.';
   }
 
-  function careerRowTitle(enabledTitle: string, rowId?: string): string {
-    if (!canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Career rows.';
-    if (rowBusyId === rowId) return 'This Career row action is already running.';
-    if (rowBusyId) return 'Another Career row action is already running.';
-    if (editingJobId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another job.';
+  function careerRowTitle(state: Pick<CareerControlState, 'canSave' | 'rowBusyId' | 'editingJobId'>, enabledTitle: string, rowId?: string): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Career rows.';
+    if (state.rowBusyId === rowId) return 'This Career row action is already running.';
+    if (state.rowBusyId) return 'Another Career row action is already running.';
+    if (state.editingJobId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another job.';
     return enabledTitle;
   }
 
-  function saveJobEditTitle(): string {
-    if (!canSave || rowBusyId) return careerRowTitle('Save job changes.', editingJobId);
-    if (!jobDraft.company.trim() || !jobDraft.role.trim()) return 'Company and role are required before saving this job.';
+  function saveJobEditTitle(state: CareerControlState, draft: JobDraft): string {
+    if (!state.canSave || state.rowBusyId) return careerRowTitle(state, 'Save job changes.', state.editingJobId);
+    if (!draft.company.trim() || !draft.role.trim()) return 'Company and role are required before saving this job.';
     return 'Save job changes.';
   }
 
-  function careerMailUpdatesTitle(): string {
-    return mailUpdatesLoading ? 'Career mail scan is already running.' : 'Scan connected Gmail for likely career updates.';
+  function careerMailUpdatesTitle(state: Pick<CareerControlState, 'mailUpdatesLoading'>): string {
+    return state.mailUpdatesLoading ? 'Career mail scan is already running.' : 'Scan connected Gmail for likely career updates.';
   }
 
-  function careerSummaryTitle(): string {
-    return careerSummaryLoading ? 'Legacy Career scan is already running.' : 'Scan this browser for legacy Career Desk data.';
+  function careerSummaryTitle(state: Pick<CareerControlState, 'careerSummaryLoading'>): string {
+    return state.careerSummaryLoading ? 'Legacy Career scan is already running.' : 'Scan this browser for legacy Career Desk data.';
   }
 
-  function careerExportTitle(): string {
-    return careerExportLoading ? 'Career export is already preparing.' : 'Download the current legacy Career snapshot from this browser.';
+  function careerExportTitle(state: Pick<CareerControlState, 'careerExportLoading'>): string {
+    return state.careerExportLoading ? 'Career export is already preparing.' : 'Download the current legacy Career snapshot from this browser.';
   }
 
   function emptyJobDraft(): JobDraft {
@@ -585,15 +609,15 @@
     <h1>Career</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={careerSummaryLoading} title={careerSummaryTitle()} on:click={refreshSummary}>
+    <button class="button" type="button" disabled={careerSummaryLoading} title={careerSummaryButtonTitle} on:click={refreshSummary}>
       <RefreshCw size={17} />
       <span>{careerSummaryLoading ? 'Scanning' : 'Scan'}</span>
     </button>
-    <button class="button" type="button" disabled={mailUpdatesLoading} title={careerMailUpdatesTitle()} on:click={refreshCareerMailUpdates}>
+    <button class="button" type="button" disabled={mailUpdatesLoading} title={careerMailUpdatesButtonTitle} on:click={refreshCareerMailUpdates}>
       <Mail size={17} />
       <span>{mailUpdatesLoading ? 'Sorting' : 'Mail Updates'}</span>
     </button>
-    <button class="button" type="button" disabled={careerExportLoading} title={careerExportTitle()} on:click={exportSnapshot}>
+    <button class="button" type="button" disabled={careerExportLoading} title={careerExportButtonTitle} on:click={exportSnapshot}>
       <Download size={17} />
       <span>{careerExportLoading ? 'Exporting' : 'Export'}</span>
     </button>
@@ -687,22 +711,22 @@
       {#each filteredJobs as job}
         <tr>
           {#if editingJobId === job.id}
-            <td><input class="table-input" bind:value={jobDraft.company} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Company name.', job.id)} /></td>
-            <td><input class="table-input" bind:value={jobDraft.role} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Role title.', job.id)} /></td>
-            <td><input class="table-input link-input" bind:value={jobDraft.applicationUrl} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Application link.', job.id)} placeholder="https://..." /></td>
+            <td><input class="table-input" bind:value={jobDraft.company} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Company name.', job.id)} /></td>
+            <td><input class="table-input" bind:value={jobDraft.role} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Role title.', job.id)} /></td>
+            <td><input class="table-input link-input" bind:value={jobDraft.applicationUrl} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Application link.', job.id)} placeholder="https://..." /></td>
             <td>
-              <select class="table-select" bind:value={jobDraft.status} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Application status.', job.id)}>
+              <select class="table-select" bind:value={jobDraft.status} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Application status.', job.id)}>
                 {#each statuses as item}
                   <option value={item}>{item}</option>
                 {/each}
               </select>
             </td>
-            <td><input class="table-input" bind:value={jobDraft.nextActionAt} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Next action date.', job.id)} type="date" /></td>
-            <td><textarea class="table-textarea" bind:value={jobDraft.notes} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle('Job notes.', job.id)} rows="2"></textarea></td>
+            <td><input class="table-input" bind:value={jobDraft.nextActionAt} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Next action date.', job.id)} type="date" /></td>
+            <td><textarea class="table-textarea" bind:value={jobDraft.notes} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Job notes.', job.id)} rows="2"></textarea></td>
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">
-                <button class="icon-button" type="button" aria-label="Save job" title={saveJobEditTitle()} disabled={!canSave || rowBusyId === job.id || !jobDraft.company.trim() || !jobDraft.role.trim()} on:click={() => saveJobEdit(job)}>
+                <button class="icon-button" type="button" aria-label="Save job" title={saveJobEditButtonTitle} disabled={!canSave || rowBusyId === job.id || !jobDraft.company.trim() || !jobDraft.role.trim()} on:click={() => saveJobEdit(job)}>
                   <Save size={16} />
                 </button>
                 <button class="icon-button" type="button" aria-label="Cancel job edit" title={rowBusyId === job.id ? 'This Career row action is already running.' : 'Cancel job edit.'} disabled={rowBusyId === job.id} on:click={cancelEditJob}>
@@ -758,10 +782,10 @@
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">
-                <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title={careerRowTitle('Edit', job.id)} disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
+                <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title={careerRowTitle(careerControlState, 'Edit', job.id)} disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
                   <Edit3 size={16} />
                 </button>
-                <button class="icon-button danger" type="button" aria-label={`Delete ${job.company}`} title={careerRowTitle('Ask for confirmation before deleting this saved job.', job.id)} disabled={!canSave || rowBusyId === job.id} on:click={() => deleteJob(job)}>
+                <button class="icon-button danger" type="button" aria-label={`Delete ${job.company}`} title={careerRowTitle(careerControlState, 'Ask for confirmation before deleting this saved job.', job.id)} disabled={!canSave || rowBusyId === job.id} on:click={() => deleteJob(job)}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -835,15 +859,15 @@
     <form class="form compact-form" on:submit|preventDefault={addJob}>
       <div class="field">
         <label for="company">Company</label>
-        <input id="company" bind:value={company} disabled={!canSave || saving} title={careerSaveTitle('Company name.')} autocomplete="organization" />
+        <input id="company" bind:value={company} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Company name.')} autocomplete="organization" />
       </div>
       <div class="field">
         <label for="role">Role</label>
-        <input id="role" bind:value={role} disabled={!canSave || saving} title={careerSaveTitle('Role title.')} autocomplete="off" />
+        <input id="role" bind:value={role} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Role title.')} autocomplete="off" />
       </div>
       <div class="field">
         <label for="status">Status</label>
-        <select id="status" bind:value={status} disabled={!canSave || saving} title={careerSaveTitle('Application status.')}>
+        <select id="status" bind:value={status} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Application status.')}>
           {#each statuses as item}
             <option value={item}>{item}</option>
           {/each}
@@ -851,17 +875,17 @@
       </div>
       <div class="field">
         <label for="application-url">Application link</label>
-        <input id="application-url" bind:value={applicationUrl} disabled={!canSave || saving} title={careerSaveTitle('Application link.')} inputmode="url" placeholder="https://..." />
+        <input id="application-url" bind:value={applicationUrl} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Application link.')} inputmode="url" placeholder="https://..." />
       </div>
       <div class="field">
         <label for="next-action">Next action</label>
-        <input id="next-action" bind:value={nextActionAt} disabled={!canSave || saving} title={careerSaveTitle('Next action date.')} type="date" />
+        <input id="next-action" bind:value={nextActionAt} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Next action date.')} type="date" />
       </div>
       <div class="field wide">
         <label for="notes">Notes</label>
-        <textarea id="notes" bind:value={notes} disabled={!canSave || saving} title={careerSaveTitle('Job notes.')} rows="2"></textarea>
+        <textarea id="notes" bind:value={notes} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Job notes.')} rows="2"></textarea>
       </div>
-      <button class="button primary" type="submit" disabled={!canSave || saving || !company.trim() || !role.trim()} title={addJobTitle()}>
+      <button class="button primary" type="submit" disabled={!canSave || saving || !company.trim() || !role.trim()} title={addJobButtonTitle}>
         <Plus size={17} />
         <span>{saving ? 'Saving' : 'Add Job'}</span>
       </button>
