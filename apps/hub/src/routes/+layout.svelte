@@ -21,7 +21,7 @@
   } from 'lucide-svelte';
   import { routeMap } from '@mini-hub/core';
   import AssistantDock from '$lib/AssistantDock.svelte';
-  import { clientData, type ClientDataState } from '$lib/client-data';
+  import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { runPassiveEvent } from '$lib/passive-tasks-api';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
   import { applyTheme, normalizeTheme, setTheme, theme, watchSystemTheme, type ThemeMode } from '$lib/theme';
@@ -44,14 +44,15 @@
 
   $: path = hubRouteFromPath($page.url.pathname);
   $: themeLabel = $theme === 'dark' ? 'Dark' : $theme === 'light' ? 'Light' : 'System';
-  $: syncPillText = layoutSyncPillText($clientData.status);
+  $: syncPillText = layoutSyncPillText($clientData);
   $: syncPillTitle = layoutSyncPillTitle($clientData);
   const passiveEventThrottlePrefix = 'miniHub.passive.event.v1';
 
-  function layoutSyncPillText(status: ClientDataState['status']): string {
-    if (status === 'offline-readonly') return 'Offline read-only';
-    if (status === 'syncing') return 'Syncing';
-    if (status === 'error') return 'Sync needs review';
+  function layoutSyncPillText(state: ClientDataState): string {
+    if (!state.initialized) return 'Loading cache';
+    if (state.status === 'offline-readonly') return 'Offline read-only';
+    if (state.status === 'syncing') return 'Syncing';
+    if (state.status === 'error') return 'Sync needs review';
     return 'Auto-save ready';
   }
 
@@ -69,7 +70,7 @@
     const currentIndex = modes.indexOf($theme);
     const nextTheme = modes[(currentIndex + 1) % modes.length] ?? 'system';
     setTheme(nextTheme);
-    if ($clientData.isOnline) {
+    if (canAutoSave($clientData)) {
       void clientData.saveSettings({ theme: nextTheme }).catch(() => undefined);
     }
   }
