@@ -608,6 +608,12 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('function passiveScheduleLabel');
     expect(passive).toContain('function passiveBackupStatusLabel');
     expect(passive).toContain('function passiveCountLabel');
+    expect(passive).toContain('function passivePanelEmptyMessage');
+    expect(passive).toContain('function passiveRecentRunsEmptyMessage');
+    expect(passive).toContain('Passive Tasks API is offline; this panel will load after the service reconnects.');
+    expect(passive).toContain('Loading recent passive results.');
+    expect(passive).toContain('Loading passive worker state.');
+    expect(passive).toContain('Loading passive settings.');
     expect(passive).toContain('if (!settings) return serviceError ?');
     expect(passive).toContain("if (!snapshot) return 'n/a'");
     expect(passive).toContain('<strong>{passiveEngineLabel()}</strong>');
