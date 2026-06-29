@@ -49,6 +49,7 @@
   import { attentionStore } from '$lib/attention-store';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
+  import { compactServiceIssueIfRecognized, isLikelyServiceIssue } from '$lib/service-issues';
 
   const watchedResearchPlaceholder = [
     'example.com',
@@ -114,6 +115,8 @@
     .slice(0, 8);
   $: summarizedServiceIssueCount = new Set([...summarizedDigestCards, ...summarizedResultRows].map((card) => card.id)).size;
   $: sourceIssueSummary = summarizedServiceIssueLine(summarizedServiceIssueCount, sourceRows);
+  $: visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Passive Tasks API') : '';
+  $: visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Passive Tasks action') : '';
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -185,7 +188,7 @@
     if (!worker?.lastIdle) return 'No idle probe yet';
     const idle = worker.lastIdle.idle ? 'idle' : 'active';
     const minutes = typeof worker.lastIdle.idleMinutes === 'number' ? ` ${Math.round(worker.lastIdle.idleMinutes)} min` : '';
-    const errorText = worker.lastIdle.error ? ` - ${worker.lastIdle.error}` : '';
+    const errorText = worker.lastIdle.error ? ` - ${passiveInlineIssue(worker.lastIdle.error, 'Passive idle probe')}` : '';
     return `${idle}${minutes} via ${worker.lastIdle.source}${errorText}`;
   }
 
@@ -216,7 +219,7 @@
     const latest = task.errorLog[0];
     if (!latest) return '';
     const retry = latest.nextRetryAt ? ` Retry ${displayWhen(latest.nextRetryAt)}.` : '';
-    return `${displayWhen(latest.at)}: ${latest.message}${retry}`;
+    return `${displayWhen(latest.at)}: ${passiveInlineIssue(latest.message, task.title)}${retry}`;
   }
 
   function canRunTask(task: PassiveTask, watcher: PassiveWatcher | undefined): boolean {
@@ -235,7 +238,7 @@
   ): string {
     if (state.loading) return 'Passive Tasks is loading the latest snapshot.';
     if (state.busyId) return 'Another Passive Tasks action is already running.';
-    if (state.serviceError) return `Passive Tasks API is unavailable: ${state.serviceError}`;
+    if (state.serviceError) return `Passive Tasks API is unavailable: ${compactServiceIssueIfRecognized(state.serviceError, 'Passive Tasks API')}`;
     if (!state.serviceReady) return 'Load Passive Tasks before changing worker, watcher, task, card, notification, or settings state.';
     return '';
   }
@@ -258,9 +261,11 @@
   }
 
   function passiveConnectionError(value: string): boolean {
-    return /(?:Failed to fetch|CORS|mixed-content|network|offline|unavailable|ECONNREFUSED|connection refused|timed out|timeout|Not Found)/iu.test(
-      value
-    );
+    return isLikelyServiceIssue(value);
+  }
+
+  function passiveInlineIssue(value: string | undefined, label = 'Passive Tasks'): string {
+    return value ? compactServiceIssueIfRecognized(value, label) : '';
   }
 
   function recordPassiveActionError(err: unknown, fallback: string): void {
@@ -668,13 +673,13 @@
   <section class="card card-pad warning-panel service-card">
     <div>
       <strong>Passive Tasks API unavailable</strong>
-      <span>{serviceError}</span>
+      <span title={`Raw Passive Tasks service error: ${serviceError}`}>{visibleServiceError}</span>
       <small>Target: {getApiUrl()}. {localNetworkHint()}</small>
     </div>
     <a class="button compact" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
   </section>
 {:else if actionError}
-  <section class="card card-pad warning-panel">{actionError}</section>
+  <section class="card card-pad warning-panel" title={`Raw Passive Tasks action error: ${actionError}`}>{visibleActionError}</section>
 {:else if message}
   <section class="card card-pad success-panel">{message}</section>
 {/if}
@@ -841,7 +846,7 @@
                   <small class="evidence-line">fetched {displayWhen(source.fetchedAt)}</small>
                 {/if}
                 {#if source.error}
-                  <small class="error-inline">{source.error}</small>
+                  <small class="error-inline" title={`Raw Passive source error: ${source.error}`}>{passiveInlineIssue(source.error, source.label)}</small>
                 {/if}
               </span>
             </div>
@@ -870,7 +875,7 @@
                 <small>{watcher?.title ?? trigger.watcherId ?? 'Unlinked watcher'} - {triggerCadence(trigger)}</small>
                 <small>{triggerLastLine(trigger)}{trigger.nextRunAt ? ` - next ${displayWhen(trigger.nextRunAt)}` : ''}</small>
                 {#if trigger.error}
-                  <small class="error-inline">{trigger.error}</small>
+                  <small class="error-inline" title={`Raw Passive trigger error: ${trigger.error}`}>{passiveInlineIssue(trigger.error, trigger.label)}</small>
                 {/if}
               </span>
             </div>
@@ -1043,9 +1048,9 @@
             <strong>{displayWhen(worker.nextTickAt)}</strong>
           </span>
           <span>
-            <small>Idle probe</small>
-            <strong>{workerIdleLine()}</strong>
-          </span>
+              <small>Idle probe</small>
+              <strong>{workerIdleLine()}</strong>
+            </span>
           <span>
             <small>File watchers</small>
             <strong>{worker.activeFileWatchCount}{worker.pendingFileEvent ? ' + pending file event' : ''}</strong>
@@ -1053,7 +1058,7 @@
           {#if worker.lastError}
             <span class="worker-error">
               <small>Last worker issue</small>
-              <strong>{worker.lastError}</strong>
+              <strong title={`Raw Passive worker error: ${worker.lastError}`}>{passiveInlineIssue(worker.lastError, 'Passive worker')}</strong>
             </span>
           {/if}
         </div>
@@ -1076,7 +1081,7 @@
               <span class={`state ${run.status}`}>{passiveRunStatusLabel(run.status)}</span>
               <span>
                 <strong>{passiveFamilyLabel(run.family)}</strong>
-                <small>{run.error ?? run.cards[0]?.summary ?? 'Needs inspection'}</small>
+                <small title={run.error ? `Raw Passive run error: ${run.error}` : undefined}>{run.error ? passiveInlineIssue(run.error, 'Passive run') : run.cards[0]?.summary ?? 'Needs inspection'}</small>
                 {#if runEvidence(run)}
                   <small class="evidence-line">{runEvidence(run)}</small>
                 {/if}

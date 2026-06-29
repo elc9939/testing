@@ -37,6 +37,7 @@
     type MacroRun,
     type MacroStatus
   } from '$lib/macro-lab-api';
+  import { compactServiceIssueIfRecognized, isLikelyServiceIssue } from '$lib/service-issues';
 
   let status: MacroStatus | null = null;
   let actions: ActionSpec[] = [];
@@ -62,6 +63,8 @@
   $: macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status });
   $: macroControlDisabled = Boolean(macroControlTitle);
   $: macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy });
+  $: visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Macro Lab') : '';
+  $: visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Macro Lab action') : '';
 
   onMount(() => {
     void refresh();
@@ -85,7 +88,7 @@
   ): string {
     if (state.loading) return 'Macro Lab is loading the latest desktop automation state.';
     if (state.busy) return 'Another Macro Lab action is already running.';
-    if (state.serviceError) return `Macro Lab service is unavailable: ${state.serviceError}`;
+    if (state.serviceError) return `Macro Lab service is unavailable: ${compactServiceIssueIfRecognized(state.serviceError, 'Macro Lab')}`;
     if (!state.status) return 'Connect Macro Lab before changing macros, triggers, recorder, panic, or run state.';
     return '';
   }
@@ -113,7 +116,7 @@
   }
 
   function macroConnectionError(message: string): boolean {
-    return /(?:Failed to fetch|CORS|mixed-content|network|offline|unavailable|ECONNREFUSED|connection refused|timed out|timeout|Not Found)/iu.test(message);
+    return isLikelyServiceIssue(message);
   }
 
   function recordMacroActionError(caught: unknown, fallback: string): void {
@@ -268,14 +271,14 @@
     <div>
       <strong>Macro Lab connection failed</strong>
       <span>{getMacroLabApiUrl()}</span>
-      <p>{serviceError}</p>
+      <p title={`Raw Macro Lab service error: ${serviceError}`}>{visibleServiceError}</p>
       <p>{localNetworkHint()}</p>
     </div>
     <a class="button" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
   </section>
 {/if}
 {#if actionError}
-  <div class="notice error">{actionError}</div>
+  <div class="notice error" title={`Raw Macro Lab action error: ${actionError}`}>{visibleActionError}</div>
 {/if}
 
 <section class="status-strip">

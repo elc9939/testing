@@ -554,6 +554,8 @@ describe('Mini Hub usability control gates', () => {
 
     expect(macro).toContain('macroServiceReady = Boolean(status && !serviceError)');
     expect(macro).toContain('macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status })');
+    expect(macro).toContain("visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Macro Lab') :");
+    expect(macro).toContain("visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Macro Lab action') :");
     expect(macro).toContain('macroControlDisabled = Boolean(macroControlTitle)');
     expect(macro).toContain('macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy })');
     expect(macro).toContain('function macroRefreshDisabledReason');
@@ -565,7 +567,8 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain("actionError = ''");
     expect(macro).toContain('connection-card service-card');
     expect(macro).toContain('Macro Lab connection failed');
-    expect(macro).toContain('<p>{serviceError}</p>');
+    expect(macro).toContain('Raw Macro Lab service error:');
+    expect(macro).toContain('Raw Macro Lab action error:');
     expect(macro).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(macro).toContain('function confirmMacroSideEffectRun');
     expect(macro).toContain('window.confirm(');
@@ -575,6 +578,8 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('disabled={macroControlDisabled}');
     expect(passive).toContain('passiveServiceReady = Boolean(snapshot && settings && !serviceError)');
     expect(passive).toContain('passiveWriteTitle = passiveDisabledReason({ loading, busyId, serviceError, serviceReady: passiveServiceReady })');
+    expect(passive).toContain("visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Passive Tasks API') :");
+    expect(passive).toContain("visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Passive Tasks action') :");
     expect(passive).toContain('passiveControlDisabled = Boolean(passiveWriteTitle)');
     expect(passive).toContain('passiveWriteDisabled = passiveControlDisabled');
     expect(passive).toContain('passiveRefreshBlockedReason = passiveRefreshDisabledReason({ loading, busyId })');
@@ -585,6 +590,12 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('sourceIssueSummary = summarizedServiceIssueLine');
     expect(passive).toContain('function summarizedServiceIssueCard');
     expect(passive).toContain('function summarizedServiceIssueLine');
+    expect(passive).toContain('function passiveInlineIssue');
+    expect(passive).toContain('Raw Passive Tasks service error:');
+    expect(passive).toContain('Raw Passive source error:');
+    expect(passive).toContain('Raw Passive trigger error:');
+    expect(passive).toContain('Raw Passive worker error:');
+    expect(passive).toContain('Raw Passive run error:');
     expect(passive).toContain('repeated service issue card');
     expect(passive).toContain('shown in Source Health instead');
     expect(passive).toContain('compact-service-note');
