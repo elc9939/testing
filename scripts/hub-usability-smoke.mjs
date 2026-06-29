@@ -25,7 +25,9 @@ const routes = [
       { label: 'unavailable source state', text: "status: 'unavailable'" },
       { label: 'recommendation action gating', text: 'modeActionDisabled' },
       { label: 'save and recovery strip', text: 'Save & Recovery' },
-      { label: 'data recovery deep link', text: "href={hubHref('/settings#data-recovery')}" }
+      { label: 'data recovery deep link', text: "href={hubHref('/settings#data-recovery')}" },
+      { label: 'machine mode deep link', text: "href={hubHref('/settings#machine-mode')}" },
+      { label: 'action ledger deep link', text: "href={hubHref('/settings#action-ledger')}" }
     ]
   },
   {
@@ -327,6 +329,8 @@ const routes = [
       { label: 'feature wiring anchor', text: 'id="feature-wiring"' },
       { label: 'data recovery map', text: 'persistenceRows' },
       { label: 'data recovery anchor', text: 'id="data-recovery"' },
+      { label: 'machine mode anchor', text: 'id="machine-mode"' },
+      { label: 'action ledger anchor', text: 'id="action-ledger"' },
       { label: 'sync gate title', text: 'syncNowTitle' },
       { label: 'machine profile gate', text: 'machineProfileControlBlockedReason' },
       { label: 'passive settings gate', text: 'passiveSettingsControlBlockedReason' }

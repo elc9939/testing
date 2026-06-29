@@ -163,6 +163,8 @@ API-backed preferences only sync when the Mini Hub API is reachable.
 Service/setup links that mention endpoints, local APIs, Google, AI OS, Macro Lab, or
 Passive Tasks land directly on Settings -> Feature Wiring so the current target URL,
 last check, status, and fix action are visible without hunting through Settings.
+Today's Machine Mode and Recent Actions shortcuts also land directly on the Settings
+Machine Mode controls and Action Ledger instead of the top of Settings.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,

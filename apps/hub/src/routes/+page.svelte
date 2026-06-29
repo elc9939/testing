@@ -963,7 +963,7 @@
           <span class="icon-chip"><Cpu size={16} /></span>
           <strong>Machine Mode</strong>
         </div>
-        <a class="button compact" href={hubHref('/settings')}>
+        <a class="button compact" href={hubHref('/settings#machine-mode')} title="Open Settings Machine Mode controls.">
           <span>Mode</span>
           <ArrowRight size={15} />
         </a>
@@ -1064,7 +1064,7 @@
           <span class="icon-chip"><Activity size={16} /></span>
           <strong>Recent Actions</strong>
         </div>
-        <a class="button compact" href={hubHref('/settings')}>
+        <a class="button compact" href={hubHref('/settings#action-ledger')} title="Open Settings Action Ledger.">
           <span>Ledger</span>
           <ArrowRight size={15} />
         </a>

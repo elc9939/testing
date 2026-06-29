@@ -879,7 +879,7 @@
     </button>
   </div>
 
-  <div class="machine-mode-panel">
+  <div id="machine-mode" class="machine-mode-panel">
     <div class="mode-heading">
       <div>
         <strong>Machine Mode</strong>
@@ -1421,7 +1421,7 @@
     </div>
   </div>
 
-  <div class="panel-block action-ledger-block">
+  <div id="action-ledger" class="panel-block action-ledger-block">
     <div class="section-title split-title">
       <span>
         <Activity size={18} />

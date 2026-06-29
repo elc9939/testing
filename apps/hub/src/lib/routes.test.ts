@@ -6,6 +6,8 @@ describe('hub route helpers', () => {
     expect(hubHref('/settings')).toBe('/settings');
     expect(hubHref('/settings#data-recovery')).toBe('/settings#data-recovery');
     expect(hubHref('/settings#feature-wiring')).toBe('/settings#feature-wiring');
+    expect(hubHref('/settings#machine-mode')).toBe('/settings#machine-mode');
+    expect(hubHref('/settings#action-ledger')).toBe('/settings#action-ledger');
     expect(hubHref('/')).toBe('/');
     expect(hubRouteFromPath('/desk/study')).toBe('/desk/study');
   });

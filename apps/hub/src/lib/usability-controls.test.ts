@@ -835,6 +835,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('One or more local Today sources are offline or unreachable.');
     expect(source).toContain('title={todayRefreshButtonTitle}');
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
+    expect(source).toContain("href={hubHref('/settings#machine-mode')}");
+    expect(source).toContain("href={hubHref('/settings#action-ledger')}");
     expect(source).toContain('function todayCountLabel');
     expect(source).toContain("if ($attentionStore.loading && !attentionSnapshot) return '...'");
     expect(source).toContain("if (!attentionSnapshot) return 'n/a'");
@@ -1306,6 +1308,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={Boolean(machineSnapshotBlockedReason)}');
     expect(source).toContain('function machineModeBlockedReason');
     expect(source).toContain('Machine Mode cannot save because Mini Hub API is not ready');
+    expect(source).toContain('id="machine-mode"');
     expect(source).toContain('disabled={modeSaving || !canSync}');
     expect(source).toContain("{machineProfileError && !machineProfile ? 'Retry Profile' : 'Refresh Profile'}");
     expect(source).toContain('passiveSettingsBlockedReason = passiveSettingsControlBlockedReason');
@@ -1333,6 +1336,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Offline read-only: start or connect the Mini Hub API before syncing.');
     expect(source).toContain('id="feature-wiring"');
     expect(source).toContain('id="data-recovery"');
+    expect(source).toContain('id="action-ledger"');
     expect(source).toContain('<strong>Data &amp; Recovery</strong>');
     expect(source).toContain('persistenceRows');
     expect(source).toContain('persistenceStats.crossDevice');
