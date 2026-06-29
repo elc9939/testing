@@ -27,7 +27,9 @@ const routes = [
     heading: 'Research Desk',
     safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service'],
     safeActionFallbacks: {
-      'Run Quick Search': ['Connect AI OS']
+      'Connect AI OS': ['Checking AI OS', 'Setup', 'Loading research monitors'],
+      'Run Quick Search': ['Connect AI OS', 'Checking AI OS', 'Setup', 'Loading research monitors'],
+      'Retry Service': ['Checking AI OS', 'Setup', 'Loading research monitors']
     }
   },
   { id: 'ai-lab', path: '/ai-lab', title: 'AI Lab - Mini Hub', heading: 'Browser Experiments', safeActionLabels: ['Restore Samples', 'Classify', 'Parse'] },
@@ -395,6 +397,19 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function sendCredentialedJson(request, response, status, payload) {
+  const origin = request.headers.origin || 'http://127.0.0.1';
+  response.writeHead(status, {
+    'access-control-allow-origin': origin,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+    'access-control-allow-headers': 'content-type,accept,x-mini-hub-sync-key',
+    'vary': 'Origin',
+    'content-type': 'application/json'
+  });
+  response.end(JSON.stringify(payload));
+}
+
 function readJsonBody(request) {
   return new Promise((resolve) => {
     const chunks = [];
@@ -481,6 +496,197 @@ function createMockResearchRun(input, index = 1) {
     runtime_ms: 321,
     cached_pages: 0,
     options: input
+  };
+}
+
+function mockSyncEvent(entityType, entity, operation = 'insert', index = 1) {
+  const now = new Date(Date.UTC(2026, 5, 23, 12, 10, index)).toISOString();
+  return {
+    id: `mock-sync:${entityType}:${entity.id}:${index}`,
+    workspaceId: entity.workspaceId || 'personal',
+    entityType,
+    entityId: entity.id,
+    operation,
+    payload: operation === 'delete' ? { id: entity.id } : entity,
+    deviceId: entity.deviceId || 'hydrated-smoke',
+    createdAt: now
+  };
+}
+
+function createMockJob(input, index = 1) {
+  const now = new Date(Date.UTC(2026, 5, 23, 12, 20, index)).toISOString();
+  return {
+    id: typeof input.id === 'string' && input.id ? input.id : `hydrated-job-${index}`,
+    workspaceId: typeof input.workspaceId === 'string' && input.workspaceId ? input.workspaceId : 'personal',
+    company: String(input.company || 'Hydrated API Smoke Labs'),
+    role: String(input.role || 'Saved QA Analyst'),
+    status: String(input.status || 'lead'),
+    applicationUrl: String(input.applicationUrl || ''),
+    ...(typeof input.fitScore === 'number' ? { fitScore: input.fitScore } : {}),
+    ...(input.nextActionAt ? { nextActionAt: String(input.nextActionAt) } : {}),
+    notes: String(input.notes || ''),
+    deviceId: String(input.deviceId || 'hydrated-smoke'),
+    updatedAt: String(input.updatedAt || now)
+  };
+}
+
+function createMockStudySession(input, index = 1) {
+  const now = new Date(Date.UTC(2026, 5, 23, 12, 30, index)).toISOString();
+  return {
+    id: typeof input.id === 'string' && input.id ? input.id : `hydrated-study-${index}`,
+    workspaceId: typeof input.workspaceId === 'string' && input.workspaceId ? input.workspaceId : 'personal',
+    subject: String(input.subject || 'Hydrated API Study'),
+    minutes: Number.isFinite(Number(input.minutes)) ? Number(input.minutes) : 26,
+    source: String(input.source || 'manual'),
+    loggedAt: String(input.loggedAt || now),
+    deviceId: String(input.deviceId || 'hydrated-smoke'),
+    updatedAt: String(input.updatedAt || now)
+  };
+}
+
+async function startMockHubApiServer() {
+  const port = await freePort();
+  const jobs = [];
+  const sessions = [];
+  const syncEvents = [];
+  const server = http.createServer(async (request, response) => {
+    if (request.method === 'OPTIONS') {
+      sendCredentialedJson(request, response, 204, {});
+      return;
+    }
+    const url = new URL(request.url || '/', `http://127.0.0.1:${port}`);
+    const pathName = url.pathname;
+
+    if (pathName === '/api/health' && request.method === 'GET') {
+      sendCredentialedJson(request, response, 200, {
+        ok: true,
+        service: 'mini-hub-api-hydrated-smoke',
+        checkedAt: '2026-06-23T12:00:00.000Z',
+        storage: {
+          coreData: {
+            enabled: true,
+            status: 'memory_only',
+            exists: true,
+            detail: 'Hydrated smoke mock API. Data is discarded when the smoke check exits.',
+            recordCounts: {
+              workspaces: 1,
+              members: 1,
+              jobs: jobs.length,
+              studySessions: sessions.length,
+              careerActions: 0,
+              gameRuns: 0,
+              gameStates: 0,
+              settings: 0,
+              achievements: 0,
+              notes: 0,
+              syncEvents: syncEvents.length
+            }
+          }
+        }
+      });
+      return;
+    }
+
+    if (pathName === '/api/sync/pull' && request.method === 'GET') {
+      const since = url.searchParams.get('since') || '';
+      const changes = syncEvents.filter((event) => !since || event.createdAt > since);
+      sendCredentialedJson(request, response, 200, {
+        changes,
+        cursor: changes.at(-1)?.createdAt || since
+      });
+      return;
+    }
+
+    if (pathName === '/api/jobs' && request.method === 'GET') {
+      sendCredentialedJson(request, response, 200, { jobs });
+      return;
+    }
+    if (pathName === '/api/jobs' && request.method === 'POST') {
+      const input = await readJsonBody(request);
+      const job = createMockJob(input, jobs.length + 1);
+      const existingIndex = jobs.findIndex((candidate) => candidate.id === job.id);
+      if (existingIndex >= 0) jobs[existingIndex] = job;
+      else jobs.unshift(job);
+      syncEvents.push(mockSyncEvent('job', job, existingIndex >= 0 ? 'update' : 'insert', syncEvents.length + 1));
+      sendCredentialedJson(request, response, existingIndex >= 0 ? 200 : 201, { job });
+      return;
+    }
+
+    const jobMatch = /^\/api\/jobs\/([^/]+)$/u.exec(pathName);
+    if (jobMatch) {
+      const id = decodeURIComponent(jobMatch[1]);
+      const index = jobs.findIndex((job) => job.id === id);
+      if (index < 0) {
+        sendCredentialedJson(request, response, 404, { error: 'Job not found' });
+        return;
+      }
+      if (request.method === 'PATCH') {
+        const input = await readJsonBody(request);
+        const job = createMockJob({ ...jobs[index], ...input, id }, index + 1);
+        jobs[index] = job;
+        syncEvents.push(mockSyncEvent('job', job, 'update', syncEvents.length + 1));
+        sendCredentialedJson(request, response, 200, { job });
+        return;
+      }
+      if (request.method === 'DELETE') {
+        const [job] = jobs.splice(index, 1);
+        syncEvents.push(mockSyncEvent('job', job, 'delete', syncEvents.length + 1));
+        sendCredentialedJson(request, response, 200, { ok: true });
+        return;
+      }
+    }
+
+    if (pathName === '/api/study' && request.method === 'GET') {
+      sendCredentialedJson(request, response, 200, { sessions });
+      return;
+    }
+    if (pathName === '/api/study' && request.method === 'POST') {
+      const input = await readJsonBody(request);
+      const session = createMockStudySession(input, sessions.length + 1);
+      const existingIndex = sessions.findIndex((candidate) => candidate.id === session.id);
+      if (existingIndex >= 0) sessions[existingIndex] = session;
+      else sessions.unshift(session);
+      syncEvents.push(mockSyncEvent('study_session', session, existingIndex >= 0 ? 'update' : 'insert', syncEvents.length + 1));
+      sendCredentialedJson(request, response, existingIndex >= 0 ? 200 : 201, { session });
+      return;
+    }
+
+    const studyMatch = /^\/api\/study\/([^/]+)$/u.exec(pathName);
+    if (studyMatch) {
+      const id = decodeURIComponent(studyMatch[1]);
+      const index = sessions.findIndex((session) => session.id === id);
+      if (index < 0) {
+        sendCredentialedJson(request, response, 404, { error: 'Study session not found' });
+        return;
+      }
+      if (request.method === 'PATCH') {
+        const input = await readJsonBody(request);
+        const session = createMockStudySession({ ...sessions[index], ...input, id }, index + 1);
+        sessions[index] = session;
+        syncEvents.push(mockSyncEvent('study_session', session, 'update', syncEvents.length + 1));
+        sendCredentialedJson(request, response, 200, { session });
+        return;
+      }
+      if (request.method === 'DELETE') {
+        const [session] = sessions.splice(index, 1);
+        syncEvents.push(mockSyncEvent('study_session', session, 'delete', syncEvents.length + 1));
+        sendCredentialedJson(request, response, 200, { ok: true });
+        return;
+      }
+    }
+
+    sendCredentialedJson(request, response, 404, { error: `mock route not found: ${pathName}` });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () => new Promise((resolve) => server.close(resolve))
   };
 }
 
@@ -1158,76 +1364,84 @@ async function runAiOsOfflineActionGuardChecks(client, baseUrl) {
 }
 
 async function runDeskWriteGuardChecks(client, baseUrl) {
-  if (process.env.HUB_HYDRATED_DESK_WRITES === '1') return runDeskApiSaveChecks(client, baseUrl);
-
   const checks = [];
+  const useRealApi = process.env.HUB_HYDRATED_DESK_WRITES === '1';
 
-  await navigate(client, routeUrl(baseUrl, '/desk/career'));
-  await setControlValue(client, '#company', 'Hydrated Smoke Labs');
-  await setControlValue(client, '#role', 'QA Reliability Analyst');
-  checks.push({
-    id: 'career-add-job-guard',
-    route: '/desk/career',
-    ...(await waitForCondition(
-      client,
-      `(() => {
-        const button = [...document.querySelectorAll('button')].find((candidate) =>
-          (candidate.innerText || candidate.textContent || '').includes('Add Job')
-        );
-        const title = button?.getAttribute('title') || '';
-        const disabled = Boolean(button?.disabled);
-        const body = document.body?.innerText || '';
-        if (!button) return { ok: false, state: 'missing-button', detail: 'Add Job button is missing.' };
-        if (disabled) {
+  if (!useRealApi) {
+    await navigate(client, routeUrl(baseUrl, '/desk/career'));
+    await setControlValue(client, '#company', 'Hydrated Smoke Labs');
+    await setControlValue(client, '#role', 'QA Reliability Analyst');
+    checks.push({
+      id: 'career-add-job-guard',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const button = [...document.querySelectorAll('button')].find((candidate) =>
+            (candidate.innerText || candidate.textContent || '').includes('Add Job')
+          );
+          const title = button?.getAttribute('title') || '';
+          const disabled = Boolean(button?.disabled);
+          const body = document.body?.innerText || '';
+          if (!button) return { ok: false, state: 'missing-button', detail: 'Add Job button is missing.' };
+          if (disabled) {
+            return {
+              ok: /Offline read-only|API before saving|A Career save is already running/i.test(title),
+              state: 'write-guarded',
+              detail: \`Add Job disabled with title "\${title}". Saved message visible: \${/Saved QA Reliability Analyst at Hydrated Smoke Labs/i.test(body)}\`
+            };
+          }
           return {
-            ok: /Offline read-only|API before saving|A Career save is already running/i.test(title),
-            state: 'write-guarded',
-            detail: \`Add Job disabled with title "\${title}". Saved message visible: \${/Saved QA Reliability Analyst at Hydrated Smoke Labs/i.test(body)}\`
+            ok: true,
+            state: 'online-ready',
+            detail: 'Add Job is enabled after required fields are filled; default smoke will verify saving against a mock API next.'
           };
-        }
-        return {
-          ok: true,
-          state: 'online-ready',
-          detail: 'Add Job is enabled after required fields are filled; default smoke does not create persistent API records.'
-        };
-      })()`,
-      12_000
-    ))
-  });
+        })()`,
+        12_000
+      ))
+    });
 
-  await navigate(client, routeUrl(baseUrl, '/desk/study'));
-  await setControlValue(client, '#subject', 'Hydrated Smoke Study');
-  await setControlValue(client, '#minutes', '25');
-  checks.push({
-    id: 'study-log-guard',
-    route: '/desk/study',
-    ...(await waitForCondition(
-      client,
-      `(() => {
-        const button = [...document.querySelectorAll('button')].find((candidate) =>
-          (candidate.innerText || candidate.textContent || '').includes('Log Progress')
-        );
-        const title = button?.getAttribute('title') || '';
-        const disabled = Boolean(button?.disabled);
-        const body = document.body?.innerText || '';
-        if (!button) return { ok: false, state: 'missing-button', detail: 'Log Progress button is missing.' };
-        if (disabled) {
+    await navigate(client, routeUrl(baseUrl, '/desk/study'));
+    await setControlValue(client, '#subject', 'Hydrated Smoke Study');
+    await setControlValue(client, '#minutes', '25');
+    checks.push({
+      id: 'study-log-guard',
+      route: '/desk/study',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const button = [...document.querySelectorAll('button')].find((candidate) =>
+            (candidate.innerText || candidate.textContent || '').includes('Log Progress')
+          );
+          const title = button?.getAttribute('title') || '';
+          const disabled = Boolean(button?.disabled);
+          const body = document.body?.innerText || '';
+          if (!button) return { ok: false, state: 'missing-button', detail: 'Log Progress button is missing.' };
+          if (disabled) {
+            return {
+              ok: /Offline read-only|API before saving|A Study save is already running/i.test(title),
+              state: 'write-guarded',
+              detail: \`Log Progress disabled with title "\${title}". Logged message visible: \${/Logged 25 min for Hydrated Smoke Study/i.test(body)}\`
+            };
+          }
           return {
-            ok: /Offline read-only|API before saving|A Study save is already running/i.test(title),
-            state: 'write-guarded',
-            detail: \`Log Progress disabled with title "\${title}". Logged message visible: \${/Logged 25 min for Hydrated Smoke Study/i.test(body)}\`
+            ok: true,
+            state: 'online-ready',
+            detail: 'Log Progress is enabled after required fields are filled; default smoke will verify saving against a mock API next.'
           };
-        }
-        return {
-          ok: true,
-          state: 'online-ready',
-          detail: 'Log Progress is enabled after required fields are filled; default smoke does not create persistent API records.'
-        };
-      })()`,
-      12_000
-    ))
-  });
+        })()`,
+        12_000
+      ))
+    });
+  }
 
+  let mockApi = null;
+  try {
+    mockApi = useRealApi ? null : await startMockHubApiServer();
+    checks.push(...(await runDeskApiSaveChecks(client, baseUrl, mockApi?.url || '')));
+  } finally {
+    await mockApi?.close();
+  }
   return checks;
 }
 
@@ -1403,10 +1617,14 @@ async function runLocalServiceSideEffectGuardChecks(client, baseUrl) {
   return checks;
 }
 
-async function runDeskApiSaveChecks(client, baseUrl) {
+async function runDeskApiSaveChecks(client, baseUrl, apiUrl = '') {
   const checks = [];
+  const withApi = (route) =>
+    apiUrl
+      ? routeUrl(baseUrl, `${route}${route.includes('?') ? '&' : '?'}apiUrl=${encodeURIComponent(apiUrl)}`, { skipApiUrlOverride: true })
+      : routeUrl(baseUrl, route);
 
-  await navigate(client, routeUrl(baseUrl, '/desk/career'));
+  await navigate(client, withApi('/desk/career'));
   await setControlValue(client, '#company', 'Hydrated API Smoke Labs');
   await setControlValue(client, '#role', 'Saved QA Analyst');
   checks.push({
@@ -1450,7 +1668,7 @@ async function runDeskApiSaveChecks(client, baseUrl) {
         15_000
       ))
     });
-    await navigate(client, routeUrl(baseUrl, '/desk/career'));
+    await navigate(client, withApi('/desk/career'));
     checks.push({
       id: 'career-add-job-reloaded',
       route: '/desk/career',
@@ -1470,7 +1688,7 @@ async function runDeskApiSaveChecks(client, baseUrl) {
     });
   }
 
-  await navigate(client, routeUrl(baseUrl, '/desk/study'));
+  await navigate(client, withApi('/desk/study'));
   await setControlValue(client, '#subject', 'Hydrated API Study');
   await setControlValue(client, '#minutes', '26');
   checks.push({
@@ -1514,7 +1732,7 @@ async function runDeskApiSaveChecks(client, baseUrl) {
         15_000
       ))
     });
-    await navigate(client, routeUrl(baseUrl, '/desk/study'));
+    await navigate(client, withApi('/desk/study'));
     checks.push({
       id: 'study-log-reloaded',
       route: '/desk/study',

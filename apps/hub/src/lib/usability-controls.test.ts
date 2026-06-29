@@ -1064,7 +1064,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Hydrated smoke AI Lab draft');
     expect(source).toContain("safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service']");
     expect(source).toContain('safeActionFallbacks');
-    expect(source).toContain("'Run Quick Search': ['Connect AI OS']");
+    expect(source).toContain("'Run Quick Search': ['Connect AI OS', 'Checking AI OS', 'Setup', 'Loading research monitors']");
     expect(source).toContain("'Do it': ['Connect AI OS', 'Checking AI OS']");
     expect(source).toContain("'Dry Run': ['No macro selected', 'Macro definitions are unavailable', 'Start Macro Lab', 'Loading macro definitions']");
     expect(source).toContain("'Check Services': ['Checking']");

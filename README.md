@@ -650,7 +650,8 @@ fills a sample Research goal to verify the offline run guard does not fake a que
 starts an embedded mock AI OS Research service to verify run creation, pause, resume, cancel, and reload recovery,
 forces AI OS offline to verify command, autotune, design, benchmark, job, and generation controls stay disabled,
 fills Career/Study forms to verify service-backed save controls are guarded when the Hub API
-is unavailable,
+is unavailable, then starts an embedded mock Mini Hub API to verify Career and Study save/reload
+without touching real local data,
 seeds cached Google Calendar/Gmail rows to verify Productivity stays inspectable while writes are locked,
 forces Macro Lab and Passive Tasks offline to verify side-effect controls stay disabled,
 test-fires AI Lab Tree-sitter Parse, verifies the Tree-sitter asset-error copy with an
@@ -660,10 +661,11 @@ reload for Activity cache, Productivity Google cache, Research Desk drafts, and 
 The first AI Lab Classify run may download browser model assets; set
 `HUB_HYDRATED_AI_LAB_CLASSIFY=0` for a quick/offline smoke that skips only that model path.
 `pnpm qa:hub:hydrated:ai` remains as a compatibility alias for the full hydrated AI Lab path.
-Run `pnpm qa:hub:hydrated:writes` when a disposable Mini Hub API is running and you want
-real Career/Study save-and-reload evidence. Set `HUB_HYDRATED_API_URL` to that temporary API
-origin; the script passes it through the same `apiUrl` endpoint override used by Settings.
-This mode creates smoke rows named `Hydrated API Smoke Labs` and `Hydrated API Study`, so
+Run `pnpm qa:hub:hydrated:writes` when a disposable real Mini Hub API is running and you want
+the same Career/Study save-and-reload evidence against the real backend instead of the embedded
+mock. Set `HUB_HYDRATED_API_URL` to that temporary API origin; the script passes it through the
+same `apiUrl` endpoint override used by Settings. This mode creates smoke rows named
+`Hydrated API Smoke Labs` and `Hydrated API Study`, so
 prefer a temporary `MINI_HUB_DATA_DIR`.
 
 Python backend checks:
