@@ -451,6 +451,7 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('./AssistantDock.svelte');
 
     expect(source).toContain('sendBlockedReason = assistantSendBlockedReason');
+    expect(source).toContain("assistantToggleTitle = open ? 'Close AI assistant.' : 'Open AI assistant.'");
     expect(source).toContain('function assistantSendBlockedReason');
     expect(source).toContain('Assistant is already working on the current request.');
     expect(source).toContain('Type a message before sending.');
@@ -462,6 +463,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={exampleTitle(example)}');
     expect(source).toContain('disabled={busy}');
     expect(source).toContain('title={assistantActionTitle(action)}');
+    expect(source).toContain('aria-label={open ? \'Close assistant\' : \'Open assistant\'} title={assistantToggleTitle}');
+    expect(source).toContain('aria-label="Close assistant" title="Close AI assistant."');
     expect(source).toContain("const featureWiringAction: AssistantAction = { id: 'open-feature-wiring', label: 'Open Feature Wiring', kind: 'navigate', route: '/settings#feature-wiring' }");
     expect(source).toContain('actions: [\n          featureWiringAction,\n          { id:');
     expect(source).toContain('text: `Memory search failed.\\n\\n${errorMessage(error)}`,\n        actions: [featureWiringAction]');

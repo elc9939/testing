@@ -65,6 +65,7 @@
   $: capabilityTotal = capabilitySnapshot?.summary.total ?? 0;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: sendBlockedReason = assistantSendBlockedReason({ busy, draft });
+  $: assistantToggleTitle = open ? 'Close AI assistant.' : 'Open AI assistant.';
 
   function newMessageId(): string {
     if (globalThis.crypto && 'randomUUID' in globalThis.crypto) return globalThis.crypto.randomUUID();
@@ -512,7 +513,7 @@
             {/if}
           </small>
         </div>
-        <button class="icon-button" type="button" aria-label="Close assistant" title="Close" on:click={() => (open = false)}>
+        <button class="icon-button" type="button" aria-label="Close assistant" title="Close AI assistant." on:click={() => (open = false)}>
           <PanelRightClose size={17} />
         </button>
       </header>
@@ -589,7 +590,7 @@
     </section>
   {/if}
 
-  <button class="assistant-toggle" type="button" aria-label={open ? 'Close assistant' : 'Open assistant'} title="AI assistant" on:click={() => (open = !open)}>
+  <button class="assistant-toggle" type="button" aria-label={open ? 'Close assistant' : 'Open assistant'} title={assistantToggleTitle} on:click={() => (open = !open)}>
     {#if open}
       <PanelRightOpen size={20} />
     {:else}
