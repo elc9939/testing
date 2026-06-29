@@ -72,6 +72,11 @@
     dismissedCount,
     refreshBlockedReason
   };
+  $: activityInitialLoading = loading && !snapshot;
+  $: runningStatusDetail = activityInitialLoading ? 'Checking sources' : hasActive ? 'Polls while open' : 'No live work';
+  $: pausedStatusDetail = activityInitialLoading ? 'Checking sources' : pausedRecords.length ? 'Resume or cancel' : 'None';
+  $: failedStatusDetail = activityInitialLoading ? 'Checking sources' : failedRecords.length ? 'Needs inspection' : 'Clear';
+  $: savedStatusDetail = activityInitialLoading ? 'Checking cache and services' : stableRecords.length ? 'Reports and history' : 'None yet';
   $: activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot);
   $: visibleActivityError = error ? compactActivityRefreshError(error) : '';
   $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
@@ -420,22 +425,22 @@
   <article>
     <span>Running</span>
     <strong>{runningRecords.length}</strong>
-    <small>{hasActive ? 'Polls while open' : 'No live work'}</small>
+    <small>{runningStatusDetail}</small>
   </article>
   <article>
     <span>Paused</span>
     <strong>{pausedRecords.length}</strong>
-    <small>{pausedRecords.length ? 'Resume or cancel' : 'None'}</small>
+    <small>{pausedStatusDetail}</small>
   </article>
   <article>
     <span>Failed</span>
     <strong>{failedRecords.length}</strong>
-    <small>{failedRecords.length ? 'Needs inspection' : 'Clear'}</small>
+    <small>{failedStatusDetail}</small>
   </article>
   <article>
     <span>Saved</span>
     <strong>{stableRecords.length}</strong>
-    <small>{stableRecords.length ? 'Reports and history' : 'None yet'}</small>
+    <small>{savedStatusDetail}</small>
   </article>
   <article>
     <span>Sources</span>
