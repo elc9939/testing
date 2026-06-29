@@ -7,6 +7,7 @@
   import { canAutoSave, clientData } from '$lib/client-data';
   import { getConnections, listPriorityGmailThreads, type GmailThreadInsight, type PublicConnection } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
+  import { compactServiceIssueLine } from '$lib/service-issues';
 
   const statuses = ['lead', 'applied', 'interview', 'offer', 'rejected', 'archived'];
 
@@ -107,6 +108,7 @@
   $: careerSummaryButtonTitle = careerSummaryTitle(careerControlState);
   $: careerMailUpdatesButtonTitle = careerMailUpdatesTitle(careerControlState);
   $: careerExportButtonTitle = careerExportTitle(careerControlState);
+  $: visibleMailUpdatesError = mailUpdatesError ? compactServiceIssueLine(mailUpdatesError, 'Career mail scan') : '';
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
 
   function careerSaveTitle(state: Pick<CareerControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
@@ -652,7 +654,7 @@
     <span>{googleConnected ? `${visibleCareerMailUpdates.length} shown / ${matchedCareerMailUpdates.length} matched` : 'Google not connected'}</span>
   </div>
   {#if mailUpdatesError}
-    <p class="muted mail-update-empty">{mailUpdatesError}</p>
+    <p class="muted mail-update-empty" title={`Raw Career mail scan error: ${mailUpdatesError}`}>{visibleMailUpdatesError}</p>
   {:else if !googleConnected}
     <p class="muted mail-update-empty">Connect Google in Hub, then this page will surface updates that match jobs you marked as applied, interview, offer, or rejected.</p>
   {:else if !submittedJobs.length}

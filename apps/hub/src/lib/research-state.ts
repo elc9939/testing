@@ -1,4 +1,5 @@
 import type { ResearchMode, ResearchRun } from './ai-os-api';
+import { compactServiceIssueLine, isLikelyServiceIssue } from './service-issues';
 
 export interface ResearchDraftState {
   mode: ResearchMode;
@@ -54,14 +55,12 @@ export function researchRunListState(input: { loading: boolean; error?: string; 
 }
 
 export function isResearchServiceError(value: string): boolean {
-  return /(?:AI OS|api|service|route|Failed to fetch|CORS|mixed-content|timed out|timeout|unavailable|offline|Not Found|ECONNREFUSED|connection refused)/iu.test(
-    value
-  );
+  return isLikelyServiceIssue(value);
 }
 
 export function compactResearchServiceIssue(errors: string[]): string {
   const serviceError = errors.map((item) => item.trim()).find((item) => item && isResearchServiceError(item));
-  return serviceError ?? '';
+  return serviceError ? compactServiceIssueLine(serviceError, 'AI OS') : '';
 }
 
 export function normalizeResearchDraft(value: unknown, fallback: ResearchDraftState): ResearchDraftState {

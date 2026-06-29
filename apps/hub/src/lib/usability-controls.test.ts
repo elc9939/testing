@@ -894,6 +894,8 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('careerSummaryButtonTitle = careerSummaryTitle(careerControlState)');
     expect(career).toContain('careerMailUpdatesButtonTitle = careerMailUpdatesTitle(careerControlState)');
     expect(career).toContain('careerExportButtonTitle = careerExportTitle(careerControlState)');
+    expect(career).toContain('visibleMailUpdatesError = mailUpdatesError ? compactServiceIssueLine(mailUpdatesError,');
+    expect(career).toContain('Raw Career mail scan error:');
     expect(career).toContain('function careerSaveTitle');
     expect(career).toContain('function careerRowTitle');
     expect(career).toContain('function careerMailUpdatesTitle');

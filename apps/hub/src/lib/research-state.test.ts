@@ -142,6 +142,6 @@ describe('research draft and state helpers', () => {
         'Type a research goal before running.',
         'AI OS API route /api/ai/research/runs was not found at http://127.0.0.1:8791.'
       ])
-    ).toContain('AI OS API route');
+    ).toBe('AI OS is pointed at the wrong endpoint or a missing route. Open Settings Feature Wiring and check the saved service URL.');
   });
 });

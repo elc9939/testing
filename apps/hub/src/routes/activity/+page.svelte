@@ -19,6 +19,7 @@
   } from '$lib/activity-api';
   import { persistenceRows, persistenceSummary } from '$lib/persistence-map';
   import { hubHref } from '$lib/routes';
+  import { classifyServiceIssue } from '$lib/service-issues';
 
   const expectedActivitySources = [
     { id: 'ai-os', label: 'AI OS' },
@@ -195,18 +196,13 @@
   }
 
   function compactActivitySourceError(message = ''): string {
-    const text = message.trim();
-    if (!text) return 'unavailable';
-    if (/timed out|timeout/iu.test(text)) return 'timed out; cached work remains visible';
-    if (/github pages|returned.*html|static site|wrong endpoint|missing route|404|not found/iu.test(text)) {
-      return 'wrong endpoint or missing route';
-    }
-    if (/cors|mixed-content|firewall|blocked/iu.test(text)) return 'browser blocked request';
-    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable/iu.test(text)) {
-      return 'service offline or unreachable';
-    }
-    if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) return 'auth or permission needed';
-    return text.length > 96 ? `${text.slice(0, 93)}...` : text;
+    const issue = classifyServiceIssue(message);
+    if (issue.kind === 'timeout') return 'timed out; cached work remains visible';
+    if (issue.kind === 'wrong-endpoint') return 'wrong endpoint or missing route';
+    if (issue.kind === 'browser-blocked') return 'browser blocked request';
+    if (issue.kind === 'offline') return 'service offline or unreachable';
+    if (issue.kind === 'auth') return 'auth or permission needed';
+    return issue.summary;
   }
 
   function compactActivityRefreshError(message = ''): string {
@@ -330,7 +326,7 @@
     if (action.kind === 'open' || action.kind === 'view_logs' || action.kind === 'dismiss') return '';
     const source = sourceStateFor(record);
     if (!source?.ok) {
-      const detail = source?.state === 'timeout' ? 'timed out' : source?.error || 'is offline';
+      const detail = source?.state === 'timeout' ? 'timed out' : compactActivitySourceError(source?.error || 'is offline');
       return `${record.sourceLabel} ${detail}; refresh or open Settings Feature Wiring before running ${action.label}.`;
     }
     return '';
