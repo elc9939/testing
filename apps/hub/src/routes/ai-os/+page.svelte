@@ -1,7 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { routeMap } from '@mini-hub/core';
   import {
     Activity,
     BrainCircuit,
@@ -1204,7 +1203,7 @@
       {#if shouldOfferLocalHub()}
         <a class="button primary" href={connectedLocalAiOsHref}>Open connected local AI OS</a>
       {/if}
-      <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>
+      <a class="button" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
     </div>
   </section>
 {:else if actionMessage}

@@ -5,6 +5,7 @@ describe('hub route helpers', () => {
   it('keeps local hub links root-relative in dev', () => {
     expect(hubHref('/settings')).toBe('/settings');
     expect(hubHref('/settings#data-recovery')).toBe('/settings#data-recovery');
+    expect(hubHref('/settings#feature-wiring')).toBe('/settings#feature-wiring');
     expect(hubHref('/')).toBe('/');
     expect(hubRouteFromPath('/desk/study')).toBe('/desk/study');
   });

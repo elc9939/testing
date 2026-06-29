@@ -637,7 +637,7 @@
       <strong>Today refresh needs attention</strong>
       <p>{visibleAttentionError} Cached attention remains visible when available.</p>
     </div>
-    <a class="button compact" href={hubHref('/settings')} title="Open Settings to inspect Hub API, Google, AI OS, Macro Lab, and endpoint wiring.">
+    <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to inspect Hub API, Google, AI OS, Macro Lab, and endpoint wiring.">
       <Settings size={15} />
       <span>Open Settings</span>
     </a>
@@ -1014,7 +1014,7 @@
           <span class="icon-chip"><Activity size={16} /></span>
           <strong>Capability Health</strong>
         </div>
-        <a class="button compact" href={hubHref('/settings')}>
+        <a class="button compact" href={hubHref('/settings#feature-wiring')}>
           <span>Fix</span>
           <ArrowRight size={15} />
         </a>

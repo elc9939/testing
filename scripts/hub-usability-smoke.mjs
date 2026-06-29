@@ -80,6 +80,7 @@ const routes = [
       { label: 'cached read-only state', text: 'Cached read-only' },
       { label: 'api offline write detail', text: 'OAuth, Gmail, and Calendar writes need the local API' },
       { label: 'google setup write detail', text: 'Use Connect Google or Add Google Account before sending mail' },
+      { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'calendar event disabled title', text: 'calendarEventBlockTitle' },
       { label: 'calendar move confirmation', text: 'Calendar move skipped.' },
       { label: 'offline cache banner', text: 'offline-banner' },
@@ -206,7 +207,8 @@ const routes = [
       { label: 'source library gating', text: 'sourceLibrarySearchDisabled' },
       { label: 'offline source empty state', text: 'Source Library is unavailable until AI OS is connected' },
       { label: 'research cancel prompt', text: 'Research cancellation skipped.' },
-      { label: 'export setup routing', text: 'reportExportHref' }
+      { label: 'export setup routing', text: 'reportExportHref' },
+      { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" }
     ]
   },
   {
@@ -252,7 +254,7 @@ const routes = [
       { label: 'startup checking state', text: "state === 'checking'" },
       { label: 'startup checking summary', text: 'Checking AI OS' },
       { label: 'connection card', text: 'connection-card' },
-      { label: 'settings recovery link', text: 'Open Settings' },
+      { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'warmup gate', text: 'warmupBlockedReason' },
       { label: 'job cancel gate', text: 'jobCancelBlockedReason' },
       { label: 'job cancel prompt', text: 'AI OS job cancellation skipped.' }
@@ -276,6 +278,7 @@ const routes = [
       { label: 'macro control gate', text: 'macroControlDisabled' },
       { label: 'connection card', text: 'connection-card' },
       { label: 'compact service card', text: 'service-card' },
+      { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'confirmed run prompt', text: 'confirmMacroSideEffectRun' },
       { label: 'history unavailable state', text: 'Run history is unavailable until Macro Lab responds.' }
     ]
@@ -298,6 +301,7 @@ const routes = [
       { label: 'write gating', text: 'passiveWriteDisabled' },
       { label: 'service card', text: 'service-card' },
       { label: 'offline wording', text: 'Passive Tasks API unavailable' },
+      { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'passive cancel prompt', text: 'Passive task cancellation skipped.' },
       { label: 'source health empty state', text: 'Source health appears after passive tasks are registered.' },
       { label: 'repeated service issue compaction', text: 'summarizedServiceIssueCard' },
@@ -320,6 +324,7 @@ const routes = [
     expectedStates: ['offline', 'setup', 'recovery', 'ready'],
     requiredMarkers: [
       { label: 'feature wiring table', text: 'Feature Wiring' },
+      { label: 'feature wiring anchor', text: 'id="feature-wiring"' },
       { label: 'data recovery map', text: 'persistenceRows' },
       { label: 'data recovery anchor', text: 'id="data-recovery"' },
       { label: 'sync gate title', text: 'syncNowTitle' },

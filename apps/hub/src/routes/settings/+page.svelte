@@ -1053,7 +1053,7 @@
     <p class="helper-text">Capability status has not been checked yet.</p>
   {/if}
 
-  <div class="feature-wiring-panel" aria-label="Feature wiring diagnostics">
+  <div id="feature-wiring" class="feature-wiring-panel" aria-label="Feature wiring diagnostics">
     <div class="section-title split-title">
       <span>
         <Monitor size={18} />

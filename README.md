@@ -160,6 +160,9 @@ authoritative in Google, while Mini Hub keeps a browser-side last-good display c
 Analytics does not save its own dataset; it rebuilds from cached/synced Career, Study,
 and game records. Settings service URLs and diagnostics are browser-local, while any
 API-backed preferences only sync when the Mini Hub API is reachable.
+Service/setup links that mention endpoints, local APIs, Google, AI OS, Macro Lab, or
+Passive Tasks land directly on Settings -> Feature Wiring so the current target URL,
+last check, status, and fix action are visible without hunting through Settings.
 
 Mini Hub also has Passive Task Engine v1 under `/api/passive-tasks/*` and the `/passive-tasks`
 dashboard. The engine persists first-class `Watcher`, `Trigger`, `Task`, `Run`, `Result`,

@@ -15,7 +15,6 @@
     ToggleRight,
     Wrench
   } from 'lucide-svelte';
-  import { routeMap } from '@mini-hub/core';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
   import {
@@ -272,7 +271,7 @@
       <p>{serviceError}</p>
       <p>{localNetworkHint()}</p>
     </div>
-    <a class="button" href={hubHref(routeMap.settings)}>Open Settings</a>
+    <a class="button" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
   </section>
 {/if}
 {#if actionError}

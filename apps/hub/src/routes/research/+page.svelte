@@ -723,7 +723,7 @@
   }
 
   function reportExportHref(run: ResearchRun, format: 'markdown' | 'json' | 'html'): string {
-    return aiOsUnavailable ? hubHref(routeMap.settings) : researchExportUrl(run.id, format);
+    return aiOsUnavailable ? hubHref('/settings#feature-wiring') : researchExportUrl(run.id, format);
   }
 
   function reportExportTitle(format: string): string {
@@ -1046,7 +1046,7 @@
           <RefreshCw size={15} />
           <span>Retry Service</span>
         </button>
-        <a class="link-button compact" href={hubHref(routeMap.settings)}>Open Settings</a>
+        <a class="link-button compact" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
       </div>
     </section>
   {:else if serviceProbePending}

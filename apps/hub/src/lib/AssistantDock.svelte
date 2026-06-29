@@ -214,7 +214,7 @@
         text: formatCapabilityRegistrySummary(snapshot),
         actions: [
           { id: 'open-today-capabilities', label: 'Open Today', kind: 'navigate', route: '/' },
-          { id: 'open-settings-capabilities', label: 'Open Settings', kind: 'navigate', route: '/settings' }
+          { id: 'open-settings-capabilities', label: 'Open Settings', kind: 'navigate', route: '/settings#feature-wiring' }
         ]
       });
     } catch (error) {

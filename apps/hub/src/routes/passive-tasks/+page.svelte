@@ -671,7 +671,7 @@
       <span>{serviceError}</span>
       <small>Target: {getApiUrl()}. {localNetworkHint()}</small>
     </div>
-    <a class="button compact" href={hubHref('/settings')}>Open Settings</a>
+    <a class="button compact" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
   </section>
 {:else if actionError}
   <section class="card card-pad warning-panel">{actionError}</section>

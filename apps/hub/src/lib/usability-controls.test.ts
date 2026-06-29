@@ -397,6 +397,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Cancel research run "${run.goal || run.id}"?');
     expect(source).toContain('Research cancellation skipped.');
     expect(source).toContain('function reportExportHref');
+    expect(source).toContain("return aiOsUnavailable ? hubHref('/settings#feature-wiring') : researchExportUrl(run.id, format)");
+    expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain('Exports need AI OS; these links open Settings.');
     expect(source).toContain('selectedRunId: selectedRun?.id ?? persistedRunId');
     expect(source).toContain('selectedMonitorId');
@@ -459,6 +461,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={exampleTitle(example)}');
     expect(source).toContain('disabled={busy}');
     expect(source).toContain('title={assistantActionTitle(action)}');
+    expect(source).toContain("route: '/settings#feature-wiring'");
     expect(source).toContain('Route ambiguous assistant requests through the AI OS command/tool planner when possible.');
     expect(source).toContain('Permit write or system tools only after an explicit confirmation pass.');
     expect(source).toContain('{currentMachineMode.shortLabel} - App helper');
@@ -533,6 +536,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Another ambient unit action is already running.');
     expect(source).toContain("disabled={backgroundActionDisabled(unit, 'toggle')}");
     expect(source).toContain("disabled={backgroundActionDisabled(unit, 'run')}");
+    expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
   });
 
   it('guards Macro Lab and Passive task side-effect controls while state is unknown', async () => {
@@ -553,6 +557,7 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('connection-card service-card');
     expect(macro).toContain('Macro Lab connection failed');
     expect(macro).toContain('<p>{serviceError}</p>');
+    expect(macro).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(macro).toContain('function confirmMacroSideEffectRun');
     expect(macro).toContain('window.confirm(');
     expect(macro).toContain('Confirmed macro run skipped.');
@@ -592,6 +597,7 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('if (passiveConnectionError(nextError))');
     expect(passive).toContain('Passive Tasks API unavailable');
     expect(passive).toContain('Target: {getApiUrl()}. {localNetworkHint()}');
+    expect(passive).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(passive).toContain('disabled={passiveWriteDisabled}');
     expect(passive).toContain('title={passiveActionTitle');
     expect(passive).toContain('disabled={passiveWriteDisabled || !canRunTask(task, watcher)}');
@@ -707,7 +713,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
     expect(source).toContain('{productivityApiBannerText}');
-    expect(source).toContain('hubHref(routeMap.settings)');
+    expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain('disabled={productivityRefreshDisabled}');
   });
 
@@ -828,6 +834,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Raw Today error:');
     expect(source).toContain('One or more local Today sources are offline or unreachable.');
     expect(source).toContain('title={todayRefreshButtonTitle}');
+    expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain('function todayCountLabel');
     expect(source).toContain("if ($attentionStore.loading && !attentionSnapshot) return '...'");
     expect(source).toContain("if (!attentionSnapshot) return 'n/a'");
@@ -1324,6 +1331,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={endpointSaving}');
     expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");
     expect(source).toContain('Offline read-only: start or connect the Mini Hub API before syncing.');
+    expect(source).toContain('id="feature-wiring"');
     expect(source).toContain('id="data-recovery"');
     expect(source).toContain('<strong>Data &amp; Recovery</strong>');
     expect(source).toContain('persistenceRows');

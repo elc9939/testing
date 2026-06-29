@@ -21,7 +21,6 @@
     Unlink,
     X
   } from 'lucide-svelte';
-  import { routeMap } from '@mini-hub/core';
   import type { CalendarEvent, GmailLabel, GmailThread, TimelineItem } from '@mini-hub/core';
   import { attentionStore } from '$lib/attention-store';
   import { getApiUrl } from '$lib/api';
@@ -1232,13 +1231,13 @@
 {#if !canAct}
   <section class="card card-pad offline-banner">
     <span>{productivityApiBannerText}</span>
-    <a class="inline-action" href={hubHref(routeMap.settings)}>Open Settings</a>
+    <a class="inline-action" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
   </section>
 {/if}
 {#if cacheWarning}
   <section class="card card-pad offline-banner">
     <span>{cacheWarning}</span>
-    <a class="inline-action" href={hubHref(routeMap.settings)}>Open Settings</a>
+    <a class="inline-action" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
   </section>
 {/if}
 {#if actionError}
@@ -1247,7 +1246,7 @@
       <strong>Productivity action needs attention</strong>
       <p>{visibleActionError}</p>
     </div>
-    <a class="button compact" href={hubHref(routeMap.settings)} title="Open Settings to inspect Mini Hub API, Google OAuth, and endpoint wiring.">
+    <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to inspect Mini Hub API, Google OAuth, and endpoint wiring.">
       <span>Open Settings</span>
     </a>
   </section>
