@@ -57,6 +57,7 @@
   ];
 
   const examples = ['What can this PC do?', 'Check AI status', 'Open Career Desk', 'Summarize my hub'];
+  const featureWiringAction: AssistantAction = { id: 'open-feature-wiring', label: 'Open Feature Wiring', kind: 'navigate', route: '/settings#feature-wiring' };
 
   $: availableProviderCount = aiStatus?.providers.filter((provider) => provider.available).length ?? 0;
   $: providerCount = aiStatus?.providers.length ?? 0;
@@ -91,7 +92,7 @@
 
   function assistantActionTitle(action: AssistantAction): string {
     if (busy) return 'Assistant is already working on the current request.';
-    if (action.kind === 'navigate') return `Open ${action.label}.`;
+    if (action.kind === 'navigate') return /^open\b/iu.test(action.label) ? `${action.label}.` : `Open ${action.label}.`;
     if (action.kind === 'confirm-command') return 'Run this assistant request with confirmed write/system actions enabled.';
     return 'Retry this assistant request.';
   }
@@ -198,7 +199,10 @@
       addMessage({
         role: 'assistant',
         text: `I could not reach AI OS, so tool/agent status is unavailable right now.\n\n${localNetworkHint()}\n\n${errorMessage(error)}`,
-        actions: [{ id: 'retry-status', label: 'Retry', kind: 'retry', objective: 'Check AI status' }]
+        actions: [
+          featureWiringAction,
+          { id: 'retry-status', label: 'Retry', kind: 'retry', objective: 'Check AI status' }
+        ]
       });
     } finally {
       busy = false;
@@ -214,14 +218,17 @@
         text: formatCapabilityRegistrySummary(snapshot),
         actions: [
           { id: 'open-today-capabilities', label: 'Open Today', kind: 'navigate', route: '/' },
-          { id: 'open-settings-capabilities', label: 'Open Settings', kind: 'navigate', route: '/settings#feature-wiring' }
+          featureWiringAction
         ]
       });
     } catch (error) {
       addMessage({
         role: 'assistant',
         text: `I could not build the capability registry right now.\n\n${localNetworkHint()}\n\n${errorMessage(error)}`,
-        actions: [{ id: 'retry-capabilities', label: 'Retry', kind: 'retry', objective: 'What capabilities are available?' }]
+        actions: [
+          featureWiringAction,
+          { id: 'retry-capabilities', label: 'Retry', kind: 'retry', objective: 'What capabilities are available?' }
+        ]
       });
     } finally {
       busy = false;
@@ -243,7 +250,11 @@
         text: lines.length ? `Semantic memory results for "${query}":\n\n${lines.join('\n\n')}` : `No semantic memory hits for "${query}".`
       });
     } catch (error) {
-      addMessage({ role: 'assistant', text: `Memory search failed.\n\n${errorMessage(error)}` });
+      addMessage({
+        role: 'assistant',
+        text: `Memory search failed.\n\n${errorMessage(error)}`,
+        actions: [featureWiringAction]
+      });
     } finally {
       busy = false;
     }
@@ -275,7 +286,10 @@
       addMessage({
         role: 'assistant',
         text: `AI OS command failed.\n\n${errorMessage(error)}`,
-        actions: [{ id: 'retry-command', label: 'Retry as tool command', kind: 'retry', objective }]
+        actions: [
+          featureWiringAction,
+          { id: 'retry-command', label: 'Retry as tool command', kind: 'retry', objective }
+        ]
       });
     } finally {
       busy = false;
@@ -325,7 +339,8 @@
     } catch (fallbackError) {
       addMessage({
         role: 'assistant',
-        text: localAssistantFallback(input, aiOsError, fallbackError)
+        text: localAssistantFallback(input, aiOsError, fallbackError),
+        actions: [featureWiringAction]
       });
     }
   }

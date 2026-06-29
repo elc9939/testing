@@ -458,10 +458,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("title={sendBlockedReason || 'Send this message to the assistant.'}");
     expect(source).toContain('function exampleTitle');
     expect(source).toContain('function assistantActionTitle');
+    expect(source).toContain("if (action.kind === 'navigate') return /^open\\b/iu.test(action.label) ? `${action.label}.` : `Open ${action.label}.`;");
     expect(source).toContain('title={exampleTitle(example)}');
     expect(source).toContain('disabled={busy}');
     expect(source).toContain('title={assistantActionTitle(action)}');
-    expect(source).toContain("route: '/settings#feature-wiring'");
+    expect(source).toContain("const featureWiringAction: AssistantAction = { id: 'open-feature-wiring', label: 'Open Feature Wiring', kind: 'navigate', route: '/settings#feature-wiring' }");
+    expect(source).toContain('actions: [\n          featureWiringAction,\n          { id:');
+    expect(source).toContain('text: `Memory search failed.\\n\\n${errorMessage(error)}`,\n        actions: [featureWiringAction]');
+    expect(source).toContain('text: localAssistantFallback(input, aiOsError, fallbackError),\n        actions: [featureWiringAction]');
     expect(source).toContain('Route ambiguous assistant requests through the AI OS command/tool planner when possible.');
     expect(source).toContain('Permit write or system tools only after an explicit confirmation pass.');
     expect(source).toContain('{currentMachineMode.shortLabel} - App helper');
