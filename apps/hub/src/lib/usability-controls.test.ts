@@ -399,7 +399,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function reportExportHref');
     expect(source).toContain("return aiOsUnavailable ? hubHref('/settings#feature-wiring') : researchExportUrl(run.id, format)");
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
-    expect(source).toContain('Exports need AI OS; these links open Settings.');
+    expect(source).toContain('Exports need AI OS; these links open Settings Feature Wiring.');
     expect(source).toContain('selectedRunId: selectedRun?.id ?? persistedRunId');
     expect(source).toContain('selectedMonitorId');
     expect(source).toContain('class:selected={monitor.id === selectedMonitorId}');
@@ -757,7 +757,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function sourceHealthTitle');
     expect(source).toContain('title={sourceHealthTitle(source)}');
     expect(source).toContain('Checking source status from AI OS, Passive Tasks, and Macro Lab.');
-    expect(source).toContain('No source snapshot yet; refresh Activity or open Settings.');
+    expect(source).toContain('No source snapshot yet; refresh Activity or open Settings Feature Wiring.');
     expect(source).toContain('function activitySourceHealthSummary');
     expect(source).toContain('<strong>{sourceHealthRows.filter((source) => source.ok).length}/{sourceHealthRows.length}</strong>');
     expect(source).toContain('<span>Dismissed</span>');
@@ -788,7 +788,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function activityEmptyTitle');
     expect(source).toContain('No live activity loaded from reachable sources.');
     expect(source).toContain('function activityEmptyDetail');
-    expect(source).toContain('Start or fix AI OS, Passive Tasks, or Macro Lab in Settings');
+    expect(source).toContain('Start or fix AI OS, Passive Tasks, or Macro Lab in Settings Feature Wiring');
     expect(source).toContain('cached record');
     expect(source).toContain('function activityEmptyRefreshTitle');
     expect(source).toContain('function dismissedToggleTitle');
@@ -821,7 +821,7 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/+page.svelte');
 
     expect(source).toContain('function modeActionBlockedReason');
-    expect(source).toContain('AI OS is not reachable; open Settings to connect the local service.');
+    expect(source).toContain('AI OS is not reachable; open Settings Feature Wiring to connect the local service.');
     expect(source).toContain('function modeActionDisabled');
     expect(source).toContain('disabled={modeActionDisabled(item)}');
     expect(source).toContain('title={modeActionBlockedReason(item) || item.action.label}');

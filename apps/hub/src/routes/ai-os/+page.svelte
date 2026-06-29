@@ -252,7 +252,7 @@
 
   function requireAiOsReady(action: string): boolean {
     if (status) return true;
-    actionError = `${action} needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
+    actionError = `${action} needs the local AI OS service first. Refresh status or open Settings Feature Wiring to connect ${getAiOsApiUrl()}.`;
     actionMessage = '';
     return false;
   }
@@ -260,7 +260,7 @@
   function aiOsServiceActionBlockedReason(state: { loading: boolean; ready: boolean; apiUrl: string }): string {
     if (state.ready) return '';
     if (state.loading) return `AI OS status is still loading from ${state.apiUrl}.`;
-    return `AI OS is offline or not connected at ${state.apiUrl}. Open Settings or refresh status before using this control.`;
+    return `AI OS is offline or not connected at ${state.apiUrl}. Open Settings Feature Wiring or refresh status before using this control.`;
   }
 
   function aiOsRefreshTitle(isLoading: boolean, enabledTitle = 'Refresh AI OS status from the local service.'): string {
@@ -290,7 +290,7 @@
   }
 
   function jobCancelBlockedReason(job: AiJobSnapshot): string {
-    if (aiOsActionBlocked) return `Cancel needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
+    if (aiOsActionBlocked) return `Cancel needs the local AI OS service first. Refresh status or open Settings Feature Wiring to connect ${getAiOsApiUrl()}.`;
     if (job.status !== 'running' && job.status !== 'queued') return `Cannot cancel a ${job.status} job.`;
     if (jobCancelBusyId === job.id) return 'Cancellation is already running for this job.';
     if (jobCancelBusyId) return 'Another job cancellation is already running.';
@@ -308,7 +308,7 @@
   function backgroundActionBlockedReason(unit: AiBackgroundUnit, action: 'toggle' | 'run'): string {
     const label = action === 'toggle' ? 'Toggle ambient unit' : 'Run ambient unit';
     const key = backgroundActionKey(unit, action);
-    if (aiOsActionBlocked) return `${label} needs the local AI OS service first. Refresh status or open Settings to connect ${getAiOsApiUrl()}.`;
+    if (aiOsActionBlocked) return `${label} needs the local AI OS service first. Refresh status or open Settings Feature Wiring to connect ${getAiOsApiUrl()}.`;
     if (backgroundBusyId === key) return `${label} is already running.`;
     if (backgroundBusyId) return 'Another ambient unit action is already running.';
     return '';

@@ -287,7 +287,7 @@
 
     const aiService = capabilitySnapshot.capabilities.find((capability) => capability.id === 'ai-os.service');
     if (!aiService?.available) {
-      return aiService?.lastError ?? 'AI OS is not reachable; open Settings to connect the local service.';
+      return aiService?.lastError ?? 'AI OS is not reachable; open Settings Feature Wiring to connect the local service.';
     }
 
     const requiredCapability = modeRecommendationCapability(item);

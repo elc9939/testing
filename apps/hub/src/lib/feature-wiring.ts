@@ -48,7 +48,7 @@ export function buildFeatureWiringRows(input: FeatureWiringInput): FeatureWiring
       id: 'hub-api',
       feature: 'Mini Hub API',
       requiredService: 'Hub API',
-      route: routeMap.settings,
+      route: `${routeMap.settings}#feature-wiring`,
       endpoint: hubEndpoint,
       signal: input.hubApi,
       checkedAt: input.checkedAt
@@ -153,7 +153,7 @@ function localRow(signal: FeatureWiringSignal, checkedAt?: string): FeatureWirin
     status,
     detail: signal.detail || signal.error || (status === 'ready' ? 'Browser storage is writable for drafts, cached activity, and local-first reads.' : 'Browser storage is unavailable.'),
     fixAction: signal.fixAction || (status === 'ready' ? 'No action needed.' : 'Check browser privacy/storage settings and reload.'),
-    route: routeMap.settings,
+    route: `${routeMap.settings}#data-recovery`,
     lastCheckedAt: checkedAt
   };
 }

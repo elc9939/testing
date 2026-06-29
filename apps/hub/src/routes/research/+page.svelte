@@ -1415,7 +1415,7 @@
             <ExternalLink size={15} /> HTML
           </a>
           {#if aiOsUnavailable}
-            <small class="export-note">Exports need AI OS; these links open Settings.</small>
+            <small class="export-note">Exports need AI OS; these links open Settings Feature Wiring.</small>
           {/if}
         </div>
       </div>

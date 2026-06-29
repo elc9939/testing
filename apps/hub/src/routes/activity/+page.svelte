@@ -245,13 +245,13 @@
     if (source.state === 'checking') return `${source.label}: checking source status.`;
     const summary = compactActivitySourceError(source.error);
     const detail = source.error?.trim();
-    return detail ? `${source.label}: ${summary}. ${detail}` : `${source.label}: ${summary}. Refresh Activity or open Settings.`;
+    return detail ? `${source.label}: ${summary}. ${detail}` : `${source.label}: ${summary}. Refresh Activity or open Settings Feature Wiring.`;
   }
 
   function fallbackActivitySources(state: { loading: boolean; refreshing: boolean }): ActivitySourceState[] {
     const detail = state.loading || state.refreshing
       ? 'Checking source status from AI OS, Passive Tasks, and Macro Lab.'
-      : 'No source snapshot yet; refresh Activity or open Settings.';
+      : 'No source snapshot yet; refresh Activity or open Settings Feature Wiring.';
     const fallbackState: ActivitySourceState['state'] = state.loading || state.refreshing ? 'checking' : 'error';
     return expectedActivitySources.map((source) => ({
       ...source,
@@ -312,7 +312,7 @@
 
   function activityEmptyDetail(): string {
     if (partial || sourceFailures.length) {
-      return 'Activity checked the durable work sources it could reach. Start or fix AI OS, Passive Tasks, or Macro Lab in Settings, then retry.';
+      return 'Activity checked the durable work sources it could reach. Start or fix AI OS, Passive Tasks, or Macro Lab in Settings Feature Wiring, then retry.';
     }
     if (stale) return 'The browser cache is available, but it does not contain any durable work records yet.';
     return 'When a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run exists in its backend, it will appear here after refresh.';
@@ -331,7 +331,7 @@
     const source = sourceStateFor(record);
     if (!source?.ok) {
       const detail = source?.state === 'timeout' ? 'timed out' : source?.error || 'is offline';
-      return `${record.sourceLabel} ${detail}; refresh or open Settings before running ${action.label}.`;
+      return `${record.sourceLabel} ${detail}; refresh or open Settings Feature Wiring before running ${action.label}.`;
     }
     return '';
   }
@@ -342,7 +342,7 @@
 
   function actionHref(record: ActivityRecord, action: ActivityAction): string {
     if (action.enabled || sourceReachable(record)) return hubHref(action.route || record.route);
-    return hubHref('/settings');
+    return hubHref('/settings#feature-wiring');
   }
 
   function linkActionTitle(record: ActivityRecord, action: ActivityAction): string {

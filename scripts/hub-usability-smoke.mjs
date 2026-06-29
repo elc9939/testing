@@ -51,7 +51,7 @@ const routes = [
       { label: 'checking source state', text: 'checking source status' },
       { label: 'compact source diagnostics', text: 'compactActivitySourceError' },
       { label: 'source detail tooltip', text: 'sourceHealthTitle' },
-      { label: 'no source snapshot state', text: 'No source snapshot yet; refresh Activity or open Settings.' },
+      { label: 'no source snapshot state', text: 'No source snapshot yet; refresh Activity or open Settings Feature Wiring.' },
       { label: 'cached records state', text: 'showing cached records from' },
       { label: 'activity cache recovery notes', text: 'activitySnapshotRecoveryNotes' },
       { label: 'activity cache warning surface', text: 'Activity cache and recovery notes' },

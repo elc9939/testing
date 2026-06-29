@@ -27,6 +27,8 @@ describe('feature wiring diagnostics', () => {
       status: 'misconfigured',
       endpoint: 'http://127.0.0.1:8791'
     });
+    expect(rows.find((row) => row.id === 'hub-api')?.route).toBe('/settings#feature-wiring');
+    expect(rows.find((row) => row.id === 'browser-storage')?.route).toBe('/settings#data-recovery');
     expect(rows.find((row) => row.id === 'research-endpoints')?.status).toBe('misconfigured');
   });
 
