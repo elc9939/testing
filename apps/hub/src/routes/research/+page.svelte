@@ -1073,6 +1073,8 @@
       <label>
         <span>Goal</span>
         <textarea
+          id="research-goal"
+          aria-label="Research goal"
           bind:value={goal}
           rows="5"
           placeholder="Example: Compare Clay Labs and FieldAI data analyst roles, cite sources, and list open questions."
@@ -1082,7 +1084,7 @@
       <div class="inline-fields">
         <label>
           <span>Seed URLs</span>
-          <textarea bind:value={seedUrlsText} rows="3" placeholder="Optional URLs, one per line"></textarea>
+          <textarea id="research-seed-urls" aria-label="Research seed URLs" bind:value={seedUrlsText} rows="3" placeholder="Optional URLs, one per line"></textarea>
         </label>
         <label>
           <span>Max pages</span>

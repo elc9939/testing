@@ -5,6 +5,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const routes = [
   { id: 'today', path: '/', title: 'Today - Mini Hub', heading: 'Attention Queue', safeActionLabels: ['Refresh'] },
@@ -385,6 +388,110 @@ function freePort() {
       });
     });
   });
+}
+
+function pnpmExecutable() {
+  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+}
+
+function pnpmSpawn(commandArgs) {
+  if (process.platform === 'win32') {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', pnpmExecutable(), ...commandArgs]
+    };
+  }
+  return { command: pnpmExecutable(), args: commandArgs };
+}
+
+async function waitForReachableUrl(url, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = '';
+  while (Date.now() < deadline) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (response.ok) return true;
+      lastError = `HTTP ${response.status}`;
+    } catch (error) {
+      clearTimeout(timer);
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await delay(300);
+  }
+  throw new Error(`Timed out waiting for ${url} to become reachable. Last error: ${lastError || 'no response'}`);
+}
+
+async function startManagedHubServer() {
+  const port = await freePort();
+  const url = `http://127.0.0.1:${port}/`;
+  const launcher = pnpmSpawn(['--filter', '@mini-hub/hub', 'dev', '--host', '127.0.0.1', '--port', String(port)]);
+  const child = spawn(launcher.command, launcher.args, {
+    cwd: repoRoot,
+    stdio: ['ignore', 'ignore', 'pipe'],
+    shell: false,
+    windowsHide: true
+  });
+
+  let stderr = '';
+  child.stderr?.on('data', (chunk) => {
+    const text = chunk.toString();
+    stderr += text;
+    if (process.env.HUB_HYDRATED_DEBUG === '1') process.stderr.write(text);
+  });
+
+  try {
+    await waitForReachableUrl(url);
+  } catch (error) {
+    await stopProcessTree(child);
+    throw new Error(
+      `Could not start managed Mini Hub dev server for hydrated smoke. ${error instanceof Error ? error.message : String(error)}${
+        stderr.trim() ? `\nVite stderr:\n${stderr.trim().slice(-2000)}` : ''
+      }`
+    );
+  }
+
+  return { url, child };
+}
+
+async function stopProcessTree(child) {
+  if (!child || child.killed) return;
+  if (process.platform === 'win32') {
+    await new Promise((resolve) => {
+      const killer = spawn('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+        windowsHide: true
+      });
+      const timer = setTimeout(resolve, 2500);
+      killer.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      killer.once('error', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+    return;
+  }
+  child.kill();
+  await new Promise((resolve) => {
+    if (child.exitCode !== null) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, 2000);
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+async function stopManagedProcess(child) {
+  await stopProcessTree(child);
 }
 
 function sendJson(response, status, payload) {
@@ -1136,8 +1243,13 @@ async function fillFirstTextarea(client, value) {
   const result = await evaluate(
     client,
     `(() => {
-      const textarea = document.querySelector('textarea');
-      if (!textarea) return { ok: false, detail: 'No textarea found.' };
+      const textarea = document.querySelector('#research-goal, textarea');
+      if (!textarea) {
+        return {
+          ok: false,
+          detail: 'No textarea found. title=' + document.title + '; heading=' + (document.querySelector('h1')?.textContent?.trim() || 'missing') + '; body=' + (document.body?.innerText || '').replace(/\\s+/g, ' ').slice(0, 220)
+        };
+      }
       const value = ${JSON.stringify(value)};
       textarea.focus();
       textarea.value = value;
@@ -2346,7 +2458,7 @@ async function runAiLabActionChecks(client, baseUrl) {
     });
   }
 
-  if (process.env.HUB_HYDRATED_AI_LAB_CLASSIFY !== '0') {
+  if ((process.env.HUB_HYDRATED_AI_LAB_CLASSIFY || '0') !== '0') {
     try {
       await clickButtonByText(client, 'Classify');
       const classify = await waitForCondition(
@@ -2378,7 +2490,7 @@ async function runAiLabActionChecks(client, baseUrl) {
       route: '/ai-lab',
       ok: true,
       state: 'skipped',
-      detail: 'Skipped because HUB_HYDRATED_AI_LAB_CLASSIFY=0. Default hydrated smoke runs the real Transformers.js classify path.'
+      detail: 'Skipped because HUB_HYDRATED_AI_LAB_CLASSIFY is not enabled. Run pnpm qa:hub:hydrated:ai for the real Transformers.js classify path.'
     });
   }
 
@@ -2447,8 +2559,10 @@ function printActionChecks(actions) {
 }
 
 async function main() {
-  const baseUrl = process.env.HUB_HYDRATED_URL || process.env.HUB_SMOKE_URL || 'http://127.0.0.1:5173/';
   const browser = await findBrowser();
+  const configuredBaseUrl = process.env.HUB_HYDRATED_URL || process.env.HUB_SMOKE_URL || '';
+  const managedHub = configuredBaseUrl ? null : await startManagedHubServer();
+  const baseUrl = configuredBaseUrl || managedHub.url;
   const port = await freePort();
   const profileDir = await mkdtemp(path.join(os.tmpdir(), 'mini-hub-hydrated-smoke-'));
   const browserProcess = spawn(browser, [
@@ -2520,19 +2634,9 @@ async function main() {
     }
   } finally {
     client?.close();
-    if (!browserProcess.killed) browserProcess.kill();
-    await new Promise((resolve) => {
-      if (browserProcess.exitCode !== null) {
-        resolve();
-        return;
-      }
-      const timer = setTimeout(resolve, 2000);
-      browserProcess.once('exit', () => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
+    await stopProcessTree(browserProcess);
     await removeProfileDir(profileDir);
+    await stopManagedProcess(managedHub?.child);
   }
 }
 
