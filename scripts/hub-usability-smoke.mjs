@@ -975,7 +975,7 @@ function printChecklist(rows, liveRows, baseUrl) {
   console.log('# Mini Hub Usability Checklist');
   console.log('');
   console.log(`Generated: ${new Date().toISOString()}`);
-  console.log(`Target: ${baseUrl || 'source-only; set HUB_SMOKE_URL for live route links'}`);
+  console.log(`Target: ${baseUrl || 'source-only; pass --url or set HUB_SMOKE_URL for live route links'}`);
   console.log('');
   console.log('Use this as the repeatable manual/Playwright-style pass after the static smoke table. Each item should either work, be disabled with a clear reason, or route to setup.');
   console.log('');
@@ -1018,9 +1018,20 @@ function printChecklist(rows, liveRows, baseUrl) {
   }
 }
 
+function argValue(args, name) {
+  const inlinePrefix = `${name}=`;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index] ?? '';
+    if (arg.startsWith(inlinePrefix)) return arg.slice(inlinePrefix.length);
+    if (arg === name) return args[index + 1] ?? '';
+  }
+  return '';
+}
+
 async function main() {
-  const args = new Set(process.argv.slice(2));
-  const baseUrl = process.env.HUB_SMOKE_URL ?? '';
+  const rawArgs = process.argv.slice(2);
+  const args = new Set(rawArgs);
+  const baseUrl = argValue(rawArgs, '--url') || process.env.HUB_SMOKE_URL || '';
   const requireHydrated = args.has('--require-hydrated') || process.env.HUB_SMOKE_REQUIRE_HYDRATED === '1';
   const rows = await Promise.all(routes.map(sourceSnapshot));
   const liveRows = new Map();

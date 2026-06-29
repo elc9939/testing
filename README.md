@@ -618,10 +618,11 @@ Mini Hub usability smoke check:
 
 ```powershell
 pnpm qa:hub:smoke
-$env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
-$env:HUB_SMOKE_URL='https://elc9939.github.io/testing/'; pnpm qa:hub:smoke
+pnpm qa:hub:smoke:local
+pnpm qa:hub:smoke:hosted
+pnpm qa:hub:smoke -- --url http://127.0.0.1:5173
 pnpm qa:hub:smoke -- --checklist
-$env:HUB_SMOKE_REQUIRE_HYDRATED='1'; $env:HUB_SMOKE_URL='http://127.0.0.1:5173'; pnpm qa:hub:smoke
+pnpm qa:hub:smoke -- --url http://127.0.0.1:5173 --require-hydrated
 pnpm qa:hub:hydrated
 $env:HUB_HYDRATED_URL='http://127.0.0.1:5173'; pnpm qa:hub:hydrated
 pnpm qa:hub:hydrated:ai
@@ -636,13 +637,13 @@ loading, empty, partial-failure, browser-local, or control-gating state that mak
 understandable, if a listed safe action no longer maps to a visible button/link label or
 title, if a route form can fall back to browser-native submission instead of Svelte's guarded
 handler, if a visible control has no source-level label/title, or if a disabled source
-control lacks a title/ARIA explanation. With `HUB_SMOKE_URL` set, it also fetches the route
-HTML and records live title, heading, enabled/disabled controls, state/error snippets,
+control lacks a title/ARIA explanation. With `--url` or `HUB_SMOKE_URL` set, it also fetches
+the route HTML and records live title, heading, enabled/disabled controls, state/error snippets,
 state categories, safe-action availability, raw `Not Found` leakage, and a **Hydration QA**
 column. Hosted GitHub Pages usually returns a client-rendered shell, which proves routing
 and `Not Found` handling but not hydrated button behavior; use `--checklist` for the
-manual/Playwright-style pass, and use `HUB_SMOKE_REQUIRE_HYDRATED=1` only when the target can
-expose hydrated controls to the script.
+manual/Playwright-style pass, and use `--require-hydrated` or `HUB_SMOKE_REQUIRE_HYDRATED=1`
+only when the target can expose hydrated controls to the script.
 
 For real hydrated DOM evidence without adding Playwright/Puppeteer, run
 `pnpm qa:hub:hydrated`. If `HUB_HYDRATED_URL`/`HUB_SMOKE_URL` is not set, the script starts

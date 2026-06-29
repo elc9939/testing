@@ -942,8 +942,14 @@ describe('Mini Hub usability control gates', () => {
 
   it('keeps the hub smoke script able to print a repeatable action and reload checklist', async () => {
     const source = await routeSource('../../../../scripts/hub-usability-smoke.mjs');
+    const packageJson = await routeSource('../../../../package.json');
 
     expect(source).toContain('function printChecklist');
+    expect(source).toContain('function argValue');
+    expect(source).toContain("argValue(rawArgs, '--url') || process.env.HUB_SMOKE_URL || ''");
+    expect(source).toContain('pass --url or set HUB_SMOKE_URL');
+    expect(packageJson).toContain('"qa:hub:smoke:local": "node scripts/hub-usability-smoke.mjs --url http://127.0.0.1:5173"');
+    expect(packageJson).toContain('"qa:hub:smoke:hosted": "node scripts/hub-usability-smoke.mjs --url https://elc9939.github.io/testing/"');
     expect(source).toContain("args.has('--checklist')");
     expect(source).toContain('safeActionLabels');
     expect(source).toContain('sampleInput');
