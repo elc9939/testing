@@ -72,6 +72,7 @@
     refreshBlockedReason
   };
   $: activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot);
+  $: visibleActivityError = error ? compactActivityRefreshError(error) : '';
   $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
   $: restoreDismissedButtonTitle = restoreDismissedTitle();
   $: activityEmptyRefreshButtonTitle = activityEmptyRefreshTitle(activityControlState);
@@ -206,6 +207,16 @@
     }
     if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) return 'auth or permission needed';
     return text.length > 96 ? `${text.slice(0, 93)}...` : text;
+  }
+
+  function compactActivityRefreshError(message = ''): string {
+    const summary = compactActivitySourceError(message);
+    if (summary === 'service offline or unreachable') return 'One or more local Activity services are offline or unreachable.';
+    if (summary === 'wrong endpoint or missing route') return 'Activity is pointed at the wrong endpoint or a missing route.';
+    if (summary === 'browser blocked request') return 'The browser blocked the Activity request. Check CORS, mixed content, or firewall settings.';
+    if (summary === 'auth or permission needed') return 'A connected Activity source needs authentication or permission.';
+    if (summary === 'unavailable') return 'Activity could not reach its durable work sources.';
+    return summary;
   }
 
   function compactActivityRecoveryNote(message: string): string {
@@ -383,7 +394,16 @@
 </section>
 
 {#if error}
-  <section class="notice error">Activity refresh failed: {error}</section>
+  <section class="notice error" title={`Raw Activity error: ${error}`}>
+    <div>
+      <strong>Activity refresh needs attention</strong>
+      <p>{visibleActivityError} Cached records stay visible when available.</p>
+    </div>
+    <a class="button compact" href={hubHref('/settings')} title="Open Settings to inspect AI OS, Passive Tasks, Macro Lab, and endpoint wiring.">
+      <Settings size={15} />
+      <span>Open Settings</span>
+    </a>
+  </section>
 {/if}
 
 {#if actionError}
@@ -806,9 +826,17 @@
   }
 
   .notice.error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     color: var(--error-text);
     background: var(--error-bg);
     border: 1px solid var(--error-border);
+  }
+
+  .notice.error p {
+    margin: 4px 0 0;
   }
 
   .notice.success {

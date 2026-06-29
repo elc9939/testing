@@ -756,8 +756,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Data &amp; Recovery');
     expect(source).toContain('showing cached records from');
     expect(source).toContain('activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot)');
+    expect(source).toContain('visibleActivityError = error ? compactActivityRefreshError(error) :');
     expect(source).toContain('function activitySnapshotRecoveryNotes');
     expect(source).toContain('function compactActivityRecoveryNote');
+    expect(source).toContain('function compactActivityRefreshError');
+    expect(source).toContain('Activity refresh needs attention');
+    expect(source).toContain('Cached records stay visible when available.');
+    expect(source).toContain('Raw Activity error:');
     expect(source).toContain('Activity cache and recovery notes');
     expect(source).toContain('Browser Activity cache');
     expect(source).toContain('one source failed; available work is still listed');
