@@ -65,6 +65,7 @@
     summarizeEmailThread
   } from '$lib/productivity-view';
   import { hubHref } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles';
   const productivityCacheKey = 'miniHub.productivity.cache.v1';
@@ -503,19 +504,8 @@
     if (/access blocked|verification process|developer-approved testers|access_denied/iu.test(text)) {
       return 'Google blocked OAuth for this account; add the account as a tester or use a verified OAuth app.';
     }
-    if (/returned.*html|github pages|static site|wrong endpoint|missing route|404|not found/iu.test(text)) {
-      return 'Productivity is pointed at the wrong API endpoint or a missing route.';
-    }
-    if (/cors|mixed-content|firewall|blocked/iu.test(text)) {
-      return 'The browser blocked the Productivity request. Check CORS, mixed content, or firewall settings.';
-    }
-    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|timed out|timeout/iu.test(text)) {
-      return 'The Mini Hub API or Google integration service is offline or unreachable.';
-    }
-    if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
-      return 'Google or the Mini Hub API needs authentication or permission.';
-    }
-    return text.length > 140 ? `${text.slice(0, 137)}...` : text;
+    const compact = compactServiceIssueIfRecognized(text, 'Productivity');
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
   function productivityActionTitle(enabledTitle: string): string {

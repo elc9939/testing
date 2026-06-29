@@ -4,6 +4,7 @@
   import { analyticsViewMessage, analyticsViewState, buildAnalyticsMetricRows, buildStudyMinutesTrend } from '$lib/analytics-view';
   import { clientData } from '$lib/client-data';
   import { hubHref } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   let plotHost: HTMLDivElement;
   let sparklinePath = '';
@@ -66,10 +67,8 @@
     if (/plot|d3|render|canvas|svg|import|module|wasm/iu.test(text)) {
       return 'The analytics renderer could not load; cached rows are still available.';
     }
-    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|timed out|timeout/iu.test(text)) {
-      return 'Live sync is unavailable; Analytics is using the last loaded browser cache.';
-    }
-    return text.length > 140 ? `${text.slice(0, 137)}...` : text;
+    const compact = compactServiceIssueIfRecognized(text, 'Analytics');
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
   async function render(nextRows = rows, nextTrend = trendValues): Promise<void> {

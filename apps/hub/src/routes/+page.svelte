@@ -65,6 +65,7 @@
   import { buildModeRecommendations, type ModeRecommendation } from '$lib/mode-recommendations';
   import { recordBrowserAction } from '$lib/browser-action-ledger';
   import { hubHref } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
   let capabilityLoading = false;
@@ -530,19 +531,8 @@
   function compactTodayServiceIssue(message = ''): string {
     const text = message.trim();
     if (!text) return 'Today could not reach its attention sources.';
-    if (/github pages|returned.*html|static site|wrong endpoint|missing route|404|not found/iu.test(text)) {
-      return 'Today is pointed at the wrong API endpoint or a missing route.';
-    }
-    if (/cors|mixed-content|firewall|blocked/iu.test(text)) {
-      return 'The browser blocked a Today request. Check CORS, mixed content, or firewall settings.';
-    }
-    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|timed out|timeout/iu.test(text)) {
-      return 'One or more local Today sources are offline or unreachable.';
-    }
-    if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
-      return 'A connected Today source needs authentication or permission.';
-    }
-    return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+    const compact = compactServiceIssueIfRecognized(text, 'Today');
+    return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
   }
 
   function todaySaveStatusLabel(state: ClientDataState): string {

@@ -673,7 +673,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('visibleActionError = actionError ? compactProductivityServiceIssue(actionError) :');
     expect(source).toContain('function compactProductivityServiceIssue');
     expect(source).toContain('Google blocked OAuth for this account; add the account as a tester or use a verified OAuth app.');
-    expect(source).toContain('Productivity is pointed at the wrong API endpoint or a missing route.');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, 'Productivity')");
     expect(source).toContain('Productivity action needs attention');
     expect(source).toContain('Raw Productivity error:');
     expect(source).toContain('title={productivityRefreshButtonTitle}');
@@ -854,7 +854,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Today refresh needs attention');
     expect(source).toContain('Cached attention remains visible when available.');
     expect(source).toContain('Raw Today error:');
-    expect(source).toContain('One or more local Today sources are offline or unreachable.');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, 'Today')");
     expect(source).toContain('title={todayRefreshButtonTitle}');
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain("href={hubHref('/settings#machine-mode')}");
@@ -1284,6 +1284,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('visibleAnalyticsIssue = analyticsIssue ? compactAnalyticsIssue(analyticsIssue) :');
     expect(source).toContain('function compactAnalyticsIssue');
     expect(source).toContain('The analytics renderer could not load; cached rows are still available.');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, 'Analytics')");
     expect(source).toContain('Raw Analytics error:');
     expect(source).toContain('Open Settings Data & Recovery');
     expect(source).toContain("href={hubHref('/settings#data-recovery')}");
