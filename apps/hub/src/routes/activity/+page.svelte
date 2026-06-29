@@ -19,7 +19,7 @@
   } from '$lib/activity-api';
   import { persistenceRows, persistenceSummary } from '$lib/persistence-map';
   import { hubHref } from '$lib/routes';
-  import { classifyServiceIssue } from '$lib/service-issues';
+  import { classifyServiceIssue, compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   const expectedActivitySources = [
     { id: 'ai-os', label: 'AI OS' },
@@ -206,13 +206,10 @@
   }
 
   function compactActivityRefreshError(message = ''): string {
-    const summary = compactActivitySourceError(message);
-    if (summary === 'service offline or unreachable') return 'One or more local Activity services are offline or unreachable.';
-    if (summary === 'wrong endpoint or missing route') return 'Activity is pointed at the wrong endpoint or a missing route.';
-    if (summary === 'browser blocked request') return 'The browser blocked the Activity request. Check CORS, mixed content, or firewall settings.';
-    if (summary === 'auth or permission needed') return 'A connected Activity source needs authentication or permission.';
-    if (summary === 'unavailable') return 'Activity could not reach its durable work sources.';
-    return summary;
+    const text = message.trim();
+    if (!text) return 'Activity could not reach its durable work sources.';
+    const compact = compactServiceIssueIfRecognized(text, 'Activity');
+    return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
   }
 
   function compactActivityRecoveryNote(message: string): string {
