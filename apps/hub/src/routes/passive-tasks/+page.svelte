@@ -1093,7 +1093,7 @@
       <div class="panel-title">
         <div>
           <span class="icon-chip"><AlertTriangle size={16} /></span>
-          <strong>Task Error Logs</strong>
+          <strong>Task Failure Log</strong>
         </div>
       </div>
       {#if tasksWithErrorLogs.length}
@@ -1112,7 +1112,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">No task error logs are retained right now.</p>
+        <p class="empty-note">No retained task failures right now.</p>
       {/if}
     </article>
 

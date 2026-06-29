@@ -600,6 +600,9 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('<span>Run Due</span>');
     expect(passive).toContain('<span>Startup Event</span>');
     expect(passive).toContain('<span>Idle Tick</span>');
+    expect(passive).toContain('Task Failure Log');
+    expect(passive).toContain('No retained task failures right now.');
+    expect(passive).not.toContain('Task Error Logs');
     expect(passive).not.toContain('Load First');
   });
 
