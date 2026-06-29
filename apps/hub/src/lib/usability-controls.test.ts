@@ -812,7 +812,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('interface TodayRefreshControlState');
     expect(source).toContain('todayRefreshControlState = {');
     expect(source).toContain('todayRefreshButtonTitle = todayRefreshTitle(todayRefreshControlState)');
+    expect(source).toContain('visibleAttentionError = $attentionStore.error ? compactTodayServiceIssue($attentionStore.error) :');
     expect(source).toContain('function todayRefreshTitle');
+    expect(source).toContain('function compactTodayServiceIssue');
+    expect(source).toContain('Today refresh needs attention');
+    expect(source).toContain('Cached attention remains visible when available.');
+    expect(source).toContain('Raw Today error:');
+    expect(source).toContain('One or more local Today sources are offline or unreachable.');
     expect(source).toContain('title={todayRefreshButtonTitle}');
     expect(source).toContain('function todayCountLabel');
     expect(source).toContain("if ($attentionStore.loading && !attentionSnapshot) return '...'");

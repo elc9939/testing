@@ -120,6 +120,7 @@
     refreshing: $attentionStore.refreshing
   };
   $: todayRefreshButtonTitle = todayRefreshTitle(todayRefreshControlState);
+  $: visibleAttentionError = $attentionStore.error ? compactTodayServiceIssue($attentionStore.error) : '';
 
   function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
     if (!snapshot) return false;
@@ -526,6 +527,24 @@
     return 'Refresh Today from connected sources.';
   }
 
+  function compactTodayServiceIssue(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'Today could not reach its attention sources.';
+    if (/github pages|returned.*html|static site|wrong endpoint|missing route|404|not found/iu.test(text)) {
+      return 'Today is pointed at the wrong API endpoint or a missing route.';
+    }
+    if (/cors|mixed-content|firewall|blocked/iu.test(text)) {
+      return 'The browser blocked a Today request. Check CORS, mixed content, or firewall settings.';
+    }
+    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|timed out|timeout/iu.test(text)) {
+      return 'One or more local Today sources are offline or unreachable.';
+    }
+    if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
+      return 'A connected Today source needs authentication or permission.';
+    }
+    return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  }
+
   function todaySaveStatusLabel(state: ClientDataState): string {
     if (state.status === 'error') return 'Needs attention';
     if (!state.initialized) return 'Loading cache';
@@ -613,8 +632,15 @@
 {/if}
 
 {#if $attentionStore.error}
-  <section class="card card-pad warning-panel">
-    {$attentionStore.error}
+  <section class="card card-pad warning-panel attention-error-panel" title={`Raw Today error: ${$attentionStore.error}`}>
+    <div>
+      <strong>Today refresh needs attention</strong>
+      <p>{visibleAttentionError} Cached attention remains visible when available.</p>
+    </div>
+    <a class="button compact" href={hubHref('/settings')} title="Open Settings to inspect Hub API, Google, AI OS, Macro Lab, and endpoint wiring.">
+      <Settings size={15} />
+      <span>Open Settings</span>
+    </a>
   </section>
 {/if}
 
@@ -1138,6 +1164,17 @@
     border-color: var(--warning-border);
     color: var(--warning-text);
     background: var(--warning-bg);
+  }
+
+  .attention-error-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .attention-error-panel p {
+    margin: 4px 0 0;
   }
 
   .success-panel {
