@@ -110,6 +110,7 @@
   let requestedRunId = '';
   let persistedRunId = '';
   let selectedMonitorId = '';
+  let restoredMonitorSummaryId = '';
 
   $: currentMode = modes.find((item) => item.id === mode) ?? modes[0];
   $: seedUrls = splitList(seedUrlsText);
@@ -173,7 +174,36 @@
   $: researchServicesButtonTitle = researchServicesRefreshTitle(researchServicesRefreshState);
   $: saveCurrentMonitorButtonTitle = saveCurrentMonitorTitle(monitorActionState, goal);
   $: advancedToggleButtonTitle = advancedToggleTitle(advancedOpen);
-  $: if (draftHydrated) persistResearchDraft();
+  $: researchDraftForPersistence = {
+    mode,
+    goal,
+    seedUrlsText,
+    includeDomainsText,
+    excludeDomainsText,
+    depth,
+    maxPages,
+    perDomainLimit,
+    timeBudget,
+    dateRangeStart,
+    dateRangeEnd,
+    useAi,
+    useCloudAi,
+    saveToMemory,
+    screenshot,
+    provider,
+    model,
+    advancedOpen,
+    monitorName,
+    monitorSchedule,
+    selectedRunId: selectedRun?.id ?? persistedRunId,
+    selectedMonitorId
+  } satisfies ResearchDraftState;
+  $: selectedMonitorForDraft = monitors.find((monitor) => monitor.id === selectedMonitorId);
+  $: if (draftHydrated && selectedMonitorForDraft && selectedMonitorForDraft.id !== restoredMonitorSummaryId) {
+    restoreSelectedMonitorSummary(selectedMonitorForDraft);
+  }
+  $: if (!selectedMonitorId && restoredMonitorSummaryId) restoredMonitorSummaryId = '';
+  $: if (draftHydrated) persistResearchDraft(researchDraftForPersistence);
 
   function runResearchTitle(state: { blockedReason: string; label: string }): string {
     if (state.blockedReason) return state.blockedReason;
@@ -454,6 +484,7 @@
       const updated = await updateResearchMonitor(monitor.id, { enabled: !monitor.enabled });
       monitors = monitors.map((item) => (item.id === updated.id ? updated : item));
       selectedMonitorId = updated.id;
+      monitorMessage = updated.enabled ? 'Enabled monitor.' : 'Disabled monitor.';
     } catch (err) {
       monitorError = err instanceof Error ? err.message : 'Could not update monitor.';
     } finally {
@@ -528,7 +559,10 @@
     try {
       await deleteResearchMonitor(monitor.id);
       monitors = monitors.filter((item) => item.id !== monitor.id);
-      if (selectedMonitorId === monitor.id) selectedMonitorId = '';
+      if (selectedMonitorId === monitor.id) {
+        selectedMonitorId = '';
+        restoredMonitorSummaryId = '';
+      }
       monitorMessage = 'Deleted monitor. Archived reports were left intact.';
     } catch (err) {
       monitorError = err instanceof Error ? err.message : 'Could not delete monitor.';
@@ -539,6 +573,7 @@
 
   function loadMonitorIntoForm(monitor: ResearchMonitor): void {
     selectedMonitorId = monitor.id;
+    restoredMonitorSummaryId = monitor.id;
     const request = monitor.request;
     mode = request.mode ?? 'monitor_topic';
     goal = request.goal ?? '';
@@ -560,6 +595,18 @@
     monitorName = monitor.name;
     monitorSchedule = monitor.schedule;
     monitorMessage = 'Loaded monitor settings into the workbench.';
+  }
+
+  function restoreSelectedMonitorSummary(monitor: ResearchMonitor): void {
+    restoredMonitorSummaryId = monitor.id;
+    monitorName = monitorName.trim() ? monitorName : monitor.name;
+    monitorSchedule = monitor.schedule;
+    const request = monitor.request;
+    if (!goal.trim()) goal = request.goal ?? '';
+    if (!seedUrlsText.trim() && request.seed_urls?.length) seedUrlsText = request.seed_urls.join('\n');
+    if (!includeDomainsText.trim() && request.include_domains?.length) includeDomainsText = request.include_domains.join(', ');
+    if (!excludeDomainsText.trim() && request.exclude_domains?.length) excludeDomainsText = request.exclude_domains.join(', ');
+    mode = mode || request.mode || 'monitor_topic';
   }
 
   async function pollLiveRuns(): Promise<void> {
@@ -762,11 +809,11 @@
     }
   }
 
-  function persistResearchDraft(): void {
+  function persistResearchDraft(nextDraft: ResearchDraftState = currentResearchDraft()): void {
     const storage = getBrowserStorage();
     if (!storage) return;
     try {
-      storage.setItem(researchDraftStorageKey, JSON.stringify(currentResearchDraft()));
+      storage.setItem(researchDraftStorageKey, JSON.stringify(nextDraft));
     } catch {
       // Browser storage can be full or unavailable; real run records remain backend-persisted.
     }

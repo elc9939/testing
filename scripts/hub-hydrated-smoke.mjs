@@ -544,6 +544,27 @@ function createMockStudySession(input, index = 1) {
   };
 }
 
+function createMockResearchMonitor(input, index = 1) {
+  const now = '2026-06-23T12:04:00.000Z';
+  const request = input.request && typeof input.request === 'object' ? input.request : { mode: 'monitor_topic', goal: 'Hydrated monitor goal' };
+  const goal = typeof request.goal === 'string' && request.goal.trim() ? request.goal.trim() : 'Hydrated monitor goal';
+  return {
+    id: `hydrated-monitor-${index}`,
+    created_at: now,
+    updated_at: now,
+    name: typeof input.name === 'string' && input.name.trim() ? input.name.trim() : `Monitor: ${goal.slice(0, 40)}`,
+    enabled: input.enabled !== false,
+    schedule: ['manual', 'daily', 'weekly'].includes(input.schedule) ? input.schedule : 'manual',
+    request: {
+      mode: 'monitor_topic',
+      ...request,
+      goal
+    },
+    run_count: 0,
+    metadata: input.metadata && typeof input.metadata === 'object' ? input.metadata : {}
+  };
+}
+
 async function startMockHubApiServer() {
   const port = await freePort();
   const jobs = [];
@@ -693,6 +714,7 @@ async function startMockHubApiServer() {
 async function startMockResearchAiOsServer() {
   const port = await freePort();
   const runs = [];
+  const monitors = [];
   const server = http.createServer(async (request, response) => {
     if (request.method === 'OPTIONS') {
       sendJson(response, 204, {});
@@ -741,22 +763,110 @@ async function startMockResearchAiOsServer() {
     }
     if (pathName === '/api/ai/research/sources' && request.method === 'GET') {
       const source = createMockResearchSource();
+      const query = url.searchParams.get('q') || '';
+      const domain = url.searchParams.get('domain') || '';
       sendJson(response, 200, {
         sources: [
           {
             ...source,
-            text_preview: source.text,
+            text_preview: query ? `${source.text} Query matched ${query}.` : source.text,
             first_seen_at: '2026-06-23T12:00:00.000Z',
             last_seen_at: '2026-06-23T12:00:00.000Z',
             fetch_count: 1,
-            matched_terms: ['hydrated', 'mock']
+            matched_terms: ['hydrated', 'mock', query, domain].filter(Boolean)
           }
         ]
       });
       return;
     }
     if (pathName === '/api/ai/research/monitors' && request.method === 'GET') {
-      sendJson(response, 200, { monitors: [] });
+      sendJson(response, 200, { monitors });
+      return;
+    }
+    if (pathName === '/api/ai/research/monitors' && request.method === 'POST') {
+      const input = await readJsonBody(request);
+      const monitor = createMockResearchMonitor(input, monitors.length + 1);
+      monitors.unshift(monitor);
+      sendJson(response, 200, { monitor });
+      return;
+    }
+    if (pathName === '/api/ai/research/monitors/due' && request.method === 'GET') {
+      sendJson(response, 200, { monitors: monitors.filter((monitor) => monitor.enabled && monitor.schedule !== 'manual') });
+      return;
+    }
+    if (pathName === '/api/ai/research/monitors/run-due' && request.method === 'POST') {
+      const due = monitors.filter((monitor) => monitor.enabled && monitor.schedule !== 'manual');
+      const created = due.map((monitor) => {
+        const run = createMockResearchRun(monitor.request, runs.length + 1);
+        Object.assign(run, { current_step: `Due monitor run for ${monitor.name}` });
+        runs.unshift(run);
+        Object.assign(monitor, {
+          run_count: monitor.run_count + 1,
+          last_run_id: run.id,
+          last_run_at: '2026-06-23T12:06:00.000Z',
+          last_status: run.status,
+          updated_at: '2026-06-23T12:06:00.000Z'
+        });
+        return run;
+      });
+      sendJson(response, 200, {
+        monitors: due,
+        runs: created,
+        queued_count: created.length,
+        skipped_count: monitors.length - due.length,
+        errors: []
+      });
+      return;
+    }
+    const monitorMatch = /^\/api\/ai\/research\/monitors\/([^/]+)(?:\/run)?$/u.exec(pathName);
+    if (monitorMatch) {
+      const monitorId = decodeURIComponent(monitorMatch[1]);
+      const index = monitors.findIndex((monitor) => monitor.id === monitorId);
+      if (index === -1) {
+        sendJson(response, 404, { error: 'missing mock research monitor' });
+        return;
+      }
+      const monitor = monitors[index];
+      const isRunRoute = pathName.endsWith('/run');
+      if (request.method === 'POST' && isRunRoute) {
+        const run = createMockResearchRun(monitor.request, runs.length + 1);
+        Object.assign(run, { current_step: `Monitor run for ${monitor.name}` });
+        runs.unshift(run);
+        Object.assign(monitor, {
+          run_count: monitor.run_count + 1,
+          last_run_id: run.id,
+          last_run_at: '2026-06-23T12:05:00.000Z',
+          last_status: run.status,
+          updated_at: '2026-06-23T12:05:00.000Z'
+        });
+        sendJson(response, 200, { monitor, run });
+        return;
+      }
+      if (request.method === 'PATCH') {
+        const input = await readJsonBody(request);
+        Object.assign(monitor, {
+          ...input,
+          request: input.request && typeof input.request === 'object' ? input.request : monitor.request,
+          updated_at: '2026-06-23T12:07:00.000Z'
+        });
+        sendJson(response, 200, { monitor });
+        return;
+      }
+      if (request.method === 'DELETE') {
+        const [deleted] = monitors.splice(index, 1);
+        sendJson(response, 200, { monitor: deleted });
+        return;
+      }
+    }
+    const exportMatch = /^\/api\/ai\/research\/runs\/([^/]+)\/export$/u.exec(pathName);
+    if (exportMatch && request.method === 'GET') {
+      const runId = decodeURIComponent(exportMatch[1]);
+      const run = runs.find((candidate) => candidate.id === runId);
+      if (!run) {
+        sendJson(response, 404, { error: 'missing mock research run export' });
+        return;
+      }
+      sendJson(response, 200, { id: run.id, format: url.searchParams.get('format') || 'markdown', title: run.report.title });
       return;
     }
     sendJson(response, 404, { error: `mock route not found: ${pathName}` });
@@ -1330,6 +1440,177 @@ async function runResearchOnlineRecoveryChecks(client, baseUrl) {
             ok: reloaded,
             state: reloaded ? 'rehydrated' : 'waiting',
             detail: \`reloaded=\${reloaded}; url=\${window.location.href}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await fillFirstTextarea(client, 'Hydrated monitor goal');
+    await setControlValue(client, 'input[placeholder="Optional name for this topic watch"]', 'Hydrated monitor watch');
+    await setControlValue(client, '.monitor-create-row select', 'daily');
+    await clickButtonByText(client, 'Save Current Setup');
+    checks.push({
+      id: 'research-monitor-created',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const created = body.includes('Saved topic monitor') && body.includes('Hydrated monitor watch') && body.includes('daily');
+          return {
+            ok: created,
+            state: created ? 'created' : 'waiting',
+            detail: created ? 'Saved Research monitor is visible.' : 'Waiting for saved monitor card.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await clickButtonByText(client, 'Run Now');
+    checks.push({
+      id: 'research-monitor-run-created',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const queued = body.includes('Queued monitor run for Hydrated monitor watch') && body.includes('Monitor run for Hydrated monitor watch');
+          const urlUpdated = /run=hydrated-run-2/.test(location.href);
+          return {
+            ok: queued && urlUpdated,
+            state: queued ? 'queued' : 'waiting',
+            detail: \`queued=\${queued}; urlUpdated=\${urlUpdated}; url=\${location.href}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    checks.push({
+      id: 'research-report-export-links',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const links = [...document.querySelectorAll('.export-actions a')].map((link) => ({
+            text: (link.innerText || link.textContent || '').replace(/\\s+/g, ' ').trim(),
+            href: link.href
+          }));
+          const markdown = links.some((link) => /Markdown/i.test(link.text) && /\\/api\\/ai\\/research\\/runs\\/hydrated-run-2\\/export\\?format=markdown/u.test(link.href));
+          const json = links.some((link) => /JSON/i.test(link.text) && /\\/api\\/ai\\/research\\/runs\\/hydrated-run-2\\/export\\?format=json/u.test(link.href));
+          const html = links.some((link) => /HTML/i.test(link.text) && /\\/api\\/ai\\/research\\/runs\\/hydrated-run-2\\/export\\?format=html/u.test(link.href));
+          return {
+            ok: markdown && json && html,
+            state: markdown && json && html ? 'ready' : 'waiting',
+            detail: \`markdown=\${markdown}; json=\${json}; html=\${html}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await setNthControlValue(client, '.source-library-controls input', 0, 'hydrated');
+    await setNthControlValue(client, '.source-library-controls input', 1, 'example.com');
+    await clickButtonByText(client, 'Search Sources');
+    checks.push({
+      id: 'research-source-search',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const source = body.includes('Hydrated Research Source') && body.includes('Matched hydrated, mock, hydrated, example.com');
+          const controlsReady = [...document.querySelectorAll('button')].some((button) => /Use as Seed/i.test(button.innerText || button.textContent || '') && !button.disabled);
+          return {
+            ok: source && controlsReady,
+            state: source ? 'source-found' : 'waiting',
+            detail: \`source=\${source}; controlsReady=\${controlsReady}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await clickButtonByText(client, 'Use as Seed');
+    checks.push({
+      id: 'research-source-seed-added',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const seedText = [...document.querySelectorAll('textarea')].map((textarea) => textarea.value).join('\\n');
+          const added = seedText.includes('https://example.com/hydrated-research') && body.includes('Added archived source to Seed URLs for the next run.');
+          return {
+            ok: added,
+            state: added ? 'seeded' : 'waiting',
+            detail: \`seeded=\${seedText.includes('https://example.com/hydrated-research')}; message=\${body.includes('Added archived source to Seed URLs for the next run.')}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await navigate(client, routeUrl(baseUrl, `/research?aiOsUrl=${encodeURIComponent(mock.url)}&run=hydrated-run-2`));
+    checks.push({
+      id: 'research-monitor-source-draft-reloaded',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const values = [...document.querySelectorAll('input, textarea, select')].map((control) => control.value);
+          const report = body.includes('Hydrated Mock Research Report') && body.includes('Monitor run for Hydrated monitor watch');
+          const monitor = body.includes('Hydrated monitor watch') && values.includes('Hydrated monitor watch') && values.includes('daily');
+          const seed = values.some((value) => String(value).includes('https://example.com/hydrated-research'));
+          return {
+            ok: report && monitor && seed,
+            state: report && monitor && seed ? 'rehydrated' : 'waiting',
+            detail: \`report=\${report}; monitor=\${monitor}; seed=\${seed}; url=\${location.href}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await clickButtonByText(client, 'Disable');
+    checks.push({
+      id: 'research-monitor-toggle',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const lowerBody = body.toLowerCase();
+          const toggled = (lowerBody.includes('off') || body.includes('Disabled monitor.')) && [...document.querySelectorAll('button')].some((button) => /Enable/i.test(button.innerText || button.textContent || ''));
+          return {
+            ok: toggled,
+            state: toggled ? 'disabled' : 'waiting',
+            detail: toggled ? 'Monitor toggled off and Enable action is visible.' : 'Waiting for monitor toggle.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await evaluate(client, `window.confirm = () => true`);
+    await clickButtonByText(client, 'Delete');
+    checks.push({
+      id: 'research-monitor-delete',
+      route: '/research',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const monitorCards = [...document.querySelectorAll('.monitor-card')].map((card) => card.innerText || card.textContent || '');
+          const cardRemoved = !monitorCards.some((card) => card.includes('Hydrated monitor watch'));
+          const deleted = body.includes('Deleted monitor. Archived reports were left intact.') && cardRemoved;
+          return {
+            ok: deleted,
+            state: deleted ? 'deleted' : 'waiting',
+            detail: deleted ? 'Monitor delete confirmation left reports intact.' : 'Waiting for monitor delete. cardRemoved=' + cardRemoved
           };
         })()`,
         15_000

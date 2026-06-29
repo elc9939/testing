@@ -348,6 +348,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('researchServicesButtonTitle = researchServicesRefreshTitle(researchServicesRefreshState)');
     expect(source).toContain('saveCurrentMonitorButtonTitle = saveCurrentMonitorTitle(monitorActionState, goal)');
     expect(source).toContain('advancedToggleButtonTitle = advancedToggleTitle(advancedOpen)');
+    expect(source).toContain('researchDraftForPersistence = {');
+    expect(source).toContain('$: if (draftHydrated) persistResearchDraft(researchDraftForPersistence)');
+    expect(source).toContain('function persistResearchDraft(nextDraft: ResearchDraftState = currentResearchDraft())');
     expect(source).toContain('function monitorActionBlockedReason');
     expect(source).toContain('Research Desk is checking AI OS before monitor actions are enabled.');
     expect(source).toContain('Another research monitor action is already running.');
@@ -1090,7 +1093,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('research-offline-run-guard');
     expect(source).toContain('research-online-run-created');
     expect(source).toContain('research-online-run-rehydrated');
+    expect(source).toContain('research-monitor-created');
+    expect(source).toContain('research-monitor-run-created');
+    expect(source).toContain('research-report-export-links');
+    expect(source).toContain('research-source-search');
+    expect(source).toContain('research-source-seed-added');
+    expect(source).toContain('research-monitor-source-draft-reloaded');
+    expect(source).toContain('research-monitor-toggle');
+    expect(source).toContain('research-monitor-delete');
     expect(source).toContain('Hydrated Mock Research Report');
+    expect(source).toContain('Hydrated monitor watch');
     expect(source).toContain('ai-os-offline-action-guard');
     expect(source).toContain('career-add-job-guard');
     expect(source).toContain('study-log-guard');
