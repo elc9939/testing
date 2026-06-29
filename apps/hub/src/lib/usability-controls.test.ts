@@ -641,6 +641,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('eventSaveButtonTitle = eventSaveActionTitle(productivityControlTitleState)');
     expect(source).toContain('composeDraftButtonTitle = composeActionTitle(productivityControlTitleState, false)');
     expect(source).toContain('composeSendButtonTitle = composeActionTitle(productivityControlTitleState, true)');
+    expect(source).toContain('visibleActionError = actionError ? compactProductivityServiceIssue(actionError) :');
+    expect(source).toContain('function compactProductivityServiceIssue');
+    expect(source).toContain('Google blocked OAuth for this account; add the account as a tester or use a verified OAuth app.');
+    expect(source).toContain('Productivity is pointed at the wrong API endpoint or a missing route.');
+    expect(source).toContain('Productivity action needs attention');
+    expect(source).toContain('Raw Productivity error:');
     expect(source).toContain('title={productivityRefreshButtonTitle}');
     expect(source).toContain('title={gmailRefreshButtonTitle}');
     expect(source).toContain('title={gmailThreadOpenButtonTitle}');

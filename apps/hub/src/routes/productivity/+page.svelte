@@ -215,6 +215,7 @@
   $: eventSaveButtonTitle = eventSaveActionTitle(productivityControlTitleState);
   $: composeDraftButtonTitle = composeActionTitle(productivityControlTitleState, false);
   $: composeSendButtonTitle = composeActionTitle(productivityControlTitleState, true);
+  $: visibleActionError = actionError ? compactProductivityServiceIssue(actionError) : '';
   $: productivityCacheDetail = cacheWarning
     ? cacheWarning
     : cacheLoadedAt
@@ -495,6 +496,27 @@
 
   function setError(error: unknown, fallback: string): void {
     actionError = error instanceof Error ? error.message : fallback;
+  }
+
+  function compactProductivityServiceIssue(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'Productivity could not complete that action.';
+    if (/access blocked|verification process|developer-approved testers|access_denied/iu.test(text)) {
+      return 'Google blocked OAuth for this account; add the account as a tester or use a verified OAuth app.';
+    }
+    if (/returned.*html|github pages|static site|wrong endpoint|missing route|404|not found/iu.test(text)) {
+      return 'Productivity is pointed at the wrong API endpoint or a missing route.';
+    }
+    if (/cors|mixed-content|firewall|blocked/iu.test(text)) {
+      return 'The browser blocked the Productivity request. Check CORS, mixed content, or firewall settings.';
+    }
+    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|timed out|timeout/iu.test(text)) {
+      return 'The Mini Hub API or Google integration service is offline or unreachable.';
+    }
+    if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
+      return 'Google or the Mini Hub API needs authentication or permission.';
+    }
+    return text.length > 140 ? `${text.slice(0, 137)}...` : text;
   }
 
   function productivityActionTitle(enabledTitle: string): string {
@@ -1220,7 +1242,15 @@
   </section>
 {/if}
 {#if actionError}
-  <section class="card card-pad error-banner">{actionError}</section>
+  <section class="card card-pad error-banner productivity-error-panel" title={`Raw Productivity error: ${actionError}`}>
+    <div>
+      <strong>Productivity action needs attention</strong>
+      <p>{visibleActionError}</p>
+    </div>
+    <a class="button compact" href={hubHref(routeMap.settings)} title="Open Settings to inspect Mini Hub API, Google OAuth, and endpoint wiring.">
+      <span>Open Settings</span>
+    </a>
+  </section>
 {:else if actionMessage}
   <section class="card card-pad success-banner">{actionMessage}</section>
 {/if}
@@ -1775,9 +1805,17 @@
   }
 
   .error-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     border-color: var(--error-border);
     color: var(--error-text);
     background: var(--error-bg);
+  }
+
+  .error-banner p {
+    margin: 4px 0 0;
   }
 
   .success-banner {
