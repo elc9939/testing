@@ -659,12 +659,13 @@ and Study log/edit/filter/progress reload without touching real local data,
 seeds cached Google Calendar/Gmail rows to verify Productivity stays inspectable while writes are locked,
 forces Macro Lab and Passive Tasks offline to verify side-effect controls stay disabled,
 test-fires AI Lab Tree-sitter Parse, verifies the Tree-sitter asset-error copy with an
-intentionally bad grammar URL, and verifies browser-storage
+intentionally bad grammar URL, blocks browser model asset URLs to verify the Classify
+asset-error copy without downloading weights, and verifies browser-storage
 reload for Activity cache, Productivity Google cache, Research Desk drafts, and AI Lab drafts. Set
 `HUB_HYDRATED_BROWSER` if Chrome/Edge is not in a standard location.
 The first AI Lab Classify run may download browser model assets, so the default hydrated
-smoke skips that heavy path. Run `pnpm qa:hub:hydrated:ai` or set
-`HUB_HYDRATED_AI_LAB_CLASSIFY=1` for the full browser-local Transformers.js Classify check.
+smoke checks the readable blocked-asset state instead. Run `pnpm qa:hub:hydrated:ai` or
+set `HUB_HYDRATED_AI_LAB_CLASSIFY=1` for the full browser-local Transformers.js Classify check.
 Run `pnpm qa:hub:hydrated:writes` when a disposable real Mini Hub API is running and you want
 the same Career/Study save, edit, filter, export, and progress evidence against the real backend instead of the embedded
 mock. Set `HUB_HYDRATED_API_URL` to that temporary API origin; the script passes it through the

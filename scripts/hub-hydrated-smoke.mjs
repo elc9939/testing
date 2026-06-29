@@ -1205,6 +1205,17 @@ async function readDomSnapshot(client) {
   );
 }
 
+async function blockClassifierModelFetches(client) {
+  await client.send('Network.enable');
+  await client.send('Network.setBlockedURLs', {
+    urls: ['*://huggingface.co/*', '*://*.huggingface.co/*', '*://cdn-lfs.huggingface.co/*']
+  });
+}
+
+async function unblockClassifierModelFetches(client) {
+  await client.send('Network.setBlockedURLs', { urls: [] }).catch(() => null);
+}
+
 async function clickButtonByText(client, label) {
   const result = await evaluate(
     client,
@@ -2485,13 +2496,44 @@ async function runAiLabActionChecks(client, baseUrl) {
       });
     }
   } else {
-    results.push({
-      id: 'ai-lab-classify',
-      route: '/ai-lab',
-      ok: true,
-      state: 'skipped',
-      detail: 'Skipped because HUB_HYDRATED_AI_LAB_CLASSIFY is not enabled. Run pnpm qa:hub:hydrated:ai for the real Transformers.js classify path.'
-    });
+    try {
+      await blockClassifierModelFetches(client);
+      await clickButtonByText(client, 'Classify');
+      const classifyAssetError = await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          if (text.includes('Classifier: Action needed')) {
+            const detail = [...document.querySelectorAll('.result-panel.error pre')]
+              .map((item) => item.textContent?.trim())
+              .filter(Boolean)
+              .join(' ');
+            const readable = /Transformers\\.js|browser-local asset|model runtime issue|not an AI OS outage|model assets/i.test(detail);
+            return {
+              ok: readable,
+              state: readable ? 'readable-error' : 'unclear-error',
+              detail: detail || 'Classifier action needed, but no error detail was visible.'
+            };
+          }
+          if (text.includes('Classifier: Result ready')) {
+            return { ok: false, state: 'unexpected-success', detail: 'Classifier returned labels even though model URLs were blocked.' };
+          }
+          return { ok: false, state: 'waiting', detail: 'Waiting for classifier blocked-asset error.' };
+        })()`,
+        45_000
+      );
+      results.push({ id: 'ai-lab-classify', route: '/ai-lab', ...classifyAssetError });
+    } catch (error) {
+      results.push({
+        id: 'ai-lab-classify',
+        route: '/ai-lab',
+        ok: false,
+        state: 'error',
+        detail: error instanceof Error ? error.message : 'Blocked classifier smoke failed.'
+      });
+    } finally {
+      await unblockClassifierModelFetches(client);
+    }
   }
 
   return results;

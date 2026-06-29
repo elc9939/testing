@@ -1159,10 +1159,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Parser: Result ready');
     expect(source).toContain('Parser: Action needed');
     expect(source).toContain('Waiting for parser asset failure.');
+    expect(source).toContain('blockClassifierModelFetches');
+    expect(source).toContain('Waiting for classifier blocked-asset error.');
     expect(source).toContain('browser-local Tree-sitter');
     expect(source).toContain('HUB_HYDRATED_AI_LAB_CLASSIFY');
     expect(source).toContain("(process.env.HUB_HYDRATED_AI_LAB_CLASSIFY || '0') !== '0'");
-    expect(source).toContain('Run pnpm qa:hub:hydrated:ai for the real Transformers.js classify path.');
+    expect(source).toContain('Classifier returned labels even though model URLs were blocked.');
     expect(source).toContain('startManagedHubServer');
     expect(source).toContain('stopProcessTree');
     expect(source).toContain('Could not start managed Mini Hub dev server');
