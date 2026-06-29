@@ -566,6 +566,14 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('title={macroRowTitle(macro)}');
     expect(macro).toContain("title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'}");
     expect(macro).toContain('function requireMacroReady');
+    expect(macro).toContain('function macroCapabilitiesDetail');
+    expect(macro).toContain('function macroTriggersDetail');
+    expect(macro).toContain('function macroDatabaseDetail');
+    expect(macro).toContain('function macroEditorEmptyDetail');
+    expect(macro).toContain('Loading action catalog and capability state.');
+    expect(macro).toContain('Loading trigger and running automation state.');
+    expect(macro).toContain('Loading macro definitions and run history.');
+    expect(macro).toContain('Loading macro definitions before enabling edit and run controls.');
     expect(macro).toContain('if (macroConnectionError(message)) {');
     expect(macro).toContain("actionError = ''");
     expect(macro).toContain('connection-card service-card');

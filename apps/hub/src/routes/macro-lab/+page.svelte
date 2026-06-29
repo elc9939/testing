@@ -99,6 +99,33 @@
     return '';
   }
 
+  function macroCapabilitiesDetail(): string {
+    if (status) return `${status.engine.action_count} action type${status.engine.action_count === 1 ? '' : 's'}`;
+    if (loading) return 'Loading action catalog and capability state.';
+    if (serviceError) return 'Macro Lab service is offline; capability state will load after reconnect.';
+    return 'Connect Macro Lab to inspect action types.';
+  }
+
+  function macroTriggersDetail(): string {
+    if (status) return `${status.engine.running} running automation${status.engine.running === 1 ? '' : 's'}`;
+    if (loading) return 'Loading trigger and running automation state.';
+    if (serviceError) return 'Macro Lab service is offline; trigger state will load after reconnect.';
+    return 'Reload state is not known yet.';
+  }
+
+  function macroDatabaseDetail(): string {
+    if (status) return 'Macro definitions and run history are reachable.';
+    if (loading) return 'Loading macro definitions and run history.';
+    if (serviceError) return 'Macro Lab service is offline; saved definitions and run history are unavailable.';
+    return 'Run history will appear after connection.';
+  }
+
+  function macroEditorEmptyDetail(): string {
+    if (loading && !macros.length) return 'Loading macro definitions before enabling edit and run controls.';
+    if (serviceError) return 'Connect the Macro Lab service to edit and run macros.';
+    return 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.';
+  }
+
   function requireMacroReady(action: string): boolean {
     const reason = macroDisabledReason();
     if (!reason) return true;
@@ -290,17 +317,17 @@
   <div class="metric">
     <span>Capabilities</span>
     <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : loading ? 'loading' : 'unknown'}</strong>
-    <small>{status ? `${status.engine.action_count} action type${status.engine.action_count === 1 ? '' : 's'}` : 'Start Macro Lab, then refresh.'}</small>
+    <small>{macroCapabilitiesDetail()}</small>
   </div>
   <div class="metric">
     <span>Triggers</span>
     <strong class:warn={triggerState === 'unknown' || triggerState === 'loading'}>{triggerState}</strong>
-    <small>{status ? `${status.engine.running} running automation${status.engine.running === 1 ? '' : 's'}` : 'Reload state is not known yet.'}</small>
+    <small>{macroTriggersDetail()}</small>
   </div>
   <div class="metric">
     <span>Database</span>
     <strong class:warn={databaseState === 'unknown' || databaseState === 'loading' || databaseState === 'check'}>{databaseState}</strong>
-    <small>{status ? 'Macro definitions and run history are reachable.' : 'Run history will appear after connection.'}</small>
+    <small>{macroDatabaseDetail()}</small>
   </div>
 </section>
 
@@ -353,7 +380,7 @@
       <div class="empty-panel">
         <Keyboard size={20} />
         <strong>{loading ? 'Loading macro editor' : 'No macro selected'}</strong>
-        <p>{serviceError ? 'Connect the Macro Lab service to edit and run macros.' : 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.'}</p>
+        <p>{macroEditorEmptyDetail()}</p>
       </div>
     {/if}
   </main>
