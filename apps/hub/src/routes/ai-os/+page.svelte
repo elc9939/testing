@@ -554,7 +554,7 @@
         state: gpus.length ? 'ready' : 'degraded',
         detail: gpus.length
           ? `${gpuName(gpus[0])} - ${gpuMemoryLabel(gpus[0])}.`
-          : nextStatus.hardware?.error ?? 'AI OS is running, but no Windows/NVIDIA GPU telemetry rows were returned.'
+          : nextStatus.hardware?.error ?? 'AI OS is running, but no GPU telemetry rows were returned from Windows counters or vendor tools.'
       },
       {
         id: 'model',

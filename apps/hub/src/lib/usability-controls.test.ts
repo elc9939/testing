@@ -505,6 +505,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function noGpuRowsMessage');
     expect(source).toContain('Loading GPU, VRAM, and temperature telemetry.');
     expect(source).toContain('AI OS is not connected, so GPU telemetry is not checked.');
+    expect(source).toContain('no GPU telemetry rows were returned from Windows counters or vendor tools');
+    expect(source).not.toContain('Windows/NVIDIA GPU telemetry');
     expect(source).toContain('Model load has not been checked yet.');
     expect(source).toContain('<strong>{aiOsMetricLabel(hardware?.cpu_percent,');
     expect(source).toContain('<small>{aiOsGpuDetail(primaryGpu)}</small>');
