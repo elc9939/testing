@@ -399,7 +399,7 @@
       <strong>Activity refresh needs attention</strong>
       <p>{visibleActivityError} Cached records stay visible when available.</p>
     </div>
-    <a class="button compact" href={hubHref('/settings')} title="Open Settings to inspect AI OS, Passive Tasks, Macro Lab, and endpoint wiring.">
+    <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to inspect AI OS, Passive Tasks, Macro Lab, and endpoint wiring.">
       <Settings size={15} />
       <span>Open Settings</span>
     </a>
@@ -549,7 +549,7 @@
           <RefreshCw size={16} />
           <span>{refreshing ? 'Refreshing' : 'Retry Activity'}</span>
         </button>
-        <a class="button" href={hubHref('/settings')} title="Open Settings to check service endpoints and local services.">
+        <a class="button" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to check service endpoints and local services.">
           <Settings size={16} />
           <span>Open Settings</span>
         </a>

@@ -58,7 +58,8 @@ const routes = [
       { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
       { label: 'recovery model strip', text: 'Activity recovery model' },
       { label: 'cancel confirmation', text: 'asks for confirmation before stopping active work' },
-      { label: 'settings recovery link', text: "href={hubHref('/settings#data-recovery')}" }
+      { label: 'settings recovery link', text: "href={hubHref('/settings#data-recovery')}" },
+      { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" }
     ]
   },
   {

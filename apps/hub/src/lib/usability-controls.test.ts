@@ -811,7 +811,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Cancel skipped.');
     expect(source).toContain('asks for confirmation before stopping active work');
     expect(source).toContain("href={hubHref('/settings#data-recovery')}");
-    expect(source).toContain("href={hubHref('/settings')}");
+    expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });
 
