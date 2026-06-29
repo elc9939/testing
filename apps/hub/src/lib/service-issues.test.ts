@@ -10,6 +10,11 @@ describe('service issue compaction', () => {
     expect(classifyServiceIssue('The hosted HTTPS page may be blocked from reaching a local HTTP desktop service.').kind).toBe(
       'browser-blocked'
     );
+    expect(
+      classifyServiceIssue(
+        'AI OS API unavailable at http://127.0.0.1:8791: Failed to fetch. This can also be a CORS, firewall, service-offline, or mixed-content block.'
+      ).kind
+    ).toBe('offline');
     expect(classifyServiceIssue('request timed out after 15000 ms').kind).toBe('timeout');
   });
 

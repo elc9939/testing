@@ -27,14 +27,22 @@ export function classifyServiceIssue(message = ''): CompactServiceIssue {
   if (/github pages|returned.*html|static website|static site|wrong endpoint|missing route|route .*not found|404|not found/iu.test(text)) {
     return { kind: 'wrong-endpoint', summary: 'wrong endpoint or missing route', raw: text };
   }
-  if (/cors|mixed-content|firewall|blocked|https page/iu.test(text)) {
-    return { kind: 'browser-blocked', summary: 'browser blocked request', raw: text };
-  }
   if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
     return { kind: 'auth', summary: 'auth or permission needed', raw: text };
   }
+  const genericNetworkHint = /This can also be a CORS, firewall, service-offline, or mixed-content block/iu.test(text);
+  const explicitBrowserBlock =
+    !genericNetworkHint &&
+    /hosted HTTPS page may be blocked|blocked from reaching|blocked from calling|insecure LAN HTTP endpoint|browser blocked|blocked by CORS|CORS policy|preflight|mixed-content|mixed content|https page/iu.test(
+      text
+    );
   if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|service-offline/iu.test(text)) {
-    return { kind: 'offline', summary: 'service offline or unreachable', raw: text };
+    return explicitBrowserBlock
+      ? { kind: 'browser-blocked', summary: 'browser blocked request', raw: text }
+      : { kind: 'offline', summary: 'service offline or unreachable', raw: text };
+  }
+  if (explicitBrowserBlock || /cors|firewall|blocked/iu.test(text)) {
+    return { kind: 'browser-blocked', summary: 'browser blocked request', raw: text };
   }
   return { kind: 'unknown', summary: truncateServiceIssue(text), raw: text };
 }
