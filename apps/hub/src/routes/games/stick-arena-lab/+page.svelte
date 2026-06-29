@@ -174,7 +174,7 @@
 {#if !canSave}
   <section class="card card-pad offline-banner">
     <span>The lab is playable; {gameRunSaveBlockedReason(stickArenaLabControlState)}</span>
-    <a href={hubHref('/settings')}>Open Settings</a>
+    <a href={hubHref('/settings#data-recovery')}>Open Settings</a>
   </section>
 {/if}
 

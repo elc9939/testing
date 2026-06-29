@@ -139,7 +139,7 @@
   {#if analyticsIssue}
     <div class="analytics-issue" title={`Raw Analytics error: ${analyticsIssue}`}>
       <p class="error-text">{visibleAnalyticsIssue}</p>
-      <a class="button compact" href={hubHref('/settings')} title="Open Settings Data & Recovery to inspect browser cache and sync state.">
+      <a class="button compact" href={hubHref('/settings#data-recovery')} title="Open Settings Data & Recovery to inspect browser cache and sync state.">
         <Settings size={15} />
         <span>Open Settings</span>
       </a>

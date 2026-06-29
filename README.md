@@ -150,7 +150,7 @@ page to open when work needs to be recovered.
 ### Will progress save if I close the site?
 
 Use the left-rail save-status pill or Today -> Save & Recovery for the quick answer; both
-route to Settings -> Data & Recovery for the full map. Browser-local drafts, attention
+land directly on Settings -> Data & Recovery for the full map. Browser-local drafts, attention
 cache, AI Lab inputs, and service endpoint settings stay in the current browser. Career,
 Study, supported games, Passive Tasks, and synced settings save through the Mini Hub API
 when it is online; offline mode is intentionally read-only. Research, AI OS, Macro Lab,

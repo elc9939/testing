@@ -703,7 +703,7 @@
       <Activity size={15} />
       <span>Activity</span>
     </a>
-    <a class="button compact" href={hubHref('/settings')} title="Open Settings Data & Recovery for the full save and reload map.">
+    <a class="button compact" href={hubHref('/settings#data-recovery')} title="Open Settings Data & Recovery for the full save and reload map.">
       <Settings size={15} />
       <span>Data Map</span>
     </a>

@@ -54,7 +54,7 @@
     <strong>{gameStateCount}</strong>
     <small>Stick Arena uses API/cache saves; legacy games keep their existing local behavior.</small>
   </div>
-  <a class="button compact" href={hubHref('/settings')} title="Open Settings Data & Recovery for game cache and API status.">
+  <a class="button compact" href={hubHref('/settings#data-recovery')} title="Open Settings Data & Recovery for game cache and API status.">
     <span>Recovery</span>
     <ArrowRight size={15} />
   </a>

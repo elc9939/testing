@@ -99,7 +99,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Offline read-only: cached pages stay readable, but save buttons wait for the Mini Hub API.');
     expect(source).toContain('Online auto-save ready. Last sync:');
     expect(source).toContain('Open Settings Data & Recovery for what survives closing the site.');
-    expect(source).toContain('class="sync-pill" href={hubHref(routeMap.settings)}');
+    expect(source).toContain('const dataRecoveryRoute = `${routeMap.settings}#data-recovery`');
+    expect(source).toContain('class="sync-pill" href={hubHref(dataRecoveryRoute)}');
     expect(source).toContain('aria-label={`Save status: ${syncPillText}. Open Settings Data and Recovery.`}');
   });
 
@@ -803,6 +804,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('window.confirm(`Cancel "${record.title}" in ${record.sourceLabel}?');
     expect(source).toContain('Cancel skipped.');
     expect(source).toContain('asks for confirmation before stopping active work');
+    expect(source).toContain("href={hubHref('/settings#data-recovery')}");
     expect(source).toContain("href={hubHref('/settings')}");
     expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });
@@ -855,6 +857,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Cached pages stay readable; saves wait for the Hub API.');
     expect(source).toContain('Research, AI OS, Passive, and Macro runs are recovered from Activity.');
     expect(source).toContain("href={hubHref('/activity')}");
+    expect(source).toContain("href={hubHref('/settings#data-recovery')}");
     expect(source).toContain('Data Map');
   });
 
@@ -1221,7 +1224,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Engine is still loading; wait for the lab before saving.');
     expect(source).toContain('Loading game engine: reset and save are disabled until the lab is ready.');
     expect(source).toContain('The lab is playable; {gameRunSaveBlockedReason(stickArenaLabControlState)}');
-    expect(source).toContain("href={hubHref('/settings')}");
+    expect(source).toContain("href={hubHref('/settings#data-recovery')}");
     expect(source).toContain('disabled={resetDisabled}');
     expect(source).toContain('disabled={saveDisabled}');
     expect(source).toContain('title={resetButtonTitle}');
@@ -1244,6 +1247,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('The analytics renderer could not load; cached rows are still available.');
     expect(source).toContain('Raw Analytics error:');
     expect(source).toContain('Open Settings Data & Recovery');
+    expect(source).toContain("href={hubHref('/settings#data-recovery')}");
     expect(source).toContain('function analyticsCacheStatus');
     expect(source).toContain('function analyticsSyncDetail');
     expect(source).toContain('function analyticsRecordSummary');
@@ -1320,6 +1324,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={endpointSaving}');
     expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");
     expect(source).toContain('Offline read-only: start or connect the Mini Hub API before syncing.');
+    expect(source).toContain('id="data-recovery"');
     expect(source).toContain('<strong>Data &amp; Recovery</strong>');
     expect(source).toContain('persistenceRows');
     expect(source).toContain('persistenceStats.crossDevice');

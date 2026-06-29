@@ -475,7 +475,7 @@
       <small>cross-device via Hub API</small>
     </span>
   </div>
-  <a class="button" href={hubHref('/settings')} title="Open Settings Data & Recovery for the full save/reload map.">
+  <a class="button" href={hubHref('/settings#data-recovery')} title="Open Settings Data & Recovery for the full save/reload map.">
     <Settings size={16} />
     <span>Data &amp; Recovery</span>
   </a>

@@ -1369,7 +1369,7 @@
     {/if}
   </div>
 
-  <div class="panel-block persistence-block">
+  <div id="data-recovery" class="panel-block persistence-block">
     <div class="section-title split-title">
       <span>
         <Database size={18} />

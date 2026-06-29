@@ -24,7 +24,8 @@ const routes = [
       { label: 'setup warning panels', text: 'warning-panel' },
       { label: 'unavailable source state', text: "status: 'unavailable'" },
       { label: 'recommendation action gating', text: 'modeActionDisabled' },
-      { label: 'save and recovery strip', text: 'Save & Recovery' }
+      { label: 'save and recovery strip', text: 'Save & Recovery' },
+      { label: 'data recovery deep link', text: "href={hubHref('/settings#data-recovery')}" }
     ]
   },
   {
@@ -55,7 +56,7 @@ const routes = [
       { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
       { label: 'recovery model strip', text: 'Activity recovery model' },
       { label: 'cancel confirmation', text: 'asks for confirmation before stopping active work' },
-      { label: 'settings recovery link', text: "href={hubHref('/settings')}" }
+      { label: 'settings recovery link', text: "href={hubHref('/settings#data-recovery')}" }
     ]
   },
   {
@@ -175,6 +176,7 @@ const routes = [
       { label: 'refresh failure state', text: 'Refresh needs attention' },
       { label: 'raw refresh detail', text: 'Raw Analytics error:' },
       { label: 'settings recovery action', text: 'Open Settings Data & Recovery' },
+      { label: 'data recovery deep link', text: "href={hubHref('/settings#data-recovery')}" },
       { label: 'refresh busy gate', text: 'refreshBusy' },
       { label: 'cache status row', text: 'Analytics cache status' }
     ]
@@ -319,6 +321,7 @@ const routes = [
     requiredMarkers: [
       { label: 'feature wiring table', text: 'Feature Wiring' },
       { label: 'data recovery map', text: 'persistenceRows' },
+      { label: 'data recovery anchor', text: 'id="data-recovery"' },
       { label: 'sync gate title', text: 'syncNowTitle' },
       { label: 'machine profile gate', text: 'machineProfileControlBlockedReason' },
       { label: 'passive settings gate', text: 'passiveSettingsControlBlockedReason' }
@@ -339,6 +342,7 @@ const routes = [
     expectedStates: ['offline', 'cached', 'recovery'],
     requiredMarkers: [
       { label: 'save and recovery status', text: 'Games save and recovery status' },
+      { label: 'data recovery deep link', text: "href={hubHref('/settings#data-recovery')}" },
       { label: 'cached game runs', text: 'gameRunCount = $clientData.gameRuns.length' },
       { label: 'cached game state', text: 'gameStateCount = $clientData.gameStates.length' },
       { label: 'offline save wording', text: 'API-backed run/state saves are disabled' },

@@ -41,6 +41,7 @@
     { href: routeMap.passiveTasks, label: 'Passive', icon: ListChecks },
     { href: routeMap.settings, label: 'Settings', icon: Settings }
   ];
+  const dataRecoveryRoute = `${routeMap.settings}#data-recovery`;
 
   $: path = hubRouteFromPath($page.url.pathname);
   $: themeLabel = $theme === 'dark' ? 'Dark' : $theme === 'light' ? 'Light' : 'System';
@@ -139,7 +140,7 @@
       <span class="brand-mark">MH</span>
       <span>Mini Hub</span>
     </a>
-    <a class:offline={$clientData.status === 'offline-readonly'} class:error={$clientData.status === 'error'} class="sync-pill" href={hubHref(routeMap.settings)} title={syncPillTitle} aria-label={`Save status: ${syncPillText}. Open Settings Data and Recovery.`}>
+    <a class:offline={$clientData.status === 'offline-readonly'} class:error={$clientData.status === 'error'} class="sync-pill" href={hubHref(dataRecoveryRoute)} title={syncPillTitle} aria-label={`Save status: ${syncPillText}. Open Settings Data and Recovery.`}>
       {syncPillText}
     </a>
     <button class="theme-cycle" type="button" aria-label={`Theme: ${themeLabel}. Change theme`} on:click={cycleTheme}>
