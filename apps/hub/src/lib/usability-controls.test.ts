@@ -964,7 +964,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('pass --url or set HUB_SMOKE_URL');
     expect(packageJson).toContain('"qa:hub:smoke:local": "node scripts/hub-usability-smoke.mjs --url http://127.0.0.1:5173"');
     expect(packageJson).toContain('"qa:hub:smoke:hosted": "node scripts/hub-usability-smoke.mjs --url https://elc9939.github.io/testing/"');
-    expect(packageJson).toContain('"qa:hub:usability": "pnpm qa:hub:smoke && pnpm qa:hub:hydrated"');
+    expect(packageJson).toContain('"qa:hub:usability": "pnpm qa:hub:smoke && pnpm qa:hub:smoke:hosted && pnpm qa:hub:hydrated"');
     expect(source).toContain("args.has('--checklist')");
     expect(source).toContain('safeActionLabels');
     expect(source).toContain('sampleInput');

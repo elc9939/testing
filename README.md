@@ -651,7 +651,7 @@ and `Not Found` handling but not hydrated button behavior; use `--checklist` for
 manual/Playwright-style pass, and use `--require-hydrated` or `HUB_SMOKE_REQUIRE_HYDRATED=1`
 only when the target can expose hydrated controls to the script.
 
-Use `pnpm qa:hub:usability` for the regular end-to-end usability gate: it runs the source/static route audit first, then the hydrated browser pass with a temporary local hub when no target URL is configured.
+Use `pnpm qa:hub:usability` for the regular end-to-end usability gate: it runs the source/static route audit, the hosted GitHub Pages route audit, and then the hydrated browser pass with a temporary local hub when no target URL is configured.
 
 For real hydrated DOM evidence without adding Playwright/Puppeteer, run
 `pnpm qa:hub:hydrated`. If `HUB_HYDRATED_URL`/`HUB_SMOKE_URL` is not set, the script starts
