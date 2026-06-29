@@ -172,7 +172,9 @@ const routes = [
     requiredMarkers: [
       { label: 'cached/offline state', text: "viewState === 'offline'" },
       { label: 'healthy empty state', text: 'Healthy Empty' },
-      { label: 'refresh failure state', text: 'Refresh Failed' },
+      { label: 'refresh failure state', text: 'Refresh needs attention' },
+      { label: 'raw refresh detail', text: 'Raw Analytics error:' },
+      { label: 'settings recovery action', text: 'Open Settings Data & Recovery' },
       { label: 'refresh busy gate', text: 'refreshBusy' },
       { label: 'cache status row', text: 'Analytics cache status' }
     ]

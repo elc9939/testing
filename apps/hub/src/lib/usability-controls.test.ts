@@ -1222,6 +1222,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('if (refreshBusy) return');
     expect(source).toContain('refreshError = error instanceof Error');
     expect(source).toContain('cachedRecordCount = rows.reduce');
+    expect(source).toContain('analyticsIssue = refreshError || renderError');
+    expect(source).toContain('visibleAnalyticsIssue = analyticsIssue ? compactAnalyticsIssue(analyticsIssue) :');
+    expect(source).toContain('function compactAnalyticsIssue');
+    expect(source).toContain('The analytics renderer could not load; cached rows are still available.');
+    expect(source).toContain('Raw Analytics error:');
+    expect(source).toContain('Open Settings Data & Recovery');
     expect(source).toContain('function analyticsCacheStatus');
     expect(source).toContain('function analyticsSyncDetail');
     expect(source).toContain('function analyticsRecordSummary');
@@ -1230,7 +1236,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('No completed sync recorded in this browser yet.');
     expect(source).toContain('disabled={refreshBusy}');
     expect(source).toContain("{refreshBusy ? 'Refreshing' : 'Refresh'}");
-    expect(source).toContain("refreshError ? 'Refresh Failed'");
+    expect(source).toContain("refreshError ? 'Refresh needs attention'");
   });
 
   it('guards Settings sync, export, and endpoint actions with readable busy states', async () => {

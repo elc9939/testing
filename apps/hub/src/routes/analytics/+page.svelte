@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { BarChart3, RefreshCw } from 'lucide-svelte';
+  import { BarChart3, RefreshCw, Settings } from 'lucide-svelte';
   import { analyticsViewMessage, analyticsViewState, buildAnalyticsMetricRows, buildStudyMinutesTrend } from '$lib/analytics-view';
   import { clientData } from '$lib/client-data';
   import { hubHref } from '$lib/routes';
@@ -19,6 +19,8 @@
   $: hasMetrics = rows.some((row) => row.value > 0);
   $: hasTrend = trendValues.some((value) => value > 0);
   $: cachedRecordCount = rows.reduce((sum, row) => sum + row.value, 0);
+  $: analyticsIssue = refreshError || renderError;
+  $: visibleAnalyticsIssue = analyticsIssue ? compactAnalyticsIssue(analyticsIssue) : '';
   $: if (plotHost) void render(rows, trendValues);
 
   function displayTime(value: string): string {
@@ -53,6 +55,21 @@
 
   function analyticsRecordSummary(): string {
     return `${cachedRecordCount} cached analytics signal${cachedRecordCount === 1 ? '' : 's'}`;
+  }
+
+  function compactAnalyticsIssue(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'Analytics could not refresh the local cache view.';
+    if (/pglite|opfs|indexeddb|quota|storage|cache/iu.test(text)) {
+      return 'The browser cache needs attention; existing loaded data remains visible when available.';
+    }
+    if (/plot|d3|render|canvas|svg|import|module|wasm/iu.test(text)) {
+      return 'The analytics renderer could not load; cached rows are still available.';
+    }
+    if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|timed out|timeout/iu.test(text)) {
+      return 'Live sync is unavailable; Analytics is using the last loaded browser cache.';
+    }
+    return text.length > 140 ? `${text.slice(0, 137)}...` : text;
   }
 
   async function render(nextRows = rows, nextTrend = trendValues): Promise<void> {
@@ -117,10 +134,16 @@
 </section>
 
 <section class={`card card-pad analytics-state ${refreshError ? 'error' : viewState}`}>
-  <strong>{refreshError ? 'Refresh Failed' : viewState === 'ready' ? 'Connected Data' : viewState === 'offline' ? 'Cached Data' : viewState === 'empty' ? 'Healthy Empty' : viewState === 'error' ? 'Action Needed' : 'Loading'}</strong>
+  <strong>{refreshError ? 'Refresh needs attention' : viewState === 'ready' ? 'Connected Data' : viewState === 'offline' ? 'Cached Data' : viewState === 'empty' ? 'Healthy Empty' : viewState === 'error' ? 'Action Needed' : 'Loading'}</strong>
   <p>{viewMessage}</p>
-  {#if refreshError || renderError}
-    <p class="error-text">{refreshError || renderError}</p>
+  {#if analyticsIssue}
+    <div class="analytics-issue" title={`Raw Analytics error: ${analyticsIssue}`}>
+      <p class="error-text">{visibleAnalyticsIssue}</p>
+      <a class="button compact" href={hubHref('/settings')} title="Open Settings Data & Recovery to inspect browser cache and sync state.">
+        <Settings size={15} />
+        <span>Open Settings</span>
+      </a>
+    </div>
   {/if}
   <div class="state-meta" aria-label="Analytics cache status">
     <span>{analyticsCacheStatus()}</span>
@@ -201,6 +224,18 @@
   .analytics-state.error {
     border-color: var(--error-border);
     background: var(--error-bg);
+  }
+
+  .analytics-issue {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 2px;
+  }
+
+  .analytics-issue .button {
+    flex: 0 0 auto;
   }
 
   .analytics-state.offline {
