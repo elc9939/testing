@@ -1135,6 +1135,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('startMockResearchAiOsServer');
     expect(source).toContain('runResearchOnlineRecoveryChecks');
     expect(source).toContain('runAiOsOfflineActionGuardChecks');
+    expect(source).toContain('runAssistantDockRecoveryChecks');
     expect(source).toContain('runDeskWriteGuardChecks');
     expect(source).toContain('runProductivityCacheWriteGuardChecks');
     expect(source).toContain('runLocalServiceSideEffectGuardChecks');
@@ -1152,6 +1153,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Hydrated Mock Research Report');
     expect(source).toContain('Hydrated monitor watch');
     expect(source).toContain('ai-os-offline-action-guard');
+    expect(source).toContain('assistant-toggle-title-closed');
+    expect(source).toContain('assistant-toggle-title-open');
+    expect(source).toContain('assistant-ai-os-status-recovery');
+    expect(source).toContain('Open Feature Wiring');
     expect(source).toContain('career-add-job-guard');
     expect(source).toContain('study-log-guard');
     expect(source).toContain('productivity-cache-write-guard');

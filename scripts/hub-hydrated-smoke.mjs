@@ -1922,6 +1922,78 @@ async function runAiOsOfflineActionGuardChecks(client, baseUrl) {
   return [{ id: 'ai-os-offline-action-guard', route: '/ai-os', ...result }];
 }
 
+async function runAssistantDockRecoveryChecks(client, baseUrl) {
+  await navigate(client, routeUrl(baseUrl, '/?aiOsUrl=http%3A%2F%2F127.0.0.1%3A9'));
+  const results = [];
+
+  try {
+    await evaluate(client, `document.querySelector('button[aria-label="Close assistant"]')?.click()`);
+    await delay(100);
+    const closedTitle = await evaluate(
+      client,
+      `(() => {
+        const button = document.querySelector('button[aria-label="Open assistant"]');
+        return {
+          ok: button?.getAttribute('title') === 'Open AI assistant.',
+          state: button?.getAttribute('title') || 'missing',
+          detail: button ? 'Closed assistant toggle title is "' + button.getAttribute('title') + '".' : 'Open assistant button not found.'
+        };
+      })()`
+    );
+    results.push({ id: 'assistant-toggle-title-closed', route: '/', ...closedTitle });
+
+    await clickButtonByAriaLabel(client, 'Open assistant');
+    const openTitle = await waitForCondition(
+      client,
+      `(() => {
+        const toggle = document.querySelector('button[aria-label="Close assistant"].assistant-toggle');
+        const close = document.querySelector('.assistant-panel button[aria-label="Close assistant"]');
+        const ok = toggle?.getAttribute('title') === 'Close AI assistant.' && close?.getAttribute('title') === 'Close AI assistant.';
+        return {
+          ok,
+          state: ok ? 'open' : 'waiting',
+          detail: 'toggle=' + (toggle?.getAttribute('title') || 'missing') + '; panelClose=' + (close?.getAttribute('title') || 'missing')
+        };
+      })()`,
+      5_000
+    );
+    results.push({ id: 'assistant-toggle-title-open', route: '/', ...openTitle });
+
+    await setControlValue(client, '.composer textarea', 'Check AI status');
+    await clickButtonByAriaLabel(client, 'Send');
+    const recovery = await waitForCondition(
+      client,
+      `(() => {
+        const text = document.body?.innerText || '';
+        const buttons = [...document.querySelectorAll('.assistant-panel button')].map((button) => ({
+          label: (button.innerText || button.textContent || '').replace(/\\s+/g, ' ').trim(),
+          title: button.getAttribute('title') || ''
+        }));
+        const offlineMessage = /could not reach AI OS|tool\\/agent status is unavailable|Failed to fetch|AI OS API unavailable/i.test(text);
+        const featureWiring = buttons.some((button) => button.label.includes('Open Feature Wiring') && /Open Feature Wiring/i.test(button.title));
+        const retry = buttons.some((button) => button.label === 'Retry' && /Retry this assistant request/i.test(button.title));
+        return {
+          ok: offlineMessage && featureWiring && retry,
+          state: offlineMessage ? 'offline-recovery' : 'waiting',
+          detail: \`offlineMessage=\${offlineMessage}; featureWiring=\${featureWiring}; retry=\${retry}; actions=\${buttons.map((button) => button.label + ':' + button.title).join(' | ')}\`
+        };
+      })()`,
+      15_000
+    );
+    results.push({ id: 'assistant-ai-os-status-recovery', route: '/', ...recovery });
+  } catch (error) {
+    results.push({
+      id: 'assistant-ai-os-status-recovery',
+      route: '/',
+      ok: false,
+      state: 'error',
+      detail: error instanceof Error ? error.message : 'Assistant dock recovery check failed.'
+    });
+  }
+
+  return results;
+}
+
 async function runDeskWriteGuardChecks(client, baseUrl) {
   const checks = [];
   const useRealApi = process.env.HUB_HYDRATED_DESK_WRITES === '1';
@@ -2769,6 +2841,7 @@ async function main() {
       ...(await runResearchActionChecks(client, baseUrl)),
       ...(await runResearchOnlineRecoveryChecks(client, baseUrl)),
       ...(await runAiOsOfflineActionGuardChecks(client, baseUrl)),
+      ...(await runAssistantDockRecoveryChecks(client, baseUrl)),
       ...(await runDeskWriteGuardChecks(client, baseUrl)),
       ...(await runProductivityCacheWriteGuardChecks(client, baseUrl)),
       ...(await runLocalServiceSideEffectGuardChecks(client, baseUrl)),
