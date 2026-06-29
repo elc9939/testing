@@ -1458,7 +1458,7 @@ describe('passive task engine', () => {
       });
 
       writeFileSync(notePath, '# Repeat\n\nThe note changed and should index again.', 'utf8');
-      const changedDate = new Date('2026-06-22T10:00:00.000Z');
+      const changedDate = new Date(Date.now() + 1000);
       utimesSync(notePath, changedDate, changedDate);
       const thirdRun = await runPassiveTask(second, secondTask.id, {
         externalFetch: fetchWithIngestCount,
