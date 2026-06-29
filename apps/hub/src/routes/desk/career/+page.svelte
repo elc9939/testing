@@ -107,7 +107,7 @@
   $: careerSummaryButtonTitle = careerSummaryTitle(careerControlState);
   $: careerMailUpdatesButtonTitle = careerMailUpdatesTitle(careerControlState);
   $: careerExportButtonTitle = careerExportTitle(careerControlState);
-  $: if (viewHydrated) persistCareerViewState();
+  $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
 
   function careerSaveTitle(state: Pick<CareerControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
     if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Career changes.';
@@ -189,11 +189,11 @@
     }
   }
 
-  function persistCareerViewState(): void {
+  function persistCareerViewState(nextSearchQuery = searchQuery, nextStatusFilter = statusFilter): void {
     const storage = getBrowserStorage();
     if (!storage) return;
     try {
-      storage.setItem(careerViewStorageKey, JSON.stringify(currentCareerViewState()));
+      storage.setItem(careerViewStorageKey, JSON.stringify({ searchQuery: nextSearchQuery, statusFilter: nextStatusFilter }));
     } catch {
       viewStatus = 'Browser storage is full or blocked; Career filters may not persist.';
     }

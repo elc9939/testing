@@ -129,7 +129,7 @@
   $: addLogButtonTitle = addLogTitle(studyControlState, subject, Number(minutes));
   $: saveLogEditButtonTitle = saveLogEditTitle(studyControlState, studyDraft);
   $: studySummaryButtonTitle = studySummaryTitle(studyControlState);
-  $: if (viewHydrated) persistStudyViewState();
+  $: if (viewHydrated) persistStudyViewState(searchQuery, subject, Number(minutes));
 
   function studySaveTitle(state: Pick<StudyControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
     if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Study changes.';
@@ -207,11 +207,11 @@
     }
   }
 
-  function persistStudyViewState(): void {
+  function persistStudyViewState(nextSearchQuery = searchQuery, nextSubject = subject, nextMinutes = Number(minutes)): void {
     const storage = getBrowserStorage();
     if (!storage) return;
     try {
-      storage.setItem(studyViewStorageKey, JSON.stringify(currentStudyViewState()));
+      storage.setItem(studyViewStorageKey, JSON.stringify({ searchQuery: nextSearchQuery, subject: nextSubject, minutes: Number(nextMinutes) }));
     } catch {
       viewStatus = 'Browser storage is full or blocked; Study view may not persist.';
     }

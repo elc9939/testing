@@ -1006,6 +1006,22 @@ async function clickButtonByText(client, label) {
   return result;
 }
 
+async function clickButtonByAriaLabel(client, ariaLabel) {
+  const result = await evaluate(
+    client,
+    `(() => {
+      const ariaLabel = ${JSON.stringify(ariaLabel)};
+      const button = [...document.querySelectorAll('button')].find((candidate) => candidate.getAttribute('aria-label') === ariaLabel);
+      if (!button) return { ok: false, detail: 'Button not found: ' + ariaLabel };
+      if (button.disabled) return { ok: false, detail: 'Button disabled: ' + (button.title || ariaLabel) };
+      button.click();
+      return { ok: true, detail: ariaLabel };
+    })()`
+  );
+  if (!result?.ok) throw new Error(result?.detail || `Could not click ${ariaLabel}.`);
+  return result;
+}
+
 async function fillFirstTextarea(client, value) {
   const result = await evaluate(
     client,
@@ -1021,6 +1037,24 @@ async function fillFirstTextarea(client, value) {
     })()`
   );
   if (!result?.ok) throw new Error(result?.detail || 'Could not fill textarea.');
+  return result;
+}
+
+async function setNthControlValue(client, selector, index, value) {
+  const result = await evaluate(
+    client,
+    `(() => {
+      const controls = [...document.querySelectorAll(${JSON.stringify(selector)})];
+      const control = controls[${Number(index)}];
+      if (!control) return { ok: false, detail: 'Control not found: ${selector}[${Number(index)}]' };
+      const value = ${JSON.stringify(value)};
+      control.value = value;
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+      return { ok: true, detail: value };
+    })()`
+  );
+  if (!result?.ok) throw new Error(result?.detail || `Could not set ${selector}[${index}].`);
   return result;
 }
 
@@ -1686,6 +1720,136 @@ async function runDeskApiSaveChecks(client, baseUrl, apiUrl = '') {
         15_000
       ))
     });
+
+    await setControlValue(client, '#job-search', 'Hydrated API Smoke Labs');
+    await setControlValue(client, '#status-filter', 'lead');
+    checks.push({
+      id: 'career-filter-visible',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const row = /Hydrated API Smoke Labs/i.test(text) && /Saved QA Analyst/i.test(text);
+          const count = /\\d+\\s*\\/\\s*\\d+ jobs/i.test(text);
+          const empty = /No jobs match the current filters/i.test(text);
+          return {
+            ok: row && count && !empty,
+            state: row && !empty ? 'filtered' : 'waiting',
+            detail: row && count && !empty ? 'Career search/status filters kept the saved row visible.' : 'Waiting for filtered Career row.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await setControlValue(client, '#status-filter', 'all');
+    checks.push({
+      id: 'career-edit-ready',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const button = [...document.querySelectorAll('button')].find((candidate) => candidate.getAttribute('aria-label') === 'Edit Hydrated API Smoke Labs');
+          const title = button?.getAttribute('title') || '';
+          const disabled = Boolean(button?.disabled);
+          return {
+            ok: Boolean(button) && !disabled,
+            state: button && !disabled ? 'ready' : 'waiting',
+            detail: button ? \`Edit button disabled=\${disabled}; title="\${title}"\` : 'Waiting for Career edit button.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+    await clickButtonByAriaLabel(client, 'Edit Hydrated API Smoke Labs');
+    await setNthControlValue(client, '.table-card tbody tr .table-input', 1, 'Edited QA Analyst');
+    await setNthControlValue(client, '.table-card tbody tr .table-select', 0, 'interview');
+    await clickButtonByAriaLabel(client, 'Save job');
+    checks.push({
+      id: 'career-edit-persisted',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const updated = /Updated Edited QA Analyst at Hydrated API Smoke Labs/i.test(text);
+          const row = /Hydrated API Smoke Labs/i.test(text) && /Edited QA Analyst/i.test(text) && /interview/i.test(text);
+          return {
+            ok: updated && row,
+            state: updated && row ? 'edited' : 'waiting',
+            detail: updated && row ? 'Career inline edit saved and row updated.' : 'Waiting for edited Career row.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await setControlValue(client, '#status-filter', 'interview');
+    checks.push({
+      id: 'career-filter-saved-locally',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const searchValue = document.querySelector('#job-search')?.value || '';
+          const statusValue = document.querySelector('#status-filter')?.value || '';
+          let storedSearch = '';
+          let storedStatus = '';
+          try {
+            const stored = JSON.parse(localStorage.getItem('miniHub.career.view.v1') || '{}');
+            storedSearch = stored?.searchQuery || '';
+            storedStatus = stored?.statusFilter || '';
+          } catch {}
+          return {
+            ok: searchValue === 'Hydrated API Smoke Labs' && statusValue === 'interview' && storedSearch === searchValue && storedStatus === statusValue,
+            state: storedSearch === searchValue && storedStatus === statusValue ? 'saved' : 'waiting',
+            detail: \`searchValue=\${searchValue}; statusValue=\${statusValue}; storedSearch=\${storedSearch}; storedStatus=\${storedStatus}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+    await navigate(client, withApi('/desk/career'));
+    checks.push({
+      id: 'career-edit-filter-reloaded',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const searchValue = document.querySelector('#job-search')?.value || '';
+          const statusValue = document.querySelector('#status-filter')?.value || '';
+          const row = /Hydrated API Smoke Labs/i.test(text) && /Edited QA Analyst/i.test(text) && /interview/i.test(text);
+          const filterReloaded = searchValue === 'Hydrated API Smoke Labs' && statusValue === 'interview';
+          return {
+            ok: row && filterReloaded,
+            state: row ? 'reloaded' : 'waiting',
+            detail: row && filterReloaded ? 'Edited Career row and browser filter values reloaded.' : \`row=\${row}; searchValue=\${searchValue}; statusValue=\${statusValue}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await clickButtonByText(client, 'Export');
+    checks.push({
+      id: 'career-export-visible-confirmation',
+      route: '/desk/career',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const exported = /Exported legacy Career snapshot from this browser/i.test(text);
+          return {
+            ok: exported,
+            state: exported ? 'exported' : 'waiting',
+            detail: exported ? 'Career export action produced a visible confirmation.' : 'Waiting for Career export confirmation.'
+          };
+        })()`,
+        15_000
+      ))
+    });
   }
 
   await navigate(client, withApi('/desk/study'));
@@ -1745,6 +1909,91 @@ async function runDeskApiSaveChecks(client, baseUrl, apiUrl = '') {
             ok: row,
             state: row ? 'reloaded' : 'waiting',
             detail: row ? 'Saved Study row reloaded from API/cache.' : 'Waiting for saved Study row after navigation.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    checks.push({
+      id: 'study-edit-ready',
+      route: '/desk/study',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const button = [...document.querySelectorAll('button')].find((candidate) => candidate.getAttribute('aria-label') === 'Edit Hydrated API Study');
+          const title = button?.getAttribute('title') || '';
+          const disabled = Boolean(button?.disabled);
+          return {
+            ok: Boolean(button) && !disabled,
+            state: button && !disabled ? 'ready' : 'waiting',
+            detail: button ? \`Edit button disabled=\${disabled}; title="\${title}"\` : 'Waiting for Study edit button.'
+          };
+        })()`,
+        15_000
+      ))
+    });
+    await clickButtonByAriaLabel(client, 'Edit Hydrated API Study');
+    await setNthControlValue(client, 'details[open] .table-card tbody tr .table-input', 0, 'Hydrated Edited Study');
+    await setNthControlValue(client, 'details[open] .table-card tbody tr .table-input', 1, '31');
+    await clickButtonByAriaLabel(client, 'Save study log');
+    checks.push({
+      id: 'study-edit-persisted',
+      route: '/desk/study',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const updated = /Updated 31 min for Hydrated Edited Study/i.test(text);
+          const row = /Hydrated Edited Study/i.test(text) && /31/.test(text);
+          const progress = [...document.querySelectorAll('.day-cell')].some((cell) => /31 minutes/i.test(cell.getAttribute('title') || ''));
+          return {
+            ok: row && progress,
+            state: row && progress ? 'edited' : 'waiting',
+            detail: row && progress ? \`Study inline edit saved durable row/progress evidence. banner=\${updated}\` : \`updated=\${updated}; row=\${row}; progress=\${progress}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+
+    await setControlValue(client, '#study-search', 'Edited');
+    checks.push({
+      id: 'study-filter-saved-locally',
+      route: '/desk/study',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const filterValue = document.querySelector('#study-search')?.value || '';
+          let stored = '';
+          try {
+            stored = JSON.parse(localStorage.getItem('miniHub.study.view.v1') || '{}')?.searchQuery || '';
+          } catch {}
+          return {
+            ok: filterValue === 'Edited' && stored === 'Edited',
+            state: stored === 'Edited' ? 'saved' : 'waiting',
+            detail: \`filterValue=\${filterValue}; stored=\${stored}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+    await navigate(client, withApi('/desk/study'));
+    checks.push({
+      id: 'study-filter-progress-reloaded',
+      route: '/desk/study',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const text = document.body?.innerText || '';
+          const row = /Hydrated Edited Study/i.test(text) && /31/.test(text);
+          const filterValue = document.querySelector('#study-search')?.value || '';
+          const filterReloaded = filterValue === 'Edited';
+          const progress = [...document.querySelectorAll('.day-cell')].some((cell) => /31 minutes/i.test(cell.getAttribute('title') || ''));
+          return {
+            ok: row && filterReloaded && progress,
+            state: row ? 'reloaded' : 'waiting',
+            detail: row && filterReloaded && progress ? 'Edited Study row, filter value, and progress cell reloaded.' : \`row=\${row}; filterValue=\${filterValue}; progress=\${progress}\`
           };
         })()`,
         15_000
