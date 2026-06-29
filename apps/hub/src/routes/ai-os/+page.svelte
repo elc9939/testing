@@ -370,13 +370,13 @@
 
   function aiOsMetricLabel(value: number | undefined, suffix = ''): string {
     if (loading && !status) return '...';
-    if (!status) return 'n/a';
+    if (!status) return 'offline';
     return numberLabel(value, suffix);
   }
 
   function aiOsCountLabel(value: number): string {
     if (loading && !status) return '...';
-    if (!status) return 'n/a';
+    if (!status) return 'offline';
     return String(value);
   }
 

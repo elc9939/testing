@@ -499,6 +499,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function warmLocalModelBlockedReason');
     expect(source).toContain('function aiOsMetricLabel');
     expect(source).toContain('function aiOsCountLabel');
+    expect(source).toContain("if (!status) return 'offline'");
     expect(source).toContain('function aiOsRamDetail');
     expect(source).toContain('function aiOsGpuDetail');
     expect(source).toContain('function aiOsModelSummary');
