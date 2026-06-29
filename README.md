@@ -651,7 +651,8 @@ It launches a temporary headless Chrome/Edge profile through the Chrome DevTools
 opens every main route, records the hydrated browser title, heading, and control state, checks safe-action visibility,
 fills a sample Research goal to verify the offline run guard does not fake a queued task,
 starts an embedded mock AI OS Research service to verify run creation, pause, resume, cancel, reload recovery,
-monitor save/run/toggle/delete, report export links, source-library search, and source-to-seed draft recovery,
+Activity recovery for AI OS jobs/tool calls/benchmarks/generations, monitor save/run/toggle/delete,
+report export links, source-library search, and source-to-seed draft recovery,
 forces AI OS offline to verify command, autotune, design, benchmark, job, and generation controls stay disabled,
 fills Career/Study forms to verify service-backed save controls are guarded when the Hub API
 is unavailable, then starts an embedded mock Mini Hub API to verify Career save/edit/filter/export

@@ -1149,6 +1149,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Hydrated API Smoke Labs');
     expect(source).toContain('Hydrated API Study');
     expect(source).toContain('Hydrated Edited Study');
+    expect(source).toContain('createMockAiStatus');
+    expect(source).toContain('/api/ai/status');
+    expect(source).toContain('activity-ai-os-work-rehydrated');
+    expect(source).toContain('Tool call: study.add_session');
+    expect(source).toContain('generated/hydrated-image.png');
     expect(source).toContain('Hydrated smoke: verify Research Desk offline run guard.');
     expect(source).toContain('Connect AI OS before starting a research run');
     expect(source).toContain('queued message visible');

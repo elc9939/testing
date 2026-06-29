@@ -606,6 +606,99 @@ function createMockResearchRun(input, index = 1) {
   };
 }
 
+function createMockAiStatus(researchRuns = []) {
+  return {
+    providers: [
+      {
+        id: 'mock-local',
+        label: 'Hydrated Mock Local',
+        available: true,
+        local: true,
+        paid: false,
+        models: ['hydrated-smoke'],
+        capabilities: ['chat', 'tools'],
+        latency_ms: 12
+      }
+    ],
+    capabilities: [],
+    hardware: {
+      cpu_percent: 12.5,
+      memory_percent: 42.1,
+      gpus: [],
+      recent_tokens_per_second: 18.5
+    },
+    jobs: [
+      {
+        id: 'hydrated-ai-job',
+        primitive: 'map',
+        status: 'running',
+        created_at: '2026-06-23T12:08:00.000Z',
+        updated_at: '2026-06-23T12:09:00.000Z',
+        total: 4,
+        completed: 2,
+        failed: 0,
+        progress: 0.5,
+        cancel_requested: false,
+        metadata: { source: 'hydrated-smoke' }
+      }
+    ],
+    background: [],
+    tools: [
+      {
+        id: 'study.add_session',
+        label: 'Add study session',
+        description: 'Mock tool spec used by hydrated Activity smoke.',
+        input_schema: {},
+        safety: 'write',
+        requires_confirmation: true
+      }
+    ],
+    tool_calls: [
+      {
+        id: 'hydrated-tool-call',
+        created_at: '2026-06-23T12:09:30.000Z',
+        tool_id: 'study.add_session',
+        ok: true,
+        safety: 'write',
+        requires_confirmation: true,
+        arguments: { subject: 'Hydrated Activity' },
+        result: { ok: true },
+        latency_ms: 27
+      }
+    ],
+    benchmark_runs: [
+      {
+        id: 'hydrated-benchmark',
+        created_at: '2026-06-23T12:07:00.000Z',
+        kind: 'text',
+        provider: 'ollama',
+        model: 'hydrated-smoke',
+        prompt: 'Hydrated benchmark',
+        latency_ms: 900,
+        tokens_per_second: 18.5,
+        hardware_before: {},
+        hardware_after: {},
+        result: {},
+        ok: true
+      }
+    ],
+    generation_assets: [
+      {
+        id: 'hydrated-generation',
+        created_at: '2026-06-23T12:06:30.000Z',
+        kind: 'image',
+        provider: 'mock-image',
+        model: 'hydrated-smoke',
+        prompt: 'Hydrated generated image',
+        content_type: 'image/png',
+        asset_path: 'generated/hydrated-image.png',
+        metadata: {}
+      }
+    ],
+    research_runs: researchRuns
+  };
+}
+
 function mockSyncEvent(entityType, entity, operation = 'insert', index = 1) {
   const now = new Date(Date.UTC(2026, 5, 23, 12, 10, index)).toISOString();
   return {
@@ -829,6 +922,10 @@ async function startMockResearchAiOsServer() {
     }
     const url = new URL(request.url || '/', `http://127.0.0.1:${port}`);
     const pathName = url.pathname;
+    if (pathName === '/api/ai/status' && request.method === 'GET') {
+      sendJson(response, 200, createMockAiStatus(runs));
+      return;
+    }
     if (pathName === '/api/ai/research/runs' && request.method === 'GET') {
       sendJson(response, 200, { runs });
       return;
@@ -1549,7 +1646,31 @@ async function runResearchOnlineRecoveryChecks(client, baseUrl) {
     });
     if (!checks.at(-1)?.ok) return checks;
 
-    await navigate(client, routeUrl(baseUrl, '/activity'));
+    await navigate(client, routeUrl(baseUrl, `/activity?aiOsUrl=${encodeURIComponent(mock.url)}&apiUrl=http%3A%2F%2F127.0.0.1%3A9&macroLabUrl=http%3A%2F%2F127.0.0.1%3A9`, { skipApiUrlOverride: true }));
+    checks.push({
+      id: 'activity-ai-os-work-rehydrated',
+      route: '/activity',
+      ...(await waitForCondition(
+        client,
+        `(() => {
+          const body = document.body?.innerText || '';
+          const source = /AI OS\\s+\\w+\\s+5/i.test(body) || /AI OS[\\s\\S]{0,120}\\b5\\b/i.test(body);
+          const research = body.includes('Hydrated Mock Research Report') && body.includes('Cancelled by hydrated smoke');
+          const job = body.includes('Map job') && body.includes('2/4 items complete');
+          const tool = body.includes('Tool call: study.add_session') && body.includes('confirmation gated');
+          const benchmark = body.includes('Text benchmark') && body.includes('18.5 tokens/sec');
+          const generation = body.includes('Image generated') && body.includes('generated/hydrated-image.png');
+          return {
+            ok: source && research && job && tool && benchmark && generation,
+            state: source && research && job && tool && benchmark && generation ? 'rehydrated' : 'waiting',
+            detail: \`source=\${source}; research=\${research}; job=\${job}; tool=\${tool}; benchmark=\${benchmark}; generation=\${generation}\`
+          };
+        })()`,
+        15_000
+      ))
+    });
+    if (!checks.at(-1)?.ok) return checks;
+
     await navigate(client, routeUrl(baseUrl, `/research?aiOsUrl=${encodeURIComponent(mock.url)}&run=hydrated-run-1`));
     checks.push({
       id: 'research-online-run-rehydrated',
