@@ -977,7 +977,7 @@
           <span class="icon-chip"><FolderOpen size={16} /></span>
           <strong>Restore Points</strong>
         </div>
-        <a class="button compact" href={hubHref('/settings')}>Settings</a>
+        <a class="button compact" href={hubHref('/settings#data-recovery')} title="Open Settings Data & Recovery for restore-point and backup details.">Recovery</a>
       </div>
       {#if backupHealth}
         <div class="worker-grid">

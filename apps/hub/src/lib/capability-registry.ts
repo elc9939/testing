@@ -107,7 +107,7 @@ export function buildCapabilityRegistry(input: CapabilityRegistryInput): Capabil
     locality: 'browser',
     cost: 'free',
     safety: 'read',
-    route: '/settings',
+    route: '/settings#data-recovery',
     requiredService: 'PGlite',
     lastError: input.syncError || undefined,
     tags: ['local-first', 'sync']
@@ -123,7 +123,7 @@ export function buildCapabilityRegistry(input: CapabilityRegistryInput): Capabil
     locality: 'local',
     cost: 'free',
     safety: 'write',
-    route: '/settings',
+    route: '/settings#feature-wiring',
     requiredService: 'Mini Hub API',
     lastError: input.hubError,
     tags: ['sync', 'data']

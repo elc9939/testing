@@ -598,6 +598,8 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('Passive Tasks API unavailable');
     expect(passive).toContain('Target: {getApiUrl()}. {localNetworkHint()}');
     expect(passive).toContain("href={hubHref('/settings#feature-wiring')}");
+    expect(passive).toContain("href={hubHref('/settings#data-recovery')}");
+    expect(passive).toContain('Open Settings Data & Recovery for restore-point and backup details.');
     expect(passive).toContain('disabled={passiveWriteDisabled}');
     expect(passive).toContain('title={passiveActionTitle');
     expect(passive).toContain('disabled={passiveWriteDisabled || !canRunTask(task, watcher)}');

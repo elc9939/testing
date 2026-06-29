@@ -215,7 +215,9 @@ describe('capability registry', () => {
     });
 
     expect(snapshot.capabilities.find((capability) => capability.id === 'browser.offline-cache')?.state).toBe('running');
+    expect(snapshot.capabilities.find((capability) => capability.id === 'browser.offline-cache')?.route).toBe('/settings#data-recovery');
     expect(snapshot.capabilities.find((capability) => capability.id === 'hub.api')?.state).toBe('offline');
+    expect(snapshot.capabilities.find((capability) => capability.id === 'hub.api')?.route).toBe('/settings#feature-wiring');
     expect(snapshot.capabilities.find((capability) => capability.id === 'productivity.google')?.state).toBe('needs_setup');
     expect(selectCapabilityIssues(snapshot, 2).map((capability) => capability.state)).toEqual(['offline', 'offline']);
   });

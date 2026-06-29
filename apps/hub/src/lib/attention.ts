@@ -51,7 +51,7 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
       kind: 'service',
       title: 'Offline: saves are paused',
       detail: 'Cached data stays visible. Edits resume after the hub reconnects.',
-      route: '/settings',
+      route: '/settings#data-recovery',
       source: 'sync',
       priority: 100
     });
@@ -63,7 +63,7 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
       kind: 'service',
       title: 'Local sync needs attention',
       detail: input.syncError || 'The local cache or sync service reported an error.',
-      route: '/settings',
+      route: '/settings#data-recovery',
       source: 'sync',
       priority: 96
     });
@@ -75,7 +75,7 @@ export function buildAttentionItems(input: BuildAttentionItemsInput): AttentionI
       kind: 'service',
       title: 'Productivity services did not refresh',
       detail: input.dashboardError,
-      route: '/settings',
+      route: '/settings#feature-wiring',
       source: 'productivity',
       priority: 94
     });

@@ -106,6 +106,8 @@ describe('buildAttentionItems', () => {
       'service:productivity-error',
       'setup:google'
     ]);
+    expect(items.find((item) => item.id === 'service:offline-readonly')?.route).toBe('/settings#data-recovery');
+    expect(items.find((item) => item.id === 'service:productivity-error')?.route).toBe('/settings#feature-wiring');
   });
 
   it('uses real calendar, mail, and career data to build the queue', () => {
