@@ -28,6 +28,7 @@
   } from 'lucide-svelte';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
   import { clientData } from '$lib/client-data';
   import { aiActivityStateLabel, buildAiActivityItems } from '$lib/ai-activity';
   import { machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
@@ -215,6 +216,7 @@
   $: aiOsCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before running command actions.');
   $: aiOsProfileRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status and machine profile.');
   $: aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before using advanced command controls.');
+  $: visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'AI OS') : '';
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
     const groups = new Map<string, typeof capabilities>();
@@ -517,7 +519,9 @@
     }
 
     if (!nextStatus) {
-      const detail = error || `AI OS is not answering at ${getAiOsApiUrl()}. GPU telemetry needs the local AI OS API to be running.`;
+      const detail = error
+        ? compactServiceIssueIfRecognized(error, 'AI OS')
+        : `AI OS is not answering at ${getAiOsApiUrl()}. GPU telemetry needs the local AI OS API to be running.`;
       return [
         { id: 'service', label: 'AI OS service', state: 'offline', detail },
         { id: 'ollama', label: 'Ollama provider', state: 'unknown', detail: 'Unknown until AI OS is reachable.' },
@@ -1192,7 +1196,7 @@
 </section>
 
 {#if actionError}
-  <section class="card card-pad error-banner">{actionError}</section>
+  <section class="card card-pad error-banner" title={`Raw AI OS error: ${actionError}`}>{visibleActionError}</section>
   <section class="card card-pad connection-card">
     <div>
       <strong>Desktop service</strong>

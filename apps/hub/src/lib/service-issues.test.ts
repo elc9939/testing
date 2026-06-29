@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyServiceIssue, compactServiceIssueLine, isLikelyServiceIssue } from './service-issues';
+import { classifyServiceIssue, compactServiceIssueIfRecognized, compactServiceIssueLine, isLikelyServiceIssue } from './service-issues';
 
 describe('service issue compaction', () => {
   it('classifies common local-service failures without exposing raw fetch text', () => {
@@ -25,5 +25,14 @@ describe('service issue compaction', () => {
   it('does not mistake ordinary form validation for a service outage', () => {
     expect(isLikelyServiceIssue('Type a research goal before running.')).toBe(false);
     expect(isLikelyServiceIssue('Connect AI OS before running this research task.')).toBe(true);
+  });
+
+  it('leaves non-service action errors intact while compacting recognized service errors', () => {
+    expect(compactServiceIssueIfRecognized('Create a backup before using this action.', 'AI OS')).toBe(
+      'Create a backup before using this action.'
+    );
+    expect(compactServiceIssueIfRecognized('AI OS API unavailable at http://127.0.0.1:8791: Failed to fetch.', 'AI OS')).toBe(
+      'AI OS is offline or unreachable. Start the desktop service, then retry.'
+    );
   });
 });

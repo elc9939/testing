@@ -62,6 +62,14 @@ export function compactServiceIssueLine(message = '', serviceLabel = 'Service'):
   return `${serviceLabel}: ${issue.summary}`;
 }
 
+export function compactServiceIssueIfRecognized(message = '', serviceLabel = 'Service'): string {
+  const text = message.trim();
+  if (!text) return '';
+  const issue = classifyServiceIssue(text);
+  if (issue.kind === 'unknown') return text;
+  return compactServiceIssueLine(text, serviceLabel);
+}
+
 function truncateServiceIssue(value: string): string {
   return value.length > 96 ? `${value.slice(0, 93)}...` : value;
 }

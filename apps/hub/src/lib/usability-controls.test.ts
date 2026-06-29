@@ -492,6 +492,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("aiOsCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before running command actions.')");
     expect(source).toContain("aiOsProfileRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status and machine profile.')");
     expect(source).toContain("aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before using advanced command controls.')");
+    expect(source).toContain("visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'AI OS') :");
+    expect(source).toContain('Raw AI OS error:');
     expect(source).toContain('function aiOsActionTitle');
     expect(source).toContain('function foundationActionTitle');
     expect(source).toContain('function warmLocalModelBlockedReason');
@@ -1321,6 +1323,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("machineProfileControlBlockedReason('autotune', {");
     expect(source).toContain('function machineProfileControlBlockedReason');
     expect(source).toContain('AI OS is unavailable. Start AI OS or fix the endpoint, then retry the profile check.');
+    expect(source).toContain("visibleMachineProfileError = machineProfileError ? compactServiceIssueIfRecognized(machineProfileError, 'AI OS machine profile') :");
+    expect(source).toContain('Raw machine profile error:');
+    expect(source).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
     expect(source).toContain('disabled={Boolean(machineAutotuneBlockedReason)}');
     expect(source).toContain('disabled={Boolean(machineSnapshotBlockedReason)}');
     expect(source).toContain('function machineModeBlockedReason');

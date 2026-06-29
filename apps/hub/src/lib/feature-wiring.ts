@@ -1,6 +1,7 @@
 import { routeMap } from '@mini-hub/core';
 import type { ServiceEndpointResolution, ServiceId } from './service-config';
 import { serviceHealthPath } from './service-config';
+import { compactServiceIssueIfRecognized } from './service-issues';
 
 export type FeatureWiringStatus = 'ready' | 'checking' | 'offline' | 'misconfigured' | 'needs_setup' | 'unknown';
 
@@ -127,7 +128,7 @@ function serviceRow(input: {
   const status = serviceStatus(input.endpoint, input.signal);
   const endpointBase = input.endpoint?.resolvedUrl || input.endpoint?.requestedUrl || '';
   const endpoint = endpointBase ? `${endpointBase}${input.endpointSuffix ?? ''}` : 'Not configured';
-  const detail = rowDetail(status, input.endpoint, input.signal);
+  const detail = rowDetail(status, input.endpoint, input.signal, input.feature);
   const fixAction = rowFixAction(status, input.endpoint, input.signal);
   return {
     id: input.id,
@@ -170,11 +171,12 @@ function serviceStatus(endpoint: ServiceEndpointResolution | undefined, signal: 
 function rowDetail(
   status: FeatureWiringStatus,
   endpoint: ServiceEndpointResolution | undefined,
-  signal: FeatureWiringSignal
+  signal: FeatureWiringSignal,
+  feature: string
 ): string {
   if (status === 'misconfigured') return endpoint?.detail ?? 'Endpoint points at the wrong service.';
   if (status === 'checking') return 'A service check is running.';
-  if (status === 'offline') return signal.error ?? 'The service is not reachable from this browser.';
+  if (status === 'offline') return signal.error ? compactServiceIssueIfRecognized(signal.error, feature) : 'The service is not reachable from this browser.';
   if (status === 'needs_setup') return signal.detail ?? 'This feature needs setup before it can show connected data.';
   if (status === 'ready') return signal.detail ?? 'This feature is connected and ready.';
   return endpoint?.detail ?? signal.detail ?? 'Click Check Services to verify this feature.';

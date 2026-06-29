@@ -42,6 +42,7 @@
   import { getConnections } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint, serviceEndpointResolution, serviceFallbackUrl, setServiceEndpoints } from '$lib/service-config';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
   import { setTheme, theme, type ThemeMode } from '$lib/theme';
 
   const watchedResearchPlaceholder = [
@@ -123,6 +124,7 @@
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: visibleMachineProfileError = machineProfileError ? compactServiceIssueIfRecognized(machineProfileError, 'AI OS machine profile') : '';
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
   $: passiveSettings = passiveSnapshot?.settings ?? null;
   $: passiveSettingsBlockedReason = passiveSettingsControlBlockedReason({
@@ -946,7 +948,7 @@
         <p class="helper-text">{machineProfile.autotune.routing_notes[0]}</p>
       {/if}
     {:else if machineProfileError}
-      <p class="sync-error">{machineProfileError}</p>
+      <p class="sync-error" title={`Raw machine profile error: ${machineProfileError}`}>{visibleMachineProfileError}</p>
     {:else}
       <p class="helper-text">Machine profile has not been loaded yet. Start AI OS, then check services.</p>
     {/if}
@@ -968,7 +970,7 @@
       <p class="endpoint-message">{machineProfileMessage}</p>
     {/if}
     {#if machineProfileError && machineProfile}
-      <p class="sync-error">{machineProfileError}</p>
+      <p class="sync-error" title={`Raw machine profile error: ${machineProfileError}`}>{visibleMachineProfileError}</p>
     {/if}
   </div>
 
