@@ -58,6 +58,40 @@
     return `${cachedRecordCount} cached analytics signal${cachedRecordCount === 1 ? '' : 's'}`;
   }
 
+  function workspaceMixEmptyTitle(): string {
+    if (!$clientData.initialized) return 'Opening chart cache';
+    if (refreshError) return 'Refresh needs attention';
+    if (renderError) return 'Renderer unavailable';
+    if (viewState === 'offline') return 'No cached chart data';
+    if (viewState === 'error') return 'Cache needs attention';
+    return 'No chart data yet';
+  }
+
+  function workspaceMixEmptyMessage(): string {
+    if (!$clientData.initialized) return 'Opening browser cache before drawing the workspace mix.';
+    if (refreshError) return 'Refresh failed; existing cached rows stay visible when available.';
+    if (renderError) return 'The chart renderer could not load, but the cached row counts above are still usable.';
+    if (viewState === 'offline') return 'No cached Career, Study, or game records are available in this browser yet.';
+    if (viewState === 'error') return $clientData.error || 'The browser cache needs attention before analytics can render.';
+    return 'Add real records in Career, Study, or games and this panel will render them.';
+  }
+
+  function studyTrendEmptyTitle(): string {
+    if (!$clientData.initialized) return 'Opening study cache';
+    if (refreshError) return 'Refresh needs attention';
+    if (viewState === 'offline') return 'No cached study trend';
+    if (viewState === 'error') return 'Cache needs attention';
+    return 'No study trend data yet';
+  }
+
+  function studyTrendEmptyMessage(): string {
+    if (!$clientData.initialized) return 'Opening browser cache before drawing the seven-day trend.';
+    if (refreshError) return 'Refresh failed; cached study sessions remain visible when available.';
+    if (viewState === 'offline') return 'No cached study sessions are available in this browser yet.';
+    if (viewState === 'error') return $clientData.error || 'The browser cache needs attention before study trends can render.';
+    return 'Log a study session to build the seven-day local trend.';
+  }
+
   function compactAnalyticsIssue(message = ''): string {
     const text = message.trim();
     if (!text) return 'Analytics could not refresh the local cache view.';
@@ -160,8 +194,8 @@
     <div class:hidden={!hasMetrics} class="plot" bind:this={plotHost}></div>
     {#if !hasMetrics}
       <div class="empty-panel">
-        <strong>No chart yet</strong>
-        <p>Add real records in Career, Study, or games and this panel will render them.</p>
+        <strong>{workspaceMixEmptyTitle()}</strong>
+        <p>{workspaceMixEmptyMessage()}</p>
       </div>
     {/if}
     <p class="muted">{renderStatus}</p>
@@ -175,8 +209,8 @@
       </svg>
     {:else}
       <div class="empty-panel compact">
-        <strong>No study trend yet</strong>
-        <p>Log a study session to build the seven-day local trend.</p>
+        <strong>{studyTrendEmptyTitle()}</strong>
+        <p>{studyTrendEmptyMessage()}</p>
       </div>
     {/if}
     <p class="muted">DuckDB-Wasm is reserved for CSV and LogMiner-style imports; this page shows real Mini Hub cache data first.</p>
