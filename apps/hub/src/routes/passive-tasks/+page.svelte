@@ -154,25 +154,25 @@
 
   function passiveEngineLabel(): string {
     if (loading && !snapshot) return 'Loading';
-    if (!settings) return serviceError ? 'Offline' : 'Unknown';
+    if (!settings) return serviceError ? 'Offline' : 'Not checked';
     return settings.enabled ? 'On' : 'Off';
   }
 
   function passiveScheduleLabel(): string {
     if (loading && !snapshot) return 'Loading';
-    if (!settings) return serviceError ? 'Offline' : 'Unknown';
+    if (!settings) return serviceError ? 'Offline' : 'Not checked';
     return settings.idleOnly ? 'Idle only' : 'Normal';
   }
 
   function passiveBackupStatusLabel(): string {
     if (backupHealth) return backupStatusLabel(backupHealth);
     if (loading && !snapshot) return 'Loading';
-    return snapshot ? 'n/a' : serviceError ? 'Offline' : 'Unknown';
+    return snapshot ? 'No backup health' : serviceError ? 'Offline' : 'Not loaded';
   }
 
   function passiveCountLabel(value: number): string {
-    if (loading && !snapshot) return '...';
-    if (!snapshot) return 'n/a';
+    if (loading && !snapshot) return 'checking';
+    if (!snapshot) return 'not loaded';
     return String(value);
   }
 
@@ -194,7 +194,7 @@
 
   function workerStateLabel(): string {
     if (loading && !snapshot) return 'Loading';
-    if (!snapshot) return serviceError ? 'Offline' : 'Unknown';
+    if (!snapshot) return serviceError ? 'Offline' : 'Not checked';
     if (!worker?.startedAt) return 'Not started';
     if (!worker.enabled) return 'Disabled';
     return worker.running ? 'Running' : 'Idle';
@@ -339,7 +339,7 @@
   }
 
   function formatHours(value: number | undefined): string {
-    if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured';
     if (value >= 48) return `${Math.round(value / 24)} d old`;
     if (value >= 1) return `${Math.round(value)} hr old`;
     return '<1 hr old';
@@ -794,7 +794,7 @@
           {/each}
         </div>
       {:else if loading}
-        <p class="empty-note">Loading passive task outputs...</p>
+        <p class="empty-note">Loading passive task outputs.</p>
       {:else}
         <p class="empty-note">No passive task cards yet. Run due tasks or configure folders/research monitors to create source-backed outputs.</p>
       {/if}

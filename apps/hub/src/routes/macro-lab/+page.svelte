@@ -117,7 +117,7 @@
     if (status) return 'Macro definitions and run history are reachable.';
     if (loading) return 'Loading macro definitions and run history.';
     if (serviceError) return 'Macro Lab service is offline; saved definitions and run history are unavailable.';
-    return 'Run history will appear after connection.';
+    return 'Connect Macro Lab to inspect saved definitions and run history.';
   }
 
   function macroEditorEmptyDetail(): string {
@@ -347,7 +347,7 @@
       </button>
     {/each}
     {#if loading && !macros.length}
-      <p class="empty-note">Loading macro definitions from Macro Lab...</p>
+      <p class="empty-note">Loading macro definitions from Macro Lab.</p>
     {:else if !macros.length}
       <p class="empty-note">{serviceError ? 'Macro definitions are unavailable until the service responds.' : 'No macros are registered yet. Create one with the plus button.'}</p>
     {/if}
@@ -401,7 +401,7 @@
         </div>
       {/each}
       {#if loading && !actions.length}
-        <p class="empty-note">Loading action catalog...</p>
+        <p class="empty-note">Loading action catalog.</p>
       {:else if !actions.length}
         <p class="empty-note">{serviceError ? 'Action catalog unavailable until Macro Lab responds.' : 'No action types are registered yet.'}</p>
       {/if}
@@ -437,7 +437,7 @@
       </div>
     {/each}
     {#if loading && !runs.length}
-      <p class="empty-note">Loading recent Macro Lab runs...</p>
+      <p class="empty-note">Loading recent Macro Lab runs.</p>
     {:else if !runs.length}
       <p class="empty-note">{serviceError ? 'Run history is unavailable until Macro Lab responds.' : 'No macro runs have been recorded yet.'}</p>
     {:else if highlightedRunId && !runs.some((run) => run.id === highlightedRunId)}
