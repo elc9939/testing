@@ -66,7 +66,7 @@
 
   function gameRunSaveStatus(state: ClientDataState): string {
     if (canAutoSave(state)) return 'Ready to save runs through Mini Hub.';
-    if (!state.initialized) return 'Loading cache';
+    if (!state.initialized) return 'Opening saved game data';
     if (state.error) return 'API not ready';
     if (!state.isOnline) return 'Offline read-only';
     if (state.status === 'syncing') return 'Syncing';

@@ -560,7 +560,7 @@
 
   function todaySaveStatusLabel(state: ClientDataState): string {
     if (state.status === 'error') return 'Needs attention';
-    if (!state.initialized) return 'Loading cache';
+    if (!state.initialized) return 'Opening saved data';
     if (state.status === 'syncing') return 'Syncing';
     if (!state.isOnline || state.status === 'offline-readonly') return 'Offline read-only';
     return 'Auto-save ready';

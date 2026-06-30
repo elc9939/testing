@@ -8,7 +8,7 @@
   $: gameStateCount = $clientData.gameStates.length;
   $: lastGameRun = $clientData.gameRuns[0] ?? null;
   $: gameSaveReady = canAutoSave($clientData);
-  $: gameSaveMode = gameSaveReady ? 'API-backed saves enabled' : $clientData.initialized ? 'Offline/read-only until API is ready' : 'Loading cache';
+  $: gameSaveMode = gameSaveReady ? 'API-backed saves enabled' : $clientData.initialized ? 'Offline/read-only until API is ready' : 'Opening saved game data';
   $: gameSaveDetail = gameSaveReady
     ? 'Supported game runs and state save through the Mini Hub API, then reload from the local browser cache.'
     : gameSaveBlockedDetail($clientData);

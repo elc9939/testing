@@ -102,6 +102,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('const dataRecoveryRoute = `${routeMap.settings}#data-recovery`');
     expect(source).toContain('class="sync-pill" href={hubHref(dataRecoveryRoute)}');
     expect(source).toContain('aria-label={`Save status: ${syncPillText}. Open Settings Data and Recovery.`}');
+    expect(source).not.toContain('Loading cache');
   });
 
   it('keeps disabled route buttons self-explanatory', async () => {
@@ -1134,7 +1135,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('lastSyncLabel = todayLastSyncLabel($clientData)');
     expect(source).toContain('function todaySaveStatusLabel');
     expect(source).toContain('function todaySaveStatusLabel(state: ClientDataState)');
-    expect(source).toContain("if (state.status === 'error') return 'Needs attention';\n    if (!state.initialized) return 'Loading cache';");
+    expect(source).toContain("if (state.status === 'error') return 'Needs attention';\n    if (!state.initialized) return 'Opening saved data';");
     expect(source).toContain('function todaySaveStatusDetail');
     expect(source).toContain('function todaySaveStatusDetail(state: ClientDataState)');
     expect(source).toContain("if (state.error) return state.error;\n    if (!state.initialized) return 'Opening the browser cache and local workspace snapshot.';");
@@ -1519,6 +1520,7 @@ describe('Mini Hub usability control gates', () => {
     expect(games).toContain('gameStateCount = $clientData.gameStates.length');
     expect(games).toContain('gameSaveReady = canAutoSave($clientData)');
     expect(games).toContain("gameSaveMode = gameSaveReady ? 'API-backed saves enabled'");
+    expect(games).toContain('Opening saved game data');
     expect(games).toContain('function gameSaveBlockedDetail');
     expect(games).toContain('Opening the browser cache before game save status is known.');
     expect(games).toContain('API-backed run/state saves wait for Mini Hub status');
@@ -1540,6 +1542,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function gameRunSaveBlockedReason');
     expect(source).toContain('function telemetryEmptyMessage');
     expect(source).toContain('Ready to save runs through Mini Hub.');
+    expect(source).toContain('Opening saved game data');
     expect(source).toContain('Mini Hub API is not ready for game saves');
     expect(source).toContain('Loading local cache before game run saves are enabled.');
     expect(source).toContain('Waiting for the game engine to load before telemetry starts.');
@@ -1559,6 +1562,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('clientData.saveGameState');
     expect(source).toContain('Telemetry');
     expect(source).not.toContain('No events yet.');
+    expect(games).not.toContain('Loading cache');
+    expect(source).not.toContain('Loading cache');
   });
 
   it('shows Analytics refresh as a guarded async action with readable failures', async () => {
