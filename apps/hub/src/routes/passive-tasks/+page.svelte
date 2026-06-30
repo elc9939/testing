@@ -183,6 +183,16 @@
     return healthyEmpty;
   }
 
+  function passiveDigestEmptyMessage(): string {
+    if (summarizedDigestCards.length) {
+      return `${summarizedDigestCards.length} repeated service issue card${summarizedDigestCards.length === 1 ? '' : 's'} summarized in Source Health instead of repeating here.`;
+    }
+    return passivePanelEmptyMessage(
+      'No passive task cards yet. Run due tasks or configure folders/research monitors to create source-backed outputs.',
+      'Checking passive task outputs.'
+    );
+  }
+
   function passiveRecentRunsEmptyMessage(): string {
     if (loading && !snapshot) return 'Checking Passive Tasks run history.';
     if (serviceError && !snapshot) return 'Run history will reload after the Passive Tasks service card reconnects.';
@@ -793,10 +803,8 @@
             </div>
           {/each}
         </div>
-      {:else if loading}
-        <p class="empty-note">Checking passive task outputs.</p>
       {:else}
-        <p class="empty-note">No passive task cards yet. Run due tasks or configure folders/research monitors to create source-backed outputs.</p>
+        <p class="empty-note">{passiveDigestEmptyMessage()}</p>
       {/if}
     </article>
 

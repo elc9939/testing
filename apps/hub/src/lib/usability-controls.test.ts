@@ -760,6 +760,9 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain("if (!snapshot) return 'not loaded'");
     expect(passive).toContain("if (!snapshot) return 'Not checked'");
     expect(passive).toContain("if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured'");
+    expect(passive).toContain('function passiveDigestEmptyMessage');
+    expect(passive).toContain('summarized in Source Health instead of repeating here.');
+    expect(passive).toContain('{passiveDigestEmptyMessage()}');
     expect(passive).toContain('Checking passive task outputs.');
     expect(passive).not.toContain("return '...'");
     expect(passive).not.toContain("return 'n/a'");
@@ -767,6 +770,7 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).not.toContain('Loading recent passive results.');
     expect(passive).not.toContain('Loading passive worker state.');
     expect(passive).not.toContain('Loading passive settings.');
+    expect(passive).not.toContain('{:else if loading}');
     expect(passive).not.toContain('Loading passive task outputs.');
     expect(passive).not.toContain('Loading passive task outputs...');
     expect(passive).toContain('<strong>{passiveEngineLabel()}</strong>');
