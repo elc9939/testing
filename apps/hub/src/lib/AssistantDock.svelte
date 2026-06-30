@@ -552,9 +552,9 @@
           </article>
         {/each}
         {#if busy}
-          <article class="message assistant">
+          <article class="message assistant" aria-live="polite">
             <div class="message-icon" aria-hidden="true"><Cpu size={14} /></div>
-            <div class="message-body"><p>Working...</p></div>
+            <div class="message-body"><p>Assistant is working on this request.</p></div>
           </article>
         {/if}
       </div>

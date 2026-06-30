@@ -493,6 +493,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("assistantToggleTitle = open ? 'Close AI assistant.' : 'Open AI assistant.'");
     expect(source).toContain('function assistantSendBlockedReason');
     expect(source).toContain('Assistant is already working on the current request.');
+    expect(source).toContain('Assistant is working on this request.');
+    expect(source).toContain('<article class="message assistant" aria-live="polite">');
     expect(source).toContain('Type a message before sending.');
     expect(source).toContain('disabled={Boolean(sendBlockedReason)}');
     expect(source).toContain("title={sendBlockedReason || 'Send this message to the assistant.'}");
@@ -511,6 +513,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Route ambiguous assistant requests through the AI OS command/tool planner when possible.');
     expect(source).toContain('Permit write or system tools only after an explicit confirmation pass.');
     expect(source).toContain('{currentMachineMode.shortLabel} - App helper');
+    expect(source).not.toContain('Working...');
     expect(source).not.toContain('Â·');
   });
 
