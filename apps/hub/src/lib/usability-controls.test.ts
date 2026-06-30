@@ -580,7 +580,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function aiOsMetricLabel');
     expect(source).toContain('function aiOsCountLabel');
     expect(source).toContain("if (loading && !status) return 'checking'");
-    expect(source).toContain("if (!status) return 'not checked'");
+    expect(source).toContain("if (!status) return 'not reported yet'");
     expect(source).toContain("return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'not measured'");
     expect(source).toContain('function aiOsRamDetail');
     expect(source).toContain('Service status is shown above; memory telemetry has not been checked.');
@@ -598,6 +598,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Model load will reload after the Desktop service card reconnects.');
     expect(source).toContain('See the Desktop service card above for the connection error and fix actions.');
     expect(source).toContain('Provider state will reload after the Desktop service card reconnects.');
+    expect(source).toContain("return 'Waiting for report'");
+    expect(source).not.toContain("return 'Not checked'");
     expect(source).toContain('GPU telemetry will reload after the Desktop service card reconnects.');
     expect(source).toContain('Checking model routes from AI OS.');
     expect(source).toContain('Checking app tools from AI OS.');

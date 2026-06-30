@@ -370,13 +370,13 @@
 
   function aiOsMetricLabel(value: number | undefined, suffix = ''): string {
     if (loading && !status) return 'checking';
-    if (!status) return 'not checked';
+    if (!status) return 'not reported yet';
     return numberLabel(value, suffix);
   }
 
   function aiOsCountLabel(value: number): string {
     if (loading && !status) return 'checking';
-    if (!status) return 'not checked';
+    if (!status) return 'not reported yet';
     return String(value);
   }
 
@@ -601,7 +601,7 @@
     if (state === 'degraded') return 'Needs attention';
     if (state === 'offline') return 'Offline';
     if (state === 'checking') return 'Checking';
-    return 'Not checked';
+    return 'Waiting for report';
   }
 
   function hasCapability(nextStatus: AiStatus | null, id: string): boolean {
