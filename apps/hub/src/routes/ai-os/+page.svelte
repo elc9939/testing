@@ -369,13 +369,13 @@
   }
 
   function aiOsMetricLabel(value: number | undefined, suffix = ''): string {
-    if (loading && !status) return '...';
+    if (loading && !status) return 'checking';
     if (!status) return 'offline';
     return numberLabel(value, suffix);
   }
 
   function aiOsCountLabel(value: number): string {
-    if (loading && !status) return '...';
+    if (loading && !status) return 'checking';
     if (!status) return 'offline';
     return String(value);
   }
@@ -402,7 +402,7 @@
   }
 
   function noGpuRowsMessage(): string {
-    if (loading && !status) return 'Loading GPU telemetry rows from AI OS...';
+    if (loading && !status) return 'Loading GPU telemetry rows from AI OS.';
     if (!status) return 'Connect AI OS to inspect GPU utilization, VRAM, and temperature.';
     return 'No GPU telemetry rows yet.';
   }
@@ -1106,7 +1106,7 @@
     if (!requireAiOsReady('Autotune')) return;
     autotuneBusy = true;
     actionError = '';
-    autotuneResult = 'Running autotune probe...';
+    autotuneResult = 'Running autotune probe.';
     try {
       const result = await runAutotune({
         mode: currentMachineMode.id,

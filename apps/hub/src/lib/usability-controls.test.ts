@@ -541,6 +541,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function warmLocalModelBlockedReason');
     expect(source).toContain('function aiOsMetricLabel');
     expect(source).toContain('function aiOsCountLabel');
+    expect(source).toContain("if (loading && !status) return 'checking'");
     expect(source).toContain("if (!status) return 'offline'");
     expect(source).toContain("return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'not measured'");
     expect(source).toContain('function aiOsRamDetail');
@@ -550,6 +551,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('temperature not reported');
     expect(source).toContain('function aiOsModelSummary');
     expect(source).toContain('function noGpuRowsMessage');
+    expect(source).toContain('Loading GPU telemetry rows from AI OS.');
     expect(source).toContain('Loading GPU, VRAM, and temperature telemetry.');
     expect(source).toContain('AI OS is not connected, so GPU telemetry is not checked.');
     expect(source).toContain('no GPU telemetry rows were returned from Windows counters or vendor tools');
@@ -559,10 +561,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('<small>{aiOsGpuDetail(primaryGpu)}</small>');
     expect(source).toContain("Suggested concurrency: ${result.profile.autotune.suggested_max_job_concurrency ?? 'not measured'}");
     expect(source).toContain("machineProfile.host.machine ?? 'machine type not reported'");
+    expect(source).toContain("autotuneResult = 'Running autotune probe.'");
     expect(source).toContain('tokens/sec not measured');
     expect(source).toContain("Schema {status?.integrity?.schema_version ?? 'not reported'} / {status?.integrity?.expected_schema_version ?? 'not reported'}");
     expect(source).not.toContain("'n/a'");
     expect(source).not.toContain('n/a tok/s');
+    expect(source).not.toContain("return '...'");
+    expect(source).not.toContain('Loading GPU telemetry rows from AI OS...');
     expect(source).toContain('<p class="muted">{noGpuRowsMessage()}</p>');
     expect(source).toContain('disabled={Boolean(warmupBlockedReason)}');
     expect(source).toContain('function requireAiOsReady');
@@ -1455,6 +1460,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("health.latestSha256?.slice(0, 12) ?? 'hash not reported'");
     expect(source).toContain('<strong>{formatPercent(machineProfile.hardware.cpu_percent)} / {formatPercent(machineProfile.hardware.memory_percent)}</strong>');
     expect(source).toContain("machineProfile.autotune.suggested_max_job_concurrency ?? 'not measured'");
+    expect(source).toContain("endpointMessage = 'Saved. Checking services with the new URLs.'");
+    expect(source).toContain('Loading passive task settings.');
+    expect(source).toContain('Loading action ledger.');
+    expect(source).not.toContain('Saved. Checking services with the new URLs...');
+    expect(source).not.toContain('Loading passive task settings...');
+    expect(source).not.toContain('Loading action ledger...');
     expect(source).toContain('disabled={exportBusy}');
     expect(source).toContain('disabled={endpointSaving}');
     expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");

@@ -409,7 +409,7 @@
       hubApiInput = getApiUrl();
       aiOsInput = getAiOsApiUrl();
       macroLabInput = getMacroLabApiUrl();
-      endpointMessage = 'Saved. Checking services with the new URLs...';
+      endpointMessage = 'Saved. Checking services with the new URLs.';
       await checkServices();
       endpointMessage = 'Saved. Service requests now use these URLs on this browser.';
     } catch (error) {
@@ -1311,7 +1311,7 @@
       <p class="sync-error">{passiveError}</p>
     {/if}
   {:else if passiveLoading}
-    <p class="helper-text">Loading passive task settings...</p>
+    <p class="helper-text">Loading passive task settings.</p>
   {:else if passiveError}
     <p class="sync-error">{passiveError}</p>
   {:else}
@@ -1471,7 +1471,7 @@
         {/each}
       </div>
     {:else if actionLedgerLoading}
-      <p class="helper-text">Loading action ledger...</p>
+      <p class="helper-text">Loading action ledger.</p>
     {:else if actionLedgerError}
       <p class="sync-error">{actionLedgerError}</p>
     {:else}
