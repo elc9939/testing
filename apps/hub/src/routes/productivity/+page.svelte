@@ -582,6 +582,39 @@
     return enabledTitle;
   }
 
+  function calendarWindowSummary(): string {
+    if (events.length) return `${events.length} events loaded from this window.`;
+    if (loading) return 'Checking cached calendar events before live Google refresh.';
+    if (apiChecking && cacheLoadedAt) return 'No cached events in this window while the API check continues.';
+    if (!productivityReady && cacheLoadedAt) return 'No cached events in this window; connect the API and Google to refresh live Calendar.';
+    if (!productivityReady) return 'Calendar waits for the API and a connected Google account.';
+    return 'No events found in this window.';
+  }
+
+  function calendarTableEmptyMessage(): string {
+    if (loading) return 'Checking cached calendar events before live Google refresh.';
+    if (apiChecking && cacheLoadedAt) return 'No cached calendar events match this range while the API check continues.';
+    if (!productivityReady && cacheLoadedAt) return 'No cached calendar events match this range; connect the API and Google to refresh live Calendar.';
+    if (!productivityReady) return 'Connect Google to load real calendar events.';
+    return 'No events found in this range.';
+  }
+
+  function priorityInboxEmptyMessage(): string {
+    if (loading || gmailLoading) return 'Checking cached Gmail threads and connected accounts.';
+    if (apiChecking && cacheLoadedAt) return 'No cached priority Gmail threads while the API check continues.';
+    if (!productivityReady && cacheLoadedAt) return 'No cached priority Gmail threads; connect the API and Google to refresh live Gmail.';
+    if (!productivityReady) return 'Connect Google to load and sort real Gmail threads.';
+    return 'No priority Gmail threads matched. Try broadening the search controls.';
+  }
+
+  function timelineEmptyMessage(): string {
+    if (loading) return 'Checking cached timeline items and connected deadlines.';
+    if (apiChecking && cacheLoadedAt) return 'No cached timeline items while the API check continues.';
+    if (!productivityReady && cacheLoadedAt) return 'No cached timeline items; connect the API and Google to refresh live deadlines.';
+    if (!productivityReady) return 'Connect the API and Google to load timeline items.';
+    return 'No timeline items match the current connected sources.';
+  }
+
   function calendarEventBlockTitle(event: CalendarEvent): string {
     const eventSummary = `${event.title} / ${eventTimeRange(event)}`;
     if (actionBusyKey) return `${eventSummary}. Another Productivity action is already running.`;
@@ -1407,7 +1440,7 @@
     </section>
     <div class="table-caption">
       <strong>{selectedCalendar?.summary ?? 'Calendar'}</strong>
-      <span>{events.length ? `${events.length} events loaded from this window.` : 'No events loaded for this window yet.'}</span>
+      <span>{calendarWindowSummary()}</span>
     </div>
     <table>
       <thead>
@@ -1445,7 +1478,7 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan="4" class="muted">{googleConnected ? 'No events found in this range.' : 'Connect Google to load real calendar events.'}</td></tr>
+          <tr><td colspan="4" class="muted">{calendarTableEmptyMessage()}</td></tr>
         {/each}
       </tbody>
     </table>
@@ -1544,7 +1577,7 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan="6" class="muted">{googleConnected ? 'No priority Gmail threads matched. Try broadening the search controls.' : 'Connect Google to load and sort real Gmail threads.'}</td></tr>
+          <tr><td colspan="6" class="muted">{priorityInboxEmptyMessage()}</td></tr>
         {/each}
       </tbody>
     </table>
@@ -1631,7 +1664,7 @@
           <td>{item.canEdit ? 'Editable' : 'Read-only'}</td>
         </tr>
       {:else}
-        <tr><td colspan="4" class="muted">No timeline items loaded yet.</td></tr>
+        <tr><td colspan="4" class="muted">{timelineEmptyMessage()}</td></tr>
       {/each}
     </tbody>
   </table>
