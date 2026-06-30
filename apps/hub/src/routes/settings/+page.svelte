@@ -126,6 +126,9 @@
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: visibleMachineProfileError = machineProfileError ? compactServiceIssueIfRecognized(machineProfileError, 'AI OS machine profile') : '';
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
+  $: visibleActionLedgerError = actionLedgerError ? compactServiceIssueIfRecognized(actionLedgerError, 'Action Ledger') : '';
+  $: actionLedgerSourceError = actionLedgerSnapshot?.errors[0] ?? '';
+  $: visibleActionLedgerSourceError = actionLedgerSourceError ? compactServiceIssueIfRecognized(actionLedgerSourceError, 'Action Ledger source') : '';
   $: passiveSettings = passiveSnapshot?.settings ?? null;
   $: passiveSettingsBlockedReason = passiveSettingsControlBlockedReason({
     saving: passiveSaving,
@@ -639,6 +642,16 @@
 
   function actionLedgerRefreshTitle(state: Pick<SettingsControlState, 'actionLedgerLoading'>): string {
     return state.actionLedgerLoading ? 'Action Ledger refresh is already running.' : 'Refresh recent actions from Mini Hub, AI OS, and Macro Lab.';
+  }
+
+  function actionLedgerEmptyMessage(): string {
+    if (actionLedgerLoading) return 'Loading action ledger.';
+    if (actionLedgerError) return visibleActionLedgerError || 'Action Ledger needs attention.';
+    if (!actionLedgerSnapshot) return 'Action Ledger has not loaded yet. Use Refresh or Check Services to inspect Hub, AI OS, Macro Lab, and browser actions.';
+    if (actionLedgerSnapshot.errors.length) {
+      return 'No action rows loaded from reachable sources. The source issue is shown below; browser-only actions will still appear here when recorded.';
+    }
+    return 'No action ledger entries are recorded yet. New saves, AI OS jobs, passive work, and Macro Lab runs will appear here.';
   }
 
   function restoreActionTitle(action: ActionLedgerEntry): string {
@@ -1473,16 +1486,16 @@
     {:else if actionLedgerLoading}
       <p class="helper-text">Loading action ledger.</p>
     {:else if actionLedgerError}
-      <p class="sync-error">{actionLedgerError}</p>
+      <p class="sync-error" title={`Raw Action Ledger error: ${actionLedgerError}`}>{actionLedgerEmptyMessage()}</p>
     {:else}
-      <p class="helper-text">No action ledger entries are available yet.</p>
+      <p class="helper-text">{actionLedgerEmptyMessage()}</p>
     {/if}
 
     {#if actionLedgerMessage}
       <p class="endpoint-message">{actionLedgerMessage}</p>
     {/if}
-    {#if actionLedgerSnapshot?.errors.length}
-      <p class="sync-error">{actionLedgerSnapshot.errors[0]}</p>
+    {#if actionLedgerSourceError}
+      <p class="sync-error" title={`Raw Action Ledger source error: ${actionLedgerSourceError}`}>{visibleActionLedgerSourceError}</p>
     {/if}
   </div>
 

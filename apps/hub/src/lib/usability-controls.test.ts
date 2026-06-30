@@ -1583,6 +1583,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("title={themeButtonTitle('dark')}");
     expect(source).toContain('function actionLedgerRefreshTitle');
     expect(source).toContain('title={actionLedgerRefreshButtonTitle}');
+    expect(source).toContain('function actionLedgerEmptyMessage');
+    expect(source).toContain('visibleActionLedgerError = actionLedgerError ? compactServiceIssueIfRecognized(actionLedgerError,');
+    expect(source).toContain('visibleActionLedgerSourceError = actionLedgerSourceError ? compactServiceIssueIfRecognized(actionLedgerSourceError,');
     expect(source).toContain('function restoreActionTitle');
     expect(source).toContain('title={restoreActionTitle(action)}');
     expect(source).toContain('function endpointInputTitle');
@@ -1633,6 +1636,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("endpointMessage = 'Saved. Checking services with the new URLs.'");
     expect(source).toContain('Loading passive task settings.');
     expect(source).toContain('Loading action ledger.');
+    expect(source).toContain('Action Ledger has not loaded yet. Use Refresh or Check Services to inspect Hub, AI OS, Macro Lab, and browser actions.');
+    expect(source).toContain('No action rows loaded from reachable sources.');
+    expect(source).toContain('No action ledger entries are recorded yet. New saves, AI OS jobs, passive work, and Macro Lab runs will appear here.');
+    expect(source).toContain('Raw Action Ledger error:');
+    expect(source).toContain('Raw Action Ledger source error:');
+    expect(source).not.toContain('No action ledger entries are available yet.');
     expect(source).not.toContain('Saved. Checking services with the new URLs...');
     expect(source).not.toContain('Loading passive task settings...');
     expect(source).not.toContain('Loading action ledger...');
