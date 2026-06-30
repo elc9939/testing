@@ -869,7 +869,7 @@
   </div>
   <button class="button" type="button" disabled={serviceChecking} title={serviceChecking ? 'Service check is already running.' : 'Check all configured local and browser services.'} on:click={checkServices}>
     <RefreshCw size={17} />
-    <span>{serviceChecking ? 'Checking' : 'Check Services'}</span>
+    <span>Check Services</span>
   </button>
 </section>
 
@@ -1360,7 +1360,7 @@
     <div class="action-row">
       <button class="button" type="button" disabled={Boolean(syncNowBlockedReason(settingsControlState))} title={syncNowButtonTitle} on:click={syncNow}>
         <Cloud size={17} />
-        <span>{syncBusy ? 'Syncing' : canSync ? 'Sync Now' : $clientData.initialized ? 'API Not Ready' : 'Loading Cache'}</span>
+        <span>Sync Now</span>
       </button>
       <button class="button" type="button" disabled={exportBusy} title="Download the current browser cache as JSON." on:click={exportCache}>
         <Download size={17} />

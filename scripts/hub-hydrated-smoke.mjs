@@ -63,11 +63,7 @@ const routes = [
     path: '/settings',
     title: 'Settings - Mini Hub',
     heading: 'Workspace',
-    safeActionLabels: ['Check Services', 'Sync Now'],
-    safeActionFallbacks: {
-      'Check Services': ['Checking'],
-      'Sync Now': ['API Not Ready', 'Loading Cache', 'Offline Read-only']
-    }
+    safeActionLabels: ['Check Services', 'Sync Now']
   },
   { id: 'games', path: '/games', title: 'Games - Mini Hub', heading: 'Play Surfaces', safeActionLabels: ['Open'] },
   { id: 'stick-arena-lab', path: '/games/stick-arena-lab', title: 'Stick Arena Ability Lab - Mini Hub', heading: 'Ability Lab', safeActionLabels: ['Reset', 'Save Run', 'Open Settings'] }

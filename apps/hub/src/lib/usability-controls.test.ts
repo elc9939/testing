@@ -1290,8 +1290,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("'Run Quick Search': ['Connect AI OS', 'Checking AI OS', 'Setup', 'Checking saved research monitors']");
     expect(source).toContain("'Do it': ['Connect AI OS', 'Checking AI OS']");
     expect(source).toContain("'Dry Run': ['No macro selected', 'Saved macro definitions will reload', 'Start Macro Lab', 'Checking saved macro definitions']");
-    expect(source).toContain("'Check Services': ['Checking']");
-    expect(source).toContain("'Sync Now': ['API Not Ready', 'Loading Cache', 'Offline Read-only']");
+    expect(source).not.toContain("'Check Services': ['Checking']");
+    expect(source).not.toContain("'Sync Now': ['API Not Ready', 'Loading Cache', 'Offline Read-only']");
     expect(source).toContain('runPersistenceChecks');
     expect(source).toContain('safeActionStatus');
     expect(source).toContain('fallbackFor');
@@ -1519,7 +1519,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={syncNowButtonTitle}');
     expect(source).toContain('Loading local cache before sync controls are enabled.');
     expect(source).toContain('Mini Hub API is not ready:');
-    expect(source).toContain('API Not Ready');
+    expect(source).toContain('<span>Check Services</span>');
+    expect(source).toContain('<span>Sync Now</span>');
+    expect(source).not.toContain("serviceChecking ? 'Checking' : 'Check Services'");
+    expect(source).not.toContain("canSync ? 'Sync Now' : $clientData.initialized ? 'API Not Ready' : 'Loading Cache'");
     expect(source).toContain('Sync is already running.');
     expect(source).toContain('function formatHubCoreDataHealth');
     expect(source).toContain('hubCoreDataStatus = formatHubCoreDataHealth(hubHealth)');
