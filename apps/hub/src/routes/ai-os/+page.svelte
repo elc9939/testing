@@ -370,19 +370,19 @@
 
   function aiOsMetricLabel(value: number | undefined, suffix = ''): string {
     if (loading && !status) return 'checking';
-    if (!status) return 'offline';
+    if (!status) return 'not checked';
     return numberLabel(value, suffix);
   }
 
   function aiOsCountLabel(value: number): string {
     if (loading && !status) return 'checking';
-    if (!status) return 'offline';
+    if (!status) return 'not checked';
     return String(value);
   }
 
   function aiOsRamDetail(): string {
     if (loading && !status) return 'Loading memory telemetry from AI OS.';
-    if (!status) return 'AI OS is not connected yet.';
+    if (!status) return 'Service status is shown above; memory telemetry has not been checked.';
     if (typeof hardware?.memory_used_gb !== 'number' || typeof hardware.memory_total_gb !== 'number') {
       return 'Memory telemetry not reported by AI OS.';
     }
@@ -391,19 +391,19 @@
 
   function aiOsGpuDetail(gpu: Record<string, unknown> | undefined): string {
     if (loading && !status) return 'Loading GPU, VRAM, and temperature telemetry.';
-    if (!status) return 'AI OS is not connected, so GPU telemetry is not checked.';
-    return `${gpuName(gpu)} · ${gpuMemoryLabel(gpu)} · ${gpuTemperatureLabel(gpu)}`;
+    if (!status) return 'Service status is shown above; GPU telemetry has not been checked.';
+    return `${gpuName(gpu)} - ${gpuMemoryLabel(gpu)} - ${gpuTemperatureLabel(gpu)}`;
   }
 
   function aiOsModelSummary(models: Array<Record<string, unknown>>): string {
     if (loading && !status) return 'Loading model residency from AI OS.';
-    if (!status) return 'Model load has not been checked yet.';
+    if (!status) return 'Service status is shown above; model load has not been checked.';
     return modelLoadSummary(models);
   }
 
   function noGpuRowsMessage(): string {
     if (loading && !status) return 'Loading GPU telemetry rows from AI OS.';
-    if (!status) return 'Connect AI OS to inspect GPU utilization, VRAM, and temperature.';
+    if (!status) return 'Service status is shown above; GPU telemetry will appear after AI OS connects.';
     return 'No GPU telemetry rows yet.';
   }
 
@@ -470,7 +470,7 @@
     return models
       .map((model) => {
         const processor = metricString(model, 'processor');
-        return `${modelName(model)}${processor ? ` · ${processor}` : ''}`;
+        return `${modelName(model)}${processor ? ` - ${processor}` : ''}`;
       })
       .join(', ');
   }
@@ -484,7 +484,7 @@
     if (vram !== undefined) pieces.push(`${vram.toFixed(1)} GB VRAM`);
     if (size !== undefined) pieces.push(`${size.toFixed(1)} GB model`);
     if (context !== undefined) pieces.push(`${context} ctx`);
-    return pieces.join(' · ');
+    return pieces.join(' - ');
   }
 
   function providerById(nextStatus: AiStatus | null, id: string) {
@@ -1448,7 +1448,7 @@
               <strong>{gpuName(gpu)}</strong>
               <span>{metricString(gpu, 'vendor') ?? metricString(gpu, 'source') ?? 'gpu'}</span>
             </div>
-            <small>{numberLabel(metricNumber(gpu, 'utilization_percent'), '%')} · {gpuMemoryLabel(gpu)} · {gpuTemperatureLabel(gpu)}</small>
+            <small>{numberLabel(metricNumber(gpu, 'utilization_percent'), '%')} - {gpuMemoryLabel(gpu)} - {gpuTemperatureLabel(gpu)}</small>
           </article>
         {:else}
           <p class="muted">{noGpuRowsMessage()}</p>
@@ -1572,7 +1572,7 @@
             <strong>{tool.id}</strong>
             <span>{tool.safety}</span>
           </div>
-          <small>{tool.label}{tool.requires_confirmation ? ' · confirmation required' : ''}</small>
+          <small>{tool.label}{tool.requires_confirmation ? ' - confirmation required' : ''}</small>
         </article>
       {:else}
         <p class="muted">No tools registered.</p>
@@ -1583,7 +1583,7 @@
         <article class:failed={!call.ok} class:selected={call.id === highlightedToolId} class="call-row">
           <strong>{call.tool_id}</strong>
           <span>{call.ok ? 'OK' : call.error ?? 'blocked'}</span>
-          <small>{call.latency_ms.toFixed(0)} ms · {new Date(call.created_at).toLocaleTimeString()}</small>
+          <small>{call.latency_ms.toFixed(0)} ms - {new Date(call.created_at).toLocaleTimeString()}</small>
         </article>
       {:else}
         <p class="muted">{highlightedToolId ? `Activity tool call ${highlightedToolId} is not in the current AI OS tool-call snapshot.` : 'No tool calls yet.'}</p>
@@ -1658,7 +1658,7 @@
             <strong>{run.kind}</strong>
             <span>{run.provider ?? 'auto'}</span>
           </div>
-          <small>{run.latency_ms.toFixed(0)} ms · {run.tokens_per_second ? `${run.tokens_per_second.toFixed(1)} tok/s` : 'tokens/sec not measured'}</small>
+          <small>{run.latency_ms.toFixed(0)} ms - {run.tokens_per_second ? `${run.tokens_per_second.toFixed(1)} tok/s` : 'tokens/sec not measured'}</small>
         </article>
       {:else}
         <p class="muted">{highlightedBenchmarkId ? `Activity benchmark ${highlightedBenchmarkId} is not in the current AI OS benchmark snapshot.` : 'No benchmark runs yet.'}</p>
