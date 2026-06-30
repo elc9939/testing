@@ -50,7 +50,7 @@
   const passiveEventThrottlePrefix = 'miniHub.passive.event.v1';
 
   function layoutSyncPillText(state: ClientDataState): string {
-    if (!state.initialized) return 'Loading cache';
+    if (!state.initialized) return 'Opening saved data';
     if (state.status === 'offline-readonly') return 'Offline read-only';
     if (state.status === 'syncing') return 'Syncing';
     if (state.status === 'error') return 'Sync needs review';

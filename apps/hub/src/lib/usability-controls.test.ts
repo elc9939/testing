@@ -90,7 +90,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function layoutSyncPillText');
     expect(source).toContain('function layoutSyncPillTitle');
     expect(source).toContain('syncPillText = layoutSyncPillText($clientData)');
-    expect(source).toContain("if (!state.initialized) return 'Loading cache'");
+    expect(source).toContain("if (!state.initialized) return 'Opening saved data'");
     expect(source).toContain('if (canAutoSave($clientData))');
     expect(source).toContain('function readPassiveEventLastRun');
     expect(source).toContain('function writePassiveEventLastRun');
