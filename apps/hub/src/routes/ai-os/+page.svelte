@@ -407,6 +407,24 @@
     return 'No GPU telemetry rows yet.';
   }
 
+  function aiOsPanelEmptyMessage(healthyEmpty: string, loadingMessage: string, subject = 'This panel'): string {
+    if (loading && !status) return loadingMessage;
+    if (!status) return `${subject} will reload after the Desktop service card reconnects.`;
+    return healthyEmpty;
+  }
+
+  function machineProfileEmptyMessage(): string {
+    if (loading && !status) return 'Checking machine profile, providers, and telemetry.';
+    if (!status) return 'Machine profile will reload after the Desktop service card reconnects.';
+    return 'Machine profile is unavailable even though AI OS is connected. Refresh profile or inspect Feature Wiring.';
+  }
+
+  function modelRowsEmptyMessage(): string {
+    if (loading && !status) return 'Checking loaded Ollama models.';
+    if (!status) return 'Model load will reload after the Desktop service card reconnects.';
+    return 'No Ollama model is currently loaded.';
+  }
+
   function metricValue(source: Record<string, unknown> | undefined, key: string): string {
     const value = source?.[key];
     if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
@@ -1200,7 +1218,7 @@
 
 {#if actionError}
   <section class="card card-pad error-banner" title={`Raw AI OS error: ${actionError}`}>{visibleActionError}</section>
-  <section class="card card-pad connection-card">
+  <section class="card card-pad connection-card service-card">
     <div>
       <strong>Desktop service</strong>
       <span>{getAiOsApiUrl()}</span>
@@ -1381,7 +1399,7 @@
       <p class="auto-route-note">{machineProfile.autotune.routing_notes.join(' ')}</p>
     {/if}
   {:else}
-    <p class="muted">Machine profile is unavailable. Start AI OS or refresh once providers and telemetry are reachable.</p>
+    <p class="muted">{machineProfileEmptyMessage()}</p>
   {/if}
   <div class="action-row">
     <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (autotuneBusy ? 'Autotune is already running.' : 'Run a compact AI OS autotune probe.')} on:click={runMachineAutotune}>
@@ -1431,7 +1449,7 @@
             <p>{provider.available ? `${provider.models.length} models` : provider.error}</p>
           </article>
         {:else}
-          <p class="muted">AI OS API is not reachable yet.</p>
+          <p class="muted">{aiOsPanelEmptyMessage('No model routes are registered yet.', 'Checking model routes from AI OS.', 'Model routes')}</p>
         {/each}
       </div>
     </div>
@@ -1462,7 +1480,7 @@
             <small>{modelDetail(model)}</small>
           </article>
         {:else}
-          <p class="muted">No Ollama model is currently loaded.</p>
+          <p class="muted">{modelRowsEmptyMessage()}</p>
         {/each}
       </div>
     </div>
@@ -1502,7 +1520,7 @@
             <small>{tool.description}</small>
           </article>
         {:else}
-          <p class="muted">No tools registered.</p>
+          <p class="muted">{aiOsPanelEmptyMessage('No tools registered.', 'Checking app tools from AI OS.', 'App tools')}</p>
         {/each}
       </div>
     </div>
@@ -1526,7 +1544,7 @@
             <small>{item.detail} - {activityWhen(item.occurredAt)}</small>
           </a>
         {:else}
-          <p class="muted">No AI OS activity yet.</p>
+          <p class="muted">{aiOsPanelEmptyMessage('No AI OS activity yet.', 'Checking recent AI OS activity.', 'Recent activity')}</p>
         {/each}
       </div>
     </div>
@@ -1575,7 +1593,7 @@
           <small>{tool.label}{tool.requires_confirmation ? ' - confirmation required' : ''}</small>
         </article>
       {:else}
-        <p class="muted">No tools registered.</p>
+        <p class="muted">{aiOsPanelEmptyMessage('No tools registered.', 'Checking app tools from AI OS.', 'App tools')}</p>
       {/each}
     </div>
     <div class="call-list">
@@ -1781,7 +1799,7 @@
             <td>{(backup.size_bytes / 1024).toFixed(1)} KB</td>
           </tr>
         {:else}
-          <tr><td colspan="4" class="muted">{highlightedBackupId ? `Activity backup ${highlightedBackupId} is not in the current AI OS backup snapshot.` : 'No backups yet.'}</td></tr>
+          <tr><td colspan="4" class="muted">{highlightedBackupId ? `Activity backup ${highlightedBackupId} is not in the current AI OS backup snapshot.` : aiOsPanelEmptyMessage('No backups yet.', 'Checking AI OS backups.', 'Backups')}</td></tr>
         {/each}
         {#if !highlightedBackupPresent}
           <tr><td colspan="4" class="muted">The linked Activity backup is not in the latest AI OS backup rows. Refresh AI OS or open Activity for the durable record.</td></tr>
@@ -1879,7 +1897,7 @@
           </button>
         </article>
       {:else}
-        <p class="muted">{highlightedJobId ? `Activity job ${highlightedJobId} is not in the current AI OS job snapshot.` : 'No jobs queued.'}</p>
+        <p class="muted">{highlightedJobId ? `Activity job ${highlightedJobId} is not in the current AI OS job snapshot.` : aiOsPanelEmptyMessage('No jobs queued.', 'Checking AI OS jobs.', 'Jobs')}</p>
       {/each}
       {#if !highlightedJobPresent}
         <p class="muted">The linked Activity job is not in the latest {jobs.length} AI OS job rows. Refresh AI OS or open Activity for the durable record.</p>
@@ -2025,7 +2043,7 @@
           <small>{asset.asset_path ?? asset.content_type ?? 'metadata only'}</small>
         </article>
       {:else}
-        <p class="muted">{highlightedGenerationId ? `Activity generation ${highlightedGenerationId} is not in the current AI OS asset snapshot.` : 'No generation assets yet.'}</p>
+        <p class="muted">{highlightedGenerationId ? `Activity generation ${highlightedGenerationId} is not in the current AI OS asset snapshot.` : aiOsPanelEmptyMessage('No generation assets yet.', 'Checking generated assets from AI OS.', 'Generated assets')}</p>
       {/each}
       {#if !highlightedGenerationPresent}
         <p class="muted">The linked Activity generation is not in the latest {generationAssets.length} generated asset rows. Refresh AI OS or open Activity for the durable record.</p>
@@ -2059,7 +2077,7 @@
           </div>
         </article>
       {:else}
-        <p class="muted">No ambient units registered.</p>
+        <p class="muted">{aiOsPanelEmptyMessage('No ambient units registered.', 'Checking ambient units from AI OS.', 'Ambient units')}</p>
       {/each}
     </div>
   </div>
@@ -2090,7 +2108,7 @@
           <td>${entry.cost_usd.toFixed(6)}</td>
         </tr>
       {:else}
-        <tr><td colspan="5" class="muted">No calls logged yet.</td></tr>
+        <tr><td colspan="5" class="muted">{aiOsPanelEmptyMessage('No calls logged yet.', 'Checking AI OS usage log.', 'Usage log')}</td></tr>
       {/each}
     </tbody>
   </table>

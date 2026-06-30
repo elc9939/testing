@@ -546,6 +546,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before using advanced command controls.')");
     expect(source).toContain("visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'AI OS') :");
     expect(source).toContain('Raw AI OS error:');
+    expect(source).toContain('connection-card service-card');
     expect(source).toContain('function aiOsActionTitle');
     expect(source).toContain('function foundationActionTitle');
     expect(source).toContain('function warmLocalModelBlockedReason');
@@ -562,6 +563,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('temperature not reported');
     expect(source).toContain('function aiOsModelSummary');
     expect(source).toContain('function noGpuRowsMessage');
+    expect(source).toContain('function aiOsPanelEmptyMessage');
+    expect(source).toContain('function machineProfileEmptyMessage');
+    expect(source).toContain('function modelRowsEmptyMessage');
+    expect(source).toContain('will reload after the Desktop service card reconnects.');
+    expect(source).toContain('Machine profile will reload after the Desktop service card reconnects.');
+    expect(source).toContain('Model load will reload after the Desktop service card reconnects.');
+    expect(source).toContain('Checking model routes from AI OS.');
+    expect(source).toContain('Checking app tools from AI OS.');
+    expect(source).toContain('Checking AI OS jobs.');
     expect(source).toContain('Loading GPU telemetry rows from AI OS.');
     expect(source).toContain('Loading GPU, VRAM, and temperature telemetry.');
     expect(source).toContain('Service status is shown above; GPU telemetry has not been checked.');
@@ -570,6 +580,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('no GPU telemetry rows were returned from Windows counters or vendor tools');
     expect(source).not.toContain('Windows/NVIDIA GPU telemetry');
     expect(source).not.toContain('AI OS is not connected, so GPU telemetry is not checked.');
+    expect(source).not.toContain('AI OS API is not reachable yet.');
+    expect(source).not.toContain('Machine profile is unavailable. Start AI OS or refresh once providers and telemetry are reachable.');
     expect(source).not.toContain('Model load has not been checked yet.');
     expect(source).not.toContain('Connect AI OS to inspect GPU utilization, VRAM, and temperature.');
     expect(source).not.toContain(' · ');
