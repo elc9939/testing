@@ -169,25 +169,25 @@
   }
 
   function todayCountLabel(value: number): string {
-    if ($attentionStore.loading && !attentionSnapshot) return '...';
-    if (!attentionSnapshot) return 'n/a';
+    if ($attentionStore.loading && !attentionSnapshot) return 'checking';
+    if (!attentionSnapshot) return 'not loaded';
     return String(value);
   }
 
   function mailEmptyMessage(): string {
-    if ($attentionStore.loading && !attentionSnapshot) return 'Loading Gmail attention from the hub...';
+    if ($attentionStore.loading && !attentionSnapshot) return 'Loading Gmail attention from the hub.';
     if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
     return googleConnected ? 'No priority Gmail threads are active.' : 'Gmail is not connected or could not refresh.';
   }
 
   function focusEmptyMessage(): string {
-    if ($attentionStore.loading && !attentionSnapshot) return 'Loading Career and Study attention from the hub...';
+    if ($attentionStore.loading && !attentionSnapshot) return 'Loading Career and Study attention from the hub.';
     if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
     return 'No due career or study signals are active.';
   }
 
   function systemEmptyMessage(): string {
-    if ($attentionStore.loading && !attentionSnapshot) return 'Loading local service and AI OS signals...';
+    if ($attentionStore.loading && !attentionSnapshot) return 'Loading local service and AI OS signals.';
     if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
     return 'No service, AI OS, Macro Lab, or Research issues are active.';
   }
@@ -595,7 +595,7 @@
   <div class="header-actions">
     <span class="sync-note">
       {#if $attentionStore.loading}
-        Loading attention...
+        Loading attention.
       {:else if attentionSnapshot?.checkedAt}
         Updated {displayShortDate(attentionSnapshot.checkedAt)}
       {:else if $attentionStore.cachedAt}
@@ -806,7 +806,7 @@
           {/each}
         </div>
       {:else if $attentionStore.loading}
-        <p class="empty-note">Loading real attention sources...</p>
+        <p class="empty-note">Loading real attention sources.</p>
       {:else}
         <div class="empty-block">
           <strong>No active queue items.</strong>
@@ -1040,7 +1040,7 @@
           <p class="empty-note">Core capabilities look ready.</p>
         {/if}
       {:else if capabilityLoading}
-        <p class="empty-note">Checking local services and providers...</p>
+        <p class="empty-note">Checking local services and providers.</p>
       {:else if capabilityError}
         <p class="empty-note">{capabilityError}</p>
       {:else}
@@ -1073,7 +1073,7 @@
           {/each}
         </div>
       {:else if actionLedgerLoading}
-        <p class="empty-note">Loading recent app actions, AI OS logs, and Macro Lab runs...</p>
+        <p class="empty-note">Loading recent app actions, AI OS logs, and Macro Lab runs.</p>
       {:else if actionLedgerError}
         <p class="empty-note">{actionLedgerError}</p>
       {:else}
