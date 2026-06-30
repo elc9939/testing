@@ -168,7 +168,7 @@
   }
 
   function displayWhen(value: string | undefined): string {
-    if (!value) return 'n/a';
+    if (!value) return 'time not recorded';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat(undefined, {

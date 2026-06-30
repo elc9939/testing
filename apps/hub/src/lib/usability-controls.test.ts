@@ -1001,6 +1001,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('showing cached records from');
     expect(source).toContain('activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot)');
     expect(source).toContain('visibleActivityError = error ? compactActivityRefreshError(error) :');
+    expect(source).toContain("if (!value) return 'time not recorded'");
+    expect(source).not.toContain("return 'n/a'");
     expect(source).toContain('function activitySnapshotRecoveryNotes');
     expect(source).toContain('function compactActivityRecoveryNote');
     expect(source).toContain('function compactActivityRefreshError');
