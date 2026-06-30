@@ -143,7 +143,7 @@
     <a class:offline={$clientData.status === 'offline-readonly'} class:error={$clientData.status === 'error'} class="sync-pill" href={hubHref(dataRecoveryRoute)} title={syncPillTitle} aria-label={`Save status: ${syncPillText}. Open Settings Data and Recovery.`}>
       {syncPillText}
     </a>
-    <button class="theme-cycle" type="button" aria-label={`Theme: ${themeLabel}. Change theme`} on:click={cycleTheme}>
+    <button class="theme-cycle" type="button" aria-label={`Theme: ${themeLabel}. Change theme`} title={`Theme: ${themeLabel}. Change theme.`} on:click={cycleTheme}>
       {#if $theme === 'dark'}
         <Moon size={15} />
       {:else if $theme === 'light'}

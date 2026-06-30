@@ -1639,7 +1639,7 @@
 
 {#if eventDialogOpen}
   <div class="modal-layer">
-    <button class="modal-backdrop" type="button" aria-label="Close event editor" on:click={closeEventDialog}></button>
+    <button class="modal-backdrop" type="button" aria-label="Close event editor" title="Close the event editor without saving changes." on:click={closeEventDialog}></button>
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="event-dialog-title">
       <form class="modal-form" on:submit|preventDefault={saveEvent}>
       <div class="modal-title">
@@ -1647,7 +1647,7 @@
           <CalendarPlus size={18} />
           <strong id="event-dialog-title">{editingEventId ? 'Edit Event' : 'Create Event'}</strong>
         </div>
-        <button class="icon-button" type="button" aria-label="Close event editor" on:click={closeEventDialog}>
+        <button class="icon-button" type="button" aria-label="Close event editor" title="Close the event editor without saving changes." on:click={closeEventDialog}>
           <X size={16} />
         </button>
       </div>
@@ -1716,14 +1716,14 @@
 
 {#if composeDialogOpen}
   <div class="modal-layer">
-    <button class="modal-backdrop" type="button" aria-label="Close composer" on:click={closeComposeDialog}></button>
+    <button class="modal-backdrop" type="button" aria-label="Close composer" title="Close the composer without saving changes." on:click={closeComposeDialog}></button>
     <div class="modal-panel modal-form" role="dialog" aria-modal="true" aria-labelledby="compose-dialog-title">
       <div class="modal-title">
         <div class="form-title">
           <Send size={18} />
           <strong id="compose-dialog-title">Compose</strong>
         </div>
-        <button class="icon-button" type="button" aria-label="Close composer" on:click={closeComposeDialog}>
+        <button class="icon-button" type="button" aria-label="Close composer" title="Close the composer without saving changes." on:click={closeComposeDialog}>
           <X size={16} />
         </button>
       </div>

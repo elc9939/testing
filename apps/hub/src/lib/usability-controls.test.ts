@@ -126,6 +126,26 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps every route button titled for hover and blocked-state clarity', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await controlSurfaceFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const buttons = source.matchAll(/<button\b[\s\S]*?<\/button>/g);
+
+      for (const button of buttons) {
+        const open = firstTag(button[0]);
+        if (!/\btitle=/.test(open)) {
+          const line = source.slice(0, button.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('keeps clickable route buttons labelled or explicitly gated', async () => {
     const offenders: string[] = [];
     const pageFiles = await controlSurfaceFiles();
