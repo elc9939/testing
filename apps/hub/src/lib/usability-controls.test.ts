@@ -778,11 +778,13 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('Checking recent passive results.');
     expect(passive).toContain('Checking passive worker state.');
     expect(passive).toContain('Checking passive settings.');
-    expect(passive).toContain("if (!settings) return 'Not checked'");
-    expect(passive).toContain("return snapshot ? 'No backup health' : 'Not checked'");
+    expect(passive).toContain("if (!settings) return 'Load snapshot'");
+    expect(passive).toContain("return snapshot ? 'Backup health not reported' : 'Load snapshot'");
     expect(passive).toContain("if (loading && !snapshot) return 'checking'");
     expect(passive).toContain("if (!snapshot) return 'not loaded'");
-    expect(passive).toContain("if (!snapshot) return 'Not checked'");
+    expect(passive).toContain("if (!snapshot) return 'Load snapshot'");
+    expect(passive).not.toContain("return 'Not checked'");
+    expect(passive).not.toContain("'No backup health'");
     expect(passive).toContain("if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured'");
     expect(passive).toContain('function passiveDigestEmptyMessage');
     expect(passive).toContain('summarized in Source Health instead of repeating here.');
