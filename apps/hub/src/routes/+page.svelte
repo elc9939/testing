@@ -628,13 +628,13 @@
   <div class="header-actions">
     <span class="sync-note">
       {#if $attentionStore.loading}
-        Loading attention.
+        Checking attention sources
       {:else if attentionSnapshot?.checkedAt}
         Updated {displayShortDate(attentionSnapshot.checkedAt)}
       {:else if $attentionStore.cachedAt}
         Cached {displayShortDate($attentionStore.cachedAt)}
       {:else}
-        Not checked
+        No attention check yet
       {/if}
     </span>
     <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} title={todayRefreshButtonTitle} on:click={refreshToday}>
