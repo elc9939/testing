@@ -163,6 +163,20 @@
     return state.studySummaryLoading ? 'Legacy Study scan is already running.' : 'Scan this browser for legacy Study Desk data.';
   }
 
+  function studyCareerActionsEmptyMessage(): string {
+    if (careerActions.length) return 'No linked career actions match the current search.';
+    if (!$clientData.initialized) return 'Opening cached linked career actions before live API sync.';
+    if (!canSave) return 'No cached linked career actions found in this browser.';
+    return 'No linked career actions have been imported or created yet.';
+  }
+
+  function studyLogsEmptyMessage(): string {
+    if (logs.length) return 'No study logs match the current filters.';
+    if (!$clientData.initialized) return 'Opening cached Study logs before live API sync.';
+    if (!canSave) return 'No cached Study logs found in this browser. Start or connect the Mini Hub API before logging progress.';
+    return 'No saved Study logs yet. Use Quick Log to add one.';
+  }
+
   function emptyStudyDraft(): StudyDraft {
     return { subject: '', minutes: 30 };
   }
@@ -712,7 +726,7 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="3" class="muted">{careerActions.length ? 'No linked career actions match the current search.' : 'No linked career actions imported yet.'}</td>
+            <td colspan="3" class="muted">{studyCareerActionsEmptyMessage()}</td>
           </tr>
         {/each}
       </tbody>
@@ -770,7 +784,7 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="5" class="muted">{logs.length ? 'No study logs match the current filters.' : 'No study logs in this Svelte workspace yet.'}</td>
+            <td colspan="5" class="muted">{studyLogsEmptyMessage()}</td>
           </tr>
         {/each}
       </tbody>

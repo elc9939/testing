@@ -1110,8 +1110,16 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('function careerMailUpdatesTitle');
     expect(career).toContain('function careerMailPanelStatus');
     expect(career).toContain('function careerMailEmptyMessage');
+    expect(career).toContain('function careerJobsEmptyMessage');
+    expect(career).toContain('function careerActionsEmptyMessage');
     expect(career).toContain("if (mailUpdatesLoading && !connections.length && !careerMailUpdates.length) return 'Checking Google'");
     expect(career).toContain('Checking Google connection and cached Career mail state.');
+    expect(career).toContain('Opening cached Career jobs before live API sync.');
+    expect(career).toContain('No cached Career jobs found in this browser. Start or connect the Mini Hub API before saving new jobs.');
+    expect(career).toContain('No saved Career jobs yet. Add a job manually or import legacy Career Desk data.');
+    expect(career).toContain('Opening cached career actions before live API sync.');
+    expect(career).toContain('No linked career actions have been imported or created yet.');
+    expect(career).not.toContain('No new jobs in this Svelte workspace yet.');
     expect(career).toContain('<span>{careerMailPanelStatus()}</span>');
     expect(career).toContain('<p class="muted mail-update-empty">{careerMailEmptyMessage()}</p>');
     expect(career).toContain('let careerSummaryLoading = false');
@@ -1153,6 +1161,8 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('studySummaryButtonTitle = studySummaryTitle(studyControlState)');
     expect(study).toContain('function studySaveTitle');
     expect(study).toContain('function studyRowTitle');
+    expect(study).toContain('function studyLogsEmptyMessage');
+    expect(study).toContain('function studyCareerActionsEmptyMessage');
     expect(study).toContain('let studySummaryLoading = false');
     expect(study).toContain('function studySummaryTitle');
     expect(study).toContain('if (studySummaryLoading) return');
@@ -1168,6 +1178,12 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('Study delete skipped.');
     expect(study).toContain('Ask for confirmation before deleting this saved study log.');
     expect(study).toContain('Offline read-only: start or connect the Mini Hub API before saving Study changes.');
+    expect(study).toContain('Opening cached Study logs before live API sync.');
+    expect(study).toContain('No cached Study logs found in this browser. Start or connect the Mini Hub API before logging progress.');
+    expect(study).toContain('No saved Study logs yet. Use Quick Log to add one.');
+    expect(study).toContain('Opening cached linked career actions before live API sync.');
+    expect(study).toContain('No linked career actions have been imported or created yet.');
+    expect(study).not.toContain('No study logs in this Svelte workspace yet.');
     expect(study).toContain("studyViewStorageKey = 'miniHub.study.view.v1'");
     expect(study).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
     expect(study).toContain('const storage = getBrowserStorage()');

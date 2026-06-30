@@ -160,6 +160,20 @@
     return 'No recent priority mail matches your submitted applications.';
   }
 
+  function careerJobsEmptyMessage(): string {
+    if (jobs.length) return 'No jobs match the current filters.';
+    if (!$clientData.initialized) return 'Opening cached Career jobs before live API sync.';
+    if (!canSave) return 'No cached Career jobs found in this browser. Start or connect the Mini Hub API before saving new jobs.';
+    return 'No saved Career jobs yet. Add a job manually or import legacy Career Desk data.';
+  }
+
+  function careerActionsEmptyMessage(): string {
+    if (careerActions.length) return 'No career actions match the current filters.';
+    if (!$clientData.initialized) return 'Opening cached career actions before live API sync.';
+    if (!canSave) return 'No cached linked career actions found in this browser.';
+    return 'No linked career actions have been imported or created yet.';
+  }
+
   function careerSummaryTitle(state: Pick<CareerControlState, 'careerSummaryLoading'>): string {
     return state.careerSummaryLoading ? 'Legacy Career scan is already running.' : 'Scan this browser for legacy Career Desk data.';
   }
@@ -819,7 +833,7 @@
               No jobs match the current filters.
             {:else}
               <div class="empty-career-state">
-                <span>No new jobs in this Svelte workspace yet.</span>
+                <span>{careerJobsEmptyMessage()}</span>
                 {#if localDevOrigin}
                   <small>Legacy Career Desk jobs saved on GitHub Pages live under that browser origin, so localhost cannot read them directly.</small>
                   <a class="link-button" href={githubPagesCareerUrl} target="_blank" rel="noreferrer" title="Open the legacy GitHub Pages Career Desk import page.">Open GitHub Pages import</a>
@@ -863,7 +877,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="4" class="muted">{careerActions.length ? 'No career actions match the current filters.' : 'No linked career actions imported yet.'}</td>
+          <td colspan="4" class="muted">{careerActionsEmptyMessage()}</td>
         </tr>
       {/each}
     </tbody>
