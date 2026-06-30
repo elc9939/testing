@@ -153,21 +153,21 @@
   }
 
   function passiveEngineLabel(): string {
-    if (loading && !snapshot) return 'Loading';
-    if (!settings) return serviceError ? 'Offline' : 'Not checked';
+    if (loading && !snapshot) return 'Checking';
+    if (!settings) return 'Not checked';
     return settings.enabled ? 'On' : 'Off';
   }
 
   function passiveScheduleLabel(): string {
-    if (loading && !snapshot) return 'Loading';
-    if (!settings) return serviceError ? 'Offline' : 'Not checked';
+    if (loading && !snapshot) return 'Checking';
+    if (!settings) return 'Not checked';
     return settings.idleOnly ? 'Idle only' : 'Normal';
   }
 
   function passiveBackupStatusLabel(): string {
     if (backupHealth) return backupStatusLabel(backupHealth);
-    if (loading && !snapshot) return 'Loading';
-    return snapshot ? 'No backup health' : serviceError ? 'Offline' : 'Not loaded';
+    if (loading && !snapshot) return 'Checking';
+    return snapshot ? 'No backup health' : 'Not checked';
   }
 
   function passiveCountLabel(value: number): string {
@@ -176,16 +176,16 @@
     return String(value);
   }
 
-  function passivePanelEmptyMessage(healthyEmpty: string, loadingMessage = 'Loading Passive Tasks snapshot.'): string {
+  function passivePanelEmptyMessage(healthyEmpty: string, loadingMessage = 'Checking Passive Tasks snapshot.'): string {
     if (loading && !snapshot) return loadingMessage;
-    if (serviceError && !snapshot) return 'Passive Tasks API is offline; this panel will load after the service reconnects.';
+    if (serviceError && !snapshot) return 'This panel will reload after the Passive Tasks service card reconnects.';
     if (!snapshot) return 'Passive Tasks snapshot has not loaded yet.';
     return healthyEmpty;
   }
 
   function passiveRecentRunsEmptyMessage(): string {
-    if (loading && !snapshot) return 'Loading Passive Tasks run history.';
-    if (serviceError && !snapshot) return 'Passive Tasks API is offline; run history will reload after reconnect.';
+    if (loading && !snapshot) return 'Checking Passive Tasks run history.';
+    if (serviceError && !snapshot) return 'Run history will reload after the Passive Tasks service card reconnects.';
     if (!snapshot) return 'Passive Tasks run history has not loaded yet.';
     return highlightedRunId
       ? `Activity run ${highlightedRunId} is not in the current Passive Tasks snapshot. Refresh or open Activity for the durable record.`
@@ -193,8 +193,8 @@
   }
 
   function workerStateLabel(): string {
-    if (loading && !snapshot) return 'Loading';
-    if (!snapshot) return serviceError ? 'Offline' : 'Not checked';
+    if (loading && !snapshot) return 'Checking';
+    if (!snapshot) return 'Not checked';
     if (!worker?.startedAt) return 'Not started';
     if (!worker.enabled) return 'Disabled';
     return worker.running ? 'Running' : 'Idle';
@@ -794,7 +794,7 @@
           {/each}
         </div>
       {:else if loading}
-        <p class="empty-note">Loading passive task outputs.</p>
+        <p class="empty-note">Checking passive task outputs.</p>
       {:else}
         <p class="empty-note">No passive task cards yet. Run due tasks or configure folders/research monitors to create source-backed outputs.</p>
       {/if}
@@ -837,7 +837,7 @@
           {#if summarizedResultRows.length}
             {summarizedResultRows.length} repeated service issue result{summarizedResultRows.length === 1 ? '' : 's'} summarized in Source Health.
           {:else}
-            {passivePanelEmptyMessage('No passive results have been persisted yet.', 'Loading recent passive results.')}
+            {passivePanelEmptyMessage('No passive results have been persisted yet.', 'Checking recent passive results.')}
           {/if}
         </p>
       {/if}
@@ -869,7 +869,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Source health appears after passive tasks are registered.', 'Loading passive source health.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('Source health appears after passive tasks are registered.', 'Checking passive source health.')}</p>
       {/if}
     </article>
 
@@ -898,7 +898,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No passive triggers are registered yet.', 'Loading passive triggers.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('No passive triggers are registered yet.', 'Checking passive triggers.')}</p>
       {/if}
     </article>
 
@@ -928,7 +928,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No passive watchers are registered yet.', 'Loading passive watchers.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('No passive watchers are registered yet.', 'Checking passive watchers.')}</p>
       {/if}
     </article>
 
@@ -986,7 +986,7 @@
           </tbody>
         </table>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No scheduled passive task runs are due or configured.', 'Loading scheduled passive task runs.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('No scheduled passive task runs are due or configured.', 'Checking scheduled passive task runs.')}</p>
       {/if}
     </article>
   </div>
@@ -1034,7 +1034,7 @@
           {/if}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Restore point health appears after the passive snapshot loads.', 'Loading restore point health.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('Restore point health appears after the passive snapshot loads.', 'Checking restore point health.')}</p>
       {/if}
     </article>
 
@@ -1079,7 +1079,7 @@
           {/if}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Worker state appears after the API starts the passive task worker.', 'Loading passive worker state.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('Worker state appears after the API starts the passive task worker.', 'Checking passive worker state.')}</p>
       {/if}
     </article>
 
@@ -1106,7 +1106,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No passive task failures are visible.', 'Loading passive task failures.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('No passive task failures are visible.', 'Checking passive task failures.')}</p>
       {/if}
     </article>
 
@@ -1133,7 +1133,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No retained task failures right now.', 'Loading retained task failures.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('No retained task failures right now.', 'Checking retained task failures.')}</p>
       {/if}
     </article>
 
@@ -1191,7 +1191,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No active passive notifications.', 'Loading passive notifications.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('No active passive notifications.', 'Checking passive notifications.')}</p>
       {/if}
     </article>
 
@@ -1290,7 +1290,7 @@
           </p>
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Settings load with the passive snapshot.', 'Loading passive settings.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage('Settings load with the passive snapshot.', 'Checking passive settings.')}</p>
       {/if}
     </article>
   </aside>
