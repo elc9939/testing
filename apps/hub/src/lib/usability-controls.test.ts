@@ -643,6 +643,8 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('function macroTriggersDetail');
     expect(macro).toContain('function macroDatabaseDetail');
     expect(macro).toContain('function macroEditorEmptyDetail');
+    expect(macro).toContain('function macroEditorBlockedTitle');
+    expect(macro).toContain('Select or create a macro before using ${action}.');
     expect(macro).toContain("loading ? 'checking' : 'not checked'");
     expect(macro).toContain('Checking action catalog and capability state.');
     expect(macro).toContain('Checking trigger and running automation state.');
@@ -674,6 +676,8 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('Confirmed macro run skipped.');
     expect(macro).toContain('!dryRun && confirm && !confirmMacroSideEffectRun(selectedMacro)');
     expect(macro).toContain("title={macroControlTitle || 'Ask for confirmation before running this macro with real desktop side effects.'}");
+    expect(macro).toContain("title={macroEditorBlockedTitle('dry run')}");
+    expect(macro).toContain("title={macroEditorBlockedTitle('confirmed run')}");
     expect(macro).toContain('disabled={macroControlDisabled}');
     expect(passive).toContain('passiveServiceReady = Boolean(snapshot && settings && !serviceError)');
     expect(passive).toContain('passiveWriteTitle = passiveDisabledReason({ loading, busyId, serviceError, serviceReady: passiveServiceReady })');

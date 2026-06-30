@@ -132,6 +132,12 @@
     return 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.';
   }
 
+  function macroEditorBlockedTitle(action: string): string {
+    const reason = macroDisabledReason();
+    if (reason) return reason;
+    return `Select or create a macro before using ${action}.`;
+  }
+
   function requireMacroReady(action: string): boolean {
     const reason = macroDisabledReason();
     if (!reason) return true;
@@ -387,6 +393,12 @@
         <Keyboard size={20} />
         <strong>{loading ? 'Checking macro editor' : 'No macro selected'}</strong>
         <p>{macroEditorEmptyDetail()}</p>
+        <div class="action-row">
+          <button class="button primary" type="button" disabled title={macroEditorBlockedTitle('save')}><Save size={16} />Save</button>
+          <button class="button" type="button" disabled title={macroEditorBlockedTitle('dry run')}><Play size={16} />Dry Run</button>
+          <button class="button danger" type="button" disabled title={macroEditorBlockedTitle('confirmed run')}><Play size={16} />Run Confirmed</button>
+          <button class="button" type="button" disabled title={macroEditorBlockedTitle('trigger reload')}><RefreshCw size={16} />Reload Triggers</button>
+        </div>
       </div>
     {/if}
   </main>
