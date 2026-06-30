@@ -365,7 +365,7 @@
   }
 
   function numberLabel(value: number | undefined, suffix = ''): string {
-    return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'n/a';
+    return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'not measured';
   }
 
   function aiOsMetricLabel(value: number | undefined, suffix = ''): string {
@@ -383,7 +383,10 @@
   function aiOsRamDetail(): string {
     if (loading && !status) return 'Loading memory telemetry from AI OS.';
     if (!status) return 'AI OS is not connected yet.';
-    return `${hardware?.memory_used_gb ?? 'n/a'} / ${hardware?.memory_total_gb ?? 'n/a'} GB`;
+    if (typeof hardware?.memory_used_gb !== 'number' || typeof hardware.memory_total_gb !== 'number') {
+      return 'Memory telemetry not reported by AI OS.';
+    }
+    return `${hardware.memory_used_gb} / ${hardware.memory_total_gb} GB`;
   }
 
   function aiOsGpuDetail(gpu: Record<string, unknown> | undefined): string {
@@ -408,7 +411,7 @@
     const value = source?.[key];
     if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
     if (typeof value === 'string') return value;
-    if (value === null || value === undefined) return 'n/a';
+    if (value === null || value === undefined) return 'not reported';
     return stringify(value);
   }
 
@@ -423,7 +426,7 @@
   }
 
   function gbFromMb(value: number | undefined): string {
-    return typeof value === 'number' && Number.isFinite(value) ? `${(value / 1024).toFixed(1)} GB` : 'n/a';
+    return typeof value === 'number' && Number.isFinite(value) ? `${(value / 1024).toFixed(1)} GB` : 'not reported';
   }
 
   function gpuName(gpu: Record<string, unknown> | undefined): string {
@@ -435,14 +438,14 @@
     const total = metricNumber(gpu, 'memory_total_mb') ?? metricNumber(gpu, 'memory_reported_total_mb');
     if (used !== undefined && total !== undefined) return `${gbFromMb(used)} / ${gbFromMb(total)}`;
     if (used !== undefined) return `${gbFromMb(used)} used`;
-    return 'VRAM n/a';
+    return 'VRAM not reported';
   }
 
   function gpuTemperatureLabel(gpu: Record<string, unknown> | undefined): string {
     const value = metricNumber(gpu, 'temperature_c');
     if (value !== undefined) return `${value.toFixed(0)} C`;
     const source = metricString(gpu, 'temperature_source');
-    return source === 'unavailable' ? 'sensor unavailable' : 'temperature n/a';
+    return source === 'unavailable' ? 'temperature sensor unavailable' : 'temperature not reported';
   }
 
   function routeLabel(route: Record<string, unknown> | null | undefined): string {
@@ -1117,7 +1120,7 @@
       }
       const speed = typeof result.benchmark?.tokens_per_second === 'number' ? ` at ${result.benchmark.tokens_per_second.toFixed(1)} tok/s` : '';
       autotuneResult = result.ok
-        ? `Autotune measured ${result.benchmark?.provider ?? 'auto'}${speed}. Suggested concurrency: ${result.profile.autotune.suggested_max_job_concurrency ?? 'n/a'}.`
+        ? `Autotune measured ${result.benchmark?.provider ?? 'auto'}${speed}. Suggested concurrency: ${result.profile.autotune.suggested_max_job_concurrency ?? 'not measured'}.`
         : `Autotune could not complete: ${result.error ?? 'provider unavailable'}`;
       await refresh();
     } catch (error) {
@@ -1360,13 +1363,13 @@
       </div>
       <div>
         <span>Suggested concurrency</span>
-        <strong>{machineProfile.autotune.suggested_max_job_concurrency ?? 'n/a'}</strong>
+        <strong>{machineProfile.autotune.suggested_max_job_concurrency ?? 'not measured'}</strong>
         <small>{machineProfile.benchmarks.text_samples ?? 0} text samples</small>
       </div>
       <div>
         <span>OS</span>
         <strong>{machineProfile.host.system ?? 'Unknown'} {machineProfile.host.release ?? ''}</strong>
-        <small>{machineProfile.host.machine ?? 'machine n/a'}</small>
+        <small>{machineProfile.host.machine ?? 'machine type not reported'}</small>
       </div>
       <div>
         <span>Snapshots</span>
@@ -1655,7 +1658,7 @@
             <strong>{run.kind}</strong>
             <span>{run.provider ?? 'auto'}</span>
           </div>
-          <small>{run.latency_ms.toFixed(0)} ms · {run.tokens_per_second ? `${run.tokens_per_second.toFixed(1)} tok/s` : 'n/a tok/s'}</small>
+          <small>{run.latency_ms.toFixed(0)} ms · {run.tokens_per_second ? `${run.tokens_per_second.toFixed(1)} tok/s` : 'tokens/sec not measured'}</small>
         </article>
       {:else}
         <p class="muted">{highlightedBenchmarkId ? `Activity benchmark ${highlightedBenchmarkId} is not in the current AI OS benchmark snapshot.` : 'No benchmark runs yet.'}</p>
@@ -1710,7 +1713,7 @@
         <Database size={17} />
         <span>Database</span>
         <strong>{status?.integrity?.ok ? 'OK' : 'Check'}</strong>
-        <small>Schema {status?.integrity?.schema_version ?? 'n/a'} / {status?.integrity?.expected_schema_version ?? 'n/a'}</small>
+        <small>Schema {status?.integrity?.schema_version ?? 'not reported'} / {status?.integrity?.expected_schema_version ?? 'not reported'}</small>
       </article>
       <article class:bad={!status?.backups?.[0]?.ok} class="foundation-tile">
         <HardDrive size={17} />

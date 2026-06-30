@@ -807,15 +807,19 @@
     return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} tok/s` : 'not measured';
   }
 
+  function formatPercent(value: number | undefined): string {
+    return typeof value === 'number' && Number.isFinite(value) ? `${value}%` : 'not measured';
+  }
+
   function formatBytes(value: number | undefined): string {
-    if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured';
     if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
     if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
     return `${value} B`;
   }
 
   function formatSnapshotAge(value: number | undefined): string {
-    if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured';
     if (value >= 48) return `${Math.round(value / 24)} d`;
     if (value >= 1) return `${Math.round(value)} hr`;
     return '<1 hr';
@@ -828,7 +832,7 @@
   }
 
   function backupHealthLabel(health: PassiveBackupHealth | null): string {
-    if (!health) return 'n/a';
+    if (!health) return 'No snapshot';
     if (health.status === 'ok') return 'Verified';
     if (health.status === 'warning') return health.stale ? 'Stale' : 'Review';
     return 'Needs setup';
@@ -844,7 +848,7 @@
     const cleanup = health.cleanupCandidateCount
       ? ` Cleanup dry-run: ${health.cleanupCandidateCount} candidate${health.cleanupCandidateCount === 1 ? '' : 's'} (${formatBytes(health.cleanupBytes)}).`
       : '';
-    return `${compactFileName(health.latestPath)} is ${formatSnapshotAge(health.latestAgeHours)} old, ${formatBytes(health.latestBytes)}, sha ${health.latestSha256?.slice(0, 12) ?? 'n/a'}.${cleanup}`;
+    return `${compactFileName(health.latestPath)} is ${formatSnapshotAge(health.latestAgeHours)} old, ${formatBytes(health.latestBytes)}, sha ${health.latestSha256?.slice(0, 12) ?? 'hash not reported'}.${cleanup}`;
   }
 
   onMount(() => {
@@ -923,7 +927,7 @@
         </div>
         <div>
           <span>CPU/RAM</span>
-          <strong>{machineProfile.hardware.cpu_percent ?? 'n/a'}% / {machineProfile.hardware.memory_percent ?? 'n/a'}%</strong>
+          <strong>{formatPercent(machineProfile.hardware.cpu_percent)} / {formatPercent(machineProfile.hardware.memory_percent)}</strong>
         </div>
         <div>
           <span>GPU</span>
@@ -936,7 +940,7 @@
         </div>
         <div>
           <span>Concurrency</span>
-          <strong>{machineProfile.autotune.suggested_max_job_concurrency ?? 'n/a'}</strong>
+          <strong>{machineProfile.autotune.suggested_max_job_concurrency ?? 'not measured'}</strong>
         </div>
         <div>
           <span>Snapshots</span>
