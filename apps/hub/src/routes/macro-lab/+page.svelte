@@ -132,6 +132,29 @@
     return 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.';
   }
 
+  function macroDefinitionsEmptyMessage(): string {
+    if (loading && !macros.length) return 'Checking saved macro definitions.';
+    if (serviceError) return 'Saved macro definitions will reload after the Macro Lab service card reconnects.';
+    if (!status) return 'Connect Macro Lab to load saved macro definitions before creating or editing macros.';
+    return 'No macros are registered yet. Create one with the plus button.';
+  }
+
+  function macroActionCatalogEmptyMessage(): string {
+    if (loading && !actions.length) return 'Checking action catalog.';
+    if (serviceError) return 'Action catalog will reload after the Macro Lab service card reconnects.';
+    if (!status) return 'Connect Macro Lab to inspect available action types.';
+    if (status.engine.action_count === 0) return 'Macro Lab is reachable, but its action catalog is empty; check the desktop service install.';
+    return 'No action types were returned by Macro Lab. Refresh the desktop service state.';
+  }
+
+  function macroRunHistoryEmptyMessage(): string {
+    if (loading && !runs.length) return 'Checking recent Macro Lab runs.';
+    if (serviceError) return 'Run history will reload after the Macro Lab service card reconnects.';
+    if (!status) return 'Connect Macro Lab to load desktop automation run history.';
+    if (highlightedRunId) return `Activity run ${highlightedRunId} is not in Macro Lab's current run history. Refresh or open Activity for the durable record.`;
+    return 'No macro runs have been recorded yet. Dry runs and confirmed runs will appear here after they finish.';
+  }
+
   function macroEditorBlockedTitle(action: string): string {
     const reason = macroDisabledReason();
     if (reason) return reason;
@@ -358,10 +381,8 @@
         {#if macro.armed}<Shield size={15} />{/if}
       </button>
     {/each}
-    {#if loading && !macros.length}
-      <p class="empty-note">Checking saved macro definitions.</p>
-    {:else if !macros.length}
-      <p class="empty-note">{serviceError ? 'Saved macro definitions will reload after the Macro Lab service card reconnects.' : 'No macros are registered yet. Create one with the plus button.'}</p>
+    {#if !macros.length}
+      <p class="empty-note">{macroDefinitionsEmptyMessage()}</p>
     {/if}
   </aside>
 
@@ -418,10 +439,8 @@
           <small>{action.description}</small>
         </div>
       {/each}
-      {#if loading && !actions.length}
-        <p class="empty-note">Checking action catalog.</p>
-      {:else if !actions.length}
-        <p class="empty-note">{serviceError ? 'Action catalog will reload after the Macro Lab service card reconnects.' : 'No action types are registered yet.'}</p>
+      {#if !actions.length}
+        <p class="empty-note">{macroActionCatalogEmptyMessage()}</p>
       {/if}
     </div>
   </div>
@@ -454,10 +473,8 @@
         <small>{run.started_at}</small>
       </div>
     {/each}
-    {#if loading && !runs.length}
-      <p class="empty-note">Checking recent Macro Lab runs.</p>
-    {:else if !runs.length}
-      <p class="empty-note">{serviceError ? 'Run history will reload after the Macro Lab service card reconnects.' : 'No macro runs have been recorded yet.'}</p>
+    {#if !runs.length}
+      <p class="empty-note">{macroRunHistoryEmptyMessage()}</p>
     {:else if highlightedRunId && !runs.some((run) => run.id === highlightedRunId)}
       <p class="empty-note">The linked Activity run is not in the latest {runs.length} Macro Lab runs. Refresh or open Activity for the durable record.</p>
     {/if}

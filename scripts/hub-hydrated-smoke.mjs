@@ -53,8 +53,8 @@ const routes = [
     heading: 'Macro Lab',
     safeActionLabels: ['Refresh', 'Panic', 'Dry Run', 'Run Confirmed'],
     safeActionFallbacks: {
-      'Dry Run': ['No macro selected', 'Saved macro definitions will reload', 'Start Macro Lab', 'Checking saved macro definitions'],
-      'Run Confirmed': ['No macro selected', 'Saved macro definitions will reload', 'Start Macro Lab', 'Checking saved macro definitions']
+      'Dry Run': ['No macro selected', 'Saved macro definitions will reload', 'Connect Macro Lab', 'Start Macro Lab', 'Checking saved macro definitions'],
+      'Run Confirmed': ['No macro selected', 'Saved macro definitions will reload', 'Connect Macro Lab', 'Start Macro Lab', 'Checking saved macro definitions']
     }
   },
   { id: 'passive-tasks', path: '/passive-tasks', title: 'Passive Tasks - Mini Hub', heading: 'Passive Tasks', safeActionLabels: ['Refresh', 'Run Due', 'Startup', 'Idle'] },
@@ -2199,7 +2199,7 @@ async function runLocalServiceSideEffectGuardChecks(client, baseUrl) {
           if (!button.disabled) return true;
           return !/Macro Lab service is unavailable|Connect Macro Lab|loading the latest|already running/i.test(button.title);
         });
-        const emptyEditor = /Saved macro definitions will reload|Checking saved macro definitions/i.test(body);
+        const emptyEditor = /Saved macro definitions will reload|Checking saved macro definitions|Connect Macro Lab to load saved macro definitions/i.test(body);
         const offlineKnown = /Macro Lab connection failed|Macro Lab service is unavailable|Failed to fetch/i.test(body);
         return {
           ok: offlineKnown && serviceCards <= 1 && panicReset.length >= 2 && badButtons.length === 0 && (buttons.length >= 4 || emptyEditor),
