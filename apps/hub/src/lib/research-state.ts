@@ -48,7 +48,7 @@ export function selectRecoverableResearchRun(
 }
 
 export function researchRunListState(input: { loading: boolean; error?: string; runCount: number; apiLabel?: string }): string {
-  if (input.loading) return 'Loading archived research runs.';
+  if (input.loading) return 'Checking saved research runs.';
   if (input.error) return `${input.apiLabel ?? 'AI OS'} unavailable: ${input.error}`;
   if (input.runCount === 0) return 'No archived research yet. New runs will stay here after you leave or refresh.';
   return '';

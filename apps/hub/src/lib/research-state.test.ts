@@ -128,7 +128,7 @@ describe('research draft and state helpers', () => {
   });
 
   it('distinguishes loading, unavailable, and healthy-empty run states', () => {
-    expect(researchRunListState({ loading: true, runCount: 0 })).toBe('Loading archived research runs.');
+    expect(researchRunListState({ loading: true, runCount: 0 })).toBe('Checking saved research runs.');
     expect(researchRunListState({ loading: false, error: 'connection refused', runCount: 0 })).toContain('AI OS unavailable');
     expect(researchRunListState({ loading: false, runCount: 0 })).toContain('New runs will stay here');
   });

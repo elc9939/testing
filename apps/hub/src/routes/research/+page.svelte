@@ -232,20 +232,20 @@
   }
 
   function researchRunsEmptyMessage(): string {
-    if (serviceProbePending || refreshing) return 'Loading archived research runs.';
-    if (aiOsUnavailable) return 'Reports are unavailable until AI OS is connected. Saved runs will reload after Retry Service succeeds.';
+    if (serviceProbePending || refreshing) return 'Checking saved research runs.';
+    if (aiOsUnavailable) return 'Saved reports will reload after the AI OS service card reconnects.';
     return runsPanelState;
   }
 
   function monitorEmptyMessage(): string {
-    if (serviceProbePending) return 'Checking AI OS before loading saved topic monitors.';
-    if (aiOsUnavailable) return 'Topic monitors are unavailable until AI OS is connected. Saved monitors will reload after Retry Service succeeds.';
+    if (serviceProbePending) return 'Checking saved topic monitors.';
+    if (aiOsUnavailable) return 'Saved topic monitors will reload after the AI OS service card reconnects.';
     return 'No topic monitors yet. Fill in a goal and knobs above, then save the setup here.';
   }
 
   function sourceLibraryEmptyMessage(): string {
-    if (serviceProbePending) return 'Checking AI OS before searching archived source cards.';
-    if (aiOsUnavailable) return 'Source Library is unavailable until AI OS is connected. Archived sources will reload after Retry Service succeeds.';
+    if (serviceProbePending) return 'Checking archived source cards.';
+    if (aiOsUnavailable) return 'Archived sources will reload after the AI OS service card reconnects.';
     return 'No archived sources matched. Run a research job first, or relax the search/domain filter.';
   }
 
@@ -1191,7 +1191,7 @@
           {/each}
         </div>
       {:else if refreshing}
-        <div class="run-list loading-runs" aria-label="Loading archived research runs">
+        <div class="run-list loading-runs" aria-label="Checking saved research runs">
           {#each Array.from({ length: 3 }) as _}
             <span></span>
           {/each}
@@ -1284,7 +1284,7 @@
         {/each}
       </div>
     {:else if monitorsLoading}
-      <p class="empty-note">Loading research monitors...</p>
+      <p class="empty-note">Checking saved research monitors.</p>
     {:else}
       <p class:error-message={aiOsUnavailable} class="empty-note">{monitorEmptyMessage()}</p>
     {/if}
@@ -1357,7 +1357,7 @@
         {/each}
       </div>
     {:else if sourceLibraryLoading}
-      <p class="empty-note">Searching archived source cards...</p>
+      <p class="empty-note">Searching archived source cards.</p>
     {:else}
       <p class:error-message={aiOsUnavailable} class="empty-note">{sourceLibraryEmptyMessage()}</p>
     {/if}

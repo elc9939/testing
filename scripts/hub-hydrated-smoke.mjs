@@ -30,9 +30,9 @@ const routes = [
     heading: 'Research Desk',
     safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service'],
     safeActionFallbacks: {
-      'Connect AI OS': ['Checking AI OS', 'Setup', 'Loading research monitors'],
-      'Run Quick Search': ['Connect AI OS', 'Checking AI OS', 'Setup', 'Loading research monitors'],
-      'Retry Service': ['Checking AI OS', 'Setup', 'Loading research monitors']
+      'Connect AI OS': ['Checking AI OS', 'Setup', 'Checking saved research monitors'],
+      'Run Quick Search': ['Connect AI OS', 'Checking AI OS', 'Setup', 'Checking saved research monitors'],
+      'Retry Service': ['Checking AI OS', 'Setup', 'Checking saved research monitors']
     }
   },
   { id: 'ai-lab', path: '/ai-lab', title: 'AI Lab - Mini Hub', heading: 'Browser Experiments', safeActionLabels: ['Restore Samples', 'Classify', 'Parse'] },
