@@ -878,7 +878,7 @@
 <section class="page-header">
   <div>
     <p class="eyebrow">Settings</p>
-    <h1>Workspace</h1>
+    <h1>Settings</h1>
   </div>
   <button class="button" type="button" disabled={serviceChecking} title={serviceChecking ? 'Service check is already running.' : 'Check all configured local and browser services.'} on:click={checkServices}>
     <RefreshCw size={17} />

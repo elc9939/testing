@@ -35,7 +35,7 @@ const routeHeadings = [
   ['../routes/ai-os/+page.svelte', '<h1>Ask AI OS</h1>'],
   ['../routes/macro-lab/+page.svelte', '<h1>Macro Lab</h1>'],
   ['../routes/passive-tasks/+page.svelte', '<h1>Passive Tasks</h1>'],
-  ['../routes/settings/+page.svelte', '<h1>Workspace</h1>']
+  ['../routes/settings/+page.svelte', '<h1>Settings</h1>']
 ] as const;
 
 describe('route document titles', () => {

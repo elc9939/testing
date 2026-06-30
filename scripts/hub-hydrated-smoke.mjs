@@ -62,7 +62,7 @@ const routes = [
     id: 'settings',
     path: '/settings',
     title: 'Settings - Mini Hub',
-    heading: 'Workspace',
+    heading: 'Settings',
     safeActionLabels: ['Check Services', 'Sync Now']
   },
   { id: 'games', path: '/games', title: 'Games - Mini Hub', heading: 'Play Surfaces', safeActionLabels: ['Open'] },
