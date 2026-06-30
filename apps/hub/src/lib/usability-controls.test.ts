@@ -785,6 +785,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('{#if cacheWarning}');
     expect(source).toContain('Write Mode');
     expect(source).toContain('Read Mode');
+    expect(source).toContain('Checking connections');
+    expect(source).toContain('Waiting for API, Google, Gmail, and Calendar state before enabling writes.');
+    expect(source).toContain('Opening cache');
+    expect(source).toContain('Opening cached productivity data first, then live Google data when available.');
     expect(source).toContain('Checking API');
     expect(source).toContain('Opening the browser cache and checking the Mini Hub API before enabling OAuth or writes.');
     expect(source).toContain('Checking the Mini Hub API before loading live Gmail and Calendar data.');
@@ -823,6 +827,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Open the cached thread preview. Connect the API and Google to fetch full messages.');
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
+    expect(source).toContain("googleOAuthOpening ? 'Opening sign-in'");
+    expect(source).toContain('Opening Google sign-in.');
+    expect(source).not.toContain("googleOAuthOpening ? 'Opening...'");
+    expect(source).not.toContain('Opening Google sign-in...');
     expect(source).toContain('{productivityApiBannerText}');
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain('disabled={productivityRefreshDisabled}');

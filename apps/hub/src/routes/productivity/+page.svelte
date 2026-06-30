@@ -517,7 +517,7 @@
   }
 
   function productivityWriteStateLabel(state: ProductivityStatusState): string {
-    if (state.loading) return 'Loading';
+    if (state.loading) return 'Checking connections';
     if (state.apiChecking) return 'Checking API';
     if (state.actionBusyKey) return 'Busy';
     if (!state.canAct) return 'API offline';
@@ -526,7 +526,7 @@
   }
 
   function productivityWriteStateDetail(state: ProductivityStatusState): string {
-    if (state.loading) return 'Waiting for the latest API, Google, Gmail, and Calendar connection state.';
+    if (state.loading) return 'Waiting for API, Google, Gmail, and Calendar state before enabling writes.';
     if (state.apiChecking) return 'Opening the browser cache and checking the Mini Hub API before enabling OAuth or writes.';
     if (state.actionBusyKey) return 'Another Productivity action is running; write controls stay locked until it finishes.';
     if (!state.canAct) return 'OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.';
@@ -535,7 +535,7 @@
   }
 
   function productivityReadStateLabel(state: ProductivityStatusState): string {
-    if (state.loading) return 'Loading';
+    if (state.loading) return 'Opening cache';
     if (state.productivityReady) return 'Live reads';
     if (state.apiChecking && state.cacheLoadedAt) return 'Cached while checking';
     if (state.apiChecking) return 'Checking API';
@@ -546,7 +546,7 @@
   }
 
   function productivityReadStateDetail(state: ProductivityStatusState): string {
-    if (state.loading) return 'Loading cached productivity data first, then live Google data when available.';
+    if (state.loading) return 'Opening cached productivity data first, then live Google data when available.';
     if (state.productivityReady) return 'Calendar and Gmail reads can refresh from connected Google accounts.';
     if (state.apiChecking && state.cacheLoadedAt) return 'Showing the last browser snapshot while Mini Hub checks the API and Google connection state.';
     if (state.apiChecking) return 'Checking the Mini Hub API before loading live Gmail and Calendar data.';
@@ -820,7 +820,7 @@
       try {
         popup.document.title = 'Connect Google';
         popup.document.body.innerHTML =
-          '<main style="font-family: system-ui, sans-serif; padding: 24px;"><strong>Opening Google sign-in...</strong><p>You can close this window if you change your mind.</p></main>';
+          '<main style="font-family: system-ui, sans-serif; padding: 24px;"><strong>Opening Google sign-in.</strong><p>You can close this window if you change your mind.</p></main>';
       } catch {
         // The popup may become cross-origin quickly; setting the placeholder is only cosmetic.
       }
@@ -1201,7 +1201,7 @@
     {#if googleConnected}
       <button class="button" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
         <Link size={17} />
-        <span>{googleOAuthOpening ? 'Opening...' : 'Add Google Account'}</span>
+        <span>{googleOAuthOpening ? 'Opening sign-in' : 'Add Google Account'}</span>
       </button>
       {#if googleConnections.length === 1}
         <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Revoke this Google account connection.')} on:click={() => disconnectGoogle(googleConnection)}>
@@ -1212,7 +1212,7 @@
     {:else}
       <button class="button primary" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
         <Link size={17} />
-        <span>{googleOAuthOpening ? 'Opening...' : 'Connect Google'}</span>
+        <span>{googleOAuthOpening ? 'Opening sign-in' : 'Connect Google'}</span>
       </button>
     {/if}
   </div>
@@ -1292,7 +1292,7 @@
   </div>
   <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
     <Link size={15} />
-    <span>{googleOAuthOpening ? 'Opening...' : googleConnected ? 'Add Another' : 'Connect Google'}</span>
+    <span>{googleOAuthOpening ? 'Opening sign-in' : googleConnected ? 'Add Another' : 'Connect Google'}</span>
   </button>
 </section>
 
@@ -1302,7 +1302,7 @@
       <strong>Connected Google Accounts</strong>
       <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
         <Link size={15} />
-        <span>{googleOAuthOpening ? 'Opening...' : 'Add'}</span>
+        <span>{googleOAuthOpening ? 'Opening sign-in' : 'Add'}</span>
       </button>
     </div>
     <div class="account-list">
