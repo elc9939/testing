@@ -174,22 +174,42 @@
     return String(value);
   }
 
+  function todaySnapshotUnavailableMessage(subject: string, loadingMessage: string): string {
+    if (!$attentionStore.initialized) return 'Opening the browser attention cache before live sources refresh.';
+    if ($attentionStore.loading && !attentionSnapshot) return loadingMessage;
+    if ($attentionStore.error && !attentionSnapshot) return `${subject} will reload after the Today refresh card reconnects.`;
+    return `${subject} has not loaded yet. Refresh Today or open Settings Feature Wiring.`;
+  }
+
+  function nowNextEmptyMessage(): string {
+    return todaySnapshotUnavailableMessage('Now / Next', 'Checking Google Calendar attention from the hub.');
+  }
+
+  function priorityEmptyMessage(): string {
+    if (!attentionSnapshot) return todaySnapshotUnavailableMessage('Priority Queue', 'Loading real attention sources.');
+    return sourceIssues.length ? 'Some sources are unavailable; check the source status panel.' : 'Connected sources do not have active actions right now.';
+  }
+
   function mailEmptyMessage(): string {
     if ($attentionStore.loading && !attentionSnapshot) return 'Loading Gmail attention from the hub.';
-    if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
+    if (!attentionSnapshot) return todaySnapshotUnavailableMessage('Mail triage', 'Loading Gmail attention from the hub.');
     return googleConnected ? 'No priority Gmail threads are active.' : 'Gmail is not connected or could not refresh.';
   }
 
   function focusEmptyMessage(): string {
     if ($attentionStore.loading && !attentionSnapshot) return 'Loading Career and Study attention from the hub.';
-    if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
+    if (!attentionSnapshot) return todaySnapshotUnavailableMessage('Career / Study Focus', 'Loading Career and Study attention from the hub.');
     return 'No due career or study signals are active.';
   }
 
   function systemEmptyMessage(): string {
     if ($attentionStore.loading && !attentionSnapshot) return 'Loading local service and AI OS signals.';
-    if (!attentionSnapshot) return 'No attention snapshot has loaded yet.';
+    if (!attentionSnapshot) return todaySnapshotUnavailableMessage('System / Services', 'Loading local service and AI OS signals.');
     return 'No service, AI OS, Macro Lab, or Research issues are active.';
+  }
+
+  function sourceStatusEmptyMessage(): string {
+    return todaySnapshotUnavailableMessage('Source status', 'Checking source status from the hub.');
   }
 
   function priorityClass(item: AttentionItem): string {
@@ -601,7 +621,7 @@
       {:else if $attentionStore.cachedAt}
         Cached {displayShortDate($attentionStore.cachedAt)}
       {:else}
-        Ready
+        Not checked
       {/if}
     </span>
     <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} title={todayRefreshButtonTitle} on:click={refreshToday}>
@@ -622,7 +642,7 @@
 {/if}
 
 {#if $attentionStore.error}
-  <section class="card card-pad warning-panel attention-error-panel" title={`Raw Today error: ${$attentionStore.error}`}>
+  <section class="card card-pad warning-panel attention-error-panel service-card" title={`Raw Today error: ${$attentionStore.error}`}>
     <div>
       <strong>Today refresh needs attention</strong>
       <p>{visibleAttentionError} Cached attention remains visible when available.</p>
@@ -732,7 +752,7 @@
       })}
     </p>
   {:else}
-    <p class="empty-note">No attention snapshot has loaded yet.</p>
+    <p class="empty-note">{nowNextEmptyMessage()}</p>
   {/if}
 </section>
 
@@ -809,8 +829,8 @@
         <p class="empty-note">Loading real attention sources.</p>
       {:else}
         <div class="empty-block">
-          <strong>No active queue items.</strong>
-          <p>{sourceIssues.length ? 'Some sources are unavailable; check the source status panel.' : 'Connected sources do not have active actions right now.'}</p>
+          <strong>{attentionSnapshot ? 'No active queue items.' : 'Attention queue not loaded'}</strong>
+          <p>{priorityEmptyMessage()}</p>
         </div>
       {/if}
     </article>
@@ -1101,7 +1121,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">No source snapshot has loaded yet.</p>
+        <p class="empty-note">{sourceStatusEmptyMessage()}</p>
       {/if}
     </article>
   </aside>
