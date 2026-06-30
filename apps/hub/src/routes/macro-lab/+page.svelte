@@ -54,10 +54,16 @@
   $: selectedMacro = macros.find((macro) => macro.id === selectedId) ?? macros[0];
   $: capabilityReady = status?.capabilities.filter((capability) => capability.available).length ?? 0;
   $: highlightedRunId = $page.url.searchParams.get('run') ?? '';
-  $: engineState = status ? (status.engine.panic ? 'panic' : status.ok ? 'ready' : 'check') : loading ? 'loading' : 'unknown';
-  $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'loading' : 'unknown';
-  $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'loading' : 'unknown';
-  $: serviceDetail = status ? `${status.version} at ${getMacroLabApiUrl()}` : `Target: ${getMacroLabApiUrl()}`;
+  $: engineState = status ? (status.engine.panic ? 'panic' : status.ok ? 'ready' : 'check') : loading ? 'checking' : 'not checked';
+  $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'checking' : 'not checked';
+  $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'checking' : 'not checked';
+  $: serviceDetail = status
+    ? `${status.version} at ${getMacroLabApiUrl()}`
+    : loading
+      ? `Checking ${getMacroLabApiUrl()}`
+      : serviceError
+        ? 'See the Macro Lab service card above.'
+        : `Target: ${getMacroLabApiUrl()}`;
   $: macroServiceReady = Boolean(status && !serviceError);
   $: macroStateKnown = macroServiceReady;
   $: macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status });
@@ -101,28 +107,28 @@
 
   function macroCapabilitiesDetail(): string {
     if (status) return `${status.engine.action_count} action type${status.engine.action_count === 1 ? '' : 's'}`;
-    if (loading) return 'Loading action catalog and capability state.';
-    if (serviceError) return 'Macro Lab service is offline; capability state will load after reconnect.';
-    return 'Connect Macro Lab to inspect action types.';
+    if (loading) return 'Checking action catalog and capability state.';
+    if (serviceError) return 'Capability state will reload after the Macro Lab service card reconnects.';
+    return 'Service status above controls action catalog availability.';
   }
 
   function macroTriggersDetail(): string {
     if (status) return `${status.engine.running} running automation${status.engine.running === 1 ? '' : 's'}`;
-    if (loading) return 'Loading trigger and running automation state.';
-    if (serviceError) return 'Macro Lab service is offline; trigger state will load after reconnect.';
-    return 'Reload state is not known yet.';
+    if (loading) return 'Checking trigger and running automation state.';
+    if (serviceError) return 'Trigger state will reload after the Macro Lab service card reconnects.';
+    return 'Service status above controls trigger visibility.';
   }
 
   function macroDatabaseDetail(): string {
     if (status) return 'Macro definitions and run history are reachable.';
-    if (loading) return 'Loading macro definitions and run history.';
-    if (serviceError) return 'Macro Lab service is offline; saved definitions and run history are unavailable.';
-    return 'Connect Macro Lab to inspect saved definitions and run history.';
+    if (loading) return 'Checking macro definitions and run history.';
+    if (serviceError) return 'Saved definitions and run history will reload after the Macro Lab service card reconnects.';
+    return 'Service status above controls saved definition visibility.';
   }
 
   function macroEditorEmptyDetail(): string {
-    if (loading && !macros.length) return 'Loading macro definitions before enabling edit and run controls.';
-    if (serviceError) return 'Connect the Macro Lab service to edit and run macros.';
+    if (loading && !macros.length) return 'Checking macro definitions before enabling edit and run controls.';
+    if (serviceError) return 'Saved macro definitions will reload after the Macro Lab service card reconnects.';
     return 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.';
   }
 
@@ -311,22 +317,22 @@
 <section class="status-strip">
   <div class="metric">
     <span>Engine</span>
-    <strong class:bad={engineState === 'panic'} class:warn={engineState === 'unknown' || engineState === 'loading' || engineState === 'check'}>{engineState}</strong>
+    <strong class:bad={engineState === 'panic'} class:warn={engineState === 'not checked' || engineState === 'checking' || engineState === 'check'}>{engineState}</strong>
     <small>{serviceDetail}</small>
   </div>
   <div class="metric">
     <span>Capabilities</span>
-    <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : loading ? 'loading' : 'unknown'}</strong>
+    <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : loading ? 'checking' : 'not checked'}</strong>
     <small>{macroCapabilitiesDetail()}</small>
   </div>
   <div class="metric">
     <span>Triggers</span>
-    <strong class:warn={triggerState === 'unknown' || triggerState === 'loading'}>{triggerState}</strong>
+    <strong class:warn={triggerState === 'not checked' || triggerState === 'checking'}>{triggerState}</strong>
     <small>{macroTriggersDetail()}</small>
   </div>
   <div class="metric">
     <span>Database</span>
-    <strong class:warn={databaseState === 'unknown' || databaseState === 'loading' || databaseState === 'check'}>{databaseState}</strong>
+    <strong class:warn={databaseState === 'not checked' || databaseState === 'checking' || databaseState === 'check'}>{databaseState}</strong>
     <small>{macroDatabaseDetail()}</small>
   </div>
 </section>
@@ -347,9 +353,9 @@
       </button>
     {/each}
     {#if loading && !macros.length}
-      <p class="empty-note">Loading macro definitions from Macro Lab.</p>
+      <p class="empty-note">Checking saved macro definitions.</p>
     {:else if !macros.length}
-      <p class="empty-note">{serviceError ? 'Macro definitions are unavailable until the service responds.' : 'No macros are registered yet. Create one with the plus button.'}</p>
+      <p class="empty-note">{serviceError ? 'Saved macro definitions will reload after the Macro Lab service card reconnects.' : 'No macros are registered yet. Create one with the plus button.'}</p>
     {/if}
   </aside>
 
@@ -379,7 +385,7 @@
     {:else}
       <div class="empty-panel">
         <Keyboard size={20} />
-        <strong>{loading ? 'Loading macro editor' : 'No macro selected'}</strong>
+        <strong>{loading ? 'Checking macro editor' : 'No macro selected'}</strong>
         <p>{macroEditorEmptyDetail()}</p>
       </div>
     {/if}
@@ -401,9 +407,9 @@
         </div>
       {/each}
       {#if loading && !actions.length}
-        <p class="empty-note">Loading action catalog.</p>
+        <p class="empty-note">Checking action catalog.</p>
       {:else if !actions.length}
-        <p class="empty-note">{serviceError ? 'Action catalog unavailable until Macro Lab responds.' : 'No action types are registered yet.'}</p>
+        <p class="empty-note">{serviceError ? 'Action catalog will reload after the Macro Lab service card reconnects.' : 'No action types are registered yet.'}</p>
       {/if}
     </div>
   </div>
@@ -437,9 +443,9 @@
       </div>
     {/each}
     {#if loading && !runs.length}
-      <p class="empty-note">Loading recent Macro Lab runs.</p>
+      <p class="empty-note">Checking recent Macro Lab runs.</p>
     {:else if !runs.length}
-      <p class="empty-note">{serviceError ? 'Run history is unavailable until Macro Lab responds.' : 'No macro runs have been recorded yet.'}</p>
+      <p class="empty-note">{serviceError ? 'Run history will reload after the Macro Lab service card reconnects.' : 'No macro runs have been recorded yet.'}</p>
     {:else if highlightedRunId && !runs.some((run) => run.id === highlightedRunId)}
       <p class="empty-note">The linked Activity run is not in the latest {runs.length} Macro Lab runs. Refresh or open Activity for the durable record.</p>
     {/if}

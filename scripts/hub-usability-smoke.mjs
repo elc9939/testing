@@ -283,7 +283,7 @@ const routes = [
       { label: 'compact service card', text: 'service-card' },
       { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'confirmed run prompt', text: 'confirmMacroSideEffectRun' },
-      { label: 'history unavailable state', text: 'Run history is unavailable until Macro Lab responds.' }
+      { label: 'history recovery state', text: 'Run history will reload after the Macro Lab service card reconnects.' }
     ]
   },
   {
