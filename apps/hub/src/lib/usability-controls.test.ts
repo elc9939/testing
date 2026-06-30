@@ -698,7 +698,10 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('function macroRunHistoryEmptyMessage');
     expect(macro).toContain('function macroEditorBlockedTitle');
     expect(macro).toContain('Select or create a macro before using ${action}.');
-    expect(macro).toContain("loading ? 'checking' : 'not checked'");
+    expect(macro).toContain("loading ? 'checking' : 'connect service'");
+    expect(macro).toContain("engineState === 'connect service'");
+    expect(macro).toContain("triggerState === 'connect service'");
+    expect(macro).toContain("databaseState === 'connect service'");
     expect(macro).toContain('Checking action catalog and capability state.');
     expect(macro).toContain('Checking trigger and running automation state.');
     expect(macro).toContain('Checking macro definitions and run history.');
@@ -728,6 +731,7 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).not.toContain('Loading action catalog...');
     expect(macro).not.toContain('Loading recent Macro Lab runs...');
     expect(macro).not.toContain('Run history is unavailable until Macro Lab responds.');
+    expect(macro).not.toContain("'not checked'");
     expect(macro).toContain('if (macroConnectionError(message)) {');
     expect(macro).toContain("actionError = ''");
     expect(macro).toContain('connection-card service-card');

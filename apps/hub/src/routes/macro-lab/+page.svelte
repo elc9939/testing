@@ -54,9 +54,9 @@
   $: selectedMacro = macros.find((macro) => macro.id === selectedId) ?? macros[0];
   $: capabilityReady = status?.capabilities.filter((capability) => capability.available).length ?? 0;
   $: highlightedRunId = $page.url.searchParams.get('run') ?? '';
-  $: engineState = status ? (status.engine.panic ? 'panic' : status.ok ? 'ready' : 'check') : loading ? 'checking' : 'not checked';
-  $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'checking' : 'not checked';
-  $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'checking' : 'not checked';
+  $: engineState = status ? (status.engine.panic ? 'panic' : status.ok ? 'ready' : 'check') : loading ? 'checking' : 'connect service';
+  $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'checking' : 'connect service';
+  $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'checking' : 'connect service';
   $: serviceDetail = status
     ? `${status.version} at ${getMacroLabApiUrl()}`
     : loading
@@ -346,22 +346,22 @@
 <section class="status-strip">
   <div class="metric">
     <span>Engine</span>
-    <strong class:bad={engineState === 'panic'} class:warn={engineState === 'not checked' || engineState === 'checking' || engineState === 'check'}>{engineState}</strong>
+    <strong class:bad={engineState === 'panic'} class:warn={engineState === 'connect service' || engineState === 'checking' || engineState === 'check'}>{engineState}</strong>
     <small>{serviceDetail}</small>
   </div>
   <div class="metric">
     <span>Capabilities</span>
-    <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : loading ? 'checking' : 'not checked'}</strong>
+    <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : loading ? 'checking' : 'connect service'}</strong>
     <small>{macroCapabilitiesDetail()}</small>
   </div>
   <div class="metric">
     <span>Triggers</span>
-    <strong class:warn={triggerState === 'not checked' || triggerState === 'checking'}>{triggerState}</strong>
+    <strong class:warn={triggerState === 'connect service' || triggerState === 'checking'}>{triggerState}</strong>
     <small>{macroTriggersDetail()}</small>
   </div>
   <div class="metric">
     <span>Database</span>
-    <strong class:warn={databaseState === 'not checked' || databaseState === 'checking' || databaseState === 'check'}>{databaseState}</strong>
+    <strong class:warn={databaseState === 'connect service' || databaseState === 'checking' || databaseState === 'check'}>{databaseState}</strong>
     <small>{macroDatabaseDetail()}</small>
   </div>
 </section>
