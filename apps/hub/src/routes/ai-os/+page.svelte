@@ -1604,7 +1604,7 @@
           <small>{call.latency_ms.toFixed(0)} ms - {new Date(call.created_at).toLocaleTimeString()}</small>
         </article>
       {:else}
-        <p class="muted">{highlightedToolId ? `Activity tool call ${highlightedToolId} is not in the current AI OS tool-call snapshot.` : 'No tool calls yet.'}</p>
+        <p class="muted">{highlightedToolId ? `Activity tool call ${highlightedToolId} is not in the current AI OS tool-call snapshot.` : aiOsPanelEmptyMessage('No tool calls logged yet.', 'Checking AI OS tool calls.', 'Tool calls')}</p>
       {/each}
       {#if !highlightedToolPresent}
         <p class="muted">The linked Activity tool call is not in the latest {toolCalls.length} tool-call rows. Refresh AI OS or open Activity for the durable record.</p>
@@ -1679,7 +1679,7 @@
           <small>{run.latency_ms.toFixed(0)} ms - {run.tokens_per_second ? `${run.tokens_per_second.toFixed(1)} tok/s` : 'tokens/sec not measured'}</small>
         </article>
       {:else}
-        <p class="muted">{highlightedBenchmarkId ? `Activity benchmark ${highlightedBenchmarkId} is not in the current AI OS benchmark snapshot.` : 'No benchmark runs yet.'}</p>
+        <p class="muted">{highlightedBenchmarkId ? `Activity benchmark ${highlightedBenchmarkId} is not in the current AI OS benchmark snapshot.` : aiOsPanelEmptyMessage('No benchmark runs yet.', 'Checking AI OS benchmark runs.', 'Benchmarks')}</p>
       {/each}
       {#if !highlightedBenchmarkPresent}
         <p class="muted">The linked Activity benchmark is not in the latest {benchmarkRuns.length} benchmark rows. Refresh AI OS or open Activity for the durable record.</p>
@@ -1715,7 +1715,7 @@
         </div>
       </article>
     {:else}
-      <p class="muted">No design patches yet.</p>
+      <p class="muted">{aiOsPanelEmptyMessage('No design patches yet.', 'Checking AI OS design patch history.', 'Design patches')}</p>
     {/each}
   </div>
 </section>

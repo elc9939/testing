@@ -574,6 +574,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('GPU telemetry will reload after the Desktop service card reconnects.');
     expect(source).toContain('Checking model routes from AI OS.');
     expect(source).toContain('Checking app tools from AI OS.');
+    expect(source).toContain("aiOsPanelEmptyMessage('No tool calls logged yet.', 'Checking AI OS tool calls.', 'Tool calls')");
+    expect(source).toContain("aiOsPanelEmptyMessage('No benchmark runs yet.', 'Checking AI OS benchmark runs.', 'Benchmarks')");
+    expect(source).toContain("aiOsPanelEmptyMessage('No design patches yet.', 'Checking AI OS design patch history.', 'Design patches')");
     expect(source).toContain('Checking AI OS jobs.');
     expect(source).toContain('Loading GPU telemetry rows from AI OS.');
     expect(source).toContain('Loading GPU, VRAM, and temperature telemetry.');
