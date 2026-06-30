@@ -141,6 +141,25 @@
     return state.mailUpdatesLoading ? 'Career mail scan is already running.' : 'Scan connected Gmail for likely career updates.';
   }
 
+  function careerMailPanelStatus(): string {
+    if (mailUpdatesLoading && !connections.length && !careerMailUpdates.length) return 'Checking Google';
+    if (mailUpdatesError) return 'Needs attention';
+    if (googleConnected) return `${visibleCareerMailUpdates.length} shown / ${matchedCareerMailUpdates.length} matched`;
+    return 'Google not connected';
+  }
+
+  function careerMailEmptyMessage(): string {
+    if (mailUpdatesLoading && !connections.length && !careerMailUpdates.length) {
+      return 'Checking Google connection and cached Career mail state.';
+    }
+    if (!googleConnected) {
+      return 'Connect Google in Hub, then this page will surface updates that match jobs you marked as applied, interview, offer, or rejected.';
+    }
+    if (!submittedJobs.length) return 'Mark a job as applied, interview, offer, or rejected before this panel shows inbox updates.';
+    if (mailUpdatesLoading && !visibleCareerMailUpdates.length) return 'Matching priority inbox threads to submitted applications...';
+    return 'No recent priority mail matches your submitted applications.';
+  }
+
   function careerSummaryTitle(state: Pick<CareerControlState, 'careerSummaryLoading'>): string {
     return state.careerSummaryLoading ? 'Legacy Career scan is already running.' : 'Scan this browser for legacy Career Desk data.';
   }
@@ -651,16 +670,10 @@
 <section class="card mail-updates-panel" aria-label="Career mail updates">
   <div class="table-section-title">
     <strong>Unread Applied-Job Updates</strong>
-    <span>{googleConnected ? `${visibleCareerMailUpdates.length} shown / ${matchedCareerMailUpdates.length} matched` : 'Google not connected'}</span>
+    <span>{careerMailPanelStatus()}</span>
   </div>
   {#if mailUpdatesError}
     <p class="muted mail-update-empty" title={`Raw Career mail scan error: ${mailUpdatesError}`}>{visibleMailUpdatesError}</p>
-  {:else if !googleConnected}
-    <p class="muted mail-update-empty">Connect Google in Hub, then this page will surface updates that match jobs you marked as applied, interview, offer, or rejected.</p>
-  {:else if !submittedJobs.length}
-    <p class="muted mail-update-empty">Mark a job as applied, interview, offer, or rejected before this panel shows inbox updates.</p>
-  {:else if mailUpdatesLoading && !visibleCareerMailUpdates.length}
-    <p class="muted mail-update-empty">Matching priority inbox threads to submitted applications...</p>
   {:else if visibleCareerMailUpdates.length}
     <div class="mail-update-list">
       {#each visibleCareerMailUpdates as insight}
@@ -673,7 +686,7 @@
       {/each}
     </div>
   {:else}
-    <p class="muted mail-update-empty">No recent priority mail matches your submitted applications.</p>
+    <p class="muted mail-update-empty">{careerMailEmptyMessage()}</p>
   {/if}
 </section>
 

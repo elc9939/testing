@@ -933,6 +933,12 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('function careerSaveTitle');
     expect(career).toContain('function careerRowTitle');
     expect(career).toContain('function careerMailUpdatesTitle');
+    expect(career).toContain('function careerMailPanelStatus');
+    expect(career).toContain('function careerMailEmptyMessage');
+    expect(career).toContain("if (mailUpdatesLoading && !connections.length && !careerMailUpdates.length) return 'Checking Google'");
+    expect(career).toContain('Checking Google connection and cached Career mail state.');
+    expect(career).toContain('<span>{careerMailPanelStatus()}</span>');
+    expect(career).toContain('<p class="muted mail-update-empty">{careerMailEmptyMessage()}</p>');
     expect(career).toContain('let careerSummaryLoading = false');
     expect(career).toContain('let careerExportLoading = false');
     expect(career).toContain('function careerSummaryTitle');

@@ -155,9 +155,13 @@ const persistenceSeeds = [
   }
 ];
 
+const productivitySmokeStart = new Date();
+productivitySmokeStart.setHours(17, 0, 0, 0);
+const productivitySmokeEnd = new Date(productivitySmokeStart.getTime() + 30 * 60_000);
+
 const productivityCacheSeed = {
   version: 1,
-  cachedAt: '2026-06-23T11:00:00.000Z',
+  cachedAt: new Date().toISOString(),
   catalog: [
     {
       id: 'google',
@@ -205,8 +209,8 @@ const productivityCacheSeed = {
       title: 'Hydrated Cache Interview',
       description: 'Cached calendar event for the Productivity write guard smoke.',
       location: 'Video call',
-      start: '2026-06-29T17:00:00.000Z',
-      end: '2026-06-29T17:30:00.000Z',
+      start: productivitySmokeStart.toISOString(),
+      end: productivitySmokeEnd.toISOString(),
       timeZone: 'America/Los_Angeles',
       status: 'confirmed',
       htmlLink: 'https://calendar.google.com/calendar/event?eid=hydrated-event-1',
@@ -222,8 +226,8 @@ const productivityCacheSeed = {
       sourceId: 'hydrated-event-1',
       kind: 'event',
       title: 'Hydrated Cache Interview',
-      when: '2026-06-29T17:00:00.000Z',
-      end: '2026-06-29T17:30:00.000Z',
+      when: productivitySmokeStart.toISOString(),
+      end: productivitySmokeEnd.toISOString(),
       timeZone: 'America/Los_Angeles',
       actionUrl: 'https://calendar.google.com/calendar/event?eid=hydrated-event-1',
       canEdit: true,
@@ -2093,10 +2097,10 @@ async function runProductivityCacheWriteGuardChecks(client, baseUrl) {
       `(() => {
         const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
         const body = document.body?.innerText || '';
-        const eventBlock = [...document.querySelectorAll('.event-block')].find((button) =>
-          clean(button.innerText || button.textContent).includes('Hydrated Cache Interview')
+        const eventInspectControl = [...document.querySelectorAll('.event-block, button[aria-label^="Open details for"]')].find((button) =>
+          clean(button.innerText || button.textContent || button.getAttribute('aria-label')).includes('Hydrated Cache Interview')
         );
-        const eventTitle = eventBlock?.getAttribute('title') || '';
+        const eventTitle = eventInspectControl?.getAttribute('title') || '';
         const cachedEventVisible = body.includes('Hydrated Cache Interview');
         const cachedThreadVisible = body.includes('Hydrated cached deadline mail') && body.includes('Please confirm the deadline package');
         const offlineKnown = /API unavailable|Mini Hub API is unavailable|cached read-only|cached data remains read-only/i.test(body);
@@ -2116,7 +2120,7 @@ async function runProductivityCacheWriteGuardChecks(client, baseUrl) {
           const title = button.getAttribute('title') || '';
           return !button.disabled || !/Connect the API and Google|checking the local API|latest connection state|Another Productivity action/i.test(title);
         });
-        const eventInspectable = Boolean(eventBlock && !eventBlock.disabled && /Open cached event details/i.test(eventTitle));
+        const eventInspectable = Boolean(eventInspectControl && !eventInspectControl.disabled && /Open cached event details/i.test(eventTitle));
         return {
           ok: cachedEventVisible && cachedThreadVisible && offlineKnown && eventInspectable && writeButtons.length >= 6 && badWrites.length === 0,
           state: eventInspectable && badWrites.length === 0 ? 'cache-readonly' : 'waiting',
@@ -2132,11 +2136,11 @@ async function runProductivityCacheWriteGuardChecks(client, baseUrl) {
       client,
       `(() => {
         const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-        const eventBlock = [...document.querySelectorAll('.event-block')].find((button) =>
-          clean(button.innerText || button.textContent).includes('Hydrated Cache Interview')
+        const eventInspectControl = [...document.querySelectorAll('.event-block, button[aria-label^="Open details for"]')].find((button) =>
+          clean(button.innerText || button.textContent || button.getAttribute('aria-label')).includes('Hydrated Cache Interview')
         );
-        eventBlock?.click();
-        return { ok: Boolean(eventBlock) };
+        eventInspectControl?.click();
+        return { ok: Boolean(eventInspectControl) };
       })()`
     );
   }
