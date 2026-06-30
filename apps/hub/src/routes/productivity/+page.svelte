@@ -588,7 +588,7 @@
     if (apiChecking && cacheLoadedAt) return 'No cached events in this window while the API check continues.';
     if (!productivityReady && cacheLoadedAt) return 'No cached events in this window; connect the API and Google to refresh live Calendar.';
     if (!productivityReady) return 'Calendar waits for the API and a connected Google account.';
-    return 'No events found in this window.';
+    return 'No live Google Calendar events in this window.';
   }
 
   function calendarTableEmptyMessage(): string {
@@ -596,7 +596,7 @@
     if (apiChecking && cacheLoadedAt) return 'No cached calendar events match this range while the API check continues.';
     if (!productivityReady && cacheLoadedAt) return 'No cached calendar events match this range; connect the API and Google to refresh live Calendar.';
     if (!productivityReady) return 'Connect Google to load real calendar events.';
-    return 'No events found in this range.';
+    return 'No live Google Calendar events match this range. Try another week, search, or calendar.';
   }
 
   function priorityInboxEmptyMessage(): string {

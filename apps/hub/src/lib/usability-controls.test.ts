@@ -856,7 +856,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function calendarWindowSummary');
     expect(source).toContain('Checking cached calendar events before live Google refresh.');
     expect(source).toContain('No cached events in this window while the API check continues.');
+    expect(source).toContain('No live Google Calendar events in this window.');
     expect(source).toContain('No cached calendar events match this range; connect the API and Google to refresh live Calendar.');
+    expect(source).toContain('No live Google Calendar events match this range. Try another week, search, or calendar.');
     expect(source).toContain('function calendarTableEmptyMessage');
     expect(source).toContain('function priorityInboxEmptyMessage');
     expect(source).toContain('Checking cached Gmail threads and connected accounts.');
@@ -903,6 +905,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain("googleOAuthOpening ? 'Opening...'");
     expect(source).not.toContain('Opening Google sign-in...');
     expect(source).not.toContain('No events loaded for this window yet.');
+    expect(source).not.toContain('No events found in this window.');
+    expect(source).not.toContain('No events found in this range.');
     expect(source).not.toContain('No timeline items loaded yet.');
     expect(source).toContain('{productivityApiBannerText}');
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
