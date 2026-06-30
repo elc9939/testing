@@ -876,8 +876,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('interface ActivityControlState');
     expect(source).toContain('activityControlState = {');
     expect(source).toContain('activityInitialLoading = loading && !snapshot');
-    expect(source).toContain("runningStatusDetail = activityInitialLoading ? 'Checking sources'");
-    expect(source).toContain("savedStatusDetail = activityInitialLoading ? 'Checking cache and services'");
+    expect(source).toContain("runningStatusDetail = activityInitialLoading ? 'Checking active work'");
+    expect(source).toContain("pausedStatusDetail = activityInitialLoading ? 'Checking paused work'");
+    expect(source).toContain("failedStatusDetail = activityInitialLoading ? 'Checking for issues'");
+    expect(source).toContain("savedStatusDetail = activityInitialLoading ? 'Checking saved work'");
+    expect(source).toContain('function activityStatusCardLabel');
+    expect(source).toContain("aria-label={activityStatusCardLabel('Running activity records', runningRecords.length, runningStatusDetail)}");
+    expect(source).toContain("aria-label={activityStatusCardLabel('Failed or blocked activity records', failedRecords.length, failedStatusDetail)}");
     expect(source).toContain('dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState)');
     expect(source).toContain('restoreDismissedButtonTitle = restoreDismissedTitle()');
     expect(source).toContain('activityEmptyRefreshButtonTitle = activityEmptyRefreshTitle(activityControlState)');

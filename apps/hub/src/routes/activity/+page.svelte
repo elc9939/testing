@@ -73,10 +73,10 @@
     refreshBlockedReason
   };
   $: activityInitialLoading = loading && !snapshot;
-  $: runningStatusDetail = activityInitialLoading ? 'Checking sources' : hasActive ? 'Polls while open' : 'No live work';
-  $: pausedStatusDetail = activityInitialLoading ? 'Checking sources' : pausedRecords.length ? 'Resume or cancel' : 'None';
-  $: failedStatusDetail = activityInitialLoading ? 'Checking sources' : failedRecords.length ? 'Needs inspection' : 'Clear';
-  $: savedStatusDetail = activityInitialLoading ? 'Checking cache and services' : stableRecords.length ? 'Reports and history' : 'None yet';
+  $: runningStatusDetail = activityInitialLoading ? 'Checking active work' : hasActive ? 'Polls while open' : 'No live work';
+  $: pausedStatusDetail = activityInitialLoading ? 'Checking paused work' : pausedRecords.length ? 'Resume or cancel' : 'None';
+  $: failedStatusDetail = activityInitialLoading ? 'Checking for issues' : failedRecords.length ? 'Needs inspection' : 'Clear';
+  $: savedStatusDetail = activityInitialLoading ? 'Checking saved work' : stableRecords.length ? 'Reports and history' : 'None yet';
   $: activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot);
   $: visibleActivityError = error ? compactActivityRefreshError(error) : '';
   $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
@@ -273,6 +273,10 @@
     return 'Fresh';
   }
 
+  function activityStatusCardLabel(label: string, count: number, detail: string): string {
+    return `${label}: ${count}. ${detail}.`;
+  }
+
   function isActiveRecord(record: ActivityRecord): boolean {
     return ['queued', 'running', 'paused'].includes(record.status);
   }
@@ -422,32 +426,32 @@
 {/if}
 
 <section class="activity-status">
-  <article>
+  <article aria-label={activityStatusCardLabel('Running activity records', runningRecords.length, runningStatusDetail)}>
     <span>Running</span>
     <strong>{runningRecords.length}</strong>
     <small>{runningStatusDetail}</small>
   </article>
-  <article>
+  <article aria-label={activityStatusCardLabel('Paused activity records', pausedRecords.length, pausedStatusDetail)}>
     <span>Paused</span>
     <strong>{pausedRecords.length}</strong>
     <small>{pausedStatusDetail}</small>
   </article>
-  <article>
+  <article aria-label={activityStatusCardLabel('Failed or blocked activity records', failedRecords.length, failedStatusDetail)}>
     <span>Failed</span>
     <strong>{failedRecords.length}</strong>
     <small>{failedStatusDetail}</small>
   </article>
-  <article>
+  <article aria-label={activityStatusCardLabel('Saved activity records', stableRecords.length, savedStatusDetail)}>
     <span>Saved</span>
     <strong>{stableRecords.length}</strong>
     <small>{savedStatusDetail}</small>
   </article>
-  <article>
+  <article aria-label={activityStatusCardLabel('Connected activity sources', sourceHealthRows.filter((source) => source.ok).length, sourceHealthSummary)}>
     <span>Sources</span>
     <strong>{sourceHealthRows.filter((source) => source.ok).length}/{sourceHealthRows.length}</strong>
     <small>{sourceHealthSummary}</small>
   </article>
-  <article>
+  <article aria-label={activityStatusCardLabel('Dismissed activity records', dismissedCount, dismissedCount ? 'Hidden here only' : 'None hidden')}>
     <span>Dismissed</span>
     <strong>{dismissedCount}</strong>
     <small>{dismissedCount ? 'Hidden here only' : 'None hidden'}</small>
