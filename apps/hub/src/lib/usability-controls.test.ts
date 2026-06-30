@@ -1028,8 +1028,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('todayRefreshControlState = {');
     expect(source).toContain('todayRefreshButtonTitle = todayRefreshTitle(todayRefreshControlState)');
     expect(source).toContain('visibleAttentionError = $attentionStore.error ? compactTodayServiceIssue($attentionStore.error) :');
+    expect(source).toContain('visibleActionLedgerError = actionLedgerError ? compactTodayServiceIssue(actionLedgerError) :');
+    expect(source).toContain('visibleActionLedgerSourceError = actionLedgerSourceError ? compactTodayServiceIssue(actionLedgerSourceError) :');
     expect(source).toContain('function todayRefreshTitle');
     expect(source).toContain('function compactTodayServiceIssue');
+    expect(source).toContain('function actionLedgerEmptyMessage');
     expect(source).toContain('Today refresh needs attention');
     expect(source).toContain('Cached attention remains visible when available.');
     expect(source).toContain('Raw Today error:');
@@ -1063,9 +1066,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Loading real attention sources.');
     expect(source).toContain('Checking local services and providers.');
     expect(source).toContain('Loading recent app actions, AI OS logs, and Macro Lab runs.');
+    expect(source).toContain('Recent Actions has not loaded yet. Refresh Today or open Settings Action Ledger.');
+    expect(source).toContain('No recent action rows loaded from reachable sources.');
+    expect(source).toContain('No recent app actions are logged yet. Today checked Hub, AI OS, Macro Lab, and browser actions; saves and automations will appear here.');
+    expect(source).toContain('Raw Recent Actions error:');
+    expect(source).toContain('Raw Action Ledger source error:');
     expect(source).not.toContain("return '...'");
     expect(source).not.toContain("return 'n/a'");
     expect(source).not.toContain('No attention snapshot has loaded yet.');
+    expect(source).not.toContain('No meaningful actions are logged yet.');
     expect(source).not.toContain('Loading attention...');
     expect(source).not.toContain('Loading real attention sources...');
     expect(source).toContain('cachedCoreRows =');

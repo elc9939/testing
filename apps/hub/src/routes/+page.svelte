@@ -122,6 +122,9 @@
   };
   $: todayRefreshButtonTitle = todayRefreshTitle(todayRefreshControlState);
   $: visibleAttentionError = $attentionStore.error ? compactTodayServiceIssue($attentionStore.error) : '';
+  $: visibleActionLedgerError = actionLedgerError ? compactTodayServiceIssue(actionLedgerError) : '';
+  $: actionLedgerSourceError = actionLedgerSnapshot?.errors[0] ?? '';
+  $: visibleActionLedgerSourceError = actionLedgerSourceError ? compactTodayServiceIssue(actionLedgerSourceError) : '';
 
   function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
     if (!snapshot) return false;
@@ -570,6 +573,16 @@
       return 'Cached pages stay readable; saves wait for the Hub API.';
     }
     return 'Career, Study, supported games, settings, and activity cache can save through their owners.';
+  }
+
+  function actionLedgerEmptyMessage(): string {
+    if (actionLedgerLoading) return 'Loading recent app actions, AI OS logs, and Macro Lab runs.';
+    if (actionLedgerError) return visibleActionLedgerError || 'Recent Actions needs attention.';
+    if (!actionLedgerSnapshot) return 'Recent Actions has not loaded yet. Refresh Today or open Settings Action Ledger.';
+    if (actionLedgerSnapshot.errors.length) {
+      return 'No recent action rows loaded from reachable sources. The source issue is shown below, and browser-only actions will still appear here when recorded.';
+    }
+    return 'No recent app actions are logged yet. Today checked Hub, AI OS, Macro Lab, and browser actions; saves and automations will appear here.';
   }
 
   function todayLastSyncLabel(state: ClientDataState): string {
@@ -1095,12 +1108,12 @@
       {:else if actionLedgerLoading}
         <p class="empty-note">Loading recent app actions, AI OS logs, and Macro Lab runs.</p>
       {:else if actionLedgerError}
-        <p class="empty-note">{actionLedgerError}</p>
+        <p class="empty-note" title={`Raw Recent Actions error: ${actionLedgerError}`}>{actionLedgerEmptyMessage()}</p>
       {:else}
-        <p class="empty-note">No meaningful actions are logged yet.</p>
+        <p class="empty-note">{actionLedgerEmptyMessage()}</p>
       {/if}
-      {#if actionLedgerSnapshot?.errors.length}
-        <p class="panel-note error">{actionLedgerSnapshot.errors[0]}</p>
+      {#if actionLedgerSourceError}
+        <p class="panel-note error" title={`Raw Action Ledger source error: ${actionLedgerSourceError}`}>{visibleActionLedgerSourceError}</p>
       {/if}
     </article>
 
