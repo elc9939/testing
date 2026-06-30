@@ -277,7 +277,7 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('keeps disabled route form controls self-explanatory', async () => {
+  it('keeps route form controls self-explanatory', async () => {
     const offenders: string[] = [];
     const pageFiles = await controlSurfaceFiles();
 
@@ -287,9 +287,8 @@ describe('Mini Hub usability control gates', () => {
 
       for (const control of controls) {
         const block = control[0];
-        const hasDisabled = /\bdisabled(?:=|\s|>)/.test(block);
         const hasExplanation = /\b(?:title|aria-describedby)=/.test(block);
-        if (hasDisabled && !hasExplanation) {
+        if (!hasExplanation) {
           const line = source.slice(0, control.index ?? 0).split('\n').length;
           offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
         }

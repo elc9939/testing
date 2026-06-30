@@ -369,7 +369,7 @@
           </button>
         </div>
       </div>
-      <textarea bind:value={editor} spellcheck="false"></textarea>
+      <textarea bind:value={editor} spellcheck="false" title="Edit the selected macro definition JSON. Saving is disabled until Macro Lab state is loaded."></textarea>
       <div class="action-row">
         <button class="button primary" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Save the selected macro definition.'} on:click={saveSelected}><Save size={16} />Save</button>
         <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro without side effects.'} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>

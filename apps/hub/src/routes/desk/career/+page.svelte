@@ -695,12 +695,12 @@
     <label for="job-search">Search</label>
     <div class="search-box">
       <Search size={16} />
-      <input id="job-search" bind:value={searchQuery} placeholder="Company, role, or notes" />
+      <input id="job-search" bind:value={searchQuery} placeholder="Company, role, or notes" title="Filter saved Career jobs by company, role, or notes. This filter is saved in this browser." />
     </div>
   </div>
   <div class="field">
     <label for="status-filter">Status</label>
-    <select id="status-filter" bind:value={statusFilter}>
+    <select id="status-filter" bind:value={statusFilter} title="Filter saved Career jobs by status. This filter is saved in this browser.">
       <option value="all">All statuses</option>
       {#each statuses as item}
         <option value={item}>{item}</option>

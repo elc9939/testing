@@ -1274,7 +1274,7 @@
   <p class="auto-route-note">{autoRouteText}</p>
   <div class="field">
     <label for="command-objective-primary">Request</label>
-    <textarea id="command-objective-primary" bind:value={commandObjective} rows="4"></textarea>
+    <textarea id="command-objective-primary" bind:value={commandObjective} rows="4" title="Describe the AI OS command to plan and run. Write/system actions still require confirmation."></textarea>
   </div>
   <div class="example-row" aria-label="Example AI OS requests">
     {#each commandExamples as example}
@@ -1282,7 +1282,7 @@
     {/each}
   </div>
   <label class="checkline" for="command-confirm-primary">
-    <input id="command-confirm-primary" type="checkbox" bind:checked={commandConfirm} />
+    <input id="command-confirm-primary" type="checkbox" bind:checked={commandConfirm} title="Allow AI OS to request confirmed write/system tool calls for this command." />
     <span>Allow confirmed write/system actions for this run</span>
   </label>
   <div class="action-row">
@@ -1537,10 +1537,10 @@
     </div>
     <div class="field">
       <label for="command-objective-advanced">Objective</label>
-      <textarea id="command-objective-advanced" bind:value={commandObjective} rows="4"></textarea>
+      <textarea id="command-objective-advanced" bind:value={commandObjective} rows="4" title="Describe the advanced AI OS command to execute through the command bar."></textarea>
     </div>
     <label class="checkline" for="command-confirm-advanced">
-      <input id="command-confirm-advanced" type="checkbox" bind:checked={commandConfirm} />
+      <input id="command-confirm-advanced" type="checkbox" bind:checked={commandConfirm} title="Allow confirmed write/system tools for the advanced command run." />
       <span>Confirm write/system tools</span>
     </label>
     <div class="action-row">
@@ -1600,15 +1600,15 @@
     <div class="control-grid">
       <div class="field wide">
         <label for="design-instruction">Instruction</label>
-        <textarea id="design-instruction" bind:value={designInstruction} rows="3"></textarea>
+        <textarea id="design-instruction" bind:value={designInstruction} rows="3" title="Describe the reversible UI or style change AI OS should propose."></textarea>
       </div>
       <div class="field wide">
         <label for="design-targets">Target files</label>
-        <textarea id="design-targets" bind:value={designTargets} rows="2"></textarea>
+        <textarea id="design-targets" bind:value={designTargets} rows="2" title="List target files AI OS may inspect or patch, one path per line or comma-separated."></textarea>
       </div>
     </div>
     <label class="checkline" for="design-confirm">
-      <input id="design-confirm" type="checkbox" bind:checked={designConfirm} />
+      <input id="design-confirm" type="checkbox" bind:checked={designConfirm} title="Arm apply/revert actions for proposed design patches." />
       <span>Arm apply/revert</span>
     </label>
     <div class="action-row">
@@ -1631,7 +1631,7 @@
     <div class="control-grid">
       <div class="field">
         <label for="benchmark-kind">Kind</label>
-        <select id="benchmark-kind" bind:value={benchmarkKind}>
+        <select id="benchmark-kind" bind:value={benchmarkKind} title="Choose which AI OS capability family to benchmark.">
           <option value="text">text</option>
           <option value="image">image</option>
           <option value="audio">audio</option>
@@ -1640,7 +1640,7 @@
       </div>
       <div class="field wide">
         <label for="benchmark-prompt">Prompt</label>
-        <textarea id="benchmark-prompt" bind:value={benchmarkPrompt} rows="3"></textarea>
+        <textarea id="benchmark-prompt" bind:value={benchmarkPrompt} rows="3" title="Prompt or payload used for this benchmark probe."></textarea>
       </div>
     </div>
     <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (benchmarkBusy ? 'Benchmark is already running.' : 'Run this AI OS capability benchmark.')} on:click={runCapabilityBenchmark}>
@@ -1796,11 +1796,11 @@
     <div class="control-grid">
       <div class="field wide">
         <label for="infer-prompt">Prompt</label>
-        <textarea id="infer-prompt" bind:value={inferPrompt} rows="4"></textarea>
+        <textarea id="infer-prompt" bind:value={inferPrompt} rows="4" title="Prompt for one ad hoc AI OS inference call."></textarea>
       </div>
       <div class="field">
         <label for="infer-provider">Provider</label>
-        <select id="infer-provider" bind:value={inferProvider}>
+        <select id="infer-provider" bind:value={inferProvider} title="Pick a provider or leave auto so AI OS routes locally first when possible.">
           <option value="">auto</option>
           {#each providerOptions as provider}
             <option value={provider}>{provider}</option>
@@ -1809,7 +1809,7 @@
       </div>
       <div class="field">
         <label for="infer-model">Model</label>
-        <input id="infer-model" bind:value={inferModel} placeholder="provider default" />
+        <input id="infer-model" bind:value={inferModel} placeholder="provider default" title="Optional model override; leave blank to use the selected provider default." />
       </div>
     </div>
     <div class="action-row">
@@ -1836,7 +1836,7 @@
     <div class="control-grid">
       <div class="field">
         <label for="job-primitive">Primitive</label>
-        <select id="job-primitive" bind:value={jobPrimitive}>
+        <select id="job-primitive" bind:value={jobPrimitive} title="Choose the batch job primitive AI OS should queue.">
           <option value="map">map</option>
           <option value="self_consistency">self-consistency</option>
           <option value="chunk_summarize">chunk summarize</option>
@@ -1845,11 +1845,11 @@
       </div>
       <div class="field wide">
         <label for="job-template">Template</label>
-        <input id="job-template" bind:value={jobTemplate} />
+        <input id="job-template" bind:value={jobTemplate} title="Template applied to each queued item or retry loop step." />
       </div>
       <div class="field wide">
         <label for="job-items">Items</label>
-        <textarea id="job-items" bind:value={jobItems} rows="4"></textarea>
+        <textarea id="job-items" bind:value={jobItems} rows="4" title="Items to process, one per line, for the queued AI OS job."></textarea>
       </div>
     </div>
     <div class="action-row">
@@ -1893,15 +1893,15 @@
     <div class="control-grid">
       <div class="field">
         <label for="memory-source">Source</label>
-        <input id="memory-source" bind:value={memorySourceId} />
+        <input id="memory-source" bind:value={memorySourceId} title="Source identifier to attach to semantic memory ingest records." />
       </div>
       <div class="field wide">
         <label for="memory-text">Text</label>
-        <textarea id="memory-text" bind:value={memoryText} rows="4"></textarea>
+        <textarea id="memory-text" bind:value={memoryText} rows="4" title="Text to ingest into semantic memory."></textarea>
       </div>
       <div class="field wide">
         <label for="memory-query">Query</label>
-        <input id="memory-query" bind:value={memoryQuery} />
+        <input id="memory-query" bind:value={memoryQuery} title="Semantic memory query to search against local embeddings." />
       </div>
     </div>
     <div class="action-row">
@@ -1924,7 +1924,7 @@
     </div>
     <div class="field">
       <label for="agent-objective">Objective</label>
-      <textarea id="agent-objective" bind:value={agentObjective} rows="5"></textarea>
+      <textarea id="agent-objective" bind:value={agentObjective} rows="5" title="Objective for the generic AI OS plan-act-check agent loop."></textarea>
     </div>
     <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} title={aiOsActionTitle('Run the generic agent loop.', agentBusy, 'Agent loop is already running.')} on:click={runGenericAgent}>
       <Play size={17} />
@@ -1955,7 +1955,7 @@
     <div class="control-grid">
       <div class="field">
         <label for="multi-kind">Kind</label>
-        <select id="multi-kind" bind:value={multimodalKind}>
+        <select id="multi-kind" bind:value={multimodalKind} title="Choose the multimodal capability to invoke.">
           <option value="image">Create an image</option>
           <option value="audio">Create audio</option>
           <option value="video">Create a short animation/video</option>
@@ -1966,7 +1966,7 @@
       </div>
       <div class="field">
         <label for="multi-provider">Provider</label>
-        <select id="multi-provider" bind:value={multimodalProvider}>
+        <select id="multi-provider" bind:value={multimodalProvider} title="Pick a multimodal provider or leave auto for local-first routing.">
           <option value="">auto, local first</option>
           {#each mediaProviderOptions as provider}
             <option value={provider}>{provider}</option>
@@ -1975,23 +1975,23 @@
       </div>
       <div class="field wide">
         <label for="multi-prompt">Prompt</label>
-        <textarea id="multi-prompt" bind:value={multimodalPrompt} rows="3"></textarea>
+        <textarea id="multi-prompt" bind:value={multimodalPrompt} rows="3" title="Prompt for image, audio, video, or vision capability calls."></textarea>
       </div>
       <div class="field wide">
         <label for="multi-text">Text</label>
-        <textarea id="multi-text" bind:value={multimodalText} rows="3"></textarea>
+        <textarea id="multi-text" bind:value={multimodalText} rows="3" title="Text payload for TTS, captions, transcription context, or multimodal instructions."></textarea>
       </div>
       <div class="field wide">
         <label for="image-base64">Image base64</label>
-        <textarea id="image-base64" bind:value={imageBase64} rows="2"></textarea>
+        <textarea id="image-base64" bind:value={imageBase64} rows="2" title="Optional base64 image input for img2img or vision analysis."></textarea>
       </div>
       <div class="field wide">
         <label for="audio-base64">Audio base64</label>
-        <textarea id="audio-base64" bind:value={audioBase64} rows="2"></textarea>
+        <textarea id="audio-base64" bind:value={audioBase64} rows="2" title="Optional base64 audio input for speech-to-text or audio analysis."></textarea>
       </div>
       <div class="field wide">
         <label for="video-base64">Video base64</label>
-        <textarea id="video-base64" bind:value={videoBase64} rows="2"></textarea>
+        <textarea id="video-base64" bind:value={videoBase64} rows="2" title="Optional base64 video input for video-capable adapters."></textarea>
       </div>
     </div>
     <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} title={aiOsActionTitle('Invoke the selected multimodal capability.', multimodalBusy, 'Multimodal generation is already running.')} on:click={invokeMedia}>

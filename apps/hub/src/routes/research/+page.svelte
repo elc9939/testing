@@ -1078,21 +1078,22 @@
           bind:value={goal}
           rows="5"
           placeholder="Example: Compare Clay Labs and FieldAI data analyst roles, cite sources, and list open questions."
+          title="Describe the research question or report you want AI OS to run. This draft is saved in this browser."
         ></textarea>
       </label>
 
       <div class="inline-fields">
         <label>
           <span>Seed URLs</span>
-          <textarea id="research-seed-urls" aria-label="Research seed URLs" bind:value={seedUrlsText} rows="3" placeholder="Optional URLs, one per line"></textarea>
+          <textarea id="research-seed-urls" aria-label="Research seed URLs" bind:value={seedUrlsText} rows="3" placeholder="Optional URLs, one per line" title="Optional starting URLs for the run, one per line. This draft is saved in this browser."></textarea>
         </label>
         <label>
           <span>Max pages</span>
-          <input bind:value={maxPages} min="1" max="50" type="number" />
+          <input bind:value={maxPages} min="1" max="50" type="number" title="Maximum pages this research run may fetch." />
         </label>
         <label>
           <span>Depth</span>
-          <input bind:value={depth} min="1" max="5" type="number" />
+          <input bind:value={depth} min="1" max="5" type="number" title="Maximum crawl depth for this research run." />
         </label>
       </div>
 
@@ -1104,50 +1105,50 @@
         <div class="advanced-grid">
           <label>
             <span>Time budget</span>
-            <input bind:value={timeBudget} min="5" max="900" type="number" />
+            <input bind:value={timeBudget} min="5" max="900" type="number" title="Time budget in seconds for the research run." />
           </label>
           <label>
             <span>Per-domain limit</span>
-            <input bind:value={perDomainLimit} min="1" max="20" type="number" />
+            <input bind:value={perDomainLimit} min="1" max="20" type="number" title="Maximum fetched pages per domain." />
           </label>
           <label>
             <span>Date start</span>
-            <input bind:value={dateRangeStart} type="date" />
+            <input bind:value={dateRangeStart} type="date" title="Optional earliest publication or source date for the run." />
           </label>
           <label>
             <span>Date end</span>
-            <input bind:value={dateRangeEnd} type="date" />
+            <input bind:value={dateRangeEnd} type="date" title="Optional latest publication or source date for the run." />
           </label>
           <label>
             <span>Include domains</span>
-            <input bind:value={includeDomainsText} placeholder="example.com, docs.example.com" />
+            <input bind:value={includeDomainsText} placeholder="example.com, docs.example.com" title="Optional comma-separated domains to prefer or include." />
           </label>
           <label>
             <span>Exclude domains</span>
-            <input bind:value={excludeDomainsText} placeholder="pinterest.com, reddit.com" />
+            <input bind:value={excludeDomainsText} placeholder="pinterest.com, reddit.com" title="Optional comma-separated domains to exclude from fetching." />
           </label>
           <label>
             <span>Provider</span>
-            <input bind:value={provider} placeholder="optional" />
+            <input bind:value={provider} placeholder="optional" title="Optional AI provider override for this research run." />
           </label>
           <label>
             <span>Model</span>
-            <input bind:value={model} placeholder="optional" />
+            <input bind:value={model} placeholder="optional" title="Optional model override for this research run." />
           </label>
           <label class="check-row">
-            <input bind:checked={useAi} type="checkbox" />
+            <input bind:checked={useAi} type="checkbox" title="Use AI synthesis when AI OS is connected." />
             <span>Use AI synthesis</span>
           </label>
           <label class="check-row">
-            <input bind:checked={useCloudAi} type="checkbox" />
+            <input bind:checked={useCloudAi} type="checkbox" title="Allow configured paid/cloud AI fallback for this run." />
             <span>Allow cloud fallback</span>
           </label>
           <label class="check-row">
-            <input bind:checked={saveToMemory} type="checkbox" />
+            <input bind:checked={saveToMemory} type="checkbox" title="Save fetched and summarized research output into semantic memory." />
             <span>Index into semantic memory</span>
           </label>
           <label class="check-row">
-            <input bind:checked={screenshot} type="checkbox" />
+            <input bind:checked={screenshot} type="checkbox" title="Ask the research service to capture screenshots when useful." />
             <span>Request screenshots when useful</span>
           </label>
         </div>
@@ -1228,11 +1229,11 @@
     <div class="monitor-create-row">
       <label>
         <span>Monitor name</span>
-        <input bind:value={monitorName} placeholder="Optional name for this topic watch" />
+        <input bind:value={monitorName} placeholder="Optional name for this topic watch" title="Optional name for the saved research monitor." />
       </label>
       <label>
         <span>Cadence</span>
-        <select bind:value={monitorSchedule}>
+        <select bind:value={monitorSchedule} title="Cadence for the saved research monitor.">
           <option value="manual">Manual</option>
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
@@ -1304,11 +1305,11 @@
     <form class="source-library-controls" on:submit|preventDefault={searchSourceLibrary}>
       <label>
         <span>Search archived text</span>
-        <input bind:value={sourceQuery} placeholder="evidence, company, model, benchmark..." />
+        <input bind:value={sourceQuery} placeholder="evidence, company, model, benchmark..." title="Search text in archived Research Desk source cards." />
       </label>
       <label>
         <span>Domain filter</span>
-        <input bind:value={sourceDomain} placeholder="example.com" />
+        <input bind:value={sourceDomain} placeholder="example.com" title="Optional domain filter for archived Research Desk source cards." />
       </label>
       <button class="link-button" type="submit" disabled={sourceLibrarySearchDisabled} title={sourceLibrarySearchTitle}>
         <Search size={15} />

@@ -561,11 +561,11 @@
 
       <div class="mode-row">
         <label title="Route ambiguous assistant requests through the AI OS command/tool planner when possible.">
-          <input type="checkbox" bind:checked={toolMode} />
+          <input type="checkbox" bind:checked={toolMode} title="Route ambiguous assistant requests through the AI OS command/tool planner when possible." />
           <span>Tool mode</span>
         </label>
         <label title="Permit write or system tools only after an explicit confirmation pass.">
-          <input type="checkbox" bind:checked={confirmActions} />
+          <input type="checkbox" bind:checked={confirmActions} title="Require explicit confirmation before assistant write or system tool calls run." />
           <span>Confirm writes</span>
         </label>
       </div>
@@ -576,6 +576,7 @@
           rows="2"
           aria-label="Message assistant"
           placeholder="Ask to open a page, check AI status, search memory, or run an AI OS command"
+          title="Write a message for the Mini Hub assistant. Press Enter to send or Shift+Enter for a new line."
           on:keydown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();

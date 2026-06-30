@@ -684,7 +684,7 @@
       <label for="study-search">Search</label>
       <div class="search-box">
         <Search size={16} />
-        <input id="study-search" bind:value={searchQuery} placeholder="Subject" />
+        <input id="study-search" bind:value={searchQuery} placeholder="Subject" title="Filter Study logs and linked career actions by subject. This filter is saved in this browser." />
       </div>
       <small class="view-status">{viewStatus}</small>
     </div>
