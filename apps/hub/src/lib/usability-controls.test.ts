@@ -1478,10 +1478,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('saveButtonTitle = saveTitle(stickArenaLabControlState)');
     expect(source).toContain('function gameRunSaveStatus');
     expect(source).toContain('function gameRunSaveBlockedReason');
+    expect(source).toContain('function telemetryEmptyMessage');
+    expect(source).toContain('Ready to save runs through Mini Hub.');
     expect(source).toContain('Mini Hub API is not ready for game saves');
     expect(source).toContain('Loading local cache before game run saves are enabled.');
+    expect(source).toContain('Waiting for the game engine to load before telemetry starts.');
+    expect(source).toContain('Telemetry is unavailable because the game engine did not load');
+    expect(source).toContain('Telemetry is ready; interact with the arena or reset the lab to capture recent events.');
     expect(source).toContain('if (!lab)');
     expect(source).toContain('Engine is still loading; wait for the lab before saving.');
+    expect(source).toContain('Run saved to Mini Hub.');
     expect(source).toContain('Loading game engine: reset and save are disabled until the lab is ready.');
     expect(source).toContain('The lab is playable; {gameRunSaveBlockedReason(stickArenaLabControlState)}');
     expect(source).toContain("href={hubHref('/settings#data-recovery')}");
@@ -1492,6 +1498,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('clientData.saveGameRun');
     expect(source).toContain('clientData.saveGameState');
     expect(source).toContain('Telemetry');
+    expect(source).not.toContain('No events yet.');
   });
 
   it('shows Analytics refresh as a guarded async action with readable failures', async () => {

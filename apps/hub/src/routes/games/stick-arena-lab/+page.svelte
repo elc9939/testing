@@ -65,7 +65,7 @@
   }
 
   function gameRunSaveStatus(state: ClientDataState): string {
-    if (canAutoSave(state)) return 'Ready';
+    if (canAutoSave(state)) return 'Ready to save runs through Mini Hub.';
     if (!state.initialized) return 'Loading cache';
     if (state.error) return 'API not ready';
     if (!state.isOnline) return 'Offline read-only';
@@ -81,6 +81,13 @@
     if (state.clientError) return `Mini Hub API is not ready for game saves: ${state.clientError}`;
     if (state.clientStatus === 'syncing') return 'Game run saves wait while Mini Hub sync is running.';
     return `Game run saves wait for Mini Hub status ${state.clientStatus}.`;
+  }
+
+  function telemetryEmptyMessage(state: Pick<StickArenaLabControlState, 'labReady' | 'labLoading' | 'saving' | 'status'>): string {
+    if (state.labLoading) return 'Waiting for the game engine to load before telemetry starts.';
+    if (!state.labReady) return `Telemetry is unavailable because the game engine did not load (${state.status}).`;
+    if (state.saving) return 'Run save is in progress; recent telemetry stays visible after the save finishes.';
+    return 'Telemetry is ready; interact with the arena or reset the lab to capture recent events.';
   }
 
   onMount(async () => {
@@ -127,7 +134,7 @@
         lastDurationMs: durationMs,
         telemetry
       });
-      saveStatus = 'Saved';
+      saveStatus = 'Run saved to Mini Hub.';
     } catch (error) {
       saveStatus = error instanceof Error ? error.message : 'Save failed';
     } finally {
@@ -199,7 +206,7 @@
         {/each}
       </ul>
     {:else}
-      <p class="muted">No events yet.</p>
+      <p class="muted">{telemetryEmptyMessage(stickArenaLabControlState)}</p>
     {/if}
   </aside>
 </section>
