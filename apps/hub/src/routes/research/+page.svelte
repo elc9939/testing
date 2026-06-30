@@ -58,6 +58,20 @@
     sourceLibraryLoading: boolean;
   }
 
+  type ResearchReportSection =
+    | 'tldr'
+    | 'reliability'
+    | 'detailedSummary'
+    | 'keyFacts'
+    | 'openQuestions'
+    | 'disagreements'
+    | 'nextResearch'
+    | 'timeline'
+    | 'sourceTable'
+    | 'queryPlan'
+    | 'runLog'
+    | 'citations';
+
   const modes: ResearchModeOption[] = [
     { id: 'quick_search', label: 'Quick Search', hint: 'Search, rank, summarize.' },
     { id: 'deep_research', label: 'Deep Research', hint: 'More queries and source comparison.' },
@@ -247,6 +261,33 @@
     if (serviceProbePending) return 'Checking archived source cards.';
     if (aiOsUnavailable) return 'Archived sources will reload after the AI OS service card reconnects.';
     return 'No archived sources matched. Run a research job first, or relax the search/domain filter.';
+  }
+
+  function selectedReportSectionEmptyMessage(section: ResearchReportSection): string {
+    const label = researchReportSectionLabel(section);
+    if (!selectedRun) return `Select a saved research run to inspect ${label}.`;
+    if (isResearchRunActive(selectedRun)) {
+      return `${label} will appear after this ${selectedRun.status} run produces that part of the report. The run remains recoverable from Activity.`;
+    }
+    if (selectedRun.status === 'failed' || selectedRun.status === 'cancelled') {
+      return `${label} was not recorded before this run ${selectedRun.status}. Open logs or retry from Activity.`;
+    }
+    return `${label} was not recorded in this saved report. The run remains recoverable from Activity.`;
+  }
+
+  function researchReportSectionLabel(section: ResearchReportSection): string {
+    if (section === 'tldr') return 'TLDR';
+    if (section === 'reliability') return 'Reliability notes';
+    if (section === 'detailedSummary') return 'Detailed summary';
+    if (section === 'keyFacts') return 'Key facts';
+    if (section === 'openQuestions') return 'Open questions';
+    if (section === 'disagreements') return 'Source disagreements';
+    if (section === 'nextResearch') return 'Follow-up suggestions';
+    if (section === 'timeline') return 'Dated source timeline';
+    if (section === 'sourceTable') return 'Source table';
+    if (section === 'queryPlan') return 'Query plan';
+    if (section === 'runLog') return 'Run log';
+    return 'Citations';
   }
 
   function monitorActionBlockedReason(state: ResearchMonitorActionState, monitor?: ResearchMonitor): string {
@@ -1424,7 +1465,7 @@
       <div class="report-grid">
         <article>
           <h3>TLDR</h3>
-          <p>{selectedRun.report.tldr || 'No TLDR was generated yet.'}</p>
+          <p>{selectedRun.report.tldr || selectedReportSectionEmptyMessage('tldr')}</p>
         </article>
         <article>
           <h3>Reliability</h3>
@@ -1433,14 +1474,14 @@
               <p>{note}</p>
             {/each}
           {:else}
-            <p class="empty-note">No reliability notes were recorded.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('reliability')}</p>
           {/if}
         </article>
       </div>
 
       <article class="full-summary">
         <h3>Detailed Summary</h3>
-        <p>{selectedRun.report.detailed_summary || 'The run has not produced a detailed summary yet.'}</p>
+        <p>{selectedRun.report.detailed_summary || selectedReportSectionEmptyMessage('detailedSummary')}</p>
       </article>
 
       <div class="report-grid">
@@ -1453,7 +1494,7 @@
               {/each}
             </ul>
           {:else}
-            <p class="empty-note">No key facts were extracted.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('keyFacts')}</p>
           {/if}
         </article>
         <article>
@@ -1463,7 +1504,7 @@
               <p>{item}</p>
             {/each}
           {:else}
-            <p class="empty-note">No open questions were extracted.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('openQuestions')}</p>
           {/if}
         </article>
       </div>
@@ -1478,7 +1519,7 @@
               {/each}
             </ul>
           {:else}
-            <p class="empty-note">No source disagreements were detected.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('disagreements')}</p>
           {/if}
         </article>
         <article>
@@ -1490,7 +1531,7 @@
               {/each}
             </ul>
           {:else}
-            <p class="empty-note">No follow-up suggestions were generated.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('nextResearch')}</p>
           {/if}
         </article>
       </div>
@@ -1509,7 +1550,7 @@
               {/each}
             </div>
           {:else}
-            <p class="empty-note">No dated source timeline was available.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('timeline')}</p>
           {/if}
         </article>
         <article>
@@ -1532,7 +1573,7 @@
               {/each}
             </div>
           {:else}
-            <p class="empty-note">No source table was recorded.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('sourceTable')}</p>
           {/if}
         </article>
       </div>
@@ -1558,7 +1599,7 @@
               </ul>
             {/if}
           {:else}
-            <p class="empty-note">No query-plan lists were recorded.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('queryPlan')}</p>
           {/if}
           <details class="json-details">
             <summary>Raw plan JSON</summary>
@@ -1582,7 +1623,7 @@
               {/each}
             </div>
           {:else}
-            <p class="empty-note">No run logs were stored for this report.</p>
+            <p class="empty-note">{selectedReportSectionEmptyMessage('runLog')}</p>
           {/if}
         </article>
       </div>
@@ -1607,7 +1648,7 @@
             {/each}
           </div>
         {:else}
-          <p class="empty-note">No citations mapped yet.</p>
+          <p class="empty-note">{selectedReportSectionEmptyMessage('citations')}</p>
         {/if}
       </article>
 
