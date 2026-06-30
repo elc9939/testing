@@ -692,7 +692,7 @@
       <span title={`Raw Passive Tasks service error: ${serviceError}`}>{visibleServiceError}</span>
       <small>Target: {getApiUrl()}. {localNetworkHint()}</small>
     </div>
-    <a class="button compact" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
+    <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for Passive Tasks API setup.">Open Settings</a>
   </section>
 {:else if actionError}
   <section class="card card-pad warning-panel" title={`Raw Passive Tasks action error: ${actionError}`}>{visibleActionError}</section>
@@ -751,7 +751,7 @@
           <span class="icon-chip"><Bell size={16} /></span>
           <strong>Quiet Digest</strong>
         </div>
-        <a class="button compact" href={hubHref('/')}>Today</a>
+        <a class="button compact" href={hubHref('/')} title="Open Today to see passive task attention cards.">Today</a>
       </div>
       {#if sourceIssueSummary}
         <p class="compact-service-note">
@@ -788,7 +788,7 @@
                 <button class="icon-action" type="button" title={passiveActionTitle('Dismiss')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'dismissed')}>
                   <XCircle size={15} />
                 </button>
-                <a class="button compact" href={hubHref(card.route)}>Inspect</a>
+                <a class="button compact" href={hubHref(card.route)} title={`Open ${card.title} source page.`}>Inspect</a>
               </span>
             </div>
           {/each}

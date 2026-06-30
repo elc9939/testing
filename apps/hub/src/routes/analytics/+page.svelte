@@ -181,9 +181,9 @@
     {/if}
     <p class="muted">DuckDB-Wasm is reserved for CSV and LogMiner-style imports; this page shows real Mini Hub cache data first.</p>
     <div class="quick-links">
-      <a href={hubHref('/desk/career')}>Career</a>
-      <a href={hubHref('/desk/study')}>Study</a>
-      <a href={hubHref('/games')}>Games</a>
+      <a href={hubHref('/desk/career')} title="Open Career Desk to add or review source records.">Career</a>
+      <a href={hubHref('/desk/study')} title="Open Study Desk to add or review source records.">Study</a>
+      <a href={hubHref('/games')} title="Open Games to review playable surfaces and saved run state.">Games</a>
     </div>
   </div>
 </section>

@@ -1205,9 +1205,9 @@
     </div>
     <div class="connection-actions">
       {#if shouldOfferLocalHub()}
-        <a class="button primary" href={connectedLocalAiOsHref}>Open connected local AI OS</a>
+        <a class="button primary" href={connectedLocalAiOsHref} title="Open the configured local AI OS service health endpoint in a new tab.">Open connected local AI OS</a>
       {/if}
-      <a class="button" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
+      <a class="button" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for AI OS endpoint setup.">Open Settings</a>
     </div>
   </section>
 {:else if actionMessage}
@@ -1516,6 +1516,7 @@
             class:paused={item.state === 'paused'}
             class="call-row"
             href={hubHref(item.route)}
+            title={`Open ${item.title} activity details.`}
           >
             <strong>{item.title}</strong>
             <span>{aiActivityStateLabel(item.state)}</span>

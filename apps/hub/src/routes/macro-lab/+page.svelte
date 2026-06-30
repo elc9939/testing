@@ -301,7 +301,7 @@
       <p title={`Raw Macro Lab service error: ${serviceError}`}>{visibleServiceError}</p>
       <p>{localNetworkHint()}</p>
     </div>
-    <a class="button" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
+    <a class="button" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for Macro Lab endpoint setup.">Open Settings</a>
   </section>
 {/if}
 {#if actionError}

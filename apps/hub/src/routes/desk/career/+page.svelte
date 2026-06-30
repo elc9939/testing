@@ -677,7 +677,7 @@
   {:else if visibleCareerMailUpdates.length}
     <div class="mail-update-list">
       {#each visibleCareerMailUpdates as insight}
-        <a class:unread={insight.thread.unread} class="mail-update-row" href={hubHref('/productivity')}>
+        <a class:unread={insight.thread.unread} class="mail-update-row" href={hubHref('/productivity')} title={`Open Productivity for ${insight.thread.subject}.`}>
           <span>{insight.thread.unread ? 'Unread' : 'Seen'}</span>
           <strong>{insight.thread.subject}</strong>
           <small>{matchedApplicationLabel(insight)} - {insight.reason}{insight.deadlineHint ? ` - ${insight.deadlineHint}` : ''}</small>
@@ -759,7 +759,7 @@
             <td>{job.role}</td>
             <td class="application-cell">
               {#if jobApplicationHref(job)}
-                <a class="application-link" href={jobApplicationHref(job)} target="_blank" rel="noreferrer">
+                <a class="application-link" href={jobApplicationHref(job)} target="_blank" rel="noreferrer" title={`Open application link for ${job.role} at ${job.company}.`}>
                   <ExternalLink size={15} />
                   <span>Open</span>
                 </a>
@@ -782,7 +782,7 @@
                         <span>
                           <b>{detail.label}</b>
                           {#if detail.label === 'Link'}
-                            <a href={detail.value} target="_blank" rel="noreferrer">Open</a>
+                            <a href={detail.value} target="_blank" rel="noreferrer" title={`Open preserved legacy link for ${job.role} at ${job.company}.`}>Open</a>
                           {:else}
                             {detail.value}
                           {/if}
@@ -822,7 +822,7 @@
                 <span>No new jobs in this Svelte workspace yet.</span>
                 {#if localDevOrigin}
                   <small>Legacy Career Desk jobs saved on GitHub Pages live under that browser origin, so localhost cannot read them directly.</small>
-                  <a class="link-button" href={githubPagesCareerUrl} target="_blank" rel="noreferrer">Open GitHub Pages import</a>
+                  <a class="link-button" href={githubPagesCareerUrl} target="_blank" rel="noreferrer" title="Open the legacy GitHub Pages Career Desk import page.">Open GitHub Pages import</a>
                 {/if}
               </div>
             {/if}
@@ -855,7 +855,7 @@
           <td>
             <span>{linkedJobLabel(action)}</span>
             {#if job && jobApplicationHref(job)}
-              <a class="inline-application-link" href={jobApplicationHref(job)} target="_blank" rel="noreferrer">Open application</a>
+              <a class="inline-application-link" href={jobApplicationHref(job)} target="_blank" rel="noreferrer" title={`Open application link for ${job.role} at ${job.company}.`}>Open application</a>
             {/if}
           </td>
           <td>{action.dueAt ? displayDate(action.dueAt) : 'None'}</td>

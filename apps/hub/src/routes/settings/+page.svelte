@@ -1022,12 +1022,12 @@
             <small>{group.ready}/{group.total} ready · {group.issues} issue{group.issues === 1 ? '' : 's'}</small>
           </div>
           <div class="service-actions">
-            <a class="button compact" href={hubHref(group.route)}>
+            <a class="button compact" href={hubHref(group.route)} title={`Open ${group.label} panel.`}>
               <span>Open Panel</span>
               <ArrowRight size={15} />
             </a>
             {#if serviceHealthHref(group.service)}
-              <a class="button compact" href={serviceHealthHref(group.service)} target="_blank" rel="noreferrer">
+              <a class="button compact" href={serviceHealthHref(group.service)} target="_blank" rel="noreferrer" title={`Open ${group.label} service health endpoint.`}>
                 <span>Health</span>
                 <ArrowRight size={15} />
               </a>
@@ -1081,12 +1081,12 @@
             <small>{featureWiringWhen(row)}</small>
           </div>
           <div class="feature-wiring-actions">
-            <a class="button compact" href={hubHref(row.route)}>
+            <a class="button compact" href={hubHref(row.route)} title={`Open ${row.feature}.`}>
               <span>Open</span>
               <ArrowRight size={15} />
             </a>
             {#if row.healthUrl}
-              <a class="button compact" href={row.healthUrl} target="_blank" rel="noreferrer">
+              <a class="button compact" href={row.healthUrl} target="_blank" rel="noreferrer" title={`Open ${row.feature} health endpoint.`}>
                 <span>Health</span>
                 <ArrowRight size={15} />
               </a>
@@ -1104,7 +1104,7 @@
       <ListChecks size={18} />
       <strong>Passive Tasks</strong>
     </span>
-    <a class="button compact" href={hubHref('/passive-tasks')}>
+    <a class="button compact" href={hubHref('/passive-tasks')} title="Open Passive Tasks dashboard.">
       <span>Dashboard</span>
       <ArrowRight size={15} />
     </a>
@@ -1143,7 +1143,7 @@
             <em>{passiveBackupHealth.error}</em>
           {/if}
         </span>
-        <a class="button compact" href={hubHref('/passive-tasks')}>Open Restore Points</a>
+        <a class="button compact" href={hubHref('/passive-tasks')} title="Open Passive Tasks restore points.">Open Restore Points</a>
       </div>
     {/if}
 
@@ -1377,7 +1377,7 @@
         <Database size={18} />
         <strong>Data &amp; Recovery</strong>
       </span>
-      <a class="button compact" href={hubHref('/activity')}>
+      <a class="button compact" href={hubHref('/activity')} title="Open Activity and Handoff records.">
         <span>Activity</span>
         <ArrowRight size={15} />
       </a>

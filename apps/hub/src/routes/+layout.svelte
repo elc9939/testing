@@ -136,7 +136,7 @@
 
 <div class="shell">
   <aside class="rail" aria-label="Primary">
-    <a class="brand" href={hubHref(routeMap.today)} aria-label="Mini Hub home">
+    <a class="brand" href={hubHref(routeMap.today)} aria-label="Mini Hub home" title="Open Mini Hub Today.">
       <span class="brand-mark">MH</span>
       <span>Mini Hub</span>
     </a>
@@ -156,7 +156,7 @@
 
     <nav>
       {#each nav as item}
-        <a class:active={path === item.href || (item.href !== '/' && path.startsWith(item.href))} href={hubHref(item.href)}>
+        <a class:active={path === item.href || (item.href !== '/' && path.startsWith(item.href))} href={hubHref(item.href)} title={`Open ${item.label}.`}>
           <svelte:component this={item.icon} size={18} strokeWidth={1.9} />
           <span>{item.label}</span>
         </a>

@@ -1046,7 +1046,7 @@
           <RefreshCw size={15} />
           <span>Retry Service</span>
         </button>
-        <a class="link-button compact" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
+        <a class="link-button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for AI OS endpoint setup.">Open Settings</a>
       </div>
     </section>
   {:else if serviceProbePending}
@@ -1344,7 +1344,7 @@
               {#if source.matched_terms.length}<span>Matched {source.matched_terms.join(', ')}</span>{/if}
             </div>
             <div class="source-library-actions">
-              <a href={source.canonical_url} target="_blank" rel="noreferrer">
+              <a href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open archived source ${source.canonical_url}.`}>
                 <ExternalLink size={15} />
                 <span>Open</span>
               </a>
@@ -1599,7 +1599,7 @@
                 {#if citationSources(selectedRun, citation).length}
                   <div class="citation-sources">
                     {#each citationSources(selectedRun, citation) as source}
-                      <a href={source.canonical_url} target="_blank" rel="noreferrer">{source.id}: {sourceHost(source)}</a>
+                      <a href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open report source ${source.canonical_url}.`}>{source.id}: {sourceHost(source)}</a>
                     {/each}
                   </div>
                 {/if}

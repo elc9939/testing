@@ -236,6 +236,26 @@ describe('Mini Hub usability control gates', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps route links titled for recovery and navigation clarity', async () => {
+    const offenders: string[] = [];
+    const pageFiles = await controlSurfaceFiles();
+
+    for (const pageFile of pageFiles) {
+      const source = await readFile(pageFile, 'utf8');
+      const links = source.matchAll(/<a\b[\s\S]*?<\/a>/g);
+
+      for (const link of links) {
+        const open = firstTag(link[0]);
+        if (!/\btitle=/.test(open)) {
+          const line = source.slice(0, link.index ?? 0).split('\n').length;
+          offenders.push(`${relative(routesRoot, pageFile)}:${line}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('keeps disabled route links self-explanatory', async () => {
     const offenders: string[] = [];
     const pageFiles = await controlSurfaceFiles();

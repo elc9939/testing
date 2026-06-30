@@ -608,7 +608,7 @@
       <RefreshCw size={16} />
       <span>{$attentionStore.refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
-    <a class="button" href={hubHref('/settings')}>
+    <a class="button" href={hubHref('/settings')} title="Open Settings for services, sync, theme, and recovery controls.">
       <Settings size={16} />
       <span>Settings</span>
     </a>
@@ -821,7 +821,7 @@
           <span class="icon-chip"><Inbox size={16} /></span>
           <strong>Mail Triage</strong>
         </div>
-        <a class="button compact" href={hubHref('/productivity')}>
+        <a class="button compact" href={hubHref('/productivity')} title="Open Productivity for Gmail and Calendar details.">
           <span>Inbox</span>
           <ArrowRight size={15} />
         </a>
@@ -876,7 +876,7 @@
           <span class="icon-chip"><BriefcaseBusiness size={16} /></span>
           <strong>Career / Study Focus</strong>
         </div>
-        <a class="button compact" href={hubHref('/desk/career')}>
+        <a class="button compact" href={hubHref('/desk/career')} title="Open Career Desk.">
           <span>Desk</span>
           <ArrowRight size={15} />
         </a>
@@ -1004,7 +1004,7 @@
           <span class="icon-chip"><Activity size={16} /></span>
           <strong>Capability Health</strong>
         </div>
-        <a class="button compact" href={hubHref('/settings#feature-wiring')}>
+        <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to repair unavailable capabilities.">
           <span>Fix</span>
           <ArrowRight size={15} />
         </a>

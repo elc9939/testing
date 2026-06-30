@@ -1221,13 +1221,13 @@
 {#if !canAct}
   <section class="card card-pad offline-banner">
     <span>{productivityApiBannerText}</span>
-    <a class="inline-action" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
+    <a class="inline-action" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for Mini Hub API and Google OAuth setup.">Open Settings</a>
   </section>
 {/if}
 {#if cacheWarning}
   <section class="card card-pad offline-banner">
     <span>{cacheWarning}</span>
-    <a class="inline-action" href={hubHref('/settings#feature-wiring')}>Open Settings</a>
+    <a class="inline-action" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for cached productivity and Google connection diagnostics.">Open Settings</a>
   </section>
 {/if}
 {#if actionError}
