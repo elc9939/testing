@@ -951,7 +951,7 @@
   }
 
   function formatValue(value: unknown): string {
-    if (value === undefined || value === null || value === '') return 'n/a';
+    if (value === undefined || value === null || value === '') return 'not recorded';
     if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
     if (typeof value === 'boolean') return value ? 'yes' : 'no';
     if (Array.isArray(value)) return value.map((item) => formatValue(item)).join(', ');
@@ -988,7 +988,7 @@
   }
 
   function displayDate(value: string | undefined): string {
-    if (!value) return 'n/a';
+    if (!value) return 'date not recorded';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
@@ -1666,8 +1666,8 @@
                 <a class="source-url" href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open source URL ${source.canonical_url}.`}>{source.canonical_url}</a>
                 {#if source.description}<p>{source.description}</p>{/if}
                 <dl class="source-meta">
-                  <div><dt>Author</dt><dd>{source.author ?? 'n/a'}</dd></div>
-                  <div><dt>Published</dt><dd>{source.published_at ?? 'n/a'}</dd></div>
+                  <div><dt>Author</dt><dd>{source.author ?? 'not recorded'}</dd></div>
+                  <div><dt>Published</dt><dd>{source.published_at ?? 'not recorded'}</dd></div>
                   <div><dt>Fetched</dt><dd>{source.fetched_at}</dd></div>
                   <div><dt>Rank</dt><dd>{source.rank}</dd></div>
                 </dl>

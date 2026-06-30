@@ -415,6 +415,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('type ResearchReportSection');
     expect(source).toContain('function selectedReportSectionEmptyMessage');
     expect(source).toContain('function researchReportSectionLabel');
+    expect(source).toContain("if (value === undefined || value === null || value === '') return 'not recorded'");
+    expect(source).toContain("if (!value) return 'date not recorded'");
+    expect(source).toContain("{source.author ?? 'not recorded'}");
+    expect(source).toContain("{source.published_at ?? 'not recorded'}");
     expect(source).toContain('will appear after this ${selectedRun.status} run produces that part of the report.');
     expect(source).toContain('The run remains recoverable from Activity.');
     expect(source).toContain('Open logs or retry from Activity.');
@@ -429,6 +433,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('No source table was recorded.');
     expect(source).not.toContain('No query-plan lists were recorded.');
     expect(source).not.toContain('No citations mapped yet.');
+    expect(source).not.toContain("return 'n/a'");
+    expect(source).not.toContain("?? 'n/a'");
     expect(source).toContain('Checking saved research monitors.');
     expect(source).toContain('Searching archived source cards.');
     expect(source).not.toContain('Reports are unavailable until AI OS is connected.');
