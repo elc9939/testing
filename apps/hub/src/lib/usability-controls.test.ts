@@ -569,6 +569,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('will reload after the Desktop service card reconnects.');
     expect(source).toContain('Machine profile will reload after the Desktop service card reconnects.');
     expect(source).toContain('Model load will reload after the Desktop service card reconnects.');
+    expect(source).toContain('See the Desktop service card above for the connection error and fix actions.');
+    expect(source).toContain('Provider state will reload after the Desktop service card reconnects.');
+    expect(source).toContain('GPU telemetry will reload after the Desktop service card reconnects.');
     expect(source).toContain('Checking model routes from AI OS.');
     expect(source).toContain('Checking app tools from AI OS.');
     expect(source).toContain('Checking AI OS jobs.');
@@ -582,6 +585,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('AI OS is not connected, so GPU telemetry is not checked.');
     expect(source).not.toContain('AI OS API is not reachable yet.');
     expect(source).not.toContain('Machine profile is unavailable. Start AI OS or refresh once providers and telemetry are reachable.');
+    expect(source).not.toContain('Unknown until AI OS is reachable.');
+    expect(source).not.toContain('Unknown until AI OS can query Windows GPU counters.');
+    expect(source).not.toContain('Unknown until AI OS can query Ollama /api/ps.');
     expect(source).not.toContain('Model load has not been checked yet.');
     expect(source).not.toContain('Connect AI OS to inspect GPU utilization, VRAM, and temperature.');
     expect(source).not.toContain(' · ');

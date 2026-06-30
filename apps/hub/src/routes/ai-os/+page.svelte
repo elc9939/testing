@@ -541,13 +541,13 @@
 
     if (!nextStatus) {
       const detail = error
-        ? compactServiceIssueIfRecognized(error, 'AI OS')
-        : `AI OS is not answering at ${getAiOsApiUrl()}. GPU telemetry needs the local AI OS API to be running.`;
+        ? 'See the Desktop service card above for the connection error and fix actions.'
+        : `AI OS has not answered at ${getAiOsApiUrl()} yet. Use Check Now or Settings Feature Wiring to reconnect.`;
       return [
         { id: 'service', label: 'AI OS service', state: 'offline', detail },
-        { id: 'ollama', label: 'Ollama provider', state: 'unknown', detail: 'Unknown until AI OS is reachable.' },
-        { id: 'gpu', label: 'GPU telemetry', state: 'unknown', detail: 'Unknown until AI OS can query Windows GPU counters.' },
-        { id: 'model', label: 'Model load', state: 'unknown', detail: 'Unknown until AI OS can query Ollama /api/ps.' }
+        { id: 'ollama', label: 'Ollama provider', state: 'unknown', detail: 'Provider state will reload after the Desktop service card reconnects.' },
+        { id: 'gpu', label: 'GPU telemetry', state: 'unknown', detail: 'GPU telemetry will reload after the Desktop service card reconnects.' },
+        { id: 'model', label: 'Model load', state: 'unknown', detail: 'Model load will reload after the Desktop service card reconnects.' }
       ];
     }
 
