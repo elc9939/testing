@@ -540,6 +540,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Route ambiguous assistant requests through the AI OS command/tool planner when possible.');
     expect(source).toContain('Permit write or system tools only after an explicit confirmation pass.');
     expect(source).toContain('{currentMachineMode.shortLabel} - App helper');
+    expect(source).toContain("const score = typeof hit.score === 'number' ? hit.score.toFixed(3) : 'score not returned'");
+    expect(source).toContain("return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'not measured'");
+    expect(source).not.toContain("'n/a'");
     expect(source).not.toContain('Working...');
     expect(source).not.toContain('Â·');
   });

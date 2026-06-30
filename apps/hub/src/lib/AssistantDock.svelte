@@ -243,7 +243,7 @@
       const lines = hits.map((hit, index) => {
         const title = typeof hit.title === 'string' && hit.title ? hit.title : `Hit ${index + 1}`;
         const text = typeof hit.text === 'string' ? hit.text.replace(/\s+/gu, ' ').slice(0, 220) : '';
-        const score = typeof hit.score === 'number' ? hit.score.toFixed(3) : 'n/a';
+        const score = typeof hit.score === 'number' ? hit.score.toFixed(3) : 'score not returned';
         return `${index + 1}. ${title} (${score})\n${text}`;
       });
       addMessage({
@@ -407,7 +407,7 @@
   }
 
   function labelMetric(value: number | undefined, suffix = ''): string {
-    return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'n/a';
+    return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'not measured';
   }
 
   function dateLabel(value: string): string {
