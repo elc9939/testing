@@ -1403,6 +1403,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function analyticsCacheStatus');
     expect(source).toContain('function analyticsSyncDetail');
     expect(source).toContain('function analyticsRecordSummary');
+    expect(source).toContain("if (!value) return 'not recorded'");
+    expect(source).toContain("if (!$clientData.initialized) return 'Opening browser cache'");
+    expect(source).toContain("if (!$clientData.initialized) return 'Opening PGlite/browser cache.'");
+    expect(source).toContain("viewState === 'error' ? 'Action Needed' : 'Opening Cache'");
+    expect(source).not.toContain("if (!value) return 'n/a'");
+    expect(source).not.toContain('Cache loading');
+    expect(source).not.toContain('Loading PGlite/browser cache.');
     expect(source).toContain('aria-label="Analytics cache status"');
     expect(source).toContain('Last sync');
     expect(source).toContain('No completed sync recorded in this browser yet.');

@@ -57,6 +57,7 @@ describe('analytics view helpers', () => {
 
   it('distinguishes loading, empty, offline, error, and ready states', () => {
     expect(analyticsViewState(state({ initialized: false }))).toBe('loading');
+    expect(analyticsViewMessage(state({ initialized: false }))).toBe('Opening the local analytics cache.');
     expect(analyticsViewState(state())).toBe('empty');
     expect(analyticsViewState(state({ status: 'offline-readonly' }))).toBe('offline');
     expect(analyticsViewState(state({ status: 'error', error: 'PGlite unavailable' }))).toBe('error');

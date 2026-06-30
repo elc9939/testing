@@ -25,7 +25,7 @@
   $: if (plotHost) void render(rows, trendValues);
 
   function displayTime(value: string): string {
-    if (!value) return 'n/a';
+    if (!value) return 'not recorded';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat(undefined, {
@@ -37,7 +37,7 @@
   }
 
   function analyticsCacheStatus(): string {
-    if (!$clientData.initialized) return 'Cache loading';
+    if (!$clientData.initialized) return 'Opening browser cache';
     if (refreshError) return 'Refresh failed; using last loaded cache';
     if (renderError) return 'Renderer failed; data still cached';
     if ($clientData.status === 'syncing') return 'Syncing; showing browser cache';
@@ -47,7 +47,7 @@
   }
 
   function analyticsSyncDetail(): string {
-    if (!$clientData.initialized) return 'Loading PGlite/browser cache.';
+    if (!$clientData.initialized) return 'Opening PGlite/browser cache.';
     if ($clientData.lastSyncedAt) return `Last sync ${displayTime($clientData.lastSyncedAt)}`;
     if ($clientData.status === 'offline-readonly') return 'No live sync; showing saved browser data.';
     if ($clientData.status === 'error') return $clientData.error || 'Cache status reported an error.';
@@ -133,7 +133,7 @@
 </section>
 
 <section class={`card card-pad analytics-state ${refreshError ? 'error' : viewState}`}>
-  <strong>{refreshError ? 'Refresh needs attention' : viewState === 'ready' ? 'Connected Data' : viewState === 'offline' ? 'Cached Data' : viewState === 'empty' ? 'Healthy Empty' : viewState === 'error' ? 'Action Needed' : 'Loading'}</strong>
+  <strong>{refreshError ? 'Refresh needs attention' : viewState === 'ready' ? 'Connected Data' : viewState === 'offline' ? 'Cached Data' : viewState === 'empty' ? 'Healthy Empty' : viewState === 'error' ? 'Action Needed' : 'Opening Cache'}</strong>
   <p>{viewMessage}</p>
   {#if analyticsIssue}
     <div class="analytics-issue" title={`Raw Analytics error: ${analyticsIssue}`}>

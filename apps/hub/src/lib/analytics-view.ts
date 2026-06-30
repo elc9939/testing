@@ -38,7 +38,7 @@ export function analyticsViewState(state: AnalyticsInput, rows = buildAnalyticsM
 
 export function analyticsViewMessage(state: AnalyticsInput, rows = buildAnalyticsMetricRows(state)): string {
   const viewState = analyticsViewState(state, rows);
-  if (viewState === 'loading') return 'Loading local analytics cache.';
+  if (viewState === 'loading') return 'Opening the local analytics cache.';
   if (viewState === 'error') return state.error || 'Analytics cannot read the local browser cache right now.';
   if (viewState === 'offline') return 'Offline: showing the last browser-cached Career, Study, and game data.';
   if (viewState === 'empty') return 'No local analytics data yet. Add career jobs, study sessions, or game runs and this page will populate.';
