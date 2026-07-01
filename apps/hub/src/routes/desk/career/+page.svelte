@@ -136,6 +136,12 @@
     return careerRowTitle(state, careerEditRowEnabledTitle, rowId);
   }
 
+  function careerCancelEditTitle(state: Pick<CareerControlState, 'rowBusyId'>, rowId: string): string {
+    if (state.rowBusyId === rowId) return 'This Career row action is already running.';
+    if (state.rowBusyId) return 'Another Career row action is already running.';
+    return 'Cancel this inline job edit and discard unsaved row changes.';
+  }
+
   function saveJobEditTitle(state: CareerControlState, draft: JobDraft): string {
     if (!state.canSave || state.rowBusyId) return careerRowTitle(state, 'Save job changes.', state.editingJobId);
     if (!draft.company.trim() || !draft.role.trim()) return 'Company and role are required before saving this job.';
@@ -768,7 +774,7 @@
                 <button class="icon-button" type="button" aria-label="Save job" title={saveJobEditButtonTitle} disabled={!canSave || rowBusyId === job.id || !jobDraft.company.trim() || !jobDraft.role.trim()} on:click={() => saveJobEdit(job)}>
                   <Save size={16} />
                 </button>
-                <button class="icon-button" type="button" aria-label="Cancel job edit" title={rowBusyId === job.id ? 'This Career row action is already running.' : 'Cancel job edit.'} disabled={rowBusyId === job.id} on:click={cancelEditJob}>
+                <button class="icon-button" type="button" aria-label="Cancel job edit" title={careerCancelEditTitle(careerControlState, job.id)} disabled={rowBusyId === job.id} on:click={cancelEditJob}>
                   <X size={16} />
                 </button>
               </div>

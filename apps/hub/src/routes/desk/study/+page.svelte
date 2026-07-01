@@ -158,6 +158,12 @@
     return studyRowTitle(state, studyEditRowEnabledTitle, rowId);
   }
 
+  function studyCancelEditTitle(state: Pick<StudyControlState, 'rowBusyId'>, rowId: string): string {
+    if (state.rowBusyId === rowId) return 'This Study row action is already running.';
+    if (state.rowBusyId) return 'Another Study row action is already running.';
+    return 'Cancel this inline study log edit and discard unsaved row changes.';
+  }
+
   function saveLogEditTitle(state: StudyControlState, draft: StudyDraft): string {
     if (!state.canSave || state.rowBusyId) return studyRowTitle(state, 'Save study log changes.', state.editingSessionId);
     if (!draft.subject.trim()) return 'Add a study label before saving this log.';
@@ -766,7 +772,7 @@
                   <button class="icon-button" type="button" aria-label="Save study log" title={saveLogEditButtonTitle} disabled={!canSave || rowBusyId === log.id || !studyDraft.subject.trim() || studyDraft.minutes < 1} on:click={() => saveLogEdit(log)}>
                     <Save size={16} />
                   </button>
-                  <button class="icon-button" type="button" aria-label="Cancel study log edit" title={rowBusyId === log.id ? 'This Study row action is already running.' : 'Cancel study log edit.'} disabled={rowBusyId === log.id} on:click={cancelEditLog}>
+                  <button class="icon-button" type="button" aria-label="Cancel study log edit" title={studyCancelEditTitle(studyControlState, log.id)} disabled={rowBusyId === log.id} on:click={cancelEditLog}>
                     <X size={16} />
                   </button>
                 </div>
