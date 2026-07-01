@@ -11,6 +11,7 @@
     type CapabilityRegistrySnapshot
   } from '$lib/capability-registry';
   import { hubHref } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
   import { formatMachineModeContext, machineModeContext, machineModeFromPreferences } from '$lib/machine-mode';
   import { localNetworkHint } from '$lib/service-config';
   import { getConnections } from '$lib/productivity-api';
@@ -199,7 +200,7 @@
     } catch (error) {
       addMessage({
         role: 'assistant',
-        text: `I could not reach AI OS, so tool/agent status is unavailable right now.\n\n${localNetworkHint()}\n\n${errorMessage(error)}`,
+        text: `I could not reach AI OS, so tool/agent status is unavailable right now.\n\n${localNetworkHint()}\n\n${assistantIssueMessage(error, 'AI OS')}`,
         actions: [
           featureWiringAction,
           { id: 'retry-status', label: 'Retry', kind: 'retry', objective: 'Check AI status' }
@@ -225,7 +226,7 @@
     } catch (error) {
       addMessage({
         role: 'assistant',
-        text: `I could not build the capability registry right now.\n\n${localNetworkHint()}\n\n${errorMessage(error)}`,
+        text: `I could not build the capability registry right now.\n\n${localNetworkHint()}\n\n${assistantIssueMessage(error, 'Capability registry')}`,
         actions: [
           featureWiringAction,
           { id: 'retry-capabilities', label: 'Retry', kind: 'retry', objective: 'What capabilities are available?' }
@@ -253,7 +254,7 @@
     } catch (error) {
       addMessage({
         role: 'assistant',
-        text: `Memory search failed.\n\n${errorMessage(error)}`,
+        text: `Memory search failed.\n\n${assistantIssueMessage(error, 'AI OS memory')}`,
         actions: [featureWiringAction]
       });
     } finally {
@@ -286,7 +287,7 @@
     } catch (error) {
       addMessage({
         role: 'assistant',
-        text: `AI OS command failed.\n\n${errorMessage(error)}`,
+        text: `AI OS command failed.\n\n${assistantIssueMessage(error, 'AI OS command')}`,
         actions: [
           featureWiringAction,
           { id: 'retry-command', label: 'Retry as tool command', kind: 'retry', objective }
@@ -330,7 +331,7 @@
           localSummary: localHubSummary(),
           machineMode: machineModeContext(currentMachineMode.id),
           capabilitySummary: capabilitySnapshot ? formatCapabilityRegistrySummary(capabilitySnapshot) : '',
-          aiOsUnavailable: errorMessage(aiOsError)
+          aiOsUnavailable: rawErrorMessage(aiOsError)
         }
       });
       addMessage({
@@ -416,15 +417,25 @@
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
 
-  function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : 'Unknown error';
+  function rawErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message.trim()) return error.message;
+    if (typeof error === 'string' && error.trim()) return error;
+    return 'No error detail returned.';
+  }
+
+  function assistantIssueMessage(error: unknown, serviceLabel: string): string {
+    const raw = rawErrorMessage(error);
+    if (raw === 'No error detail returned.') {
+      return `${serviceLabel} did not return an error detail. Open Feature Wiring and retry the service check.`;
+    }
+    return compactServiceIssueIfRecognized(raw, serviceLabel);
   }
 
   function localAssistantFallback(input: string, aiOsError: unknown, fallbackError: unknown): string {
     const normalized = input.toLowerCase();
     const status = [
-      `AI OS: ${errorMessage(aiOsError)}`,
-      `Mini Hub/Ollama fallback: ${errorMessage(fallbackError)}`
+      `AI OS: ${assistantIssueMessage(aiOsError, 'AI OS')}`,
+      `Mini Hub/Ollama fallback: ${assistantIssueMessage(fallbackError, 'Mini Hub assistant')}`
     ].join('\n');
 
     if (/\b(ai lab|transformers|tree[- ]?sitter)\b/u.test(normalized)) {
