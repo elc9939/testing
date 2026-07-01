@@ -279,6 +279,55 @@
     return passiveWriteTitle || enabledTitle;
   }
 
+  function passiveManualRunTitle(kind: 'due' | 'startup' | 'idle'): string {
+    if (kind === 'due') {
+      return passiveActionTitle('Check due passive tasks now; run history and Activity will show what started, skipped, or failed.');
+    }
+    if (kind === 'startup') {
+      return passiveActionTitle('Fire the startup passive event manually; matching watchers can create recoverable run history.');
+    }
+    return passiveActionTitle('Check idle-capable passive tasks now; idle/resource guards still decide what runs.');
+  }
+
+  function passiveDigestActionTitle(status: 'reviewed' | 'dismissed' | 'snoozed' | 'important'): string {
+    if (status === 'important') return passiveActionTitle('Mark this passive result important and keep it visible in the digest.');
+    if (status === 'snoozed') return passiveActionTitle('Snooze this passive result for 24 hours; it can return after the snooze window.');
+    if (status === 'reviewed') return passiveActionTitle('Mark this passive result reviewed so it leaves the active digest.');
+    return passiveActionTitle('Dismiss this passive result from the active digest.');
+  }
+
+  function passiveEngineTitle(enabled: boolean | undefined): string {
+    if (enabled) return passiveActionTitle('Pause the passive task engine; existing run history stays recoverable in Activity.');
+    return passiveActionTitle('Enable the passive task engine so scheduled, idle, and event watchers can run again.');
+  }
+
+  function passiveWatcherTitle(watcher: PassiveWatcher): string {
+    if (watcher.enabled) return passiveActionTitle(`Disable ${watcher.title}; future trigger checks for this watcher will be skipped.`);
+    return passiveActionTitle(`Enable ${watcher.title}; future matching triggers can create run history.`);
+  }
+
+  function passiveTaskResumeTitle(task: PassiveTask): string {
+    return passiveActionTitle(`Resume ${task.title}; future runs will reappear in history and Activity.`);
+  }
+
+  function passiveTaskPauseTitle(task: PassiveTask, watcher: PassiveWatcher | undefined): string {
+    if (passiveWriteTitle) return passiveWriteTitle;
+    if (!watcher?.enabled) return 'Enable this watcher before pausing its task.';
+    return `Pause ${task.title}; its schedule stays visible but it will not run until resumed.`;
+  }
+
+  function passiveTaskCancelTitle(task: PassiveTask): string {
+    return passiveActionTitle(`Confirm before cancelling ${task.title}; cancellation is recorded in run history.`);
+  }
+
+  function passiveNotificationDismissTitle(): string {
+    return passiveActionTitle('Dismiss this passive notification; current run history and digest records remain available.');
+  }
+
+  function passiveSettingsSaveTitle(): string {
+    return passiveActionTitle('Save passive task settings; new limits and toggles apply to future watcher runs.');
+  }
+
   function requirePassiveReady(action: string): boolean {
     const reason = passiveDisabledReason();
     if (!reason) return true;
@@ -306,7 +355,7 @@
 
   function taskRunTitle(task: PassiveTask, watcher: PassiveWatcher | undefined): string {
     if (passiveWriteTitle) return passiveWriteTitle;
-    if (canRunTask(task, watcher)) return 'Run this passive task now.';
+    if (canRunTask(task, watcher)) return `Run ${task.title} now; result and errors will be recoverable in run history and Activity.`;
     if (!settings?.enabled) return 'Enable the Passive Tasks engine before running tasks.';
     if (!watcher?.enabled) return 'Enable this watcher before running its task.';
     if (settings.enabledFamilies[task.family] === false) return `Enable ${passiveFamilyLabel(task.family)} before running this task.`;
@@ -680,15 +729,15 @@
       <RefreshCw size={16} />
       <span>{loading ? 'Refreshing' : 'Refresh'}</span>
     </button>
-    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Run due passive tasks now.')} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveManualRunTitle('due')} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
       <Clock3 size={16} />
       <span>Run Due</span>
     </button>
-    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Fire the startup passive event manually.')} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveManualRunTitle('startup')} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
       <RefreshCw size={16} />
       <span>Startup Event</span>
     </button>
-    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Run idle-capable passive tasks manually.')} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveManualRunTitle('idle')} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
       <Play size={16} />
       <span>Idle Tick</span>
     </button>
@@ -786,16 +835,16 @@
                 {/if}
               </span>
               <span class="digest-actions">
-                <button class="icon-action" type="button" title={passiveActionTitle('Mark important')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'important')}>
+                <button class="icon-action" type="button" title={passiveDigestActionTitle('important')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'important')}>
                   <Star size={15} />
                 </button>
-                <button class="icon-action" type="button" title={passiveActionTitle('Snooze 24 hours')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'snoozed')}>
+                <button class="icon-action" type="button" title={passiveDigestActionTitle('snoozed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'snoozed')}>
                   <Clock3 size={15} />
                 </button>
-                <button class="icon-action" type="button" title={passiveActionTitle('Mark reviewed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'reviewed')}>
+                <button class="icon-action" type="button" title={passiveDigestActionTitle('reviewed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'reviewed')}>
                   <CheckCircle2 size={15} />
                 </button>
-                <button class="icon-action" type="button" title={passiveActionTitle('Dismiss')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'dismissed')}>
+                <button class="icon-action" type="button" title={passiveDigestActionTitle('dismissed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'dismissed')}>
                   <XCircle size={15} />
                 </button>
                 <a class="button compact" href={hubHref(card.route)} title={`Open ${card.title} source page.`}>Inspect</a>
@@ -916,7 +965,7 @@
           <span class="icon-chip"><CheckCircle2 size={16} /></span>
           <strong>Active Watchers</strong>
         </div>
-        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle(settings?.enabled ? 'Pause the passive task engine.' : 'Enable the passive task engine.')} on:click={toggleEngine}>
+        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveEngineTitle(settings?.enabled)} on:click={toggleEngine}>
           {settings?.enabled ? 'Pause Engine' : 'Enable Engine'}
         </button>
       </div>
@@ -929,7 +978,7 @@
                 <strong>{watcher.title}</strong>
                 <small>{watcher.description}</small>
               </span>
-              <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle(watcher.enabled ? 'Disable this watcher.' : 'Enable this watcher.')} on:click={() => applyAction(`watcher:${watcher.id}`, () => togglePassiveWatcher(watcher.id, !watcher.enabled), `${watcher.title} ${watcher.enabled ? 'disabled' : 'enabled'}.`)}>
+              <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveWatcherTitle(watcher)} on:click={() => applyAction(`watcher:${watcher.id}`, () => togglePassiveWatcher(watcher.id, !watcher.enabled), `${watcher.title} ${watcher.enabled ? 'disabled' : 'enabled'}.`)}>
                 {watcher.enabled ? 'Disable' : 'Enable'}
               </button>
             </div>
@@ -977,15 +1026,15 @@
                     <Play size={15} />
                   </button>
                   {#if task.status === 'paused'}
-                    <button class="icon-action" type="button" title={passiveActionTitle('Resume this passive task.')} disabled={passiveWriteDisabled} on:click={() => applyAction(`resume:${task.id}`, () => resumePassiveTask(task.id), `${task.title} resumed.`)}>
+                    <button class="icon-action" type="button" title={passiveTaskResumeTitle(task)} disabled={passiveWriteDisabled} on:click={() => applyAction(`resume:${task.id}`, () => resumePassiveTask(task.id), `${task.title} resumed.`)}>
                       <Play size={15} />
                     </button>
                   {:else}
-                    <button class="icon-action" type="button" title={passiveWriteTitle || (watcher?.enabled ? 'Pause this passive task.' : 'Enable this watcher before pausing its task.')} disabled={passiveWriteDisabled || !watcher?.enabled} on:click={() => applyAction(`pause:${task.id}`, () => pausePassiveTask(task.id), `${task.title} paused.`)}>
+                    <button class="icon-action" type="button" title={passiveTaskPauseTitle(task, watcher)} disabled={passiveWriteDisabled || !watcher?.enabled} on:click={() => applyAction(`pause:${task.id}`, () => pausePassiveTask(task.id), `${task.title} paused.`)}>
                       <Pause size={15} />
                     </button>
                   {/if}
-                  <button class="icon-action danger" type="button" title={passiveActionTitle('Ask for confirmation before cancelling this passive task.')} disabled={passiveWriteDisabled} on:click={() => cancelTask(task)}>
+                  <button class="icon-action danger" type="button" title={passiveTaskCancelTitle(task)} disabled={passiveWriteDisabled} on:click={() => cancelTask(task)}>
                     <XCircle size={15} />
                   </button>
                 </td>
@@ -1192,7 +1241,7 @@
                 <strong>{notification.title}</strong>
                 <small>{notification.body}</small>
               </span>
-              <button class="icon-action" type="button" title={passiveActionTitle('Dismiss notification')} disabled={passiveWriteDisabled} on:click={() => applyAction(`dismiss:${notification.id}`, () => dismissPassiveNotification(notification.id), 'Notification dismissed.')}>
+              <button class="icon-action" type="button" title={passiveNotificationDismissTitle()} disabled={passiveWriteDisabled} on:click={() => applyAction(`dismiss:${notification.id}`, () => dismissPassiveNotification(notification.id), 'Notification dismissed.')}>
                 <XCircle size={15} />
               </button>
             </div>
@@ -1209,7 +1258,7 @@
           <span class="icon-chip"><Settings size={16} /></span>
           <strong>Settings</strong>
         </div>
-        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveActionTitle('Save passive task settings.')} on:click={saveSettings}>Save</button>
+        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveSettingsSaveTitle()} on:click={saveSettings}>Save</button>
       </div>
       {#if settings}
         <div class="settings-form">

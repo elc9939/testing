@@ -310,6 +310,7 @@ const routes = [
       { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'restore points recovery link', text: "href={hubHref('/settings#data-recovery')}" },
       { label: 'passive cancel prompt', text: 'Passive task cancellation skipped.' },
+      { label: 'recoverable passive action titles', text: 'passiveManualRunTitle' },
       { label: 'source health empty state', text: 'Source health appears after passive tasks are registered.' },
       { label: 'repeated service issue compaction', text: 'summarizedServiceIssueCard' },
       { label: 'compact service issue note', text: 'compact-service-note' },
