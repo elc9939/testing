@@ -618,6 +618,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("aiOsPanelEmptyMessage('No benchmark runs yet.', 'Checking AI OS benchmark runs.', 'Benchmarks')");
     expect(source).toContain("aiOsPanelEmptyMessage('No design patches yet.', 'Checking AI OS design patch history.', 'Design patches')");
     expect(source).toContain('Checking AI OS jobs.');
+    expect(source).toContain('Process this queued item for an ad hoc capability test: {item}');
+    expect(source).not.toContain('placeholder capability test');
     expect(source).toContain('No verified AI OS backup recorded yet.');
     expect(source).toContain('Loading GPU telemetry rows from AI OS.');
     expect(source).toContain('Loading GPU, VRAM, and temperature telemetry.');
@@ -678,10 +680,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('id="command-objective"');
     expect(source).not.toContain('id="command-confirm"');
     expect(source).toContain('function jobCancelBlockedReason');
+    expect(source).toContain('function jobCancelTitle');
     expect(source).toContain('Another job cancellation is already running.');
+    expect(source).toContain('Ask for confirmation before cancelling AI OS job ${job.id}. Saved Activity records remain recoverable.');
     expect(source).toContain('Cancel AI OS job "${job.id}"?');
     expect(source).toContain('AI OS job cancellation skipped.');
     expect(source).toContain('disabled={jobCancelDisabled(job)}');
+    expect(source).toContain('title={jobCancelTitle(job)}');
     expect(source).toContain('function backgroundActionBlockedReason');
     expect(source).toContain('Another ambient unit action is already running.');
     expect(source).toContain("disabled={backgroundActionDisabled(unit, 'toggle')}");

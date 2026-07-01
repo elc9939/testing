@@ -125,7 +125,7 @@
 
   let jobPrimitive = 'map';
   let jobItems = 'alpha\nbeta\ngamma';
-  let jobTemplate = 'Process this item as a placeholder capability test: {item}';
+  let jobTemplate = 'Process this queued item for an ad hoc capability test: {item}';
   let jobBusy = false;
 
   let memorySourceId = 'scratch-note';
@@ -297,6 +297,10 @@
     if (jobCancelBusyId === job.id) return 'Cancellation is already running for this job.';
     if (jobCancelBusyId) return 'Another job cancellation is already running.';
     return '';
+  }
+
+  function jobCancelTitle(job: AiJobSnapshot): string {
+    return jobCancelBlockedReason(job) || `Ask for confirmation before cancelling AI OS job ${job.id}. Saved Activity records remain recoverable.`;
   }
 
   function jobCancelDisabled(job: AiJobSnapshot): boolean {
@@ -1892,7 +1896,7 @@
             <span>{job.status}</span>
           </div>
           <progress max="1" value={job.progress}></progress>
-          <button class="icon-button" type="button" disabled={jobCancelDisabled(job)} title={jobCancelBlockedReason(job) || 'Cancel job'} aria-label={`Cancel ${job.id}`} on:click={() => cancelJob(job)}>
+          <button class="icon-button" type="button" disabled={jobCancelDisabled(job)} title={jobCancelTitle(job)} aria-label={`Cancel ${job.id}`} on:click={() => cancelJob(job)}>
             <Square size={15} />
           </button>
         </article>
