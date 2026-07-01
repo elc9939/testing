@@ -958,7 +958,7 @@
         <div>
           <span>Snapshots</span>
           <strong>{machineSnapshots.length}</strong>
-          <small>{machineSnapshots[0]?.created_at ? new Date(machineSnapshots[0].created_at).toLocaleString() : 'none saved'}</small>
+          <small>{machineSnapshots[0]?.created_at ? new Date(machineSnapshots[0].created_at).toLocaleString() : 'No machine profile snapshots saved yet.'}</small>
         </div>
       </div>
       {#if machineProfile.autotune.routing_notes?.length}

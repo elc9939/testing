@@ -1706,6 +1706,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Machine Mode cannot save because Mini Hub API is not ready');
     expect(source).toContain('id="machine-mode"');
     expect(source).toContain('disabled={modeSaving || !canSync}');
+    expect(source).toContain('No machine profile snapshots saved yet.');
+    expect(source).not.toContain("'none saved'");
     expect(source).toContain("{machineProfileError && !machineProfile ? 'Retry Profile' : 'Refresh Profile'}");
     expect(source).toContain('passiveSettingsBlockedReason = passiveSettingsControlBlockedReason');
     expect(source).toContain('function passiveSettingsControlBlockedReason');
