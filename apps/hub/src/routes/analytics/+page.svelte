@@ -16,6 +16,7 @@
   $: rows = buildAnalyticsMetricRows($clientData);
   $: viewState = analyticsViewState($clientData, rows);
   $: viewMessage = analyticsViewMessage($clientData, rows);
+  $: visibleViewMessage = viewState === 'error' ? compactAnalyticsIssue(viewMessage) : viewMessage;
   $: trendValues = buildStudyMinutesTrend($clientData.studySessions);
   $: hasMetrics = rows.some((row) => row.value > 0);
   $: hasTrend = trendValues.some((value) => value > 0);
@@ -50,7 +51,7 @@
     if (!$clientData.initialized) return 'Opening PGlite/browser cache.';
     if ($clientData.lastSyncedAt) return `Last sync ${displayTime($clientData.lastSyncedAt)}`;
     if ($clientData.status === 'offline-readonly') return 'No live sync; showing saved browser data.';
-    if ($clientData.status === 'error') return $clientData.error || 'Cache status reported an error.';
+    if ($clientData.status === 'error') return compactAnalyticsIssue($clientData.error || 'Cache status reported an error.');
     return 'No completed sync yet; refresh or open Data & Recovery to inspect the cache.';
   }
 
@@ -72,7 +73,7 @@
     if (refreshError) return 'Refresh failed; existing cached rows stay visible when available.';
     if (renderError) return 'The chart renderer could not load, but the cached row counts above are still usable.';
     if (viewState === 'offline') return 'No cached Career, Study, or game records are available in this browser yet.';
-    if (viewState === 'error') return $clientData.error || 'The browser cache needs attention before analytics can render.';
+    if (viewState === 'error') return compactAnalyticsIssue($clientData.error || 'The browser cache needs attention before analytics can render.');
     return 'Add real records in Career, Study, or games and this panel will render them.';
   }
 
@@ -88,7 +89,7 @@
     if (!$clientData.initialized) return 'Opening browser cache before drawing the seven-day trend.';
     if (refreshError) return 'Refresh failed; cached study sessions remain visible when available.';
     if (viewState === 'offline') return 'No cached study sessions are available in this browser yet.';
-    if (viewState === 'error') return $clientData.error || 'The browser cache needs attention before study trends can render.';
+    if (viewState === 'error') return compactAnalyticsIssue($clientData.error || 'The browser cache needs attention before study trends can render.');
     return 'Log a study session to build the seven-day local trend.';
   }
 
@@ -168,7 +169,7 @@
 
 <section class={`card card-pad analytics-state ${refreshError ? 'error' : viewState}`}>
   <strong>{refreshError ? 'Refresh needs attention' : viewState === 'ready' ? 'Connected Data' : viewState === 'offline' ? 'Cached Data' : viewState === 'empty' ? 'Healthy Empty' : viewState === 'error' ? 'Action Needed' : 'Opening Cache'}</strong>
-  <p>{viewMessage}</p>
+  <p title={viewState === 'error' && $clientData.error ? `Raw Analytics cache error: ${$clientData.error}` : visibleViewMessage}>{visibleViewMessage}</p>
   {#if analyticsIssue}
     <div class="analytics-issue" title={`Raw Analytics error: ${analyticsIssue}`}>
       <p class="error-text">{visibleAnalyticsIssue}</p>
