@@ -68,6 +68,8 @@
     studySummaryLoading: boolean;
   }
 
+  const studyEditRowEnabledTitle = 'Edit this saved study log inline; save or cancel the row to keep changes.';
+
   let summary: LegacyImportSummary | null = null;
   let subject = 'NeetCode';
   let minutes = 30;
@@ -148,8 +150,12 @@
     if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Study logs.';
     if (state.rowBusyId === rowId) return 'This Study row action is already running.';
     if (state.rowBusyId) return 'Another Study row action is already running.';
-    if (state.editingSessionId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another study log.';
+    if (state.editingSessionId && enabledTitle === studyEditRowEnabledTitle) return 'Finish or cancel the current edit before editing another study log.';
     return enabledTitle;
+  }
+
+  function studyEditRowTitle(state: Pick<StudyControlState, 'canSave' | 'rowBusyId' | 'editingSessionId'>, rowId: string): string {
+    return studyRowTitle(state, studyEditRowEnabledTitle, rowId);
   }
 
   function saveLogEditTitle(state: StudyControlState, draft: StudyDraft): string {
@@ -772,7 +778,7 @@
               <td>{displayDateTime(log.updatedAt)}</td>
               <td class="actions-cell">
                 <div class="row-actions">
-                  <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title={studyRowTitle(studyControlState, 'Edit', log.id)} disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
+                  <button class="icon-button" type="button" aria-label={`Edit ${log.subject}`} title={studyEditRowTitle(studyControlState, log.id)} disabled={!canSave || !!editingSessionId || rowBusyId === log.id} on:click={() => startEditLog(log)}>
                     <Edit3 size={16} />
                   </button>
                   <button class="icon-button danger" type="button" aria-label={`Delete ${log.subject}`} title={studyRowTitle(studyControlState, 'Ask for confirmation before deleting this saved study log.', log.id)} disabled={!canSave || rowBusyId === log.id} on:click={() => deleteLog(log)}>

@@ -52,6 +52,7 @@
 
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
+  const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
 
   let summary: LegacyImportSummary | null = null;
   let localDevOrigin = false;
@@ -127,8 +128,12 @@
     if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Career rows.';
     if (state.rowBusyId === rowId) return 'This Career row action is already running.';
     if (state.rowBusyId) return 'Another Career row action is already running.';
-    if (state.editingJobId && enabledTitle === 'Edit') return 'Finish or cancel the current edit before editing another job.';
+    if (state.editingJobId && enabledTitle === careerEditRowEnabledTitle) return 'Finish or cancel the current edit before editing another job.';
     return enabledTitle;
+  }
+
+  function careerEditRowTitle(state: Pick<CareerControlState, 'canSave' | 'rowBusyId' | 'editingJobId'>, rowId: string): string {
+    return careerRowTitle(state, careerEditRowEnabledTitle, rowId);
   }
 
   function saveJobEditTitle(state: CareerControlState, draft: JobDraft): string {
@@ -816,7 +821,7 @@
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">
-                <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title={careerRowTitle(careerControlState, 'Edit', job.id)} disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
+                <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title={careerEditRowTitle(careerControlState, job.id)} disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
                   <Edit3 size={16} />
                 </button>
                 <button class="icon-button danger" type="button" aria-label={`Delete ${job.company}`} title={careerRowTitle(careerControlState, 'Ask for confirmation before deleting this saved job.', job.id)} disabled={!canSave || rowBusyId === job.id} on:click={() => deleteJob(job)}>

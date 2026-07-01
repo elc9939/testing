@@ -2373,10 +2373,11 @@ async function runDeskApiSaveChecks(client, baseUrl, apiUrl = '') {
           const button = [...document.querySelectorAll('button')].find((candidate) => candidate.getAttribute('aria-label') === 'Edit Hydrated API Smoke Labs');
           const title = button?.getAttribute('title') || '';
           const disabled = Boolean(button?.disabled);
+          const explanatoryTitle = /Edit this saved job inline/i.test(title);
           return {
-            ok: Boolean(button) && !disabled,
+            ok: Boolean(button) && !disabled && explanatoryTitle,
             state: button && !disabled ? 'ready' : 'waiting',
-            detail: button ? \`Edit button disabled=\${disabled}; title="\${title}"\` : 'Waiting for Career edit button.'
+            detail: button ? \`Edit button disabled=\${disabled}; explanatoryTitle=\${explanatoryTitle}; title="\${title}"\` : 'Waiting for Career edit button.'
           };
         })()`,
         15_000
@@ -2544,10 +2545,11 @@ async function runDeskApiSaveChecks(client, baseUrl, apiUrl = '') {
           const button = [...document.querySelectorAll('button')].find((candidate) => candidate.getAttribute('aria-label') === 'Edit Hydrated API Study');
           const title = button?.getAttribute('title') || '';
           const disabled = Boolean(button?.disabled);
+          const explanatoryTitle = /Edit this saved study log inline/i.test(title);
           return {
-            ok: Boolean(button) && !disabled,
+            ok: Boolean(button) && !disabled && explanatoryTitle,
             state: button && !disabled ? 'ready' : 'waiting',
-            detail: button ? \`Edit button disabled=\${disabled}; title="\${title}"\` : 'Waiting for Study edit button.'
+            detail: button ? \`Edit button disabled=\${disabled}; explanatoryTitle=\${explanatoryTitle}; title="\${title}"\` : 'Waiting for Study edit button.'
           };
         })()`,
         15_000

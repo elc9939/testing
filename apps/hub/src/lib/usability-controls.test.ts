@@ -1283,6 +1283,8 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('Raw Career mail scan error:');
     expect(career).toContain('function careerSaveTitle');
     expect(career).toContain('function careerRowTitle');
+    expect(career).toContain('function careerEditRowTitle');
+    expect(career).toContain('Edit this saved job inline; save or cancel the row to keep changes.');
     expect(career).toContain('function careerMailUpdatesTitle');
     expect(career).toContain('function careerMailPanelStatus');
     expect(career).toContain('function careerMailEmptyMessage');
@@ -1320,7 +1322,8 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('title={addJobButtonTitle}');
     expect(career).toContain('title={saveJobEditButtonTitle}');
     expect(career).toContain('title={careerMailUpdatesButtonTitle}');
-    expect(career).toContain("title={careerRowTitle(careerControlState, 'Edit', job.id)}");
+    expect(career).toContain('title={careerEditRowTitle(careerControlState, job.id)}');
+    expect(career).not.toContain("title={careerRowTitle(careerControlState, 'Edit', job.id)}");
     expect(career).toContain("title={careerSaveTitle(careerControlState, 'Company name.')}");
     expect(career).toContain('Delete "${job.role}" at ${job.company}?');
     expect(career).toContain('Career delete skipped.');
@@ -1344,6 +1347,8 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('studySummaryButtonTitle = studySummaryTitle(studyControlState)');
     expect(study).toContain('function studySaveTitle');
     expect(study).toContain('function studyRowTitle');
+    expect(study).toContain('function studyEditRowTitle');
+    expect(study).toContain('Edit this saved study log inline; save or cancel the row to keep changes.');
     expect(study).toContain('function studyLogsEmptyMessage');
     expect(study).toContain('function studyCareerActionsEmptyMessage');
     expect(study).toContain('let studySummaryLoading = false');
@@ -1355,7 +1360,8 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('disabled={!canSave || saving || !subject.trim() || minutes < 1}');
     expect(study).toContain('title={addLogButtonTitle}');
     expect(study).toContain('title={saveLogEditButtonTitle}');
-    expect(study).toContain("title={studyRowTitle(studyControlState, 'Edit', log.id)}");
+    expect(study).toContain('title={studyEditRowTitle(studyControlState, log.id)}');
+    expect(study).not.toContain("title={studyRowTitle(studyControlState, 'Edit', log.id)}");
     expect(study).toContain("title={studySaveTitle(studyControlState, 'Study label.')}");
     expect(study).toContain('Delete ${log.minutes} min for "${log.subject}"?');
     expect(study).toContain('Study delete skipped.');
