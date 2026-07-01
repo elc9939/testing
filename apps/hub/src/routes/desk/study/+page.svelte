@@ -621,7 +621,7 @@
       <div><span>GitHub Repo</span><strong>{legacyGithub.repo}</strong></div>
       <div><span>Submissions</span><strong>{legacyGithub.submissions}</strong></div>
       <div><span>Problems</span><strong>{legacyGithub.problems}</strong></div>
-      <div><span>Last Sync</span><strong>{legacyGithub.lastSync ? displayDateTime(legacyGithub.lastSync) : 'Never'}</strong></div>
+      <div><span>Last Sync</span><strong>{legacyGithub.lastSync ? displayDateTime(legacyGithub.lastSync) : 'No legacy GitHub sync recorded'}</strong></div>
     </div>
 
     <details class="legacy-details">

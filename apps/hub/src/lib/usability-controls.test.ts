@@ -1301,6 +1301,8 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('Opening cached linked career actions before live API sync.');
     expect(study).toContain('No linked career actions have been imported or created yet.');
     expect(study).not.toContain('No study logs in this Svelte workspace yet.');
+    expect(study).toContain('No legacy GitHub sync recorded');
+    expect(study).not.toContain("legacyGithub.lastSync ? displayDateTime(legacyGithub.lastSync) : 'Never'");
     expect(study).toContain("studyViewStorageKey = 'miniHub.study.view.v1'");
     expect(study).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
     expect(study).toContain('const storage = getBrowserStorage()');
