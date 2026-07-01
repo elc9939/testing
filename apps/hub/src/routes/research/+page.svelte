@@ -30,6 +30,7 @@
   import { getBrowserStorage } from '$lib/browser-storage';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint } from '$lib/service-config';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
   import {
     compactResearchServiceIssue,
     isResearchServiceError,
@@ -132,9 +133,10 @@
   $: excludeDomains = splitList(excludeDomainsText);
   $: serviceIssue = compactResearchServiceIssue([error, monitorError, sourceLibraryError]);
   $: aiOsUnavailable = Boolean(serviceIssue);
-  $: visibleRunError = serviceIssue && isResearchServiceError(error) ? '' : error;
-  $: visibleMonitorError = serviceIssue && isResearchServiceError(monitorError) ? '' : monitorError;
-  $: visibleSourceLibraryError = serviceIssue && isResearchServiceError(sourceLibraryError) ? '' : sourceLibraryError;
+  $: visibleRunError = serviceIssue && isResearchServiceError(error) ? '' : compactResearchInlineError(error, 'Research run');
+  $: visibleMonitorError = serviceIssue && isResearchServiceError(monitorError) ? '' : compactResearchInlineError(monitorError, 'Research monitor');
+  $: visibleSourceLibraryError =
+    serviceIssue && isResearchServiceError(sourceLibraryError) ? '' : compactResearchInlineError(sourceLibraryError, 'Research source library');
   $: runsPanelState = researchRunListState({ loading: refreshing, error: visibleRunError, runCount: runs.length });
   $: researchRunBlockedReason = researchRunDisabledReason({
     loading,
@@ -261,6 +263,17 @@
     if (serviceProbePending) return 'Checking archived source cards.';
     if (aiOsUnavailable) return 'Archived sources will reload after the AI OS service card reconnects.';
     return 'No archived sources matched. Run a research job first, or relax the search/domain filter.';
+  }
+
+  function compactResearchInlineError(value = '', label = 'Research'): string {
+    const text = value.trim();
+    if (!text) return '';
+    const compact = compactServiceIssueIfRecognized(text, label);
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
+  }
+
+  function monitorLastErrorDetail(monitor: ResearchMonitor): string {
+    return compactResearchInlineError(monitor.last_error ?? '', 'Research monitor');
   }
 
   function selectedReportSectionEmptyMessage(section: ResearchReportSection): string {
@@ -1201,7 +1214,7 @@
           <span>{serviceBlockedLabel}</span>
         </button>
         {#if message}<p class="ok-message">{message}</p>{/if}
-        {#if visibleRunError}<p class="error-message">{visibleRunError}</p>{/if}
+        {#if visibleRunError}<p class="error-message" title={`Raw Research run error: ${error}`}>{visibleRunError}</p>{/if}
       </div>
     </form>
 
@@ -1287,7 +1300,7 @@
     </div>
 
     {#if visibleMonitorError}
-      <p class="error-message monitor-note">{visibleMonitorError}</p>
+      <p class="error-message monitor-note" title={`Raw Research monitor error: ${monitorError}`}>{visibleMonitorError}</p>
     {:else if monitorMessage}
       <p class="ok-message monitor-note">{monitorMessage}</p>
     {/if}
@@ -1304,7 +1317,9 @@
               </div>
             </div>
             <p>{monitor.request.goal}</p>
-            {#if monitor.last_error}<p class="error-message compact-message">{monitor.last_error}</p>{/if}
+            {#if monitor.last_error}
+              <p class="error-message compact-message" title={`Raw Research monitor last error: ${monitor.last_error}`}>{monitorLastErrorDetail(monitor)}</p>
+            {/if}
             <div class="monitor-actions">
               <button type="button" disabled={monitorActionDisabled(monitorActionState, monitor)} title={monitorActionTitle(monitorActionState, 'Run this monitor now.', monitor)} on:click={() => runMonitor(monitor)}>
                 <Play size={15} />
@@ -1359,7 +1374,7 @@
     </form>
 
     {#if visibleSourceLibraryError}
-      <p class="error-message source-library-note">{visibleSourceLibraryError}</p>
+      <p class="error-message source-library-note" title={`Raw Research source library error: ${sourceLibraryError}`}>{visibleSourceLibraryError}</p>
     {:else if sourceLibraryMessage}
       <p class="ok-message source-library-note">{sourceLibraryMessage}</p>
     {/if}

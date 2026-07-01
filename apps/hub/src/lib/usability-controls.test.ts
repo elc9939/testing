@@ -378,7 +378,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('isResearchServiceError');
     expect(source).toContain('visibleRunError = serviceIssue && isResearchServiceError(error) ?');
     expect(source).toContain('visibleMonitorError = serviceIssue && isResearchServiceError(monitorError) ?');
-    expect(source).toContain('visibleSourceLibraryError = serviceIssue && isResearchServiceError(sourceLibraryError) ?');
+    expect(source).toContain('visibleSourceLibraryError =');
+    expect(source).toContain("compactResearchInlineError(sourceLibraryError, 'Research source library')");
+    expect(source).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
+    expect(source).toContain('function compactResearchInlineError');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, label)");
+    expect(source).toContain('function monitorLastErrorDetail');
+    expect(source).toContain('Raw Research run error:');
+    expect(source).toContain('Raw Research monitor error:');
+    expect(source).toContain('Raw Research monitor last error:');
+    expect(source).toContain('Raw Research source library error:');
     expect(source).toContain('class="service-card"');
     expect(source).toContain('let serviceProbePending = true');
     expect(source).toContain('function initialResearchServiceCheck');
