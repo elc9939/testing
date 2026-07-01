@@ -1052,9 +1052,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function activityRefreshBlockedReason');
     expect(source).toContain('function activityEmptyTitle');
     expect(source).toContain('No live activity loaded from reachable sources.');
+    expect(source).toContain('No durable work recorded yet.');
     expect(source).toContain('function activityEmptyDetail');
     expect(source).toContain('Start or fix AI OS, Passive Tasks, or Macro Lab in Settings Feature Wiring');
+    expect(source).toContain('Start a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run; Activity will list it here after refresh.');
     expect(source).toContain('cached record');
+    expect(source).not.toContain('No durable activity yet.');
     expect(source).toContain('function activityEmptyRefreshTitle');
     expect(source).toContain('function dismissedToggleTitle');
     expect(source).toContain('function restoreDismissedTitle');

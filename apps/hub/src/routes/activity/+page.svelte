@@ -309,7 +309,7 @@
   function activityEmptyTitle(): string {
     if (partial || sourceFailures.length) return 'No live activity loaded from reachable sources.';
     if (stale) return 'No cached Activity records.';
-    return 'No durable activity yet.';
+    return 'No durable work recorded yet.';
   }
 
   function activityEmptyDetail(): string {
@@ -317,7 +317,7 @@
       return 'Activity checked the durable work sources it could reach. Start or fix AI OS, Passive Tasks, or Macro Lab in Settings Feature Wiring, then retry.';
     }
     if (stale) return 'The browser cache is available, but it does not contain any durable work records yet.';
-    return 'When a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run exists in its backend, it will appear here after refresh.';
+    return 'Start a research run, AI OS job, tool call, generated asset, passive sweep, backup, benchmark, or macro run; Activity will list it here after refresh.';
   }
 
   function activityEmptyRefreshTitle(state: Pick<ActivityControlState, 'refreshBlockedReason'>): string {
