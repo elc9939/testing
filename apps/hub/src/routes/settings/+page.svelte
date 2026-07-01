@@ -647,7 +647,7 @@
   function actionLedgerEmptyMessage(): string {
     if (actionLedgerLoading) return 'Loading action ledger.';
     if (actionLedgerError) return visibleActionLedgerError || 'Action Ledger needs attention.';
-    if (!actionLedgerSnapshot) return 'Action Ledger has not loaded yet. Use Refresh or Check Services to inspect Hub, AI OS, Macro Lab, and browser actions.';
+    if (!actionLedgerSnapshot) return 'Action Ledger needs a fresh source check. Use Refresh or Check Services to inspect Hub, AI OS, Macro Lab, and browser actions.';
     if (actionLedgerSnapshot.errors.length) {
       return 'No action rows loaded from reachable sources. The source issue is shown below; browser-only actions will still appear here when recorded.';
     }
@@ -1328,7 +1328,7 @@
   {:else if passiveError}
     <p class="sync-error">{passiveError}</p>
   {:else}
-    <p class="helper-text">Passive task settings have not loaded yet.</p>
+    <p class="helper-text">Passive task settings need a fresh source check. Use Check Services or open Passive Tasks.</p>
   {/if}
 </section>
 

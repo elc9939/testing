@@ -1716,8 +1716,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("machineProfile.autotune.suggested_max_job_concurrency ?? 'not measured'");
     expect(source).toContain("endpointMessage = 'Saved. Checking services with the new URLs.'");
     expect(source).toContain('Loading passive task settings.');
+    expect(source).toContain('Passive task settings need a fresh source check. Use Check Services or open Passive Tasks.');
     expect(source).toContain('Loading action ledger.');
-    expect(source).toContain('Action Ledger has not loaded yet. Use Refresh or Check Services to inspect Hub, AI OS, Macro Lab, and browser actions.');
+    expect(source).toContain('Action Ledger needs a fresh source check. Use Refresh or Check Services to inspect Hub, AI OS, Macro Lab, and browser actions.');
     expect(source).toContain('No action rows loaded from reachable sources.');
     expect(source).toContain('No action ledger entries are recorded yet. New saves, AI OS jobs, passive work, and Macro Lab runs will appear here.');
     expect(source).toContain('Raw Action Ledger error:');
@@ -1725,7 +1726,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('No action ledger entries are available yet.');
     expect(source).not.toContain('Saved. Checking services with the new URLs...');
     expect(source).not.toContain('Loading passive task settings...');
+    expect(source).not.toContain('Passive task settings have not loaded yet.');
     expect(source).not.toContain('Loading action ledger...');
+    expect(source).not.toContain('Action Ledger has not loaded yet.');
     expect(source).toContain('disabled={exportBusy}');
     expect(source).toContain('disabled={endpointSaving}');
     expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");
