@@ -370,13 +370,13 @@
 
   function aiOsMetricLabel(value: number | undefined, suffix = ''): string {
     if (loading && !status) return 'checking';
-    if (!status) return 'not reported yet';
+    if (!status) return 'Refresh needed';
     return numberLabel(value, suffix);
   }
 
   function aiOsCountLabel(value: number): string {
     if (loading && !status) return 'checking';
-    if (!status) return 'not reported yet';
+    if (!status) return 'Refresh needed';
     return String(value);
   }
 

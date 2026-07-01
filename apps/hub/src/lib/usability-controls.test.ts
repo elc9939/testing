@@ -580,7 +580,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function aiOsMetricLabel');
     expect(source).toContain('function aiOsCountLabel');
     expect(source).toContain("if (loading && !status) return 'checking'");
-    expect(source).toContain("if (!status) return 'not reported yet'");
+    expect(source).toContain("if (!status) return 'Refresh needed'");
+    expect(source).not.toContain("if (!status) return 'not reported yet'");
     expect(source).toContain("return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : 'not measured'");
     expect(source).toContain('function aiOsRamDetail');
     expect(source).toContain('Service status is shown above; memory telemetry has not been checked.');
