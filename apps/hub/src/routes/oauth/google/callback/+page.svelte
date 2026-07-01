@@ -8,12 +8,15 @@
     googleOAuthStateReturnTo
   } from '$lib/productivity-oauth';
   import { hubHref } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   let title = 'Finishing Google connection';
   let detail = 'Mini Hub is saving the Google OAuth grant through your local API.';
+  let rawDetail = '';
   let stateReturnTo = '';
   let returnHref = hubHref('/productivity');
   let returnLinkTitle = 'Return to Productivity if Google OAuth does not redirect automatically.';
+  $: visibleDetail = rawDetail ? compactGoogleOAuthIssue(detail || rawDetail) : detail;
 
   function fallbackRedirectUrl(status: string, message?: string): string {
     const target = new URL(hubHref('/productivity'), window.location.origin);
@@ -61,7 +64,8 @@
     const targetOrigin = new URL(redirectUrl).origin;
 
     title = result.ok ? 'Google connected' : 'Google connection needs attention';
-    detail = result.ok ? 'Returning to Mini Hub...' : result.message || 'Returning to Mini Hub with the error details.';
+    rawDetail = result.ok ? '' : result.message || '';
+    detail = result.ok ? 'Returning to Mini Hub...' : rawDetail || 'Returning to Mini Hub with the error details.';
 
     if (window.opener && !window.opener.closed) {
       let attempts = 0;
@@ -92,7 +96,15 @@
     });
     returnLinkTitle = 'Open Productivity with the Google OAuth result message.';
     title = result.ok ? 'Google connected' : 'Google connection needs attention';
-    detail = result.ok ? 'Open Productivity to continue.' : result.message || 'Open Productivity for the error details.';
+    rawDetail = result.ok ? '' : result.message || '';
+    detail = result.ok ? 'Open Productivity to continue.' : rawDetail || 'Open Productivity for the error details.';
+  }
+
+  function compactGoogleOAuthIssue(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'Google OAuth needs attention. Open Productivity or Settings Feature Wiring.';
+    const compact = compactServiceIssueIfRecognized(text, 'Google OAuth');
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
   onMount(() => {
@@ -136,7 +148,7 @@
   <section>
     <h1>Google OAuth</h1>
     <strong>{title}</strong>
-    <p>{detail}</p>
+    <p title={rawDetail ? `Raw Google OAuth error: ${rawDetail}` : visibleDetail}>{visibleDetail}</p>
     <a class="button compact" href={returnHref} title={returnLinkTitle}>Open Productivity</a>
   </section>
 </main>

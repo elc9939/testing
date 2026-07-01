@@ -1190,7 +1190,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('googleOAuthStateReturnTo');
     expect(source).toContain('storedReturnTo');
     expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
+    expect(source).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
     expect(source).toContain("const storage = getBrowserStorage('session')");
+    expect(source).toContain('let rawDetail =');
+    expect(source).toContain('visibleDetail = rawDetail ? compactGoogleOAuthIssue(detail || rawDetail) : detail');
+    expect(source).toContain('function compactGoogleOAuthIssue');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, 'Google OAuth')");
+    expect(source).toContain('Raw Google OAuth error:');
     expect(source).toContain('window.opener.postMessage');
     expect(source).toContain('function showManualResult');
     expect(source).toContain('Google OAuth did not return a usable authorization code.');
