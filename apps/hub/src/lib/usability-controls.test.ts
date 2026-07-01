@@ -1639,7 +1639,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function liveRenderState');
     expect(source).toContain('function liveHydrationState');
     expect(source).toContain('client-rendered shell');
-    expect(source).toContain('client shell only; browser pass needed');
+    expect(source).toContain('static shell only; run qa:hub:hydrated for browser controls');
+    expect(source).toContain('pnpm qa:hub:hydrated; pnpm qa:hub:usability runs static, hosted, and hydrated passes together');
+    expect(source).toContain('Run pnpm qa:hub:hydrated or pnpm qa:hub:usability for actual control clicks.');
+    expect(source).not.toContain('client shell only; browser pass needed');
     expect(source).toContain('HUB_SMOKE_REQUIRE_HYDRATED');
     expect(source).toContain("args.has('--require-hydrated')");
     expect(source).toContain('rawNotFound');
