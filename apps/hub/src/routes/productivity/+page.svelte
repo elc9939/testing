@@ -576,6 +576,24 @@
     return 'Open Gmail thread and fetch the latest messages.';
   }
 
+  function gmailThreadReadActionTitle(thread: GmailThread): string {
+    if (thread.unread) {
+      return productivityActionTitle(`Mark "${thread.subject}" read in Gmail; it leaves the priority queue and the browser cache refreshes.`);
+    }
+    return productivityActionTitle(`Mark "${thread.subject}" unread in Gmail; the priority inbox and browser cache refresh afterward.`);
+  }
+
+  function gmailThreadImportantActionTitle(thread: GmailThread): string {
+    if (isThreadImportant(thread)) {
+      return productivityActionTitle(`Remove the IMPORTANT label from "${thread.subject}" in Gmail; the visible thread state refreshes afterward.`);
+    }
+    return productivityActionTitle(`Add the IMPORTANT label to "${thread.subject}" in Gmail; the visible thread state refreshes afterward.`);
+  }
+
+  function gmailThreadArchiveActionTitle(thread: GmailThread): string {
+    return productivityActionTitle(`Archive "${thread.subject}" in Gmail; this does not delete it, and the priority list plus browser cache refresh afterward.`);
+  }
+
   function productivityReadTitle(enabledTitle: string): string {
     if (loading) return 'Productivity is still loading the latest connection state.';
     if (!productivityReady) return 'Connect the API and Google to load live calendar controls. Cached data remains visible.';
@@ -1549,7 +1567,7 @@
                 <Mail size={16} />
                 <span>{isActionBusy(`gmail:open:${thread.id}`) ? 'Opening' : 'Open'}</span>
               </button>
-              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={productivityActionTitle(thread.unread ? 'Mark read' : 'Mark unread')} on:click={() => toggleRead(thread)}>
+              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={thread.unread ? `Mark ${thread.subject} read` : `Mark ${thread.subject} unread`} title={gmailThreadReadActionTitle(thread)} on:click={() => toggleRead(thread)}>
                 <MailOpen size={16} />
                 <span>{isActionBusy(`gmail:read:${thread.id}`) ? 'Working' : thread.unread ? 'Read' : 'Unread'}</span>
               </button>
@@ -1559,7 +1577,7 @@
                 type="button"
                 aria-label={isThreadImportant(thread) ? `Remove important from ${thread.subject}` : `Mark ${thread.subject} important`}
                 disabled={productivityWriteDisabled}
-                title={productivityActionTitle(isThreadImportant(thread) ? 'Remove important' : 'Mark important')}
+                title={gmailThreadImportantActionTitle(thread)}
                 on:click={() => toggleImportant(thread)}
               >
                 {#if isThreadImportant(thread)}
@@ -1570,7 +1588,7 @@
                   <span>{isActionBusy(`gmail:important:${thread.id}`) ? 'Working' : 'Important'}</span>
                 {/if}
               </button>
-              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={`Archive ${thread.subject}`} title={productivityActionTitle('Archive')} on:click={() => archiveThread(thread)}>
+              <button class="icon-button" type="button" disabled={productivityWriteDisabled} aria-label={`Archive ${thread.subject}`} title={gmailThreadArchiveActionTitle(thread)} on:click={() => archiveThread(thread)}>
                 <Archive size={16} />
                 <span>{isActionBusy(`gmail:archive:${thread.id}`) ? 'Archiving' : 'Archive'}</span>
               </button>
@@ -1590,11 +1608,11 @@
     </div>
     {#if selectedGmailThread}
       <div class="mail-actions">
-        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Toggle read state')} on:click={toggleSelectedRead}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={gmailThreadReadActionTitle(selectedGmailThread)} on:click={toggleSelectedRead}>
           <MailOpen size={17} />
           <span>{selectedGmailThread.unread ? 'Mark Read' : 'Mark Unread'}</span>
         </button>
-        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Toggle important state')} on:click={toggleSelectedImportant}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={gmailThreadImportantActionTitle(selectedGmailThread)} on:click={toggleSelectedImportant}>
           {#if isThreadImportant(selectedGmailThread)}
             <StarOff size={17} />
             <span>Unmark Important</span>
@@ -1603,7 +1621,7 @@
             <span>Mark Important</span>
           {/if}
         </button>
-        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Archive selected thread')} on:click={archiveSelectedThread}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={gmailThreadArchiveActionTitle(selectedGmailThread)} on:click={archiveSelectedThread}>
           <Archive size={17} />
           <span>Archive</span>
         </button>

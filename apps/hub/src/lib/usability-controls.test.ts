@@ -957,6 +957,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('productivityRefreshButtonTitle = productivityRefreshTitle(productivityControlTitleState)');
     expect(source).toContain('gmailRefreshButtonTitle = gmailRefreshTitle(productivityControlTitleState)');
     expect(source).toContain('gmailThreadOpenButtonTitle = gmailThreadOpenTitle(productivityControlTitleState)');
+    expect(source).toContain('function gmailThreadReadActionTitle');
+    expect(source).toContain('function gmailThreadImportantActionTitle');
+    expect(source).toContain('function gmailThreadArchiveActionTitle');
     expect(source).toContain('selectedLabelButtonTitle = selectedLabelActionTitle(productivityControlTitleState)');
     expect(source).toContain('replyDraftButtonTitle = replyActionTitle(productivityControlTitleState, false)');
     expect(source).toContain('replySendButtonTitle = replyActionTitle(productivityControlTitleState, true)');
@@ -972,6 +975,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={productivityRefreshButtonTitle}');
     expect(source).toContain('title={gmailRefreshButtonTitle}');
     expect(source).toContain('title={gmailThreadOpenButtonTitle}');
+    expect(source).toContain('title={gmailThreadReadActionTitle(thread)}');
+    expect(source).toContain('title={gmailThreadImportantActionTitle(thread)}');
+    expect(source).toContain('title={gmailThreadArchiveActionTitle(thread)}');
+    expect(source).toContain('title={gmailThreadReadActionTitle(selectedGmailThread)}');
+    expect(source).toContain('title={gmailThreadImportantActionTitle(selectedGmailThread)}');
+    expect(source).toContain('title={gmailThreadArchiveActionTitle(selectedGmailThread)}');
     expect(source).toContain('title={selectedLabelButtonTitle}');
     expect(source).toContain('title={eventSaveButtonTitle}');
     expect(source).toContain('function productivityWriteStateLabel');
@@ -1057,6 +1066,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title="Close the event editor without saving changes."');
     expect(source).toContain('Open the cached thread preview. Connect the API and Google to fetch full messages.');
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
+    expect(source).toContain('it leaves the priority queue and the browser cache refreshes');
+    expect(source).toContain('this does not delete it, and the priority list plus browser cache refresh afterward');
+    expect(source).toContain('Remove the IMPORTANT label');
     expect(source).toContain('cached productivity data can stay visible');
     expect(source).toContain("googleOAuthOpening ? 'Opening sign-in'");
     expect(source).not.toContain('No local cache yet');
@@ -1068,6 +1080,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('No events found in this window.');
     expect(source).not.toContain('No events found in this range.');
     expect(source).not.toContain('No timeline items loaded yet.');
+    expect(source).not.toContain("title={productivityActionTitle(thread.unread ? 'Mark read' : 'Mark unread')}");
+    expect(source).not.toContain("title={productivityActionTitle(isThreadImportant(thread) ? 'Remove important' : 'Mark important')}");
+    expect(source).not.toContain("title={productivityActionTitle('Archive')}");
+    expect(source).not.toContain("title={productivityActionTitle('Toggle read state')}");
+    expect(source).not.toContain("title={productivityActionTitle('Toggle important state')}");
+    expect(source).not.toContain("title={productivityActionTitle('Archive selected thread')}");
     expect(source).toContain('{productivityApiBannerText}');
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain('disabled={productivityRefreshDisabled}');

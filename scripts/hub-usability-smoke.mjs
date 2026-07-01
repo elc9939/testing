@@ -87,6 +87,7 @@ const routes = [
       { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'calendar event disabled title', text: 'calendarEventBlockTitle' },
       { label: 'calendar move confirmation', text: 'Calendar move skipped.' },
+      { label: 'Gmail write action titles', text: 'gmailThreadArchiveActionTitle' },
       { label: 'offline cache banner', text: 'offline-banner' },
       { label: 'cached productivity wording', text: 'cached productivity data can stay visible' },
       { label: 'browser cache warning state', text: 'cacheWarning' },
