@@ -776,8 +776,11 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('function confirmMacroSideEffectRun');
     expect(macro).toContain('window.confirm(');
     expect(macro).toContain('Confirmed macro run skipped.');
+    expect(macro).toContain('Start Macro Lab recording? Keyboard and mouse events will be captured until you press Stop.');
+    expect(macro).toContain('Macro recording skipped.');
     expect(macro).toContain('!dryRun && confirm && !confirmMacroSideEffectRun(selectedMacro)');
     expect(macro).toContain("title={macroControlTitle || 'Ask for confirmation before running this macro with real desktop side effects.'}");
+    expect(macro).toContain("title={macroControlTitle || 'Ask for confirmation before recording keyboard and mouse input.'}");
     expect(macro).toContain("title={macroEditorBlockedTitle('dry run')}");
     expect(macro).toContain("title={macroEditorBlockedTitle('confirmed run')}");
     expect(macro).toContain('disabled={macroControlDisabled}');

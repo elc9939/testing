@@ -289,6 +289,10 @@
 
   async function callControl(kind: 'panic' | 'reset' | 'reload' | 'record' | 'stop-record'): Promise<void> {
     if (!requireMacroReady(`Macro ${kind}`)) return;
+    if (kind === 'record' && !window.confirm('Start Macro Lab recording? Keyboard and mouse events will be captured until you press Stop.')) {
+      actionError = 'Macro recording skipped.';
+      return;
+    }
     busy = true;
     actionError = '';
     try {
@@ -451,7 +455,7 @@
       <Clipboard size={17} />
     </div>
     <div class="action-row">
-      <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Record keyboard and mouse input.'} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
+      <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Ask for confirmation before recording keyboard and mouse input.'} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
       <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Stop the current recorder.'} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
     </div>
     {#if result}
