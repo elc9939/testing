@@ -261,6 +261,7 @@ const routes = [
       { label: 'connection card', text: 'connection-card' },
       { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
       { label: 'warmup gate', text: 'warmupBlockedReason' },
+      { label: 'recoverable AI OS action titles', text: 'aiOsCommandRunTitle' },
       { label: 'ambient action titles', text: 'backgroundActionTitle' },
       { label: 'job cancel gate', text: 'jobCancelBlockedReason' },
       { label: 'job cancel prompt', text: 'AI OS job cancellation skipped.' }

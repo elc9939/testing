@@ -275,6 +275,84 @@
     return enabledTitle;
   }
 
+  function aiOsCommandRunTitle(): string {
+    return aiOsActionTitle(
+      'Plan and run this AI OS command; tool calls, usage, and Activity records stay recoverable.',
+      commandBusy,
+      'AI OS command is already running.'
+    );
+  }
+
+  function aiOsAutotuneActionTitle(): string {
+    return aiOsActionTitle(
+      'Run a compact AI OS autotune probe; benchmark data updates routing, mode recommendations, and Activity.',
+      autotuneBusy,
+      'Autotune is already running.'
+    );
+  }
+
+  function aiOsDesignProposalTitle(): string {
+    return aiOsActionTitle(
+      'Ask AI OS to propose a reversible design patch; nothing applies until you arm and apply a saved patch.',
+      designBusy,
+      'A design patch action is already running.'
+    );
+  }
+
+  function aiOsBenchmarkActionTitle(): string {
+    return aiOsActionTitle(
+      'Run this AI OS capability benchmark; latency, throughput, provider, and result are saved for Activity recovery.',
+      benchmarkBusy,
+      'Benchmark is already running.'
+    );
+  }
+
+  function aiOsInferenceActionTitle(stream: boolean): string {
+    return aiOsActionTitle(
+      stream
+        ? 'Stream one ad hoc inference call; provider, model, latency, and usage are logged by AI OS.'
+        : 'Run one ad hoc inference call; provider, model, latency, and usage are logged by AI OS.',
+      inferBusy,
+      'Inference is already running.'
+    );
+  }
+
+  function aiOsJobQueueActionTitle(): string {
+    return aiOsActionTitle(
+      'Queue this AI OS batch job; progress, result, and errors reload from Jobs and Activity.',
+      jobBusy,
+      'A job queue request is already running.'
+    );
+  }
+
+  function aiOsJobRefreshActionTitle(): string {
+    return aiOsActionTitle('Reload AI OS job rows from durable job storage.', false, 'AI OS jobs are already refreshing.');
+  }
+
+  function aiOsMemoryActionTitle(action: 'ingest' | 'search'): string {
+    const enabledTitle =
+      action === 'ingest'
+        ? 'Ingest this scratch text into semantic memory; source id and result are logged by AI OS.'
+        : 'Search semantic memory with local embeddings; the result stays visible in this panel.';
+    return aiOsActionTitle(enabledTitle, memoryBusy, 'A memory action is already running.');
+  }
+
+  function aiOsAgentActionTitle(): string {
+    return aiOsActionTitle(
+      'Run the generic plan-act-check agent loop; tool calls are logged and write actions still require confirmation.',
+      agentBusy,
+      'Agent loop is already running.'
+    );
+  }
+
+  function aiOsMultimodalActionTitle(): string {
+    return aiOsActionTitle(
+      'Invoke the selected multimodal capability; generation output and provider telemetry are logged when available.',
+      multimodalBusy,
+      'Multimodal generation is already running.'
+    );
+  }
+
   function foundationActionTitle(enabledTitle: string, needsBackup = false): string {
     if (aiOsActionBlockedReason) return aiOsActionBlockedReason;
     if (foundationBusy) return 'A foundation health action is already running.';
@@ -1353,7 +1431,7 @@
     <span>Allow confirmed write/system actions for this run</span>
   </label>
   <div class="action-row">
-    <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (commandBusy ? 'AI OS command is already running.' : 'Run this AI OS command.')} on:click={runCommandBar}>
+    <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsCommandRunTitle()} on:click={runCommandBar}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : commandBusy ? 'Working' : 'Do it'}</span>
     </button>
@@ -1448,7 +1526,7 @@
     <p class="muted">{machineProfileEmptyMessage()}</p>
   {/if}
   <div class="action-row">
-    <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (autotuneBusy ? 'Autotune is already running.' : 'Run a compact AI OS autotune probe.')} on:click={runMachineAutotune}>
+    <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} title={aiOsAutotuneActionTitle()} on:click={runMachineAutotune}>
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : autotuneBusy ? 'Running' : 'Run Autotune'}</span>
     </button>
@@ -1612,7 +1690,7 @@
       <span>Confirm write/system tools</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (commandBusy ? 'AI OS command is already running.' : 'Execute this AI OS command.')} on:click={runCommandBar}>
+      <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsCommandRunTitle()} on:click={runCommandBar}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Execute'}</span>
       </button>
@@ -1680,7 +1758,7 @@
       <span>Arm apply/revert</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={designBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (designBusy ? 'A design patch action is already running.' : 'Ask AI OS to propose a reversible design patch.')} on:click={proposePatch}>
+      <button class="button primary" type="button" disabled={designBusy || aiOsActionBlocked} title={aiOsDesignProposalTitle()} on:click={proposePatch}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Propose'}</span>
       </button>
@@ -1711,7 +1789,7 @@
         <textarea id="benchmark-prompt" bind:value={benchmarkPrompt} rows="3" title="Prompt or payload used for this benchmark probe."></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} title={aiOsActionBlockedReason || (benchmarkBusy ? 'Benchmark is already running.' : 'Run this AI OS capability benchmark.')} on:click={runCapabilityBenchmark}>
+    <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} title={aiOsBenchmarkActionTitle()} on:click={runCapabilityBenchmark}>
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Benchmark'}</span>
     </button>
@@ -1881,11 +1959,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsActionTitle('Run one ad hoc inference call.', inferBusy, 'Inference is already running.')} on:click={() => runAdHocInference(false)}>
+      <button class="button primary" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsInferenceActionTitle(false)} on:click={() => runAdHocInference(false)}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run'}</span>
       </button>
-      <button class="button" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsActionTitle('Stream one ad hoc inference call.', inferBusy, 'Inference is already running.')} on:click={() => runAdHocInference(true)}>
+      <button class="button" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsInferenceActionTitle(true)} on:click={() => runAdHocInference(true)}>
         <Activity size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Stream'}</span>
       </button>
@@ -1921,11 +1999,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={jobBusy || aiOsActionBlocked} title={aiOsActionTitle('Queue this AI OS job.', jobBusy, 'A job queue request is already running.')} on:click={startJob}>
+      <button class="button primary" type="button" disabled={jobBusy || aiOsActionBlocked} title={aiOsJobQueueActionTitle()} on:click={startJob}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Queue'}</span>
       </button>
-      <button class="button" type="button" disabled={aiOsActionBlocked} title={aiOsActionTitle('Refresh AI OS job rows.', false, 'AI OS jobs are already refreshing.')} on:click={refreshJobs}>
+      <button class="button" type="button" disabled={aiOsActionBlocked} title={aiOsJobRefreshActionTitle()} on:click={refreshJobs}>
         <RefreshCw size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Jobs'}</span>
       </button>
@@ -1973,11 +2051,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsActionTitle('Ingest this scratch text into semantic memory.', memoryBusy, 'A memory action is already running.')} on:click={ingestScratchMemory}>
+      <button class="button" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsMemoryActionTitle('ingest')} on:click={ingestScratchMemory}>
         <Database size={17} />
         <span>Ingest</span>
       </button>
-      <button class="button primary" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsActionTitle('Search semantic memory.', memoryBusy, 'A memory action is already running.')} on:click={searchMemory}>
+      <button class="button primary" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsMemoryActionTitle('search')} on:click={searchMemory}>
         <Search size={17} />
         <span>Search</span>
       </button>
@@ -1994,7 +2072,7 @@
       <label for="agent-objective">Objective</label>
       <textarea id="agent-objective" bind:value={agentObjective} rows="5" title="Objective for the generic AI OS plan-act-check agent loop."></textarea>
     </div>
-    <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} title={aiOsActionTitle('Run the generic agent loop.', agentBusy, 'Agent loop is already running.')} on:click={runGenericAgent}>
+    <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} title={aiOsAgentActionTitle()} on:click={runGenericAgent}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Loop'}</span>
     </button>
@@ -2062,7 +2140,7 @@
         <textarea id="video-base64" bind:value={videoBase64} rows="2" title="Optional base64 video input for video-capable adapters."></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} title={aiOsActionTitle('Invoke the selected multimodal capability.', multimodalBusy, 'Multimodal generation is already running.')} on:click={invokeMedia}>
+    <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} title={aiOsMultimodalActionTitle()} on:click={invokeMedia}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : multimodalBusy ? 'Creating' : 'Create'}</span>
     </button>
