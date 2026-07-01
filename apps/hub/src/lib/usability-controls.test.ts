@@ -1349,12 +1349,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('visibleAttentionError = $attentionStore.error ? compactTodayServiceIssue($attentionStore.error) :');
     expect(source).toContain('visibleActionLedgerError = actionLedgerError ? compactTodayServiceIssue(actionLedgerError) :');
     expect(source).toContain('visibleActionLedgerSourceError = actionLedgerSourceError ? compactTodayServiceIssue(actionLedgerSourceError) :');
+    expect(source).toContain('visibleModeActionError = modeActionError ? compactTodayServiceIssue(modeActionError) :');
+    expect(source).toContain('visibleCapabilityError = capabilityError ? compactTodayServiceIssue(capabilityError) :');
     expect(source).toContain('function todayRefreshTitle');
     expect(source).toContain('function compactTodayServiceIssue');
     expect(source).toContain('function actionLedgerEmptyMessage');
     expect(source).toContain('Today refresh needs attention');
     expect(source).toContain('Cached attention remains visible when available.');
     expect(source).toContain('Raw Today error:');
+    expect(source).toContain('Raw Today mode action error:');
+    expect(source).toContain('Raw Today capability error:');
     expect(source).toContain('attention-error-panel service-card');
     expect(source).toContain("compactServiceIssueIfRecognized(text, 'Today')");
     expect(source).toContain('title={todayRefreshButtonTitle}');

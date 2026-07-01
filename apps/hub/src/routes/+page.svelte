@@ -125,6 +125,8 @@
   $: visibleActionLedgerError = actionLedgerError ? compactTodayServiceIssue(actionLedgerError) : '';
   $: actionLedgerSourceError = actionLedgerSnapshot?.errors[0] ?? '';
   $: visibleActionLedgerSourceError = actionLedgerSourceError ? compactTodayServiceIssue(actionLedgerSourceError) : '';
+  $: visibleModeActionError = modeActionError ? compactTodayServiceIssue(modeActionError) : '';
+  $: visibleCapabilityError = capabilityError ? compactTodayServiceIssue(capabilityError) : '';
 
   function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
     if (!snapshot) return false;
@@ -1062,7 +1064,7 @@
         <p class="empty-note">No mode-specific recommendation is available from the current capability snapshot.</p>
       {/if}
       {#if modeActionError}
-        <p class="panel-note error">{modeActionError}</p>
+        <p class="panel-note error" title={`Raw Today mode action error: ${modeActionError}`}>{visibleModeActionError}</p>
       {:else if modeActionMessage}
         <p class="panel-note success">{modeActionMessage}</p>
       {/if}
@@ -1112,7 +1114,7 @@
       {:else if capabilityLoading}
         <p class="empty-note">Checking local services and providers.</p>
       {:else if capabilityError}
-        <p class="empty-note">{capabilityError}</p>
+        <p class="empty-note" title={`Raw Today capability error: ${capabilityError}`}>{visibleCapabilityError}</p>
       {:else}
         <p class="empty-note">Capability status has not been checked yet.</p>
       {/if}
