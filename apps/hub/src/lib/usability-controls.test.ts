@@ -1803,6 +1803,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('persistenceRows');
     expect(source).toContain('persistenceStats.crossDevice');
     expect(source).toContain('What survives refreshes, browser closes, route changes, and service outages.');
+    expect(source).toContain('aria-label="Save and recovery rules"');
+    expect(source).toContain('<span>Switch pages</span>');
+    expect(source).toContain('Visible drafts, filters, and active work rehydrate from browser state or the owning service.');
+    expect(source).toContain('<span>Close and reopen</span>');
+    expect(source).toContain('Browser-local state returns in this browser; service-backed records reload when their API is online.');
+    expect(source).toContain('<span>Another device</span>');
+    expect(source).toContain('browser-only drafts stay here');
+    expect(source).toContain('.recovery-rules,');
     expect(source).toContain('overflow-wrap: anywhere;');
   });
 });

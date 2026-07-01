@@ -160,6 +160,9 @@ authoritative in Google, while Mini Hub keeps a browser-side last-good display c
 Analytics does not save its own dataset; it rebuilds from cached/synced Career, Study,
 and game records. Settings service URLs and diagnostics are browser-local, while any
 API-backed preferences only sync when the Mini Hub API is reachable.
+The Settings map now starts with three quick rules: switching pages is safe, closing and
+reopening is usually safe in the same browser, and another device only gets records backed
+by Hub API, Google, AI OS, Macro Lab, or Passive services.
 Service/setup links that mention endpoints, local APIs, Google, AI OS, Macro Lab, or
 Passive Tasks land directly on Settings -> Feature Wiring so the current target URL,
 last check, status, and fix action are visible without hunting through Settings.

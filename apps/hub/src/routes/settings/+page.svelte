@@ -1419,6 +1419,23 @@
     <p class="helper-text">
       What survives refreshes, browser closes, route changes, and service outages. Cross-device rows depend on the Hub API or the owning local service being reachable.
     </p>
+    <div class="recovery-rules" aria-label="Save and recovery rules">
+      <div>
+        <span>Switch pages</span>
+        <strong>Safe</strong>
+        <small>Visible drafts, filters, and active work rehydrate from browser state or the owning service.</small>
+      </div>
+      <div>
+        <span>Close and reopen</span>
+        <strong>Usually safe</strong>
+        <small>Browser-local state returns in this browser; service-backed records reload when their API is online.</small>
+      </div>
+      <div>
+        <span>Another device</span>
+        <strong>Service-backed only</strong>
+        <small>Hub API, Google, AI OS, Macro Lab, and Passive rows can follow; browser-only drafts stay here.</small>
+      </div>
+    </div>
     <div class="persistence-summary" aria-label="Persistence summary">
       <div>
         <span>Tracked</span>
@@ -2069,13 +2086,47 @@
     border-right: 0;
   }
 
+  .recovery-rules {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .recovery-rules div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    min-height: 82px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .recovery-rules span,
+  .recovery-rules strong,
+  .recovery-rules small,
   .persistence-summary span,
   .persistence-summary strong {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .recovery-rules span,
+  .recovery-rules strong,
+  .persistence-summary span,
+  .persistence-summary strong {
     white-space: nowrap;
   }
 
+  .recovery-rules small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .recovery-rules span,
   .persistence-summary span {
     color: var(--muted);
     font-size: 12px;
@@ -2590,6 +2641,7 @@
       grid-template-columns: 1fr;
     }
 
+    .recovery-rules,
     .persistence-summary,
     .passive-summary,
     .passive-control-grid,
