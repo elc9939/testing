@@ -1157,7 +1157,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('AI OS is not reachable; open Settings Feature Wiring to connect the local service.');
     expect(source).toContain('function modeActionDisabled');
     expect(source).toContain('disabled={modeActionDisabled(item)}');
-    expect(source).toContain('title={modeActionBlockedReason(item) || item.action.label}');
+    expect(source).toContain('function modeActionTitle');
+    expect(source).toContain('title={modeActionTitle(item)}');
+    expect(source).toContain('Run a measured local text benchmark for ${item.label}; AI OS, Activity, and Recent Actions will track the result.');
+    expect(source).toContain('Create, verify, and restore-test an AI OS backup for ${item.label}; Recent Actions records the recovery artifact.');
+    expect(source).toContain('Queue a local AI OS summary batch for ${item.label}; Activity and AI OS job history will track progress.');
+    expect(source).not.toContain('title={modeActionBlockedReason(item) || item.action.label}');
     expect(source).toContain('function attentionItemActionTitle');
     expect(source).toContain('Cached attention is read-only until Mini Hub reconnects.');
     expect(source).toContain('Complete ${item.title}; synced state and Recent Actions will refresh.');

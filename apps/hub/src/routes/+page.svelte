@@ -346,6 +346,22 @@
     return Boolean(modeActionBlockedReason(item));
   }
 
+  function modeActionTitle(item: ModeRecommendation): string {
+    const blockedReason = modeActionBlockedReason(item);
+    if (blockedReason) return blockedReason;
+    if (!item.action) return 'This recommendation opens its owning page for recovery or setup.';
+    if (item.action.kind === 'run_text_benchmark') {
+      return `Run a measured local text benchmark for ${item.label}; AI OS, Activity, and Recent Actions will track the result.`;
+    }
+    if (item.action.kind === 'run_foundation_check') {
+      return `Create, verify, and restore-test an AI OS backup for ${item.label}; Recent Actions records the recovery artifact.`;
+    }
+    if (item.action.kind === 'queue_local_summary_batch') {
+      return `Queue a local AI OS summary batch for ${item.label}; Activity and AI OS job history will track progress.`;
+    }
+    return `Run Today recommendation ${item.label}; Activity and Recent Actions will track the result.`;
+  }
+
   function actionStatusClass(action: ActionLedgerEntry): string {
     if (action.status === 'succeeded') return 'success';
     if (action.status === 'failed' || action.status === 'blocked') return 'failed';
@@ -1033,7 +1049,7 @@
                   class="button compact mode-action-button"
                   type="button"
                   disabled={modeActionDisabled(item)}
-                  title={modeActionBlockedReason(item) || item.action.label}
+                  title={modeActionTitle(item)}
                   on:click={() => runModeRecommendation(item)}
                 >
                   <span>{modeActionBusyId === item.id ? 'Running' : item.action.label}</span>

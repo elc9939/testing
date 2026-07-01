@@ -24,6 +24,7 @@ const routes = [
       { label: 'setup warning panels', text: 'warning-panel' },
       { label: 'unavailable source state', text: "status: 'unavailable'" },
       { label: 'recommendation action gating', text: 'modeActionDisabled' },
+      { label: 'recommendation action titles', text: 'modeActionTitle' },
       { label: 'save and recovery strip', text: 'Save & Recovery' },
       { label: 'data recovery deep link', text: "href={hubHref('/settings#data-recovery')}" },
       { label: 'machine mode deep link', text: "href={hubHref('/settings#machine-mode')}" },
