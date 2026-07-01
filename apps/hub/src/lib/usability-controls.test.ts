@@ -718,6 +718,7 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('Action catalog will reload after the Macro Lab service card reconnects.');
     expect(macro).toContain('Run history will reload after the Macro Lab service card reconnects.');
     expect(macro).toContain('Connect Macro Lab to load saved macro definitions before creating or editing macros.');
+    expect(macro).toContain('No macros are registered yet. Use the New macro button above, then save the definition through Macro Lab.');
     expect(macro).toContain('Connect Macro Lab to inspect available action types.');
     expect(macro).toContain('Macro Lab is reachable, but its action catalog is empty; check the desktop service install.');
     expect(macro).toContain('Activity run ${highlightedRunId} is not in Macro Lab');
@@ -728,6 +729,7 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).not.toContain("serviceError ? 'Action catalog will reload");
     expect(macro).not.toContain("serviceError ? 'Run history will reload");
     expect(macro).not.toContain('No action types are registered yet.');
+    expect(macro).not.toContain('Create one with the plus button.');
     expect(macro).not.toContain('Loading action catalog and capability state.');
     expect(macro).not.toContain('Loading trigger and running automation state.');
     expect(macro).not.toContain('Loading macro definitions and run history.');

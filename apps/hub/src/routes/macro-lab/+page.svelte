@@ -136,7 +136,7 @@
     if (loading && !macros.length) return 'Checking saved macro definitions.';
     if (serviceError) return 'Saved macro definitions will reload after the Macro Lab service card reconnects.';
     if (!status) return 'Connect Macro Lab to load saved macro definitions before creating or editing macros.';
-    return 'No macros are registered yet. Create one with the plus button.';
+    return 'No macros are registered yet. Use the New macro button above, then save the definition through Macro Lab.';
   }
 
   function macroActionCatalogEmptyMessage(): string {
