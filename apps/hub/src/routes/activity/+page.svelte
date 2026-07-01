@@ -249,7 +249,7 @@
   function fallbackActivitySources(state: { loading: boolean; refreshing: boolean }): ActivitySourceState[] {
     const detail = state.loading || state.refreshing
       ? 'Checking source status from AI OS, Passive Tasks, and Macro Lab.'
-      : 'No source snapshot yet; refresh Activity or open Settings Feature Wiring.';
+      : 'Activity needs a fresh source check. Refresh Activity or open Settings Feature Wiring.';
     const fallbackState: ActivitySourceState['state'] = state.loading || state.refreshing ? 'checking' : 'error';
     return expectedActivitySources.map((source) => ({
       ...source,
@@ -267,7 +267,7 @@
     sourceFailureCount: number;
     stale: boolean;
   }): string {
-    if (!state.hasSourceSnapshot) return state.loading || state.refreshing ? 'Checking' : 'No snapshot';
+    if (!state.hasSourceSnapshot) return state.loading || state.refreshing ? 'Checking' : 'Refresh needed';
     if (state.sourceFailureCount) return `${state.sourceFailureCount} issue${state.sourceFailureCount === 1 ? '' : 's'}`;
     if (state.stale) return 'Cached';
     return 'Fresh';

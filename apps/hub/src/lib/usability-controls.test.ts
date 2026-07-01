@@ -1006,8 +1006,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function sourceHealthTitle');
     expect(source).toContain('title={sourceHealthTitle(source)}');
     expect(source).toContain('Checking source status from AI OS, Passive Tasks, and Macro Lab.');
-    expect(source).toContain('No source snapshot yet; refresh Activity or open Settings Feature Wiring.');
+    expect(source).toContain('Activity needs a fresh source check. Refresh Activity or open Settings Feature Wiring.');
     expect(source).toContain('function activitySourceHealthSummary');
+    expect(source).toContain("if (!state.hasSourceSnapshot) return state.loading || state.refreshing ? 'Checking' : 'Refresh needed'");
     expect(source).toContain('<strong>{sourceHealthRows.filter((source) => source.ok).length}/{sourceHealthRows.length}</strong>');
     expect(source).toContain('<span>Dismissed</span>');
     expect(source).toContain('Activity recovery model');
