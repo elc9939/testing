@@ -1728,8 +1728,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={modeSaving || !canSync}');
     expect(source).toContain('No machine profile snapshots saved yet.');
     expect(source).toContain('No completed sync recorded yet');
+    expect(source).toContain('Auto-import waits for legacy browser data');
     expect(source).not.toContain("'none saved'");
     expect(source).not.toContain(": 'Never'");
+    expect(source).not.toContain(": 'Auto'}</dd>");
     expect(source).toContain("{machineProfileError && !machineProfile ? 'Retry Profile' : 'Refresh Profile'}");
     expect(source).toContain('passiveSettingsBlockedReason = passiveSettingsControlBlockedReason');
     expect(source).toContain('function passiveSettingsControlBlockedReason');

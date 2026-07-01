@@ -1380,7 +1380,7 @@
       <div><dt>Mode</dt><dd>{canSync ? 'Online auto-save' : $clientData.initialized ? 'Offline/read-only until API is ready' : 'Loading local cache'}</dd></div>
       <div><dt>Status</dt><dd>{$clientData.status}</dd></div>
       <div><dt>Last synced</dt><dd>{$clientData.lastSyncedAt ? new Date($clientData.lastSyncedAt).toLocaleString() : 'No completed sync recorded yet'}</dd></div>
-      <div><dt>Legacy</dt><dd>{legacyImport?.importedAt ? `Imported ${new Date(legacyImport.importedAt).toLocaleDateString()}` : 'Auto'}</dd></div>
+      <div><dt>Legacy</dt><dd>{legacyImport?.importedAt ? `Imported ${new Date(legacyImport.importedAt).toLocaleDateString()}` : 'Auto-import waits for legacy browser data'}</dd></div>
       <div><dt>Device</dt><dd>{$clientData.deviceId}</dd></div>
       <div><dt>API</dt><dd>{getApiUrl()}</dd></div>
       <div><dt>API check</dt><dd>{apiStatus}</dd></div>
