@@ -154,20 +154,20 @@
 
   function passiveEngineLabel(): string {
     if (loading && !snapshot) return 'Checking';
-    if (!settings) return 'Load snapshot';
+    if (!settings) return 'Refresh needed';
     return settings.enabled ? 'On' : 'Off';
   }
 
   function passiveScheduleLabel(): string {
     if (loading && !snapshot) return 'Checking';
-    if (!settings) return 'Load snapshot';
+    if (!settings) return 'Refresh needed';
     return settings.idleOnly ? 'Idle only' : 'Normal';
   }
 
   function passiveBackupStatusLabel(): string {
     if (backupHealth) return backupStatusLabel(backupHealth);
     if (loading && !snapshot) return 'Checking';
-    return snapshot ? 'Backup health not reported' : 'Load snapshot';
+    return snapshot ? 'Refresh backup check' : 'Refresh needed';
   }
 
   function passiveCountLabel(value: number): string {
@@ -204,7 +204,7 @@
 
   function workerStateLabel(): string {
     if (loading && !snapshot) return 'Checking';
-    if (!snapshot) return 'Load snapshot';
+    if (!snapshot) return 'Refresh needed';
     if (!worker?.startedAt) return 'Waiting for startup';
     if (!worker.enabled) return 'Disabled';
     return worker.running ? 'Running' : 'Idle';
