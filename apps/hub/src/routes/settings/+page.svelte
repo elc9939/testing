@@ -635,6 +635,12 @@
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
+  function featureWiringOpenTitle(row: FeatureWiringRow): string {
+    if (row.status === 'unknown') return `Open ${row.feature} after running Check Services if this still needs setup.`;
+    if (row.status === 'ready') return `Open ${row.feature}.`;
+    return `Open ${row.feature} setup or status screen.`;
+  }
+
   async function loadGoogleConnected(): Promise<boolean> {
     try {
       const connections = await getConnections();
@@ -1209,7 +1215,7 @@
             <small>{featureWiringWhen(row)}</small>
           </div>
           <div class="feature-wiring-actions">
-            <a class="button compact" href={hubHref(row.route)} title={`Open ${row.feature}.`}>
+            <a class="button compact" href={hubHref(row.route)} title={featureWiringOpenTitle(row)}>
               <span>Open</span>
               <ArrowRight size={15} />
             </a>

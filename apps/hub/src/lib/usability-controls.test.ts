@@ -2032,6 +2032,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("let apiStatus = 'Run Check Services'");
     expect(source).toContain("value === 'Run Check Services'");
     expect(source).toContain("if (!row.lastCheckedAt) return 'Run Check Services'");
+    expect(source).toContain('function featureWiringOpenTitle');
+    expect(source).toContain("if (row.status === 'unknown') return `Open ${row.feature} after running Check Services if this still needs setup.`;");
+    expect(source).toContain('title={featureWiringOpenTitle(row)}');
     expect(source).toContain(": 'Run Check Services'");
     expect(source).not.toContain("let apiStatus = 'Not checked'");
     expect(source).not.toContain("value === 'Not checked'");

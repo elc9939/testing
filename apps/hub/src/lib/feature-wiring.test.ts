@@ -55,4 +55,27 @@ describe('feature wiring diagnostics', () => {
     expect(rows.find((row) => row.id === 'passive-tasks')?.endpoint).toBe('http://127.0.0.1:8787/api/passive-tasks/*');
     expect(featureWiringStatusLabel('needs_setup')).toBe('Needs setup');
   });
+
+  it('uses an actionable fallback instead of vague unknown diagnostics', () => {
+    const rows = buildFeatureWiringRows({
+      endpoints: [
+        endpoint('hubApi', 'http://127.0.0.1:8787'),
+        endpoint('aiOs', 'http://127.0.0.1:8791'),
+        endpoint('macroLab', 'http://127.0.0.1:8792')
+      ],
+      hubApi: {},
+      aiOs: {},
+      macroLab: {},
+      google: {},
+      passiveTasks: {},
+      browserStorage: {}
+    });
+
+    expect(rows.find((row) => row.id === 'hub-api')).toMatchObject({
+      status: 'unknown',
+      detail: 'Requests will use http://127.0.0.1:8787. Run Check Services to verify this feature from this browser.',
+      fixAction: 'Run Check Services, then open the feature if it still needs setup.'
+    });
+    expect(featureWiringStatusLabel('unknown')).toBe('Check needed');
+  });
 });

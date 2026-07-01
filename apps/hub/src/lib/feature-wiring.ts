@@ -112,7 +112,7 @@ export function featureWiringStatusLabel(status: FeatureWiringStatus): string {
   if (status === 'checking') return 'Checking';
   if (status === 'offline') return 'Offline';
   if (status === 'ready') return 'Ready';
-  return 'Unknown';
+  return 'Check needed';
 }
 
 function serviceRow(input: {
@@ -179,7 +179,7 @@ function rowDetail(
   if (status === 'offline') return signal.error ? compactServiceIssueIfRecognized(signal.error, feature) : 'The service is not reachable from this browser.';
   if (status === 'needs_setup') return signal.detail ?? 'This feature needs setup before it can show connected data.';
   if (status === 'ready') return signal.detail ?? 'This feature is connected and ready.';
-  return endpoint?.detail ?? signal.detail ?? 'Click Check Services to verify this feature.';
+  return [endpoint?.detail ?? signal.detail, 'Run Check Services to verify this feature from this browser.'].filter(Boolean).join(' ');
 }
 
 function rowFixAction(
@@ -192,7 +192,7 @@ function rowFixAction(
   if (status === 'offline') return signal.fixAction ?? endpoint?.fixAction ?? 'Start the service and retry.';
   if (status === 'needs_setup') return signal.fixAction ?? 'Open the feature and complete setup.';
   if (status === 'ready') return 'No action needed.';
-  return signal.fixAction ?? endpoint?.fixAction ?? 'Run Check Services.';
+  return signal.fixAction ?? 'Run Check Services, then open the feature if it still needs setup.';
 }
 
 function healthUrl(endpoint: ServiceEndpointResolution | undefined): string | undefined {
