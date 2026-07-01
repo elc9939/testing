@@ -35,13 +35,64 @@ local API services to be running on the same machine:
 | AI OS API | `http://127.0.0.1:8791` | Local/API model routing, tools, RAG, jobs, multimodal generation, backups, health, web/browser access. |
 | Macro Lab API | `http://127.0.0.1:8792` | Local Windows macro automation daemon. |
 
+## Local Full Power vs. Private Remote vs. Hosted Light
+
+Mini Hub now treats access mode as a first-class diagnostic, not as guesswork.
+
+| Mode | URL | What it means |
+| --- | --- | --- |
+| Local Full Power | `http://127.0.0.1:5173` | Best mode. The browser is on the Windows PC that also hosts Hub API, AI OS/Ollama, Macro Lab, telemetry, Google integration callbacks, and local automation. |
+| Private Remote | `http://<pc-tailscale-name-or-ip>:5173` | Full-power mode from another device when the PC is awake, the local stack is running in LAN mode, and the browser can reach trusted Hub API, AI OS, and Macro Lab endpoints. Tailscale is the preferred path. |
+| Hosted Light | `https://elc9939.github.io/testing/` | Static GitHub Pages shell. It can show browser-local/cached state and setup guidance. It is not the compute host and cannot make `github.io/testing/api/*` become the local backend. |
+
+Settings -> Remote Access / Connection Mode shows the current page origin, detected mode,
+service health targets, current endpoint state, and current-host endpoint suggestions. If
+you open the hub through a LAN or Tailscale address, use **Use Current Host URLs**, then
+**Save Service URLs** and **Check Services**. If you are on GitHub Pages, enter private
+remote endpoints manually or open Local Full Power on the PC.
+
+The standard private remote service URLs are:
+
+```text
+Hub UI:        http://<pc-private-host>:5173
+Mini Hub API:  http://<pc-private-host>:8787
+AI OS API:     http://<pc-private-host>:8791
+Macro Lab API: http://<pc-private-host>:8792
+```
+
+For Windows LAN mode, use:
+
+```powershell
+pnpm stack:start:lan
+```
+
+or double-click:
+
+```text
+Start Mini Hub Phone Mode.cmd
+```
+
+That launcher starts the Hub API, AI OS, Macro Lab, and Svelte hub with trusted private
+origins for the detected desktop IP, copies a ready-to-open URL to the clipboard, and writes
+it to `phone-link.txt`. For Tailscale, keep the PC awake, connect both devices to the same
+tailnet, then use the same ports on the PC's Tailscale name or `100.x` address. Add any
+extra private origins to `TRUSTED_ORIGINS`, `AI_OS_TRUSTED_ORIGINS`, and
+`MACRO_LAB_TRUSTED_ORIGINS` if you serve the UI from a private hostname that the launcher
+did not detect.
+
+Do not expose AI OS or Macro Lab directly to the public internet. Macro Lab can control the
+desktop, and AI OS can access local models, files, tools, and browser-like research routes.
+Keep remote access private-network only unless you deliberately add a stronger auth/proxy
+layer later.
+
 ### Hosted Pages vs. Local Services
 
 The hosted GitHub Pages app is only the static web UI. It must not use
 `https://elc9939.github.io/testing/api/...` as a backend. Settings now includes a
-**Feature Wiring** diagnostic table that shows the current endpoint, required service,
-last check, state, and fix action for Mini Hub API, AI OS API, Research Desk, Macro Lab,
-Google integrations, Passive Tasks, and browser storage.
+**Remote Access / Connection Mode** panel and a **Feature Wiring** diagnostic table that
+show the current endpoint, required service, last check, state, and fix action for Mini Hub
+API, AI OS API, Research Desk, Macro Lab, Google integrations, Passive Tasks, and browser
+storage.
 
 If a feature is pointed at the hosted web page instead of a local service, Mini Hub marks it
 `Misconfigured` and falls back to the default local service URL where safe. If a service is

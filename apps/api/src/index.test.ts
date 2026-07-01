@@ -311,6 +311,48 @@ describe('mini hub api', () => {
     expect(response.headers.get('access-control-allow-origin')).toBe('http://127.0.0.1:5174');
   });
 
+  it('allows private-network browser access only for trusted origins', async () => {
+    const previous = { trustedOrigins: [...env.trustedOrigins] };
+    env.trustedOrigins = ['http://127.0.0.1:5173', 'http://mini-hub-pc.tailnet.ts.net:5173'];
+    try {
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+      const response = await app.request('/api/health', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://mini-hub-pc.tailnet.ts.net:5173',
+          'Access-Control-Request-Method': 'GET',
+          'Access-Control-Request-Private-Network': 'true'
+        }
+      });
+
+      expect(response.headers.get('access-control-allow-origin')).toBe('http://mini-hub-pc.tailnet.ts.net:5173');
+      expect(response.headers.get('access-control-allow-private-network')).toBe('true');
+    } finally {
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
+  it('does not grant private-network browser access to untrusted origins', async () => {
+    const previous = { trustedOrigins: [...env.trustedOrigins] };
+    env.trustedOrigins = ['http://127.0.0.1:5173'];
+    try {
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+      const response = await app.request('/api/health', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://evil.example',
+          'Access-Control-Request-Method': 'GET',
+          'Access-Control-Request-Private-Network': 'true'
+        }
+      });
+
+      expect(response.headers.get('access-control-allow-origin')).toBe('http://127.0.0.1:5173');
+      expect(response.headers.get('access-control-allow-private-network')).toBeNull();
+    } finally {
+      env.trustedOrigins = previous.trustedOrigins;
+    }
+  });
+
   it('accepts protected personal routes in local mode', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/workspaces');

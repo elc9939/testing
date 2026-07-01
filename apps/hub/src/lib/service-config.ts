@@ -20,6 +20,17 @@ export interface ServiceEndpointResolution {
   fixAction: string;
 }
 
+export type ConnectionModeId = 'local-full-power' | 'private-remote' | 'hosted-light';
+
+export interface ConnectionMode {
+  id: ConnectionModeId;
+  label: string;
+  summary: string;
+  detail: string;
+  setupAction: string;
+  fullPower: boolean;
+}
+
 const storageKey = 'miniHub.serviceEndpoints.v1';
 
 const queryNames: Record<ServiceId, string[]> = {
@@ -44,6 +55,12 @@ const serviceHealthPaths: Record<ServiceId, string> = {
   hubApi: '/api/health',
   aiOs: '/api/ai/health',
   macroLab: '/api/macro-lab/health'
+};
+
+const servicePorts: Record<ServiceId, number> = {
+  hubApi: 8787,
+  aiOs: 8791,
+  macroLab: 8792
 };
 
 export const defaultServiceRequestTimeoutMs = 15_000;
@@ -109,6 +126,102 @@ export function serviceFallbackUrl(id: ServiceId): string {
 
 export function serviceHealthPath(id: ServiceId): string {
   return serviceHealthPaths[id];
+}
+
+export function servicePort(id: ServiceId): number {
+  return servicePorts[id];
+}
+
+function parseUrlOrigin(value: string): URL | null {
+  const normalized = normalizeServiceUrl(value);
+  if (!normalized) return null;
+  try {
+    return new URL(normalized);
+  } catch {
+    return null;
+  }
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+}
+
+function isGithubPagesHost(hostname: string): boolean {
+  return /(?:^|\.)github\.io$/iu.test(hostname);
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const octets = hostname.split('.').map((part) => Number(part));
+  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const [a, b] = octets;
+  if (a === 10 || a === 127) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  return false;
+}
+
+function isPrivateHostname(hostname: string): boolean {
+  return (
+    /\.ts\.net$/iu.test(hostname) ||
+    /\.(?:local|lan|home)$/iu.test(hostname) ||
+    (!hostname.includes('.') && !isGithubPagesHost(hostname))
+  );
+}
+
+function isPrivateRemoteHost(hostname: string): boolean {
+  if (isLoopbackHost(hostname)) return false;
+  return isPrivateIpv4(hostname) || isPrivateHostname(hostname);
+}
+
+export function connectionModeForOrigin(origin: string): ConnectionMode {
+  const parsed = parseUrlOrigin(origin);
+  const hostname = parsed?.hostname ?? '';
+  if (hostname && isLoopbackHost(hostname)) {
+    return {
+      id: 'local-full-power',
+      label: 'Local Full Power',
+      summary: 'This browser is on the Windows PC that hosts Mini Hub services.',
+      detail: 'Use this mode for the most reliable AI OS, Ollama, Macro Lab, GPU telemetry, Google, and data-sync behavior.',
+      setupAction: 'Keep the local launcher or dev terminals running.',
+      fullPower: true
+    };
+  }
+  if (hostname && isPrivateRemoteHost(hostname)) {
+    return {
+      id: 'private-remote',
+      label: 'Private Remote',
+      summary: 'This browser appears to be reaching your PC through a LAN or Tailscale-style private address.',
+      detail: 'Full-power features can work if the desktop stack is running, the PC is awake, and this origin is trusted by each local service.',
+      setupAction: 'Use the matching private host for Hub API, AI OS, and Macro Lab service URLs, then run Check Services.',
+      fullPower: true
+    };
+  }
+  return {
+    id: 'hosted-light',
+    label: 'Hosted Light',
+    summary: 'This browser is on a public/static origin such as GitHub Pages.',
+    detail: 'The static site can show browser-local and cached state, but heavy local services only work when reachable through saved private endpoints.',
+    setupAction: 'Open Local Full Power on the PC or configure private remote endpoints from Settings.',
+    fullPower: false
+  };
+}
+
+export function buildServiceUrlFromHubOrigin(id: ServiceId, origin: string): string {
+  const parsed = parseUrlOrigin(origin);
+  if (!parsed || isGithubPagesHost(parsed.hostname)) return '';
+  const protocol = parsed.protocol === 'https:' ? 'http:' : parsed.protocol || 'http:';
+  return `${protocol}//${parsed.hostname}:${servicePorts[id]}`;
+}
+
+export function remoteEndpointSuggestions(origin: string): ServiceEndpoint[] {
+  const parsed = parseUrlOrigin(origin);
+  if (!parsed || isGithubPagesHost(parsed.hostname)) return [];
+  return (Object.keys(serviceLabels) as ServiceId[]).map((id) => ({
+    id,
+    label: serviceLabels[id],
+    url: buildServiceUrlFromHubOrigin(id, origin)
+  }));
 }
 
 export function looksLikeHostedStaticEndpoint(value: string, currentOrigin = ''): boolean {
@@ -237,7 +350,7 @@ export function serviceEndpointResolutions(): ServiceEndpointResolution[] {
 }
 
 export function localNetworkHint(): string {
-  return 'For full phone access, double-click Start Mini Hub Phone Mode.cmd on the desktop and keep that window open. It starts the API, AI OS, Macro Lab, and hub, then prints/copies a phone URL with the desktop service addresses already filled in.';
+  return 'For full private-network access, double-click Start Mini Hub Phone Mode.cmd on the desktop, or run pnpm stack:start:lan, and keep that window open. It starts the API, AI OS, Macro Lab, and hub, then prints/copies a LAN URL with the desktop service addresses already filled in. For Tailscale, use the same service ports on your PC name or 100.x address.';
 }
 
 export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string, expected = 'JSON'): string {

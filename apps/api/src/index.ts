@@ -71,6 +71,14 @@ export function createApp(options: CreateAppOptions = {}) {
     app.use('*', logger());
   }
 
+  app.use('*', async (c, next) => {
+    await next();
+    const origin = c.req.header('origin');
+    if (origin && env.trustedOrigins.includes(origin)) {
+      c.header('Access-Control-Allow-Private-Network', 'true');
+    }
+  });
+
   app.use(
     '*',
     cors({

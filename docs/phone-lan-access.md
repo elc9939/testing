@@ -1,8 +1,18 @@
-# Phone LAN Access
+# Private Remote / Phone LAN Access
 
-The GitHub Pages hub is a static site. When a phone opens it, `127.0.0.1` points at the phone, not the desktop. Also, GitHub Pages is served over HTTPS while these private desktop services use local HTTP, so the most reliable full-control mode is to open the hub from the desktop over LAN.
+The GitHub Pages hub is a static site. When a phone opens it, `127.0.0.1` points at the phone, not the desktop. Also, GitHub Pages is served over HTTPS while these private desktop services use local HTTP, so the most reliable full-control remote mode is to open the hub from the desktop over a private network.
 
 The same HTTPS-to-local-HTTP browser protection can affect desktop-only service pages like AI OS and Macro Lab. If a service page on GitHub Pages says `Failed to fetch`, open the local hub URL printed by the launcher instead of the GitHub Pages URL.
+
+Mini Hub supports three practical modes:
+
+| Mode | URL | Capability |
+| --- | --- | --- |
+| Local Full Power | `http://127.0.0.1:5173` | Best mode on the Windows PC itself. |
+| Private Remote | `http://<desktop-lan-or-tailscale-host>:5173` | Full-power mode from your phone/laptop while the PC is awake and services are running. |
+| Hosted Light | `https://elc9939.github.io/testing/` | Static shell. It needs saved private endpoints before heavy local features can work. |
+
+## Quick LAN Setup
 
 1. Double-click this file in the repo folder:
 
@@ -29,7 +39,7 @@ pnpm macro-lab:start:lan
 
 2. Open the URL printed by the launcher on the phone. It includes query parameters that store the desktop service URLs automatically.
 
-3. If needed, open Settings -> Desktop Services on the phone and confirm the URLs match the desktop IPv4 shown by the scripts:
+3. If needed, open Settings -> Remote Access / Connection Mode on the phone and confirm the URLs match the desktop IPv4 shown by the scripts:
 
 ```text
 Mini Hub API:  http://<desktop-ip>:8787
@@ -37,6 +47,32 @@ AI OS API:     http://<desktop-ip>:8791
 Macro Lab API: http://<desktop-ip>:8792
 ```
 
-4. Save service URLs and use Check API.
+4. Save service URLs and use Check Services. Feature Wiring should show whether Hub API, AI OS, Macro Lab, Research, Passive Tasks, Productivity, and browser cache are reachable from that browser.
 
 LAN mode intentionally disables loopback-only protection for AI OS and Macro Lab, so only use it on a trusted private network.
+
+## Tailscale Path
+
+1. Install and sign in to Tailscale on the Windows PC and the remote device.
+2. Keep the PC awake.
+3. Start Mini Hub in LAN mode with `pnpm stack:start:lan` or `Start Mini Hub Phone Mode.cmd`.
+4. Open `http://<pc-tailscale-name-or-100.x-address>:5173` from the remote device.
+5. In Settings -> Remote Access / Connection Mode, use current-host URLs if the page was opened through the same Tailscale host, or enter:
+
+```text
+Mini Hub API:  http://<pc-tailscale-name-or-100.x-address>:8787
+AI OS API:     http://<pc-tailscale-name-or-100.x-address>:8791
+Macro Lab API: http://<pc-tailscale-name-or-100.x-address>:8792
+```
+
+6. Save Service URLs, then Check Services.
+
+If the browser reports CORS or Private Network Access blocks, add the hub origin you are using, such as `http://<pc-tailscale-name>:5173`, to these environment variables before starting the services:
+
+```text
+TRUSTED_ORIGINS
+AI_OS_TRUSTED_ORIGINS
+MACRO_LAB_TRUSTED_ORIGINS
+```
+
+Do not expose AI OS or Macro Lab publicly. Private Remote is meant for LAN/Tailscale-style access only, because Macro Lab can control Windows and AI OS can touch local models, files, tools, and research routes.

@@ -41,7 +41,17 @@
   import { getPassiveSnapshot, passiveFamilyLabel, patchPassiveSettings } from '$lib/passive-tasks-api';
   import { getConnections, listCalendars, listGmailLabels } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
-  import { localNetworkHint, serviceEndpointResolution, serviceFallbackUrl, setServiceEndpoints } from '$lib/service-config';
+  import {
+    connectionModeForOrigin,
+    localNetworkHint,
+    remoteEndpointSuggestions,
+    serviceEndpointResolution,
+    serviceFallbackUrl,
+    serviceHealthPath,
+    setServiceEndpoints,
+    type ServiceEndpoint,
+    type ServiceId
+  } from '$lib/service-config';
   import { compactServiceIssueIfRecognized } from '$lib/service-issues';
   import { setTheme, theme, type ThemeMode } from '$lib/theme';
 
@@ -165,6 +175,10 @@
     serviceEndpointResolution('aiOs', aiOsInput, serviceFallbackUrl('aiOs'), currentOrigin()),
     serviceEndpointResolution('macroLab', macroLabInput, serviceFallbackUrl('macroLab'), currentOrigin())
   ];
+  $: connectionMode = connectionModeForOrigin(currentOrigin());
+  $: endpointSuggestions = remoteEndpointSuggestions(currentOrigin());
+  $: endpointSuggestionMap = new Map(endpointSuggestions.map((suggestion) => [suggestion.id, suggestion]));
+  $: connectionModeClass = connectionMode.id;
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
     endpointIssue: machineAiOsEndpointIssue,
@@ -481,6 +495,41 @@
     return isSaving
       ? 'Service URLs are saving; wait before reloading browser-stored values.'
       : 'Reload service URLs from browser storage without contacting services.';
+  }
+
+  function endpointSuggestion(id: ServiceId): ServiceEndpoint | undefined {
+    return endpointSuggestionMap.get(id);
+  }
+
+  function endpointHealthTarget(id: ServiceId, url: string): string {
+    return `${url}${serviceHealthPath(id)}`;
+  }
+
+  function applyCurrentHostEndpoints(): void {
+    if (!endpointSuggestions.length || endpointSaving) return;
+    for (const suggestion of endpointSuggestions) {
+      if (suggestion.id === 'hubApi') hubApiInput = suggestion.url;
+      if (suggestion.id === 'aiOs') aiOsInput = suggestion.url;
+      if (suggestion.id === 'macroLab') macroLabInput = suggestion.url;
+    }
+    endpointMessage = 'Filled service URLs from the current hub host. Save Service URLs to use them in this browser.';
+    endpointError = '';
+  }
+
+  function currentHostEndpointTitle(): string {
+    if (endpointSaving) return 'Service URLs are saving.';
+    if (!endpointSuggestions.length) return 'This public/static origin cannot infer your private desktop host. Enter a LAN or Tailscale host manually.';
+    return 'Fill Mini Hub API, AI OS, and Macro Lab URLs using this page host and the standard service ports.';
+  }
+
+  function endpointModeNote(): string {
+    if (connectionMode.id === 'hosted-light') {
+      return 'GitHub Pages is a static shell. Full-power controls need saved private endpoints or the local hub URL.';
+    }
+    if (connectionMode.id === 'private-remote') {
+      return 'This can be full power if your PC is awake, the LAN/Tailscale stack is running, and service origins are trusted.';
+    }
+    return 'This is the best full-power mode because the browser and desktop services are on the same PC.';
   }
 
   async function saveEndpoints(): Promise<void> {
@@ -1082,6 +1131,68 @@
       <Activity size={17} />
       <span>{capabilityLoading ? 'Checking' : 'Refresh Capabilities'}</span>
     </button>
+  </div>
+
+  <div id="connection-mode" class="connection-mode-panel">
+    <div class="mode-heading">
+      <div>
+        <strong>Remote Access / Connection Mode</strong>
+        <span>{connectionMode.summary}</span>
+      </div>
+      <small class={`mode-pill ${connectionModeClass}`}>{connectionMode.label}</small>
+    </div>
+    <p class="helper-text">{connectionMode.detail} {endpointModeNote()}</p>
+    <div class="connection-grid" aria-label="Current connection mode">
+      <div>
+        <span>App origin</span>
+        <strong>{currentOrigin() || 'Unknown browser origin'}</strong>
+      </div>
+      <div>
+        <span>PC requirement</span>
+        <strong>{connectionMode.fullPower ? 'PC services required' : 'Static shell'}</strong>
+        <small>{connectionMode.setupAction}</small>
+      </div>
+      <div>
+        <span>Local full power</span>
+        <strong>http://127.0.0.1:5173</strong>
+        <small>Open this on the Windows PC.</small>
+      </div>
+    </div>
+    <div class="endpoint-diagnostic-list" aria-label="Service targets for this browser">
+      {#each endpointResolutions as endpoint}
+        <article class="endpoint-diagnostic-row">
+          <span class={`state-chip ${endpoint.state}`}>{endpoint.state}</span>
+          <div>
+            <strong>{endpoint.label}</strong>
+            <small>{endpoint.detail}</small>
+            <code>{endpointHealthTarget(endpoint.id, endpoint.resolvedUrl)}</code>
+            {#if endpointSuggestion(endpoint.id)}
+              <em>Current-host suggestion: {endpointSuggestion(endpoint.id)?.url}</em>
+            {/if}
+          </div>
+        </article>
+      {/each}
+    </div>
+    <div class="action-row tight">
+      <button
+        class="button"
+        type="button"
+        disabled={endpointSaving || !endpointSuggestions.length}
+        title={currentHostEndpointTitle()}
+        on:click={applyCurrentHostEndpoints}
+      >
+        <Cloud size={17} />
+        <span>Use Current Host URLs</span>
+      </button>
+      <a class="button" href="http://127.0.0.1:5173/" target="_blank" rel="noreferrer" title="Open the local full-power hub on this Windows PC.">
+        <Monitor size={17} />
+        <span>Open Local Full Power</span>
+      </a>
+      <a class="button" href="https://elc9939.github.io/testing/" target="_blank" rel="noreferrer" title="Open the hosted static shell. Full-power services still need private endpoints.">
+        <Cloud size={17} />
+        <span>Open Hosted Light</span>
+      </a>
+    </div>
   </div>
 
   <div id="machine-mode" class="machine-mode-panel">
@@ -1774,6 +1885,7 @@
     letter-spacing: 0;
   }
 
+  .connection-mode-panel,
   .machine-mode-panel,
   .machine-profile-panel {
     display: grid;
@@ -1782,6 +1894,98 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--surface-muted);
+  }
+
+  .connection-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .connection-grid div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .connection-grid span,
+  .connection-grid small {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .connection-grid span {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .connection-grid strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .endpoint-diagnostic-list {
+    display: grid;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .endpoint-diagnostic-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 9px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .endpoint-diagnostic-row:last-child {
+    border-bottom: 0;
+  }
+
+  .endpoint-diagnostic-row div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .endpoint-diagnostic-row small,
+  .endpoint-diagnostic-row em,
+  .endpoint-diagnostic-row code {
+    overflow: hidden;
+    color: var(--muted);
+    font-style: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .endpoint-diagnostic-row code {
+    color: var(--text);
+  }
+
+  .mode-pill {
+    align-self: start;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+  }
+
+  .mode-pill.local-full-power,
+  .mode-pill.private-remote {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    color: var(--accent);
   }
 
   .machine-profile-grid {
@@ -2025,6 +2229,7 @@
   }
 
   .state-chip.checking,
+  .state-chip.defaulted,
   .state-chip.unknown {
     border-color: var(--warning-border);
     color: var(--warning-text);
@@ -2033,6 +2238,7 @@
 
   .state-chip.offline,
   .state-chip.blocked,
+  .state-chip.empty,
   .state-chip.misconfigured {
     border-color: var(--danger-border);
     color: var(--danger-text);

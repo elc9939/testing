@@ -3,10 +3,13 @@ import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildServiceUrlFromHubOrigin,
+  connectionModeForOrigin,
   defaultServiceRequestTimeoutMs,
   looksLikeHostedStaticEndpoint,
   requestServiceJson,
   requestServiceResponse,
+  remoteEndpointSuggestions,
   serviceEndpointResolution,
   serviceFallbackUrl,
   serviceNetworkContextHint
@@ -117,6 +120,25 @@ describe('service endpoint resolution', () => {
     expect(looksLikeHostedStaticEndpoint('https://elc9939.github.io/testing', 'https://elc9939.github.io')).toBe(true);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:5173', 'http://127.0.0.1:5173')).toBe(true);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:8791', 'http://127.0.0.1:5173')).toBe(false);
+  });
+
+  it('labels local, private remote, and hosted origins distinctly', () => {
+    expect(connectionModeForOrigin('http://127.0.0.1:5173').id).toBe('local-full-power');
+    expect(connectionModeForOrigin('http://mini-hub-pc.tailnet.ts.net:5173').id).toBe('private-remote');
+    expect(connectionModeForOrigin('http://192.168.1.25:5173').id).toBe('private-remote');
+    expect(connectionModeForOrigin('https://elc9939.github.io/testing/').id).toBe('hosted-light');
+  });
+
+  it('builds current-host service URL suggestions for private remote mode', () => {
+    expect(buildServiceUrlFromHubOrigin('aiOs', 'http://mini-hub-pc.tailnet.ts.net:5173/testing')).toBe(
+      'http://mini-hub-pc.tailnet.ts.net:8791'
+    );
+    expect(remoteEndpointSuggestions('http://192.168.1.25:5173').map((endpoint) => endpoint.url)).toEqual([
+      'http://192.168.1.25:8787',
+      'http://192.168.1.25:8791',
+      'http://192.168.1.25:8792'
+    ]);
+    expect(remoteEndpointSuggestions('https://elc9939.github.io/testing')).toEqual([]);
   });
 
   it('explains hosted HTTPS failures against local desktop services', () => {
