@@ -609,6 +609,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("aiOsPanelEmptyMessage('No benchmark runs yet.', 'Checking AI OS benchmark runs.', 'Benchmarks')");
     expect(source).toContain("aiOsPanelEmptyMessage('No design patches yet.', 'Checking AI OS design patch history.', 'Design patches')");
     expect(source).toContain('Checking AI OS jobs.');
+    expect(source).toContain('No verified AI OS backup recorded yet.');
     expect(source).toContain('Loading GPU telemetry rows from AI OS.');
     expect(source).toContain('Loading GPU, VRAM, and temperature telemetry.');
     expect(source).toContain('Service status is shown above; GPU telemetry has not been checked.');
@@ -626,6 +627,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('Unknown until AI OS can query Ollama /api/ps.');
     expect(source).not.toContain('Model load has not been checked yet.');
     expect(source).not.toContain('Connect AI OS to inspect GPU utilization, VRAM, and temperature.');
+    expect(source).not.toContain('No backup yet');
     expect(source).not.toContain(' · ');
     expect(source).toContain('<strong>{aiOsMetricLabel(hardware?.cpu_percent,');
     expect(source).toContain('<small>{aiOsGpuDetail(primaryGpu)}</small>');

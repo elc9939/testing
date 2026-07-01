@@ -1737,7 +1737,7 @@
         <HardDrive size={17} />
         <span>Backups</span>
         <strong>{status?.backups?.[0]?.ok ? 'Verified' : 'Needed'}</strong>
-        <small>{status?.backups?.[0]?.created_at ? new Date(status.backups[0].created_at).toLocaleString() : 'No backup yet'}</small>
+        <small>{status?.backups?.[0]?.created_at ? new Date(status.backups[0].created_at).toLocaleString() : 'No verified AI OS backup recorded yet.'}</small>
       </article>
       <article class="foundation-tile">
         <Workflow size={17} />
