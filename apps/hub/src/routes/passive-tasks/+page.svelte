@@ -172,14 +172,14 @@
 
   function passiveCountLabel(value: number): string {
     if (loading && !snapshot) return 'checking';
-    if (!snapshot) return 'not loaded';
+    if (!snapshot) return 'refresh needed';
     return String(value);
   }
 
   function passivePanelEmptyMessage(healthyEmpty: string, loadingMessage = 'Checking Passive Tasks snapshot.'): string {
     if (loading && !snapshot) return loadingMessage;
     if (serviceError && !snapshot) return 'This panel will reload after the Passive Tasks service card reconnects.';
-    if (!snapshot) return 'Passive Tasks snapshot has not loaded yet.';
+    if (!snapshot) return 'Passive Tasks needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.';
     return healthyEmpty;
   }
 
@@ -196,7 +196,7 @@
   function passiveRecentRunsEmptyMessage(): string {
     if (loading && !snapshot) return 'Checking Passive Tasks run history.';
     if (serviceError && !snapshot) return 'Run history will reload after the Passive Tasks service card reconnects.';
-    if (!snapshot) return 'Passive Tasks run history has not loaded yet.';
+    if (!snapshot) return 'Passive Tasks run history needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.';
     return highlightedRunId
       ? `Activity run ${highlightedRunId} is not in the current Passive Tasks snapshot. Refresh or open Activity for the durable record.`
       : 'Run history will appear after the worker or dashboard runs a task.';

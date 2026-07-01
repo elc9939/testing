@@ -787,7 +787,9 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain("if (!settings) return 'Load snapshot'");
     expect(passive).toContain("return snapshot ? 'Backup health not reported' : 'Load snapshot'");
     expect(passive).toContain("if (loading && !snapshot) return 'checking'");
-    expect(passive).toContain("if (!snapshot) return 'not loaded'");
+    expect(passive).toContain("if (!snapshot) return 'refresh needed'");
+    expect(passive).toContain('Passive Tasks needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.');
+    expect(passive).toContain('Passive Tasks run history needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.');
     expect(passive).toContain("if (!snapshot) return 'Load snapshot'");
     expect(passive).not.toContain("return 'Not checked'");
     expect(passive).not.toContain("'No backup health'");
