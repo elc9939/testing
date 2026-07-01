@@ -965,7 +965,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Open cached event details. Connect the API and Google to edit or save.');
     expect(source).toContain('Showing cached event details. Connect the API and Google to edit, move, delete, or save.');
     expect(source).toContain('function moveEventTitle');
-    expect(source).toContain('Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}?');
+    expect(source).toContain('Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}? This updates the live Google Calendar event.');
     expect(source).toContain('Calendar move skipped.');
     expect(source).toContain('Ask for confirmation before moving this event.');
     expect(source).toContain('Ask for confirmation before revoking this Google account connection.');

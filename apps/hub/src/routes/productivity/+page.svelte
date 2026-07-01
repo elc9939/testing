@@ -990,7 +990,7 @@
     if (!moveTargetCalendarId || moveTargetCalendarId === event.calendarId) return;
     const key = `event:move:${event.id}`;
     if (!beginProductivityAction(key)) return;
-    if (!confirm(`Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}?`)) {
+    if (!confirm(`Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}? This updates the live Google Calendar event.`)) {
       actionMessage = 'Calendar move skipped.';
       endProductivityAction(key);
       return;
