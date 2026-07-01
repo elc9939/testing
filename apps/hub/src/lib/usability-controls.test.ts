@@ -1764,6 +1764,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('visibleActionLedgerError = actionLedgerError ? compactServiceIssueIfRecognized(actionLedgerError,');
     expect(source).toContain('visibleActionLedgerSourceError = actionLedgerSourceError ? compactServiceIssueIfRecognized(actionLedgerSourceError,');
     expect(source).toContain('function restoreActionTitle');
+    expect(source).toContain('This can overwrite the current local file target.');
+    expect(source).toContain('This can move, delete, or overwrite local files.');
+    expect(source).toContain('This writes synced Mini Hub data.');
+    expect(source).not.toContain('from its recorded recovery data.');
     expect(source).toContain('title={restoreActionTitle(action)}');
     expect(source).toContain('function endpointInputTitle');
     expect(source).toContain("title={endpointInputTitle('AI OS API')}");

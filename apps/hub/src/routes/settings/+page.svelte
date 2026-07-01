@@ -675,7 +675,9 @@
     if (restoreBusyId === action.id) return 'This restore is already running.';
     if (restoreBusyId) return 'Another restore action is already running.';
     if (!canRestoreAction(action)) return 'This action does not have a reversible snapshot or recovery artifact.';
-    return `Restore "${action.summary}" from its recorded recovery data.`;
+    if (action.system === 'ai-os') return `Ask for confirmation before restoring "${action.summary}". This can overwrite the current local file target.`;
+    if (action.system === 'macro-lab') return `Ask for confirmation before restoring "${action.summary}". This can move, delete, or overwrite local files.`;
+    return `Ask for confirmation before restoring "${action.summary}". This writes synced Mini Hub data.`;
   }
 
   async function restoreAction(action: ActionLedgerEntry): Promise<void> {
