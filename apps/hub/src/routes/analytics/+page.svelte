@@ -51,7 +51,7 @@
     if ($clientData.lastSyncedAt) return `Last sync ${displayTime($clientData.lastSyncedAt)}`;
     if ($clientData.status === 'offline-readonly') return 'No live sync; showing saved browser data.';
     if ($clientData.status === 'error') return $clientData.error || 'Cache status reported an error.';
-    return 'No completed sync recorded in this browser yet.';
+    return 'No completed sync yet; refresh or open Data & Recovery to inspect the cache.';
   }
 
   function analyticsRecordSummary(): string {
@@ -64,7 +64,7 @@
     if (renderError) return 'Renderer unavailable';
     if (viewState === 'offline') return 'No cached chart data';
     if (viewState === 'error') return 'Cache needs attention';
-    return 'No chart data yet';
+    return 'No workspace data to chart yet';
   }
 
   function workspaceMixEmptyMessage(): string {
@@ -81,7 +81,7 @@
     if (refreshError) return 'Refresh needs attention';
     if (viewState === 'offline') return 'No cached study trend';
     if (viewState === 'error') return 'Cache needs attention';
-    return 'No study trend data yet';
+    return 'No study trend to chart yet';
   }
 
   function studyTrendEmptyMessage(): string {

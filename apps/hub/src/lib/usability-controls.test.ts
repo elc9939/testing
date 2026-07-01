@@ -1629,10 +1629,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("if (!$clientData.initialized) return 'Opening PGlite/browser cache.'");
     expect(source).toContain('Opening browser cache before drawing the workspace mix.');
     expect(source).toContain('No cached Career, Study, or game records are available in this browser yet.');
-    expect(source).toContain('No chart data yet');
+    expect(source).toContain('No workspace data to chart yet');
     expect(source).toContain('Opening browser cache before drawing the seven-day trend.');
     expect(source).toContain('No cached study sessions are available in this browser yet.');
-    expect(source).toContain('No study trend data yet');
+    expect(source).toContain('No study trend to chart yet');
     expect(source).toContain("viewState === 'error' ? 'Action Needed' : 'Opening Cache'");
     expect(source).not.toContain("if (!value) return 'n/a'");
     expect(source).not.toContain('Cache loading');
@@ -1641,7 +1641,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('<strong>No study trend yet</strong>');
     expect(source).toContain('aria-label="Analytics cache status"');
     expect(source).toContain('Last sync');
-    expect(source).toContain('No completed sync recorded in this browser yet.');
+    expect(source).toContain('No completed sync yet; refresh or open Data & Recovery to inspect the cache.');
+    expect(source).not.toContain('No chart data yet');
+    expect(source).not.toContain('No study trend data yet');
+    expect(source).not.toContain('No completed sync recorded in this browser yet.');
     expect(source).toContain('disabled={refreshBusy}');
     expect(source).toContain("{refreshBusy ? 'Refreshing' : 'Refresh'}");
     expect(source).toContain("refreshError ? 'Refresh needs attention'");
