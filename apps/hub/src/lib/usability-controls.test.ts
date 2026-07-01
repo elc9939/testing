@@ -621,6 +621,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Model load will reload after the Desktop service card reconnects.');
     expect(source).toContain('See the Desktop service card above for the connection error and fix actions.');
     expect(source).toContain('Provider state will reload after the Desktop service card reconnects.');
+    expect(source).toContain('function hostSystemLabel');
+    expect(source).toContain("return 'OS not reported by AI OS'");
+    expect(source).toContain('function hostMachineLabel');
+    expect(source).toContain("return metricString(host, 'machine') ?? 'machine type not reported by AI OS'");
     expect(source).toContain("return 'Waiting for report'");
     expect(source).not.toContain("return 'Not checked'");
     expect(source).toContain('GPU telemetry will reload after the Desktop service card reconnects.');
@@ -655,7 +659,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('<strong>{aiOsMetricLabel(hardware?.cpu_percent,');
     expect(source).toContain('<small>{aiOsGpuDetail(primaryGpu)}</small>');
     expect(source).toContain("Suggested concurrency: ${result.profile.autotune.suggested_max_job_concurrency ?? 'not measured'}");
-    expect(source).toContain("machineProfile.host.machine ?? 'machine type not reported'");
+    expect(source).toContain('<strong>{hostSystemLabel(machineProfile.host)}</strong>');
+    expect(source).toContain('<small>{hostMachineLabel(machineProfile.host)}</small>');
+    expect(source).not.toContain("machineProfile.host.system ?? 'Unknown'");
+    expect(source).not.toContain("machineProfile.host.machine ?? 'machine type not reported'");
     expect(source).toContain("autotuneResult = 'Running autotune probe.'");
     expect(source).toContain('tokens/sec not measured');
     expect(source).toContain("Schema {status?.integrity?.schema_version ?? 'not reported'} / {status?.integrity?.expected_schema_version ?? 'not reported'}");

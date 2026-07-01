@@ -593,6 +593,17 @@
     return value !== undefined ? `${value.toFixed(1)} tok/s` : 'not measured';
   }
 
+  function hostSystemLabel(host: Record<string, unknown> | undefined): string {
+    const system = metricString(host, 'system');
+    const release = metricString(host, 'release');
+    if (!system && !release) return 'OS not reported by AI OS';
+    return [system, release].filter(Boolean).join(' ');
+  }
+
+  function hostMachineLabel(host: Record<string, unknown> | undefined): string {
+    return metricString(host, 'machine') ?? 'machine type not reported by AI OS';
+  }
+
   function modelName(model: Record<string, unknown>): string {
     return metricString(model, 'name') ?? metricString(model, 'model') ?? 'loaded model';
   }
@@ -1510,8 +1521,8 @@
       </div>
       <div>
         <span>OS</span>
-        <strong>{machineProfile.host.system ?? 'Unknown'} {machineProfile.host.release ?? ''}</strong>
-        <small>{machineProfile.host.machine ?? 'machine type not reported'}</small>
+        <strong>{hostSystemLabel(machineProfile.host)}</strong>
+        <small>{hostMachineLabel(machineProfile.host)}</small>
       </div>
       <div>
         <span>Snapshots</span>
