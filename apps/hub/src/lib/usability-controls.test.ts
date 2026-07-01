@@ -2029,6 +2029,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('visibleEndpointError = endpointError ? compactSettingsIssue(endpointError,');
     expect(source).toContain('visibleCapabilityError = capabilityError ? compactSettingsIssue(capabilityError,');
     expect(source).toContain('visiblePassiveError = passiveError ? compactSettingsIssue(passiveError,');
+    expect(source).toContain('visiblePassiveBackupHealthError = passiveBackupHealth?.error ? compactSettingsIssue(passiveBackupHealth.error,');
     expect(source).toContain('function compactSettingsIssue');
     expect(source).toContain('Retry the action or check Feature Wiring.');
     expect(source).toContain('visibleActionLedgerError = actionLedgerError ? compactServiceIssueIfRecognized(actionLedgerError,');
@@ -2146,6 +2147,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Loading passive task settings.');
     expect(source).toContain('Passive task settings need a fresh source check. Use Check Services or open Passive Tasks.');
     expect(source).toContain('Raw Passive Tasks settings error:');
+    expect(source).toContain('Raw Passive restore point error:');
     expect(source).toContain('Raw Capability Registry error:');
     expect(source).toContain('Raw Settings save/cache error:');
     expect(source).toContain('Raw Desktop Services error:');

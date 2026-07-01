@@ -135,6 +135,7 @@
   $: actionLedgerSourceError = actionLedgerSnapshot?.errors[0] ?? '';
   $: visibleActionLedgerSourceError = actionLedgerSourceError ? compactServiceIssueIfRecognized(actionLedgerSourceError, 'Action Ledger source') : '';
   $: visiblePassiveError = passiveError ? compactSettingsIssue(passiveError, 'Passive Tasks') : '';
+  $: visiblePassiveBackupHealthError = passiveBackupHealth?.error ? compactSettingsIssue(passiveBackupHealth.error, 'Passive restore points') : '';
   $: passiveSettings = passiveSnapshot?.settings ?? null;
   $: passiveSettingsBlockedReason = passiveSettingsControlBlockedReason({
     saving: passiveSaving,
@@ -986,7 +987,7 @@
   }
 
   function backupHealthDetail(health: PassiveBackupHealth): string {
-    if (!health.latestPath) return health.error ?? 'No Mini Hub restore point is available yet.';
+    if (!health.latestPath) return health.error ? compactSettingsIssue(health.error, 'Passive restore points') : 'No Mini Hub restore point is available yet.';
     const cleanup = health.cleanupCandidateCount
       ? ` Cleanup dry-run: ${health.cleanupCandidateCount} candidate${health.cleanupCandidateCount === 1 ? '' : 's'} (${formatBytes(health.cleanupBytes)}).`
       : '';
@@ -1286,7 +1287,7 @@
           <strong>Restore point health</strong>
           <small>{backupHealthDetail(passiveBackupHealth)}</small>
           {#if passiveBackupHealth.error}
-            <em>{passiveBackupHealth.error}</em>
+            <em title={`Raw Passive restore point error: ${passiveBackupHealth.error}`}>{visiblePassiveBackupHealthError}</em>
           {/if}
         </span>
         <a class="button compact" href={hubHref('/passive-tasks')} title="Open Passive Tasks restore points.">Open Restore Points</a>
