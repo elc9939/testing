@@ -328,6 +328,27 @@
     return passiveActionTitle('Save passive task settings; new limits and toggles apply to future watcher runs.');
   }
 
+  function passivePreferenceTitle(kind: 'notifications' | 'resource' | 'idle' | 'ai' | 'maxRuns'): string {
+    if (passiveWriteTitle) return passiveWriteTitle;
+    if (kind === 'notifications') return 'Change how Passive Tasks surfaces notifications; saved immediately through the Passive Tasks API.';
+    if (kind === 'resource') return 'Set the resource budget used by future passive runs.';
+    if (kind === 'idle') return 'Require scheduled passive work to wait for idle checks; manual runs still remain explicit.';
+    if (kind === 'ai') return 'Choose whether passive AI work prefers local models only, local first, or cloud fallback.';
+    return 'Limit how many passive tasks can start in one due-task tick.';
+  }
+
+  function passiveFamilyControlTitle(family: PassiveFamilyRow): string {
+    if (passiveWriteTitle) return passiveWriteTitle;
+    return `${family.familyEnabled ? 'Disable' : 'Enable'} ${family.label}; the Passive Tasks API saves the toggle for future runs.`;
+  }
+
+  function passiveScopeTitle(kind: 'folders' | 'research' | 'accounts'): string {
+    if (passiveWriteTitle) return passiveWriteTitle;
+    if (kind === 'folders') return 'Edit watched local folders. These server-backed scopes save only when Save succeeds.';
+    if (kind === 'research') return 'Edit watched research domains, topics, tools, companies, or pages. These scopes feed future passive research runs.';
+    return 'Edit watched account identifiers. These scopes feed future mail/calendar/service passive checks.';
+  }
+
   function requirePassiveReady(action: string): boolean {
     const reason = passiveDisabledReason();
     if (!reason) return true;
@@ -1264,7 +1285,7 @@
         <div class="settings-form">
           <label class="field">
             <span>Notifications</span>
-            <select value={settings.notificationStyle} disabled={passiveWriteDisabled} title={passiveWriteTitle} on:change={(event) => setNotificationStyle(event.currentTarget.value as 'digest' | 'urgent_only' | 'off')}>
+            <select value={settings.notificationStyle} disabled={passiveWriteDisabled} title={passivePreferenceTitle('notifications')} on:change={(event) => setNotificationStyle(event.currentTarget.value as 'digest' | 'urgent_only' | 'off')}>
               <option value="digest">Digest</option>
               <option value="urgent_only">Urgent only</option>
               <option value="off">Off</option>
@@ -1272,7 +1293,7 @@
           </label>
           <label class="field">
             <span>Resource limit</span>
-            <select value={settings.resourceLimit} disabled={passiveWriteDisabled} title={passiveWriteTitle} on:change={(event) => setResourceLimit(event.currentTarget.value as 'light' | 'balanced' | 'heavy')}>
+            <select value={settings.resourceLimit} disabled={passiveWriteDisabled} title={passivePreferenceTitle('resource')} on:change={(event) => setResourceLimit(event.currentTarget.value as 'light' | 'balanced' | 'heavy')}>
               <option value="light">Light</option>
               <option value="balanced">Balanced</option>
               <option value="heavy">Heavy</option>
@@ -1283,7 +1304,7 @@
               type="checkbox"
               checked={settings.idleOnly}
               disabled={passiveWriteDisabled}
-              title={passiveWriteTitle}
+              title={passivePreferenceTitle('idle')}
               on:change={(event) => setIdleOnly(event.currentTarget.checked)}
             />
             <span>
@@ -1293,7 +1314,7 @@
           </label>
           <label class="field">
             <span>AI preference</span>
-            <select value={settings.localAiPreference} disabled={passiveWriteDisabled} title={passiveWriteTitle} on:change={(event) => setLocalAiPreference(event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed')}>
+            <select value={settings.localAiPreference} disabled={passiveWriteDisabled} title={passivePreferenceTitle('ai')} on:change={(event) => setLocalAiPreference(event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed')}>
               <option value="local_first">Local first</option>
               <option value="local_only">Local only</option>
               <option value="cloud_allowed">Cloud allowed</option>
@@ -1307,7 +1328,7 @@
               max="10"
               value={settings.maxRunsPerTick}
               disabled={passiveWriteDisabled}
-              title={passiveWriteTitle}
+              title={passivePreferenceTitle('maxRuns')}
               on:change={(event) => setMaxRunsPerTick(Number(event.currentTarget.value))}
             />
           </label>
@@ -1318,7 +1339,7 @@
                   type="checkbox"
                   checked={family.familyEnabled}
                   disabled={passiveWriteDisabled}
-                  title={passiveWriteTitle}
+                  title={passiveFamilyControlTitle(family)}
                   on:change={(event) => setFamilyEnabled(family.family, event.currentTarget.checked)}
                 />
                 <span>
@@ -1329,17 +1350,21 @@
               </label>
             {/each}
           </div>
+          <p class="settings-note recovery-note" aria-label="Passive settings recovery">
+            <Activity size={15} />
+            Server-backed scopes reload from the Passive Tasks API. Recent runs, digest cards, and Activity handoffs remain recoverable after route changes.
+          </p>
           <label class="field">
             <span>Watched folders</span>
-            <textarea bind:value={folderText} disabled={passiveWriteDisabled} title={passiveWriteTitle} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
+            <textarea bind:value={folderText} disabled={passiveWriteDisabled} title={passiveScopeTitle('folders')} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
           </label>
           <label class="field">
             <span>Watched research</span>
-            <textarea bind:value={domainText} disabled={passiveWriteDisabled} title={passiveWriteTitle} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
+            <textarea bind:value={domainText} disabled={passiveWriteDisabled} title={passiveScopeTitle('research')} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
           </label>
           <label class="field">
             <span>Watched accounts</span>
-            <textarea bind:value={accountText} disabled={passiveWriteDisabled} title={passiveWriteTitle} rows="3" placeholder="personal@example.com"></textarea>
+            <textarea bind:value={accountText} disabled={passiveWriteDisabled} title={passiveScopeTitle('accounts')} rows="3" placeholder="personal@example.com"></textarea>
           </label>
           <p class="settings-note">
             <FolderOpen size={15} />
