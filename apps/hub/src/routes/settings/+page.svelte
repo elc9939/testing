@@ -72,6 +72,7 @@
     clientError: string;
     capabilityLoading: boolean;
     actionLedgerLoading: boolean;
+    exportBusy: boolean;
   }
 
   let apiStatus = 'Run Check Services';
@@ -221,11 +222,13 @@
     clientStatus: $clientData.status,
     clientError: $clientData.error,
     capabilityLoading,
-    actionLedgerLoading
+    actionLedgerLoading,
+    exportBusy
   };
   $: syncNowButtonTitle = syncNowTitle(settingsControlState);
   $: capabilityRefreshButtonTitle = capabilityRefreshTitle(settingsControlState);
   $: actionLedgerRefreshButtonTitle = actionLedgerRefreshTitle(settingsControlState);
+  $: exportCacheButtonTitle = exportCacheTitle(settingsControlState);
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -460,7 +463,11 @@
   }
 
   function exportCache(): void {
-    if (exportBusy) return;
+    const blocked = exportCacheBlockedReason(settingsControlState);
+    if (blocked) {
+      settingsError = blocked;
+      return;
+    }
     exportBusy = true;
     settingsError = '';
     settingsMessage = '';
@@ -478,6 +485,16 @@
     } finally {
       exportBusy = false;
     }
+  }
+
+  function exportCacheBlockedReason(state: Pick<SettingsControlState, 'clientInitialized' | 'exportBusy'>): string {
+    if (state.exportBusy) return 'Cache export is already running.';
+    if (!state.clientInitialized) return 'Opening the browser cache before export is available.';
+    return '';
+  }
+
+  function exportCacheTitle(state: Pick<SettingsControlState, 'clientInitialized' | 'exportBusy'>): string {
+    return exportCacheBlockedReason(state) || 'Download the current browser cache as JSON.';
   }
 
   async function refreshCapabilities(): Promise<void> {
@@ -1375,7 +1392,7 @@
         <Cloud size={17} />
         <span>Sync Now</span>
       </button>
-      <button class="button" type="button" disabled={exportBusy} title="Download the current browser cache as JSON." on:click={exportCache}>
+      <button class="button" type="button" disabled={Boolean(exportCacheBlockedReason(settingsControlState))} title={exportCacheButtonTitle} on:click={exportCache}>
         <Download size={17} />
         <span>{exportBusy ? 'Exporting' : 'Export Cache'}</span>
       </button>

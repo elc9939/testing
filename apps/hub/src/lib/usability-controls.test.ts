@@ -1677,15 +1677,19 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('clientOnline: $clientData.isOnline');
     expect(source).toContain('clientStatus: $clientData.status');
     expect(source).toContain('clientError: $clientData.error');
+    expect(source).toContain('exportBusy');
     expect(source).toContain('syncNowButtonTitle = syncNowTitle(settingsControlState)');
     expect(source).toContain('capabilityRefreshButtonTitle = capabilityRefreshTitle(settingsControlState)');
     expect(source).toContain('actionLedgerRefreshButtonTitle = actionLedgerRefreshTitle(settingsControlState)');
+    expect(source).toContain('exportCacheButtonTitle = exportCacheTitle(settingsControlState)');
     expect(source).toContain('function capabilityRefreshTitle');
     expect(source).toContain('title={capabilityRefreshButtonTitle}');
     expect(source).toContain('function themeButtonTitle');
     expect(source).toContain("title={themeButtonTitle('dark')}");
     expect(source).toContain('function actionLedgerRefreshTitle');
     expect(source).toContain('title={actionLedgerRefreshButtonTitle}');
+    expect(source).toContain('function exportCacheBlockedReason');
+    expect(source).toContain('function exportCacheTitle');
     expect(source).toContain('function actionLedgerEmptyMessage');
     expect(source).toContain('visibleActionLedgerError = actionLedgerError ? compactServiceIssueIfRecognized(actionLedgerError,');
     expect(source).toContain('visibleActionLedgerSourceError = actionLedgerSourceError ? compactServiceIssueIfRecognized(actionLedgerSourceError,');
@@ -1721,6 +1725,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={syncNowButtonTitle}');
     expect(source).toContain('Loading local cache before sync controls are enabled.');
     expect(source).toContain('Mini Hub API is not ready:');
+    expect(source).toContain('Opening the browser cache before export is available.');
     expect(source).toContain('<span>Check Services</span>');
     expect(source).toContain('<span>Sync Now</span>');
     expect(source).not.toContain("serviceChecking ? 'Checking' : 'Check Services'");
@@ -1761,7 +1766,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('Passive task settings have not loaded yet.');
     expect(source).not.toContain('Loading action ledger...');
     expect(source).not.toContain('Action Ledger has not loaded yet.');
-    expect(source).toContain('disabled={exportBusy}');
+    expect(source).toContain('disabled={Boolean(exportCacheBlockedReason(settingsControlState))}');
+    expect(source).toContain('title={exportCacheButtonTitle}');
+    expect(source).not.toContain('disabled={exportBusy}');
     expect(source).toContain('disabled={endpointSaving}');
     expect(source).toContain("{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}");
     expect(source).toContain('Offline read-only: start or connect the Mini Hub API before syncing.');
