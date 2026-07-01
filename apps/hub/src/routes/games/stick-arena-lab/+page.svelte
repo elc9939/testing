@@ -4,6 +4,7 @@
   import type { StickArenaLabHandle } from '@mini-hub/game-engine';
   import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { hubHref } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   let mount: HTMLDivElement;
   let lab: StickArenaLabHandle | null = null;
@@ -32,6 +33,8 @@
   $: resetDisabled = !labReady || labControlBusy;
   $: saveDisabled = !labReady || !canSave || saving;
   $: saveCapabilityStatus = labReady ? gameRunSaveStatus($clientData) : labLoading ? 'Engine loading' : 'Engine unavailable';
+  $: visibleEngineStatus = compactStickArenaLabIssue(status, 'Game engine');
+  $: visibleSaveStatus = saveStatus ? compactStickArenaLabIssue(saveStatus, 'Stick Arena save') : saveCapabilityStatus;
   $: stickArenaLabControlState = {
     saving,
     labReady,
@@ -78,9 +81,16 @@
   ): string {
     if (!state.clientInitialized) return 'Loading local cache before game run saves are enabled.';
     if (!state.clientOnline) return 'Offline read-only: connect the Mini Hub API before saving game runs.';
-    if (state.clientError) return `Mini Hub API is not ready for game saves: ${state.clientError}`;
+    if (state.clientError) return `Mini Hub API is not ready for game saves: ${compactStickArenaLabIssue(state.clientError, 'Mini Hub API')}`;
     if (state.clientStatus === 'syncing') return 'Game run saves wait while Mini Hub sync is running.';
     return `Game run saves wait for Mini Hub status ${state.clientStatus}.`;
+  }
+
+  function compactStickArenaLabIssue(message = '', label = 'Stick Arena Lab'): string {
+    const text = message.trim();
+    if (!text) return '';
+    const compact = compactServiceIssueIfRecognized(text, label);
+    return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
   }
 
   function telemetryEmptyMessage(state: Pick<StickArenaLabControlState, 'labReady' | 'labLoading' | 'saving' | 'status'>): string {
@@ -187,7 +197,9 @@
 
 {#if !labReady}
   <section class="card card-pad engine-banner">
-    <span>{labLoading ? 'Loading game engine: reset and save are disabled until the lab is ready.' : `Game engine unavailable: ${status}`}</span>
+    <span title={labLoading ? undefined : `Raw Stick Arena engine error: ${status}`}>
+      {labLoading ? 'Loading game engine: reset and save are disabled until the lab is ready.' : `Game engine unavailable: ${visibleEngineStatus}`}
+    </span>
   </section>
 {/if}
 
@@ -195,9 +207,9 @@
   <div class="arena card" bind:this={mount} aria-label="Stick Arena Pixi Rapier canvas"></div>
   <aside class="card card-pad">
     <strong>Status</strong>
-    <p class="muted">{status}</p>
+    <p class="muted" title={`Raw Stick Arena engine status: ${status}`}>{visibleEngineStatus}</p>
     <strong>Saving</strong>
-    <p class="muted">{saveStatus || saveCapabilityStatus}</p>
+    <p class="muted" title={saveStatus ? `Raw Stick Arena save status: ${saveStatus}` : saveCapabilityStatus}>{visibleSaveStatus}</p>
     <strong>Telemetry</strong>
     {#if telemetry.length}
       <ul>

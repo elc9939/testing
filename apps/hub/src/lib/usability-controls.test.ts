@@ -1853,12 +1853,16 @@ describe('Mini Hub usability control gates', () => {
 
     expect(games).toContain('Games save and recovery status');
     expect(games).toContain("import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data'");
+    expect(games).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
     expect(games).toContain('gameRunCount = $clientData.gameRuns.length');
     expect(games).toContain('gameStateCount = $clientData.gameStates.length');
     expect(games).toContain('gameSaveReady = canAutoSave($clientData)');
     expect(games).toContain("gameSaveMode = gameSaveReady ? 'API-backed saves enabled'");
     expect(games).toContain('Opening saved game data');
     expect(games).toContain('function gameSaveBlockedDetail');
+    expect(games).toContain('function compactGameSaveIssue');
+    expect(games).toContain("compactServiceIssueIfRecognized(text, 'Mini Hub API')");
+    expect(games).toContain('Raw Games save/cache error:');
     expect(games).toContain('Opening the browser cache before game save status is known.');
     expect(games).toContain('API-backed run/state saves wait for Mini Hub status');
     expect(games).toContain('Supported game runs and state save through the Mini Hub API');
@@ -1875,8 +1879,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('clientInitialized: $clientData.initialized');
     expect(source).toContain('resetButtonTitle = resetTitle(stickArenaLabControlState)');
     expect(source).toContain('saveButtonTitle = saveTitle(stickArenaLabControlState)');
+    expect(source).toContain('visibleEngineStatus = compactStickArenaLabIssue(status,');
+    expect(source).toContain('visibleSaveStatus = saveStatus ? compactStickArenaLabIssue(saveStatus,');
     expect(source).toContain('function gameRunSaveStatus');
     expect(source).toContain('function gameRunSaveBlockedReason');
+    expect(source).toContain('function compactStickArenaLabIssue');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, label)");
+    expect(source).toContain('Raw Stick Arena engine error:');
+    expect(source).toContain('Raw Stick Arena engine status:');
+    expect(source).toContain('Raw Stick Arena save status:');
     expect(source).toContain('function telemetryEmptyMessage');
     expect(source).toContain('Ready to save runs through Mini Hub.');
     expect(source).toContain('Opening saved game data');

@@ -3,6 +3,7 @@
   import { ArrowRight, Gamepad2 } from 'lucide-svelte';
   import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { hubHref, legacyHref } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   $: gameRunCount = $clientData.gameRuns.length;
   $: gameStateCount = $clientData.gameStates.length;
@@ -16,10 +17,17 @@
 
   function gameSaveBlockedDetail(state: ClientDataState): string {
     if (!state.initialized) return 'Opening the browser cache before game save status is known.';
-    if (state.error) return `Games remain playable, but API-backed run/state saves are disabled: ${state.error}`;
+    if (state.error) return `Games remain playable, but API-backed run/state saves are disabled: ${compactGameSaveIssue(state.error)}`;
     if (!state.isOnline) return 'Games remain playable, but API-backed run/state saves are disabled until Mini Hub reconnects.';
     if (state.status === 'syncing') return 'Games remain playable; save controls wait while Mini Hub sync is running.';
     return `Games remain playable, but API-backed run/state saves wait for Mini Hub status ${state.status}.`;
+  }
+
+  function compactGameSaveIssue(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'Mini Hub API needs attention. Open Settings Data & Recovery.';
+    const compact = compactServiceIssueIfRecognized(text, 'Mini Hub API');
+    return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
   }
 
   onMount(() => {
@@ -42,7 +50,7 @@
   <div>
     <span>Save Mode</span>
     <strong>{gameSaveMode}</strong>
-    <small>{gameSaveDetail}</small>
+    <small title={$clientData.error ? `Raw Games save/cache error: ${$clientData.error}` : gameSaveDetail}>{gameSaveDetail}</small>
   </div>
   <div>
     <span>Cached Runs</span>
