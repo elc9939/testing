@@ -701,8 +701,16 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("title={designPatchActionTitle(patch, 'revert')}");
     expect(source).toContain('function backgroundActionBlockedReason');
     expect(source).toContain('Another ambient unit action is already running.');
+    expect(source).toContain('function backgroundActionTitle');
+    expect(source).toContain('Disable ${unit.label}; existing AI OS history remains recoverable.');
+    expect(source).toContain('Enable ${unit.label}; it can run only from its configured ${unit.trigger} trigger.');
+    expect(source).toContain('Run ${unit.label} once now through AI OS; Activity and AI OS logs will show the result.');
     expect(source).toContain("disabled={backgroundActionDisabled(unit, 'toggle')}");
     expect(source).toContain("disabled={backgroundActionDisabled(unit, 'run')}");
+    expect(source).toContain("title={backgroundActionTitle(unit, 'toggle')}");
+    expect(source).toContain("title={backgroundActionTitle(unit, 'run')}");
+    expect(source).not.toContain("title={backgroundActionBlockedReason(unit, 'toggle') || 'Toggle ambient unit'}");
+    expect(source).not.toContain("title={backgroundActionBlockedReason(unit, 'run') || 'Run ambient unit'}");
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
   });
 

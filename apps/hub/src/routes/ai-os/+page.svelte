@@ -333,7 +333,7 @@
   }
 
   function backgroundActionBlockedReason(unit: AiBackgroundUnit, action: 'toggle' | 'run'): string {
-    const label = action === 'toggle' ? 'Toggle ambient unit' : 'Run ambient unit';
+    const label = action === 'toggle' ? `Toggle ${unit.label}` : `Run ${unit.label}`;
     const key = backgroundActionKey(unit, action);
     if (aiOsActionBlocked) return `${label} needs the local AI OS service first. Refresh status or open Settings Feature Wiring to connect ${getAiOsApiUrl()}.`;
     if (backgroundBusyId === key) return `${label} is already running.`;
@@ -343,6 +343,17 @@
 
   function backgroundActionDisabled(unit: AiBackgroundUnit, action: 'toggle' | 'run'): boolean {
     return Boolean(backgroundActionBlockedReason(unit, action));
+  }
+
+  function backgroundActionTitle(unit: AiBackgroundUnit, action: 'toggle' | 'run'): string {
+    const blocked = backgroundActionBlockedReason(unit, action);
+    if (blocked) return blocked;
+    if (action === 'toggle') {
+      return unit.enabled
+        ? `Disable ${unit.label}; existing AI OS history remains recoverable.`
+        : `Enable ${unit.label}; it can run only from its configured ${unit.trigger} trigger.`;
+    }
+    return `Run ${unit.label} once now through AI OS; Activity and AI OS logs will show the result.`;
   }
 
   function redactMediaPayloads(value: unknown): unknown {
@@ -2099,14 +2110,14 @@
             <span>{unit.trigger}</span>
           </div>
           <div class="ambient-actions">
-            <button class="icon-button" type="button" disabled={backgroundActionDisabled(unit, 'toggle')} title={backgroundActionBlockedReason(unit, 'toggle') || 'Toggle ambient unit'} aria-label={`Toggle ${unit.label}`} on:click={() => toggleUnit(unit)}>
+            <button class="icon-button" type="button" disabled={backgroundActionDisabled(unit, 'toggle')} title={backgroundActionTitle(unit, 'toggle')} aria-label={`Toggle ${unit.label}`} on:click={() => toggleUnit(unit)}>
               {#if unit.enabled}
                 <ToggleRight size={18} />
               {:else}
                 <ToggleLeft size={18} />
               {/if}
             </button>
-            <button class="icon-button" type="button" disabled={backgroundActionDisabled(unit, 'run')} title={backgroundActionBlockedReason(unit, 'run') || 'Run ambient unit'} aria-label={`Run ${unit.label}`} on:click={() => runUnit(unit)}>
+            <button class="icon-button" type="button" disabled={backgroundActionDisabled(unit, 'run')} title={backgroundActionTitle(unit, 'run')} aria-label={`Run ${unit.label}`} on:click={() => runUnit(unit)}>
               <Play size={16} />
             </button>
           </div>
