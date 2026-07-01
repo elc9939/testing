@@ -161,6 +161,35 @@
     return `Select or create a macro before using ${action}.`;
   }
 
+  function macroActionTitle(
+    action: 'panic' | 'reset' | 'new' | 'toggle-enabled' | 'toggle-armed' | 'save' | 'dry-run' | 'run-confirmed' | 'reload' | 'record' | 'stop-record',
+    macro: MacroDefinition | undefined = selectedMacro
+  ): string {
+    if (macroControlTitle) return macroControlTitle;
+    const name = macro?.name ?? 'the selected macro';
+    if (action === 'panic') return 'Trigger Macro Lab panic: stop running automations and disable triggers until reset.';
+    if (action === 'reset') return 'Clear Macro Lab panic state so enabled triggers can run again.';
+    if (action === 'new') return 'Create and save a new scratch macro definition in Macro Lab.';
+    if (action === 'toggle-enabled') {
+      return macro?.enabled
+        ? `Disable ${name}; saved triggers stop launching it until it is enabled again.`
+        : `Enable ${name}; saved triggers may launch it when Macro Lab triggers are active.`;
+    }
+    if (action === 'toggle-armed') {
+      return macro?.armed
+        ? `Disarm ${name}; system-level actions require arming again before confirmed runs.`
+        : `Arm ${name}; confirmed runs may execute system-level actions after the confirmation prompt.`;
+    }
+    if (action === 'save') return 'Save the edited macro JSON through Macro Lab; invalid JSON or action config will be rejected.';
+    if (action === 'dry-run') return `Run ${name} in dry-run mode; Macro Lab should log a preview without desktop side effects.`;
+    if (action === 'run-confirmed') {
+      return `Ask for confirmation before running ${name} with real desktop side effects; run history records the result.`;
+    }
+    if (action === 'reload') return 'Reload Macro Lab triggers from saved macro definitions without running a macro body.';
+    if (action === 'record') return 'Ask for confirmation before capturing keyboard and mouse input; Stop ends the recorder.';
+    return 'Stop the current keyboard and mouse recorder and reload Macro Lab state.';
+  }
+
   function requireMacroReady(action: string): boolean {
     const reason = macroDisabledReason();
     if (!reason) return true;
@@ -327,8 +356,8 @@
   </div>
   <div class="action-row">
     <button class="button" type="button" disabled={Boolean(macroRefreshBlockedReason)} title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'} on:click={refresh}><RefreshCw size={16} />Refresh</button>
-    <button class="button danger" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Stop all running automations and disable triggers.'} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
-    <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reset the Macro Lab panic state.'} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
+    <button class="button danger" type="button" disabled={macroControlDisabled} title={macroActionTitle('panic')} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
+    <button class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('reset')} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
   </div>
 </div>
 
@@ -374,7 +403,7 @@
   <aside class="macro-list card">
     <div class="panel-head">
       <strong>Macros</strong>
-      <button class="icon-button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Create a new macro.'} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
+      <button class="icon-button" type="button" disabled={macroControlDisabled} title={macroActionTitle('new')} on:click={newMacro} aria-label="New macro"><Wrench size={16} /></button>
     </div>
     {#each macros as macro}
       <button class:active={selectedMacro?.id === macro.id} class="macro-row" type="button" title={macroRowTitle(macro)} on:click={() => selectMacro(macro)}>
@@ -398,20 +427,20 @@
           <span class="muted"> {selectedMacro.id}</span>
         </div>
         <div class="action-row compact">
-          <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle whether this macro can run.'} on:click={() => toggleSelected('enabled')}>
+          <button class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('toggle-enabled', selectedMacro)} on:click={() => toggleSelected('enabled')}>
             {#if selectedMacro.enabled}<ToggleRight size={16} />Enabled{:else}<ToggleLeft size={16} />Disabled{/if}
           </button>
-          <button class:selected={selectedMacro.armed} class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Toggle the explicit armed state for system-level actions.'} on:click={() => toggleSelected('armed')}>
+          <button class:selected={selectedMacro.armed} class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('toggle-armed', selectedMacro)} on:click={() => toggleSelected('armed')}>
             <Shield size={16} />{selectedMacro.armed ? 'Armed' : 'Safe'}
           </button>
         </div>
       </div>
       <textarea bind:value={editor} spellcheck="false" title="Edit the selected macro definition JSON. Saving is disabled until Macro Lab state is loaded."></textarea>
       <div class="action-row">
-        <button class="button primary" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Save the selected macro definition.'} on:click={saveSelected}><Save size={16} />Save</button>
-        <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Run this macro without side effects.'} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
-        <button class="button danger" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Ask for confirmation before running this macro with real desktop side effects.'} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
-        <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Reload Macro Lab triggers from saved definitions.'} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
+        <button class="button primary" type="button" disabled={macroControlDisabled} title={macroActionTitle('save', selectedMacro)} on:click={saveSelected}><Save size={16} />Save</button>
+        <button class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('dry-run', selectedMacro)} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
+        <button class="button danger" type="button" disabled={macroControlDisabled} title={macroActionTitle('run-confirmed', selectedMacro)} on:click={() => runSelected(false, true)}><Play size={16} />Run Confirmed</button>
+        <button class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('reload')} on:click={() => callControl('reload')}><RefreshCw size={16} />Reload Triggers</button>
       </div>
     {:else}
       <div class="empty-panel">
@@ -455,8 +484,8 @@
       <Clipboard size={17} />
     </div>
     <div class="action-row">
-      <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Ask for confirmation before recording keyboard and mouse input.'} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
-      <button class="button" type="button" disabled={macroControlDisabled} title={macroControlTitle || 'Stop the current recorder.'} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
+      <button class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('record')} on:click={() => callControl('record')}><Keyboard size={16} />Record</button>
+      <button class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('stop-record')} on:click={() => callControl('stop-record')}><Square size={16} />Stop</button>
     </div>
     {#if result}
       <pre>{result}</pre>

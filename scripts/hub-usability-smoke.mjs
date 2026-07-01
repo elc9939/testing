@@ -284,6 +284,7 @@ const routes = [
       { label: 'connection card', text: 'connection-card' },
       { label: 'compact service card', text: 'service-card' },
       { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" },
+      { label: 'macro side-effect action titles', text: 'macroActionTitle' },
       { label: 'confirmed run prompt', text: 'confirmMacroSideEffectRun' },
       { label: 'history recovery state', text: 'Run history will reload after the Macro Lab service card reconnects.' }
     ]
