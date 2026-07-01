@@ -669,7 +669,7 @@
   function replyActionTitle(state: ProductivityControlTitleState, send: boolean): string {
     return productivityValidatedActionTitleForState(
       state,
-      send ? 'Send this Gmail reply' : 'Save reply as a Gmail draft',
+      send ? 'Ask for confirmation before sending this Gmail reply.' : 'Save reply as a Gmail draft',
       state.replyBody.trim() ? '' : 'Write a reply before saving or sending it.'
     );
   }
@@ -683,7 +683,7 @@
   }
 
   function composeActionTitle(state: ProductivityControlTitleState, send: boolean): string {
-    const action = send ? 'Send this Gmail message.' : 'Save this message as a Gmail draft.';
+    const action = send ? 'Ask for confirmation before sending this Gmail message.' : 'Save this message as a Gmail draft.';
     if (!state.composeDraft.to.length) return productivityValidatedActionTitleForState(state, action, 'Add at least one recipient before saving or sending.');
     if (!state.composeDraft.subject.trim()) return productivityValidatedActionTitleForState(state, action, 'Add a subject before saving or sending.');
     if (!state.composeDraft.bodyText.trim()) return productivityValidatedActionTitleForState(state, action, 'Write a message body before saving or sending.');
@@ -903,7 +903,7 @@
   async function disconnectGoogle(connection?: PublicConnection): Promise<void> {
     if (!beginProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`)) return;
     const label = connection?.accountLabel ?? 'the stored Google OAuth grant';
-    if (!confirm(`Revoke ${label} for this hub?`)) {
+    if (!confirm(`Revoke ${label} for this hub? Live Gmail and Calendar actions for that account will stop until you connect it again.`)) {
       endProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`);
       return;
     }
@@ -970,7 +970,7 @@
   async function removeEvent(event: CalendarEvent): Promise<void> {
     const key = `event:delete:${event.id}`;
     if (!beginProductivityAction(key)) return;
-    if (!confirm(`Delete "${event.title}" from ${event.calendarId}?`)) {
+    if (!confirm(`Delete "${event.title}" from ${calendarName(event.calendarId)}? This removes the live Google Calendar event.`)) {
       endProductivityAction(key);
       return;
     }
@@ -1030,7 +1030,7 @@
     if (!composeDraft.to.length || !composeDraft.subject.trim() || !composeDraft.bodyText.trim()) return;
     const key = sendNow ? 'gmail:compose:send' : 'gmail:compose:draft';
     if (!beginProductivityAction(key)) return;
-    if (sendNow && !confirm(`Send email to ${composeDraft.to.join(', ')}?`)) {
+    if (sendNow && !confirm(`Send email to ${composeDraft.to.join(', ')}? This sends through Gmail now.`)) {
       endProductivityAction(key);
       return;
     }
@@ -1056,7 +1056,7 @@
     if (!selectedGmailThread || !replyBody.trim()) return;
     const key = sendNow ? `gmail:reply:send:${selectedGmailThread.id}` : `gmail:reply:draft:${selectedGmailThread.id}`;
     if (!beginProductivityAction(key)) return;
-    if (sendNow && !confirm(`Send reply to "${selectedGmailThread.subject}"?`)) {
+    if (sendNow && !confirm(`Send reply to "${selectedGmailThread.subject}"? This sends through Gmail now.`)) {
       endProductivityAction(key);
       return;
     }
@@ -1237,7 +1237,7 @@
         <span>{googleOAuthOpening ? 'Opening sign-in' : 'Add Google Account'}</span>
       </button>
       {#if googleConnections.length === 1}
-        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Revoke this Google account connection.')} on:click={() => disconnectGoogle(googleConnection)}>
+        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Ask for confirmation before revoking this Google account connection.')} on:click={() => disconnectGoogle(googleConnection)}>
           <Unlink size={17} />
           <span>{isActionBusy(`google:disconnect:${googleConnection?.id ?? 'default'}`) ? 'Revoking' : 'Revoke'}</span>
         </button>
@@ -1345,7 +1345,7 @@
             <strong>{connection.accountLabel}</strong>
             <small>{connection.status}{connection.lastSyncAt ? ` - ${displayTime(connection.lastSyncAt)}` : ''}</small>
           </span>
-          <button class="icon-button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Revoke account')} aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
+          <button class="icon-button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Ask for confirmation before revoking this Google account connection.')} aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
             <Unlink size={16} />
           </button>
         </article>
@@ -1472,7 +1472,7 @@
               <button class="icon-button" type="button" aria-label={`Move ${event.title}`} title={moveEventTitle(event)} disabled={productivityWriteDisabled || !moveTargetCalendarId || moveTargetCalendarId === event.calendarId} on:click={() => moveSelectedEvent(event)}>
                 <Send size={16} />
               </button>
-              <button class="icon-button danger" type="button" aria-label={`Delete ${event.title}`} title={productivityActionTitle('Delete event')} disabled={productivityWriteDisabled} on:click={() => removeEvent(event)}>
+              <button class="icon-button danger" type="button" aria-label={`Delete ${event.title}`} title={productivityActionTitle('Ask for confirmation before deleting this Google Calendar event.')} disabled={productivityWriteDisabled} on:click={() => removeEvent(event)}>
                 <Trash2 size={16} />
               </button>
             </td>

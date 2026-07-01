@@ -968,6 +968,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}?');
     expect(source).toContain('Calendar move skipped.');
     expect(source).toContain('Ask for confirmation before moving this event.');
+    expect(source).toContain('Ask for confirmation before revoking this Google account connection.');
+    expect(source).toContain('Revoke ${label} for this hub? Live Gmail and Calendar actions for that account will stop until you connect it again.');
+    expect(source).toContain('Ask for confirmation before deleting this Google Calendar event.');
+    expect(source).toContain('Delete "${event.title}" from ${calendarName(event.calendarId)}? This removes the live Google Calendar event.');
+    expect(source).toContain('Ask for confirmation before sending this Gmail message.');
+    expect(source).toContain('Send email to ${composeDraft.to.join(\', \')}? This sends through Gmail now.');
+    expect(source).toContain('Ask for confirmation before sending this Gmail reply.');
+    expect(source).toContain('Send reply to "${selectedGmailThread.subject}"? This sends through Gmail now.');
     expect(source).toContain('function selectedLabelActionTitle');
     expect(source).toContain('function replyActionTitle');
     expect(source).toContain('function eventSaveActionTitle');
