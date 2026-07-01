@@ -46,10 +46,11 @@ Mini Hub now treats access mode as a first-class diagnostic, not as guesswork.
 | Hosted Light | `https://elc9939.github.io/testing/` | Static GitHub Pages shell. It can show browser-local/cached state and setup guidance. It is not the compute host and cannot make `github.io/testing/api/*` become the local backend. |
 
 Settings -> Remote Access / Connection Mode shows the current page origin, detected mode,
-service health targets, current endpoint state, and current-host endpoint suggestions. If
-you open the hub through a LAN or Tailscale address, use **Use Current Host URLs**, then
-**Save Service URLs** and **Check Services**. If you are on GitHub Pages, enter private
-remote endpoints manually or open Local Full Power on the PC.
+detected LAN IPv4 addresses when the Hub API is reachable, service health targets, current
+endpoint state, and current-host endpoint suggestions. If you open the hub through a LAN or
+Tailscale address, use **Use Current Host URLs**, then **Save Service URLs** and **Check
+Services**. If you are on GitHub Pages, enter private remote endpoints manually or open
+Local Full Power on the PC.
 
 The standard private remote service URLs are:
 

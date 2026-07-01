@@ -13,6 +13,10 @@ export interface HubHealth {
   ok: boolean;
   service: string;
   checkedAt?: string;
+  network?: {
+    lanIpv4: string[];
+    hubPublicUrl?: string;
+  };
   storage?: {
     coreData?: {
       enabled: boolean;

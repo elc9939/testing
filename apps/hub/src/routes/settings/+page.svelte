@@ -179,6 +179,7 @@
   $: endpointSuggestions = remoteEndpointSuggestions(currentOrigin());
   $: endpointSuggestionMap = new Map(endpointSuggestions.map((suggestion) => [suggestion.id, suggestion]));
   $: connectionModeClass = connectionMode.id;
+  $: lanAddressInfo = lanAddressSummary();
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
     endpointIssue: machineAiOsEndpointIssue,
@@ -530,6 +531,21 @@
       return 'This can be full power if your PC is awake, the LAN/Tailscale stack is running, and service origins are trusted.';
     }
     return 'This is the best full-power mode because the browser and desktop services are on the same PC.';
+  }
+
+  function lanAddressSummary(): { label: string; detail: string } {
+    if (!hubHealth) return { label: 'Run Check Services', detail: 'The Hub API reports LAN IPv4 addresses when it is reachable.' };
+    const addresses = hubHealth.network?.lanIpv4 ?? [];
+    if (addresses.length) {
+      return {
+        label: addresses.join(', '),
+        detail: 'Detected from the PC network interfaces through the Hub API.'
+      };
+    }
+    return {
+      label: 'No LAN IPv4 reported',
+      detail: 'Use the Tailscale name/100.x address or the URL printed by the LAN launcher.'
+    };
   }
 
   async function saveEndpoints(): Promise<void> {
@@ -1151,6 +1167,11 @@
         <span>PC requirement</span>
         <strong>{connectionMode.fullPower ? 'PC services required' : 'Static shell'}</strong>
         <small>{connectionMode.setupAction}</small>
+      </div>
+      <div>
+        <span>Detected LAN IPv4</span>
+        <strong>{lanAddressInfo.label}</strong>
+        <small>{lanAddressInfo.detail}</small>
       </div>
       <div>
         <span>Local full power</span>
@@ -1898,7 +1919,7 @@
 
   .connection-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
     gap: 6px;
   }
 

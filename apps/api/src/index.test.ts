@@ -102,7 +102,8 @@ describe('mini hub api', () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/health');
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    const health = (await response.json()) as { network: { lanIpv4: string[] } };
+    expect(health).toMatchObject({
       ok: true,
       service: 'mini-hub-api',
       storage: {
@@ -117,6 +118,7 @@ describe('mini hub api', () => {
         }
       }
     });
+    expect(Array.isArray(health.network.lanIpv4)).toBe(true);
   });
 
   it('reports core data persistence health when disk persistence is enabled', async () => {

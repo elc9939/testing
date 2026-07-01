@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { networkInterfaces } from 'node:os';
 import { auth } from './auth';
 import { personalUserId } from '@mini-hub/core';
 import type { AppBindings, SessionUser } from './context';
@@ -58,6 +59,18 @@ function personalUser(): SessionUser {
     email: 'personal@mini-hub.local',
     name: 'Personal Mini Hub'
   };
+}
+
+function localLanIpv4(): string[] {
+  const addresses = new Set<string>();
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      if (entry.family !== 'IPv4' || entry.internal) continue;
+      if (entry.address.startsWith('169.254.')) continue;
+      addresses.add(entry.address);
+    }
+  }
+  return [...addresses].sort();
 }
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -128,6 +141,10 @@ export function createApp(options: CreateAppOptions = {}) {
       ok: true,
       service: 'mini-hub-api',
       checkedAt: new Date().toISOString(),
+      network: {
+        lanIpv4: localLanIpv4(),
+        hubPublicUrl: env.hubPublicUrl
+      },
       storage: {
         coreData: coreDataHealth(store)
       }
