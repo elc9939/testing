@@ -307,6 +307,27 @@
     return Boolean(jobCancelBlockedReason(job));
   }
 
+  function designPatchActionBlockedReason(patch: AiDesignPatch, action: 'apply' | 'revert'): string {
+    if (aiOsActionBlocked) return aiOsActionBlockedReason;
+    if (designBusy) return 'A design patch action is already running.';
+    if (action === 'apply' && patch.status === 'applied') return 'This patch is already applied.';
+    if (action === 'revert' && patch.status !== 'applied') return 'Apply this patch before it can be reverted.';
+    if (!designConfirm) return 'Arm apply/revert before modifying app files.';
+    return '';
+  }
+
+  function designPatchActionTitle(patch: AiDesignPatch, action: 'apply' | 'revert'): string {
+    const blocked = designPatchActionBlockedReason(patch, action);
+    if (blocked) return blocked;
+    return action === 'apply'
+      ? 'Apply this reversible design patch. AI OS records the patch so it can be reverted.'
+      : 'Revert this applied design patch using the saved AI OS patch record.';
+  }
+
+  function designPatchActionDisabled(patch: AiDesignPatch, action: 'apply' | 'revert'): boolean {
+    return Boolean(designPatchActionBlockedReason(patch, action));
+  }
+
   function backgroundActionKey(unit: AiBackgroundUnit, action: 'toggle' | 'run'): string {
     return `${unit.id}:${action}`;
   }
@@ -1048,6 +1069,11 @@
 
   async function applyPatchRecord(patch: AiDesignPatch): Promise<void> {
     if (!requireAiOsReady('Design patch apply')) return;
+    const blocked = designPatchActionBlockedReason(patch, 'apply');
+    if (blocked) {
+      actionError = blocked;
+      return;
+    }
     designBusy = true;
     actionError = '';
     try {
@@ -1063,6 +1089,11 @@
 
   async function revertPatchRecord(patch: AiDesignPatch): Promise<void> {
     if (!requireAiOsReady('Design patch revert')) return;
+    const blocked = designPatchActionBlockedReason(patch, 'revert');
+    if (blocked) {
+      actionError = blocked;
+      return;
+    }
     designBusy = true;
     actionError = '';
     try {
@@ -1708,11 +1739,11 @@
         <small>{patch.target_files.join(', ')}</small>
         <p>{patch.instruction}</p>
         <div class="action-row tight">
-          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status === 'applied'} title={aiOsActionBlockedReason || (patch.status === 'applied' ? 'This patch is already applied.' : designBusy ? 'A design patch action is already running.' : 'Apply this reversible design patch.')} on:click={() => applyPatchRecord(patch)}>
+          <button class="button" type="button" disabled={designPatchActionDisabled(patch, 'apply')} title={designPatchActionTitle(patch, 'apply')} on:click={() => applyPatchRecord(patch)}>
             <Play size={16} />
             <span>Apply</span>
           </button>
-          <button class="button" type="button" disabled={designBusy || aiOsActionBlocked || patch.status !== 'applied'} title={aiOsActionBlockedReason || (patch.status !== 'applied' ? 'Apply this patch before it can be reverted.' : designBusy ? 'A design patch action is already running.' : 'Revert this applied design patch.')} on:click={() => revertPatchRecord(patch)}>
+          <button class="button" type="button" disabled={designPatchActionDisabled(patch, 'revert')} title={designPatchActionTitle(patch, 'revert')} on:click={() => revertPatchRecord(patch)}>
             <Square size={16} />
             <span>Revert</span>
           </button>

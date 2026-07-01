@@ -687,6 +687,18 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('AI OS job cancellation skipped.');
     expect(source).toContain('disabled={jobCancelDisabled(job)}');
     expect(source).toContain('title={jobCancelTitle(job)}');
+    expect(source).toContain('function designPatchActionBlockedReason');
+    expect(source).toContain('Arm apply/revert before modifying app files.');
+    expect(source).toContain('function designPatchActionTitle');
+    expect(source).toContain('Apply this reversible design patch. AI OS records the patch so it can be reverted.');
+    expect(source).toContain('Revert this applied design patch using the saved AI OS patch record.');
+    expect(source).toContain('function designPatchActionDisabled');
+    expect(source).toContain("const blocked = designPatchActionBlockedReason(patch, 'apply')");
+    expect(source).toContain("const blocked = designPatchActionBlockedReason(patch, 'revert')");
+    expect(source).toContain("disabled={designPatchActionDisabled(patch, 'apply')}");
+    expect(source).toContain("title={designPatchActionTitle(patch, 'apply')}");
+    expect(source).toContain("disabled={designPatchActionDisabled(patch, 'revert')}");
+    expect(source).toContain("title={designPatchActionTitle(patch, 'revert')}");
     expect(source).toContain('function backgroundActionBlockedReason');
     expect(source).toContain('Another ambient unit action is already running.');
     expect(source).toContain("disabled={backgroundActionDisabled(unit, 'toggle')}");
