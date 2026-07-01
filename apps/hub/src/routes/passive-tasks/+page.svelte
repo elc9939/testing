@@ -117,6 +117,15 @@
   $: sourceIssueSummary = summarizedServiceIssueLine(summarizedServiceIssueCount, sourceRows);
   $: visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Passive Tasks API') : '';
   $: visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Passive Tasks action') : '';
+  $: passiveRunDueTitle = passiveWriteDisabled
+    ? passiveWriteTitle
+    : 'Check due passive tasks now; run history and Activity will show what started, skipped, or failed.';
+  $: passiveStartupTitle = passiveWriteDisabled
+    ? passiveWriteTitle
+    : 'Fire the startup passive event manually; matching watchers can create recoverable run history.';
+  $: passiveIdleTickTitle = passiveWriteDisabled
+    ? passiveWriteTitle
+    : 'Check idle-capable passive tasks now; idle/resource guards still decide what runs.';
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -276,7 +285,7 @@
   }
 
   function passiveActionTitle(enabledTitle: string): string {
-    return passiveWriteTitle || enabledTitle;
+    return passiveWriteDisabled ? passiveWriteTitle : enabledTitle;
   }
 
   function passiveManualRunTitle(kind: 'due' | 'startup' | 'idle'): string {
@@ -750,15 +759,15 @@
       <RefreshCw size={16} />
       <span>{loading ? 'Refreshing' : 'Refresh'}</span>
     </button>
-    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveManualRunTitle('due')} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveRunDueTitle} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
       <Clock3 size={16} />
       <span>Run Due</span>
     </button>
-    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveManualRunTitle('startup')} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveStartupTitle} on:click={() => applyAction('event-startup', () => runPassiveEvent('app.startup', { reason: 'manual-startup-dashboard' }), 'Startup event watchers checked.')}>
       <RefreshCw size={16} />
       <span>Startup Event</span>
     </button>
-    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveManualRunTitle('idle')} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
+    <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveIdleTickTitle} on:click={() => applyAction('idle-tick', () => runPassiveTick({ idle: true, reason: 'manual-idle-dashboard' }), 'Idle-capable passive tasks checked.')}>
       <Play size={16} />
       <span>Idle Tick</span>
     </button>

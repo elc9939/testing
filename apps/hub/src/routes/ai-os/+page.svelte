@@ -216,6 +216,55 @@
   $: aiOsCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before running command actions.');
   $: aiOsProfileRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status and machine profile.');
   $: aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before using advanced command controls.');
+  $: aiOsCommandButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : commandBusy
+      ? 'AI OS command is already running.'
+      : 'Plan and run this AI OS command; tool calls, usage, and Activity records stay recoverable.';
+  $: aiOsAutotuneButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : autotuneBusy
+      ? 'Autotune is already running.'
+      : 'Run a compact AI OS autotune probe; benchmark data updates routing, mode recommendations, and Activity.';
+  $: aiOsBenchmarkButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : benchmarkBusy
+      ? 'Benchmark is already running.'
+      : 'Run this AI OS capability benchmark; latency, throughput, provider, and result are saved for Activity recovery.';
+  $: aiOsInferenceRunButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : inferBusy
+      ? 'Inference is already running.'
+      : 'Run one ad hoc inference call; provider, model, latency, and usage are logged by AI OS.';
+  $: aiOsInferenceStreamButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : inferBusy
+      ? 'Inference is already running.'
+      : 'Stream one ad hoc inference call; provider, model, latency, and usage are logged by AI OS.';
+  $: foundationBackupButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : foundationBusy
+      ? 'A foundation health action is already running.'
+      : 'Create a verified AI OS backup now.';
+  $: foundationVerifyButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : foundationBusy
+      ? 'A foundation health action is already running.'
+      : !status?.backups?.length
+        ? 'Create a backup before using this action.'
+        : 'Verify the latest AI OS backup.';
+  $: foundationRestoreButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : foundationBusy
+      ? 'A foundation health action is already running.'
+      : !status?.backups?.length
+        ? 'Create a backup before using this action.'
+        : 'Run a non-destructive restore test for the latest backup.';
+  $: foundationCleanupButtonTitle = aiOsActionBlocked
+    ? aiOsActionBlockedReason
+    : foundationBusy
+      ? 'A foundation health action is already running.'
+      : 'Run AI OS cleanup with configured resource limits.';
   $: visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'AI OS') : '';
 
   function groupCapabilities(capabilities: NonNullable<AiStatus['capabilities']>): Array<{ kind: string; rows: typeof capabilities }> {
@@ -270,7 +319,7 @@
   }
 
   function aiOsActionTitle(enabledTitle: string, busy: boolean, busyTitle: string): string {
-    if (aiOsActionBlockedReason) return aiOsActionBlockedReason;
+    if (aiOsActionBlocked) return aiOsActionBlockedReason;
     if (busy) return busyTitle;
     return enabledTitle;
   }
@@ -354,7 +403,7 @@
   }
 
   function foundationActionTitle(enabledTitle: string, needsBackup = false): string {
-    if (aiOsActionBlockedReason) return aiOsActionBlockedReason;
+    if (aiOsActionBlocked) return aiOsActionBlockedReason;
     if (foundationBusy) return 'A foundation health action is already running.';
     if (needsBackup && !status?.backups?.length) return 'Create a backup before using this action.';
     return enabledTitle;
@@ -1463,7 +1512,7 @@
     <span>Allow confirmed write/system actions for this run</span>
   </label>
   <div class="action-row">
-    <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsCommandRunTitle()} on:click={runCommandBar}>
+    <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsCommandButtonTitle} on:click={runCommandBar}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : commandBusy ? 'Working' : 'Do it'}</span>
     </button>
@@ -1558,7 +1607,7 @@
     <p class="muted">{machineProfileEmptyMessage()}</p>
   {/if}
   <div class="action-row">
-    <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} title={aiOsAutotuneActionTitle()} on:click={runMachineAutotune}>
+    <button class="button primary" type="button" disabled={autotuneBusy || aiOsActionBlocked} title={aiOsAutotuneButtonTitle} on:click={runMachineAutotune}>
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : autotuneBusy ? 'Running' : 'Run Autotune'}</span>
     </button>
@@ -1722,7 +1771,7 @@
       <span>Confirm write/system tools</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsCommandRunTitle()} on:click={runCommandBar}>
+      <button class="button primary" type="button" disabled={commandBusy || aiOsActionBlocked} title={aiOsCommandButtonTitle} on:click={runCommandBar}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Execute'}</span>
       </button>
@@ -1821,7 +1870,7 @@
         <textarea id="benchmark-prompt" bind:value={benchmarkPrompt} rows="3" title="Prompt or payload used for this benchmark probe."></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} title={aiOsBenchmarkActionTitle()} on:click={runCapabilityBenchmark}>
+    <button class="button primary" type="button" disabled={benchmarkBusy || aiOsActionBlocked} title={aiOsBenchmarkButtonTitle} on:click={runCapabilityBenchmark}>
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Benchmark'}</span>
     </button>
@@ -1909,19 +1958,19 @@
       </article>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={foundationBusy || aiOsActionBlocked} title={foundationActionTitle('Create a verified AI OS backup now.')} on:click={createBackupNow}>
+      <button class="button primary" type="button" disabled={foundationBusy || aiOsActionBlocked} title={foundationBackupButtonTitle} on:click={createBackupNow}>
         <HardDrive size={17} />
         <span>Backup</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} title={foundationActionTitle('Verify the latest AI OS backup.', true)} on:click={verifyLatestBackup}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} title={foundationVerifyButtonTitle} on:click={verifyLatestBackup}>
         <ShieldCheck size={17} />
         <span>Verify</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} title={foundationActionTitle('Run a non-destructive restore test for the latest backup.', true)} on:click={restoreTestLatestBackup}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked || !status?.backups?.length} title={foundationRestoreButtonTitle} on:click={restoreTestLatestBackup}>
         <Database size={17} />
         <span>Restore Test</span>
       </button>
-      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked} title={foundationActionTitle('Run AI OS cleanup with configured resource limits.')} on:click={cleanupSystem}>
+      <button class="button" type="button" disabled={foundationBusy || aiOsActionBlocked} title={foundationCleanupButtonTitle} on:click={cleanupSystem}>
         <Wrench size={17} />
         <span>Cleanup</span>
       </button>
@@ -1991,11 +2040,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsInferenceActionTitle(false)} on:click={() => runAdHocInference(false)}>
+      <button class="button primary" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsInferenceRunButtonTitle} on:click={() => runAdHocInference(false)}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run'}</span>
       </button>
-      <button class="button" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsInferenceActionTitle(true)} on:click={() => runAdHocInference(true)}>
+      <button class="button" type="button" disabled={inferBusy || aiOsActionBlocked} title={aiOsInferenceStreamButtonTitle} on:click={() => runAdHocInference(true)}>
         <Activity size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Stream'}</span>
       </button>

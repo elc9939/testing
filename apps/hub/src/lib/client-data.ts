@@ -130,6 +130,7 @@ function legacySummaryHasData(summary: LegacyImportSummary): boolean {
 
 export function createClientDataStore() {
   let db: PGliteDatabase | null = null;
+  let cachePersistent = true;
   let initPromise: Promise<void> | null = null;
   let intervalId: number | null = null;
   let listenersBound = false;
@@ -161,6 +162,7 @@ export function createClientDataStore() {
     const configuredDataDir = import.meta.env.PUBLIC_PGLITE_DATA_DIR || '';
     const persistentUnavailable = !configuredDataDir && (!browserStorageUsable() || readStorage(localCacheFallbackStorageKey) === 'memory');
     const requestedDataDir = persistentUnavailable ? 'memory://mini-hub-fallback' : configuredDataDir || 'idb://mini-hub';
+    cachePersistent = !requestedDataDir.startsWith('memory://');
     try {
       db = await createMiniHubPglite({ dataDir: requestedDataDir });
       if (!requestedDataDir.startsWith('memory://')) {
@@ -171,6 +173,7 @@ export function createClientDataStore() {
       if (!configuredDataDir) {
         writeStorage(localCacheFallbackStorageKey, 'memory');
       }
+      cachePersistent = false;
       db = await createMiniHubPglite({ dataDir: 'memory://mini-hub-fallback' });
       setPartial({
         status: 'error',
@@ -509,13 +512,14 @@ export function createClientDataStore() {
     setPartial({ status: 'syncing', error: '' });
     try {
       const current = get(store);
+      const sinceCursor = cachePersistent ? current.cursor : '';
       const result = await requestApiJson<{ changes: SyncEvent[]; cursor: string }>(
-        `/api/sync/pull?since=${encodeURIComponent(current.cursor)}`
+        `/api/sync/pull?since=${encodeURIComponent(sinceCursor)}`
       );
       for (const event of result.changes) {
         await applyEvent(event);
       }
-      writeStorage(cursorStorageKey, result.cursor);
+      if (cachePersistent) writeStorage(cursorStorageKey, result.cursor);
       await setMeta('cursor', result.cursor);
       await loadCache();
       setPartial({
@@ -539,6 +543,9 @@ export function createClientDataStore() {
     if (initPromise) return initPromise;
     initPromise = (async () => {
       await getDb();
+      if (!cachePersistent) {
+        setPartial({ cursor: '' });
+      }
       await loadCache();
       setPartial({
         initialized: true,

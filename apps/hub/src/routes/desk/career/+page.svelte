@@ -915,15 +915,15 @@
     <form class="form compact-form" on:submit|preventDefault={addJob}>
       <div class="field">
         <label for="company">Company</label>
-        <input id="company" bind:value={company} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Company name.')} autocomplete="organization" />
+        <input id="company" aria-label="Company" bind:value={company} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Company name.')} autocomplete="organization" />
       </div>
       <div class="field">
         <label for="role">Role</label>
-        <input id="role" bind:value={role} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Role title.')} autocomplete="off" />
+        <input id="role" aria-label="Role" bind:value={role} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Role title.')} autocomplete="off" />
       </div>
       <div class="field">
         <label for="status">Status</label>
-        <select id="status" bind:value={status} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Application status.')}>
+        <select id="status" aria-label="Application status" bind:value={status} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Application status.')}>
           {#each statuses as item}
             <option value={item}>{item}</option>
           {/each}
@@ -931,15 +931,15 @@
       </div>
       <div class="field">
         <label for="application-url">Application link</label>
-        <input id="application-url" bind:value={applicationUrl} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Application link.')} inputmode="url" placeholder="https://..." />
+        <input id="application-url" aria-label="Application link" bind:value={applicationUrl} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Application link.')} inputmode="url" placeholder="https://..." />
       </div>
       <div class="field">
         <label for="next-action">Next action</label>
-        <input id="next-action" bind:value={nextActionAt} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Next action date.')} type="date" />
+        <input id="next-action" aria-label="Next action date" bind:value={nextActionAt} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Next action date.')} type="date" />
       </div>
       <div class="field wide">
         <label for="notes">Notes</label>
-        <textarea id="notes" bind:value={notes} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Job notes.')} rows="2"></textarea>
+        <textarea id="notes" aria-label="Job notes" bind:value={notes} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Job notes.')} rows="2"></textarea>
       </div>
       <button class="button primary" type="submit" disabled={!canSave || saving || !company.trim() || !role.trim()} title={addJobButtonTitle}>
         <Plus size={17} />

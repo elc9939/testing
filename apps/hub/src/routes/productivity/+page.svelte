@@ -109,6 +109,7 @@
     canAct: boolean;
     apiChecking: boolean;
     googleConnected: boolean;
+    googleNeedsReconnect: boolean;
     productivityReady: boolean;
     cacheLoadedAt: string;
   }
@@ -160,7 +161,8 @@
   $: googleConnections = connections.filter((connection) => connection.provider === 'google' && connection.status === 'connected');
   $: googleConnection = googleConnections[0];
   $: googleConnected = googleConnections.length > 0;
-  $: productivityReady = canAct && googleConnected;
+  $: googleNeedsReconnect = googleConnected && isGoogleAuthError(actionError);
+  $: productivityReady = canAct && googleConnected && !googleNeedsReconnect;
   $: productivityReadReady = productivityReady && !loading;
   $: productivityWriteDisabled = loading || !productivityReady || Boolean(actionBusyKey);
   $: productivityRefreshDisabled = loading || backgroundRefreshing || Boolean(actionBusyKey);
@@ -189,6 +191,7 @@
     canAct,
     apiChecking,
     googleConnected,
+    googleNeedsReconnect,
     productivityReady,
     cacheLoadedAt
   };
@@ -215,6 +218,8 @@
   $: eventSaveButtonTitle = eventSaveActionTitle(productivityControlTitleState);
   $: composeDraftButtonTitle = composeActionTitle(productivityControlTitleState, false);
   $: composeSendButtonTitle = composeActionTitle(productivityControlTitleState, true);
+  $: newEventButtonTitle = productivityActionTitleForState(productivityControlTitleState, 'Create a Google Calendar event.');
+  $: composeButtonTitle = productivityActionTitleForState(productivityControlTitleState, 'Compose a Gmail message.');
   $: eventCalendarSelectDisabled = productivityWriteDisabled || Boolean(editingEventId);
   $: eventCalendarSelectTitle = eventCalendarActionTitle(productivityControlTitleState);
   $: visibleActionError = actionError ? compactProductivityServiceIssue(actionError) : '';
@@ -224,7 +229,9 @@
       ? 'Calendar, mail, filters, and selected account restore from this browser before live refresh finishes.'
       : 'No browser snapshot has been saved yet; connect Google and refresh to create one.';
   $: productivityConnectionDetail = googleConnected
-    ? `${googleConnections.length} account${googleConnections.length === 1 ? '' : 's'} available for Gmail and Calendar actions.`
+    ? googleNeedsReconnect
+      ? `${googleConnections.length} saved Google account${googleConnections.length === 1 ? '' : 's'} need OAuth refresh before Gmail or Calendar actions can run.`
+      : `${googleConnections.length} account${googleConnections.length === 1 ? '' : 's'} available for Gmail and Calendar actions.`
     : 'Connect Google to enable live Gmail, Calendar, and write actions.';
   $: productivityApiDetail = canAct
     ? `Using Mini Hub API at ${getApiUrl()} for OAuth and writes.`
@@ -510,7 +517,12 @@
     return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
+  function isGoogleAuthError(message = ''): boolean {
+    return /token has been expired or revoked|invalid_grant|unauthori[sz]ed|401|403|access_denied|oauth|permission/iu.test(message);
+  }
+
   function productivityActionTitle(enabledTitle: string): string {
+    if (googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
     if (loading) return 'Productivity is still loading the latest connection state.';
     if (apiChecking) return 'Productivity is checking the local API before enabling this action.';
     if (!productivityReady) return 'Connect the API and Google before using this action.';
@@ -524,6 +536,7 @@
     if (state.actionBusyKey) return 'Busy';
     if (!state.canAct) return 'API offline';
     if (!state.googleConnected) return 'Google setup';
+    if (googleNeedsReconnect) return 'Reconnect needed';
     return 'Write-ready';
   }
 
@@ -533,6 +546,7 @@
     if (state.actionBusyKey) return 'Another Productivity action is running; write controls stay locked until it finishes.';
     if (!state.canAct) return 'OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.';
     if (!state.googleConnected) return 'Use Connect Google or Add Google Account before sending mail or changing calendar events.';
+    if (googleNeedsReconnect) return 'Saved Google tokens are expired or revoked. Use Add Google Account to refresh OAuth before sending mail or editing calendar events.';
     return 'Gmail and Calendar write controls can use connected Google accounts.';
   }
 
@@ -544,6 +558,7 @@
     if (state.cacheLoadedAt) return 'Cached read-only';
     if (!state.canAct) return 'API offline';
     if (!state.googleConnected) return 'Google setup';
+    if (googleNeedsReconnect) return 'Reconnect needed';
     return 'Unavailable';
   }
 
@@ -555,6 +570,7 @@
     if (state.cacheLoadedAt) return 'Showing the last browser snapshot; live refresh, search, and edits wait for the local API and Google.';
     if (!state.canAct) return 'Start or connect the local API to load live Gmail and Calendar data.';
     if (!state.googleConnected) return 'Connect Google to load live Gmail and Calendar data.';
+    if (googleNeedsReconnect) return 'Saved Google tokens are expired or revoked. Reconnect Google to load live Calendar and Gmail data.';
     return 'Open Settings to inspect Productivity wiring.';
   }
 
@@ -567,6 +583,7 @@
 
   function gmailRefreshTitle(state: ProductivityControlTitleState): string {
     if (state.actionBusyKey) return 'Another Productivity action is already running.';
+    if (googleNeedsReconnect) return 'Reconnect Google before refreshing Gmail. Cached mail remains readable.';
     if (!state.productivityReady) return 'Connect the API and Google to refresh Gmail. Cached mail remains readable.';
     if (state.gmailLoading) return 'Priority Gmail is already refreshing.';
     return 'Refresh priority Gmail threads.';
@@ -574,6 +591,7 @@
 
   function gmailThreadOpenTitle(state: ProductivityControlTitleState): string {
     if (state.actionBusyKey) return 'Another Productivity action is already running.';
+    if (googleNeedsReconnect) return 'Open the cached thread preview. Reconnect Google to fetch full messages.';
     if (!state.productivityReady) return 'Open the cached thread preview. Connect the API and Google to fetch full messages.';
     return 'Open Gmail thread and fetch the latest messages.';
   }
@@ -597,6 +615,7 @@
   }
 
   function productivityReadTitle(enabledTitle: string): string {
+    if (googleNeedsReconnect) return 'Reconnect Google to load live calendar controls. Cached data remains visible.';
     if (loading) return 'Productivity is still loading the latest connection state.';
     if (!productivityReady) return 'Connect the API and Google to load live calendar controls. Cached data remains visible.';
     return enabledTitle;
@@ -649,6 +668,7 @@
   }
 
   function gmailReadTitle(enabledTitle: string): string {
+    if (googleNeedsReconnect) return 'Reconnect Google to load live Gmail controls. Cached mail remains visible.';
     if (loading) return 'Productivity is still loading the latest connection state.';
     if (!productivityReady) return 'Connect the API and Google to load live Gmail controls. Cached mail remains visible.';
     if (gmailLoading) return 'Priority Gmail is already refreshing.';
@@ -665,7 +685,8 @@
     return productivityActionTitle('Ask for confirmation before moving this event.');
   }
 
-  function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'productivityReady'>, enabledTitle: string): string {
+  function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'googleNeedsReconnect' | 'productivityReady'>, enabledTitle: string): string {
+    if (state.googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
     if (state.loading) return 'Productivity is still loading the latest connection state.';
     if (state.apiChecking) return 'Productivity is checking the local API before enabling this action.';
     if (!state.productivityReady) return 'Connect the API and Google before using this action.';
@@ -674,7 +695,7 @@
   }
 
   function productivityValidatedActionTitleForState(
-    state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'productivityReady'>,
+    state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'googleNeedsReconnect' | 'productivityReady'>,
     enabledTitle: string,
     validationReason: string
   ): string {
@@ -720,6 +741,10 @@
       actionError = 'Another Productivity action is already running.';
       return false;
     }
+    if (requiresGoogle && googleNeedsReconnect) {
+      actionError = 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before using this action.';
+      return false;
+    }
     if (loading) {
       actionError = 'Productivity is still loading the latest connection state.';
       return false;
@@ -730,7 +755,9 @@
     }
     if (requiresGoogle ? !productivityReady : !canAct) {
       actionError = requiresGoogle
-        ? 'Connect the API and Google before using this action.'
+        ? googleNeedsReconnect
+          ? 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before using this action.'
+          : 'Connect the API and Google before using this action.'
         : 'Start or connect the local API before using this action.';
       return false;
     }
@@ -1251,11 +1278,11 @@
     <h1>Productivity Hub</h1>
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Create a Google Calendar event.')} on:click={openNewEvent}>
+    <button class="button" type="button" disabled={productivityWriteDisabled} title={newEventButtonTitle} on:click={openNewEvent}>
       <CalendarPlus size={17} />
       <span>New Event</span>
     </button>
-    <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Compose a Gmail message.')} on:click={openComposeDialog}>
+    <button class="button" type="button" disabled={productivityWriteDisabled} title={composeButtonTitle} on:click={openComposeDialog}>
       <Send size={17} />
       <span>Compose</span>
     </button>

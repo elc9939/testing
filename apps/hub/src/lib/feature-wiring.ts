@@ -162,9 +162,9 @@ function localRow(signal: FeatureWiringSignal, checkedAt?: string): FeatureWirin
 function serviceStatus(endpoint: ServiceEndpointResolution | undefined, signal: FeatureWiringSignal): FeatureWiringStatus {
   if (endpoint?.state === 'misconfigured') return 'misconfigured';
   if (signal.loading) return 'checking';
-  if (signal.error) return 'offline';
   if (signal.ready) return 'ready';
   if (signal.setupNeeded) return 'needs_setup';
+  if (signal.error) return 'offline';
   return 'unknown';
 }
 

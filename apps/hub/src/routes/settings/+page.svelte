@@ -39,7 +39,7 @@
   import { persistenceOwnerLabel, persistenceRows, persistenceSummary } from '$lib/persistence-map';
   import { getMacroLabApiUrl, restoreMacroRun } from '$lib/macro-lab-api';
   import { getPassiveSnapshot, passiveFamilyLabel, patchPassiveSettings } from '$lib/passive-tasks-api';
-  import { getConnections } from '$lib/productivity-api';
+  import { getConnections, listCalendars, listGmailLabels } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import { localNetworkHint, serviceEndpointResolution, serviceFallbackUrl, setServiceEndpoints } from '$lib/service-config';
   import { compactServiceIssueIfRecognized } from '$lib/service-issues';
@@ -86,6 +86,10 @@
   let aiOsInput = '';
   let macroLabInput = '';
   let googleConnected = false;
+  let googleReady = false;
+  let googleNeedsReconnect = false;
+  let googleStatusDetail = 'Run Check Services to inspect Google readiness.';
+  let googleFixAction = 'Open Productivity Hub and connect Google.';
   let serviceChecking = false;
   let syncBusy = false;
   let exportBusy = false;
@@ -202,12 +206,12 @@
       detail: capabilityServiceReady('macro-lab') ? 'Macro status, run history, and actions are reachable.' : undefined
     },
     google: {
-      ready: googleConnected,
+      ready: googleReady,
       loading: capabilityLoading,
-      error: apiStatusError(apiStatus),
-      setupNeeded: !googleConnected,
-      detail: googleConnected ? 'At least one Google account is connected.' : 'No Google account is connected in this browser session.',
-      fixAction: googleConnected ? undefined : 'Open Productivity Hub and connect Google.'
+      error: googleNeedsReconnect ? '' : apiStatusError(apiStatus),
+      setupNeeded: !googleReady,
+      detail: googleStatusDetail,
+      fixAction: googleReady ? undefined : googleFixAction
     },
     passiveTasks: {
       ready: Boolean(passiveSnapshot && !passiveError),
@@ -579,12 +583,17 @@
     capabilityLoading = true;
     capabilityError = '';
     try {
-      googleConnected = await loadGoogleConnected();
+      const googleStatus = await loadGoogleStatus();
+      googleConnected = googleStatus.connected;
+      googleReady = googleStatus.ready;
+      googleNeedsReconnect = googleStatus.needsReconnect;
+      googleStatusDetail = googleStatus.detail;
+      googleFixAction = googleStatus.fixAction;
       capabilitySnapshot = await loadCapabilityRegistry({
         isOnline: $clientData.isOnline,
         syncStatus: $clientData.status,
         syncError: $clientData.error,
-        googleConnected,
+        googleConnected: googleReady,
         machineMode: currentMachineMode.id
       });
     } catch (error) {
@@ -647,12 +656,59 @@
     return `Open ${row.feature} setup or status screen.`;
   }
 
-  async function loadGoogleConnected(): Promise<boolean> {
+  function isGoogleAuthError(message = ''): boolean {
+    return /token has been expired or revoked|invalid_grant|unauthori[sz]ed|401|403|access_denied|oauth|permission/iu.test(message);
+  }
+
+  async function loadGoogleStatus(): Promise<{
+    connected: boolean;
+    ready: boolean;
+    needsReconnect: boolean;
+    detail: string;
+    fixAction: string;
+  }> {
     try {
       const connections = await getConnections();
-      return connections.some((connection) => connection.provider === 'google' && connection.status === 'connected');
-    } catch {
-      return false;
+      const connected = connections.some((connection) => connection.provider === 'google' && connection.status === 'connected');
+      if (!connected) {
+        return {
+          connected: false,
+          ready: false,
+          needsReconnect: false,
+          detail: 'No Google account is connected in this browser session.',
+          fixAction: 'Open Productivity Hub and connect Google.'
+        };
+      }
+      try {
+        await Promise.all([listCalendars(), listGmailLabels()]);
+        return {
+          connected: true,
+          ready: true,
+          needsReconnect: false,
+          detail: `${connections.length} saved Google account${connections.length === 1 ? '' : 's'} can reach Calendar and Gmail APIs.`,
+          fixAction: 'No action needed.'
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Google readiness check failed.';
+        const authError = isGoogleAuthError(message);
+        return {
+          connected: true,
+          ready: false,
+          needsReconnect: authError,
+          detail: authError
+            ? 'A saved Google account exists, but Google rejected the token. Reconnect the account before Calendar or Gmail actions can run.'
+            : compactServiceIssueIfRecognized(message, 'Google productivity'),
+          fixAction: authError ? 'Open Productivity Hub and use Add Google Account to refresh OAuth.' : 'Open Productivity Hub, retry Refresh, then inspect the Google error.'
+        };
+      }
+    } catch (error) {
+      return {
+        connected: false,
+        ready: false,
+        needsReconnect: false,
+        detail: error instanceof Error ? compactServiceIssueIfRecognized(error.message, 'Google productivity') : 'Google connection check failed.',
+        fixAction: 'Start the Mini Hub API and retry Check Services.'
+      };
     }
   }
 
