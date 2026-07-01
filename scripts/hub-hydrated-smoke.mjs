@@ -1227,6 +1227,23 @@ async function evaluate(client, expression) {
   return result.result?.value;
 }
 
+class HydrationTimeoutError extends Error {
+  constructor(message, lastState) {
+    super(message);
+    this.name = 'HydrationTimeoutError';
+    this.lastState = lastState;
+  }
+}
+
+function blankHydrationState(state) {
+  return Boolean(
+    state &&
+      !String(state.title || '').trim() &&
+      !String(state.heading || '').trim() &&
+      !String(state.text || '').trim()
+  );
+}
+
 async function waitForHydration(client, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   let last = null;
@@ -1243,7 +1260,7 @@ async function waitForHydration(client, timeoutMs = 10_000) {
     if (last.ready) return last;
     await delay(200);
   }
-  throw new Error(`Timed out waiting for hydrated route. Last state: ${JSON.stringify(last)}`);
+  throw new HydrationTimeoutError(`Timed out waiting for hydrated route. Last state: ${JSON.stringify(last)}`, last);
 }
 
 async function waitForCondition(client, expression, timeoutMs = 15_000) {
@@ -1258,11 +1275,46 @@ async function waitForCondition(client, expression, timeoutMs = 15_000) {
 }
 
 async function navigate(client, url) {
-  const loaded = client.waitForEvent('Page.loadEventFired', 12_000).catch(() => null);
-  await client.send('Page.navigate', { url });
-  await loaded;
-  await waitForHydration(client);
-  await delay(300);
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const loaded = client.waitForEvent('Page.loadEventFired', 12_000).catch(() => null);
+    await client.send('Page.navigate', { url });
+    await loaded;
+    try {
+      await waitForHydration(client);
+      await delay(300);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof HydrationTimeoutError) || !blankHydrationState(error.lastState) || attempt === 1) {
+        throw error;
+      }
+      await client.send('Page.stopLoading').catch(() => null);
+      await delay(500);
+    }
+  }
+  throw lastError ?? new Error(`Could not navigate to ${url}.`);
+}
+
+async function reloadCurrentPage(client) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const loaded = client.waitForEvent('Page.loadEventFired', 12_000).catch(() => null);
+    await client.send('Page.reload', { ignoreCache: true });
+    await loaded;
+    try {
+      await waitForHydration(client);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof HydrationTimeoutError) || !blankHydrationState(error.lastState) || attempt === 1) {
+        throw error;
+      }
+      await client.send('Page.stopLoading').catch(() => null);
+      await delay(500);
+    }
+  }
+  throw lastError ?? new Error('Could not reload hydrated page.');
 }
 
 async function readDomSnapshot(client) {
@@ -1489,8 +1541,7 @@ async function setLocalStorage(client, key, value) {
 
 async function reloadAndFindValue(client, route, expectedValue, baseUrl, options = {}) {
   await navigate(client, routeUrl(baseUrl, route, options));
-  await client.send('Page.reload', { ignoreCache: true });
-  await waitForHydration(client);
+  await reloadCurrentPage(client);
   await waitForCondition(
     client,
     `(() => {

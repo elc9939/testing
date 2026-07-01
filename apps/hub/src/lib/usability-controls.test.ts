@@ -1545,6 +1545,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('!row.titleOk');
     expect(source).toContain('Inspected target navigated or closed');
     expect(source).toContain('Execution context was destroyed');
+    expect(source).toContain('class HydrationTimeoutError extends Error');
+    expect(source).toContain('function blankHydrationState');
+    expect(source).toContain('if (!(error instanceof HydrationTimeoutError) || !blankHydrationState(error.lastState) || attempt === 1)');
+    expect(source).toContain('async function reloadCurrentPage');
     expect(source).toContain('miniHub.activity.snapshot.v1');
     expect(source).toContain('miniHub.productivity.cache.v1');
     expect(source).toContain('productivity-cache');
@@ -1567,6 +1571,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain("'Sync Now': ['API Not Ready', 'Loading Cache', 'Offline Read-only']");
     expect(source).toContain('runPersistenceChecks');
     expect(source).toContain('async function reloadAndFindValue');
+    expect(source).toContain('await reloadCurrentPage(client)');
     expect(source).toContain('await waitForCondition(');
     expect(source).toContain('return { ok: values.some((value) => value.includes(expected)) || text.includes(expected) };');
     expect(source).toContain('options.timeoutMs ?? 4_000');
