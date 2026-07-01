@@ -812,8 +812,12 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('summarized in Source Health instead of repeating here.');
     expect(passive).toContain('{passiveDigestEmptyMessage()}');
     expect(passive).toContain('Checking passive task outputs.');
+    expect(passive).toContain('No entity changes recorded for this snapshot.');
+    expect(passive).toContain('No run timing, backup, or cleanup evidence recorded yet.');
     expect(passive).not.toContain("return '...'");
     expect(passive).not.toContain("return 'n/a'");
+    expect(passive).not.toContain('No entity summary yet');
+    expect(passive).not.toContain('No run evidence yet');
     expect(passive).not.toContain('Passive Tasks API is offline; this panel will load after the service reconnects.');
     expect(passive).not.toContain('Loading recent passive results.');
     expect(passive).not.toContain('Loading passive worker state.');

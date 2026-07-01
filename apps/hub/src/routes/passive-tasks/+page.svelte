@@ -391,7 +391,7 @@
       .filter(([, count]) => typeof count === 'number' && count > 0)
       .slice(0, 5)
       .map(([key, count]) => `${key} ${count}`);
-    return entries.join(' - ') || 'No entity summary yet';
+    return entries.join(' - ') || 'No entity changes recorded for this snapshot.';
   }
 
   function backupCleanupLine(health: PassiveBackupHealth): string {
@@ -437,7 +437,7 @@
     if (nextRunAt) parts.push(`next ${displayWhen(nextRunAt)}`);
     const modeReason = typeof details.modePolicyReason === 'string' ? details.modePolicyReason : '';
     if (modeReason) parts.push(modeReason);
-    return parts.join(' - ') || 'No run evidence yet';
+    return parts.join(' - ') || 'No run timing, backup, or cleanup evidence recorded yet.';
   }
 
   function compactText(value: string): string {
