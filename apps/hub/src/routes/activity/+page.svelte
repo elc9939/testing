@@ -74,9 +74,9 @@
   };
   $: activityInitialLoading = loading && !snapshot;
   $: runningStatusDetail = activityInitialLoading ? 'Checking active work' : hasActive ? 'Polls while open' : 'No live work';
-  $: pausedStatusDetail = activityInitialLoading ? 'Checking paused work' : pausedRecords.length ? 'Resume or cancel' : 'None';
-  $: failedStatusDetail = activityInitialLoading ? 'Checking for issues' : failedRecords.length ? 'Needs inspection' : 'Clear';
-  $: savedStatusDetail = activityInitialLoading ? 'Checking saved work' : stableRecords.length ? 'Reports and history' : 'None yet';
+  $: pausedStatusDetail = activityInitialLoading ? 'Checking paused work' : pausedRecords.length ? 'Resume or cancel' : 'No paused work';
+  $: failedStatusDetail = activityInitialLoading ? 'Checking for issues' : failedRecords.length ? 'Needs inspection' : 'No failures';
+  $: savedStatusDetail = activityInitialLoading ? 'Checking saved work' : stableRecords.length ? 'Reports and history' : 'No saved records yet';
   $: activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot);
   $: visibleActivityError = error ? compactActivityRefreshError(error) : '';
   $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
@@ -451,10 +451,10 @@
     <strong>{sourceHealthRows.filter((source) => source.ok).length}/{sourceHealthRows.length}</strong>
     <small>{sourceHealthSummary}</small>
   </article>
-  <article aria-label={activityStatusCardLabel('Dismissed activity records', dismissedCount, dismissedCount ? 'Hidden here only' : 'None hidden')}>
+  <article aria-label={activityStatusCardLabel('Dismissed activity records', dismissedCount, dismissedCount ? 'Hidden here only' : 'No hidden records')}>
     <span>Dismissed</span>
     <strong>{dismissedCount}</strong>
-    <small>{dismissedCount ? 'Hidden here only' : 'None hidden'}</small>
+    <small>{dismissedCount ? 'Hidden here only' : 'No hidden records'}</small>
   </article>
 </section>
 

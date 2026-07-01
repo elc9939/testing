@@ -1078,6 +1078,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("pausedStatusDetail = activityInitialLoading ? 'Checking paused work'");
     expect(source).toContain("failedStatusDetail = activityInitialLoading ? 'Checking for issues'");
     expect(source).toContain("savedStatusDetail = activityInitialLoading ? 'Checking saved work'");
+    expect(source).toContain('No paused work');
+    expect(source).toContain('No failures');
+    expect(source).toContain('No saved records yet');
+    expect(source).toContain('No hidden records');
+    expect(source).not.toContain("pausedRecords.length ? 'Resume or cancel' : 'None'");
+    expect(source).not.toContain("failedRecords.length ? 'Needs inspection' : 'Clear'");
+    expect(source).not.toContain("stableRecords.length ? 'Reports and history' : 'None yet'");
+    expect(source).not.toContain("'None hidden'");
     expect(source).toContain('function activityStatusCardLabel');
     expect(source).toContain("aria-label={activityStatusCardLabel('Running activity records', runningRecords.length, runningStatusDetail)}");
     expect(source).toContain("aria-label={activityStatusCardLabel('Failed or blocked activity records', failedRecords.length, failedStatusDetail)}");
@@ -1443,6 +1451,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function titleMatches');
     expect(source).toContain('titleOk: titleMatches(route, snapshot.title)');
     expect(source).toContain('!row.titleOk');
+    expect(source).toContain('Inspected target navigated or closed');
+    expect(source).toContain('Execution context was destroyed');
     expect(source).toContain('miniHub.activity.snapshot.v1');
     expect(source).toContain('miniHub.productivity.cache.v1');
     expect(source).toContain('productivity-cache');
@@ -1464,6 +1474,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain("'Check Services': ['Checking']");
     expect(source).not.toContain("'Sync Now': ['API Not Ready', 'Loading Cache', 'Offline Read-only']");
     expect(source).toContain('runPersistenceChecks');
+    expect(source).toContain('async function reloadAndFindValue');
+    expect(source).toContain('await waitForCondition(');
+    expect(source).toContain('return { ok: values.some((value) => value.includes(expected)) || text.includes(expected) };');
+    expect(source).toContain('options.timeoutMs ?? 4_000');
     expect(source).toContain('safeActionStatus');
     expect(source).toContain('fallbackFor');
     expect(source).toContain('function snapshotMatchesLabel');

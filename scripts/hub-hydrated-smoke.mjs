@@ -1203,11 +1203,23 @@ class CdpClient {
 }
 
 async function evaluate(client, expression) {
-  const result = await client.send('Runtime.evaluate', {
-    expression,
-    returnByValue: true,
-    awaitPromise: true
-  });
+  let result;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      result = await client.send('Runtime.evaluate', {
+        expression,
+        returnByValue: true,
+        awaitPromise: true
+      });
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/Inspected target navigated or closed|Cannot find context with specified id|Execution context was destroyed/iu.test(message) || attempt === 2) {
+        throw error;
+      }
+      await delay(250);
+    }
+  }
   if (result.exceptionDetails) {
     const detail = result.exceptionDetails.text || result.exceptionDetails.exception?.description || 'Runtime evaluation failed.';
     throw new Error(detail);
@@ -1479,7 +1491,18 @@ async function reloadAndFindValue(client, route, expectedValue, baseUrl, options
   await navigate(client, routeUrl(baseUrl, route, options));
   await client.send('Page.reload', { ignoreCache: true });
   await waitForHydration(client);
-  await delay(500);
+  await waitForCondition(
+    client,
+    `(() => {
+      const expected = ${JSON.stringify(expectedValue)};
+      const values = [...document.querySelectorAll('input, textarea, select')]
+        .map((el) => el.value || '')
+        .filter(Boolean);
+      const text = document.body?.innerText || '';
+      return { ok: values.some((value) => value.includes(expected)) || text.includes(expected) };
+    })()`,
+    options.timeoutMs ?? 4_000
+  ).catch(() => null);
   const snapshot = await readDomSnapshot(client);
   const values = [...snapshot.values, snapshot.text || ''];
   const observedValues = snapshot.values.filter((value) => value.includes(expectedValue));
