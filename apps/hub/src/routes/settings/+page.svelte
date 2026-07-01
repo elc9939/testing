@@ -296,6 +296,23 @@
     return '';
   }
 
+  function passiveWorkerToggleTitle(enabled: boolean): string {
+    if (passiveSettingsBlockedReason) return passiveSettingsBlockedReason;
+    return enabled
+      ? 'Turn off the passive worker now. This saves immediately through the Passive Tasks API; existing runs stay recoverable in Activity and Passive Tasks.'
+      : 'Turn on the passive worker now. This saves immediately through the Passive Tasks API so scheduled and event work can create Activity records.';
+  }
+
+  function passiveFamilyToggleTitle(family: { label: string; familyEnabled: boolean; taskCount: number; watcherEnabled: boolean }): string {
+    if (passiveSettingsBlockedReason) return passiveSettingsBlockedReason;
+    const count = `${family.taskCount} task${family.taskCount === 1 ? '' : 's'}`;
+    const stopVerb = family.taskCount === 1 ? 'stops' : 'stop';
+    const watcher = family.watcherEnabled ? 'watcher is on' : 'watcher is off';
+    return family.familyEnabled
+      ? `Disable ${family.label} now. This saves immediately through the Passive Tasks API; ${count} ${stopVerb} producing new background findings while the ${watcher}.`
+      : `Enable ${family.label} now. This saves immediately through the Passive Tasks API; ${count} can produce future Activity and Passive Tasks findings when the ${watcher}.`;
+  }
+
   async function savePassiveSettings(): Promise<void> {
     const blockedReason = passiveSettingsControlBlockedReason();
     if (blockedReason) {
@@ -1189,7 +1206,7 @@
           type="checkbox"
           checked={passiveSettings.enabled}
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'Enable or disable the passive worker.'}
+          title={passiveWorkerToggleTitle(passiveSettings.enabled)}
           on:change={(event) => updatePassivePreference({ enabled: event.currentTarget.checked })}
         />
         <span>
@@ -1270,7 +1287,7 @@
             type="checkbox"
             checked={family.familyEnabled}
             disabled={Boolean(passiveSettingsBlockedReason)}
-            title={passiveSettingsBlockedReason || `Enable or disable ${family.label}.`}
+            title={passiveFamilyToggleTitle(family)}
             on:change={(event) => updatePassiveFamily(family.family, event.currentTarget.checked)}
           />
           <span>

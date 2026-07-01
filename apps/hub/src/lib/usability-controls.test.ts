@@ -1836,6 +1836,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function passiveSettingsControlBlockedReason');
     expect(source).toContain('Passive Tasks API is reporting an error. Retry Passive settings before changing preferences.');
     expect(source).toContain('disabled={Boolean(passiveSettingsBlockedReason)}');
+    expect(source).toContain('function passiveWorkerToggleTitle');
+    expect(source).toContain('function passiveFamilyToggleTitle');
+    expect(source).toContain('This saves immediately through the Passive Tasks API');
+    expect(source).toContain('title={passiveWorkerToggleTitle(passiveSettings.enabled)}');
+    expect(source).toContain('title={passiveFamilyToggleTitle(family)}');
+    expect(source).not.toContain("title={passiveSettingsBlockedReason || 'Enable or disable the passive worker.'}");
+    expect(source).not.toContain('title={passiveSettingsBlockedReason || `Enable or disable ${family.label}.`}');
     expect(source).toContain("{passiveLoading ? 'Loading' : passiveError ? 'Retry Passive' : 'Refresh'}");
     expect(source).toContain('function syncNowBlockedReason');
     expect(source).toContain('const blocked = syncNowBlockedReason(settingsControlState)');

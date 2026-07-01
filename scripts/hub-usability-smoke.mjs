@@ -337,7 +337,8 @@ const routes = [
       { label: 'action ledger anchor', text: 'id="action-ledger"' },
       { label: 'sync gate title', text: 'syncNowTitle' },
       { label: 'machine profile gate', text: 'machineProfileControlBlockedReason' },
-      { label: 'passive settings gate', text: 'passiveSettingsControlBlockedReason' }
+      { label: 'passive settings gate', text: 'passiveSettingsControlBlockedReason' },
+      { label: 'passive immediate-save titles', text: 'passiveFamilyToggleTitle' }
     ]
   },
   {
