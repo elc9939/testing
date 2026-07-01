@@ -913,6 +913,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('productivityCacheDetail = cacheWarning');
     expect(source).toContain('Browser productivity cache is unavailable');
     expect(source).toContain('Browser productivity cache could not be updated');
+    expect(source).toContain('No browser cache snapshot yet');
     expect(source).toContain('{#if cacheWarning}');
     expect(source).toContain('Write Mode');
     expect(source).toContain('Read Mode');
@@ -976,6 +977,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.');
     expect(source).toContain('cached productivity data can stay visible');
     expect(source).toContain("googleOAuthOpening ? 'Opening sign-in'");
+    expect(source).not.toContain('No local cache yet');
     expect(source).toContain('Opening Google sign-in.');
     expect(source).not.toContain("googleOAuthOpening ? 'Opening...'");
     expect(source).not.toContain('Opening Google sign-in...');

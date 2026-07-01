@@ -182,7 +182,7 @@
   $: selectedCalendar = calendars.find((calendar) => calendar.id === selectedCalendarId);
   $: calendarWeek = buildCalendarWeek(events, calendarCursor);
   $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
-  $: cacheStatus = cacheLoadedAt ? `Cached ${displayTime(cacheLoadedAt)}` : 'No local cache yet';
+  $: cacheStatus = cacheLoadedAt ? `Cached ${displayTime(cacheLoadedAt)}` : 'No browser cache snapshot yet';
   $: productivityStatusState = {
     loading,
     actionBusyKey,
