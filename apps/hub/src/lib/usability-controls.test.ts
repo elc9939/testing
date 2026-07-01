@@ -1158,6 +1158,15 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function modeActionDisabled');
     expect(source).toContain('disabled={modeActionDisabled(item)}');
     expect(source).toContain('title={modeActionBlockedReason(item) || item.action.label}');
+    expect(source).toContain('function attentionItemActionTitle');
+    expect(source).toContain('Cached attention is read-only until Mini Hub reconnects.');
+    expect(source).toContain('Complete ${item.title}; synced state and Recent Actions will refresh.');
+    expect(source).toContain('Run ${item.title}; Activity and Recent Actions will track the result.');
+    expect(source).toContain('Restore ${item.title}; the owning service may require setup or confirmation.');
+    expect(source).toContain('title={attentionItemActionTitle(item, openAction)}');
+    expect(source).toContain('title={attentionItemActionTitle(item, itemAction)}');
+    expect(source).not.toContain('title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}');
+    expect(source).not.toContain('title={attentionActionLabel(openAction.kind)}');
     expect(source).toContain('interface TodayRefreshControlState');
     expect(source).toContain('todayRefreshControlState = {');
     expect(source).toContain('todayRefreshButtonTitle = todayRefreshTitle(todayRefreshControlState)');

@@ -271,6 +271,27 @@
     return false;
   }
 
+  function attentionItemActionTitle(item: AttentionItem, itemAction: AttentionAction): string {
+    const label = attentionActionLabel(itemAction.kind);
+    const pending = $attentionStore.pendingActionId;
+    if (pending === `${item.id}:${itemAction.kind}`) return `${label} is already running for ${item.title}.`;
+    if (pending) return 'Another Today action is already running.';
+    if (!itemAction.available) return itemAction.reason ?? `${label} is not available for ${item.title}.`;
+    if ($attentionStore.readOnly && itemAction.requiresOnline) return 'Cached attention is read-only until Mini Hub reconnects.';
+    if (itemAction.reason) return itemAction.reason;
+    if (itemAction.kind === 'open') return `Open ${item.title}.`;
+    if (itemAction.kind === 'inspect') return `Inspect ${item.title}.`;
+    if (itemAction.kind === 'mark_read') return `Mark ${item.title} read in ${sourceLabel(item)}.`;
+    if (itemAction.kind === 'archive') return `Archive ${item.title} in ${sourceLabel(item)}.`;
+    if (itemAction.kind === 'mark_important') return `Mark ${item.title} important in ${sourceLabel(item)}.`;
+    if (itemAction.kind === 'complete') return `Complete ${item.title}; synced state and Recent Actions will refresh.`;
+    if (itemAction.kind === 'run') return `Run ${item.title}; Activity and Recent Actions will track the result.`;
+    if (itemAction.kind === 'restore') return `Restore ${item.title}; the owning service may require setup or confirmation.`;
+    if (itemAction.kind === 'snooze') return `Snooze ${item.title} from the Today queue.`;
+    if (itemAction.kind === 'dismiss') return `Dismiss ${item.title} from the Today queue.`;
+    return label;
+  }
+
   async function runAttentionAction(item: AttentionItem, itemAction: AttentionAction): Promise<void> {
     if (itemAction.kind === 'open' || itemAction.kind === 'inspect') return;
     itemActionMessage = '';
@@ -796,7 +817,7 @@
                 {#if openAction}
                   <a
                     class="icon-action"
-                    title={attentionActionLabel(openAction.kind)}
+                    title={attentionItemActionTitle(item, openAction)}
                     aria-label={`${attentionActionLabel(openAction.kind)} ${item.title}`}
                     href={externalHref(actionRoute(item, openAction)) ? actionRoute(item, openAction) : hubHref(actionRoute(item, openAction))}
                     target={externalHref(actionRoute(item, openAction)) ? '_blank' : undefined}
@@ -810,7 +831,7 @@
                     class="icon-action text-action"
                     type="button"
                     disabled={actionDisabled(item, itemAction)}
-                    title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}
+                    title={attentionItemActionTitle(item, itemAction)}
                     aria-label={`${attentionActionLabel(itemAction.kind)} ${item.title}`}
                     on:click={() => runAttentionAction(item, itemAction)}
                   >
@@ -877,7 +898,7 @@
                     class="icon-action text-action"
                     type="button"
                     disabled={actionDisabled(item, itemAction)}
-                    title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}
+                    title={attentionItemActionTitle(item, itemAction)}
                     on:click={() => runAttentionAction(item, itemAction)}
                   >
                     {#if itemAction.kind === 'mark_read'}
@@ -932,7 +953,7 @@
                     class="icon-action text-action"
                     type="button"
                     disabled={actionDisabled(item, itemAction)}
-                    title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}
+                    title={attentionItemActionTitle(item, itemAction)}
                     on:click={() => runAttentionAction(item, itemAction)}
                   >
                     {#if itemAction.kind === 'complete'}
