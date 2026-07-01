@@ -173,7 +173,7 @@
 
   function todayCountLabel(value: number): string {
     if ($attentionStore.loading && !attentionSnapshot) return 'checking';
-    if (!attentionSnapshot) return 'not loaded';
+    if (!attentionSnapshot) return 'refresh needed';
     return String(value);
   }
 
@@ -181,7 +181,7 @@
     if (!$attentionStore.initialized) return 'Opening the browser attention cache before live sources refresh.';
     if ($attentionStore.loading && !attentionSnapshot) return loadingMessage;
     if ($attentionStore.error && !attentionSnapshot) return `${subject} will reload after the Today refresh card reconnects.`;
-    return `${subject} has not loaded yet. Refresh Today or open Settings Feature Wiring.`;
+    return `${subject} needs a refresh. Refresh Today or open Settings Feature Wiring.`;
   }
 
   function nowNextEmptyMessage(): string {
@@ -578,7 +578,7 @@
   function actionLedgerEmptyMessage(): string {
     if (actionLedgerLoading) return 'Loading recent app actions, AI OS logs, and Macro Lab runs.';
     if (actionLedgerError) return visibleActionLedgerError || 'Recent Actions needs attention.';
-    if (!actionLedgerSnapshot) return 'Recent Actions has not loaded yet. Refresh Today or open Settings Action Ledger.';
+    if (!actionLedgerSnapshot) return 'Recent Actions need a refresh. Refresh Today or open Settings Action Ledger.';
     if (actionLedgerSnapshot.errors.length) {
       return 'No recent action rows loaded from reachable sources. The source issue is shown below, and browser-only actions will still appear here when recorded.';
     }
@@ -842,7 +842,7 @@
         <p class="empty-note">Loading real attention sources.</p>
       {:else}
         <div class="empty-block">
-          <strong>{attentionSnapshot ? 'No active queue items.' : 'Attention queue not loaded'}</strong>
+          <strong>{attentionSnapshot ? 'No active queue items.' : 'Attention sources need refresh'}</strong>
           <p>{priorityEmptyMessage()}</p>
         </div>
       {/if}
