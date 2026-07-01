@@ -125,11 +125,16 @@
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: visibleSettingsError = settingsError ? compactSettingsIssue(settingsError, 'Settings') : '';
+  $: visibleClientDataError = $clientData.error ? compactSettingsIssue($clientData.error, 'Mini Hub cache') : '';
+  $: visibleEndpointError = endpointError ? compactSettingsIssue(endpointError, 'Desktop Services') : '';
+  $: visibleCapabilityError = capabilityError ? compactSettingsIssue(capabilityError, 'Capability Registry') : '';
   $: visibleMachineProfileError = machineProfileError ? compactServiceIssueIfRecognized(machineProfileError, 'AI OS machine profile') : '';
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
   $: visibleActionLedgerError = actionLedgerError ? compactServiceIssueIfRecognized(actionLedgerError, 'Action Ledger') : '';
   $: actionLedgerSourceError = actionLedgerSnapshot?.errors[0] ?? '';
   $: visibleActionLedgerSourceError = actionLedgerSourceError ? compactServiceIssueIfRecognized(actionLedgerSourceError, 'Action Ledger source') : '';
+  $: visiblePassiveError = passiveError ? compactSettingsIssue(passiveError, 'Passive Tasks') : '';
   $: passiveSettings = passiveSnapshot?.settings ?? null;
   $: passiveSettingsBlockedReason = passiveSettingsControlBlockedReason({
     saving: passiveSaving,
@@ -973,6 +978,13 @@
     return health.status;
   }
 
+  function compactSettingsIssue(message = '', label = 'Settings'): string {
+    const text = message.trim();
+    if (!text) return `${label} needs attention. Retry the action or check Feature Wiring.`;
+    const compact = compactServiceIssueIfRecognized(text, label);
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
+  }
+
   function backupHealthDetail(health: PassiveBackupHealth): string {
     if (!health.latestPath) return health.error ?? 'No Mini Hub restore point is available yet.';
     const cleanup = health.cleanupCandidateCount
@@ -1184,7 +1196,7 @@
   {:else if capabilityLoading}
     <p class="helper-text">Checking local APIs, Google connection state, AI providers, Macro Lab, and offline cache.</p>
   {:else if capabilityError}
-    <p class="sync-error">{capabilityError}</p>
+    <p class="sync-error" title={`Raw Capability Registry error: ${capabilityError}`}>{visibleCapabilityError}</p>
   {:else}
     <p class="helper-text">Capability status has not been checked yet.</p>
   {/if}
@@ -1438,12 +1450,12 @@
       <p class="endpoint-message">{passiveMessage}</p>
     {/if}
     {#if passiveError}
-      <p class="sync-error">{passiveError}</p>
+      <p class="sync-error" title={`Raw Passive Tasks settings error: ${passiveError}`}>{visiblePassiveError}</p>
     {/if}
   {:else if passiveLoading}
     <p class="helper-text">Loading passive task settings.</p>
   {:else if passiveError}
-    <p class="sync-error">{passiveError}</p>
+    <p class="sync-error" title={`Raw Passive Tasks settings error: ${passiveError}`}>{visiblePassiveError}</p>
   {:else}
     <p class="helper-text">Passive task settings need a fresh source check. Use Check Services or open Passive Tasks.</p>
   {/if}
@@ -1501,7 +1513,9 @@
       <p class="endpoint-message">{settingsMessage}</p>
     {/if}
     {#if settingsError || $clientData.error}
-      <p class="sync-error">{settingsError || $clientData.error}</p>
+      <p class="sync-error" title={`Raw Settings save/cache error: ${settingsError || $clientData.error}`}>
+        {settingsError ? visibleSettingsError : visibleClientDataError}
+      </p>
     {/if}
   </div>
 
@@ -1667,7 +1681,7 @@
       <p class="endpoint-message">{endpointMessage}</p>
     {/if}
     {#if endpointError}
-      <p class="sync-error">{endpointError}</p>
+      <p class="sync-error" title={`Raw Desktop Services error: ${endpointError}`}>{visibleEndpointError}</p>
     {/if}
   </div>
 </section>

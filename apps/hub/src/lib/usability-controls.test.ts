@@ -1968,6 +1968,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function exportCacheTitle');
     expect(source).toContain('Download the current browser cache as JSON for local inspection, backup, or recovery.');
     expect(source).toContain('function actionLedgerEmptyMessage');
+    expect(source).toContain('visibleSettingsError = settingsError ? compactSettingsIssue(settingsError,');
+    expect(source).toContain('visibleClientDataError = $clientData.error ? compactSettingsIssue($clientData.error,');
+    expect(source).toContain('visibleEndpointError = endpointError ? compactSettingsIssue(endpointError,');
+    expect(source).toContain('visibleCapabilityError = capabilityError ? compactSettingsIssue(capabilityError,');
+    expect(source).toContain('visiblePassiveError = passiveError ? compactSettingsIssue(passiveError,');
+    expect(source).toContain('function compactSettingsIssue');
+    expect(source).toContain('Retry the action or check Feature Wiring.');
     expect(source).toContain('visibleActionLedgerError = actionLedgerError ? compactServiceIssueIfRecognized(actionLedgerError,');
     expect(source).toContain('visibleActionLedgerSourceError = actionLedgerSourceError ? compactServiceIssueIfRecognized(actionLedgerSourceError,');
     expect(source).toContain('function restoreActionTitle');
@@ -2082,6 +2089,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Save service URLs in this browser, then run Check Services so Feature Wiring reflects the new targets.');
     expect(source).toContain('Loading passive task settings.');
     expect(source).toContain('Passive task settings need a fresh source check. Use Check Services or open Passive Tasks.');
+    expect(source).toContain('Raw Passive Tasks settings error:');
+    expect(source).toContain('Raw Capability Registry error:');
+    expect(source).toContain('Raw Settings save/cache error:');
+    expect(source).toContain('Raw Desktop Services error:');
     expect(source).toContain('Loading action ledger.');
     expect(source).toContain('Action Ledger needs a fresh source check. Use Refresh or Check Services to inspect Hub, AI OS, Macro Lab, and browser actions.');
     expect(source).toContain('No action rows loaded from reachable sources.');
