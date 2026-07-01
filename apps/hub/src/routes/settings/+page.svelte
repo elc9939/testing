@@ -845,7 +845,7 @@
   }
 
   function backupHealthLabel(health: PassiveBackupHealth | null): string {
-    if (!health) return 'No snapshot';
+    if (!health) return 'Refresh needed';
     if (health.status === 'ok') return 'Verified';
     if (health.status === 'warning') return health.stale ? 'Stale' : 'Review';
     return 'Needs setup';

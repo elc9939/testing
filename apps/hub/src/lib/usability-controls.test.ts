@@ -1711,7 +1711,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function formatPercent');
     expect(source).toContain("return typeof value === 'number' && Number.isFinite(value) ? `${value}%` : 'not measured'");
     expect(source).toContain("if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured'");
-    expect(source).toContain("if (!health) return 'No snapshot'");
+    expect(source).toContain("if (!health) return 'Refresh needed'");
     expect(source).toContain("health.latestSha256?.slice(0, 12) ?? 'hash not reported'");
     expect(source).toContain('<strong>{formatPercent(machineProfile.hardware.cpu_percent)} / {formatPercent(machineProfile.hardware.memory_percent)}</strong>');
     expect(source).toContain("machineProfile.autotune.suggested_max_job_concurrency ?? 'not measured'");
