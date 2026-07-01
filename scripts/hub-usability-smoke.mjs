@@ -340,6 +340,7 @@ const routes = [
       { label: 'machine mode anchor', text: 'id="machine-mode"' },
       { label: 'action ledger anchor', text: 'id="action-ledger"' },
       { label: 'sync gate title', text: 'syncNowTitle' },
+      { label: 'setup action titles', text: 'serviceCheckTitle' },
       { label: 'machine profile gate', text: 'machineProfileControlBlockedReason' },
       { label: 'passive settings gate', text: 'passiveSettingsControlBlockedReason' },
       { label: 'passive immediate-save titles', text: 'passiveFamilyToggleTitle' }

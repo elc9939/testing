@@ -229,6 +229,14 @@
   $: capabilityRefreshButtonTitle = capabilityRefreshTitle(settingsControlState);
   $: actionLedgerRefreshButtonTitle = actionLedgerRefreshTitle(settingsControlState);
   $: exportCacheButtonTitle = exportCacheTitle(settingsControlState);
+  $: serviceCheckButtonTitle = serviceCheckTitle(serviceChecking);
+  $: machineAutotuneButtonTitle = machineAutotuneTitle(machineAutotuneBlockedReason);
+  $: machineSnapshotButtonTitle = machineSnapshotTitle(machineSnapshotBlockedReason);
+  $: machineProfileRefreshButtonTitle = machineProfileRefreshTitle(machineProfileLoading);
+  $: passiveSettingsSaveButtonTitle = passiveSettingsSaveTitle();
+  $: passiveSettingsRefreshButtonTitle = passiveSettingsRefreshTitle();
+  $: endpointSaveButtonTitle = endpointSaveTitle(endpointSaving);
+  $: endpointReloadButtonTitle = endpointReloadTitle(endpointSaving);
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -279,6 +287,12 @@
       .filter(Boolean);
   }
 
+  function serviceCheckTitle(isChecking: boolean): string {
+    return isChecking
+      ? 'Service check is already running across Mini Hub, AI OS, Macro Lab, Passive Tasks, Google, and browser storage.'
+      : 'Check Mini Hub, AI OS, Macro Lab, Passive Tasks, Google readiness, endpoint wiring, and browser storage health.';
+  }
+
   function passiveSettingsControlBlockedReason(state: {
     saving: boolean;
     loading: boolean;
@@ -311,6 +325,35 @@
     return family.familyEnabled
       ? `Disable ${family.label} now. This saves immediately through the Passive Tasks API; ${count} ${stopVerb} producing new background findings while the ${watcher}.`
       : `Enable ${family.label} now. This saves immediately through the Passive Tasks API; ${count} can produce future Activity and Passive Tasks findings when the ${watcher}.`;
+  }
+
+  function passivePreferenceTitle(kind: 'idle' | 'notifications' | 'resource' | 'ai' | 'maxRuns'): string {
+    if (passiveSettingsBlockedReason) return passiveSettingsBlockedReason;
+    if (kind === 'idle') return 'Save idle-only preference immediately through the Passive Tasks API; scheduled work waits for Windows idle windows.';
+    if (kind === 'notifications') return 'Save how Passive Tasks records notifications, digest cards, and urgent-only alerts.';
+    if (kind === 'resource') return 'Save the resource limit used by future passive task runs and Activity findings.';
+    if (kind === 'ai') return 'Save local/cloud AI routing preference for future passive task summaries and monitors.';
+    return 'Save the maximum passive tasks allowed per tick so background work cannot fan out unexpectedly.';
+  }
+
+  function passiveScopeTitle(scope: 'folders' | 'research' | 'accounts'): string {
+    if (passiveSettingsBlockedReason) return passiveSettingsBlockedReason;
+    if (scope === 'folders') return 'One watched folder per line; Save Passive Settings writes these scopes to the Passive Tasks API.';
+    if (scope === 'research') return 'One watched research source per line; Save Passive Settings controls future monitor/source checks.';
+    return 'One watched account per line; Save Passive Settings controls future account-aware passive checks.';
+  }
+
+  function passiveSettingsSaveTitle(): string {
+    return (
+      passiveSettingsBlockedReason ||
+      'Save watched folders, research sources, and accounts through the Passive Tasks API; future runs and Activity use these scopes.'
+    );
+  }
+
+  function passiveSettingsRefreshTitle(): string {
+    if (passiveLoading) return 'Passive task settings are already loading.';
+    if (passiveError) return 'Retry Passive Task settings from the local API; controls stay disabled until a snapshot loads.';
+    return 'Reload Passive Task settings, watcher state, backup health, and watched scopes from the local API.';
   }
 
   async function savePassiveSettings(): Promise<void> {
@@ -401,7 +444,7 @@
   ): string {
     const blocked = syncNowBlockedReason(state);
     if (blocked) return blocked;
-    return 'Sync local cache with the Mini Hub API.';
+    return 'Push and pull Mini Hub data with the API now; cache status, last synced time, and Action Ledger update afterward.';
   }
 
   function loadEndpointInputs(showMessage = false): void {
@@ -415,7 +458,19 @@
 
   function endpointInputTitle(service: string): string {
     if (endpointSaving) return 'Service URLs are saving; wait before editing endpoints.';
-    return `Edit the ${service} URL saved in this browser.`;
+    return `Edit the ${service} URL stored in this browser; hosted pages use this to avoid calling the wrong /api route.`;
+  }
+
+  function endpointSaveTitle(isSaving: boolean): string {
+    return isSaving
+      ? 'Saving service URLs in this browser and checking services.'
+      : 'Save service URLs in this browser, then run Check Services so Feature Wiring reflects the new targets.';
+  }
+
+  function endpointReloadTitle(isSaving: boolean): string {
+    return isSaving
+      ? 'Service URLs are saving; wait before reloading browser-stored values.'
+      : 'Reload service URLs from browser storage without contacting services.';
   }
 
   async function saveEndpoints(): Promise<void> {
@@ -511,7 +566,7 @@
   }
 
   function exportCacheTitle(state: Pick<SettingsControlState, 'clientInitialized' | 'exportBusy'>): string {
-    return exportCacheBlockedReason(state) || 'Download the current browser cache as JSON.';
+    return exportCacheBlockedReason(state) || 'Download the current browser cache as JSON for local inspection, backup, or recovery.';
   }
 
   async function refreshCapabilities(): Promise<void> {
@@ -788,6 +843,26 @@
     return '';
   }
 
+  function machineAutotuneTitle(blockedReason: string): string {
+    return (
+      blockedReason ||
+      'Run a small AI OS benchmark, save latency/provider/model data, and update routing plus mode recommendations.'
+    );
+  }
+
+  function machineSnapshotTitle(blockedReason: string): string {
+    return (
+      blockedReason ||
+      'Save the current AI OS machine profile snapshot so Settings, Today, and AI OS can reload measured hardware and provider status.'
+    );
+  }
+
+  function machineProfileRefreshTitle(isLoading: boolean): string {
+    return isLoading
+      ? 'Machine profile is already loading.'
+      : 'Reload AI OS machine profile, recent snapshots, provider readiness, and benchmark history.';
+  }
+
   async function refreshMachineProfile(mode = currentMachineMode.id): Promise<void> {
     machineProfileLoading = true;
     machineProfileError = '';
@@ -916,7 +991,7 @@
     <p class="eyebrow">Settings</p>
     <h1>Settings</h1>
   </div>
-  <button class="button" type="button" disabled={serviceChecking} title={serviceChecking ? 'Service check is already running.' : 'Check all configured local and browser services.'} on:click={checkServices}>
+  <button class="button" type="button" disabled={serviceChecking} title={serviceCheckButtonTitle} on:click={checkServices}>
     <RefreshCw size={17} />
     <span>Check Services</span>
   </button>
@@ -1006,15 +1081,15 @@
       <p class="helper-text">Machine profile has not been loaded yet. Start AI OS, then check services.</p>
     {/if}
     <div class="action-row tight">
-      <button class="button primary" type="button" disabled={Boolean(machineAutotuneBlockedReason)} title={machineAutotuneBlockedReason || 'Run a small AI OS benchmark and update the machine profile.'} on:click={runMachineAutotune}>
+      <button class="button primary" type="button" disabled={Boolean(machineAutotuneBlockedReason)} title={machineAutotuneButtonTitle} on:click={runMachineAutotune}>
         <Activity size={17} />
         <span>{autotuneBusy ? 'Running' : 'Run Autotune'}</span>
       </button>
-      <button class="button" type="button" disabled={Boolean(machineSnapshotBlockedReason)} title={machineSnapshotBlockedReason || 'Save the current AI OS machine profile snapshot.'} on:click={saveMachineSnapshot}>
+      <button class="button" type="button" disabled={Boolean(machineSnapshotBlockedReason)} title={machineSnapshotButtonTitle} on:click={saveMachineSnapshot}>
         <Save size={17} />
         <span>Save Snapshot</span>
       </button>
-      <button class="button" type="button" disabled={machineProfileLoading} title={machineProfileLoading ? 'Machine profile is already loading.' : 'Retry the AI OS machine profile check.'} on:click={() => refreshMachineProfile()}>
+      <button class="button" type="button" disabled={machineProfileLoading} title={machineProfileRefreshButtonTitle} on:click={() => refreshMachineProfile()}>
         <RefreshCw size={17} />
         <span>{machineProfileError && !machineProfile ? 'Retry Profile' : 'Refresh Profile'}</span>
       </button>
@@ -1219,7 +1294,7 @@
           type="checkbox"
           checked={passiveSettings.idleOnly}
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'Prefer idle-only passive work.'}
+          title={passivePreferenceTitle('idle')}
           on:change={(event) => updatePassivePreference({ idleOnly: event.currentTarget.checked })}
         />
         <span>
@@ -1232,7 +1307,7 @@
         <select
           value={passiveSettings.notificationStyle}
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'Choose how passive task notifications are recorded.'}
+          title={passivePreferenceTitle('notifications')}
           on:change={(event) => updatePassivePreference({ notificationStyle: event.currentTarget.value as 'digest' | 'urgent_only' | 'off' })}
         >
           <option value="digest">Digest</option>
@@ -1245,7 +1320,7 @@
         <select
           value={passiveSettings.resourceLimit}
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'Choose the passive task resource limit.'}
+          title={passivePreferenceTitle('resource')}
           on:change={(event) => updatePassivePreference({ resourceLimit: event.currentTarget.value as 'light' | 'balanced' | 'heavy' })}
         >
           <option value="light">Light</option>
@@ -1258,7 +1333,7 @@
         <select
           value={passiveSettings.localAiPreference}
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'Choose the passive task AI routing preference.'}
+          title={passivePreferenceTitle('ai')}
           on:change={(event) => updatePassivePreference({ localAiPreference: event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed' })}
         >
           <option value="local_first">Local first</option>
@@ -1274,7 +1349,7 @@
           max="10"
           value={passiveSettings.maxRunsPerTick}
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'Limit how many passive tasks can run per tick.'}
+          title={passivePreferenceTitle('maxRuns')}
           on:change={(event) => updatePassivePreference({ maxRunsPerTick: Number(event.currentTarget.value) || 1 })}
         />
       </label>
@@ -1307,7 +1382,7 @@
           rows="4"
           placeholder="C:\Users\Edward\Downloads"
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'One watched folder per line.'}
+          title={passiveScopeTitle('folders')}
         ></textarea>
       </label>
       <label class="field">
@@ -1317,7 +1392,7 @@
           rows="5"
           placeholder={watchedResearchPlaceholder}
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'One watched research source per line.'}
+          title={passiveScopeTitle('research')}
         ></textarea>
       </label>
       <label class="field">
@@ -1327,7 +1402,7 @@
           rows="4"
           placeholder="personal@example.com"
           disabled={Boolean(passiveSettingsBlockedReason)}
-          title={passiveSettingsBlockedReason || 'One watched account per line.'}
+          title={passiveScopeTitle('accounts')}
         ></textarea>
       </label>
     </div>
@@ -1336,7 +1411,7 @@
         class="button primary"
         type="button"
         disabled={Boolean(passiveSettingsBlockedReason)}
-        title={passiveSettingsBlockedReason || 'Save passive task settings.'}
+        title={passiveSettingsSaveButtonTitle}
         on:click={savePassiveSettings}
       >
         <Save size={17} />
@@ -1346,7 +1421,7 @@
         class="button"
         type="button"
         disabled={passiveLoading}
-        title={passiveLoading ? 'Passive task settings are already loading.' : 'Reload Passive Task settings from the local API.'}
+        title={passiveSettingsRefreshButtonTitle}
         on:click={refreshPassiveSettings}
       >
         <RefreshCw size={17} />
@@ -1573,11 +1648,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={endpointSaving} title={endpointSaving ? 'Saving service URLs and checking services.' : 'Save service URLs for this browser.'} on:click={saveEndpoints}>
+      <button class="button primary" type="button" disabled={endpointSaving} title={endpointSaveButtonTitle} on:click={saveEndpoints}>
         <Save size={17} />
         <span>{endpointSaving ? 'Saving URLs' : 'Save Service URLs'}</span>
       </button>
-      <button class="button" type="button" disabled={endpointSaving} title="Reload the service URLs saved in this browser." on:click={() => loadEndpointInputs(true)}>
+      <button class="button" type="button" disabled={endpointSaving} title={endpointReloadButtonTitle} on:click={() => loadEndpointInputs(true)}>
         <Cloud size={17} />
         <span>Reload Values</span>
       </button>
