@@ -1216,16 +1216,25 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("aria-label={activityStatusCardLabel('Failed or blocked activity records', failedRecords.length, failedStatusDetail)}");
     expect(source).toContain('dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState)');
     expect(source).toContain('restoreDismissedButtonTitle = restoreDismissedTitle()');
+    expect(source).toContain('activityRefreshButtonTitle = activityRefreshTitle(activityControlState)');
     expect(source).toContain('activityEmptyRefreshButtonTitle = activityEmptyRefreshTitle(activityControlState)');
     expect(source).toContain('function actionBlockedReason');
+    expect(source).toContain('function activityRefreshTitle');
     expect(source).toContain('function activityActionTitle');
+    expect(source).toContain('function linkActionNeedsSetup');
+    expect(source).toContain('function linkActionDisabled');
+    expect(source).toContain('function linkActionLabel');
     expect(source).toContain('Another Activity action is already running.');
     expect(source).toContain('disabled={actionDisabled(record, action)}');
     expect(source).toContain('disabled={Boolean(refreshBlockedReason)}');
     expect(source).toContain('title={dismissedToggleButtonTitle}');
     expect(source).toContain('title={restoreDismissedButtonTitle}');
-    expect(source).toContain("title={refreshBlockedReason || 'Refresh Activity records from connected sources.'}");
+    expect(source).toContain('title={activityRefreshButtonTitle}');
     expect(source).toContain('title={activityEmptyRefreshButtonTitle}');
+    expect(source).toContain('href={linkActionDisabled(record, action) ? undefined : actionHref(record, action)}');
+    expect(source).toContain('class:disabled={linkActionDisabled(record, action)}');
+    expect(source).toContain('aria-disabled={linkActionDisabled(record, action)}');
+    expect(source).toContain('{linkActionLabel(record, action)}');
     expect(source).toContain('title={activityActionTitle(record, action)}');
     expect(source).toContain('backend records are not deleted');
     expect(source).toContain('window.confirm(`Cancel "${record.title}" in ${record.sourceLabel}?');
@@ -1233,7 +1242,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('asks for confirmation before stopping active work');
     expect(source).toContain("href={hubHref('/settings#data-recovery')}");
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
-    expect(source).toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
+    expect(source).toContain('Open Settings Feature Wiring before reopening ${record.title}.');
+    expect(source).not.toContain('Open ${record.sourceLabel}; the backend may still show a setup or offline state.');
   });
 
   it('keeps Today recommendation actions tied to live capability readiness', async () => {

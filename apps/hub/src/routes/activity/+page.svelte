@@ -81,6 +81,7 @@
   $: visibleActivityError = error ? compactActivityRefreshError(error) : '';
   $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
   $: restoreDismissedButtonTitle = restoreDismissedTitle();
+  $: activityRefreshButtonTitle = activityRefreshTitle(activityControlState);
   $: activityEmptyRefreshButtonTitle = activityEmptyRefreshTitle(activityControlState);
 
   onMount(() => {
@@ -306,6 +307,10 @@
     return '';
   }
 
+  function activityRefreshTitle(state: Pick<ActivityControlState, 'refreshBlockedReason'>): string {
+    return state.refreshBlockedReason || 'Refresh Activity records from connected sources; cached work stays visible if a source fails.';
+  }
+
   function activityEmptyTitle(): string {
     if (partial || sourceFailures.length) return 'No live activity loaded from reachable sources.';
     if (stale) return 'No cached Activity records.';
@@ -343,14 +348,31 @@
   }
 
   function actionHref(record: ActivityRecord, action: ActivityAction): string {
+    if (linkActionNeedsSetup(record, action)) return hubHref('/settings#feature-wiring');
     if (action.enabled || sourceReachable(record)) return hubHref(action.route || record.route);
     return hubHref('/settings#feature-wiring');
   }
 
+  function linkActionNeedsSetup(record: ActivityRecord, action: ActivityAction): boolean {
+    return (action.kind === 'open' || action.kind === 'view_logs') && !sourceReachable(record);
+  }
+
+  function linkActionDisabled(record: ActivityRecord, action: ActivityAction): boolean {
+    return !action.enabled && !linkActionNeedsSetup(record, action);
+  }
+
+  function linkActionLabel(record: ActivityRecord, action: ActivityAction): string {
+    if (linkActionNeedsSetup(record, action)) return 'Open Settings';
+    if (linkActionDisabled(record, action)) return 'Unavailable';
+    return action.label;
+  }
+
   function linkActionTitle(record: ActivityRecord, action: ActivityAction): string {
+    if (linkActionNeedsSetup(record, action)) {
+      return `${record.sourceLabel} is not reachable right now. Open Settings Feature Wiring before reopening ${record.title}.`;
+    }
     const blocked = actionBlockedReason(record, action);
     if (blocked) return blocked;
-    if (!sourceReachable(record)) return `Open ${record.sourceLabel}; the backend may still show a setup or offline state.`;
     return activityActionTitle(record, action);
   }
 
@@ -388,7 +410,7 @@
         <span>Restore</span>
       </button>
     {/if}
-    <button class="button" type="button" disabled={Boolean(refreshBlockedReason)} title={refreshBlockedReason || 'Refresh Activity records from connected sources.'} on:click={() => refreshActivity()}>
+    <button class="button" type="button" disabled={Boolean(refreshBlockedReason)} title={activityRefreshButtonTitle} on:click={() => refreshActivity()}>
       <RefreshCw size={16} />
       <span>{refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
@@ -582,13 +604,13 @@
       {#each record.actions as action}
         {#if action.kind === 'open' || action.kind === 'view_logs'}
           <a
-            class:disabled={!action.enabled && !sourceReachable(record)}
-            href={actionHref(record, action)}
-            aria-disabled={!action.enabled && !sourceReachable(record)}
+            class:disabled={linkActionDisabled(record, action)}
+            href={linkActionDisabled(record, action) ? undefined : actionHref(record, action)}
+            aria-disabled={linkActionDisabled(record, action)}
             title={linkActionTitle(record, action)}
           >
             <svelte:component this={actionIcon(action.kind)} size={15} />
-            <span>{!action.enabled && !sourceReachable(record) ? 'Open Settings' : action.label}</span>
+            <span>{linkActionLabel(record, action)}</span>
           </a>
         {:else}
           <button

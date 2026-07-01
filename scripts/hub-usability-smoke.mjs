@@ -58,6 +58,10 @@ const routes = [
       { label: 'activity cache warning surface', text: 'Activity cache and recovery notes' },
       { label: 'offline empty state', text: 'No live activity loaded from reachable sources.' },
       { label: 'recovery model strip', text: 'Activity recovery model' },
+      { label: 'refresh tooltip helper', text: 'activityRefreshTitle' },
+      { label: 'offline action setup route', text: 'linkActionNeedsSetup' },
+      { label: 'disabled link guard', text: 'linkActionDisabled' },
+      { label: 'offline action setup copy', text: 'Open Settings Feature Wiring before reopening' },
       { label: 'cancel confirmation', text: 'asks for confirmation before stopping active work' },
       { label: 'settings recovery link', text: "href={hubHref('/settings#data-recovery')}" },
       { label: 'feature wiring setup link', text: "href={hubHref('/settings#feature-wiring')}" }
