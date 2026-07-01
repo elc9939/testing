@@ -791,7 +791,13 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('Passive Tasks needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.');
     expect(passive).toContain('Passive Tasks run history needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.');
     expect(passive).toContain("if (!snapshot) return 'Load snapshot'");
+    expect(passive).toContain("if (!worker?.startedAt) return 'Waiting for startup'");
+    expect(passive).toContain("if (!worker?.lastIdle) return 'Waiting for first idle check'");
+    expect(passive).toContain("trigger.lastStatus ? passiveRunStatusLabel(trigger.lastStatus) : 'waiting for first trigger'");
     expect(passive).not.toContain("return 'Not checked'");
+    expect(passive).not.toContain("return 'Not started'");
+    expect(passive).not.toContain('No idle probe yet');
+    expect(passive).not.toContain('not fired yet');
     expect(passive).not.toContain("'No backup health'");
     expect(passive).toContain("if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured'");
     expect(passive).toContain('function passiveDigestEmptyMessage');

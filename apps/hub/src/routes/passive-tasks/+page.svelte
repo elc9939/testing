@@ -205,13 +205,13 @@
   function workerStateLabel(): string {
     if (loading && !snapshot) return 'Checking';
     if (!snapshot) return 'Load snapshot';
-    if (!worker?.startedAt) return 'Not started';
+    if (!worker?.startedAt) return 'Waiting for startup';
     if (!worker.enabled) return 'Disabled';
     return worker.running ? 'Running' : 'Idle';
   }
 
   function workerIdleLine(): string {
-    if (!worker?.lastIdle) return 'No idle probe yet';
+    if (!worker?.lastIdle) return 'Waiting for first idle check';
     const idle = worker.lastIdle.idle ? 'idle' : 'active';
     const minutes = typeof worker.lastIdle.idleMinutes === 'number' ? ` ${Math.round(worker.lastIdle.idleMinutes)} min` : '';
     const errorText = worker.lastIdle.error ? ` - ${passiveInlineIssue(worker.lastIdle.error, 'Passive idle probe')}` : '';
@@ -231,7 +231,7 @@
   }
 
   function triggerLastLine(trigger: PassiveTrigger): string {
-    const status = trigger.lastStatus ? passiveRunStatusLabel(trigger.lastStatus) : 'not fired yet';
+    const status = trigger.lastStatus ? passiveRunStatusLabel(trigger.lastStatus) : 'waiting for first trigger';
     const when = trigger.lastFiredAt ? displayWhen(trigger.lastFiredAt) : '';
     return when ? `${status} - ${when}` : status;
   }
