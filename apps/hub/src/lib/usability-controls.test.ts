@@ -98,7 +98,11 @@ describe('Mini Hub usability control gates', () => {
 
     expect(source).toContain('function layoutSyncPillText');
     expect(source).toContain('function layoutSyncPillTitle');
+    expect(source).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
     expect(source).toContain('syncPillText = layoutSyncPillText($clientData)');
+    expect(source).toContain('function layoutCompactSyncIssue');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, 'Mini Hub sync/cache')");
+    expect(source).toContain("if (state.status === 'error') return `Sync/cache needs review: ${layoutCompactSyncIssue(state.error)}`");
     expect(source).toContain("if (!state.initialized) return 'Opening saved data'");
     expect(source).toContain('if (canAutoSave($clientData))');
     expect(source).toContain('function readPassiveEventLastRun');
@@ -1424,7 +1428,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("if (state.status === 'error') return 'Needs attention';\n    if (!state.initialized) return 'Opening saved data';");
     expect(source).toContain('function todaySaveStatusDetail');
     expect(source).toContain('function todaySaveStatusDetail(state: ClientDataState)');
-    expect(source).toContain("if (state.error) return state.error;\n    if (!state.initialized) return 'Opening the browser cache and local workspace snapshot.';");
+    expect(source).toContain('function compactTodaySaveIssue');
+    expect(source).toContain("compactServiceIssueIfRecognized(text, 'Mini Hub save/cache')");
+    expect(source).toContain("if (state.error) return compactTodaySaveIssue(state.error);\n    if (!state.initialized) return 'Opening the browser cache and local workspace snapshot.';");
     expect(source).toContain('function todayLastSyncLabel');
     expect(source).toContain('function todayLastSyncLabel(state: ClientDataState)');
     expect(source).toContain("if (state.status === 'error') return 'needs review';");

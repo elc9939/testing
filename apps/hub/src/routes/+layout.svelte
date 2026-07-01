@@ -24,6 +24,7 @@
   import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { runPassiveEvent } from '$lib/passive-tasks-api';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
   import { applyTheme, normalizeTheme, setTheme, theme, watchSystemTheme, type ThemeMode } from '$lib/theme';
 
   const nav = [
@@ -61,9 +62,16 @@
     if (!state.initialized) return 'Opening the browser cache. Open Settings Data & Recovery to see what will reload.';
     if (state.status === 'syncing') return 'Syncing saved Hub API data now. Open Settings Data & Recovery for the save/reload map.';
     if (state.status === 'offline-readonly') return 'Offline read-only: cached pages stay readable, but save buttons wait for the Mini Hub API.';
-    if (state.status === 'error') return `Sync/cache needs review: ${state.error || 'open Settings Data & Recovery for details.'}`;
+    if (state.status === 'error') return `Sync/cache needs review: ${layoutCompactSyncIssue(state.error)}`;
     const synced = state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleString() : 'not synced in this browser yet';
     return `Online auto-save ready. Last sync: ${synced}. Open Settings Data & Recovery for what survives closing the site.`;
+  }
+
+  function layoutCompactSyncIssue(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'open Settings Data & Recovery for details.';
+    const compact = compactServiceIssueIfRecognized(text, 'Mini Hub sync/cache');
+    return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
   }
 
   function cycleTheme(): void {

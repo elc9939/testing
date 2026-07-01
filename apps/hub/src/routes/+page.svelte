@@ -597,6 +597,13 @@
     return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
   }
 
+  function compactTodaySaveIssue(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'Mini Hub save/cache needs attention. Open Settings Data & Recovery.';
+    const compact = compactServiceIssueIfRecognized(text, 'Mini Hub save/cache');
+    return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
+  }
+
   function todaySaveStatusLabel(state: ClientDataState): string {
     if (state.status === 'error') return 'Needs attention';
     if (!state.initialized) return 'Opening saved data';
@@ -606,7 +613,7 @@
   }
 
   function todaySaveStatusDetail(state: ClientDataState): string {
-    if (state.error) return state.error;
+    if (state.error) return compactTodaySaveIssue(state.error);
     if (!state.initialized) return 'Opening the browser cache and local workspace snapshot.';
     if (!state.isOnline || state.status === 'offline-readonly') {
       return 'Cached pages stay readable; saves wait for the Hub API.';
