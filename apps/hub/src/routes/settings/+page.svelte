@@ -74,7 +74,7 @@
     actionLedgerLoading: boolean;
   }
 
-  let apiStatus = 'Not checked';
+  let apiStatus = 'Run Check Services';
   let hubHealth: HubHealth | null = null;
   let settingsError = '';
   let settingsMessage = '';
@@ -508,7 +508,7 @@
   }
 
   function apiStatusError(value: string): string {
-    if (!value || value === 'Not checked' || value === 'Checking' || apiStatusReady(value)) return '';
+    if (!value || value === 'Run Check Services' || value === 'Checking' || apiStatusReady(value)) return '';
     return value;
   }
 
@@ -540,7 +540,7 @@
   }
 
   function featureWiringWhen(row: FeatureWiringRow): string {
-    if (!row.lastCheckedAt) return 'Not checked';
+    if (!row.lastCheckedAt) return 'Run Check Services';
     const date = new Date(row.lastCheckedAt);
     if (Number.isNaN(date.getTime())) return row.lastCheckedAt;
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -1078,7 +1078,7 @@
         <Monitor size={18} />
         <strong>Feature Wiring</strong>
       </span>
-      <small>{serviceCheckedAt ? `Checked ${new Date(serviceCheckedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Not checked yet'}</small>
+      <small>{serviceCheckedAt ? `Checked ${new Date(serviceCheckedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Run Check Services'}</small>
     </div>
     <p class="helper-text">
       Shows what each visible feature depends on from this browser. If the hosted site is accidentally pointed at GitHub Pages /api routes, it will show as misconfigured here instead of failing as raw Not Found.

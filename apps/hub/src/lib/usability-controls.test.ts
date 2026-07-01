@@ -1688,6 +1688,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain("serviceChecking ? 'Checking' : 'Check Services'");
     expect(source).not.toContain("canSync ? 'Sync Now' : $clientData.initialized ? 'API Not Ready' : 'Loading Cache'");
     expect(source).toContain('Sync is already running.');
+    expect(source).toContain("let apiStatus = 'Run Check Services'");
+    expect(source).toContain("value === 'Run Check Services'");
+    expect(source).toContain("if (!row.lastCheckedAt) return 'Run Check Services'");
+    expect(source).toContain(": 'Run Check Services'");
+    expect(source).not.toContain("let apiStatus = 'Not checked'");
+    expect(source).not.toContain("value === 'Not checked'");
+    expect(source).not.toContain("return 'Not checked'");
+    expect(source).not.toContain("'Not checked yet'");
     expect(source).toContain('function formatHubCoreDataHealth');
     expect(source).toContain('hubCoreDataStatus = formatHubCoreDataHealth(hubHealth)');
     expect(source).toContain('<div><dt>Core data</dt><dd>{hubCoreDataStatus}</dd></div>');
