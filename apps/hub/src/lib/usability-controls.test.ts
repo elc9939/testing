@@ -766,8 +766,11 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('function macroActionCatalogEmptyMessage');
     expect(macro).toContain('function macroRunHistoryEmptyMessage');
     expect(macro).toContain('function macroEditorBlockedTitle');
+    expect(macro).toContain('function macroEditorTextareaTitle');
     expect(macro).toContain('function macroActionTitle');
     expect(macro).toContain('Select or create a macro before using ${action}.');
+    expect(macro).toContain('Select or create a macro before editing its JSON definition.');
+    expect(macro).toContain('Edit ${macro.name} JSON locally, then Save to persist it through Macro Lab.');
     expect(macro).toContain('Trigger Macro Lab panic: stop running automations and disable triggers until reset.');
     expect(macro).toContain('Arm ${name}; confirmed runs may execute system-level actions after the confirmation prompt.');
     expect(macro).toContain('Run ${name} in dry-run mode; Macro Lab should log a preview without desktop side effects.');
@@ -827,10 +830,12 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain("title={macroActionTitle('dry-run', selectedMacro)}");
     expect(macro).toContain("title={macroActionTitle('run-confirmed', selectedMacro)}");
     expect(macro).toContain("title={macroActionTitle('record')}");
+    expect(macro).toContain('disabled={macroControlDisabled} spellcheck="false" title={macroEditorTextareaTitle(selectedMacro)}');
     expect(macro).not.toContain("title={macroControlTitle || 'Ask for confirmation before running this macro with real desktop side effects.'}");
     expect(macro).not.toContain("title={macroControlTitle || 'Ask for confirmation before recording keyboard and mouse input.'}");
     expect(macro).not.toContain("title={macroControlTitle || 'Toggle the explicit armed state for system-level actions.'}");
     expect(macro).not.toContain("title={macroControlTitle || 'Run this macro without side effects.'}");
+    expect(macro).not.toContain('title="Edit the selected macro definition JSON. Saving is disabled until Macro Lab state is loaded."');
     expect(macro).toContain("title={macroEditorBlockedTitle('dry run')}");
     expect(macro).toContain("title={macroEditorBlockedTitle('confirmed run')}");
     expect(macro).toContain('disabled={macroControlDisabled}');

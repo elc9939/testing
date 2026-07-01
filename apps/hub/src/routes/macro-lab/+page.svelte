@@ -161,6 +161,13 @@
     return `Select or create a macro before using ${action}.`;
   }
 
+  function macroEditorTextareaTitle(macro: MacroDefinition | undefined = selectedMacro): string {
+    const reason = macroDisabledReason();
+    if (reason) return reason;
+    if (!macro) return 'Select or create a macro before editing its JSON definition.';
+    return `Edit ${macro.name} JSON locally, then Save to persist it through Macro Lab.`;
+  }
+
   function macroActionTitle(
     action: 'panic' | 'reset' | 'new' | 'toggle-enabled' | 'toggle-armed' | 'save' | 'dry-run' | 'run-confirmed' | 'reload' | 'record' | 'stop-record',
     macro: MacroDefinition | undefined = selectedMacro
@@ -435,7 +442,7 @@
           </button>
         </div>
       </div>
-      <textarea bind:value={editor} spellcheck="false" title="Edit the selected macro definition JSON. Saving is disabled until Macro Lab state is loaded."></textarea>
+      <textarea bind:value={editor} disabled={macroControlDisabled} spellcheck="false" title={macroEditorTextareaTitle(selectedMacro)}></textarea>
       <div class="action-row">
         <button class="button primary" type="button" disabled={macroControlDisabled} title={macroActionTitle('save', selectedMacro)} on:click={saveSelected}><Save size={16} />Save</button>
         <button class="button" type="button" disabled={macroControlDisabled} title={macroActionTitle('dry-run', selectedMacro)} on:click={() => runSelected(true)}><Play size={16} />Dry Run</button>
