@@ -1300,7 +1300,7 @@
   </div>
   <div>
     <span>Accounts</span>
-    <strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'None'}</strong>
+    <strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'No Google accounts connected'}</strong>
     <small>{googleConnected ? 'Use Add Google Account for another inbox/calendar.' : 'OAuth setup is required for live data.'}</small>
   </div>
   <div>
