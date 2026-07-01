@@ -937,7 +937,7 @@
         <div><dt>Study sessions</dt><dd>{summary.studySessions}</dd></div>
         <div><dt>Study daily actions</dt><dd>{summary.studyCareerActions}</dd></div>
         <div><dt>High-score games</dt><dd>{summary.highScoreGames}</dd></div>
-        <div><dt>Theme</dt><dd>{summary.hasTheme ? 'Found' : 'None'}</dd></div>
+        <div><dt>Theme</dt><dd>{summary.hasTheme ? 'Found' : 'No legacy theme found'}</dd></div>
       </dl>
       {#each summary.warnings as warning}
         <p class="muted">{warning}</p>

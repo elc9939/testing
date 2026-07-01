@@ -1236,7 +1236,9 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('No saved Career jobs yet. Add a job manually or import legacy Career Desk data.');
     expect(career).toContain('Opening cached career actions before live API sync.');
     expect(career).toContain('No linked career actions have been imported or created yet.');
+    expect(career).toContain('No legacy theme found');
     expect(career).not.toContain('No new jobs in this Svelte workspace yet.');
+    expect(career).not.toContain("summary.hasTheme ? 'Found' : 'None'");
     expect(career).toContain('<span>{careerMailPanelStatus()}</span>');
     expect(career).toContain('<p class="muted mail-update-empty">{careerMailEmptyMessage()}</p>');
     expect(career).toContain('let careerSummaryLoading = false');
