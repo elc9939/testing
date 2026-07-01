@@ -621,6 +621,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Model load will reload after the Desktop service card reconnects.');
     expect(source).toContain('See the Desktop service card above for the connection error and fix actions.');
     expect(source).toContain('Provider state will reload after the Desktop service card reconnects.');
+    expect(source).toContain('function providerRouteDetail');
+    expect(source).toContain('function providerRouteTitle');
+    expect(source).toContain("compactServiceIssueIfRecognized(error, provider.label)");
+    expect(source).toContain('needs provider setup or a missing secret/API key in AI OS');
+    expect(source).toContain("providerRouteDetail(ollama)");
+    expect(source).toContain('<p title={providerRouteTitle(provider)}>{providerRouteDetail(provider)}</p>');
     expect(source).toContain('function hostSystemLabel');
     expect(source).toContain("return 'OS not reported by AI OS'");
     expect(source).toContain('function hostMachineLabel');

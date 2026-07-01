@@ -634,6 +634,25 @@
     return nextStatus?.providers.find((provider) => provider.id === id);
   }
 
+  function providerRouteDetail(provider: AiStatus['providers'][number]): string {
+    if (provider.available) {
+      return `${provider.models.length} model${provider.models.length === 1 ? '' : 's'}`;
+    }
+    const error = provider.error?.trim() ?? '';
+    if (!error) return `${provider.label} is not available; open Settings Feature Wiring and check the AI OS provider setup.`;
+    const compact = compactServiceIssueIfRecognized(error, provider.label);
+    if (compact !== error) return compact;
+    if (/api key|token|secret|credential|env|not configured|missing/iu.test(error)) {
+      return `${provider.label} needs provider setup or a missing secret/API key in AI OS.`;
+    }
+    return error.length > 120 ? `${error.slice(0, 117)}...` : error;
+  }
+
+  function providerRouteTitle(provider: AiStatus['providers'][number]): string {
+    if (provider.available) return `${provider.label} route is available with ${provider.models.length} model${provider.models.length === 1 ? '' : 's'}.`;
+    return provider.error ? `Raw ${provider.label} provider error: ${provider.error}` : `${provider.label} did not report a provider error.`;
+  }
+
   function buildStartupChecks(nextStatus: AiStatus | null, error: string, checking: boolean): StartupCheck[] {
     if (!nextStatus && checking) {
       return [
@@ -692,7 +711,9 @@
         state: ollama?.available ? 'ready' : 'degraded',
         detail: ollama?.available
           ? `${ollama.models.length} local model${ollama.models.length === 1 ? '' : 's'} visible.`
-          : ollama?.error ?? 'AI OS is running, but Ollama did not answer the provider check.'
+          : ollama
+            ? providerRouteDetail(ollama)
+            : 'AI OS is running, but Ollama did not answer the provider check.'
       },
       {
         id: 'gpu',
@@ -1581,7 +1602,7 @@
               <strong>{provider.label}</strong>
               <span>{provider.local ? 'local' : provider.paid ? 'paid' : 'adapter'}</span>
             </div>
-            <p>{provider.available ? `${provider.models.length} models` : provider.error}</p>
+            <p title={providerRouteTitle(provider)}>{providerRouteDetail(provider)}</p>
           </article>
         {:else}
           <p class="muted">{aiOsPanelEmptyMessage('No model routes are registered yet.', 'Checking model routes from AI OS.', 'Model routes')}</p>
