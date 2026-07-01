@@ -404,7 +404,7 @@
   function noGpuRowsMessage(): string {
     if (loading && !status) return 'Loading GPU telemetry rows from AI OS.';
     if (!status) return 'Service status is shown above; GPU telemetry will appear after AI OS connects.';
-    return 'No GPU telemetry rows yet.';
+    return 'No GPU telemetry rows returned yet. Refresh AI OS or check Windows/AMD telemetry setup.';
   }
 
   function aiOsPanelEmptyMessage(healthyEmpty: string, loadingMessage: string, subject = 'This panel'): string {
@@ -448,7 +448,7 @@
   }
 
   function gpuName(gpu: Record<string, unknown> | undefined): string {
-    return metricString(gpu, 'name') ?? 'No GPU';
+    return metricString(gpu, 'name') ?? 'GPU telemetry not reported';
   }
 
   function gpuMemoryLabel(gpu: Record<string, unknown> | undefined): string {
@@ -456,14 +456,14 @@
     const total = metricNumber(gpu, 'memory_total_mb') ?? metricNumber(gpu, 'memory_reported_total_mb');
     if (used !== undefined && total !== undefined) return `${gbFromMb(used)} / ${gbFromMb(total)}`;
     if (used !== undefined) return `${gbFromMb(used)} used`;
-    return 'VRAM not reported';
+    return 'VRAM not reported by AI OS';
   }
 
   function gpuTemperatureLabel(gpu: Record<string, unknown> | undefined): string {
     const value = metricNumber(gpu, 'temperature_c');
     if (value !== undefined) return `${value.toFixed(0)} C`;
     const source = metricString(gpu, 'temperature_source');
-    return source === 'unavailable' ? 'temperature sensor unavailable' : 'temperature not reported';
+    return source === 'unavailable' ? 'temperature sensor unavailable' : 'temperature not reported by AI OS';
   }
 
   function routeLabel(route: Record<string, unknown> | null | undefined): string {

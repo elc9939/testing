@@ -586,8 +586,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Service status is shown above; memory telemetry has not been checked.');
     expect(source).toContain('Memory telemetry not reported by AI OS.');
     expect(source).toContain('function aiOsGpuDetail');
-    expect(source).toContain('VRAM not reported');
-    expect(source).toContain('temperature not reported');
+    expect(source).toContain('GPU telemetry not reported');
+    expect(source).toContain('VRAM not reported by AI OS');
+    expect(source).toContain('temperature not reported by AI OS');
     expect(source).toContain('function aiOsModelSummary');
     expect(source).toContain('function noGpuRowsMessage');
     expect(source).toContain('function aiOsPanelEmptyMessage');
@@ -612,8 +613,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Service status is shown above; GPU telemetry has not been checked.');
     expect(source).toContain('Service status is shown above; model load has not been checked.');
     expect(source).toContain('Service status is shown above; GPU telemetry will appear after AI OS connects.');
+    expect(source).toContain('No GPU telemetry rows returned yet. Refresh AI OS or check Windows/AMD telemetry setup.');
     expect(source).toContain('no GPU telemetry rows were returned from Windows counters or vendor tools');
     expect(source).not.toContain('Windows/NVIDIA GPU telemetry');
+    expect(source).not.toContain("?? 'No GPU'");
     expect(source).not.toContain('AI OS is not connected, so GPU telemetry is not checked.');
     expect(source).not.toContain('AI OS API is not reachable yet.');
     expect(source).not.toContain('Machine profile is unavailable. Start AI OS or refresh once providers and telemetry are reachable.');
