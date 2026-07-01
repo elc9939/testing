@@ -243,6 +243,8 @@ const routes = [
       { label: 'parse input lock title', text: 'parseInputTitle' },
       { label: 'sample restore control', text: 'restoreAiLabSamples' },
       { label: 'browser-local capability status', text: 'AI Lab local capability status' },
+      { label: 'browser-local persistence rules', text: 'AI Lab persistence rules' },
+      { label: 'temporary result explanation', text: 'Classifier and parser output is ad hoc test output' },
       { label: 'asset failure helper', text: 'aiLabAssetErrorDetail' },
       { label: 'browser draft status', text: 'draftStatus' },
       { label: 'result panels', text: 'result-grid' }

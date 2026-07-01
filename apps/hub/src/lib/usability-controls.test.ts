@@ -521,6 +521,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('aria-busy={parseBusy}');
     expect(source).toContain('AI Lab local capability status');
     expect(source).toContain('This lab is browser-local.');
+    expect(source).toContain('AI Lab persistence rules');
+    expect(source).toContain('Text, labels, code, and grammar URL reload from this browser when storage is available.');
+    expect(source).toContain('Classifier and parser output is ad hoc test output; rerun the panel after refresh if you need it again.');
+    expect(source).toContain('AI Lab does not create AI OS jobs, Activity records, or background tasks.');
+    expect(source).toContain('.lab-persistence-strip');
     expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
     expect(source).toContain('const storage = getBrowserStorage()');
     expect(source).toContain('draftStatus =');

@@ -248,6 +248,24 @@
   {/each}
 </section>
 
+<section class="card card-pad lab-persistence-strip" aria-label="AI Lab persistence rules">
+  <div>
+    <span>Inputs</span>
+    <strong>Browser-local</strong>
+    <small>Text, labels, code, and grammar URL reload from this browser when storage is available.</small>
+  </div>
+  <div>
+    <span>Results</span>
+    <strong>Temporary</strong>
+    <small>Classifier and parser output is ad hoc test output; rerun the panel after refresh if you need it again.</small>
+  </div>
+  <div>
+    <span>Backend work</span>
+    <strong>No backend jobs</strong>
+    <small>AI Lab does not create AI OS jobs, Activity records, or background tasks.</small>
+  </div>
+</section>
+
 <section class="grid two">
   <div class="card card-pad panel">
     <div class="section-title">
@@ -382,6 +400,35 @@
     line-height: 1.35;
   }
 
+  .lab-persistence-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .lab-persistence-strip div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+
+  .lab-persistence-strip span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .lab-persistence-strip small {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
   .panel {
     display: grid;
     gap: 12px;
@@ -457,6 +504,7 @@
   @media (max-width: 760px) {
     .plain-guide,
     .readiness-strip,
+    .lab-persistence-strip,
     .result-grid {
       grid-template-columns: 1fr;
     }
