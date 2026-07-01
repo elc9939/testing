@@ -5,6 +5,7 @@
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { getBrowserStorage } from '$lib/browser-storage';
   import { canAutoSave, clientData } from '$lib/client-data';
+  import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   interface StudyDraft {
     subject: string;
@@ -131,6 +132,10 @@
   $: addLogButtonTitle = addLogTitle(studyControlState, subject, Number(minutes));
   $: saveLogEditButtonTitle = saveLogEditTitle(studyControlState, studyDraft);
   $: studySummaryButtonTitle = studySummaryTitle(studyControlState);
+  $: visibleSaveError = saveError ? compactStudyDeskIssue(saveError, 'Study Desk save') : '';
+  $: visibleRowError = rowError ? compactStudyDeskIssue(rowError, 'Study Desk row') : '';
+  $: visibleStudyDeskError = visibleSaveError || visibleRowError;
+  $: rawStudyDeskError = saveError || rowError;
   $: if (viewHydrated) persistStudyViewState(searchQuery, subject, Number(minutes));
 
   function studySaveTitle(state: Pick<StudyControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
@@ -173,6 +178,13 @@
 
   function studySummaryTitle(state: Pick<StudyControlState, 'studySummaryLoading'>): string {
     return state.studySummaryLoading ? 'Legacy Study scan is already running.' : 'Scan this browser for legacy Study Desk data.';
+  }
+
+  function compactStudyDeskIssue(message = '', label = 'Study Desk'): string {
+    const text = message.trim();
+    if (!text) return '';
+    const compact = compactServiceIssueIfRecognized(text, label);
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
   function studyCareerActionsEmptyMessage(): string {
@@ -546,8 +558,8 @@
 {#if !canSave}
   <section class="card card-pad offline-banner">Offline: cached study logs are readable, saving is disabled.</section>
 {/if}
-{#if saveError || rowError}
-  <section class="card card-pad error-banner">{saveError || rowError}</section>
+{#if rawStudyDeskError}
+  <section class="card card-pad error-banner" title={`Raw Study Desk error: ${rawStudyDeskError}`}>{visibleStudyDeskError}</section>
 {/if}
 {#if saveMessage}
   <section class="card card-pad success-banner">{saveMessage}</section>

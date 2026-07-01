@@ -7,7 +7,7 @@
   import { canAutoSave, clientData } from '$lib/client-data';
   import { getConnections, listPriorityGmailThreads, type GmailThreadInsight, type PublicConnection } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
-  import { compactServiceIssueLine } from '$lib/service-issues';
+  import { compactServiceIssueIfRecognized, compactServiceIssueLine } from '$lib/service-issues';
 
   const statuses = ['lead', 'applied', 'interview', 'offer', 'rejected', 'archived'];
 
@@ -110,6 +110,10 @@
   $: careerMailUpdatesButtonTitle = careerMailUpdatesTitle(careerControlState);
   $: careerExportButtonTitle = careerExportTitle(careerControlState);
   $: visibleMailUpdatesError = mailUpdatesError ? compactServiceIssueLine(mailUpdatesError, 'Career mail scan') : '';
+  $: visibleSaveError = saveError ? compactCareerDeskIssue(saveError, 'Career Desk save') : '';
+  $: visibleRowError = rowError ? compactCareerDeskIssue(rowError, 'Career Desk row') : '';
+  $: visibleCareerDeskError = visibleSaveError || visibleRowError;
+  $: rawCareerDeskError = saveError || rowError;
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
 
   function careerSaveTitle(state: Pick<CareerControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
@@ -191,6 +195,13 @@
 
   function careerExportTitle(state: Pick<CareerControlState, 'careerExportLoading'>): string {
     return state.careerExportLoading ? 'Career export is already preparing.' : 'Download the current legacy Career snapshot from this browser.';
+  }
+
+  function compactCareerDeskIssue(message = '', label = 'Career Desk'): string {
+    const text = message.trim();
+    if (!text) return '';
+    const compact = compactServiceIssueIfRecognized(text, label);
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
   function emptyJobDraft(): JobDraft {
@@ -678,8 +689,8 @@
 {#if !canSave}
   <section class="card card-pad offline-banner">Offline: cached jobs are readable, saving is disabled.</section>
 {/if}
-{#if saveError || rowError}
-  <section class="card card-pad error-banner">{saveError || rowError}</section>
+{#if rawCareerDeskError}
+  <section class="card card-pad error-banner" title={`Raw Career Desk error: ${rawCareerDeskError}`}>{visibleCareerDeskError}</section>
 {/if}
 {#if saveMessage}
   <section class="card card-pad success-banner">{saveMessage}</section>

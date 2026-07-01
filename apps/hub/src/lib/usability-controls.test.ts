@@ -1444,6 +1444,12 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('careerExportButtonTitle = careerExportTitle(careerControlState)');
     expect(career).toContain('visibleMailUpdatesError = mailUpdatesError ? compactServiceIssueLine(mailUpdatesError,');
     expect(career).toContain('Raw Career mail scan error:');
+    expect(career).toContain("import { compactServiceIssueIfRecognized, compactServiceIssueLine } from '$lib/service-issues'");
+    expect(career).toContain('visibleCareerDeskError = visibleSaveError || visibleRowError');
+    expect(career).toContain('rawCareerDeskError = saveError || rowError');
+    expect(career).toContain('function compactCareerDeskIssue');
+    expect(career).toContain("compactServiceIssueIfRecognized(text, label)");
+    expect(career).toContain('Raw Career Desk error:');
     expect(career).toContain('function careerSaveTitle');
     expect(career).toContain('function careerRowTitle');
     expect(career).toContain('function careerEditRowTitle');
@@ -1512,6 +1518,12 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('addLogButtonTitle = addLogTitle(studyControlState, subject, Number(minutes))');
     expect(study).toContain('saveLogEditButtonTitle = saveLogEditTitle(studyControlState, studyDraft)');
     expect(study).toContain('studySummaryButtonTitle = studySummaryTitle(studyControlState)');
+    expect(study).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
+    expect(study).toContain('visibleStudyDeskError = visibleSaveError || visibleRowError');
+    expect(study).toContain('rawStudyDeskError = saveError || rowError');
+    expect(study).toContain('function compactStudyDeskIssue');
+    expect(study).toContain("compactServiceIssueIfRecognized(text, label)");
+    expect(study).toContain('Raw Study Desk error:');
     expect(study).toContain('function studySaveTitle');
     expect(study).toContain('function studyRowTitle');
     expect(study).toContain('function studyEditRowTitle');
