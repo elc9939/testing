@@ -84,6 +84,15 @@ function visibleControlText(block: string): string {
 }
 
 describe('Mini Hub usability control gates', () => {
+  it('keeps route empty-state labels specific instead of bare None', async () => {
+    const files = await routePageFiles();
+    for (const file of files) {
+      const source = await readFile(file, 'utf8');
+      const label = relative(routesRoot, file);
+      expect(source, `${label} should use a specific empty-state label instead of "None"`).not.toMatch(/(["'`])None\1|>\s*None\s*</u);
+    }
+  });
+
   it('keeps the global save status recoverable from every route', async () => {
     const source = await routeSource('../routes/+layout.svelte');
 
@@ -1236,8 +1245,13 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('No saved Career jobs yet. Add a job manually or import legacy Career Desk data.');
     expect(career).toContain('Opening cached career actions before live API sync.');
     expect(career).toContain('No linked career actions have been imported or created yet.');
+    expect(career).toContain('No notes saved');
+    expect(career).toContain('No due date');
     expect(career).toContain('No legacy theme found');
     expect(career).not.toContain('No new jobs in this Svelte workspace yet.');
+    expect(career).not.toContain("return 'None'");
+    expect(career).not.toContain('<span class="muted">None</span>');
+    expect(career).not.toContain(": 'None'}</td>");
     expect(career).not.toContain("summary.hasTheme ? 'Found' : 'None'");
     expect(career).toContain('<span>{careerMailPanelStatus()}</span>');
     expect(career).toContain('<p class="muted mail-update-empty">{careerMailEmptyMessage()}</p>');
@@ -1304,6 +1318,14 @@ describe('Mini Hub usability control gates', () => {
     expect(study).toContain('No linked career actions have been imported or created yet.');
     expect(study).not.toContain('No study logs in this Svelte workspace yet.');
     expect(study).toContain('No legacy GitHub sync recorded');
+    expect(study).toContain('No exam date saved');
+    expect(study).toContain('No legacy repo saved');
+    expect(study).toContain('No milestones saved');
+    expect(study).toContain('No update saved');
+    expect(study).toContain('No note saved');
+    expect(study).toContain('No due date');
+    expect(study).not.toContain("|| 'None'");
+    expect(study).not.toContain(": 'None'");
     expect(study).not.toContain("legacyGithub.lastSync ? displayDateTime(legacyGithub.lastSync) : 'Never'");
     expect(study).toContain("studyViewStorageKey = 'miniHub.study.view.v1'");
     expect(study).toContain("import { getBrowserStorage } from '$lib/browser-storage'");

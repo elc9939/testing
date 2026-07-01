@@ -283,7 +283,7 @@
           track: trackLabel(track),
           done,
           total: list.length,
-          next: next ? text(next.title) || text(next.id) || 'Untitled milestone' : list.length ? 'Complete' : 'None',
+          next: next ? text(next.title) || text(next.id) || 'Untitled milestone' : list.length ? 'Complete' : 'No milestones saved',
           updatedAt: updatedAt ?? ''
         };
       })
@@ -360,7 +360,7 @@
 
   function summarizeLegacyGithub(github: Record<string, unknown> | null): LegacyGithubSummary {
     return {
-      repo: text(github?.repo) || 'None',
+      repo: text(github?.repo) || 'No legacy repo saved',
       lastSync: text(github?.lastSync),
       submissions: numberValue(github?.submissions),
       problems: arrayLength(github?.problems),
@@ -616,7 +616,7 @@
     </div>
 
     <div class="legacy-summary-grid">
-      <div><span>Exam Date</span><strong>{text(legacyStudySettings?.examDate) || 'None'}</strong></div>
+      <div><span>Exam Date</span><strong>{text(legacyStudySettings?.examDate) || 'No exam date saved'}</strong></div>
       <div><span>Weekly Goal</span><strong>{numberValue(legacyStudySettings?.weeklyGoal) || 0} min</strong></div>
       <div><span>GitHub Repo</span><strong>{legacyGithub.repo}</strong></div>
       <div><span>Submissions</span><strong>{legacyGithub.submissions}</strong></div>
@@ -647,7 +647,7 @@
                   <td>{row.track}</td>
                   <td>{row.done}/{row.total}</td>
                   <td>{row.next}</td>
-                  <td>{row.updatedAt ? displayDateTime(row.updatedAt) : 'None'}</td>
+                  <td>{row.updatedAt ? displayDateTime(row.updatedAt) : 'No update saved'}</td>
                 </tr>
               {:else}
                 <tr><td colspan="4" class="muted">No legacy topics were found.</td></tr>
@@ -678,7 +678,7 @@
                   <td>{row.careerActions}</td>
                   <td>{row.neetcodeNew}</td>
                   <td>{row.neetcodeSubmissions}</td>
-                  <td>{row.note || 'None'}</td>
+                  <td>{row.note || 'No note saved'}</td>
                 </tr>
               {:else}
                 <tr><td colspan="5" class="muted">No legacy daily records were found.</td></tr>
@@ -721,7 +721,7 @@
         {#each filteredCareerActions as action}
           <tr>
             <td>{action.label}</td>
-            <td>{action.dueAt ? displayDateTime(action.dueAt) : 'None'}</td>
+            <td>{action.dueAt ? displayDateTime(action.dueAt) : 'No due date'}</td>
             <td>{action.completedAt ? displayDateTime(action.completedAt) : 'Open'}</td>
           </tr>
         {:else}

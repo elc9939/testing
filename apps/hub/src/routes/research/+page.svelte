@@ -933,7 +933,7 @@
   }
 
   function formatJson(value: unknown): string {
-    if (value === undefined || value === null || value === '') return 'None recorded.';
+    if (value === undefined || value === null || value === '') return 'Not recorded.';
     return JSON.stringify(value, null, 2);
   }
 

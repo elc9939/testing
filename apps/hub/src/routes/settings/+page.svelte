@@ -856,7 +856,7 @@
   }
 
   function compactFileName(value: string | undefined): string {
-    if (!value) return 'None';
+    if (!value) return 'No restore file recorded';
     const parts = value.split(/[\\/]/u).filter(Boolean);
     return parts[parts.length - 1] ?? value;
   }

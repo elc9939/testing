@@ -239,7 +239,7 @@
   }
 
   function displayDate(value?: string): string {
-    if (!value) return 'None';
+    if (!value) return 'No date saved';
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
   }
@@ -435,7 +435,7 @@
     if (details) return details;
     const historyCount = legacyHistoryCount(job);
     if (historyCount) return `${historyCount} legacy history event${historyCount === 1 ? '' : 's'} preserved`;
-    return 'None';
+    return 'No notes saved';
   }
 
   function legacyHistoryCount(job: JobRecord): number {
@@ -808,7 +808,7 @@
                     <small class="legacy-history-note">{legacyHistoryCount(job)} legacy history event{legacyHistoryCount(job) === 1 ? '' : 's'} preserved</small>
                   {/if}
                   {#if !visibleJobNotes(job) && !primaryLegacyJobDetails(job).length && !legacyHistoryCount(job)}
-                    <span class="muted">None</span>
+                    <span class="muted">No notes saved</span>
                   {/if}
                 </div>
               </details>
@@ -872,7 +872,7 @@
               <a class="inline-application-link" href={jobApplicationHref(job)} target="_blank" rel="noreferrer" title={`Open application link for ${job.role} at ${job.company}.`}>Open application</a>
             {/if}
           </td>
-          <td>{action.dueAt ? displayDate(action.dueAt) : 'None'}</td>
+          <td>{action.dueAt ? displayDate(action.dueAt) : 'No due date'}</td>
           <td>{action.completedAt ? `Done ${displayDate(action.completedAt)}` : 'Open'}</td>
         </tr>
       {:else}
