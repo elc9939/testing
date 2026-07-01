@@ -79,6 +79,8 @@
   $: savedStatusDetail = activityInitialLoading ? 'Checking saved work' : stableRecords.length ? 'Reports and history' : 'No saved records yet';
   $: activityRecoveryNotes = activitySnapshotRecoveryNotes(snapshot);
   $: visibleActivityError = error ? compactActivityRefreshError(error) : '';
+  $: visibleActivityActionError = actionError ? compactActivityActionError(actionError) : '';
+  $: activityActionIssue = actionError ? classifyServiceIssue(actionError) : null;
   $: dismissedToggleButtonTitle = dismissedToggleTitle(activityControlState);
   $: restoreDismissedButtonTitle = restoreDismissedTitle();
   $: activityRefreshButtonTitle = activityRefreshTitle(activityControlState);
@@ -216,6 +218,20 @@
     if (!text) return 'Activity could not reach its durable work sources.';
     const compact = compactServiceIssueIfRecognized(text, 'Activity');
     return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
+  }
+
+  function compactActivityActionError(message = ''): string {
+    const text = message.trim();
+    if (!text) return 'Activity action could not be completed.';
+    const compact = compactServiceIssueIfRecognized(text, 'Activity action');
+    return compact === text && text.length > 120 ? `${text.slice(0, 117)}...` : compact;
+  }
+
+  function activityRecordErrorDetail(record: ActivityRecord): string {
+    const text = record.error?.trim() ?? '';
+    if (!text) return '';
+    const compact = compactServiceIssueIfRecognized(text, record.sourceLabel);
+    return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
   function compactActivityRecoveryNote(message: string): string {
@@ -431,7 +447,18 @@
 {/if}
 
 {#if actionError}
-  <section class="notice error">{actionError}</section>
+  <section class="notice error" title={`Raw Activity action error: ${actionError}`}>
+    <div>
+      <strong>Activity action needs attention</strong>
+      <p>{visibleActivityActionError}</p>
+    </div>
+    {#if activityActionIssue && activityActionIssue.kind !== 'unknown' && activityActionIssue.kind !== 'none'}
+      <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for the service that owns this Activity action.">
+        <Settings size={15} />
+        <span>Open Settings</span>
+      </a>
+    {/if}
+  </section>
 {:else if actionMessage}
   <section class="notice success">{actionMessage}</section>
 {/if}
@@ -591,7 +618,7 @@
         <p>{record.detail}</p>
         <small>{record.sourceLabel} - started {displayWhen(record.startedAt)} - updated {displayWhen(record.updatedAt)}</small>
         {#if record.error}
-          <small class="error-text">{record.error}</small>
+          <small class="error-text" title={`Raw Activity record error: ${record.error}`}>{activityRecordErrorDetail(record)}</small>
         {/if}
         {#if record.progress !== undefined && ['queued', 'running', 'paused'].includes(record.status)}
           <span class="progress-track" aria-label={`Activity progress ${progressPercent(record)}%`}>
