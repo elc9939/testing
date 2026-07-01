@@ -634,7 +634,7 @@
       {:else if $attentionStore.cachedAt}
         Cached {displayShortDate($attentionStore.cachedAt)}
       {:else}
-        No attention check yet
+        Refresh Today to check attention
       {/if}
     </span>
     <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} title={todayRefreshButtonTitle} on:click={refreshToday}>

@@ -1137,7 +1137,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function sourceStatusEmptyMessage');
     expect(source).toContain('Checking source status from the hub.');
     expect(source).toContain('Checking attention sources');
-    expect(source).toContain('No attention check yet');
+    expect(source).toContain('Refresh Today to check attention');
     expect(source).toContain('Loading real attention sources.');
     expect(source).toContain('Checking local services and providers.');
     expect(source).toContain('Loading recent app actions, AI OS logs, and Macro Lab runs.');
@@ -1149,6 +1149,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain("return '...'");
     expect(source).not.toContain("return 'n/a'");
     expect(source).not.toContain('No attention snapshot has loaded yet.');
+    expect(source).not.toContain('No attention check yet');
     expect(source).not.toContain('No meaningful actions are logged yet.');
     expect(source).not.toContain("return 'not loaded'");
     expect(source).not.toContain('Attention queue not loaded');
