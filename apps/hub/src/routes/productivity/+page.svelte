@@ -215,6 +215,8 @@
   $: eventSaveButtonTitle = eventSaveActionTitle(productivityControlTitleState);
   $: composeDraftButtonTitle = composeActionTitle(productivityControlTitleState, false);
   $: composeSendButtonTitle = composeActionTitle(productivityControlTitleState, true);
+  $: eventCalendarSelectDisabled = productivityWriteDisabled || Boolean(editingEventId);
+  $: eventCalendarSelectTitle = eventCalendarActionTitle(productivityControlTitleState);
   $: visibleActionError = actionError ? compactProductivityServiceIssue(actionError) : '';
   $: productivityCacheDetail = cacheWarning
     ? cacheWarning
@@ -486,7 +488,7 @@
   function draftForApi(): CalendarEventDraft {
     return {
       ...eventDraft,
-      calendarId: selectedCalendarId,
+      calendarId: eventDraft.calendarId || selectedCalendarId,
       start: fromLocalInput(eventDraft.start),
       end: fromLocalInput(eventDraft.end),
       recurrence: eventDraft.recurrence?.filter(Boolean) ?? [],
@@ -700,6 +702,11 @@
     return productivityActionTitleForState(state, action);
   }
 
+  function eventCalendarActionTitle(state: ProductivityControlTitleState): string {
+    if (state.editingEventId) return 'Existing events keep their current calendar in this editor. Use the row Move action for a confirmed Google Calendar move.';
+    return productivityActionTitleForState(state, 'Choose the Google Calendar for this new event.');
+  }
+
   function composeActionTitle(state: ProductivityControlTitleState, send: boolean): string {
     const action = send ? 'Ask for confirmation before sending this Gmail message.' : 'Save this message as a Gmail draft.';
     if (!state.composeDraft.to.length) return productivityValidatedActionTitleForState(state, action, 'Add at least one recipient before saving or sending.');
@@ -759,6 +766,11 @@
     editingEventId = '';
     eventDraft = emptyDraft();
     eventDialogOpen = false;
+  }
+
+  function syncEventDraftCalendarMeta(): void {
+    const calendar = calendars.find((item) => item.id === eventDraft.calendarId);
+    eventDraft = { ...eventDraft, timeZone: calendar?.timeZone ?? eventDraft.timeZone ?? localTimeZone };
   }
 
   function openComposeDialog(): void {
@@ -942,13 +954,15 @@
     const key = editingEventId ? `event:save:${editingEventId}` : 'event:create';
     if (!beginProductivityAction(key)) return;
     try {
+      const savedDraft = draftForApi();
       if (editingEventId) {
-        await updateEvent({ ...draftForApi(), eventId: editingEventId });
+        await updateEvent({ ...savedDraft, eventId: editingEventId });
         actionMessage = 'Event updated.';
       } else {
-        await createEvent(draftForApi());
+        await createEvent(savedDraft);
         actionMessage = 'Event created.';
       }
+      selectedCalendarId = savedDraft.calendarId;
       editingEventId = '';
       eventDraft = emptyDraft();
       eventDialogOpen = false;
@@ -1705,7 +1719,7 @@
       <div class="modal-grid">
         <div class="field">
           <label for="calendar">Calendar</label>
-          <select id="calendar" bind:value={selectedCalendarId} disabled={productivityWriteDisabled} title={productivityActionTitle('Choose the calendar for this event.')} on:change={refreshEvents}>
+          <select id="calendar" bind:value={eventDraft.calendarId} disabled={eventCalendarSelectDisabled} title={eventCalendarSelectTitle} on:change={syncEventDraftCalendarMeta}>
             <option value="primary">Primary</option>
             {#each calendars as calendar}
               <option value={calendar.id}>{calendar.summary}</option>

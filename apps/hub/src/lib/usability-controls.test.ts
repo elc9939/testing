@@ -990,6 +990,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('eventSaveButtonTitle = eventSaveActionTitle(productivityControlTitleState)');
     expect(source).toContain('composeDraftButtonTitle = composeActionTitle(productivityControlTitleState, false)');
     expect(source).toContain('composeSendButtonTitle = composeActionTitle(productivityControlTitleState, true)');
+    expect(source).toContain('eventCalendarSelectDisabled = productivityWriteDisabled || Boolean(editingEventId)');
+    expect(source).toContain('eventCalendarSelectTitle = eventCalendarActionTitle(productivityControlTitleState)');
     expect(source).toContain('visibleActionError = actionError ? compactProductivityServiceIssue(actionError) :');
     expect(source).toContain('function compactProductivityServiceIssue');
     expect(source).toContain('Google blocked OAuth for this account; add the account as a tester or use a verified OAuth app.');
@@ -1060,6 +1062,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Move "${event.title}" from ${calendarName(event.calendarId)} to ${calendarName(moveTargetCalendarId)}? This updates the live Google Calendar event.');
     expect(source).toContain('Calendar move skipped.');
     expect(source).toContain('Ask for confirmation before moving this event.');
+    expect(source).toContain('function eventCalendarActionTitle');
+    expect(source).toContain('Existing events keep their current calendar in this editor. Use the row Move action for a confirmed Google Calendar move.');
+    expect(source).toContain('Choose the Google Calendar for this new event.');
+    expect(source).toContain('function syncEventDraftCalendarMeta');
+    expect(source).toContain('calendarId: eventDraft.calendarId || selectedCalendarId');
+    expect(source).toContain('const savedDraft = draftForApi()');
+    expect(source).toContain('selectedCalendarId = savedDraft.calendarId');
     expect(source).toContain('Ask for confirmation before revoking this Google account connection.');
     expect(source).toContain('Revoke ${label} for this hub? Live Gmail and Calendar actions for that account will stop until you connect it again.');
     expect(source).toContain('Ask for confirmation before deleting this Google Calendar event.');
@@ -1071,6 +1080,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function selectedLabelActionTitle');
     expect(source).toContain('function replyActionTitle');
     expect(source).toContain('function eventSaveActionTitle');
+    expect(source).toContain('disabled={eventCalendarSelectDisabled}');
+    expect(source).toContain('title={eventCalendarSelectTitle}');
+    expect(source).toContain('bind:value={eventDraft.calendarId}');
     expect(source).toContain('function composeActionTitle');
     expect(source).toContain('disabled={productivityWriteDisabled}');
     expect(source).toContain('disabled={productivityEventInspectDisabled}');
@@ -1110,6 +1122,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain("title={productivityActionTitle('Toggle read state')}");
     expect(source).not.toContain("title={productivityActionTitle('Toggle important state')}");
     expect(source).not.toContain("title={productivityActionTitle('Archive selected thread')}");
+    expect(source).not.toContain('bind:value={selectedCalendarId} disabled={productivityWriteDisabled}');
     expect(source).toContain('{productivityApiBannerText}');
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
     expect(source).toContain('disabled={productivityRefreshDisabled}');
