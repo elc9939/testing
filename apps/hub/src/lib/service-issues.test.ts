@@ -17,6 +17,11 @@ describe('service issue compaction', () => {
     ).toBe('offline');
     expect(classifyServiceIssue('request timed out after 15000 ms').kind).toBe('timeout');
     expect(classifyServiceIssue('This operation was aborted').kind).toBe('timeout');
+    expect(
+      classifyServiceIssue(
+        "GPU telemetry unavailable: nvidia-smi unavailable: [WinError 2]; Windows GPU telemetry unavailable: Command '['powershell', 'Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine']' timed out"
+      ).kind
+    ).toBe('telemetry');
   });
 
   it('turns repeated backend errors into short actionable UI copy', () => {
@@ -29,6 +34,12 @@ describe('service issue compaction', () => {
     expect(compactServiceIssueIfRecognized('This operation was aborted', 'AI OS machine profile')).toBe(
       'AI OS machine profile timed out. Cached data stays visible when available; retry after the service settles.'
     );
+    expect(
+      compactServiceIssueIfRecognized(
+        "GPU telemetry unavailable: nvidia-smi unavailable: [WinError 2]; Windows GPU telemetry unavailable: Command '['powershell']' timed out",
+        'GPU telemetry'
+      )
+    ).toBe('GPU telemetry is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.');
   });
 
   it('does not mistake ordinary form validation for a service outage', () => {

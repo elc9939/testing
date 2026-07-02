@@ -819,13 +819,13 @@
   <section class="card card-pad warning-panel service-card">
     <div>
       <strong>Passive Tasks API unavailable</strong>
-      <span title={`Raw Passive Tasks service error: ${serviceError}`}>{visibleServiceError}</span>
+      <span title="Passive Tasks diagnostic is compacted for display. Retry Refresh or check Feature Wiring.">{visibleServiceError}</span>
       <small>Target: {getApiUrl()}. {localNetworkHint()}</small>
     </div>
     <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring for Passive Tasks API setup.">Open Settings</a>
   </section>
 {:else if actionError}
-  <section class="card card-pad warning-panel" title={`Raw Passive Tasks action error: ${actionError}`}>{visibleActionError}</section>
+  <section class="card card-pad warning-panel" title="Passive Tasks action diagnostic is compacted for display. Retry the action or check Feature Wiring.">{visibleActionError}</section>
 {:else if message}
   <section class="card card-pad success-panel">{message}</section>
 {/if}
@@ -998,7 +998,7 @@
                   <small class="evidence-line">fetched {displayWhen(source.fetchedAt)}</small>
                 {/if}
                 {#if source.error}
-                  <small class="error-inline" title={`Raw Passive source error: ${source.error}`}>{passiveInlineIssue(source.error, source.label)}</small>
+                  <small class="error-inline" title="Passive source diagnostic is compacted for display. Refresh source health or check Feature Wiring.">{passiveInlineIssue(source.error, source.label)}</small>
                 {/if}
               </span>
             </div>
@@ -1027,7 +1027,7 @@
                 <small>{watcher?.title ?? trigger.watcherId ?? 'Unlinked watcher'} - {triggerCadence(trigger)}</small>
                 <small>{triggerLastLine(trigger)}{trigger.nextRunAt ? ` - next ${displayWhen(trigger.nextRunAt)}` : ''}</small>
                 {#if trigger.error}
-                  <small class="error-inline" title={`Raw Passive trigger error: ${trigger.error}`}>{passiveInlineIssue(trigger.error, trigger.label)}</small>
+                  <small class="error-inline" title="Passive trigger diagnostic is compacted for display. Refresh triggers or check Feature Wiring.">{passiveInlineIssue(trigger.error, trigger.label)}</small>
                 {/if}
               </span>
             </div>
@@ -1210,7 +1210,7 @@
           {#if worker.lastError}
             <span class="worker-error">
               <small>Last worker issue</small>
-              <strong title={`Raw Passive worker error: ${worker.lastError}`}>{passiveInlineIssue(worker.lastError, 'Passive worker')}</strong>
+              <strong title="Passive worker diagnostic is compacted for display. Retry Refresh or check Feature Wiring.">{passiveInlineIssue(worker.lastError, 'Passive worker')}</strong>
             </span>
           {/if}
         </div>
@@ -1233,7 +1233,7 @@
               <span class={`state ${run.status}`}>{passiveRunStatusLabel(run.status)}</span>
               <span>
                 <strong>{passiveFamilyLabel(run.family)}</strong>
-                <small title={run.error ? `Raw Passive run error: ${run.error}` : undefined}>{run.error ? passiveInlineIssue(run.error, 'Passive run') : run.cards[0]?.summary ?? 'Needs inspection'}</small>
+                <small title={run.error ? 'Passive run diagnostic is compacted for display. Open logs or retry the task.' : undefined}>{run.error ? passiveInlineIssue(run.error, 'Passive run') : run.cards[0]?.summary ?? 'Needs inspection'}</small>
                 {#if runEvidence(run)}
                   <small class="evidence-line">{runEvidence(run)}</small>
                 {/if}

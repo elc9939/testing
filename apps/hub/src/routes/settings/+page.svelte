@@ -1160,6 +1160,11 @@
     return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
   }
 
+  function capabilityIssueDetail(capability: CapabilityRegistryEntry): string {
+    if (capability.lastError) return compactSettingsIssue(capability.lastError, capability.label);
+    return capability.requiredService ?? capability.description;
+  }
+
   function backupHealthDetail(health: PassiveBackupHealth): string {
     if (!health.latestPath) return health.error ? compactSettingsIssue(health.error, 'Passive restore points') : 'No Mini Hub restore point is available yet.';
     const cleanup = health.cleanupCandidateCount
@@ -1348,7 +1353,7 @@
         <p class="helper-text">{machineProfile.autotune.routing_notes[0]}</p>
       {/if}
     {:else if machineProfileError}
-      <p class="sync-error" title={`Raw machine profile error: ${machineProfileError}`}>{visibleMachineProfileError}</p>
+      <p class="sync-error" title="Machine profile diagnostic is compacted for display. Retry Profile or open Feature Wiring for service setup.">{visibleMachineProfileError}</p>
     {:else}
       <p class="helper-text">Machine profile has not been loaded yet. Start AI OS, then check services.</p>
     {/if}
@@ -1370,7 +1375,7 @@
       <p class="endpoint-message">{machineProfileMessage}</p>
     {/if}
     {#if machineProfileError && machineProfile}
-      <p class="sync-error" title={`Raw machine profile error: ${machineProfileError}`}>{visibleMachineProfileError}</p>
+      <p class="sync-error" title="Machine profile diagnostic is compacted for display. Retry Profile or open Feature Wiring for service setup.">{visibleMachineProfileError}</p>
     {/if}
   </div>
 
@@ -1401,7 +1406,7 @@
             <span class={`state-chip ${capability.state}`}>{capabilityStateLabel(capability.state)}</span>
             <span>
               <strong>{capability.label}</strong>
-              <small>{capability.lastError ?? capability.requiredService ?? capability.description}</small>
+              <small>{capabilityIssueDetail(capability)}</small>
             </span>
             <ArrowRight size={15} />
           </a>
@@ -1450,7 +1455,7 @@
   {:else if capabilityLoading}
     <p class="helper-text">Checking local APIs, Google connection state, AI providers, Macro Lab, and offline cache.</p>
   {:else if capabilityError}
-    <p class="sync-error" title={`Raw Capability Registry error: ${capabilityError}`}>{visibleCapabilityError}</p>
+    <p class="sync-error" title="Capability Registry diagnostic is compacted for display. Retry Refresh Capabilities or check Feature Wiring.">{visibleCapabilityError}</p>
   {:else}
     <p class="helper-text">Capability status has not been checked yet.</p>
   {/if}
@@ -1540,7 +1545,7 @@
           <strong>Restore point health</strong>
           <small>{backupHealthDetail(passiveBackupHealth)}</small>
           {#if passiveBackupHealth.error}
-            <em title={`Raw Passive restore point error: ${passiveBackupHealth.error}`}>{visiblePassiveBackupHealthError}</em>
+            <em title="Passive restore point diagnostic is compacted for display. Retry Passive or check Data & Recovery.">{visiblePassiveBackupHealthError}</em>
           {/if}
         </span>
         <a class="button compact" href={hubHref('/passive-tasks')} title="Open Passive Tasks restore points.">Open Restore Points</a>
@@ -1704,12 +1709,12 @@
       <p class="endpoint-message">{passiveMessage}</p>
     {/if}
     {#if passiveError}
-      <p class="sync-error" title={`Raw Passive Tasks settings error: ${passiveError}`}>{visiblePassiveError}</p>
+      <p class="sync-error" title="Passive Tasks diagnostic is compacted for display. Retry Passive or check Feature Wiring.">{visiblePassiveError}</p>
     {/if}
   {:else if passiveLoading}
     <p class="helper-text">Loading passive task settings.</p>
   {:else if passiveError}
-    <p class="sync-error" title={`Raw Passive Tasks settings error: ${passiveError}`}>{visiblePassiveError}</p>
+    <p class="sync-error" title="Passive Tasks diagnostic is compacted for display. Retry Passive or check Feature Wiring.">{visiblePassiveError}</p>
   {:else}
     <p class="helper-text">Passive task settings need a fresh source check. Use Check Services or open Passive Tasks.</p>
   {/if}
@@ -1767,7 +1772,7 @@
       <p class="endpoint-message">{settingsMessage}</p>
     {/if}
     {#if settingsError || $clientData.error}
-      <p class="sync-error" title={`Raw Settings save/cache error: ${settingsError || $clientData.error}`}>
+      <p class="sync-error" title="Settings/cache diagnostic is compacted for display. Retry Sync Now or check Feature Wiring.">
         {settingsError ? visibleSettingsError : visibleClientDataError}
       </p>
     {/if}
@@ -1888,7 +1893,7 @@
     {:else if actionLedgerLoading}
       <p class="helper-text">Loading action ledger.</p>
     {:else if actionLedgerError}
-      <p class="sync-error" title={`Raw Action Ledger error: ${actionLedgerError}`}>{actionLedgerEmptyMessage()}</p>
+      <p class="sync-error" title="Action Ledger diagnostic is compacted for display. Retry Refresh or check Feature Wiring.">{actionLedgerEmptyMessage()}</p>
     {:else}
       <p class="helper-text">{actionLedgerEmptyMessage()}</p>
     {/if}
@@ -1897,7 +1902,7 @@
       <p class="endpoint-message">{actionLedgerMessage}</p>
     {/if}
     {#if actionLedgerSourceError}
-      <p class="sync-error" title={`Raw Action Ledger source error: ${actionLedgerSourceError}`}>{visibleActionLedgerSourceError}</p>
+      <p class="sync-error" title="Action Ledger source diagnostic is compacted for display. Retry Refresh or check Feature Wiring.">{visibleActionLedgerSourceError}</p>
     {/if}
   </div>
 
@@ -1951,7 +1956,7 @@
       <p class="endpoint-message">{endpointMessage}</p>
     {/if}
     {#if endpointError}
-      <p class="sync-error" title={`Raw Desktop Services error: ${endpointError}`}>{visibleEndpointError}</p>
+      <p class="sync-error" title="Desktop Services diagnostic is compacted for display. Save service URLs, then run Check Services.">{visibleEndpointError}</p>
     {/if}
   </div>
 </section>

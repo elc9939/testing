@@ -714,7 +714,7 @@
 
   function providerRouteTitle(provider: AiStatus['providers'][number]): string {
     if (provider.available) return `${provider.label} route is available with ${provider.models.length} model${provider.models.length === 1 ? '' : 's'}.`;
-    return provider.error ? `Raw ${provider.label} provider error: ${provider.error}` : `${provider.label} did not report a provider error.`;
+    return provider.error ? `${provider.label} route needs attention: ${providerRouteDetail(provider)}` : `${provider.label} did not report a provider error.`;
   }
 
   function buildStartupChecks(nextStatus: AiStatus | null, error: string, checking: boolean): StartupCheck[] {
@@ -785,7 +785,9 @@
         state: gpus.length ? 'ready' : 'degraded',
         detail: gpus.length
           ? `${gpuName(gpus[0])} - ${gpuMemoryLabel(gpus[0])}.`
-          : nextStatus.hardware?.error ?? 'AI OS is running, but no GPU telemetry rows were returned from Windows counters or vendor tools.'
+          : nextStatus.hardware?.error
+            ? compactServiceIssueIfRecognized(nextStatus.hardware.error, 'GPU telemetry')
+            : 'AI OS is running, but no GPU telemetry rows were returned from Windows counters or vendor tools.'
       },
       {
         id: 'model',
@@ -1439,7 +1441,7 @@
 </section>
 
 {#if actionError}
-  <section class="card card-pad error-banner" title={`Raw AI OS error: ${actionError}`}>{visibleActionError}</section>
+  <section class="card card-pad error-banner" title="AI OS diagnostic is compacted for display. Retry or open Settings Feature Wiring for service setup.">{visibleActionError}</section>
   <section class="card card-pad connection-card service-card">
     <div>
       <strong>Desktop service</strong>

@@ -2,6 +2,7 @@ import { getHealth } from './api';
 import { getAiStatus, type AiCapabilityStatus, type AiProviderStatus, type AiStatus } from './ai-os-api';
 import { getMacroStatus, type MacroStatus } from './macro-lab-api';
 import { getPassiveSnapshot } from './passive-tasks-api';
+import { compactServiceIssueIfRecognized } from './service-issues';
 import type { PassiveSnapshot } from '@mini-hub/core';
 
 export type CapabilityState = 'ready' | 'running' | 'degraded' | 'needs_setup' | 'offline' | 'blocked';
@@ -109,7 +110,7 @@ export function buildCapabilityRegistry(input: CapabilityRegistryInput): Capabil
     safety: 'read',
     route: '/settings#data-recovery',
     requiredService: 'PGlite',
-    lastError: input.syncError || undefined,
+    lastError: compactCapabilityError(input.syncError, 'Offline cache'),
     tags: ['local-first', 'sync']
   });
 
@@ -125,7 +126,7 @@ export function buildCapabilityRegistry(input: CapabilityRegistryInput): Capabil
     safety: 'write',
     route: '/settings#feature-wiring',
     requiredService: 'Mini Hub API',
-    lastError: input.hubError,
+    lastError: compactCapabilityError(input.hubError, 'Mini Hub API'),
     tags: ['sync', 'data']
   });
 
@@ -257,7 +258,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     safety: 'system',
     route: '/ai-os',
     requiredService: 'AI OS API',
-    lastError: error,
+    lastError: compactCapabilityError(error, 'AI OS API'),
     metrics: status
       ? {
           providers: providers.length,
@@ -280,7 +281,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     safety: 'read',
     route: '/ai-os',
     requiredService: 'Ollama or local OpenAI-compatible server',
-    lastError: firstProviderError(localProviders),
+    lastError: compactCapabilityError(firstProviderError(localProviders), 'Local LLM route'),
     metrics: {
       ready: availableLocal.length,
       configured: localProviders.length,
@@ -302,7 +303,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     safety: 'read',
     route: '/ai-os',
     requiredService: 'OpenAI/Anthropic/specialist API key',
-    lastError: firstProviderError(paidProviders),
+    lastError: compactCapabilityError(firstProviderError(paidProviders), 'Paid API fallback'),
     metrics: { ready: availablePaid.length, configured: paidProviders.length },
     tags: ['ai', 'fallback']
   });
@@ -335,7 +336,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     safety: 'read',
     route: '/ai-os',
     requiredService: 'AI OS machine profile',
-    lastError: status && !profile ? 'AI OS status did not include a machine profile.' : error,
+    lastError: status && !profile ? 'AI OS status did not include a machine profile.' : compactCapabilityError(error, 'AI OS machine profile'),
     metrics: profile
       ? {
           pressure,
@@ -388,7 +389,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     safety: 'write',
     route: '/ai-os',
     requiredService: 'AI OS media adapter',
-    lastError: firstCapabilityError(anyMedia),
+    lastError: compactCapabilityError(firstCapabilityError(anyMedia), 'Media generation'),
     metrics: { ready: anyMedia.filter((capability) => capability.available).length, configured: anyMedia.length },
     tags: ['media', 'multimodal']
   });
@@ -411,7 +412,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     safety: 'read',
     route: '/ai-os',
     requiredService: 'AI OS telemetry',
-    lastError: hardware?.error,
+    lastError: compactCapabilityError(hardware?.error, 'Machine telemetry'),
     metrics: {
       gpus: hardware?.gpus.length ?? 0,
       loadedModels: hardware?.loaded_models?.length ?? 0,
@@ -435,7 +436,7 @@ function addMacroCapabilities(capabilities: CapabilityRegistryEntry[], status: M
     safety: 'system',
     route: '/macro-lab',
     requiredService: 'Macro Lab API',
-    lastError: error,
+    lastError: compactCapabilityError(error, 'Macro Lab API'),
     metrics: status ? { running: status.engine.running, actions: status.engine.action_count } : undefined,
     tags: ['automation', 'windows']
   });
@@ -512,7 +513,7 @@ function addPassiveTaskCapabilities(
     safety: 'system',
     route: '/passive-tasks',
     requiredService: 'Mini Hub API passive task store',
-    lastError: passiveError,
+    lastError: compactCapabilityError(passiveError, 'Passive task engine'),
     metrics: snapshot
       ? {
           watchers: snapshot.watchers.length,
@@ -555,7 +556,7 @@ function aiCapabilityEntry(
     safety: 'read',
     route,
     requiredService: 'AI OS capability adapter',
-    lastError: capability?.error,
+    lastError: compactCapabilityError(capability?.error, label),
     metrics: capability ? { adapters: capability.adapters.length, enabled: capability.enabled } : undefined,
     tags: ['ai']
   };
@@ -641,4 +642,11 @@ function numberMetric(value: unknown): number | undefined {
 
 function errorMessage(value: unknown): string {
   return value instanceof Error ? value.message : String(value || 'unavailable');
+}
+
+function compactCapabilityError(value: string | undefined, label: string): string | undefined {
+  const text = value?.trim();
+  if (!text) return undefined;
+  const compact = compactServiceIssueIfRecognized(text, label);
+  return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
 }

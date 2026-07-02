@@ -1,5 +1,6 @@
 export type CompactServiceIssueKind =
   | 'none'
+  | 'telemetry'
   | 'timeout'
   | 'wrong-endpoint'
   | 'browser-blocked'
@@ -14,7 +15,7 @@ export interface CompactServiceIssue {
 }
 
 const serviceIssuePattern =
-  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|fetch failed|CORS|mixed-content|timed out|timeout|abort|aborted|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|token|expired|revoked|401|403|unauthori[sz]ed|forbidden|permission)/iu;
+  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|fetch failed|CORS|mixed-content|timed out|timeout|abort|aborted|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|token|expired|revoked|401|403|unauthori[sz]ed|forbidden|permission|GPU telemetry|nvidia-smi|Win32_|Win32|VideoController|PowerShell|HardwareInformation|GPUAdapterMemory|api\.openai\.com|Client error)/iu;
 
 export function isLikelyServiceIssue(value: string): boolean {
   return serviceIssuePattern.test(value.trim());
@@ -23,6 +24,9 @@ export function isLikelyServiceIssue(value: string): boolean {
 export function classifyServiceIssue(message = ''): CompactServiceIssue {
   const text = message.trim();
   if (!text) return { kind: 'none', summary: 'unavailable', raw: '' };
+  if (/gpu telemetry|nvidia-smi|win32_perf|win32_videocontroller|win32_gpu|videocontroller|powershell|winerror|hardwareinformation|gpuadaptermemory/iu.test(text)) {
+    return { kind: 'telemetry', summary: 'telemetry unavailable', raw: text };
+  }
   if (/timed out|timeout/iu.test(text)) return { kind: 'timeout', summary: 'timed out', raw: text };
   if (/AbortError|operation was aborted|request aborted|aborted/iu.test(text)) return { kind: 'timeout', summary: 'request aborted or timed out', raw: text };
   if (/github pages|returned.*html|static website|static site|wrong endpoint|missing route|route .*not found|404|not found/iu.test(text)) {
@@ -50,6 +54,9 @@ export function classifyServiceIssue(message = ''): CompactServiceIssue {
 
 export function compactServiceIssueLine(message = '', serviceLabel = 'Service'): string {
   const issue = classifyServiceIssue(message);
+  if (issue.kind === 'telemetry') {
+    return `${serviceLabel} is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.`;
+  }
   if (issue.kind === 'timeout') {
     return `${serviceLabel} timed out. Cached data stays visible when available; retry after the service settles.`;
   }

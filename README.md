@@ -136,6 +136,9 @@ If a feature is pointed at the hosted web page instead of a local service, Mini 
 `Misconfigured` and falls back to the default local service URL where safe. If a service is
 not running or the browser blocks the request because of CORS/firewall/mixed-content rules,
 the feature should show an actionable offline/setup state instead of raw `Not Found`.
+Known provider and telemetry failures are compacted too, so Settings, AI OS, and Passive
+Tasks should say what to reconnect or configure instead of leaking raw PowerShell commands,
+vendor-tool traces, `fetch failed`, or paid-provider 401 URLs into the UI.
 
 Use Settings -> Desktop Services to save LAN or localhost service URLs for this browser.
 Use Settings -> Feature Wiring to verify what the hosted page will actually call before
