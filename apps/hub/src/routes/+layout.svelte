@@ -21,6 +21,7 @@
   } from 'lucide-svelte';
   import { routeMap } from '@mini-hub/core';
   import AssistantDock from '$lib/AssistantDock.svelte';
+  import { attentionStore } from '$lib/attention-store';
   import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { runPassiveEvent } from '$lib/passive-tasks-api';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
@@ -127,6 +128,7 @@
     });
     applyTheme($theme);
     void clientData.init().then(() => emitPassiveBrowserEvent('app.startup', 'hub-layout-startup', 30));
+    void attentionStore.init();
     const handleOnline = () => emitPassiveBrowserEvent('app.reconnect', 'browser-online', 10);
     window.addEventListener('online', handleOnline);
     return () => {
