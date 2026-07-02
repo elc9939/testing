@@ -545,6 +545,31 @@ function describeError(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error || 'Unknown error');
 }
 
+function compactPassiveServiceText(value: string, serviceLabel = 'Passive Tasks', maxLength = 220): string {
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  if (/gpu telemetry|nvidia-smi|win32_perf|win32_videocontroller|powershell|winerror|hardwareinformation|gpuadaptermemory/iu.test(text)) {
+    return 'GPU telemetry is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.';
+  }
+  if (/openai|anthropic|api\s*key|client error ['"]?401|\b401\b|unauthori[sz]ed|\btoken\b|expired|revoked|forbidden|permission/iu.test(text)) {
+    return `${serviceLabel} needs authentication or a valid API key before this check can run.`;
+  }
+  if (/timed out|timeout|operation was aborted|request aborted|aborted/iu.test(text)) {
+    return `${serviceLabel} timed out. Cached data stays visible when available; retry after the service settles.`;
+  }
+  if (/github pages|returned html|html instead of json|static site|wrong endpoint|missing route|route .*not found|\b404\b|not found/iu.test(text)) {
+    return `${serviceLabel} is pointed at the wrong endpoint or a missing route. Open Settings Feature Wiring and check the saved service URL.`;
+  }
+  if (
+    /failed to fetch|fetch failed|econnrefused|connection refused|network|offline|unavailable|service-offline/iu.test(text) &&
+    !/returned \d{3}/iu.test(text) &&
+    text.length > 40
+  ) {
+    return `${serviceLabel} is offline or unreachable. Start the desktop service, then retry.`;
+  }
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3).trim()}...` : text;
+}
+
 function passiveIdleThresholdMinutes(store: MemoryStore): number {
   const configured = store.passiveTasks
     .filter((task) => task.idleOnly)
@@ -5497,8 +5522,8 @@ export function collectPassiveAttentionItems(store: MemoryStore): AttentionItem[
       id: `passive-task:${item.id}`,
       source: 'passive_task' as const,
       sourceId: item.id,
-      title: item.title,
-      detail: item.summary,
+      title: compactPassiveServiceText(item.title, 'Passive Tasks', 140),
+      detail: compactPassiveServiceText(item.summary, 'Passive Tasks', 260),
       route: item.route,
       dueAt: item.createdAt,
       priority: Math.min(100, Math.max(0, Math.round(item.urgency))),

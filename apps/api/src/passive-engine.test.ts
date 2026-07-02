@@ -2778,6 +2778,56 @@ describe('passive task engine', () => {
     expect(collectPassiveAttentionItems(store).some((item) => item.title === 'AI OS is unavailable')).toBe(false);
   });
 
+  it('compacts raw service exceptions before passive cards reach Today', () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+    const watcher = store.passiveWatchers.find((item) => item.family === task.family)!;
+    const now = new Date().toISOString();
+    const rawGpuError =
+      "GPU telemetry unavailable: nvidia-smi unavailable: [WinError 2] The system cannot find the file specified; Windows GPU telemetry unavailable: Command '['powershell', '-NoProfile', 'Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine']' timed out after 3 seconds";
+    const rawProviderError =
+      "Client error '401 Unauthorized' for url 'https://api.openai.com/v1/models' For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401";
+    const card = {
+      id: 'passive-card:raw-service-error',
+      taskId: task.id,
+      runId: 'passive-run:raw-service-error',
+      family: task.family,
+      title: rawGpuError,
+      summary: rawProviderError,
+      urgency: 92,
+      confidence: 0.9,
+      route: task.route,
+      sourceRefs: [{ kind: 'service' as const, id: 'ai-os', label: 'AI OS', route: '/ai-os', metadata: {} }],
+      suggestedAction: 'Inspect service',
+      actionKind: 'inspect' as const,
+      why: 'A real service check failed or reported a blocked state.',
+      createdAt: now,
+      metadata: {}
+    };
+    store.passiveRuns.unshift({
+      id: card.runId,
+      taskId: task.id,
+      watcherId: watcher.id,
+      family: task.family,
+      status: 'blocked',
+      startedAt: now,
+      finishedAt: now,
+      attempt: 1,
+      error: rawGpuError,
+      cards: [card],
+      changed: [],
+      metadata: {}
+    });
+    store.passiveResults.unshift(card);
+
+    const attentionItem = collectPassiveAttentionItems(store).find((item) => item.id === `passive-task:${card.id}`)!;
+
+    expect(attentionItem.title).toBe('GPU telemetry is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.');
+    expect(attentionItem.detail).toBe('Passive Tasks needs authentication or a valid API key before this check can run.');
+    expect(`${attentionItem.title} ${attentionItem.detail}`).not.toMatch(/powershell|nvidia-smi|api\.openai\.com|401/iu);
+  });
+
   it('applies passive card triage to repeated source-equivalent findings', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

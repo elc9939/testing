@@ -1389,10 +1389,13 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Queue a local AI OS summary batch for ${item.label}; Activity and AI OS job history will track progress.');
     expect(source).not.toContain('title={modeActionBlockedReason(item) || item.action.label}');
     expect(source).toContain('function attentionItemActionTitle');
+    expect(source).toContain('function displayAttentionTitle');
+    expect(source).toContain('const title = displayAttentionTitle(item);');
+    expect(source).toContain('GPU telemetry is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.');
     expect(source).toContain('Cached attention is read-only until Mini Hub reconnects.');
-    expect(source).toContain('Complete ${item.title}; synced state and Recent Actions will refresh.');
-    expect(source).toContain('Run ${item.title}; Activity and Recent Actions will track the result.');
-    expect(source).toContain('Restore ${item.title}; the owning service may require setup or confirmation.');
+    expect(source).toContain('Complete ${title}; synced state and Recent Actions will refresh.');
+    expect(source).toContain('Run ${title}; Activity and Recent Actions will track the result.');
+    expect(source).toContain('Restore ${title}; the owning service may require setup or confirmation.');
     expect(source).toContain('title={attentionItemActionTitle(item, openAction)}');
     expect(source).toContain('title={attentionItemActionTitle(item, itemAction)}');
     expect(source).not.toContain('title={itemAction.reason ?? attentionActionLabel(itemAction.kind)}');

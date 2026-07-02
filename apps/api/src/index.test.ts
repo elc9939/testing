@@ -1876,6 +1876,37 @@ describe('mini hub api', () => {
     expect(body.items).toContainEqual(expect.objectContaining({ id: 'service:ai-os-unavailable', status: 'blocked' }));
   });
 
+  it('compacts raw AI OS service errors in attention snapshots', async () => {
+    const rawGpuError =
+      "GPU telemetry unavailable: nvidia-smi unavailable: [WinError 2] The system cannot find the file specified; Windows GPU telemetry unavailable: Command '['powershell', '-NoProfile', 'Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine']' timed out after 3 seconds";
+    const rawAttentionFetch = vi.fn(async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/status')) throw new Error(rawGpuError);
+      if (href.includes('/api/ai/research/monitors/due')) return jsonResponse({ monitors: [] });
+      if (href.includes('/api/ai/research/runs')) return jsonResponse({ runs: [] });
+      if (href.includes('/api/macro-lab/status')) {
+        return jsonResponse({ ok: true, engine: { panic: false, running: 0, action_count: 0 } });
+      }
+      if (href.includes('/api/macro-lab/runs')) return jsonResponse({ runs: [] });
+      return jsonResponse({});
+    }) as typeof fetch;
+    const app = createApp({ externalFetch: rawAttentionFetch, useLogger: false, store: createMemoryStore() });
+
+    const response = await app.request('/api/attention/snapshot');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: Array<{ id: string; detail: string; metadata: Record<string, unknown> }>;
+      errors: string[];
+      sources: Array<{ id: string; error?: string }>;
+    };
+    const item = body.items.find((entry) => entry.id === 'service:ai-os-unavailable')!;
+
+    expect(item.detail).toBe('GPU telemetry is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.');
+    expect(body.sources.find((source) => source.id === 'ai_os')?.error).toBe(item.detail);
+    expect(body.errors.join(' ')).not.toMatch(/powershell|nvidia-smi|Win32_PerfFormattedData/iu);
+    expect(item.metadata.error).toBe(rawGpuError);
+  });
+
   it('surfaces passive source-health issues as Today attention items', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-attention-passive-source-'));
     const previousDataDir = env.dataDir;

@@ -165,6 +165,31 @@ function compactText(value: unknown, fallback = ''): string {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+function compactAttentionServiceText(value: unknown, serviceLabel = 'Service', maxLength = 220): string {
+  const text = compactText(value).replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  if (/gpu telemetry|nvidia-smi|win32_perf|win32_videocontroller|powershell|winerror|hardwareinformation|gpuadaptermemory/iu.test(text)) {
+    return 'GPU telemetry is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.';
+  }
+  if (/openai|anthropic|api\s*key|client error ['"]?401|\b401\b|unauthori[sz]ed|\btoken\b|expired|revoked|forbidden|permission/iu.test(text)) {
+    return `${serviceLabel} needs authentication or a valid API key before this check can run.`;
+  }
+  if (/timed out|timeout|operation was aborted|request aborted|aborted/iu.test(text)) {
+    return `${serviceLabel} timed out. Cached data stays visible when available; retry after the service settles.`;
+  }
+  if (/github pages|returned html|html instead of json|static site|wrong endpoint|missing route|route .*not found|\b404\b|not found/iu.test(text)) {
+    return `${serviceLabel} is pointed at the wrong endpoint or a missing route. Open Settings Feature Wiring and check the saved service URL.`;
+  }
+  if (
+    /failed to fetch|fetch failed|econnrefused|connection refused|network|offline|unavailable|service-offline/iu.test(text) &&
+    !/returned \d{3}/iu.test(text) &&
+    text.length > 40
+  ) {
+    return `${serviceLabel} is offline or unreachable. Start the desktop service, then retry.`;
+  }
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3).trim()}...` : text;
+}
+
 function action(
   kind: AttentionActionKind,
   label: string,
@@ -708,7 +733,7 @@ function aiJobItem(job: Record<string, unknown>): AttentionItem | null {
     source: 'ai_os',
     sourceId: id,
     title: `${primitive} job ${status}`,
-    detail: compactText(job.error, failed ? 'AI OS job needs inspection.' : 'AI OS job is active.'),
+    detail: compactAttentionServiceText(job.error, 'AI OS job') || (failed ? 'AI OS job needs inspection.' : 'AI OS job is active.'),
     route: '/ai-os',
     dueAt: compactText(job.updated_at, compactText(job.created_at)) || undefined,
     priority: failed ? 84 : 64,
@@ -737,7 +762,10 @@ function aiBackupItem(backup: Record<string, unknown>): AttentionItem | null {
     source: 'ai_os',
     sourceId: id,
     title: 'AI OS backup failed',
-    detail: compactText(backup.error, compactText(backup.reason, 'Backup needs inspection.')),
+    detail:
+      compactAttentionServiceText(backup.error, 'AI OS backup') ||
+      compactAttentionServiceText(backup.reason, 'AI OS backup') ||
+      'Backup needs inspection.',
     route: '/ai-os',
     dueAt: compactText(backup.created_at) || undefined,
     priority: 88,
@@ -766,7 +794,7 @@ function benchmarkItem(run: Record<string, unknown>): AttentionItem | null {
     source: 'ai_os',
     sourceId: id,
     title: 'AI benchmark failed',
-    detail: compactText(run.error, 'Benchmark run needs inspection.'),
+    detail: compactAttentionServiceText(run.error, 'AI benchmark') || 'Benchmark run needs inspection.',
     route: '/ai-os',
     dueAt: compactText(run.created_at) || undefined,
     priority: 62,
@@ -829,12 +857,13 @@ async function collectAiOsItems(fetchImpl: FetchLike): Promise<SourceResult> {
     };
   } catch (error) {
     const message = describeError(error);
+    const visibleMessage = compactAttentionServiceText(message, 'AI OS');
     const item = parseAttentionItem({
       id: 'service:ai-os-unavailable',
       source: 'ai_os',
       sourceId: 'service',
       title: 'AI OS is unavailable',
-      detail: message,
+      detail: visibleMessage,
       route: '/ai-os',
       priority: 76,
       status: 'blocked',
@@ -852,8 +881,8 @@ async function collectAiOsItems(fetchImpl: FetchLike): Promise<SourceResult> {
     });
     return {
       items: [item],
-      source: sourceStatus({ id: 'ai_os', label: 'AI OS', status: 'error', fetchedAt, itemCount: 1, error: message }),
-      error: `AI OS: ${message}`
+      source: sourceStatus({ id: 'ai_os', label: 'AI OS', status: 'error', fetchedAt, itemCount: 1, error: visibleMessage }),
+      error: `AI OS: ${visibleMessage}`
     };
   }
 }
@@ -869,7 +898,9 @@ function researchRunItem(run: Record<string, unknown>): AttentionItem | null {
     source: 'research',
     sourceId: id,
     title: `Research ${compactText(run.mode, 'run')} ${status}`,
-    detail: compactText(run.error, compactText(run.goal, 'Research run needs inspection.')),
+    detail:
+      compactAttentionServiceText(run.error, 'Research run') ||
+      compactText(run.goal, 'Research run needs inspection.'),
     route: '/research',
     dueAt: compactText(run.updated_at, compactText(run.created_at)) || undefined,
     priority: failed ? 78 : 58,
@@ -900,7 +931,7 @@ function researchMonitorItem(monitor: ResearchMonitorPayload): AttentionItem | n
     source: 'research',
     sourceId: id,
     title: failed ? `${compactText(monitor.name, 'Research monitor')} failed` : `${compactText(monitor.name, 'Research monitor')} is due`,
-    detail: compactText(monitor.last_error, goal || 'A saved monitor is ready to run.'),
+    detail: compactAttentionServiceText(monitor.last_error, 'Research monitor') || goal || 'A saved monitor is ready to run.',
     route: '/research',
     dueAt: compactText(monitor.last_run_at) || undefined,
     priority: failed ? 82 : 68,
@@ -944,10 +975,11 @@ async function collectResearchItems(fetchImpl: FetchLike): Promise<SourceResult>
     };
   } catch (error) {
     const message = describeError(error);
+    const visibleMessage = compactAttentionServiceText(message, 'Research');
     return {
       items: [],
-      source: sourceStatus({ id: 'research', label: 'Research', status: 'error', fetchedAt, error: message }),
-      error: `Research: ${message}`
+      source: sourceStatus({ id: 'research', label: 'Research', status: 'error', fetchedAt, error: visibleMessage }),
+      error: `Research: ${visibleMessage}`
     };
   }
 }
@@ -963,7 +995,7 @@ function macroRunItem(run: MacroRunPayload): AttentionItem | null {
     source: 'macro_lab',
     sourceId: id,
     title: `${compactText(run.macro_name, 'Macro')} ${status}`,
-    detail: compactText(run.error, failed ? 'Macro run needs inspection.' : 'Macro is currently running.'),
+    detail: compactAttentionServiceText(run.error, 'Macro Lab run') || (failed ? 'Macro run needs inspection.' : 'Macro is currently running.'),
     route: '/macro-lab',
     dueAt: compactText(run.finished_at, compactText(run.started_at)) || undefined,
     priority: failed ? 86 : 64,
@@ -1058,12 +1090,13 @@ async function collectMacroItems(fetchImpl: FetchLike): Promise<SourceResult> {
     };
   } catch (error) {
     const message = describeError(error);
+    const visibleMessage = compactAttentionServiceText(message, 'Macro Lab');
     const item = parseAttentionItem({
       id: 'service:macro-lab-unavailable',
       source: 'macro_lab',
       sourceId: 'service',
       title: 'Macro Lab is unavailable',
-      detail: message,
+      detail: visibleMessage,
       route: '/macro-lab',
       priority: 72,
       status: 'blocked',
@@ -1081,8 +1114,8 @@ async function collectMacroItems(fetchImpl: FetchLike): Promise<SourceResult> {
     });
     return {
       items: [item],
-      source: sourceStatus({ id: 'macro_lab', label: 'Macro Lab', status: 'error', fetchedAt, itemCount: 1, error: message }),
-      error: `Macro Lab: ${message}`
+      source: sourceStatus({ id: 'macro_lab', label: 'Macro Lab', status: 'error', fetchedAt, itemCount: 1, error: visibleMessage }),
+      error: `Macro Lab: ${visibleMessage}`
     };
   }
 }
@@ -1151,7 +1184,7 @@ function passiveSourceIssuePriority(source: PassiveSourceStatus): number {
 function passiveSourceIssueDetail(source: PassiveSourceStatus): string {
   const details = source.details ?? {};
   const parts: string[] = [];
-  if (source.error) parts.push(source.error);
+  if (source.error) parts.push(compactAttentionServiceText(source.error, source.label));
   const scheduleState = typeof details.scheduleState === 'string' ? details.scheduleState.replaceAll('_', ' ') : '';
   if (scheduleState) parts.push(`schedule ${scheduleState}`);
   const backupStatus = typeof details.backupStatus === 'string' ? details.backupStatus : '';
@@ -1224,6 +1257,7 @@ function collectPassiveTaskItems(store: MemoryStore): SourceResult {
       .filter((value): value is string => Boolean(value))
       .sort((a, b) => timeValue(b) - timeValue(a))[0] ?? new Date().toISOString();
   const firstError = sourceStatuses.find((source) => source.status === 'error')?.error;
+  const visibleFirstError = firstError ? compactAttentionServiceText(firstError, 'Passive Tasks') : '';
   const allUnavailable = sourceStatuses.length > 0 && sourceStatuses.every((source) => source.status === 'unavailable');
   const digestItems = collectPassiveAttentionItems(store);
   const items = [...digestItems, ...passiveSourceIssueItems(sourceStatuses, digestItems)];
@@ -1235,9 +1269,9 @@ function collectPassiveTaskItems(store: MemoryStore): SourceResult {
       status: firstError ? 'error' : allUnavailable ? 'unavailable' : 'ok',
       fetchedAt,
       itemCount: items.length,
-      ...(firstError ? { error: firstError } : allUnavailable ? { error: 'Passive task engine is disabled.' } : {})
+      ...(visibleFirstError ? { error: visibleFirstError } : allUnavailable ? { error: 'Passive task engine is disabled.' } : {})
     }),
-    ...(firstError ? { error: `Passive Tasks: ${firstError}` } : {})
+    ...(visibleFirstError ? { error: `Passive Tasks: ${visibleFirstError}` } : {})
   };
 }
 

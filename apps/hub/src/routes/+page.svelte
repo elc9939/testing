@@ -200,12 +200,39 @@
   function displayAttentionDetail(item: AttentionItem): string {
     const label = sourceLabel(item);
     const detail = item.detail || label;
+    const display = compactTodayAttentionText(detail, label, 220);
+    if (display !== detail.trim()) return display;
     const compact = compactServiceIssueIfRecognized(detail, label);
     const labelWithSpace = `${label} `;
     const labelWithColon = `${label}: `;
     if (compact.startsWith(labelWithSpace)) return compact.slice(labelWithSpace.length);
     if (compact.startsWith(labelWithColon)) return compact.slice(labelWithColon.length);
     return compact;
+  }
+
+  function displayAttentionTitle(item: AttentionItem): string {
+    return compactTodayAttentionText(item.title, sourceLabel(item), 140);
+  }
+
+  function compactTodayAttentionText(value: string, label: string, maxLength: number): string {
+    const text = value.replace(/\s+/g, ' ').trim();
+    if (!text) return label;
+    if (/gpu telemetry|nvidia-smi|win32_perf|win32_videocontroller|powershell|winerror|hardwareinformation|gpuadaptermemory/iu.test(text)) {
+      return 'GPU telemetry is unavailable. Check AI OS machine profile and Windows/AMD telemetry setup.';
+    }
+    if (/openai|anthropic|api\s*key|client error ['"]?401|\b401\b|unauthori[sz]ed|\btoken\b|expired|revoked|forbidden|permission/iu.test(text)) {
+      return `${label} needs authentication or a valid API key before this check can run.`;
+    }
+    if (text.length <= maxLength) return text;
+    const compact = compactServiceIssueIfRecognized(text, label);
+    if (compact !== text) {
+      const labelWithSpace = `${label} `;
+      const labelWithColon = `${label}: `;
+      if (compact.startsWith(labelWithSpace)) return compact.slice(labelWithSpace.length);
+      if (compact.startsWith(labelWithColon)) return compact.slice(labelWithColon.length);
+      return compact;
+    }
+    return `${text.slice(0, maxLength - 3).trim()}...`;
   }
 
   function todayCountLabel(value: number): string {
@@ -299,22 +326,23 @@
 
   function attentionItemActionTitle(item: AttentionItem, itemAction: AttentionAction): string {
     const label = attentionActionLabel(itemAction.kind);
+    const title = displayAttentionTitle(item);
     const pending = $attentionStore.pendingActionId;
-    if (pending === `${item.id}:${itemAction.kind}`) return `${label} is already running for ${item.title}.`;
+    if (pending === `${item.id}:${itemAction.kind}`) return `${label} is already running for ${title}.`;
     if (pending) return 'Another Today action is already running.';
-    if (!itemAction.available) return itemAction.reason ?? `${label} is not available for ${item.title}.`;
+    if (!itemAction.available) return itemAction.reason ?? `${label} is not available for ${title}.`;
     if ($attentionStore.readOnly && itemAction.requiresOnline) return 'Cached attention is read-only until Mini Hub reconnects.';
     if (itemAction.reason) return itemAction.reason;
-    if (itemAction.kind === 'open') return `Open ${item.title}.`;
-    if (itemAction.kind === 'inspect') return `Inspect ${item.title}.`;
-    if (itemAction.kind === 'mark_read') return `Mark ${item.title} read in ${sourceLabel(item)}.`;
-    if (itemAction.kind === 'archive') return `Archive ${item.title} in ${sourceLabel(item)}.`;
-    if (itemAction.kind === 'mark_important') return `Mark ${item.title} important in ${sourceLabel(item)}.`;
-    if (itemAction.kind === 'complete') return `Complete ${item.title}; synced state and Recent Actions will refresh.`;
-    if (itemAction.kind === 'run') return `Run ${item.title}; Activity and Recent Actions will track the result.`;
-    if (itemAction.kind === 'restore') return `Restore ${item.title}; the owning service may require setup or confirmation.`;
-    if (itemAction.kind === 'snooze') return `Snooze ${item.title} from the Today queue.`;
-    if (itemAction.kind === 'dismiss') return `Dismiss ${item.title} from the Today queue.`;
+    if (itemAction.kind === 'open') return `Open ${title}.`;
+    if (itemAction.kind === 'inspect') return `Inspect ${title}.`;
+    if (itemAction.kind === 'mark_read') return `Mark ${title} read in ${sourceLabel(item)}.`;
+    if (itemAction.kind === 'archive') return `Archive ${title} in ${sourceLabel(item)}.`;
+    if (itemAction.kind === 'mark_important') return `Mark ${title} important in ${sourceLabel(item)}.`;
+    if (itemAction.kind === 'complete') return `Complete ${title}; synced state and Recent Actions will refresh.`;
+    if (itemAction.kind === 'run') return `Run ${title}; Activity and Recent Actions will track the result.`;
+    if (itemAction.kind === 'restore') return `Restore ${title}; the owning service may require setup or confirmation.`;
+    if (itemAction.kind === 'snooze') return `Snooze ${title} from the Today queue.`;
+    if (itemAction.kind === 'dismiss') return `Dismiss ${title} from the Today queue.`;
     return label;
   }
 
@@ -847,10 +875,10 @@
           href={externalHref(actionRoute(item, openAction)) ? actionRoute(item, openAction) : hubHref(actionRoute(item, openAction))}
           target={externalHref(actionRoute(item, openAction)) ? '_blank' : undefined}
           rel={externalHref(actionRoute(item, openAction)) ? 'noreferrer' : undefined}
-          title={`Open ${item.title} from ${sourceLabel(item)}.`}
+          title={`Open ${displayAttentionTitle(item)} from ${sourceLabel(item)}.`}
         >
           <time datetime={item.dueAt}>{displayEventTime(item)}</time>
-          <strong>{item.title}</strong>
+          <strong>{displayAttentionTitle(item)}</strong>
           <small>{displayAttentionDetail(item)}</small>
         </a>
       {/each}
@@ -883,21 +911,21 @@
           {#each priorityQueue as item}
             {@const openAction = inspectAction(item)}
             <div class="queue-row">
-              <a class="queue-link" href={hubHref(item.route)} title={`Open ${item.title} in ${sourceLabel(item)}.`}>
+              <a class="queue-link" href={hubHref(item.route)} title={`Open ${displayAttentionTitle(item)} in ${sourceLabel(item)}.`}>
                 <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
                 <span class="queue-main">
-                  <strong>{item.title}</strong>
+                  <strong>{displayAttentionTitle(item)}</strong>
                   <small>{displayAttentionDetail(item)}</small>
                 </span>
                 <span class={`priority-pill ${priorityClass(item)}`}>{item.priority}</span>
                 <span class="queue-when">{itemMeta(item)}</span>
               </a>
-              <div class="item-actions" aria-label={`Actions for ${item.title}`}>
+              <div class="item-actions" aria-label={`Actions for ${displayAttentionTitle(item)}`}>
                 {#if openAction}
                   <a
                     class="icon-action"
                     title={attentionItemActionTitle(item, openAction)}
-                    aria-label={`${attentionActionLabel(openAction.kind)} ${item.title}`}
+                    aria-label={`${attentionActionLabel(openAction.kind)} ${displayAttentionTitle(item)}`}
                     href={externalHref(actionRoute(item, openAction)) ? actionRoute(item, openAction) : hubHref(actionRoute(item, openAction))}
                     target={externalHref(actionRoute(item, openAction)) ? '_blank' : undefined}
                     rel={externalHref(actionRoute(item, openAction)) ? 'noreferrer' : undefined}
@@ -911,7 +939,7 @@
                     type="button"
                     disabled={actionDisabled(item, itemAction)}
                     title={attentionItemActionTitle(item, itemAction)}
-                    aria-label={`${attentionActionLabel(itemAction.kind)} ${item.title}`}
+                    aria-label={`${attentionActionLabel(itemAction.kind)} ${displayAttentionTitle(item)}`}
                     on:click={() => runAttentionAction(item, itemAction)}
                   >
                     {#if itemAction.kind === 'mark_read'}
@@ -963,10 +991,10 @@
         <div class="compact-list">
           {#each mailItems as item}
             <div class="compact-row">
-              <a class="compact-link" href={hubHref('/productivity')} title={`Open mail item ${item.title}.`}>
+              <a class="compact-link" href={hubHref('/productivity')} title={`Open mail item ${displayAttentionTitle(item)}.`}>
                 <span class={`priority-pill ${priorityClass(item)}`}>{item.priority}</span>
                 <span class="compact-main">
-                  <strong>{item.title}</strong>
+                  <strong>{displayAttentionTitle(item)}</strong>
                   <small>{displayAttentionDetail(item)}</small>
                 </span>
                 <span class="queue-when">{itemMeta(item)}</span>
@@ -1020,10 +1048,10 @@
         <div class="compact-list">
           {#each focusItems as item}
             <div class="compact-row">
-              <a class="compact-link" href={hubHref(item.route)} title={`Open ${item.title} in ${sourceLabel(item)}.`}>
+              <a class="compact-link" href={hubHref(item.route)} title={`Open ${displayAttentionTitle(item)} in ${sourceLabel(item)}.`}>
                 <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
                 <span class="compact-main">
-                  <strong>{item.title}</strong>
+                  <strong>{displayAttentionTitle(item)}</strong>
                   <small>{displayAttentionDetail(item)}</small>
                 </span>
                 <span class="queue-when">{itemMeta(item)}</span>
@@ -1070,10 +1098,10 @@
       {#if systemItems.length}
         <div class="service-list">
           {#each systemItems as item}
-            <a class="service-row" href={hubHref(item.route)} title={`Open ${item.title} status.`}>
+            <a class="service-row" href={hubHref(item.route)} title={`Open ${displayAttentionTitle(item)} status.`}>
               <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
               <span>
-                <strong>{item.title}</strong>
+                <strong>{displayAttentionTitle(item)}</strong>
                 <small>{displayAttentionDetail(item)}</small>
               </span>
             </a>
