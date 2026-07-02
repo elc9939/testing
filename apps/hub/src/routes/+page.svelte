@@ -377,6 +377,14 @@
     return capabilitySnapshot?.capabilities.find((capability) => capability.id === item.capabilityId);
   }
 
+  function displayModeRecommendationDetail(item: ModeRecommendation): string {
+    return compactTodayAttentionText(item.detail, item.label, 220);
+  }
+
+  function displayCapabilityIssueDetail(capability: CapabilityRegistryEntry): string {
+    return compactTodayAttentionText(capability.lastError ?? capability.description, capability.label, 220);
+  }
+
   function modeActionBlockedReason(item: ModeRecommendation): string {
     if (!item.action) return 'This recommendation does not expose a direct action.';
     if (modeActionBusyId && modeActionBusyId !== item.id) return 'Another Today recommendation is already running.';
@@ -386,12 +394,16 @@
 
     const aiService = capabilitySnapshot.capabilities.find((capability) => capability.id === 'ai-os.service');
     if (!aiService?.available) {
-      return aiService?.lastError ?? 'AI OS is not reachable; open Settings Feature Wiring to connect the local service.';
+      return aiService?.lastError
+        ? compactTodayAttentionText(aiService.lastError, 'AI OS', 220)
+        : 'AI OS is not reachable; open Settings Feature Wiring to connect the local service.';
     }
 
     const requiredCapability = modeRecommendationCapability(item);
     if (requiredCapability && !requiredCapability.available) {
-      return requiredCapability.lastError ?? `${requiredCapability.label} is not ready yet.`;
+      return requiredCapability.lastError
+        ? compactTodayAttentionText(requiredCapability.lastError, requiredCapability.label, 220)
+        : `${requiredCapability.label} is not ready yet.`;
     }
     return '';
   }
@@ -1132,11 +1144,11 @@
           {#each modeRecommendations.slice(0, 4) as item}
             <div class="mode-rec-row">
               <a class="mode-rec-link" href={hubHref(item.route)} title={`Open ${item.label}.`}>
-                <span class="mode-rec-tag">{item.tag}</span>
-                <span class="mode-rec-main">
-                  <strong>{item.label}</strong>
-                  <small>{item.detail}</small>
-                </span>
+                  <span class="mode-rec-tag">{item.tag}</span>
+                  <span class="mode-rec-main">
+                    <strong>{item.label}</strong>
+                    <small>{displayModeRecommendationDetail(item)}</small>
+                  </span>
                 <ArrowRight size={15} />
               </a>
               {#if item.action}
@@ -1193,12 +1205,12 @@
           <div class="service-list">
             {#each capabilityIssues as capability}
               <a class="service-row" href={hubHref(capability.route)} title={`Open ${capability.label} setup or status.`}>
-                <span class={`capability-state ${capability.state}`}>{capabilityStateLabel(capability.state)}</span>
-                <span>
-                  <strong>{capability.label}</strong>
-                  <small>{capability.lastError ?? capability.description}</small>
-                </span>
-              </a>
+                  <span class={`capability-state ${capability.state}`}>{capabilityStateLabel(capability.state)}</span>
+                  <span>
+                    <strong>{capability.label}</strong>
+                    <small>{displayCapabilityIssueDetail(capability)}</small>
+                  </span>
+                </a>
             {/each}
           </div>
         {:else}
