@@ -77,6 +77,7 @@
   let modeActionMessage = '';
   let modeActionError = '';
   let itemActionMessage = '';
+  const staleAttentionThresholdMs = 30 * 60 * 1000;
 
   interface TodayRefreshControlState {
     loading: boolean;
@@ -122,6 +123,9 @@
   };
   $: todayRefreshButtonTitle = todayRefreshTitle(todayRefreshControlState);
   $: visibleAttentionError = $attentionStore.error ? compactTodayServiceIssue($attentionStore.error) : '';
+  $: staleAttention = attentionSnapshotIsStale(attentionSnapshot?.checkedAt);
+  $: staleAttentionDetail = staleAttentionMessage(attentionSnapshot?.checkedAt);
+  $: localHubHref = localFullPowerHref();
   $: visibleActionLedgerError = actionLedgerError ? compactTodayServiceIssue(actionLedgerError) : '';
   $: actionLedgerSourceError = actionLedgerSnapshot?.errors[0] ?? '';
   $: visibleActionLedgerSourceError = actionLedgerSourceError ? compactTodayServiceIssue(actionLedgerSourceError) : '';
@@ -601,6 +605,23 @@
     return 'Refresh Today from connected sources.';
   }
 
+  function attentionSnapshotIsStale(value: string | undefined): boolean {
+    if (!value) return false;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    return Date.now() - date.getTime() > staleAttentionThresholdMs;
+  }
+
+  function staleAttentionMessage(value: string | undefined): string {
+    const checked = value ? displayWhen(value) : 'an earlier browser session';
+    return `Today is showing cached attention from ${checked}. Refresh or open the local full-power hub; hosted Chrome can block local API calls even when the desktop services are running.`;
+  }
+
+  function localFullPowerHref(): string {
+    if (typeof window === 'undefined') return 'http://127.0.0.1:5173/';
+    return `http://127.0.0.1:5173/${window.location.search}`;
+  }
+
   function compactTodayServiceIssue(message = ''): string {
     const text = message.trim();
     if (!text) return 'Today could not reach its attention sources.';
@@ -720,6 +741,19 @@
     <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to inspect Hub API, Google, AI OS, Macro Lab, and endpoint wiring.">
       <Settings size={15} />
       <span>Open Settings</span>
+    </a>
+  </section>
+{/if}
+
+{#if staleAttention && !$attentionStore.loading && !$attentionStore.refreshing}
+  <section class="card card-pad warning-panel attention-error-panel service-card" title={`Today cache checked at ${attentionSnapshot?.checkedAt ?? 'unknown'}`}>
+    <div>
+      <strong>Today is showing stale cached data</strong>
+      <p>{staleAttentionDetail}</p>
+    </div>
+    <a class="button compact" href={localHubHref} title="Open the local full-power Mini Hub on this Windows PC.">
+      <ArrowRight size={15} />
+      <span>Open Local Hub</span>
     </a>
   </section>
 {/if}
