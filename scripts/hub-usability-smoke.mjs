@@ -1042,7 +1042,7 @@ function printChecklist(rows, liveRows, baseUrl) {
     if (row.sourceStateCategories?.length) console.log(`- [ ] Source state categories found: ${row.sourceStateCategories.join(', ')}.`);
     if (live) {
       console.log(`- [ ] Live DOM snapshot: ${liveRenderState(live)}, title "${live.title || 'MISSING'}", heading "${live.heading || 'MISSING'}", ${live.enabledButtons ?? 0}/${live.buttons ?? 0} enabled buttons, ${live.enabledLinks ?? 0}/${live.links ?? 0} enabled links, safe action ${liveSafeActionSummary(live)}.`);
-      if ((live.buttons ?? 0) + (live.links ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; this proves routing and raw Not Found leakage only. Run pnpm qa:hub:hydrated or pnpm qa:hub:usability for actual control clicks.');
+      if ((live.buttons ?? 0) + (live.links ?? 0) === 0) console.log('- [ ] Live route returned a static/client-rendered shell; this proves routing and plain 404 leakage only. Run pnpm qa:hub:hydrated or pnpm qa:hub:usability for actual control clicks.');
       if (live.buttonLabels) console.log(`- [ ] Live buttons: ${live.buttonLabels}`);
       if (live.linkLabels) console.log(`- [ ] Live links: ${live.linkLabels}`);
       if (live.ambiguousControls) console.log(`- [ ] Ambiguous live controls needing browser inspection: ${live.ambiguousControlLabels}`);

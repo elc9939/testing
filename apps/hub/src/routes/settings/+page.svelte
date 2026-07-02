@@ -1399,7 +1399,7 @@
       <small>{serviceCheckedAt ? `Checked ${new Date(serviceCheckedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Run Check Services'}</small>
     </div>
     <p class="helper-text">
-      Shows what each visible feature depends on from this browser. If the hosted site is accidentally pointed at GitHub Pages /api routes, it will show as misconfigured here instead of failing as raw Not Found.
+      Shows what each visible feature depends on from this browser. If the hosted site is accidentally pointed at GitHub Pages /api routes, it will show as misconfigured here instead of failing as a plain 404 page.
     </p>
     <div class="feature-wiring-list">
       {#each featureWiringRows as row}

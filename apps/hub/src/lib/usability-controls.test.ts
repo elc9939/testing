@@ -1726,7 +1726,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Live DOM snapshot');
     expect(source).toContain('Hydration status');
     expect(source).toContain('Hydration QA');
-    expect(source).toContain('routing and raw Not Found leakage only');
+    expect(source).toContain('routing and plain 404 leakage only');
     expect(source).toContain('Live links');
     expect(source).toContain('Source buttons');
     expect(source).toContain('Source links');
