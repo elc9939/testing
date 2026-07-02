@@ -5173,11 +5173,31 @@ function passiveCardFreshForDigest(
 ): boolean {
   if (passiveCardImportant(store, cardItem.id)) return true;
   if (run?.status === 'failed' || run?.status === 'blocked') return true;
+  if (passiveCardResolvedByLaterRun(store, cardItem, run)) return false;
   const createdAt = parseTime(cardItem.createdAt);
   if (!Number.isFinite(createdAt)) return true;
   const ageMs = checkedAt.getTime() - createdAt;
   if (ageMs <= passiveDigestFreshMs) return true;
   return digestItem.urgency >= 85 && ageMs <= passiveDigestUrgentFreshMs;
+}
+
+function passiveRunTime(run: PassiveRun | undefined): number {
+  if (!run) return Number.NaN;
+  const finishedAt = parseTime(run.finishedAt);
+  if (Number.isFinite(finishedAt)) return finishedAt;
+  return parseTime(run.startedAt);
+}
+
+function passiveCardResolvedByLaterRun(store: MemoryStore, cardItem: PassiveResultCard, run: PassiveRun | undefined): boolean {
+  const latestRun = latestRunForTask(store, cardItem.taskId);
+  if (!latestRun || latestRun.id === run?.id) return false;
+  if (latestRun.status === 'failed' || latestRun.status === 'blocked' || latestRun.error) return false;
+
+  const cardCreatedAt = parseTime(cardItem.createdAt);
+  const latestRunAt = passiveRunTime(latestRun);
+  if (!Number.isFinite(cardCreatedAt) || !Number.isFinite(latestRunAt) || latestRunAt <= cardCreatedAt) return false;
+
+  return !latestRun.cards.some((latestCard) => latestCard.title === cardItem.title);
 }
 
 export function updatePassiveCardTriage(

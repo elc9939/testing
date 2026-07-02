@@ -2747,6 +2747,37 @@ describe('passive task engine', () => {
     expect(buildPassiveDigest(store).some((item) => item.id === card.id)).toBe(true);
   });
 
+  it('removes resolved passive health warnings after a later clean run', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const task = store.passiveTasks.find((item) => item.family === 'app_health')!;
+    const aiOsUnavailableFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/status')) throw new Error('This operation was aborted');
+      return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+    }) as typeof fetch;
+
+    await runPassiveTask(store, task.id, {
+      externalFetch: aiOsUnavailableFetch,
+      force: true,
+      input: { reason: 'resolved-health-first' }
+    });
+
+    const issue = buildPassiveDigest(store).find((item) => item.title === 'AI OS is unavailable')!;
+    expect(issue).toBeTruthy();
+    const staleCreatedAt = new Date(Date.now() - 60_000).toISOString();
+    store.passiveResults = store.passiveResults.map((item) => (item.id === issue.id ? { ...item, createdAt: staleCreatedAt } : item));
+
+    await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'resolved-health-clean' }
+    });
+
+    expect(buildPassiveDigest(store).some((item) => item.title === 'AI OS is unavailable')).toBe(false);
+    expect(collectPassiveAttentionItems(store).some((item) => item.title === 'AI OS is unavailable')).toBe(false);
+  });
+
   it('applies passive card triage to repeated source-equivalent findings', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

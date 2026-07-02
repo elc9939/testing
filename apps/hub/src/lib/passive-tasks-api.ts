@@ -143,8 +143,38 @@ export async function dismissPassiveNotification(notificationId: string): Promis
   return result.snapshot;
 }
 
+function timeValue(value: string | undefined): number {
+  if (!value) return Number.NaN;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function compactIssueText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/gu, ' ').trim();
+}
+
+function passiveNotificationLooksLikeServiceIssue(notification: PassiveNotification): boolean {
+  const text = compactIssueText([notification.title, notification.body, notification.family].join(' '));
+  return /\b(unavailable|offline|failed|error|fetch|refused|timeout|timed|aborted|missing|not found|setup|restore|verify|blocked)\b/u.test(text);
+}
+
+function passiveNotificationResolvedByCurrentSource(notification: PassiveNotification, snapshot: PassiveSnapshot): boolean {
+  if (!passiveNotificationLooksLikeServiceIssue(notification)) return false;
+  const notificationAt = timeValue(notification.createdAt);
+  if (!Number.isFinite(notificationAt)) return false;
+  return snapshot.sources.some((source) => {
+    if (source.id !== notification.family || source.status !== 'ok') return false;
+    const fetchedAt = timeValue(source.fetchedAt);
+    return Number.isFinite(fetchedAt) && fetchedAt > notificationAt;
+  });
+}
+
 export function visiblePassiveNotifications(snapshot: PassiveSnapshot | null): PassiveNotification[] {
-  return (snapshot?.notifications ?? []).filter((notification) => !notification.dismissedAt).slice(0, 8);
+  if (!snapshot) return [];
+  return snapshot.notifications
+    .filter((notification) => !notification.dismissedAt)
+    .filter((notification) => !passiveNotificationResolvedByCurrentSource(notification, snapshot))
+    .slice(0, 8);
 }
 
 export function topPassiveCards(snapshot: PassiveSnapshot | null): PassiveResultCard[] {

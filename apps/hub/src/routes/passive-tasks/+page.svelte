@@ -16,6 +16,7 @@
     XCircle
   } from 'lucide-svelte';
   import type {
+    PassiveEngineSettings,
     PassiveResultCard,
     PassiveRun,
     PassiveBackupHealth,
@@ -109,7 +110,8 @@
     .sort((a, b) => dateValue(b.createdAt) - dateValue(a.createdAt))
     .slice(0, 8);
   $: summarizedResultRows = rawResultRows.filter((result) => summarizedServiceIssueCard(result, sourceRows));
-  $: resultRows = rawResultRows.filter((result) => !summarizedServiceIssueCard(result, sourceRows));
+  $: resolvedResultRows = rawResultRows.filter((result) => resolvedServiceIssueCard(result, sourceRows));
+  $: resultRows = rawResultRows.filter((result) => !summarizedServiceIssueCard(result, sourceRows) && !resolvedServiceIssueCard(result, sourceRows));
   $: triggerRows = [...(snapshot?.triggers ?? [])]
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt) || a.label.localeCompare(b.label))
     .slice(0, 8);
@@ -162,22 +164,22 @@
     return `${Math.round(ms / 60_000)} min`;
   }
 
-  function passiveEngineLabel(): string {
-    if (loading && !snapshot) return 'Checking';
-    if (!settings) return 'Refresh needed';
-    return settings.enabled ? 'On' : 'Off';
+  function passiveEngineLabel(snapshotValue: PassiveSnapshot | null, settingsValue: PassiveEngineSettings | null, loadingValue: boolean): string {
+    if (loadingValue && !snapshotValue) return 'Checking';
+    if (!settingsValue) return 'Refresh needed';
+    return settingsValue.enabled ? 'On' : 'Off';
   }
 
-  function passiveScheduleLabel(): string {
-    if (loading && !snapshot) return 'Checking';
-    if (!settings) return 'Refresh needed';
-    return settings.idleOnly ? 'Idle only' : 'Normal';
+  function passiveScheduleLabel(snapshotValue: PassiveSnapshot | null, settingsValue: PassiveEngineSettings | null, loadingValue: boolean): string {
+    if (loadingValue && !snapshotValue) return 'Checking';
+    if (!settingsValue) return 'Refresh needed';
+    return settingsValue.idleOnly ? 'Idle only' : 'Normal';
   }
 
-  function passiveBackupStatusLabel(): string {
-    if (backupHealth) return backupStatusLabel(backupHealth);
-    if (loading && !snapshot) return 'Checking';
-    return snapshot ? 'Refresh backup check' : 'Refresh needed';
+  function passiveBackupStatusLabel(snapshotValue: PassiveSnapshot | null, backupHealthValue: PassiveBackupHealth | null, loadingValue: boolean): string {
+    if (backupHealthValue) return backupStatusLabel(backupHealthValue);
+    if (loadingValue && !snapshotValue) return 'Checking';
+    return snapshotValue ? 'Refresh backup check' : 'Refresh needed';
   }
 
   function passiveCountLabel(value: number): string {
@@ -186,38 +188,57 @@
     return String(value);
   }
 
-  function passivePanelEmptyMessage(healthyEmpty: string, loadingMessage = 'Checking Passive Tasks snapshot.'): string {
-    if (loading && !snapshot) return loadingMessage;
-    if (serviceError && !snapshot) return 'This panel will reload after the Passive Tasks service card reconnects.';
-    if (!snapshot) return 'Passive Tasks needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.';
+  function passivePanelEmptyMessage(
+    snapshotValue: PassiveSnapshot | null,
+    loadingValue: boolean,
+    serviceErrorValue: string,
+    healthyEmpty: string,
+    loadingMessage = 'Checking Passive Tasks snapshot.'
+  ): string {
+    if (loadingValue && !snapshotValue) return loadingMessage;
+    if (serviceErrorValue && !snapshotValue) return 'This panel will reload after the Passive Tasks service card reconnects.';
+    if (!snapshotValue) return 'Passive Tasks needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.';
     return healthyEmpty;
   }
 
-  function passiveDigestEmptyMessage(): string {
-    if (summarizedDigestCards.length) {
-      return `${summarizedDigestCards.length} repeated service issue card${summarizedDigestCards.length === 1 ? '' : 's'} summarized in Source Health instead of repeating here.`;
+  function passiveDigestEmptyMessage(
+    snapshotValue: PassiveSnapshot | null,
+    loadingValue: boolean,
+    serviceErrorValue: string,
+    summarizedCount: number
+  ): string {
+    if (summarizedCount) {
+      return `${summarizedCount} repeated service issue card${summarizedCount === 1 ? '' : 's'} summarized in Source Health instead of repeating here.`;
     }
     return passivePanelEmptyMessage(
+      snapshotValue,
+      loadingValue,
+      serviceErrorValue,
       'No passive task cards yet. Run due tasks or configure folders/research monitors to create source-backed outputs.',
       'Checking passive task outputs.'
     );
   }
 
-  function passiveRecentRunsEmptyMessage(): string {
-    if (loading && !snapshot) return 'Checking Passive Tasks run history.';
-    if (serviceError && !snapshot) return 'Run history will reload after the Passive Tasks service card reconnects.';
-    if (!snapshot) return 'Passive Tasks run history needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.';
-    return highlightedRunId
-      ? `Activity run ${highlightedRunId} is not in the current Passive Tasks snapshot. Refresh or open Activity for the durable record.`
+  function passiveRecentRunsEmptyMessage(
+    snapshotValue: PassiveSnapshot | null,
+    loadingValue: boolean,
+    serviceErrorValue: string,
+    highlightedRunIdValue: string
+  ): string {
+    if (loadingValue && !snapshotValue) return 'Checking Passive Tasks run history.';
+    if (serviceErrorValue && !snapshotValue) return 'Run history will reload after the Passive Tasks service card reconnects.';
+    if (!snapshotValue) return 'Passive Tasks run history needs a fresh snapshot. Use Refresh or open Settings Feature Wiring.';
+    return highlightedRunIdValue
+      ? `Activity run ${highlightedRunIdValue} is not in the current Passive Tasks snapshot. Refresh or open Activity for the durable record.`
       : 'Run history will appear after the worker or dashboard runs a task.';
   }
 
-  function workerStateLabel(): string {
-    if (loading && !snapshot) return 'Checking';
-    if (!snapshot) return 'Refresh needed';
-    if (!worker?.startedAt) return 'Waiting for startup';
-    if (!worker.enabled) return 'Disabled';
-    return worker.running ? 'Running' : 'Idle';
+  function workerStateLabel(snapshotValue: PassiveSnapshot | null, workerValue: PassiveSnapshot['worker'] | null, loadingValue: boolean): string {
+    if (loadingValue && !snapshotValue) return 'Checking';
+    if (!snapshotValue) return 'Refresh needed';
+    if (!workerValue?.startedAt) return 'Waiting for startup';
+    if (!workerValue.enabled) return 'Disabled';
+    return workerValue.running ? 'Running' : 'Idle';
   }
 
   function workerIdleLine(): string {
@@ -527,6 +548,7 @@
   function serviceIssueText(card: PassiveResultCard): string {
     return compactText(
       [
+        card.family,
         card.title,
         card.summary,
         card.why,
@@ -539,14 +561,32 @@
     return compactText([source.id, source.label, source.error ?? ''].join(' '));
   }
 
-  function summarizedServiceIssueCard(card: PassiveResultCard, sources: PassiveSourceStatus[]): boolean {
+  function serviceIssueCardMatchesSource(card: PassiveResultCard, source: PassiveSourceStatus): boolean {
+    if (card.family === source.id) return true;
     const text = serviceIssueText(card);
-    if (!/\b(unavailable|offline|failed|fetch|refused|timeout|timed|missing|not found|setup|restore)\b/u.test(text)) return false;
+    const sourceText = sourceIssueText(source);
+    const sourceWords = sourceText.split(' ').filter((word) => word.length >= 3);
+    return sourceWords.some((word) => text.includes(word));
+  }
+
+  function serviceIssueLikeCard(card: PassiveResultCard): boolean {
+    const text = serviceIssueText(card);
+    return /\b(unavailable|offline|failed|fetch|refused|timeout|timed|aborted|missing|not found|setup|restore|verify|blocked)\b/u.test(text);
+  }
+
+  function summarizedServiceIssueCard(card: PassiveResultCard, sources: PassiveSourceStatus[]): boolean {
+    if (!serviceIssueLikeCard(card)) return false;
+    return sources.some((source) => source.status !== 'ok' && serviceIssueCardMatchesSource(card, source));
+  }
+
+  function resolvedServiceIssueCard(card: PassiveResultCard, sources: PassiveSourceStatus[]): boolean {
+    if (!serviceIssueLikeCard(card)) return false;
+    const createdAt = Date.parse(card.createdAt);
+    if (!Number.isFinite(createdAt)) return false;
     return sources.some((source) => {
-      if (source.status === 'ok') return false;
-      const sourceText = sourceIssueText(source);
-      const sourceWords = sourceText.split(' ').filter((word) => word.length >= 3);
-      return sourceWords.some((word) => text.includes(word));
+      if (source.status !== 'ok' || !serviceIssueCardMatchesSource(card, source)) return false;
+      const fetchedAt = Date.parse(source.fetchedAt ?? '');
+      return Number.isFinite(fetchedAt) && fetchedAt > createdAt;
     });
   }
 
@@ -793,19 +833,19 @@
 <section class="signal-strip" aria-label="Passive task signals">
   <div>
     <span>Engine</span>
-    <strong>{passiveEngineLabel()}</strong>
+    <strong>{passiveEngineLabel(snapshot, settings, loading)}</strong>
   </div>
   <div>
     <span>Schedule</span>
-    <strong>{passiveScheduleLabel()}</strong>
+    <strong>{passiveScheduleLabel(snapshot, settings, loading)}</strong>
   </div>
   <div>
     <span>Worker</span>
-    <strong>{workerStateLabel()}</strong>
+    <strong>{workerStateLabel(snapshot, worker, loading)}</strong>
   </div>
   <div>
     <span>Backups</span>
-    <strong>{passiveBackupStatusLabel()}</strong>
+    <strong>{passiveBackupStatusLabel(snapshot, backupHealth, loading)}</strong>
   </div>
   <div>
     <span>Triggers</span>
@@ -884,7 +924,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passiveDigestEmptyMessage()}</p>
+        <p class="empty-note">{passiveDigestEmptyMessage(snapshot, loading, serviceError, summarizedDigestCards.length)}</p>
       {/if}
     </article>
 
@@ -920,12 +960,20 @@
             <span>{summarizedResultRows.length} repeated service issue result{summarizedResultRows.length === 1 ? '' : 's'} shown in Source Health instead.</span>
           </p>
         {/if}
+        {#if resolvedResultRows.length}
+          <p class="compact-service-note resolved-note">
+            <CheckCircle2 size={15} />
+            <span>{resolvedResultRows.length} resolved service issue result{resolvedResultRows.length === 1 ? '' : 's'} hidden because Source Health is OK.</span>
+          </p>
+        {/if}
       {:else}
         <p class="empty-note">
-          {#if summarizedResultRows.length}
+          {#if resolvedResultRows.length}
+            {resolvedResultRows.length} resolved service issue result{resolvedResultRows.length === 1 ? '' : 's'} hidden because Source Health is OK.
+          {:else if summarizedResultRows.length}
             {summarizedResultRows.length} repeated service issue result{summarizedResultRows.length === 1 ? '' : 's'} summarized in Source Health.
           {:else}
-            {passivePanelEmptyMessage('No passive results have been persisted yet.', 'Checking recent passive results.')}
+            {passivePanelEmptyMessage(snapshot, loading, serviceError, 'No passive results have been persisted yet.', 'Checking recent passive results.')}
           {/if}
         </p>
       {/if}
@@ -957,7 +1005,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Source health appears after passive tasks are registered.', 'Checking passive source health.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'Source health appears after passive tasks are registered.', 'Checking passive source health.')}</p>
       {/if}
     </article>
 
@@ -986,7 +1034,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No passive triggers are registered yet.', 'Checking passive triggers.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'No passive triggers are registered yet.', 'Checking passive triggers.')}</p>
       {/if}
     </article>
 
@@ -1016,7 +1064,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No passive watchers are registered yet.', 'Checking passive watchers.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'No passive watchers are registered yet.', 'Checking passive watchers.')}</p>
       {/if}
     </article>
 
@@ -1074,7 +1122,7 @@
           </tbody>
         </table>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No scheduled passive task runs are due or configured.', 'Checking scheduled passive task runs.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'No scheduled passive task runs are due or configured.', 'Checking scheduled passive task runs.')}</p>
       {/if}
     </article>
   </div>
@@ -1122,7 +1170,7 @@
           {/if}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Restore point health appears after the passive snapshot loads.', 'Checking restore point health.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'Restore point health appears after the passive snapshot loads.', 'Checking restore point health.')}</p>
       {/if}
     </article>
 
@@ -1137,7 +1185,7 @@
         <div class="worker-grid">
           <span>
             <small>State</small>
-            <strong>{workerStateLabel()}</strong>
+            <strong>{workerStateLabel(snapshot, worker, loading)}</strong>
           </span>
           <span>
             <small>Interval</small>
@@ -1167,7 +1215,7 @@
           {/if}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Worker state appears after the API starts the passive task worker.', 'Checking passive worker state.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'Worker state appears after the API starts the passive task worker.', 'Checking passive worker state.')}</p>
       {/if}
     </article>
 
@@ -1194,7 +1242,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No passive task failures are visible.', 'Checking passive task failures.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'No passive task failures are visible.', 'Checking passive task failures.')}</p>
       {/if}
     </article>
 
@@ -1221,7 +1269,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No retained task failures right now.', 'Checking retained task failures.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'No retained task failures right now.', 'Checking retained task failures.')}</p>
       {/if}
     </article>
 
@@ -1252,7 +1300,7 @@
           <p class="empty-note">The linked Activity run is not in the latest {snapshot.runs.length} Passive Task runs. Refresh or open Activity for the durable record.</p>
         {/if}
       {:else}
-        <p class="empty-note">{passiveRecentRunsEmptyMessage()}</p>
+        <p class="empty-note">{passiveRecentRunsEmptyMessage(snapshot, loading, serviceError, highlightedRunId)}</p>
       {/if}
     </article>
 
@@ -1279,7 +1327,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('No active passive notifications.', 'Checking passive notifications.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'No active passive notifications.', 'Checking passive notifications.')}</p>
       {/if}
     </article>
 
@@ -1382,7 +1430,7 @@
           </p>
         </div>
       {:else}
-        <p class="empty-note">{passivePanelEmptyMessage('Settings load with the passive snapshot.', 'Checking passive settings.')}</p>
+        <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'Settings load with the passive snapshot.', 'Checking passive settings.')}</p>
       {/if}
     </article>
   </aside>
@@ -1553,6 +1601,11 @@
     font-size: 12px;
     font-weight: 700;
     line-height: 1.35;
+  }
+
+  .compact-service-note.resolved-note {
+    color: var(--success-text);
+    background: var(--success-bg);
   }
 
   .digest-row,

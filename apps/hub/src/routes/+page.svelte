@@ -131,6 +131,26 @@
   $: visibleActionLedgerSourceError = actionLedgerSourceError ? compactTodayServiceIssue(actionLedgerSourceError) : '';
   $: visibleModeActionError = modeActionError ? compactTodayServiceIssue(modeActionError) : '';
   $: visibleCapabilityError = capabilityError ? compactTodayServiceIssue(capabilityError) : '';
+  $: priorityEmptyText = !attentionSnapshot
+    ? !$attentionStore.initialized
+      ? 'Opening the browser attention cache before live sources refresh.'
+      : $attentionStore.loading
+        ? 'Loading real attention sources.'
+        : $attentionStore.error
+          ? 'Priority Queue will reload after the Today refresh card reconnects.'
+          : 'Priority Queue needs a refresh. Refresh Today or open Settings Feature Wiring.'
+    : sourceIssues.length
+      ? 'Some sources are unavailable; check the source status panel.'
+      : 'Connected sources do not have active actions right now.';
+  $: systemEmptyText = !attentionSnapshot
+    ? !$attentionStore.initialized
+      ? 'Opening the browser attention cache before live sources refresh.'
+      : $attentionStore.loading
+        ? 'Loading local service and AI OS signals.'
+        : $attentionStore.error
+          ? 'System / Services will reload after the Today refresh card reconnects.'
+          : 'System / Services needs a refresh. Refresh Today or open Settings Feature Wiring.'
+    : 'No service, AI OS, Macro Lab, or Research issues are active.';
 
   function snapshotGoogleConnected(snapshot: AttentionSnapshot | null): boolean {
     if (!snapshot) return false;
@@ -205,11 +225,6 @@
     return todaySnapshotUnavailableMessage('Now / Next', 'Checking Google Calendar attention from the hub.');
   }
 
-  function priorityEmptyMessage(): string {
-    if (!attentionSnapshot) return todaySnapshotUnavailableMessage('Priority Queue', 'Loading real attention sources.');
-    return sourceIssues.length ? 'Some sources are unavailable; check the source status panel.' : 'Connected sources do not have active actions right now.';
-  }
-
   function mailEmptyMessage(): string {
     if ($attentionStore.loading && !attentionSnapshot) return 'Loading Gmail attention from the hub.';
     if (!attentionSnapshot) return todaySnapshotUnavailableMessage('Mail triage', 'Loading Gmail attention from the hub.');
@@ -220,12 +235,6 @@
     if ($attentionStore.loading && !attentionSnapshot) return 'Loading Career and Study attention from the hub.';
     if (!attentionSnapshot) return todaySnapshotUnavailableMessage('Career / Study Focus', 'Loading Career and Study attention from the hub.');
     return 'No due career or study signals are active.';
-  }
-
-  function systemEmptyMessage(): string {
-    if ($attentionStore.loading && !attentionSnapshot) return 'Loading local service and AI OS signals.';
-    if (!attentionSnapshot) return todaySnapshotUnavailableMessage('System / Services', 'Loading local service and AI OS signals.');
-    return 'No service, AI OS, Macro Lab, or Research issues are active.';
   }
 
   function sourceStatusEmptyMessage(): string {
@@ -934,7 +943,7 @@
       {:else}
         <div class="empty-block">
           <strong>{attentionSnapshot ? 'No active queue items.' : 'Attention sources need refresh'}</strong>
-          <p>{priorityEmptyMessage()}</p>
+          <p>{priorityEmptyText}</p>
         </div>
       {/if}
     </article>
@@ -989,6 +998,8 @@
             </div>
           {/each}
         </div>
+      {:else if attentionSnapshot}
+        <p class="empty-note">{googleConnected ? 'No priority Gmail threads are active.' : 'Gmail is not connected or could not refresh.'}</p>
       {:else}
         <p class="empty-note">{mailEmptyMessage()}</p>
       {/if}
@@ -1040,6 +1051,8 @@
             </div>
           {/each}
         </div>
+      {:else if attentionSnapshot}
+        <p class="empty-note">No due career or study signals are active.</p>
       {:else}
         <p class="empty-note">{focusEmptyMessage()}</p>
       {/if}
@@ -1067,7 +1080,7 @@
           {/each}
         </div>
       {:else}
-        <p class="empty-note">{systemEmptyMessage()}</p>
+        <p class="empty-note">{systemEmptyText}</p>
       {/if}
     </article>
 

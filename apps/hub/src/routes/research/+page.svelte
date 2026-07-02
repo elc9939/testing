@@ -931,10 +931,39 @@
     }
   }
 
+  function blockedExternalSourceText(value: string): boolean {
+    const text = value.toLowerCase();
+    return (
+      /\b403\b/u.test(text) ||
+      text.includes('access denied') ||
+      text.includes("don't have permission") ||
+      text.includes('do not have permission') ||
+      text.includes('site currently unavailable') ||
+      text.includes('page unavailable')
+    );
+  }
+
+  function compactBlockedExternalSourceText(value: string): string {
+    if (!blockedExternalSourceText(value)) return value;
+    return 'External source limited automated capture. The source record is saved for inspection; Mini Hub is connected.';
+  }
+
+  function compactDisplayText(value: string, maxLength = 520): string {
+    const compact = compactBlockedExternalSourceText(value).replace(/\s+/gu, ' ').trim();
+    if (!compact) return '';
+    return compact.length > maxLength ? `${compact.slice(0, maxLength).trim()}...` : compact;
+  }
+
+  function reportText(value: string | undefined, fallback: string): string {
+    const text = (value ?? '').trim();
+    if (!text) return fallback;
+    return compactDisplayText(text, 1800);
+  }
+
   function sourcePreview(source: ResearchSource): string {
     const text = source.text.trim();
     if (!text) return 'No extracted text was stored for this source.';
-    return text.length > 2600 ? `${text.slice(0, 2600).trim()}...` : text;
+    return compactDisplayText(text, 1200);
   }
 
   function sourceById(run: ResearchRun, sourceId: string): ResearchSource | undefined {
@@ -967,9 +996,9 @@
     if (value === undefined || value === null || value === '') return 'not recorded';
     if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
     if (typeof value === 'boolean') return value ? 'yes' : 'no';
-    if (Array.isArray(value)) return value.map((item) => formatValue(item)).join(', ');
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
+    if (Array.isArray(value)) return compactDisplayText(value.map((item) => formatValue(item)).join(', '), 500);
+    if (typeof value === 'object') return compactDisplayText(JSON.stringify(value), 500);
+    return compactDisplayText(String(value), 500);
   }
 
   function sourceTableValue(row: Record<string, unknown>, key: string): string {
@@ -993,7 +1022,7 @@
   }
 
   function logMessage(log: Record<string, unknown>): string {
-    return typeof log.message === 'string' ? log.message : formatJson(log);
+    return typeof log.message === 'string' ? compactDisplayText(log.message, 420) : compactDisplayText(formatJson(log), 420);
   }
 
   function logTime(log: Record<string, unknown>): string {
@@ -1008,7 +1037,19 @@
   }
 
   function sourceCardPreview(source: ResearchSourceCard): string {
-    return source.text_preview || source.description || 'No preview text is available for this archived source.';
+    return compactDisplayText(source.text_preview || source.description || 'No preview text is available for this archived source.', 420);
+  }
+
+  function sourceCardTitle(source: ResearchSourceCard): string {
+    return compactDisplayText(source.title || source.canonical_url, 140);
+  }
+
+  function researchSourceTitle(source: ResearchSource): string {
+    return compactDisplayText(source.title || source.canonical_url, 140);
+  }
+
+  function researchSourceDescription(source: ResearchSource): string {
+    return compactDisplayText(source.description || '', 700);
   }
 
   function sourceScreenshotDataUrl(source: { metadata: Record<string, unknown> }): string {
@@ -1386,7 +1427,7 @@
             <div class="source-library-card-main">
               <span class="source-rank">#{source.rank}</span>
               <div>
-                <strong>{source.title || source.canonical_url}</strong>
+                <strong>{sourceCardTitle(source)}</strong>
                 <small>{sourceHost(source)} - {source.text_length} chars - seen {source.fetch_count} time{source.fetch_count === 1 ? '' : 's'}</small>
               </div>
               <span class="source-score">score {source.score.toFixed(1)}</span>
@@ -1480,13 +1521,13 @@
       <div class="report-grid">
         <article>
           <h3>TLDR</h3>
-          <p>{selectedRun.report.tldr || selectedReportSectionEmptyMessage('tldr')}</p>
+          <p>{reportText(selectedRun.report.tldr, selectedReportSectionEmptyMessage('tldr'))}</p>
         </article>
         <article>
           <h3>Reliability</h3>
           {#if selectedRun.report.reliability_notes.length}
             {#each selectedRun.report.reliability_notes as note}
-              <p>{note}</p>
+              <p>{compactBlockedExternalSourceText(note)}</p>
             {/each}
           {:else}
             <p class="empty-note">{selectedReportSectionEmptyMessage('reliability')}</p>
@@ -1496,7 +1537,7 @@
 
       <article class="full-summary">
         <h3>Detailed Summary</h3>
-        <p>{selectedRun.report.detailed_summary || selectedReportSectionEmptyMessage('detailedSummary')}</p>
+        <p>{reportText(selectedRun.report.detailed_summary, selectedReportSectionEmptyMessage('detailedSummary'))}</p>
       </article>
 
       <div class="report-grid">
@@ -1505,7 +1546,7 @@
           {#if selectedRun.report.key_facts.length}
             <ul>
               {#each selectedRun.report.key_facts as fact}
-                <li>{fact}</li>
+                <li>{compactBlockedExternalSourceText(fact)}</li>
               {/each}
             </ul>
           {:else}
@@ -1516,7 +1557,7 @@
           <h3>Open Questions</h3>
           {#if selectedRun.report.open_questions.length}
             {#each selectedRun.report.open_questions as item}
-              <p>{item}</p>
+              <p>{compactBlockedExternalSourceText(item)}</p>
             {/each}
           {:else}
             <p class="empty-note">{selectedReportSectionEmptyMessage('openQuestions')}</p>
@@ -1530,7 +1571,7 @@
           {#if selectedRun.report.disagreements.length}
             <ul>
               {#each selectedRun.report.disagreements as item}
-                <li>{item}</li>
+                <li>{compactBlockedExternalSourceText(item)}</li>
               {/each}
             </ul>
           {:else}
@@ -1542,7 +1583,7 @@
           {#if selectedRun.report.next_research_suggestions.length}
             <ul>
               {#each selectedRun.report.next_research_suggestions as item}
-                <li>{item}</li>
+                <li>{compactBlockedExternalSourceText(item)}</li>
               {/each}
             </ul>
           {:else}
@@ -1650,8 +1691,8 @@
             {#each selectedRun.citations as citation}
               <div>
                 <strong>{citation.id}</strong>
-                <p>{citation.claim}</p>
-                {#if citation.quote}<small>{citation.quote}</small>{/if}
+                <p>{compactBlockedExternalSourceText(citation.claim)}</p>
+                {#if citation.quote}<small>{compactBlockedExternalSourceText(citation.quote)}</small>{/if}
                 {#if citationSources(selectedRun, citation).length}
                   <div class="citation-sources">
                     {#each citationSources(selectedRun, citation) as source}
@@ -1674,19 +1715,19 @@
             <details class="source-card">
               <summary>
                 <span>{source.id}</span>
-                <strong>{source.title || source.canonical_url}</strong>
+                <strong>{researchSourceTitle(source)}</strong>
                 <small>{sourceHost(source)} - {source.text_length} chars - score {sourceScore(source)}{source.cached ? ' - cached' : ''}</small>
               </summary>
               <div class="source-card-body">
                 <a class="source-url" href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open source URL ${source.canonical_url}.`}>{source.canonical_url}</a>
-                {#if source.description}<p>{source.description}</p>{/if}
+                {#if source.description}<p>{researchSourceDescription(source)}</p>{/if}
                 <dl class="source-meta">
                   <div><dt>Author</dt><dd>{source.author ?? 'not recorded'}</dd></div>
                   <div><dt>Published</dt><dd>{source.published_at ?? 'not recorded'}</dd></div>
                   <div><dt>Fetched</dt><dd>{source.fetched_at}</dd></div>
                   <div><dt>Rank</dt><dd>{source.rank}</dd></div>
                 </dl>
-                <details class="json-details" open>
+                <details class="json-details">
                   <summary>Extracted text preview</summary>
                   <pre>{sourcePreview(source)}</pre>
                 </details>

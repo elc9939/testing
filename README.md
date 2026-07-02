@@ -176,7 +176,9 @@ The Svelte app under `apps/hub` provides these main pages:
   study, and game data. It shows loading, offline cached, and healthy-empty states instead
   of sample metrics.
 - Research Desk: AI OS-backed web intelligence workbench for quick search, deep research,
-  URL scrape, site crawl, source comparison, and topic-monitor shaped runs.
+  URL scrape, site crawl, source comparison, and topic-monitor shaped runs. Source Library
+  cards and report source previews stay compact by default; raw extraction details remain
+  recoverable behind disclosure controls.
 - AI Lab: small browser-side local AI experiments such as classification and code parsing.
   It shows whether the local browser assets are configured, distinguishes loading,
   healthy-empty, and error states, and does not require the AI OS API.
