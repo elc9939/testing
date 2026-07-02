@@ -14,7 +14,7 @@ export interface CompactServiceIssue {
 }
 
 const serviceIssuePattern =
-  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|CORS|mixed-content|timed out|timeout|abort|aborted|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|token|expired|revoked|401|403|unauthori[sz]ed|forbidden|permission)/iu;
+  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|fetch failed|CORS|mixed-content|timed out|timeout|abort|aborted|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|token|expired|revoked|401|403|unauthori[sz]ed|forbidden|permission)/iu;
 
 export function isLikelyServiceIssue(value: string): boolean {
   return serviceIssuePattern.test(value.trim());
@@ -37,7 +37,7 @@ export function classifyServiceIssue(message = ''): CompactServiceIssue {
     /hosted HTTPS page may be blocked|blocked from reaching|blocked from calling|insecure LAN HTTP endpoint|browser blocked|blocked by CORS|CORS policy|preflight|mixed-content|mixed content|https page/iu.test(
       text
     );
-  if (/failed to fetch|econnrefused|connection refused|network|offline|unavailable|service-offline/iu.test(text)) {
+  if (/failed to fetch|fetch failed|econnrefused|connection refused|network|offline|unavailable|service-offline/iu.test(text)) {
     return explicitBrowserBlock
       ? { kind: 'browser-blocked', summary: 'browser blocked request', raw: text }
       : { kind: 'offline', summary: 'service offline or unreachable', raw: text };

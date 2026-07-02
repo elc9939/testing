@@ -560,11 +560,10 @@ function compactPassiveServiceText(value: string, serviceLabel = 'Passive Tasks'
   if (/github pages|returned html|html instead of json|static site|wrong endpoint|missing route|route .*not found|\b404\b|not found/iu.test(text)) {
     return `${serviceLabel} is pointed at the wrong endpoint or a missing route. Open Settings Feature Wiring and check the saved service URL.`;
   }
-  if (
-    /failed to fetch|fetch failed|econnrefused|connection refused|network|offline|unavailable|service-offline/iu.test(text) &&
-    !/returned \d{3}/iu.test(text) &&
-    text.length > 40
-  ) {
+  if (/failed to fetch|fetch failed|econnrefused|connection refused/iu.test(text)) {
+    return `${serviceLabel} is offline or unreachable. Start the desktop service, then retry.`;
+  }
+  if (/network|offline|unavailable|service-offline/iu.test(text) && !/returned \d{3}/iu.test(text) && text.length > 40) {
     return `${serviceLabel} is offline or unreachable. Start the desktop service, then retry.`;
   }
   return text.length > maxLength ? `${text.slice(0, maxLength - 3).trim()}...` : text;

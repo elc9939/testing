@@ -223,6 +223,9 @@
     if (/openai|anthropic|api\s*key|client error ['"]?401|\b401\b|unauthori[sz]ed|\btoken\b|expired|revoked|forbidden|permission/iu.test(text)) {
       return `${label} needs authentication or a valid API key before this check can run.`;
     }
+    if (/failed to fetch|fetch failed|econnrefused|connection refused/iu.test(text)) {
+      return `${label} is offline or unreachable. Start the desktop service, then retry.`;
+    }
     if (text.length <= maxLength) return text;
     const compact = compactServiceIssueIfRecognized(text, label);
     if (compact !== text) {
