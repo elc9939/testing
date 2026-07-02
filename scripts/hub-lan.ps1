@@ -21,7 +21,7 @@ function Get-LanIPv4 {
 
 $lanIp = Get-LanIPv4
 $hubUrl = "http://$lanIp`:$Port"
-$serviceUrl = "$hubUrl/?apiUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8787"))&aiOsUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8791"))&macroLabUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8792"))"
+$serviceUrl = "$hubUrl/?apiUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8787"))&aiOsUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8791"))&macroLabUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8792"))&ollamaUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:11434"))"
 
 Write-Output "Mini Hub LAN mode: open this from your phone:"
 Write-Output $serviceUrl

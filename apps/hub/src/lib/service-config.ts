@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 
-export type ServiceId = 'hubApi' | 'aiOs' | 'macroLab';
+export type ServiceId = 'hubApi' | 'aiOs' | 'macroLab' | 'ollama';
 
 export interface ServiceEndpoint {
   id: ServiceId;
@@ -32,35 +32,41 @@ export interface ConnectionMode {
 }
 
 const storageKey = 'miniHub.serviceEndpoints.v1';
+const bridgeTokenStorageKey = 'miniHub.bridgeToken.v1';
 
 const queryNames: Record<ServiceId, string[]> = {
   hubApi: ['apiUrl', 'hubApiUrl'],
   aiOs: ['aiOsUrl', 'aiOsApiUrl'],
-  macroLab: ['macroLabUrl', 'macroLabApiUrl']
+  macroLab: ['macroLabUrl', 'macroLabApiUrl'],
+  ollama: ['ollamaUrl', 'ollamaBaseUrl']
 };
 
 const serviceLabels: Record<ServiceId, string> = {
   hubApi: 'Mini Hub API',
   aiOs: 'AI OS API',
-  macroLab: 'Macro Lab API'
+  macroLab: 'Macro Lab API',
+  ollama: 'Ollama'
 };
 
 const desktopFallbacks: Record<ServiceId, string> = {
   hubApi: 'http://127.0.0.1:8787',
   aiOs: 'http://127.0.0.1:8791',
-  macroLab: 'http://127.0.0.1:8792'
+  macroLab: 'http://127.0.0.1:8792',
+  ollama: 'http://127.0.0.1:11434'
 };
 
 const serviceHealthPaths: Record<ServiceId, string> = {
   hubApi: '/api/health',
   aiOs: '/api/ai/health',
-  macroLab: '/api/macro-lab/health'
+  macroLab: '/api/macro-lab/health',
+  ollama: '/api/tags'
 };
 
 const servicePorts: Record<ServiceId, number> = {
   hubApi: 8787,
   aiOs: 8791,
-  macroLab: 8792
+  macroLab: 8792,
+  ollama: 11434
 };
 
 export const defaultServiceRequestTimeoutMs = 15_000;
@@ -334,6 +340,43 @@ export function setServiceEndpoints(endpoints: Partial<Record<ServiceId, string>
   return Object.entries(stored).map(([id, url]) => ({ id: id as ServiceId, label: serviceLabels[id as ServiceId], url: url ?? '' }));
 }
 
+export function getBridgeToken(): string {
+  const storage = getBrowserStorage();
+  if (!storage) return '';
+  try {
+    return storage.getItem(bridgeTokenStorageKey)?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setBridgeToken(value: string): string {
+  const next = value.trim();
+  const storage = getBrowserStorage();
+  if (!storage) return next;
+  try {
+    if (next) storage.setItem(bridgeTokenStorageKey, next);
+    else storage.removeItem(bridgeTokenStorageKey);
+  } catch {
+    // Bridge token persistence is best-effort; Settings diagnostics will still explain the missing token.
+  }
+  return next;
+}
+
+export function clearBridgeToken(): void {
+  setBridgeToken('');
+}
+
+export function bridgeTokenConfigured(): boolean {
+  return Boolean(getBridgeToken());
+}
+
+export function bridgeAuthHeaders(serviceId: ServiceId): Record<string, string> {
+  if (serviceId === 'ollama') return {};
+  const token = getBridgeToken();
+  return token ? { 'X-Mini-Hub-Bridge-Token': token } : {};
+}
+
 export function getStoredServiceEndpoints(): ServiceEndpoint[] {
   const stored = readStoredEndpoints();
   return (Object.keys(serviceLabels) as ServiceId[])
@@ -350,7 +393,7 @@ export function serviceEndpointResolutions(): ServiceEndpointResolution[] {
 }
 
 export function localNetworkHint(): string {
-  return 'For full private-network access, double-click Start Mini Hub Phone Mode.cmd on the desktop, or run pnpm stack:start:lan, and keep that window open. It starts the API, AI OS, Macro Lab, and hub, then prints/copies a LAN URL with the desktop service addresses already filled in. For Tailscale, use the same service ports on your PC name or 100.x address.';
+  return 'For full private-network access, run pnpm bridge:start:lan, or use the older pnpm stack:start:lan helper, and keep the PC awake. The bridge command checks Mini Hub API, AI OS, Macro Lab, Ollama, and the hub, then writes a LAN URL with the desktop service addresses already filled in. For Tailscale, use the same service ports on your PC name or 100.x address.';
 }
 
 export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string, expected = 'JSON'): string {
@@ -441,8 +484,9 @@ async function fetchServiceJson<T>(
       credentials: options.credentials,
       signal: controller?.signal ?? init.signal,
       headers: {
-        'content-type': 'application/json',
+        ...(init.body ? { 'content-type': 'application/json' } : {}),
         accept: 'application/json',
+        ...bridgeAuthHeaders(serviceId),
         ...(init.headers ?? {})
       }
     });
@@ -515,6 +559,7 @@ async function fetchServiceResponse(
       signal: controller?.signal ?? init.signal,
       headers: {
         accept: 'application/json',
+        ...bridgeAuthHeaders(serviceId),
         ...(init.headers ?? {})
       }
     });

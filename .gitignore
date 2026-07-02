@@ -34,3 +34,5 @@ pose-*.svg
 Thumbs.db
 *.log
 phone-link.txt
+bridge-link.txt
+.mini-hub-bridge/

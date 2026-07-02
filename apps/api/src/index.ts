@@ -61,6 +61,19 @@ function personalUser(): SessionUser {
   };
 }
 
+function bridgeTokenAccepted(headers: Headers): boolean {
+  if (!env.bridgeToken) return true;
+  return headers.get('x-mini-hub-bridge-token') === env.bridgeToken;
+}
+
+function bridgeProtectedPath(path: string): boolean {
+  if (!path.startsWith('/api/')) return false;
+  if (path === '/api/health') return false;
+  if (path.startsWith('/api/auth/')) return false;
+  if (path === '/api/integrations/google/oauth/callback') return false;
+  return true;
+}
+
 function localLanIpv4(): string[] {
   const addresses = new Set<string>();
   for (const entries of Object.values(networkInterfaces())) {
@@ -99,11 +112,24 @@ export function createApp(options: CreateAppOptions = {}) {
         if (!origin) return env.trustedOrigins[0] ?? '*';
         return env.trustedOrigins.includes(origin) ? origin : env.trustedOrigins[0];
       },
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Mini-Hub-Return-To'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Mini-Hub-Return-To', 'X-Mini-Hub-Bridge-Token'],
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true
     })
   );
+
+  app.use('*', async (c, next) => {
+    if (c.req.method !== 'OPTIONS' && env.bridgeToken && bridgeProtectedPath(c.req.path) && !bridgeTokenAccepted(c.req.raw.headers)) {
+      return c.json(
+        {
+          ok: false,
+          detail: 'Mini Hub bridge token is required. Save the matching bridge token in Settings -> Desktop Services.'
+        },
+        401
+      );
+    }
+    await next();
+  });
 
   app.use('*', async (c, next) => {
     const oauthCallbackPath = c.req.path === '/api/integrations/google/oauth/callback';
@@ -144,6 +170,10 @@ export function createApp(options: CreateAppOptions = {}) {
       network: {
         lanIpv4: localLanIpv4(),
         hubPublicUrl: env.hubPublicUrl
+      },
+      bridgeAuth: {
+        required: Boolean(env.bridgeToken),
+        accepted: bridgeTokenAccepted(c.req.raw.headers)
       },
       storage: {
         coreData: coreDataHealth(store)

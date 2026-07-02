@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     action_snapshots_dir: Path | None = Field(default=None, validation_alias="MACRO_LAB_ACTION_SNAPSHOTS_DIR")
     log_level: str = Field(default="INFO", validation_alias="MACRO_LAB_LOG_LEVEL")
     require_loopback: bool = Field(default=True, validation_alias="MACRO_LAB_REQUIRE_LOOPBACK")
+    bridge_token: str | None = Field(default=None, validation_alias="MINI_HUB_BRIDGE_TOKEN")
     max_request_bytes: int = Field(default=10_000_000, validation_alias="MACRO_LAB_MAX_REQUEST_BYTES")
     trusted_origins: list[str] = Field(
         default_factory=lambda: _csv_env(

@@ -334,7 +334,7 @@ const routes = [
     id: 'settings',
     path: '/settings',
     source: 'apps/hub/src/routes/settings/+page.svelte',
-    service: 'Mini Hub API, AI OS API, Macro Lab API, browser storage',
+    service: 'Mini Hub API, AI OS API, Macro Lab API, Ollama, browser storage',
     safeAction: 'Refresh Feature Wiring; save endpoint/theme changes only when target storage is ready.',
     sampleInput: 'No destructive input. Click Check Services and inspect Feature Wiring/Data & Recovery.',
     expectedResult: 'Each feature row reports working/offline/misconfigured/setup-needed with endpoint and fix action.',

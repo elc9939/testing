@@ -1573,6 +1573,27 @@ def test_trusted_web_origin_gets_private_network_header(tmp_path):
     assert response.headers["access-control-allow-private-network"] == "true"
 
 
+def test_bridge_token_protects_ai_os_work_routes_when_configured(tmp_path):
+    settings = Settings(data_dir=tmp_path, backup_enabled=False, bridge_token="bridge-secret")
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        health = client.get("/api/ai/health")
+        blocked = client.post("/api/ai/infer", json={"prompt": "ok"})
+        allowed = client.post(
+            "/api/ai/infer",
+            json={"prompt": "ok"},
+            headers={"X-Mini-Hub-Bridge-Token": "bridge-secret"},
+        )
+
+    assert health.status_code == 200
+    assert health.json()["bridge_auth"] == {"required": True, "accepted": False}
+    assert blocked.status_code == 401
+    assert allowed.status_code == 200
+
+
 def test_configurable_resource_limits_are_enforced(tmp_path):
     settings = Settings(
         data_dir=tmp_path,

@@ -147,6 +147,22 @@ def test_api_macro_run_and_panic(tmp_path):
     assert reset.json()["panic"] is False
 
 
+def test_bridge_token_protects_macro_lab_work_routes_when_configured(tmp_path):
+    settings = Settings(data_dir=tmp_path, clipboard_poll_interval_s=60, bridge_token="bridge-secret")
+    storage = MacroStorage(settings.database_path())
+    app = create_app(settings=settings, storage=storage)
+
+    with TestClient(app) as client:
+        health = client.get("/api/macro-lab/health")
+        blocked = client.get("/api/macro-lab/macros")
+        allowed = client.get("/api/macro-lab/macros", headers={"X-Mini-Hub-Bridge-Token": "bridge-secret"})
+
+    assert health.status_code == 200
+    assert health.json()["bridge_auth"] == {"required": True, "accepted": False}
+    assert blocked.status_code == 401
+    assert allowed.status_code == 200
+
+
 def test_api_restores_macro_file_recovery_artifacts(tmp_path):
     settings = Settings(data_dir=tmp_path / "data", clipboard_poll_interval_s=60)
     storage = MacroStorage(settings.database_path())

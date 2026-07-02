@@ -17,6 +17,10 @@ export interface HubHealth {
     lanIpv4: string[];
     hubPublicUrl?: string;
   };
+  bridgeAuth?: {
+    required: boolean;
+    accepted: boolean;
+  };
   storage?: {
     coreData?: {
       enabled: boolean;

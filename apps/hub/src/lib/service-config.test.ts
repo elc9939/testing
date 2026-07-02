@@ -136,9 +136,33 @@ describe('service endpoint resolution', () => {
     expect(remoteEndpointSuggestions('http://192.168.1.25:5173').map((endpoint) => endpoint.url)).toEqual([
       'http://192.168.1.25:8787',
       'http://192.168.1.25:8791',
-      'http://192.168.1.25:8792'
+      'http://192.168.1.25:8792',
+      'http://192.168.1.25:11434'
     ]);
     expect(remoteEndpointSuggestions('https://elc9939.github.io/testing')).toEqual([]);
+  });
+
+  it('stores an optional bridge token and sends it only to Mini Hub-controlled services', async () => {
+    vi.resetModules();
+    vi.doMock('$app/environment', () => ({ browser: true }));
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+      clear: () => storage.clear(),
+      key: () => null,
+      length: 0
+    });
+
+    const { bridgeAuthHeaders, setBridgeToken } = await import('./service-config');
+
+    setBridgeToken('secret-bridge-token');
+
+    expect(bridgeAuthHeaders('hubApi')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
+    expect(bridgeAuthHeaders('aiOs')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
+    expect(bridgeAuthHeaders('macroLab')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
+    expect(bridgeAuthHeaders('ollama')).toEqual({});
   });
 
   it('explains hosted HTTPS failures against local desktop services', () => {

@@ -33,6 +33,7 @@ export interface FeatureWiringInput {
   hubApi: FeatureWiringSignal;
   aiOs: FeatureWiringSignal;
   macroLab: FeatureWiringSignal;
+  ollama: FeatureWiringSignal;
   google: FeatureWiringSignal;
   passiveTasks: FeatureWiringSignal;
   browserStorage: FeatureWiringSignal;
@@ -43,6 +44,7 @@ export function buildFeatureWiringRows(input: FeatureWiringInput): FeatureWiring
   const hubEndpoint = endpointById.get('hubApi');
   const aiEndpoint = endpointById.get('aiOs');
   const macroEndpoint = endpointById.get('macroLab');
+  const ollamaEndpoint = endpointById.get('ollama');
 
   return [
     serviceRow({
@@ -80,6 +82,15 @@ export function buildFeatureWiringRows(input: FeatureWiringInput): FeatureWiring
       route: routeMap.macroLab,
       endpoint: macroEndpoint,
       signal: input.macroLab,
+      checkedAt: input.checkedAt
+    }),
+    serviceRow({
+      id: 'ollama',
+      feature: 'Ollama',
+      requiredService: 'Local model server',
+      route: routeMap.aiOs,
+      endpoint: ollamaEndpoint,
+      signal: input.ollama,
       checkedAt: input.checkedAt
     }),
     serviceRow({

@@ -41,7 +41,7 @@ function Test-MiniHubApi([int]$Port) {
 }
 
 $lanIp = Get-LanIPv4
-$serviceUrl = "http://$lanIp`:$HubPort/?apiUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:$ApiPort"))&aiOsUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8791"))&macroLabUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8792"))"
+$serviceUrl = "http://$lanIp`:$HubPort/?apiUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:$ApiPort"))&aiOsUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8791"))&macroLabUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8792"))&ollamaUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:11434"))"
 Set-Content -Path $PhoneLinkFile -Value $serviceUrl
 try {
   Set-Clipboard -Value $serviceUrl

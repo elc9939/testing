@@ -2061,7 +2061,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('endpointReloadButtonTitle = endpointReloadTitle(endpointSaving)');
     expect(source).toContain('function serviceCheckTitle');
     expect(source).toContain('title={serviceCheckButtonTitle}');
-    expect(source).toContain('Check Mini Hub, AI OS, Macro Lab, Passive Tasks, Google readiness, endpoint wiring, and browser storage health.');
+    expect(source).toContain('Check Mini Hub, AI OS, Macro Lab, Ollama, Passive Tasks, Google readiness, endpoint wiring, and browser storage health.');
     expect(source).toContain('function capabilityRefreshTitle');
     expect(source).toContain('title={capabilityRefreshButtonTitle}');
     expect(source).toContain('function themeButtonTitle');

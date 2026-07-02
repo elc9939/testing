@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import secrets
 import time
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
@@ -199,6 +200,18 @@ def create_app(
             return with_private_network_header(
                 JSONResponse({"detail": "AI OS API only accepts loopback clients."}, status_code=403)
             )
+        if (
+            settings.bridge_token
+            and request.method.upper() != "OPTIONS"
+            and request.url.path != "/api/ai/health"
+            and not secrets.compare_digest(request.headers.get("x-mini-hub-bridge-token", ""), settings.bridge_token)
+        ):
+            return with_private_network_header(
+                JSONResponse(
+                    {"detail": "AI OS bridge token is required. Save the matching bridge token in Mini Hub Settings."},
+                    status_code=401,
+                )
+            )
         content_length = request.headers.get("content-length")
         if content_length:
             try:
@@ -269,8 +282,17 @@ def create_app(
         }
 
     @app.get("/api/ai/health")
-    async def health() -> dict[str, Any]:
-        return {"ok": True, "service": "mini-hub-ai-os-api", "version": app.version}
+    async def health(request: Request) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "service": "mini-hub-ai-os-api",
+            "version": app.version,
+            "bridge_auth": {
+                "required": bool(services.settings.bridge_token),
+                "accepted": (not services.settings.bridge_token)
+                or secrets.compare_digest(request.headers.get("x-mini-hub-bridge-token", ""), services.settings.bridge_token),
+            },
+        }
 
     @app.get("/api/ai/providers")
     async def providers_status() -> dict[str, Any]:

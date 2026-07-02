@@ -13,11 +13,13 @@ describe('feature wiring diagnostics', () => {
       endpoints: [
         endpoint('hubApi', 'http://127.0.0.1:8787'),
         endpoint('aiOs', 'https://elc9939.github.io/testing'),
-        endpoint('macroLab', 'http://127.0.0.1:8792')
+        endpoint('macroLab', 'http://127.0.0.1:8792'),
+        endpoint('ollama', 'http://127.0.0.1:11434')
       ],
       hubApi: { ready: true },
       aiOs: { ready: false },
       macroLab: { ready: true },
+      ollama: { ready: true },
       google: { setupNeeded: true },
       passiveTasks: { ready: true },
       browserStorage: { ready: true }
@@ -37,11 +39,13 @@ describe('feature wiring diagnostics', () => {
       endpoints: [
         endpoint('hubApi', 'http://127.0.0.1:8787'),
         endpoint('aiOs', 'http://127.0.0.1:8791'),
-        endpoint('macroLab', 'http://127.0.0.1:8792')
+        endpoint('macroLab', 'http://127.0.0.1:8792'),
+        endpoint('ollama', 'http://127.0.0.1:11434')
       ],
       hubApi: { ready: true },
       aiOs: { ready: true },
       macroLab: { ready: true },
+      ollama: { ready: true, detail: 'Ollama responded with 1 local model.' },
       google: { setupNeeded: true, detail: 'No Google account is connected.' },
       passiveTasks: { error: 'Passive task route failed.' },
       browserStorage: { ready: true }
@@ -53,6 +57,10 @@ describe('feature wiring diagnostics', () => {
     });
     expect(rows.find((row) => row.id === 'passive-tasks')?.status).toBe('offline');
     expect(rows.find((row) => row.id === 'passive-tasks')?.endpoint).toBe('http://127.0.0.1:8787/api/passive-tasks/*');
+    expect(rows.find((row) => row.id === 'ollama')).toMatchObject({
+      status: 'ready',
+      endpoint: 'http://127.0.0.1:11434'
+    });
     expect(featureWiringStatusLabel('needs_setup')).toBe('Needs setup');
   });
 
@@ -61,11 +69,13 @@ describe('feature wiring diagnostics', () => {
       endpoints: [
         endpoint('hubApi', 'http://127.0.0.1:8787'),
         endpoint('aiOs', 'http://127.0.0.1:8791'),
-        endpoint('macroLab', 'http://127.0.0.1:8792')
+        endpoint('macroLab', 'http://127.0.0.1:8792'),
+        endpoint('ollama', 'http://127.0.0.1:11434')
       ],
       hubApi: {},
       aiOs: {},
       macroLab: {},
+      ollama: {},
       google: {},
       passiveTasks: {},
       browserStorage: {}

@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     action_snapshots_dir: Path | None = Field(default=None, validation_alias="AI_OS_ACTION_SNAPSHOTS_DIR")
     desktop_export_dir: Path | None = Field(default=None, validation_alias="AI_OS_DESKTOP_EXPORT_DIR")
     require_loopback: bool = Field(default=True, validation_alias="AI_OS_REQUIRE_LOOPBACK")
+    bridge_token: str | None = Field(default=None, validation_alias="MINI_HUB_BRIDGE_TOKEN")
     max_request_bytes: int = Field(default=15_000_000, validation_alias="AI_OS_MAX_REQUEST_BYTES")
     max_prompt_chars: int = Field(default=200_000, validation_alias="AI_OS_MAX_PROMPT_CHARS")
     max_memory_ingest_chars: int = Field(default=2_000_000, validation_alias="AI_OS_MAX_MEMORY_INGEST_CHARS")

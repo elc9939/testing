@@ -355,6 +355,30 @@ describe('mini hub api', () => {
     }
   });
 
+  it('requires the optional bridge token for protected API routes when configured', async () => {
+    const previous = { bridgeToken: env.bridgeToken };
+    env.bridgeToken = 'bridge-secret';
+    try {
+      const app = createApp({ useLogger: false, store: createMemoryStore() });
+
+      const health = await app.request('/api/health');
+      expect(health.status).toBe(200);
+      expect(await health.json()).toMatchObject({
+        bridgeAuth: { required: true, accepted: false }
+      });
+
+      const blocked = await app.request('/api/workspaces');
+      expect(blocked.status).toBe(401);
+
+      const allowed = await app.request('/api/workspaces', {
+        headers: { 'X-Mini-Hub-Bridge-Token': 'bridge-secret' }
+      });
+      expect(allowed.status).toBe(200);
+    } finally {
+      env.bridgeToken = previous.bridgeToken;
+    }
+  });
+
   it('accepts protected personal routes in local mode', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const response = await app.request('/api/workspaces');

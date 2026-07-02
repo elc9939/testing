@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 import time
 from contextlib import asynccontextmanager
 from typing import Any
@@ -221,6 +222,18 @@ def create_app(settings: Settings | None = None, storage: MacroStorage | None = 
             return with_private_network_header(
                 JSONResponse({"detail": "Macro Lab only accepts loopback clients."}, status_code=403)
             )
+        if (
+            settings.bridge_token
+            and request.method.upper() != "OPTIONS"
+            and request.url.path != "/api/macro-lab/health"
+            and not secrets.compare_digest(request.headers.get("x-mini-hub-bridge-token", ""), settings.bridge_token)
+        ):
+            return with_private_network_header(
+                JSONResponse(
+                    {"detail": "Macro Lab bridge token is required. Save the matching bridge token in Mini Hub Settings."},
+                    status_code=401,
+                )
+            )
         content_length = request.headers.get("content-length")
         if content_length:
             try:
@@ -238,8 +251,17 @@ def create_app(settings: Settings | None = None, storage: MacroStorage | None = 
         return with_private_network_header(response)
 
     @app.get("/api/macro-lab/health")
-    async def health() -> dict[str, Any]:
-        return {"ok": True, "service": "macro-lab", "version": __version__}
+    async def health(request: Request) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "service": "macro-lab",
+            "version": __version__,
+            "bridge_auth": {
+                "required": bool(settings.bridge_token),
+                "accepted": (not settings.bridge_token)
+                or secrets.compare_digest(request.headers.get("x-mini-hub-bridge-token", ""), settings.bridge_token),
+            },
+        }
 
     @app.get("/api/macro-lab/status")
     async def status() -> dict[str, Any]:

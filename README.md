@@ -34,6 +34,7 @@ local API services to be running on the same machine:
 | Mini Hub API | `http://127.0.0.1:8787` | Personal data, sync, career/study records, game state, Google integration API. |
 | AI OS API | `http://127.0.0.1:8791` | Local/API model routing, tools, RAG, jobs, multimodal generation, backups, health, web/browser access. |
 | Macro Lab API | `http://127.0.0.1:8792` | Local Windows macro automation daemon. |
+| Ollama | `http://127.0.0.1:11434` | Local model server used by AI OS and Macro Lab when available. |
 
 ## Local Full Power vs. Private Remote vs. Hosted Light
 
@@ -59,9 +60,25 @@ Hub UI:        http://<pc-private-host>:5173
 Mini Hub API:  http://<pc-private-host>:8787
 AI OS API:     http://<pc-private-host>:8791
 Macro Lab API: http://<pc-private-host>:8792
+Ollama:        http://<pc-private-host>:11434
 ```
 
-For Windows LAN mode, use:
+For the current one-command bridge launcher, use:
+
+```powershell
+pnpm bridge:status
+pnpm bridge:start
+pnpm bridge:start:lan
+pnpm bridge:restart
+pnpm bridge:stop
+```
+
+`bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
+starts the local Hub UI on the LAN address and writes a ready URL with `apiUrl`, `aiOsUrl`,
+`macroLabUrl`, and `ollamaUrl` query parameters to `bridge-link.txt`. The status action shows
+Mini Hub API, AI OS, Macro Lab, and Ollama health plus PIDs.
+
+The older Windows LAN helper still works:
 
 ```powershell
 pnpm stack:start:lan
@@ -81,10 +98,24 @@ extra private origins to `TRUSTED_ORIGINS`, `AI_OS_TRUSTED_ORIGINS`, and
 `MACRO_LAB_TRUSTED_ORIGINS` if you serve the UI from a private hostname that the launcher
 did not detect.
 
+For optional bridge hardening, set the same shared secret before starting services:
+
+```powershell
+$env:MINI_HUB_BRIDGE_TOKEN='a-long-private-random-string'
+pnpm bridge:start:lan
+```
+
+Then save that value in Settings -> Desktop Services -> Bridge token. When
+`MINI_HUB_BRIDGE_TOKEN` is configured, Hub API, AI OS, and Macro Lab work routes require the
+`X-Mini-Hub-Bridge-Token` header sent by the hub. Health endpoints stay readable enough for
+diagnostics and report whether the token is required/accepted. Ollama is not sent this
+Mini Hub token because the stock Ollama server does not understand it.
+
 Do not expose AI OS or Macro Lab directly to the public internet. Macro Lab can control the
 desktop, and AI OS can access local models, files, tools, and browser-like research routes.
 Keep remote access private-network only unless you deliberately add a stronger auth/proxy
-layer later.
+layer later. Remote-control features remain off or confirmation-gated unless you explicitly
+arm them in Macro Lab.
 
 ### Hosted Pages vs. Local Services
 
@@ -603,6 +634,17 @@ Secrets belong in `.env`, never in git.
 
 ## Running Locally
 
+For the easiest full-power desktop bridge after reboot:
+
+```powershell
+pnpm bridge:start
+pnpm bridge:status
+```
+
+Use `pnpm bridge:start:lan` when another device on LAN/Tailscale should reach this PC, then
+open the URL written to `bridge-link.txt` or save those endpoint values in Settings on the
+hosted GitHub Pages app.
+
 For the core web app and data API:
 
 ```powershell
@@ -663,6 +705,17 @@ Important distinction:
 - Browser JSON calls to Hub API, AI OS, and Macro Lab are centrally bounded. If a service
   is offline, hung, blocked by CORS/mixed-content, or pointed at the hosted static site,
   the page should show an actionable timeout/setup error instead of loading forever.
+
+## What Costs Money
+
+- GitHub Pages hosting for this public static UI is free for the current repo setup.
+- Ollama/local models run on your own PC and do not create per-call API charges.
+- OpenAI, Anthropic, specialist AI APIs, cloud tunnels, paid Google Workspace features, or
+  paid hosting providers can cost money if you configure them.
+- Private-network tools such as Tailscale may have free personal options, but pricing and
+  plan limits can change; check your current plan before depending on paid/team features.
+- Macro Lab and local file automation do not cost money, but they can affect your machine,
+  so destructive actions stay confirmation-gated or armed-mode gated.
 
 ## Checks
 

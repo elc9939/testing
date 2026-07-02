@@ -38,16 +38,20 @@
   } from '$lib/machine-mode';
   import { persistenceOwnerLabel, persistenceRows, persistenceSummary } from '$lib/persistence-map';
   import { getMacroLabApiUrl, restoreMacroRun } from '$lib/macro-lab-api';
+  import { getOllamaTags, getOllamaUrl } from '$lib/ollama-api';
   import { getPassiveSnapshot, passiveFamilyLabel, patchPassiveSettings } from '$lib/passive-tasks-api';
   import { getConnections, listCalendars, listGmailLabels } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import {
+    bridgeTokenConfigured,
     connectionModeForOrigin,
+    getBridgeToken,
     localNetworkHint,
     remoteEndpointSuggestions,
     serviceEndpointResolution,
     serviceFallbackUrl,
     serviceHealthPath,
+    setBridgeToken,
     setServiceEndpoints,
     type ServiceEndpoint,
     type ServiceId
@@ -95,6 +99,10 @@
   let hubApiInput = '';
   let aiOsInput = '';
   let macroLabInput = '';
+  let ollamaInput = '';
+  let bridgeTokenInput = '';
+  let ollamaStatus = 'Run Check Services';
+  let ollamaModelCount = 0;
   let googleConnected = false;
   let googleReady = false;
   let googleNeedsReconnect = false;
@@ -173,7 +181,8 @@
   $: endpointResolutions = [
     serviceEndpointResolution('hubApi', hubApiInput, serviceFallbackUrl('hubApi'), currentOrigin()),
     serviceEndpointResolution('aiOs', aiOsInput, serviceFallbackUrl('aiOs'), currentOrigin()),
-    serviceEndpointResolution('macroLab', macroLabInput, serviceFallbackUrl('macroLab'), currentOrigin())
+    serviceEndpointResolution('macroLab', macroLabInput, serviceFallbackUrl('macroLab'), currentOrigin()),
+    serviceEndpointResolution('ollama', ollamaInput, serviceFallbackUrl('ollama'), currentOrigin())
   ];
   $: connectionMode = connectionModeForOrigin(currentOrigin());
   $: endpointSuggestions = remoteEndpointSuggestions(currentOrigin());
@@ -219,6 +228,14 @@
       loading: capabilityLoading,
       error: capabilityServiceError('macro-lab'),
       detail: capabilityServiceReady('macro-lab') ? 'Macro status, run history, and actions are reachable.' : undefined
+    },
+    ollama: {
+      ready: apiStatusReady(ollamaStatus),
+      loading: ollamaStatus === 'Checking',
+      error: apiStatusError(ollamaStatus),
+      detail: apiStatusReady(ollamaStatus)
+        ? `Ollama responded with ${ollamaModelCount} local model${ollamaModelCount === 1 ? '' : 's'}.`
+        : undefined
     },
     google: {
       ready: googleReady,
@@ -269,10 +286,29 @@
     try {
       const health = await getHealth();
       hubHealth = health;
-      apiStatus = `${health.service}: ${health.ok ? 'ok' : 'not ok'}${health.storage?.coreData ? ` - core data ${health.storage.coreData.status.replace('_', '-')}` : ''}`;
+      const bridgeAuthBlocksWrites = Boolean(health.bridgeAuth?.required && !health.bridgeAuth.accepted);
+      const coreDataStatus = health.storage?.coreData ? ` - core data ${health.storage.coreData.status.replace('_', '-')}` : '';
+      const bridgeAuthStatus = health.bridgeAuth?.required
+        ? health.bridgeAuth.accepted
+          ? ' - bridge token accepted'
+          : ' - bridge token required; save it in Desktop Services'
+        : '';
+      apiStatus = `${health.service}: ${health.ok && !bridgeAuthBlocksWrites ? 'ok' : 'not ok'}${coreDataStatus}${bridgeAuthStatus}`;
     } catch (error) {
       hubHealth = null;
       apiStatus = error instanceof Error ? error.message : 'API unavailable';
+    }
+  }
+
+  async function checkOllama(): Promise<void> {
+    ollamaStatus = 'Checking';
+    ollamaModelCount = 0;
+    try {
+      const tags = await getOllamaTags();
+      ollamaModelCount = tags.models?.length ?? 0;
+      ollamaStatus = `Ollama: ok - ${ollamaModelCount} model${ollamaModelCount === 1 ? '' : 's'}`;
+    } catch (error) {
+      ollamaStatus = error instanceof Error ? error.message : 'Ollama unavailable';
     }
   }
 
@@ -280,7 +316,7 @@
     if (serviceChecking) return;
     serviceChecking = true;
     try {
-      await Promise.all([checkApi(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger(), refreshPassiveSettings()]);
+      await Promise.all([checkApi(), checkOllama(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger(), refreshPassiveSettings()]);
       serviceCheckedAt = new Date().toISOString();
     } finally {
       serviceChecking = false;
@@ -315,8 +351,8 @@
 
   function serviceCheckTitle(isChecking: boolean): string {
     return isChecking
-      ? 'Service check is already running across Mini Hub, AI OS, Macro Lab, Passive Tasks, Google, and browser storage.'
-      : 'Check Mini Hub, AI OS, Macro Lab, Passive Tasks, Google readiness, endpoint wiring, and browser storage health.';
+      ? 'Service check is already running across Mini Hub, AI OS, Macro Lab, Ollama, Passive Tasks, Google, and browser storage.'
+      : 'Check Mini Hub, AI OS, Macro Lab, Ollama, Passive Tasks, Google readiness, endpoint wiring, and browser storage health.';
   }
 
   function passiveSettingsControlBlockedReason(state: {
@@ -478,6 +514,8 @@
     hubApiInput = getApiUrl();
     aiOsInput = getAiOsApiUrl();
     macroLabInput = getMacroLabApiUrl();
+    ollamaInput = getOllamaUrl();
+    bridgeTokenInput = getBridgeToken();
     endpointError = '';
     if (showMessage) endpointMessage = 'Reloaded saved service URLs from this browser.';
   }
@@ -513,15 +551,26 @@
       if (suggestion.id === 'hubApi') hubApiInput = suggestion.url;
       if (suggestion.id === 'aiOs') aiOsInput = suggestion.url;
       if (suggestion.id === 'macroLab') macroLabInput = suggestion.url;
+      if (suggestion.id === 'ollama') ollamaInput = suggestion.url;
     }
     endpointMessage = 'Filled service URLs from the current hub host. Save Service URLs to use them in this browser.';
+    endpointError = '';
+  }
+
+  function applyLocalhostEndpoints(): void {
+    if (endpointSaving) return;
+    hubApiInput = serviceFallbackUrl('hubApi');
+    aiOsInput = serviceFallbackUrl('aiOs');
+    macroLabInput = serviceFallbackUrl('macroLab');
+    ollamaInput = serviceFallbackUrl('ollama');
+    endpointMessage = 'Filled localhost service URLs. Save Service URLs to use the Local Full Power profile in this browser.';
     endpointError = '';
   }
 
   function currentHostEndpointTitle(): string {
     if (endpointSaving) return 'Service URLs are saving.';
     if (!endpointSuggestions.length) return 'This public/static origin cannot infer your private desktop host. Enter a LAN or Tailscale host manually.';
-    return 'Fill Mini Hub API, AI OS, and Macro Lab URLs using this page host and the standard service ports.';
+    return 'Fill Mini Hub API, AI OS, Macro Lab, and Ollama URLs using this page host and the standard service ports.';
   }
 
   function endpointModeNote(): string {
@@ -558,11 +607,15 @@
       setServiceEndpoints({
         hubApi: hubApiInput,
         aiOs: aiOsInput,
-        macroLab: macroLabInput
+        macroLab: macroLabInput,
+        ollama: ollamaInput
       });
+      setBridgeToken(bridgeTokenInput);
       hubApiInput = getApiUrl();
       aiOsInput = getAiOsApiUrl();
       macroLabInput = getMacroLabApiUrl();
+      ollamaInput = getOllamaUrl();
+      bridgeTokenInput = getBridgeToken();
       endpointMessage = 'Saved. Checking services with the new URLs.';
       await checkServices();
       endpointMessage = 'Saved. Service requests now use these URLs on this browser.';
@@ -1178,6 +1231,11 @@
         <strong>http://127.0.0.1:5173</strong>
         <small>Open this on the Windows PC.</small>
       </div>
+      <div>
+        <span>Bridge token</span>
+        <strong>{bridgeTokenConfigured() ? 'Saved in this browser' : 'Not saved'}</strong>
+        <small>{bridgeTokenConfigured() ? 'Sent to Hub API, AI OS, and Macro Lab when configured server-side.' : 'Optional; set MINI_HUB_BRIDGE_TOKEN before exposing services beyond loopback.'}</small>
+      </div>
     </div>
     <div class="endpoint-diagnostic-list" aria-label="Service targets for this browser">
       {#each endpointResolutions as endpoint}
@@ -1205,6 +1263,10 @@
         <Cloud size={17} />
         <span>Use Current Host URLs</span>
       </button>
+      <button class="button" type="button" disabled={endpointSaving} title="Use the default Local Full Power service URLs on this Windows PC." on:click={applyLocalhostEndpoints}>
+        <Monitor size={17} />
+        <span>Use Localhost URLs</span>
+      </button>
       <a class="button" href="http://127.0.0.1:5173/" target="_blank" rel="noreferrer" title="Open the local full-power hub on this Windows PC.">
         <Monitor size={17} />
         <span>Open Local Full Power</span>
@@ -1214,6 +1276,9 @@
         <span>Open Hosted Light</span>
       </a>
     </div>
+    <p class="helper-text">
+      Profiles: Localhost uses 127.0.0.1 on this PC; Current Host uses the LAN/Tailscale/private host serving this page; hosted GitHub Pages needs manually saved private endpoints or an HTTPS tunnel/proxy that forwards to these same service ports.
+    </p>
   </div>
 
   <div id="machine-mode" class="machine-mode-panel">
@@ -1854,6 +1919,22 @@
       <div class="field">
         <label for="macro-lab-url">Macro Lab API</label>
         <input id="macro-lab-url" bind:value={macroLabInput} disabled={endpointSaving} title={endpointInputTitle('Macro Lab API')} placeholder="http://192.168.1.25:8792" />
+      </div>
+      <div class="field">
+        <label for="ollama-url">Ollama</label>
+        <input id="ollama-url" bind:value={ollamaInput} disabled={endpointSaving} title={endpointInputTitle('Ollama')} placeholder="http://192.168.1.25:11434" />
+      </div>
+      <div class="field">
+        <label for="bridge-token">Bridge token</label>
+        <input
+          id="bridge-token"
+          type="password"
+          bind:value={bridgeTokenInput}
+          disabled={endpointSaving}
+          autocomplete="off"
+          title="Optional shared secret stored in this browser. If MINI_HUB_BRIDGE_TOKEN is set on local services, this token is required for service-backed Hub, AI OS, and Macro Lab calls."
+          placeholder="Optional shared secret"
+        />
       </div>
     </div>
     <div class="action-row">
