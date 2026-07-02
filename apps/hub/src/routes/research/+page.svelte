@@ -1117,7 +1117,7 @@
       <h1>Research Desk</h1>
       <p>Search, scrape, crawl, compare, cite, and archive source-backed reports through AI OS.</p>
     </div>
-    <button class="icon-button" type="button" disabled={refreshing} title={refreshRunsButtonTitle} on:click={refreshRuns}>
+    <button class="icon-button" type="button" aria-label="Refresh research runs" disabled={refreshing} title={refreshRunsButtonTitle} on:click={refreshRuns}>
       <RefreshCw size={17} />
     </button>
   </section>
@@ -1315,7 +1315,7 @@
           <Play size={15} />
           <span>{aiOsUnavailable ? 'Connect AI OS' : monitorActionId === 'due-sweep' ? 'Running Due' : 'Run Due'}</span>
         </button>
-        <button class="icon-button" type="button" disabled={monitorsLoading || Boolean(monitorActionId)} title={refreshMonitorsButtonTitle} on:click={refreshMonitors}>
+        <button class="icon-button" type="button" aria-label="Refresh research monitors" disabled={monitorsLoading || Boolean(monitorActionId)} title={refreshMonitorsButtonTitle} on:click={refreshMonitors}>
           <RefreshCw size={17} />
         </button>
       </div>
@@ -1394,7 +1394,7 @@
         <h2>Source Library</h2>
         <p>Search reusable source cards already fetched by Research Desk runs.</p>
       </div>
-      <button class="icon-button" type="button" disabled={sourceLibrarySearchDisabled} title={sourceLibrarySearchTitle} on:click={refreshSourceLibrary}>
+      <button class="icon-button" type="button" aria-label="Search source library" disabled={sourceLibrarySearchDisabled} title={sourceLibrarySearchTitle} on:click={refreshSourceLibrary}>
         <RefreshCw size={17} />
       </button>
     </div>

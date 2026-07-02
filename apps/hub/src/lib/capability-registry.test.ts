@@ -246,6 +246,54 @@ describe('capability registry', () => {
     expect(capabilityServiceLabel('passive-tasks')).toBe('Passive Tasks');
   });
 
+  it('uses machine profile telemetry when the live hardware payload is missing GPU rows', () => {
+    const snapshot = buildCapabilityRegistry({
+      checkedAt: '2026-06-20T16:00:00.000Z',
+      isOnline: true,
+      syncStatus: 'idle',
+      googleConnected: false,
+      aiStatus: aiStatus({
+        hardware: {
+          cpu_percent: 8,
+          memory_percent: 39,
+          memory_used_gb: 12,
+          memory_total_gb: 32,
+          gpus: [],
+          loaded_models: [],
+          recent_tokens_per_second: 21
+        },
+        machine_profile: {
+          created_at: '2026-06-20T16:00:00.000Z',
+          source: 'status',
+          mode: 'balanced',
+          host: {},
+          hardware: {
+            cpu_percent: 8,
+            memory_percent: 39,
+            memory_used_gb: 12,
+            memory_total_gb: 32,
+            gpus: [{ name: 'AMD Radeon RX 6600', source: 'windows-performance-counters' }],
+            loaded_models: [{ name: 'llama3.1:8b' }]
+          },
+          providers: [],
+          provider_summary: {},
+          loaded_models: [{ name: 'llama3.1:8b' }],
+          local_services: {},
+          ai_os_health: {},
+          capabilities: [],
+          capability_readiness: {},
+          benchmarks: { recent: [] },
+          autotune: { mode: 'balanced', suggested_max_job_concurrency: 1 }
+        }
+      })
+    });
+
+    const telemetry = snapshot.capabilities.find((capability) => capability.id === 'machine.telemetry');
+
+    expect(telemetry?.state).toBe('ready');
+    expect(telemetry?.metrics).toMatchObject({ gpus: 1, loadedModels: 1 });
+  });
+
   it('degrades passive tasks when restore point health needs attention', () => {
     const snapshot = buildCapabilityRegistry({
       isOnline: true,

@@ -395,10 +395,19 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
   });
 
   const hardware = status?.hardware;
+  const profileHardware = profile?.hardware;
+  const telemetryGpus = hardware?.gpus?.length ? hardware.gpus : (profileHardware?.gpus ?? []);
+  const telemetryLoadedModels = hardware?.loaded_models?.length
+    ? hardware.loaded_models
+    : (profileHardware?.loaded_models ?? profile?.loaded_models ?? []);
   const telemetryReady = Boolean(
-    hardware &&
-      !hardware.error &&
-      (typeof hardware.cpu_percent === 'number' || typeof hardware.memory_percent === 'number' || hardware.gpus.length)
+    (hardware || profileHardware) &&
+      !hardware?.error &&
+      (typeof hardware?.cpu_percent === 'number' ||
+        typeof hardware?.memory_percent === 'number' ||
+        typeof profileHardware?.cpu_percent === 'number' ||
+        typeof profileHardware?.memory_percent === 'number' ||
+        telemetryGpus.length)
   );
   capabilities.push({
     id: 'machine.telemetry',
@@ -414,8 +423,8 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     requiredService: 'AI OS telemetry',
     lastError: compactCapabilityError(hardware?.error, 'Machine telemetry'),
     metrics: {
-      gpus: hardware?.gpus.length ?? 0,
-      loadedModels: hardware?.loaded_models?.length ?? 0,
+      gpus: telemetryGpus.length,
+      loadedModels: telemetryLoadedModels.length,
       pressure,
       suggestedConcurrency: profile?.autotune?.suggested_max_job_concurrency ?? 0
     },
