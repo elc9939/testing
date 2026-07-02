@@ -436,6 +436,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
   const telemetryLoadedModels = hardware?.loaded_models?.length
     ? hardware.loaded_models
     : (profileHardware?.loaded_models ?? profile?.loaded_models ?? []);
+  const primaryGpuName = typeof telemetryGpus[0]?.name === 'string' ? telemetryGpus[0].name : '';
   const telemetryError = telemetryGpus.length
     ? (profileHardware?.error ?? (hardware?.gpus?.length ? hardware.error : ''))
     : (hardware?.error ?? profileHardware?.error ?? '');
@@ -463,6 +464,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     lastError: compactCapabilityError(telemetryError, 'Machine telemetry'),
     metrics: {
       gpus: telemetryGpus.length,
+      ...(primaryGpuName ? { gpuName: primaryGpuName } : {}),
       loadedModels: telemetryLoadedModels.length,
       pressure,
       suggestedConcurrency: profile?.autotune?.suggested_max_job_concurrency ?? 0

@@ -293,7 +293,7 @@ describe('capability registry', () => {
 
     expect(telemetry?.state).toBe('ready');
     expect(telemetry?.lastError).toBeUndefined();
-    expect(telemetry?.metrics).toMatchObject({ gpus: 1, loadedModels: 1 });
+    expect(telemetry?.metrics).toMatchObject({ gpus: 1, gpuName: 'AMD Radeon RX 6600', loadedModels: 1 });
   });
 
   it('degrades passive tasks when restore point health needs attention', () => {

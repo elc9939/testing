@@ -144,6 +144,7 @@
   $: canSync = canAutoSave($clientData);
   $: capabilityIssues = selectCapabilityIssues(capabilitySnapshot, 8);
   $: capabilityGroups = groupCapabilityServices(capabilitySnapshot?.capabilities ?? []);
+  $: machineTelemetryCapability = capabilitySnapshot?.capabilities.find((capability) => capability.id === 'machine.telemetry');
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
@@ -1121,13 +1122,28 @@
     return typeof value === 'number' && Number.isFinite(value) ? `${value}%` : 'not measured';
   }
 
-  function machineGpuName(gpu: Record<string, unknown> | undefined): string {
-    const name = gpu?.name;
-    return typeof name === 'string' && name.trim() ? name : 'No telemetry';
+  function capabilityMetricString(capability: CapabilityRegistryEntry | undefined, key: string): string {
+    const value = capability?.metrics?.[key];
+    return typeof value === 'string' && value.trim() ? value : '';
   }
 
-  function machineGpuDetail(gpu: Record<string, unknown> | undefined): string {
-    if (!gpu) return 'Live GPU telemetry has not reported a GPU yet.';
+  function capabilityMetricNumber(capability: CapabilityRegistryEntry | undefined, key: string): number | undefined {
+    const value = capability?.metrics?.[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  }
+
+  function machineGpuName(gpu: Record<string, unknown> | undefined, telemetry: CapabilityRegistryEntry | undefined): string {
+    const name = gpu?.name;
+    if (typeof name === 'string' && name.trim()) return name;
+    return capabilityMetricString(telemetry, 'gpuName') || 'No telemetry';
+  }
+
+  function machineGpuDetail(gpu: Record<string, unknown> | undefined, telemetry: CapabilityRegistryEntry | undefined): string {
+    if (!gpu) {
+      const fallbackCount = capabilityMetricNumber(telemetry, 'gpus') ?? 0;
+      if (fallbackCount > 0) return 'Detected from AI OS telemetry fallback.';
+      return 'Live GPU telemetry has not reported a GPU yet.';
+    }
     const status = typeof gpu.telemetry_status === 'string' ? gpu.telemetry_status : '';
     const source = typeof gpu.source === 'string' ? gpu.source : '';
     if (status === 'stale' || source === 'benchmark-cache') {
@@ -1348,8 +1364,8 @@
         </div>
         <div>
           <span>GPU</span>
-          <strong>{machineGpuName(machineProfile.hardware.gpus[0])}</strong>
-          <small>{machineGpuDetail(machineProfile.hardware.gpus[0])}</small>
+          <strong>{machineGpuName(machineProfile.hardware.gpus[0], machineTelemetryCapability)}</strong>
+          <small>{machineGpuDetail(machineProfile.hardware.gpus[0], machineTelemetryCapability)}</small>
         </div>
         <div>
           <span>Best Route</span>
