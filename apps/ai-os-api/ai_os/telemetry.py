@@ -96,6 +96,18 @@ def _vendor_for_name(name: str) -> str | None:
     return None
 
 
+def _compact_telemetry_error(error: object) -> str:
+    text = str(error)
+    if "timed out" in text.lower():
+        return "telemetry command timed out"
+    if isinstance(error, FileNotFoundError) or "WinError 2" in text:
+        return "telemetry command not found"
+    first_line = text.replace("\r", "\n").split("\n", 1)[0].strip()
+    if len(first_line) > 180:
+        return first_line[:177] + "..."
+    return first_line or "telemetry unavailable"
+
+
 def _nvidia_gpus() -> tuple[list[dict[str, Any]], str | None]:
     try:
         completed = subprocess.run(
@@ -111,7 +123,7 @@ def _nvidia_gpus() -> tuple[list[dict[str, Any]], str | None]:
         )
     except Exception as error:
         logger.debug("nvidia-smi telemetry unavailable", exc_info=error)
-        return [], f"nvidia-smi unavailable: {error}"
+        return [], f"nvidia-smi unavailable: {_compact_telemetry_error(error)}"
 
     if completed.returncode != 0 or not completed.stdout.strip():
         detail = (completed.stderr or completed.stdout or "nvidia-smi returned no GPU rows.").strip()
@@ -157,7 +169,7 @@ def _run_windows_gpu_script() -> tuple[dict[str, Any] | None, str | None]:
         )
     except Exception as error:
         logger.debug("Windows GPU telemetry unavailable", exc_info=error)
-        return None, f"Windows GPU telemetry unavailable: {error}"
+        return None, f"Windows GPU telemetry unavailable: {_compact_telemetry_error(error)}"
 
     if completed.returncode != 0 or not completed.stdout.strip():
         detail = (completed.stderr or completed.stdout or "Windows GPU counters returned no data.").strip()

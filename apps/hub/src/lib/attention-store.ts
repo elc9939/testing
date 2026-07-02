@@ -11,8 +11,8 @@ import { compactServiceIssueIfRecognized } from './service-issues';
 
 const attentionCacheKey = 'miniHub.attention.snapshot.v1';
 const refreshIntervalMs = 90_000;
-export const attentionSnapshotTimeoutMs = 7_000;
-export const attentionActionTimeoutMs = 10_000;
+export const attentionSnapshotTimeoutMs = 15_000;
+export const attentionActionTimeoutMs = 20_000;
 
 interface AttentionCache {
   version: 1;

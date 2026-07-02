@@ -162,8 +162,13 @@ function Start-HubUi {
 function Start-Bridge {
   Start-Ollama
   Start-HubApi
-  & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\ai-os.ps1') start -Lan:($Profile -eq 'lan')
-  & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\macro-lab.ps1') start -Lan:($Profile -eq 'lan')
+  if ($Profile -eq 'lan') {
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\ai-os.ps1') start -Lan
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\macro-lab.ps1') start -Lan
+  } else {
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\ai-os.ps1') start
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\macro-lab.ps1') start
+  }
   Start-HubUi
   $url = Get-BridgeUrl
   Set-Content -Path $BridgeLinkFile -Value $url

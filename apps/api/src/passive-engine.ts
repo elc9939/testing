@@ -1379,7 +1379,7 @@ async function fetchJsonWithTimeout(
   url: URL,
   label: string,
   init: RequestInit = {},
-  timeoutMs = 2500
+  timeoutMs = env.actionLedgerFederationTimeoutMs
 ): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -1407,7 +1407,7 @@ async function fetchReachabilityWithTimeout(
   fetchImpl: FetchLike,
   url: URL,
   label: string,
-  timeoutMs = 2200
+  timeoutMs = Math.min(env.actionLedgerFederationTimeoutMs, 6000)
 ): Promise<Record<string, unknown>> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
