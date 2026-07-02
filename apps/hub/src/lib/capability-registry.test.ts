@@ -260,7 +260,8 @@ describe('capability registry', () => {
           memory_total_gb: 32,
           gpus: [],
           loaded_models: [],
-          recent_tokens_per_second: 21
+          recent_tokens_per_second: 21,
+          error: 'GPU telemetry unavailable: temporary Windows counter timeout'
         },
         machine_profile: {
           created_at: '2026-06-20T16:00:00.000Z',
@@ -291,6 +292,7 @@ describe('capability registry', () => {
     const telemetry = snapshot.capabilities.find((capability) => capability.id === 'machine.telemetry');
 
     expect(telemetry?.state).toBe('ready');
+    expect(telemetry?.lastError).toBeUndefined();
     expect(telemetry?.metrics).toMatchObject({ gpus: 1, loadedModels: 1 });
   });
 

@@ -663,9 +663,28 @@ export async function getMachineProfile(mode?: string, snapshots = 10): Promise<
   const params = new URLSearchParams();
   if (mode) params.set('mode', mode);
   params.set('snapshots', String(snapshots));
-  return requestJson<{ profile: AiMachineProfile; snapshots: AiMachineProfileSnapshot[] }>(
-    `/api/ai/machine-profile?${params.toString()}`
-  );
+  const path = `/api/ai/machine-profile?${params.toString()}`;
+  const first = await requestJson<{ profile: AiMachineProfile; snapshots: AiMachineProfileSnapshot[] }>(path);
+  if (shouldRetryMissingGpuProfile(first.profile)) {
+    await delay(750);
+    const second = await requestJson<{ profile: AiMachineProfile; snapshots: AiMachineProfileSnapshot[] }>(path);
+    return shouldPreferMachineProfileRetry(first.profile, second.profile) ? second : first;
+  }
+  return first;
+}
+
+function shouldRetryMissingGpuProfile(profile: AiMachineProfile): boolean {
+  return !profile.hardware.gpus?.length;
+}
+
+function shouldPreferMachineProfileRetry(first: AiMachineProfile, second: AiMachineProfile): boolean {
+  if (second.hardware.gpus?.length) return true;
+  if (first.hardware.error && !second.hardware.error) return true;
+  return false;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function snapshotMachineProfile(source = 'hub'): Promise<AiMachineProfileSnapshot> {

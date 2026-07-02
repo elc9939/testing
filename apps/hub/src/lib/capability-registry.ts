@@ -1,5 +1,5 @@
 import { getHealth } from './api';
-import { getAiStatus, type AiCapabilityStatus, type AiProviderStatus, type AiStatus } from './ai-os-api';
+import { getAiStatus, getMachineProfile, type AiCapabilityStatus, type AiHardwareStatus, type AiProviderStatus, type AiStatus } from './ai-os-api';
 import { getMacroStatus, type MacroStatus } from './macro-lab-api';
 import { getPassiveSnapshot } from './passive-tasks-api';
 import { compactServiceIssueIfRecognized } from './service-issues';
@@ -82,17 +82,53 @@ export async function loadCapabilityRegistry(input: LoadCapabilityRegistryInput)
     getMacroStatus(),
     getPassiveSnapshot()
   ]);
+  const aiStatus = ai.status === 'fulfilled' ? await hydrateAiStatusTelemetry(ai.value, input.machineMode) : undefined;
   return buildCapabilityRegistry({
     ...input,
     hubHealth: hub.status === 'fulfilled' ? hub.value : undefined,
     hubError: hub.status === 'rejected' ? errorMessage(hub.reason) : undefined,
-    aiStatus: ai.status === 'fulfilled' ? ai.value : undefined,
+    aiStatus,
     aiError: ai.status === 'rejected' ? errorMessage(ai.reason) : undefined,
     macroStatus: macro.status === 'fulfilled' ? macro.value : undefined,
     macroError: macro.status === 'rejected' ? errorMessage(macro.reason) : undefined,
     passiveSnapshot: passive.status === 'fulfilled' ? passive.value : undefined,
     passiveError: passive.status === 'rejected' ? errorMessage(passive.reason) : undefined
   });
+}
+
+function hasHardwareTelemetry(hardware: AiHardwareStatus | undefined): boolean {
+  return Boolean(
+    hardware &&
+      (hardware.gpus?.length ||
+        hardware.loaded_models?.length ||
+        typeof hardware.cpu_percent === 'number' ||
+        typeof hardware.memory_percent === 'number')
+  );
+}
+
+function hasGpuTelemetry(hardware: AiHardwareStatus | undefined): boolean {
+  return Boolean(hardware?.gpus?.length);
+}
+
+async function hydrateAiStatusTelemetry(status: AiStatus, machineMode?: string): Promise<AiStatus> {
+  const statusHardware = status.hardware;
+  const profileHardware = status.machine_profile?.hardware;
+  if (hasGpuTelemetry(statusHardware) || hasGpuTelemetry(profileHardware)) return status;
+
+  try {
+    const { profile } = await getMachineProfile(machineMode, 1);
+    if (!hasHardwareTelemetry(profile.hardware)) return status;
+    return {
+      ...status,
+      hardware: hasHardwareTelemetry(statusHardware) ? statusHardware : profile.hardware,
+      machine_profile: {
+        ...profile,
+        hardware: hasHardwareTelemetry(profile.hardware) ? profile.hardware : profileHardware ?? profile.hardware
+      }
+    };
+  } catch {
+    return status;
+  }
 }
 
 export function buildCapabilityRegistry(input: CapabilityRegistryInput): CapabilityRegistrySnapshot {
@@ -400,9 +436,12 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
   const telemetryLoadedModels = hardware?.loaded_models?.length
     ? hardware.loaded_models
     : (profileHardware?.loaded_models ?? profile?.loaded_models ?? []);
+  const telemetryError = telemetryGpus.length
+    ? (profileHardware?.error ?? (hardware?.gpus?.length ? hardware.error : ''))
+    : (hardware?.error ?? profileHardware?.error ?? '');
   const telemetryReady = Boolean(
     (hardware || profileHardware) &&
-      !hardware?.error &&
+      !telemetryError &&
       (typeof hardware?.cpu_percent === 'number' ||
         typeof hardware?.memory_percent === 'number' ||
         typeof profileHardware?.cpu_percent === 'number' ||
@@ -421,7 +460,7 @@ function addAiCapabilities(capabilities: CapabilityRegistryEntry[], status: AiSt
     safety: 'read',
     route: '/ai-os',
     requiredService: 'AI OS telemetry',
-    lastError: compactCapabilityError(hardware?.error, 'Machine telemetry'),
+    lastError: compactCapabilityError(telemetryError, 'Machine telemetry'),
     metrics: {
       gpus: telemetryGpus.length,
       loadedModels: telemetryLoadedModels.length,
