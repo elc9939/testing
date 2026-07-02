@@ -14,6 +14,7 @@ from ..config import Settings
 from ..machine_modes import MachineModePolicy, machine_mode_policy
 from ..media_engine import BuiltinMediaEngine
 from ..models import ChatMessage, InferenceRequest, MultimodalInvokeRequest
+from ..payload_safety import compact_large_payloads
 from ..providers.ollama import OllamaProvider
 from ..providers.openai_provider import OpenAIProvider
 from ..providers.registry import ProviderRegistry
@@ -632,6 +633,9 @@ try {
         prompt = request.prompt or request.text
         content_type = result.get("content_type") if isinstance(result.get("content_type"), str) else None
         asset_path = self._persist_binary_asset(kind, result, content_type)
+        metadata = compact_large_payloads(
+            {key: value for key, value in result.items() if key not in {"image_base64", "audio_base64", "video_base64"}}
+        )
         record = self.storage.log_generation_asset(
             kind=kind,
             provider=str(result.get("provider") or provider_id),
@@ -639,11 +643,7 @@ try {
             prompt=prompt,
             content_type=content_type,
             asset_path=asset_path,
-            metadata={
-                key: value
-                for key, value in result.items()
-                if key not in {"image_base64", "audio_base64", "video_base64"}
-            },
+            metadata=metadata,
         )
         enriched = dict(result)
         enriched["asset"] = record.model_dump(mode="json")

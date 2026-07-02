@@ -9,6 +9,7 @@ from typing import Any
 from .config import Settings
 from .machine_modes import machine_mode_policy, normalize_machine_mode_id
 from .models import BenchmarkRunRecord, CapabilityStatus, HardwareStatus, ProviderStatus, now_iso
+from .payload_safety import compact_large_payloads
 from .providers.base import ProviderAdapter
 from .providers.registry import ProviderRegistry
 from .storage import AppStorage
@@ -111,11 +112,21 @@ def build_machine_profile(
         "capabilities": [capability.model_dump(mode="json") for capability in capabilities],
         "capability_readiness": summarize_capabilities(capabilities),
         "benchmarks": {
-            "recent": [record.model_dump(mode="json") for record in benchmark_history[:12]],
+            "recent": [_compact_benchmark_record(record) for record in benchmark_history[:12]],
             **benchmark_summary,
         },
         "autotune": autotune,
     }
+
+
+def _compact_benchmark_record(record: BenchmarkRunRecord) -> dict[str, Any]:
+    payload = record.model_dump(mode="json")
+    if isinstance(payload.get("prompt"), str) and len(payload["prompt"]) > 500:
+        payload["prompt"] = f"{payload['prompt'][:500]}..."
+    payload["hardware_before"] = compact_large_payloads(payload.get("hardware_before", {}))
+    payload["hardware_after"] = compact_large_payloads(payload.get("hardware_after", {}))
+    payload["result"] = compact_large_payloads(payload.get("result", {}))
+    return payload
 
 
 def summarize_providers(providers: list[ProviderStatus]) -> dict[str, int]:

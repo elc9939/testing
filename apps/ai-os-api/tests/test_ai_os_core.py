@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import subprocess
 import sys
 from collections.abc import AsyncIterator
@@ -28,6 +29,8 @@ from ai_os.providers.registry import ProviderRegistry
 from ai_os.recoverability import capture_file_pre_action_snapshot
 from ai_os.research import dedupe_and_rank_sources, extract_clean_content, extract_structured_urls, map_citations, normalize_url, plan_research
 from ai_os.storage import AppStorage
+from ai_os.payload_safety import compact_large_payloads
+import ai_os.telemetry as telemetry
 from ai_os.telemetry import _parse_windows_gpu_payload
 from ai_os.web_access import WebAccess
 
@@ -1670,6 +1673,114 @@ def test_windows_gpu_payload_reports_amd_vram_and_utilization():
     assert gpus[0]["memory_total_source"] == "driver-registry"
     assert gpus[0]["temperature_c"] is None
     assert gpus[0]["temperature_source"] == "unavailable"
+
+
+def test_windows_gpu_telemetry_falls_back_to_basic_controller(monkeypatch):
+    calls: list[str] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        script = str(args[-1])
+        calls.append(script)
+        if "GPUEngine" in script:
+            raise subprocess.TimeoutExpired(args, timeout=kwargs.get("timeout"))
+        payload = {
+            "controllers": [
+                {
+                    "Name": "AMD Radeon RX 6600",
+                    "Status": "OK",
+                    "AdapterRAM": 4_293_918_720,
+                    "DriverVersion": "32.0.21043.19003",
+                    "VideoProcessor": "AMD Radeon Graphics Processor",
+                    "PNPDeviceID": "PCI\\VEN_1002&DEV_73FF&SUBSYS_52171849&REV_C7",
+                }
+            ],
+            "engines": [],
+            "memory": [],
+            "registryMemory": [
+                {
+                    "Name": "AMD Radeon RX 6600",
+                    "MatchingDeviceId": "PCI\\VEN_1002&DEV_73FF&SUBSYS_52171849&REV_C7",
+                    "QwMemorySize": 8_573_157_376,
+                }
+            ],
+        }
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.setattr(telemetry.os, "name", "nt", raising=False)
+    monkeypatch.setattr(telemetry.subprocess, "run", fake_run)
+
+    gpus, error = telemetry._windows_gpus()
+
+    assert error is None
+    assert len(calls) == 2
+    assert gpus[0]["name"] == "AMD Radeon RX 6600"
+    assert gpus[0]["source"] == "windows-video-controller"
+    assert gpus[0]["memory_total_mb"] == pytest.approx(8176.0, rel=0.01)
+
+
+def test_hardware_status_uses_cached_gpu_when_live_telemetry_fails(monkeypatch):
+    class FakeStorage:
+        def recent_tokens_per_second(self) -> float | None:
+            return 39.5
+
+        def list_benchmarks(self, limit: int = 25) -> list[BenchmarkRunRecord]:
+            return [
+                BenchmarkRunRecord(
+                    id="bench_cached_gpu",
+                    created_at="2026-07-01T05:46:57+00:00",
+                    kind="text",
+                    provider="ollama",
+                    model="llama3.1:8b",
+                    prompt="probe",
+                    latency_ms=700,
+                    tokens_per_second=40,
+                    hardware_after={
+                        "gpus": [
+                            {
+                                "name": "AMD Radeon RX 6600",
+                                "source": "windows-performance-counters",
+                                "memory_total_mb": 8176.0,
+                                "memory_used_mb": 7086.2,
+                            }
+                        ]
+                    },
+                )
+            ]
+
+    monkeypatch.setattr(telemetry, "_nvidia_gpus", lambda: ([], "nvidia-smi unavailable"))
+    monkeypatch.setattr(telemetry.os, "name", "nt", raising=False)
+    monkeypatch.setattr(telemetry, "_windows_gpus", lambda: ([], "Windows GPU telemetry unavailable: telemetry command timed out"))
+    monkeypatch.setattr(
+        telemetry,
+        "_ollama_loaded_models",
+        lambda: ([{"name": "llama3.1:8b", "model": "llama3.1:8b", "vram_gb": 5.41}], None),
+    )
+
+    status = telemetry.hardware_status(FakeStorage())  # type: ignore[arg-type]
+
+    assert status.gpus[0]["name"] == "AMD Radeon RX 6600"
+    assert status.gpus[0]["source"] == "benchmark-cache"
+    assert status.gpus[0]["live_source"] == "windows-performance-counters"
+    assert status.gpus[0]["telemetry_status"] == "stale"
+    assert status.gpus[0]["last_observed_at"] == "2026-07-01T05:46:57+00:00"
+    assert status.gpus[0]["loaded_models"][0]["name"] == "llama3.1:8b"
+    assert "Live GPU telemetry unavailable" in (status.error or "")
+
+
+def test_compact_large_payloads_redacts_nested_media_payloads():
+    payload = {
+        "provider": "openai",
+        "data": [{"b64_json": "a" * 60_000, "revised_prompt": "cat"}],
+        "image_base64": "b" * 60_000,
+        "small": "kept",
+    }
+
+    compacted = compact_large_payloads(payload)
+
+    assert compacted["small"] == "kept"
+    assert compacted["image_base64"].startswith("<redacted image_base64 payload:")
+    assert compacted["data"][0]["b64_json"].startswith("<redacted b64_json payload:")
+    assert compacted["data"][0]["revised_prompt"] == "cat"
 
 
 @pytest.mark.asyncio

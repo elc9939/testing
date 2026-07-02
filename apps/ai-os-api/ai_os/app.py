@@ -51,6 +51,7 @@ from .models import (
     new_id,
 )
 from .multimodal.registry import MultimodalRegistry
+from .payload_safety import compact_large_payloads
 from .providers.registry import ProviderRegistry, build_provider_registry
 from .recoverability import restore_file_action_snapshot
 from .research import ResearchEngine, export_research_html, export_research_markdown
@@ -60,6 +61,65 @@ from .telemetry import hardware_status
 from .web_access import WebAccess
 
 logger = logging.getLogger("ai_os")
+
+
+def _compact_tool_call(entry: Any) -> dict[str, Any]:
+    payload = entry.model_dump(mode="json")
+    payload["arguments"] = compact_large_payloads(payload.get("arguments", {}))
+    payload["result"] = compact_large_payloads(payload.get("result", {}))
+    return payload
+
+
+def _compact_generation_asset(asset: Any) -> dict[str, Any]:
+    payload = asset.model_dump(mode="json")
+    payload["metadata"] = compact_large_payloads(payload.get("metadata", {}))
+    return payload
+
+
+def _compact_benchmark_run(record: Any) -> dict[str, Any]:
+    payload = record.model_dump(mode="json")
+    if isinstance(payload.get("prompt"), str) and len(payload["prompt"]) > 500:
+        payload["prompt"] = f"{payload['prompt'][:500]}..."
+    payload["hardware_before"] = compact_large_payloads(payload.get("hardware_before", {}))
+    payload["hardware_after"] = compact_large_payloads(payload.get("hardware_after", {}))
+    payload["result"] = compact_large_payloads(payload.get("result", {}))
+    return payload
+
+
+def _compact_research_run(run: Any) -> dict[str, Any]:
+    payload = run.model_dump(mode="json")
+    sources = payload.get("sources", [])
+    if isinstance(sources, list):
+        payload["sources"] = [
+            {
+                "id": source.get("id"),
+                "url": source.get("url"),
+                "canonical_url": source.get("canonical_url"),
+                "title": source.get("title", ""),
+                "description": source.get("description", ""),
+                "text_length": source.get("text_length", 0),
+                "rank": source.get("rank", 0),
+                "score": source.get("score", 0),
+                "cached": source.get("cached", False),
+                "fetched_at": source.get("fetched_at"),
+            }
+            for source in sources[:20]
+            if isinstance(source, dict)
+        ]
+        payload["source_count"] = len(sources)
+    logs = payload.get("logs", [])
+    if isinstance(logs, list):
+        payload["logs"] = compact_large_payloads(logs[-5:])
+    payload["query_plan"] = compact_large_payloads(payload.get("query_plan", {}))
+    payload["options"] = compact_large_payloads(payload.get("options", {}))
+    return payload
+
+
+def _compact_machine_profile_snapshot(snapshot: Any) -> dict[str, Any]:
+    payload = snapshot.model_dump(mode="json")
+    payload["profile"] = compact_large_payloads(payload.get("profile", {}))
+    payload["autotune"] = compact_large_payloads(payload.get("autotune", {}))
+    return payload
 
 
 def _capability_adapters(services: "Services") -> dict[str, dict[str, bool]]:
@@ -322,10 +382,10 @@ def create_app(
             "jobs": [job.model_dump(mode="json") for job in collected["jobs"]],
             "background": collected["background"],
             "tools": [tool.model_dump(mode="json") for tool in collected["tools"]],
-            "tool_calls": [entry.model_dump(mode="json") for entry in services.storage.list_tool_calls(20)],
-            "generation_assets": [asset.model_dump(mode="json") for asset in services.storage.list_generation_assets(12)],
-            "benchmark_runs": [run.model_dump(mode="json") for run in services.storage.list_benchmarks(12)],
-            "research_runs": [run.model_dump(mode="json") for run in services.storage.list_research_runs(12)],
+            "tool_calls": [_compact_tool_call(entry) for entry in services.storage.list_tool_calls(20)],
+            "generation_assets": [_compact_generation_asset(asset) for asset in services.storage.list_generation_assets(12)],
+            "benchmark_runs": [_compact_benchmark_run(run) for run in services.storage.list_benchmarks(12)],
+            "research_runs": [_compact_research_run(run) for run in services.storage.list_research_runs(12)],
             "machine_profile": collected["profile"],
             "integrity": services.storage.integrity_report(),
             "backups": [backup.as_dict() for backup in services.backups.list_backups()[:5]],
@@ -342,7 +402,7 @@ def create_app(
         return {
             "profile": collected["profile"],
             "snapshots": [
-                snapshot.model_dump(mode="json")
+                _compact_machine_profile_snapshot(snapshot)
                 for snapshot in services.storage.list_machine_profile_snapshots(snapshots)
             ],
         }
@@ -355,7 +415,7 @@ def create_app(
             profile=collected["profile"],
             autotune=collected["profile"].get("autotune", {}),
         )
-        return {"snapshot": snapshot.model_dump(mode="json")}
+        return {"snapshot": _compact_machine_profile_snapshot(snapshot)}
 
     @app.post("/api/ai/autotune")
     async def autotune(request: AutotuneRequest) -> dict[str, Any]:
@@ -885,7 +945,7 @@ def create_app(
 
     @app.get("/api/ai/tool-calls")
     async def tool_calls(limit: int = 50) -> dict[str, Any]:
-        return {"tool_calls": [entry.model_dump(mode="json") for entry in services.storage.list_tool_calls(limit)]}
+        return {"tool_calls": [_compact_tool_call(entry) for entry in services.storage.list_tool_calls(limit)]}
 
     @app.post("/api/ai/command")
     async def command(request: CommandRequest) -> dict[str, Any]:
@@ -935,7 +995,7 @@ def create_app(
                         "output": output,
                     },
                     "tool_calls": [
-                        entry.model_dump(mode="json")
+                        _compact_tool_call(entry)
                         for entry in services.storage.list_tool_calls(25)
                         if entry.run_id == run_id
                     ],
@@ -989,7 +1049,7 @@ def create_app(
                         "output": output,
                     },
                     "tool_calls": [
-                        entry.model_dump(mode="json")
+                        _compact_tool_call(entry)
                         for entry in services.storage.list_tool_calls(25)
                         if entry.run_id == run_id
                     ],
@@ -1012,7 +1072,7 @@ def create_app(
             return {
                 "result": result.model_dump(mode="json"),
                 "tool_calls": [
-                    entry.model_dump(mode="json")
+                    _compact_tool_call(entry)
                     for entry in services.storage.list_tool_calls(25)
                     if entry.run_id == run_id
                 ],
@@ -1064,7 +1124,7 @@ def create_app(
 
     @app.get("/api/ai/generation-assets")
     async def generation_assets(limit: int = 50) -> dict[str, Any]:
-        return {"assets": [asset.model_dump(mode="json") for asset in services.storage.list_generation_assets(limit)]}
+        return {"assets": [_compact_generation_asset(asset) for asset in services.storage.list_generation_assets(limit)]}
 
     @app.get("/api/ai/design/patches")
     async def design_patches(limit: int = 25) -> dict[str, Any]:

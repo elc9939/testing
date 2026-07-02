@@ -371,15 +371,21 @@ queue depth, recent failures, manual backup, backup verification, restore-test, 
 
 - The dashboard reads CPU/RAM via `psutil`.
 - NVIDIA GPU telemetry uses `nvidia-smi` when present.
-- Windows/AMD GPU telemetry uses Windows GPU performance counters. For Radeon cards, total
-  VRAM is read from the display driver registry value when available because
-  `Win32_VideoController.AdapterRAM` can underreport modern cards.
+- Windows/AMD GPU telemetry uses Windows GPU performance counters when they respond. If
+  those counters time out during boot or driver startup, AI OS falls back to a lighter
+  `Win32_VideoController` query so the dashboard can still identify the Radeon card and
+  VRAM total where Windows exposes it. For Radeon cards, total VRAM is read from the display
+  driver registry value when available because `Win32_VideoController.AdapterRAM` can
+  underreport modern cards.
 - Ollama model residency is read from `/api/ps`, including model name, context, VRAM load,
   and inferred CPU/GPU residency.
 - GPU temperature is shown when a sensor backend exposes it. Stock Windows/AMD counters do
   not expose RX 6600 temperature, so the dashboard may correctly show `sensor unavailable`.
 - VRAM is not required for the infrastructure itself. It matters only for the models you pull.
-- If `nvidia-smi` is absent or Ollama is offline, the dashboard shows degraded status instead of failing.
+- If live telemetry is unavailable, the dashboard shows degraded status instead of failing.
+  When recent benchmark history contains GPU rows, that last observed GPU is displayed as
+  cached benchmark telemetry so you can tell the app remembers the card but is not claiming
+  a fresh live reading.
 - Tokens/sec is derived from recent usage logs when providers report or stream enough timing data.
 - After a reboot, GPU telemetry depends on the local AI OS API being awake. Install the
   Windows logon task with `pnpm ai-os:autostart:install` so the dashboard can connect to

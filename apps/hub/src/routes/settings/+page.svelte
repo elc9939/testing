@@ -1121,6 +1121,22 @@
     return typeof value === 'number' && Number.isFinite(value) ? `${value}%` : 'not measured';
   }
 
+  function machineGpuName(gpu: Record<string, unknown> | undefined): string {
+    const name = gpu?.name;
+    return typeof name === 'string' && name.trim() ? name : 'No telemetry';
+  }
+
+  function machineGpuDetail(gpu: Record<string, unknown> | undefined): string {
+    if (!gpu) return 'Live GPU telemetry has not reported a GPU yet.';
+    const status = typeof gpu.telemetry_status === 'string' ? gpu.telemetry_status : '';
+    const source = typeof gpu.source === 'string' ? gpu.source : '';
+    if (status === 'stale' || source === 'benchmark-cache') {
+      const observedAt = typeof gpu.last_observed_at === 'string' ? gpu.last_observed_at : '';
+      return observedAt ? `Cached from benchmark ${new Date(observedAt).toLocaleString()}` : 'Cached from benchmark history';
+    }
+    return typeof gpu.vendor === 'string' && gpu.vendor ? gpu.vendor : source || 'Live telemetry';
+  }
+
   function formatBytes(value: number | undefined): string {
     if (typeof value !== 'number' || !Number.isFinite(value)) return 'not measured';
     if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
@@ -1332,7 +1348,8 @@
         </div>
         <div>
           <span>GPU</span>
-          <strong>{machineProfile.hardware.gpus.length ? String(machineProfile.hardware.gpus[0].name ?? 'GPU') : 'No telemetry'}</strong>
+          <strong>{machineGpuName(machineProfile.hardware.gpus[0])}</strong>
+          <small>{machineGpuDetail(machineProfile.hardware.gpus[0])}</small>
         </div>
         <div>
           <span>Best Route</span>

@@ -43,6 +43,30 @@ $payload = [pscustomobject]@{
 $payload | ConvertTo-Json -Depth 6 -Compress
 """
 
+WINDOWS_GPU_BASIC_TELEMETRY_SCRIPT = r"""
+$ErrorActionPreference = "Stop"
+$payload = [pscustomobject]@{
+  controllers = @(Get-CimInstance Win32_VideoController |
+    Where-Object { $_.Name -and $_.Name -notmatch "Microsoft Basic" } |
+    Select-Object Name,Status,AdapterRAM,DriverVersion,VideoProcessor,PNPDeviceID)
+  engines = @()
+  memory = @()
+  registryMemory = @(Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}' -ErrorAction SilentlyContinue |
+    ForEach-Object {
+      $p = Get-ItemProperty $_.PsPath -ErrorAction SilentlyContinue
+      if ($p.DriverDesc) {
+        [pscustomobject]@{
+          Name = $p.DriverDesc
+          MatchingDeviceId = $p.MatchingDeviceId
+          MemorySize = $p.'HardwareInformation.MemorySize'
+          QwMemorySize = $p.'HardwareInformation.qwMemorySize'
+        }
+      }
+    })
+}
+$payload | ConvertTo-Json -Depth 6 -Compress
+"""
+
 
 def _bytes_to_gb(value: float) -> float:
     return round(value / (1024**3), 2)
@@ -149,28 +173,21 @@ def _nvidia_gpus() -> tuple[list[dict[str, Any]], str | None]:
     return gpus, None
 
 
-def _run_windows_gpu_script() -> tuple[dict[str, Any] | None, str | None]:
-    if os.name != "nt":
-        return None, "Windows GPU counters are only available on Windows."
-    try:
-        completed = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                WINDOWS_GPU_TELEMETRY_SCRIPT,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=3,
-            check=False,
-        )
-    except Exception as error:
-        logger.debug("Windows GPU telemetry unavailable", exc_info=error)
-        return None, f"Windows GPU telemetry unavailable: {_compact_telemetry_error(error)}"
-
+def _run_powershell_json(script: str, timeout: float) -> tuple[dict[str, Any] | None, str | None]:
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
     if completed.returncode != 0 or not completed.stdout.strip():
         detail = (completed.stderr or completed.stdout or "Windows GPU counters returned no data.").strip()
         return None, detail
@@ -182,11 +199,38 @@ def _run_windows_gpu_script() -> tuple[dict[str, Any] | None, str | None]:
     return parsed if isinstance(parsed, dict) else None, None
 
 
+def _run_windows_gpu_script() -> tuple[dict[str, Any] | None, str | None]:
+    if os.name != "nt":
+        return None, "Windows GPU counters are only available on Windows."
+    rich_error: str | None = None
+    try:
+        payload, error = _run_powershell_json(WINDOWS_GPU_TELEMETRY_SCRIPT, 3)
+        if payload is not None:
+            return payload, None
+        rich_error = error
+    except Exception as error:
+        logger.debug("Windows GPU telemetry unavailable", exc_info=error)
+        rich_error = _compact_telemetry_error(error)
+
+    try:
+        payload, basic_error = _run_powershell_json(WINDOWS_GPU_BASIC_TELEMETRY_SCRIPT, 3)
+    except Exception as error:
+        logger.debug("Windows basic GPU telemetry unavailable", exc_info=error)
+        basic_error = _compact_telemetry_error(error)
+        payload = None
+    if payload is not None:
+        payload["_telemetry_level"] = "basic"
+        return payload, None
+    error_detail = rich_error or basic_error or "telemetry unavailable"
+    return None, f"Windows GPU telemetry unavailable: {error_detail}"
+
+
 def _parse_windows_gpu_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     controllers = [row for row in _as_list(payload.get("controllers")) if isinstance(row, dict)]
     memory_rows = [row for row in _as_list(payload.get("memory")) if isinstance(row, dict)]
     engine_rows = [row for row in _as_list(payload.get("engines")) if isinstance(row, dict)]
     registry_memory_rows = [row for row in _as_list(payload.get("registryMemory")) if isinstance(row, dict)]
+    source = "windows-video-controller" if payload.get("_telemetry_level") == "basic" else "windows-performance-counters"
 
     memory_by_luid: dict[str, dict[str, Any]] = {}
     for row in memory_rows:
@@ -238,7 +282,7 @@ def _parse_windows_gpu_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
         gpu: dict[str, Any] = {
             "name": name,
             "vendor": _vendor_for_name(name),
-            "source": "windows-performance-counters",
+            "source": source,
             "status": controller.get("Status"),
             "driver_version": controller.get("DriverVersion"),
             "video_processor": controller.get("VideoProcessor"),
@@ -353,6 +397,37 @@ def _attach_loaded_models(gpus: list[dict[str, Any]], loaded_models: list[dict[s
     primary["model_vram_used_mb"] = round(sum(float(model.get("vram_gb") or 0) * 1024 for model in loaded_models), 1)
 
 
+def _cached_gpu_rows(storage: AppStorage) -> tuple[list[dict[str, Any]], str | None]:
+    try:
+        benchmarks = storage.list_benchmarks(25)
+    except Exception as error:
+        logger.debug("Cached GPU telemetry unavailable", exc_info=error)
+        return [], f"cached GPU telemetry unavailable: {_compact_telemetry_error(error)}"
+
+    for benchmark in benchmarks:
+        for key in ("hardware_after", "hardware_before"):
+            hardware = getattr(benchmark, key, None)
+            if not isinstance(hardware, dict):
+                continue
+            rows = [row for row in _as_list(hardware.get("gpus")) if isinstance(row, dict)]
+            if not rows:
+                continue
+            cached_rows: list[dict[str, Any]] = []
+            for row in rows:
+                cached = dict(row)
+                cached["telemetry_status"] = "stale"
+                cached["telemetry_source"] = "benchmark-cache"
+                cached["last_observed_at"] = benchmark.created_at
+                if cached.get("source"):
+                    cached["live_source"] = cached["source"]
+                cached["source"] = "benchmark-cache"
+                cached.pop("loaded_models", None)
+                cached.pop("model_vram_used_mb", None)
+                cached_rows.append(cached)
+            return cached_rows, benchmark.created_at
+    return [], None
+
+
 def hardware_status(storage: AppStorage) -> HardwareStatus:
     status = HardwareStatus(recent_tokens_per_second=storage.recent_tokens_per_second())
     errors: list[str] = []
@@ -383,6 +458,13 @@ def hardware_status(storage: AppStorage) -> HardwareStatus:
             status.gpus.extend(windows_gpus)
         elif windows_error:
             gpu_errors.append(windows_error)
+
+    if not status.gpus:
+        cached_gpus, cached_at = _cached_gpu_rows(storage)
+        if cached_gpus:
+            status.gpus.extend(cached_gpus)
+            if cached_at:
+                errors.append(f"Live GPU telemetry unavailable; showing cached GPU telemetry from {cached_at}.")
 
     _attach_loaded_models(status.gpus, loaded_models)
     if not status.gpus and loaded_models:

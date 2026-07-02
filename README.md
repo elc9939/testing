@@ -694,6 +694,9 @@ configured local model can become resident after boot. `pnpm ai-os:autostart:sta
 prints the same service, Ollama, GPU, and model-load readiness that the website depends on.
 The website itself cannot start local Windows processes, so GPU telemetry appears only when
 this local service is already running; the AI OS and Today pages retry briefly during startup.
+On Windows/AMD systems, AI OS first tries live GPU performance counters, then falls back to
+basic Windows video-controller telemetry, and finally labels any benchmark-derived GPU data
+as cached instead of showing a misleading live reading.
 
 For Macro Lab:
 

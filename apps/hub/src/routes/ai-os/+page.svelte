@@ -570,7 +570,8 @@
   function aiOsGpuDetail(gpu: Record<string, unknown> | undefined): string {
     if (loading && !status) return 'Loading GPU, VRAM, and temperature telemetry.';
     if (!status) return 'Service status is shown above; GPU telemetry has not been checked.';
-    return `${gpuName(gpu)} - ${gpuMemoryLabel(gpu)} - ${gpuTemperatureLabel(gpu)}`;
+    const freshness = gpuFreshnessLabel(gpu);
+    return `${gpuName(gpu)} - ${gpuMemoryLabel(gpu)} - ${gpuTemperatureLabel(gpu)}${freshness ? ` - ${freshness}` : ''}`;
   }
 
   function aiOsModelSummary(models: Array<Record<string, unknown>>): string {
@@ -627,6 +628,21 @@
 
   function gpuName(gpu: Record<string, unknown> | undefined): string {
     return metricString(gpu, 'name') ?? 'GPU telemetry not reported';
+  }
+
+  function isStaleGpu(gpu: Record<string, unknown> | undefined): boolean {
+    return metricString(gpu, 'telemetry_status') === 'stale' || metricString(gpu, 'source') === 'benchmark-cache';
+  }
+
+  function gpuFreshnessLabel(gpu: Record<string, unknown> | undefined): string {
+    if (!isStaleGpu(gpu)) return '';
+    const observedAt = metricString(gpu, 'last_observed_at');
+    return observedAt ? `cached from ${new Date(observedAt).toLocaleString()}` : 'cached telemetry';
+  }
+
+  function gpuSourceLabel(gpu: Record<string, unknown> | undefined): string {
+    if (isStaleGpu(gpu)) return 'cached benchmark';
+    return metricString(gpu, 'vendor') ?? metricString(gpu, 'source') ?? 'gpu';
   }
 
   function gpuMemoryLabel(gpu: Record<string, unknown> | undefined): string {
@@ -782,9 +798,9 @@
       {
         id: 'gpu',
         label: 'GPU telemetry',
-        state: gpus.length ? 'ready' : 'degraded',
+        state: gpus.length ? (isStaleGpu(gpus[0]) ? 'degraded' : 'ready') : 'degraded',
         detail: gpus.length
-          ? `${gpuName(gpus[0])} - ${gpuMemoryLabel(gpus[0])}.`
+          ? `${gpuName(gpus[0])} - ${gpuMemoryLabel(gpus[0])}${gpuFreshnessLabel(gpus[0]) ? ` - ${gpuFreshnessLabel(gpus[0])}` : ''}.`
           : nextStatus.hardware?.error
             ? compactServiceIssueIfRecognized(nextStatus.hardware.error, 'GPU telemetry')
             : 'AI OS is running, but no GPU telemetry rows were returned from Windows counters or vendor tools.'
@@ -1688,9 +1704,9 @@
           <article class="gpu-row">
             <div>
               <strong>{gpuName(gpu)}</strong>
-              <span>{metricString(gpu, 'vendor') ?? metricString(gpu, 'source') ?? 'gpu'}</span>
+              <span>{gpuSourceLabel(gpu)}</span>
             </div>
-            <small>{numberLabel(metricNumber(gpu, 'utilization_percent'), '%')} - {gpuMemoryLabel(gpu)} - {gpuTemperatureLabel(gpu)}</small>
+            <small>{numberLabel(metricNumber(gpu, 'utilization_percent'), '%')} - {gpuMemoryLabel(gpu)} - {gpuTemperatureLabel(gpu)}{gpuFreshnessLabel(gpu) ? ` - ${gpuFreshnessLabel(gpu)}` : ''}</small>
           </article>
         {:else}
           <p class="muted">{noGpuRowsMessage()}</p>

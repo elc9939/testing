@@ -906,16 +906,16 @@
                 {/if}
               </span>
               <span class="digest-actions">
-                <button class="icon-action" type="button" title={passiveDigestActionTitle('important')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'important')}>
+                <button class="icon-action" type="button" aria-label={`Mark ${card.title} important`} title={passiveDigestActionTitle('important')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'important')}>
                   <Star size={15} />
                 </button>
-                <button class="icon-action" type="button" title={passiveDigestActionTitle('snoozed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'snoozed')}>
+                <button class="icon-action" type="button" aria-label={`Snooze ${card.title}`} title={passiveDigestActionTitle('snoozed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'snoozed')}>
                   <Clock3 size={15} />
                 </button>
-                <button class="icon-action" type="button" title={passiveDigestActionTitle('reviewed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'reviewed')}>
+                <button class="icon-action" type="button" aria-label={`Mark ${card.title} reviewed`} title={passiveDigestActionTitle('reviewed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'reviewed')}>
                   <CheckCircle2 size={15} />
                 </button>
-                <button class="icon-action" type="button" title={passiveDigestActionTitle('dismissed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'dismissed')}>
+                <button class="icon-action" type="button" aria-label={`Dismiss ${card.title}`} title={passiveDigestActionTitle('dismissed')} disabled={passiveWriteDisabled} on:click={() => triageCard(card.id, 'dismissed')}>
                   <XCircle size={15} />
                 </button>
                 <a class="button compact" href={hubHref(card.route)} title={`Open ${card.title} source page.`}>Inspect</a>
@@ -1101,19 +1101,19 @@
                 <td>{displayWhen(task.nextRunAt)}</td>
                 <td><span class={`state ${task.status}`}>{task.status}</span></td>
                 <td class="table-actions">
-                  <button class="icon-action" type="button" title={taskRunTitle(task, watcher)} disabled={passiveWriteDisabled || !canRunTask(task, watcher)} on:click={() => applyAction(`run:${task.id}`, () => runPassiveTask(task.id, { idle: task.idleOnly, reason: 'dashboard-run' }), `${task.title} ran.`)}>
+                  <button class="icon-action" type="button" aria-label={`Run ${task.title}`} title={taskRunTitle(task, watcher)} disabled={passiveWriteDisabled || !canRunTask(task, watcher)} on:click={() => applyAction(`run:${task.id}`, () => runPassiveTask(task.id, { idle: task.idleOnly, reason: 'dashboard-run' }), `${task.title} ran.`)}>
                     <Play size={15} />
                   </button>
                   {#if task.status === 'paused'}
-                    <button class="icon-action" type="button" title={passiveTaskResumeTitle(task)} disabled={passiveWriteDisabled} on:click={() => applyAction(`resume:${task.id}`, () => resumePassiveTask(task.id), `${task.title} resumed.`)}>
+                    <button class="icon-action" type="button" aria-label={`Resume ${task.title}`} title={passiveTaskResumeTitle(task)} disabled={passiveWriteDisabled} on:click={() => applyAction(`resume:${task.id}`, () => resumePassiveTask(task.id), `${task.title} resumed.`)}>
                       <Play size={15} />
                     </button>
                   {:else}
-                    <button class="icon-action" type="button" title={passiveTaskPauseTitle(task, watcher)} disabled={passiveWriteDisabled || !watcher?.enabled} on:click={() => applyAction(`pause:${task.id}`, () => pausePassiveTask(task.id), `${task.title} paused.`)}>
+                    <button class="icon-action" type="button" aria-label={`Pause ${task.title}`} title={passiveTaskPauseTitle(task, watcher)} disabled={passiveWriteDisabled || !watcher?.enabled} on:click={() => applyAction(`pause:${task.id}`, () => pausePassiveTask(task.id), `${task.title} paused.`)}>
                       <Pause size={15} />
                     </button>
                   {/if}
-                  <button class="icon-action danger" type="button" title={passiveTaskCancelTitle(task)} disabled={passiveWriteDisabled} on:click={() => cancelTask(task)}>
+                  <button class="icon-action danger" type="button" aria-label={`Cancel ${task.title}`} title={passiveTaskCancelTitle(task)} disabled={passiveWriteDisabled} on:click={() => cancelTask(task)}>
                     <XCircle size={15} />
                   </button>
                 </td>
@@ -1320,7 +1320,7 @@
                 <strong>{notification.title}</strong>
                 <small>{notification.body}</small>
               </span>
-              <button class="icon-action" type="button" title={passiveNotificationDismissTitle()} disabled={passiveWriteDisabled} on:click={() => applyAction(`dismiss:${notification.id}`, () => dismissPassiveNotification(notification.id), 'Notification dismissed.')}>
+              <button class="icon-action" type="button" aria-label={`Dismiss ${notification.title}`} title={passiveNotificationDismissTitle()} disabled={passiveWriteDisabled} on:click={() => applyAction(`dismiss:${notification.id}`, () => dismissPassiveNotification(notification.id), 'Notification dismissed.')}>
                 <XCircle size={15} />
               </button>
             </div>
