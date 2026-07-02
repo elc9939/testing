@@ -71,12 +71,18 @@ pnpm bridge:start
 pnpm bridge:start:lan
 pnpm bridge:restart
 pnpm bridge:stop
+pnpm bridge:startup:install
+pnpm bridge:startup:status
 ```
 
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
 starts the local Hub UI on the LAN address and writes a ready URL with `apiUrl`, `aiOsUrl`,
 `macroLabUrl`, and `ollamaUrl` query parameters to `bridge-link.txt`. The status action shows
-Mini Hub API, AI OS, Macro Lab, and Ollama health plus PIDs.
+Mini Hub API, AI OS, Macro Lab, and Ollama health plus PIDs. `bridge:startup:install`
+registers a per-user Windows logon starter named `Mini Hub Bridge` so the local bridge starts
+quietly after reboot instead of requiring several terminals. If Windows blocks Scheduled Task
+registration from a non-admin shell, the installer falls back to the current user's Startup
+folder.
 
 The older Windows LAN helper still works:
 
@@ -640,6 +646,16 @@ For the easiest full-power desktop bridge after reboot:
 pnpm bridge:start
 pnpm bridge:status
 ```
+
+For a less fiddly setup, install the per-user Windows startup task once:
+
+```powershell
+pnpm bridge:startup:install
+```
+
+After that, Windows starts the local bridge at login. The task is named `Mini Hub Bridge`;
+`pnpm bridge:startup:status` reports whether it is installed as a Scheduled Task or Startup
+folder entry.
 
 Use `pnpm bridge:start:lan` when another device on LAN/Tailscale should reach this PC, then
 open the URL written to `bridge-link.txt` or save those endpoint values in Settings on the
