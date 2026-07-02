@@ -696,7 +696,7 @@
     </span>
     <button class="button" type="button" disabled={$attentionStore.loading || $attentionStore.refreshing} title={todayRefreshButtonTitle} on:click={refreshToday}>
       <RefreshCw size={16} />
-      <span>{$attentionStore.refreshing ? 'Refreshing' : 'Refresh'}</span>
+      <span>{$attentionStore.loading || $attentionStore.refreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
     <a class="button" href={hubHref('/settings')} title="Open Settings for services, sync, theme, and recovery controls.">
       <Settings size={16} />

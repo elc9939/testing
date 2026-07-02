@@ -1,7 +1,6 @@
 import { env as publicEnv } from '$env/dynamic/public';
 import type { ActionLedgerEntry } from '@mini-hub/core';
 import { requestServiceJson, resolveServiceUrl } from './service-config';
-import { withTimeout } from './request-timeout';
 
 export function getApiUrl(): string {
   return resolveServiceUrl('hubApi', publicEnv.PUBLIC_API_URL || import.meta.env.VITE_PUBLIC_API_URL, 'http://127.0.0.1:8787');
@@ -47,12 +46,19 @@ export interface HubHealth {
   };
 }
 
-export async function requestApiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  return requestServiceJson<T>('hubApi', getApiUrl(), path, init, { credentials: 'include' });
+export async function requestApiJson<T>(
+  path: string,
+  init: RequestInit = {},
+  options: { timeoutMs?: number } = {}
+): Promise<T> {
+  return requestServiceJson<T>('hubApi', getApiUrl(), path, init, {
+    credentials: 'include',
+    timeoutMs: options.timeoutMs
+  });
 }
 
 export async function requestApiJsonWithTimeout<T>(path: string, init: RequestInit = {}, timeoutMs = 8_000): Promise<T> {
-  return withTimeout(requestApiJson<T>(path, init), `Mini Hub API request ${path}`, timeoutMs);
+  return requestApiJson<T>(path, init, { timeoutMs });
 }
 
 export async function getHealth(): Promise<HubHealth> {
