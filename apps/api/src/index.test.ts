@@ -688,7 +688,7 @@ describe('mini hub api', () => {
               summary: 'Measured local text inference',
               status: 'succeeded',
               risk: 'read',
-              mode: 'beast',
+              mode: null,
               changed: ['benchmark:bench-1'],
               recoverability: {
                 kind: 'artifact',
@@ -699,6 +699,27 @@ describe('mini hub api', () => {
               },
               raw_ref: { kind: 'benchmark', id: 'bench-1' },
               metadata: { provider: 'ollama' }
+            },
+            {
+              id: 'ai-backup:backup-1',
+              occurred_at: '2026-06-20T13:30:00.000Z',
+              system: 'ai-os',
+              source: 'backup',
+              action_type: 'backup.create',
+              summary: 'Backup completed',
+              status: 'succeeded',
+              risk: 'system',
+              mode: null,
+              changed: ['ai-os.sqlite3'],
+              recoverability: {
+                kind: 'backup',
+                reference_id: null,
+                route: null,
+                description: 'Older backup record without a reference id.',
+                reversible: true
+              },
+              raw_ref: { kind: 'backup', id: 'backup-1' },
+              metadata: {}
             }
           ]
         });
@@ -739,6 +760,7 @@ describe('mini hub api', () => {
         status: string;
         risk: string;
         recoverability: { kind: string; referenceId?: string };
+        mode?: string;
       }>;
       errors: string[];
       sources: Array<{ id: string; ok: boolean; count: number }>;
@@ -748,10 +770,16 @@ describe('mini hub api', () => {
     expect(body.sources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'mini-hub', ok: true, count: 1 }),
-        expect.objectContaining({ id: 'ai-os', ok: true, count: 1 }),
+        expect.objectContaining({ id: 'ai-os', ok: true, count: 2 }),
         expect.objectContaining({ id: 'macro-lab', ok: true, count: 1 })
       ])
     );
+    const aiAction = body.actions.find((action) => action.system === 'ai-os');
+    expect(aiAction).toBeTruthy();
+    expect(aiAction).not.toHaveProperty('mode');
+    const aiBackupAction = body.actions.find((action) => action.actionType === 'backup.create');
+    expect(aiBackupAction?.recoverability).not.toHaveProperty('referenceId');
+    expect(aiBackupAction?.recoverability).not.toHaveProperty('route');
     expect(body.actions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ system: 'mini-hub', actionType: 'job.insert' }),

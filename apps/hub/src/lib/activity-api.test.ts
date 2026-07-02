@@ -62,6 +62,21 @@ describe('activity source loading', () => {
     });
   });
 
+  it('compacts aborted Activity source failures before they reach Today', async () => {
+    getAiStatusMock.mockRejectedValue(new Error('This operation was aborted'));
+    getPassiveSnapshotMock.mockResolvedValue({ runs: [] });
+    listMacroRunsMock.mockResolvedValue([]);
+
+    const snapshot = await loadActivitySnapshot(20, { sourceTimeoutMs: 2 });
+
+    expect(snapshot.errors[0]).toBe('AI OS timed out. Cached data stays visible when available; retry after the service settles.');
+    expect(snapshot.sources.find((source) => source.id === 'ai-os')).toMatchObject({
+      ok: false,
+      state: 'timeout',
+      error: 'AI OS timed out. Cached data stays visible when available; retry after the service settles.'
+    });
+  });
+
   it('falls back to cached Activity records when all live sources fail', async () => {
     installLocalStorage();
     writeActivityCache([

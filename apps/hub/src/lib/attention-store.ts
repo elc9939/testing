@@ -7,6 +7,7 @@ import type {
   AttentionSourceStatus
 } from '@mini-hub/core';
 import { requestApiJsonWithTimeout } from './api';
+import { compactServiceIssueIfRecognized } from './service-issues';
 
 const attentionCacheKey = 'miniHub.attention.snapshot.v1';
 const refreshIntervalMs = 90_000;
@@ -109,9 +110,18 @@ export function attentionSourceLabel(source: AttentionSource): string {
 }
 
 export function attentionSourceStatusLine(source: AttentionSourceStatus): string {
-  if (source.status === 'ok') return `${source.label}: ${source.itemCount} active`;
-  if (source.status === 'unavailable') return `${source.label}: ${source.error ?? 'not connected'}`;
-  return `${source.label}: ${source.error ?? 'failed to refresh'}`;
+  if (source.status === 'ok') return `${source.itemCount} active`;
+  if (source.status === 'unavailable') return attentionSourceIssueText(source, 'not connected');
+  return attentionSourceIssueText(source, 'failed to refresh');
+}
+
+function attentionSourceIssueText(source: AttentionSourceStatus, fallback: string): string {
+  const compact = compactServiceIssueIfRecognized(source.error ?? fallback, source.label);
+  const labelWithSpace = `${source.label} `;
+  const labelWithColon = `${source.label}: `;
+  if (compact.startsWith(labelWithSpace)) return compact.slice(labelWithSpace.length);
+  if (compact.startsWith(labelWithColon)) return compact.slice(labelWithColon.length);
+  return compact;
 }
 
 export function attentionActionLabel(kind: AttentionActionKind): string {

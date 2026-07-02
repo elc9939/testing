@@ -708,11 +708,19 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('aiOsBenchmarkButtonTitle = aiOsActionBlocked');
     expect(source).toContain('aiOsInferenceRunButtonTitle = aiOsActionBlocked');
     expect(source).toContain('aiOsInferenceStreamButtonTitle = aiOsActionBlocked');
+    expect(source).toContain('aiOsDesignProposalButtonTitle = aiOsDesignProposalTitle(aiOsActionBlocked, aiOsActionBlockedReason, designBusy)');
+    expect(source).toContain('aiOsJobQueueButtonTitle = aiOsJobQueueActionTitle(aiOsActionBlocked, aiOsActionBlockedReason, jobBusy)');
+    expect(source).toContain('aiOsJobRefreshButtonTitle = aiOsJobRefreshActionTitle(aiOsActionBlocked, aiOsActionBlockedReason)');
+    expect(source).toContain("aiOsMemoryIngestButtonTitle = aiOsMemoryActionTitle('ingest', aiOsActionBlocked, aiOsActionBlockedReason, memoryBusy)");
+    expect(source).toContain("aiOsMemorySearchButtonTitle = aiOsMemoryActionTitle('search', aiOsActionBlocked, aiOsActionBlockedReason, memoryBusy)");
+    expect(source).toContain('aiOsAgentButtonTitle = aiOsAgentActionTitle(aiOsActionBlocked, aiOsActionBlockedReason, agentBusy)');
+    expect(source).toContain('aiOsMultimodalButtonTitle = aiOsMultimodalActionTitle(aiOsActionBlocked, aiOsActionBlockedReason, multimodalBusy)');
     expect(source).toContain('title={aiOsCommandButtonTitle}');
     expect(source).toContain('Plan and run this AI OS command; tool calls, usage, and Activity records stay recoverable.');
     expect(source).toContain('benchmark data updates routing, mode recommendations, and Activity.');
     expect(source).toContain('progress, result, and errors reload from Jobs and Activity.');
     expect(source).toContain('provider, model, latency, and usage are logged by AI OS.');
+    expect(source).toContain('inferResult = `Inference failed: ${compactServiceIssueIfRecognized(message,');
     expect(source).not.toContain("title={aiOsActionBlockedReason || (commandBusy ? 'AI OS command is already running.' : 'Run this AI OS command.')}");
     expect(source).not.toContain("title={aiOsActionBlockedReason || (commandBusy ? 'AI OS command is already running.' : 'Execute this AI OS command.')}");
     expect(source).toContain('disabled={autotuneBusy || aiOsActionBlocked}');
@@ -729,14 +737,21 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={foundationVerifyButtonTitle}');
     expect(source).toContain('title={aiOsInferenceRunButtonTitle}');
     expect(source).toContain('title={aiOsInferenceStreamButtonTitle}');
-    expect(source).toContain('title={aiOsJobQueueActionTitle()}');
-    expect(source).toContain('title={aiOsJobRefreshActionTitle()}');
-    expect(source).toContain("title={aiOsMemoryActionTitle('ingest')}");
-    expect(source).toContain("title={aiOsMemoryActionTitle('search')}");
-    expect(source).toContain('title={aiOsAgentActionTitle()}');
-    expect(source).toContain('title={aiOsMultimodalActionTitle()}');
+    expect(source).toContain('title={aiOsDesignProposalButtonTitle}');
+    expect(source).toContain('title={aiOsJobQueueButtonTitle}');
+    expect(source).toContain('title={aiOsJobRefreshButtonTitle}');
+    expect(source).toContain('title={aiOsMemoryIngestButtonTitle}');
+    expect(source).toContain('title={aiOsMemorySearchButtonTitle}');
+    expect(source).toContain('title={aiOsAgentButtonTitle}');
+    expect(source).toContain('title={aiOsMultimodalButtonTitle}');
     expect(source).not.toContain("title={aiOsActionTitle('Run one ad hoc inference call.', inferBusy, 'Inference is already running.')}");
     expect(source).not.toContain("title={aiOsActionTitle('Queue this AI OS job.', jobBusy, 'A job queue request is already running.')}");
+    expect(source).not.toContain('title={aiOsJobQueueActionTitle()}');
+    expect(source).not.toContain('title={aiOsJobRefreshActionTitle()}');
+    expect(source).not.toContain("title={aiOsMemoryActionTitle('ingest')}");
+    expect(source).not.toContain("title={aiOsMemoryActionTitle('search')}");
+    expect(source).not.toContain('title={aiOsAgentActionTitle()}');
+    expect(source).not.toContain('title={aiOsMultimodalActionTitle()}');
     expect(source).not.toContain("title={aiOsActionTitle('Ingest this scratch text into semantic memory.', memoryBusy, 'A memory action is already running.')}");
     expect(source).not.toContain("title={aiOsActionTitle('Run the generic agent loop.', agentBusy, 'Agent loop is already running.')}");
     expect(source).not.toContain("title={aiOsActionTitle('Invoke the selected multimodal capability.', multimodalBusy, 'Multimodal generation is already running.')}");
@@ -781,6 +796,17 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("href={hubHref('/settings#feature-wiring')}");
   });
 
+  it('lets cold local AI calls outlive generic service probes', async () => {
+    const source = await routeSource('./ai-os-api.ts');
+
+    expect(source).toContain('const aiOsInferenceTimeoutMs = 120_000');
+    expect(source).toContain('const aiOsGenerationTimeoutMs = 180_000');
+    expect(source).toContain('options: { credentials?: RequestCredentials; timeoutMs?: number } = {}');
+    expect(source).toContain("return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init, options);");
+    expect(source).toContain('}, { timeoutMs: aiOsInferenceTimeoutMs });');
+    expect(source).toContain('}, { timeoutMs: aiOsGenerationTimeoutMs });');
+  });
+
   it('guards Macro Lab and Passive task side-effect controls while state is unknown', async () => {
     const macro = await routeSource('../routes/macro-lab/+page.svelte');
     const passive = await routeSource('../routes/passive-tasks/+page.svelte');
@@ -789,6 +815,9 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status })');
     expect(macro).toContain("visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Macro Lab') :");
     expect(macro).toContain("visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Macro Lab action') :");
+    expect(macro).toContain('let actionMessage =');
+    expect(macro).toContain("actionMessage = `${dryRun ? 'Dry run' : 'Confirmed run'} recorded for ${run.macro_name}: ${run.status}.`");
+    expect(macro).toContain('<div class="notice success">{actionMessage}</div>');
     expect(macro).toContain('macroControlDisabled = Boolean(macroControlTitle)');
     expect(macro).toContain('macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy })');
     expect(macro).toContain('function macroRefreshDisabledReason');
@@ -973,6 +1002,7 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('passiveRunDueTitle = passiveWriteDisabled');
     expect(passive).toContain('passiveStartupTitle = passiveWriteDisabled');
     expect(passive).toContain('passiveIdleTickTitle = passiveWriteDisabled');
+    expect(passive).toContain('passiveSettingsSaveButtonTitle = passiveSettingsSaveTitle(passiveWriteDisabled, passiveWriteTitle)');
     expect(passive).toContain('title={passiveRunDueTitle}');
     expect(passive).toContain('title={passiveStartupTitle}');
     expect(passive).toContain('title={passiveIdleTickTitle}');
@@ -988,6 +1018,7 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('function passiveTaskCancelTitle');
     expect(passive).toContain('function passiveNotificationDismissTitle');
     expect(passive).toContain('function passiveSettingsSaveTitle');
+    expect(passive).toContain('title={passiveSettingsSaveButtonTitle}');
     expect(passive).toContain('function passivePreferenceTitle');
     expect(passive).toContain('function passiveFamilyControlTitle');
     expect(passive).toContain('function passiveScopeTitle');
@@ -1376,6 +1407,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('visibleCapabilityError = capabilityError ? compactTodayServiceIssue(capabilityError) :');
     expect(source).toContain('function todayRefreshTitle');
     expect(source).toContain('function compactTodayServiceIssue');
+    expect(source).toContain('function displayAttentionDetail');
+    expect(source).toContain('const compact = compactServiceIssueIfRecognized(detail, label)');
+    expect(source).toContain('<small>{displayAttentionDetail(item)}</small>');
+    expect(source).not.toContain('<small>{item.detail || sourceLabel(item)}</small>');
     expect(source).toContain('function actionLedgerEmptyMessage');
     expect(source).toContain('Today refresh needs attention');
     expect(source).toContain('Cached attention remains visible when available.');
@@ -2020,8 +2055,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('machineAutotuneButtonTitle = machineAutotuneTitle(machineAutotuneBlockedReason)');
     expect(source).toContain('machineSnapshotButtonTitle = machineSnapshotTitle(machineSnapshotBlockedReason)');
     expect(source).toContain('machineProfileRefreshButtonTitle = machineProfileRefreshTitle(machineProfileLoading)');
-    expect(source).toContain('passiveSettingsSaveButtonTitle = passiveSettingsSaveTitle()');
-    expect(source).toContain('passiveSettingsRefreshButtonTitle = passiveSettingsRefreshTitle()');
+    expect(source).toContain('passiveSettingsSaveButtonTitle = passiveSettingsSaveTitle(passiveSettingsBlockedReason)');
+    expect(source).toContain('passiveSettingsRefreshButtonTitle = passiveSettingsRefreshTitle(passiveLoading, passiveError)');
     expect(source).toContain('endpointSaveButtonTitle = endpointSaveTitle(endpointSaving)');
     expect(source).toContain('endpointReloadButtonTitle = endpointReloadTitle(endpointSaving)');
     expect(source).toContain('function serviceCheckTitle');
@@ -2076,7 +2111,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function machineModeBlockedReason');
     expect(source).toContain('Machine Mode cannot save because Mini Hub API is not ready');
     expect(source).toContain('id="machine-mode"');
-    expect(source).toContain('disabled={modeSaving || !canSync}');
+    expect(source).toContain('function modeButtonTitle(mode: MachineModeDefinition, blocked = machineModeBlocked)');
+    expect(source).toContain('title={modeButtonTitle(mode, machineModeBlocked)}');
+    expect(source).toContain('disabled={Boolean(machineModeBlocked)}');
     expect(source).toContain('No machine profile snapshots saved yet.');
     expect(source).toContain('No completed sync recorded yet');
     expect(source).toContain('Auto-import waits for legacy browser data');

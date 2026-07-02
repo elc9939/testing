@@ -16,6 +16,7 @@ describe('service issue compaction', () => {
       ).kind
     ).toBe('offline');
     expect(classifyServiceIssue('request timed out after 15000 ms').kind).toBe('timeout');
+    expect(classifyServiceIssue('This operation was aborted').kind).toBe('timeout');
   });
 
   it('turns repeated backend errors into short actionable UI copy', () => {
@@ -24,6 +25,9 @@ describe('service issue compaction', () => {
     );
     expect(compactServiceIssueLine('AI OS API route /api/ai/research/runs was not found at https://elc9939.github.io/testing.', 'AI OS')).toBe(
       'AI OS is pointed at the wrong endpoint or a missing route. Open Settings Feature Wiring and check the saved service URL.'
+    );
+    expect(compactServiceIssueIfRecognized('This operation was aborted', 'AI OS machine profile')).toBe(
+      'AI OS machine profile timed out. Cached data stays visible when available; retry after the service settles.'
     );
   });
 

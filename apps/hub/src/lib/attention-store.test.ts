@@ -54,7 +54,7 @@ describe('attention store helpers', () => {
         itemCount: 0,
         error: 'No connected Google account.'
       })
-    ).toBe('Gmail: No connected Google account.');
+    ).toBe('No connected Google account.');
     expect(
       attentionSourceStatusLine({
         id: 'research',
@@ -62,7 +62,25 @@ describe('attention store helpers', () => {
         status: 'ok',
         itemCount: 0
       })
-    ).toBe('Research: 0 active');
+    ).toBe('0 active');
+    expect(
+      attentionSourceStatusLine({
+        id: 'google_calendar',
+        label: 'Google Calendar',
+        status: 'error',
+        itemCount: 0,
+        error: 'Token has been expired or revoked.'
+      })
+    ).toBe('needs authentication or permission before this action can run.');
+    expect(
+      attentionSourceStatusLine({
+        id: 'ai_os',
+        label: 'AI OS',
+        status: 'error',
+        itemCount: 0,
+        error: 'This operation was aborted'
+      })
+    ).toBe('timed out. Cached data stays visible when available; retry after the service settles.');
   });
 
   it('only treats available actions as supported', () => {

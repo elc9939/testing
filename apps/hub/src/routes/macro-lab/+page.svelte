@@ -48,6 +48,7 @@
   let result = '';
   let serviceError = '';
   let actionError = '';
+  let actionMessage = '';
   let loading = false;
   let busy = false;
 
@@ -238,6 +239,7 @@
 
   function recordMacroActionError(caught: unknown, fallback: string): void {
     const message = caught instanceof Error ? caught.message : fallback;
+    actionMessage = '';
     actionError = message;
     if (macroConnectionError(message)) {
       serviceError = message;
@@ -264,10 +266,12 @@
     if (!requireMacroReady('Save macro')) return;
     busy = true;
     actionError = '';
+    actionMessage = '';
     try {
       const parsed = JSON.parse(editor) as MacroDefinition;
       const saved = await saveMacro(parsed);
       result = stringify({ saved: saved.id, updated_at: saved.updated_at });
+      actionMessage = `Saved ${saved.name}.`;
       await refresh();
       selectMacro(saved);
     } catch (caught) {
@@ -281,6 +285,7 @@
     if (!requireMacroReady('Create macro')) return;
     busy = true;
     actionError = '';
+    actionMessage = '';
     try {
       const id = `macro_${Date.now().toString(36)}`;
       const macro: MacroDefinition = {
@@ -298,6 +303,7 @@
       };
       const created = await createMacro(macro);
       result = stringify({ created: created.id });
+      actionMessage = `Created ${created.name}.`;
       await refresh();
       selectMacro(created);
     } catch (caught) {
@@ -312,9 +318,11 @@
     if (!requireMacroReady('Toggle macro')) return;
     busy = true;
     actionError = '';
+    actionMessage = '';
     try {
       const saved = await patchMacro(selectedMacro.id, { [field]: !selectedMacro[field] } as Partial<MacroDefinition>);
       result = stringify({ [field]: saved[field] });
+      actionMessage = `${saved.name} ${field === 'armed' ? (saved.armed ? 'armed' : 'disarmed') : saved.enabled ? 'enabled' : 'disabled'}.`;
       await refresh();
       selectMacro(saved);
     } catch (caught) {
@@ -330,9 +338,11 @@
     if (!dryRun && confirm && !confirmMacroSideEffectRun(selectedMacro)) return;
     busy = true;
     actionError = '';
+    actionMessage = '';
     try {
       const run = await runMacro(selectedMacro.id, dryRun, confirm);
       result = stringify(run);
+      actionMessage = `${dryRun ? 'Dry run' : 'Confirmed run'} recorded for ${run.macro_name}: ${run.status}.`;
       runs = await listMacroRuns(30);
       status = await getMacroStatus();
     } catch (caught) {
@@ -350,6 +360,7 @@
     }
     busy = true;
     actionError = '';
+    actionMessage = '';
     try {
       const value =
         kind === 'panic'
@@ -362,6 +373,7 @@
                 ? await startRecording()
                 : await stopRecording();
       result = stringify(value);
+      actionMessage = `Macro ${kind} completed.`;
       await refresh();
     } catch (caught) {
       recordMacroActionError(caught, `${kind} failed.`);
@@ -400,6 +412,9 @@
 {/if}
 {#if actionError}
   <div class="notice error" title={`Raw Macro Lab action error: ${actionError}`}>{visibleActionError}</div>
+{/if}
+{#if actionMessage}
+  <div class="notice success">{actionMessage}</div>
 {/if}
 
 <section class="status-strip">

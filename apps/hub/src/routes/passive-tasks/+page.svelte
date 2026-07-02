@@ -126,6 +126,7 @@
   $: passiveIdleTickTitle = passiveWriteDisabled
     ? passiveWriteTitle
     : 'Check idle-capable passive tasks now; idle/resource guards still decide what runs.';
+  $: passiveSettingsSaveButtonTitle = passiveSettingsSaveTitle(passiveWriteDisabled, passiveWriteTitle);
   $: nextRuns = [...(snapshot?.tasks ?? [])]
     .filter((task) => task.nextRunAt && task.status !== 'cancelled')
     .sort((a, b) => dateValue(a.nextRunAt) - dateValue(b.nextRunAt))
@@ -333,8 +334,8 @@
     return passiveActionTitle('Dismiss this passive notification; current run history and digest records remain available.');
   }
 
-  function passiveSettingsSaveTitle(): string {
-    return passiveActionTitle('Save passive task settings; new limits and toggles apply to future watcher runs.');
+  function passiveSettingsSaveTitle(disabled = passiveWriteDisabled, blockedReason = passiveWriteTitle): string {
+    return disabled ? blockedReason : 'Save passive task settings; new limits and toggles apply to future watcher runs.';
   }
 
   function passivePreferenceTitle(kind: 'notifications' | 'resource' | 'idle' | 'ai' | 'maxRuns'): string {
@@ -1288,7 +1289,7 @@
           <span class="icon-chip"><Settings size={16} /></span>
           <strong>Settings</strong>
         </div>
-        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveSettingsSaveTitle()} on:click={saveSettings}>Save</button>
+        <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveSettingsSaveButtonTitle} on:click={saveSettings}>Save</button>
       </div>
       {#if settings}
         <div class="settings-form">

@@ -49,12 +49,12 @@ interface AiActionLedgerEntry {
   summary: string;
   status: ActionLedgerEntry['status'];
   risk: ActionLedgerEntry['risk'];
-  mode?: string;
+  mode?: string | null;
   changed?: string[];
   recoverability?: {
     kind?: ActionLedgerEntry['recoverability']['kind'];
-    reference_id?: string;
-    route?: string;
+    reference_id?: string | null;
+    route?: string | null;
     description?: string;
     reversible?: boolean;
   };
@@ -202,6 +202,10 @@ function normalizeStatus(status: unknown): ActionLedgerEntry['status'] {
   return 'info';
 }
 
+function optionalNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
 function normalizeAiAction(action: AiActionLedgerEntry): ActionLedgerEntry {
   return actionLedgerEntrySchema.parse({
     id: action.id,
@@ -212,12 +216,12 @@ function normalizeAiAction(action: AiActionLedgerEntry): ActionLedgerEntry {
     summary: action.summary,
     status: action.status,
     risk: action.risk,
-    mode: action.mode,
+    mode: optionalNonEmptyString(action.mode),
     changed: action.changed ?? [],
     recoverability: {
       kind: action.recoverability?.kind ?? 'none',
-      referenceId: action.recoverability?.reference_id,
-      route: action.recoverability?.route,
+      referenceId: optionalNonEmptyString(action.recoverability?.reference_id),
+      route: optionalNonEmptyString(action.recoverability?.route),
       description: action.recoverability?.description ?? '',
       reversible: action.recoverability?.reversible ?? false
     },

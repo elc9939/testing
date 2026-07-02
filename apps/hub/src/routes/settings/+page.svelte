@@ -179,7 +179,7 @@
   $: endpointSuggestions = remoteEndpointSuggestions(currentOrigin());
   $: endpointSuggestionMap = new Map(endpointSuggestions.map((suggestion) => [suggestion.id, suggestion]));
   $: connectionModeClass = connectionMode.id;
-  $: lanAddressInfo = lanAddressSummary();
+  $: lanAddressInfo = lanAddressSummary(hubHealth);
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
     endpointIssue: machineAiOsEndpointIssue,
@@ -258,10 +258,11 @@
   $: machineAutotuneButtonTitle = machineAutotuneTitle(machineAutotuneBlockedReason);
   $: machineSnapshotButtonTitle = machineSnapshotTitle(machineSnapshotBlockedReason);
   $: machineProfileRefreshButtonTitle = machineProfileRefreshTitle(machineProfileLoading);
-  $: passiveSettingsSaveButtonTitle = passiveSettingsSaveTitle();
-  $: passiveSettingsRefreshButtonTitle = passiveSettingsRefreshTitle();
+  $: passiveSettingsSaveButtonTitle = passiveSettingsSaveTitle(passiveSettingsBlockedReason);
+  $: passiveSettingsRefreshButtonTitle = passiveSettingsRefreshTitle(passiveLoading, passiveError);
   $: endpointSaveButtonTitle = endpointSaveTitle(endpointSaving);
   $: endpointReloadButtonTitle = endpointReloadTitle(endpointSaving);
+  $: machineModeBlocked = machineModeBlockedReason(settingsControlState);
 
   async function checkApi(): Promise<void> {
     apiStatus = 'Checking';
@@ -368,16 +369,16 @@
     return 'One watched account per line; Save Passive Settings controls future account-aware passive checks.';
   }
 
-  function passiveSettingsSaveTitle(): string {
+  function passiveSettingsSaveTitle(blockedReason = passiveSettingsBlockedReason): string {
     return (
-      passiveSettingsBlockedReason ||
+      blockedReason ||
       'Save watched folders, research sources, and accounts through the Passive Tasks API; future runs and Activity use these scopes.'
     );
   }
 
-  function passiveSettingsRefreshTitle(): string {
-    if (passiveLoading) return 'Passive task settings are already loading.';
-    if (passiveError) return 'Retry Passive Task settings from the local API; controls stay disabled until a snapshot loads.';
+  function passiveSettingsRefreshTitle(loading = passiveLoading, error = passiveError): string {
+    if (loading) return 'Passive task settings are already loading.';
+    if (error) return 'Retry Passive Task settings from the local API; controls stay disabled until a snapshot loads.';
     return 'Reload Passive Task settings, watcher state, backup health, and watched scopes from the local API.';
   }
 
@@ -533,9 +534,9 @@
     return 'This is the best full-power mode because the browser and desktop services are on the same PC.';
   }
 
-  function lanAddressSummary(): { label: string; detail: string } {
-    if (!hubHealth) return { label: 'Run Check Services', detail: 'The Hub API reports LAN IPv4 addresses when it is reachable.' };
-    const addresses = hubHealth.network?.lanIpv4 ?? [];
+  function lanAddressSummary(health: HubHealth | null): { label: string; detail: string } {
+    if (!health) return { label: 'Run Check Services', detail: 'The Hub API reports LAN IPv4 addresses when it is reachable.' };
+    const addresses = health.network?.lanIpv4 ?? [];
     if (addresses.length) {
       return {
         label: addresses.join(', '),
@@ -924,8 +925,7 @@
     }
   }
 
-  function modeButtonTitle(mode: MachineModeDefinition): string {
-    const blocked = machineModeBlockedReason(settingsControlState);
+  function modeButtonTitle(mode: MachineModeDefinition, blocked = machineModeBlocked): string {
     if (blocked) return blocked;
     return `${mode.label}: ${mode.summary}`;
   }
@@ -1229,9 +1229,9 @@
         <button
           class:active={currentMachineMode.id === mode.id}
           type="button"
-          title={modeButtonTitle(mode)}
+          title={modeButtonTitle(mode, machineModeBlocked)}
           aria-pressed={currentMachineMode.id === mode.id}
-          disabled={modeSaving || !canSync}
+          disabled={Boolean(machineModeBlocked)}
           on:click={() => chooseMachineMode(mode.id)}
         >
           <strong>{mode.shortLabel}</strong>

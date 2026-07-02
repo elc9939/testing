@@ -14,7 +14,7 @@ export interface CompactServiceIssue {
 }
 
 const serviceIssuePattern =
-  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|CORS|mixed-content|timed out|timeout|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|401|403|unauthori[sz]ed|forbidden|permission)/iu;
+  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|CORS|mixed-content|timed out|timeout|abort|aborted|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|token|expired|revoked|401|403|unauthori[sz]ed|forbidden|permission)/iu;
 
 export function isLikelyServiceIssue(value: string): boolean {
   return serviceIssuePattern.test(value.trim());
@@ -24,10 +24,11 @@ export function classifyServiceIssue(message = ''): CompactServiceIssue {
   const text = message.trim();
   if (!text) return { kind: 'none', summary: 'unavailable', raw: '' };
   if (/timed out|timeout/iu.test(text)) return { kind: 'timeout', summary: 'timed out', raw: text };
+  if (/AbortError|operation was aborted|request aborted|aborted/iu.test(text)) return { kind: 'timeout', summary: 'request aborted or timed out', raw: text };
   if (/github pages|returned.*html|static website|static site|wrong endpoint|missing route|route .*not found|404|not found/iu.test(text)) {
     return { kind: 'wrong-endpoint', summary: 'wrong endpoint or missing route', raw: text };
   }
-  if (/auth|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
+  if (/auth|token|expired|revoked|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
     return { kind: 'auth', summary: 'auth or permission needed', raw: text };
   }
   const genericNetworkHint = /This can also be a CORS, firewall, service-offline, or mixed-content block/iu.test(text);

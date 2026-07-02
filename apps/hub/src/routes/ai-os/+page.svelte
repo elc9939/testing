@@ -241,6 +241,13 @@
     : inferBusy
       ? 'Inference is already running.'
       : 'Stream one ad hoc inference call; provider, model, latency, and usage are logged by AI OS.';
+  $: aiOsDesignProposalButtonTitle = aiOsDesignProposalTitle(aiOsActionBlocked, aiOsActionBlockedReason, designBusy);
+  $: aiOsJobQueueButtonTitle = aiOsJobQueueActionTitle(aiOsActionBlocked, aiOsActionBlockedReason, jobBusy);
+  $: aiOsJobRefreshButtonTitle = aiOsJobRefreshActionTitle(aiOsActionBlocked, aiOsActionBlockedReason);
+  $: aiOsMemoryIngestButtonTitle = aiOsMemoryActionTitle('ingest', aiOsActionBlocked, aiOsActionBlockedReason, memoryBusy);
+  $: aiOsMemorySearchButtonTitle = aiOsMemoryActionTitle('search', aiOsActionBlocked, aiOsActionBlockedReason, memoryBusy);
+  $: aiOsAgentButtonTitle = aiOsAgentActionTitle(aiOsActionBlocked, aiOsActionBlockedReason, agentBusy);
+  $: aiOsMultimodalButtonTitle = aiOsMultimodalActionTitle(aiOsActionBlocked, aiOsActionBlockedReason, multimodalBusy);
   $: foundationBackupButtonTitle = aiOsActionBlocked
     ? aiOsActionBlockedReason
     : foundationBusy
@@ -318,8 +325,8 @@
     return isLoading ? 'AI OS status refresh is already running.' : enabledTitle;
   }
 
-  function aiOsActionTitle(enabledTitle: string, busy: boolean, busyTitle: string): string {
-    if (aiOsActionBlocked) return aiOsActionBlockedReason;
+  function aiOsActionTitle(enabledTitle: string, busy: boolean, busyTitle: string, blocked = aiOsActionBlocked, blockedReason = aiOsActionBlockedReason): string {
+    if (blocked) return blockedReason;
     if (busy) return busyTitle;
     return enabledTitle;
   }
@@ -340,11 +347,13 @@
     );
   }
 
-  function aiOsDesignProposalTitle(): string {
+  function aiOsDesignProposalTitle(blocked = aiOsActionBlocked, blockedReason = aiOsActionBlockedReason, busy = designBusy): string {
     return aiOsActionTitle(
       'Ask AI OS to propose a reversible design patch; nothing applies until you arm and apply a saved patch.',
-      designBusy,
-      'A design patch action is already running.'
+      busy,
+      'A design patch action is already running.',
+      blocked,
+      blockedReason
     );
   }
 
@@ -366,39 +375,45 @@
     );
   }
 
-  function aiOsJobQueueActionTitle(): string {
+  function aiOsJobQueueActionTitle(blocked = aiOsActionBlocked, blockedReason = aiOsActionBlockedReason, busy = jobBusy): string {
     return aiOsActionTitle(
       'Queue this AI OS batch job; progress, result, and errors reload from Jobs and Activity.',
-      jobBusy,
-      'A job queue request is already running.'
+      busy,
+      'A job queue request is already running.',
+      blocked,
+      blockedReason
     );
   }
 
-  function aiOsJobRefreshActionTitle(): string {
-    return aiOsActionTitle('Reload AI OS job rows from durable job storage.', false, 'AI OS jobs are already refreshing.');
+  function aiOsJobRefreshActionTitle(blocked = aiOsActionBlocked, blockedReason = aiOsActionBlockedReason): string {
+    return aiOsActionTitle('Reload AI OS job rows from durable job storage.', false, 'AI OS jobs are already refreshing.', blocked, blockedReason);
   }
 
-  function aiOsMemoryActionTitle(action: 'ingest' | 'search'): string {
+  function aiOsMemoryActionTitle(action: 'ingest' | 'search', blocked = aiOsActionBlocked, blockedReason = aiOsActionBlockedReason, busy = memoryBusy): string {
     const enabledTitle =
       action === 'ingest'
         ? 'Ingest this scratch text into semantic memory; source id and result are logged by AI OS.'
         : 'Search semantic memory with local embeddings; the result stays visible in this panel.';
-    return aiOsActionTitle(enabledTitle, memoryBusy, 'A memory action is already running.');
+    return aiOsActionTitle(enabledTitle, busy, 'A memory action is already running.', blocked, blockedReason);
   }
 
-  function aiOsAgentActionTitle(): string {
+  function aiOsAgentActionTitle(blocked = aiOsActionBlocked, blockedReason = aiOsActionBlockedReason, busy = agentBusy): string {
     return aiOsActionTitle(
       'Run the generic plan-act-check agent loop; tool calls are logged and write actions still require confirmation.',
-      agentBusy,
-      'Agent loop is already running.'
+      busy,
+      'Agent loop is already running.',
+      blocked,
+      blockedReason
     );
   }
 
-  function aiOsMultimodalActionTitle(): string {
+  function aiOsMultimodalActionTitle(blocked = aiOsActionBlocked, blockedReason = aiOsActionBlockedReason, busy = multimodalBusy): string {
     return aiOsActionTitle(
       'Invoke the selected multimodal capability; generation output and provider telemetry are logged when available.',
-      multimodalBusy,
-      'Multimodal generation is already running.'
+      busy,
+      'Multimodal generation is already running.',
+      blocked,
+      blockedReason
     );
   }
 
@@ -1014,7 +1029,9 @@
       }
       usage = await getAiUsage(30);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Inference failed.';
       setError(error, 'Inference failed.');
+      inferResult = `Inference failed: ${compactServiceIssueIfRecognized(message, 'AI OS inference')}`;
     } finally {
       inferBusy = false;
     }
@@ -1839,7 +1856,7 @@
       <span>Arm apply/revert</span>
     </label>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={designBusy || aiOsActionBlocked} title={aiOsDesignProposalTitle()} on:click={proposePatch}>
+      <button class="button primary" type="button" disabled={designBusy || aiOsActionBlocked} title={aiOsDesignProposalButtonTitle} on:click={proposePatch}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Propose'}</span>
       </button>
@@ -2080,11 +2097,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button primary" type="button" disabled={jobBusy || aiOsActionBlocked} title={aiOsJobQueueActionTitle()} on:click={startJob}>
+      <button class="button primary" type="button" disabled={jobBusy || aiOsActionBlocked} title={aiOsJobQueueButtonTitle} on:click={startJob}>
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Queue'}</span>
       </button>
-      <button class="button" type="button" disabled={aiOsActionBlocked} title={aiOsJobRefreshActionTitle()} on:click={refreshJobs}>
+      <button class="button" type="button" disabled={aiOsActionBlocked} title={aiOsJobRefreshButtonTitle} on:click={refreshJobs}>
         <RefreshCw size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Jobs'}</span>
       </button>
@@ -2132,11 +2149,11 @@
       </div>
     </div>
     <div class="action-row">
-      <button class="button" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsMemoryActionTitle('ingest')} on:click={ingestScratchMemory}>
+      <button class="button" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsMemoryIngestButtonTitle} on:click={ingestScratchMemory}>
         <Database size={17} />
         <span>Ingest</span>
       </button>
-      <button class="button primary" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsMemoryActionTitle('search')} on:click={searchMemory}>
+      <button class="button primary" type="button" disabled={memoryBusy || aiOsActionBlocked} title={aiOsMemorySearchButtonTitle} on:click={searchMemory}>
         <Search size={17} />
         <span>Search</span>
       </button>
@@ -2153,7 +2170,7 @@
       <label for="agent-objective">Objective</label>
       <textarea id="agent-objective" bind:value={agentObjective} rows="5" title="Objective for the generic AI OS plan-act-check agent loop."></textarea>
     </div>
-    <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} title={aiOsAgentActionTitle()} on:click={runGenericAgent}>
+    <button class="button primary" type="button" disabled={agentBusy || aiOsActionBlocked} title={aiOsAgentButtonTitle} on:click={runGenericAgent}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Run Loop'}</span>
     </button>
@@ -2221,7 +2238,7 @@
         <textarea id="video-base64" bind:value={videoBase64} rows="2" title="Optional base64 video input for video-capable adapters."></textarea>
       </div>
     </div>
-    <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} title={aiOsMultimodalActionTitle()} on:click={invokeMedia}>
+    <button class="button primary" type="button" disabled={multimodalBusy || aiOsActionBlocked} title={aiOsMultimodalButtonTitle} on:click={invokeMedia}>
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : multimodalBusy ? 'Creating' : 'Create'}</span>
     </button>

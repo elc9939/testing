@@ -2,6 +2,7 @@ import { getAiStatus, cancelAiJob, cancelResearchRun, resumeResearchRun } from '
 import { getPassiveSnapshot, runPassiveTask } from './passive-tasks-api';
 import { listMacroRuns } from './macro-lab-api';
 import { activityHasActiveWork, buildActivityRecords, type ActivityRecord } from './activity';
+import { compactServiceIssueIfRecognized } from './service-issues';
 
 const activityCacheKey = 'miniHub.activity.snapshot.v1';
 const activityDismissedKey = 'miniHub.activity.dismissed.v1';
@@ -128,7 +129,12 @@ function source(id: string, label: string, ok: boolean, count: number, error?: s
   };
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown, label = 'Activity source'): string {
+  const raw = rawErrorMessage(error);
+  return compactServiceIssueIfRecognized(raw, label) || raw;
+}
+
+function rawErrorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : 'Request failed.';
 }
 
@@ -178,9 +184,9 @@ export async function loadActivitySnapshot(
   const passiveSnapshot = passive.status === 'fulfilled' ? passive.value : null;
   const macroRuns = macro.status === 'fulfilled' ? macro.value : [];
   const errors = [
-    ai.status === 'rejected' ? `AI OS: ${errorMessage(ai.reason)}` : '',
-    passive.status === 'rejected' ? `Passive Tasks: ${errorMessage(passive.reason)}` : '',
-    macro.status === 'rejected' ? `Macro Lab: ${errorMessage(macro.reason)}` : ''
+    ai.status === 'rejected' ? errorMessage(ai.reason, 'AI OS') : '',
+    passive.status === 'rejected' ? errorMessage(passive.reason, 'Passive Tasks') : '',
+    macro.status === 'rejected' ? errorMessage(macro.reason, 'Macro Lab') : ''
   ].filter(Boolean);
   const liveRecords = buildActivityRecords({ aiStatus, passiveSnapshot, macroRuns }, limit);
   const snapshot: ActivitySnapshot = {
@@ -190,9 +196,9 @@ export async function loadActivitySnapshot(
     active: activityHasActiveWork(liveRecords),
     records: liveRecords,
     sources: [
-      source('ai-os', 'AI OS', ai.status === 'fulfilled', 0, ai.status === 'rejected' ? errorMessage(ai.reason) : undefined),
-      source('passive', 'Passive Tasks', passive.status === 'fulfilled', 0, passive.status === 'rejected' ? errorMessage(passive.reason) : undefined),
-      source('macro-lab', 'Macro Lab', macro.status === 'fulfilled', 0, macro.status === 'rejected' ? errorMessage(macro.reason) : undefined)
+      source('ai-os', 'AI OS', ai.status === 'fulfilled', 0, ai.status === 'rejected' ? errorMessage(ai.reason, 'AI OS') : undefined),
+      source('passive', 'Passive Tasks', passive.status === 'fulfilled', 0, passive.status === 'rejected' ? errorMessage(passive.reason, 'Passive Tasks') : undefined),
+      source('macro-lab', 'Macro Lab', macro.status === 'fulfilled', 0, macro.status === 'rejected' ? errorMessage(macro.reason, 'Macro Lab') : undefined)
     ],
     errors
   };

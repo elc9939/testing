@@ -10,6 +10,8 @@ export function getAiOsApiUrl(): string {
 }
 
 export const aiOsApiUrl = getAiOsApiUrl();
+const aiOsInferenceTimeoutMs = 120_000;
+const aiOsGenerationTimeoutMs = 180_000;
 
 export interface AiProviderStatus {
   id: string;
@@ -447,8 +449,12 @@ export interface ResearchMonitorSweepResult {
   runs: ResearchRun[];
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init);
+async function requestJson<T>(
+  path: string,
+  init: RequestInit = {},
+  options: { credentials?: RequestCredentials; timeoutMs?: number } = {}
+): Promise<T> {
+  return requestServiceJson<T>('aiOs', getAiOsApiUrl(), path, init, options);
 }
 
 export async function getAiStatus(mode?: string): Promise<AiStatus> {
@@ -506,7 +512,7 @@ export async function runInference(input: AiInferenceInput): Promise<Record<stri
   const result = await requestJson<{ result: Record<string, unknown> }>('/api/ai/infer', {
     method: 'POST',
     body: JSON.stringify(toInferencePayload(input))
-  });
+  }, { timeoutMs: aiOsInferenceTimeoutMs });
   return result.result;
 }
 
@@ -581,7 +587,7 @@ export async function runAgent(input: Record<string, unknown>): Promise<Record<s
   const result = await requestJson<{ result: Record<string, unknown> }>('/api/ai/agents/run', {
     method: 'POST',
     body: JSON.stringify(input)
-  });
+  }, { timeoutMs: aiOsInferenceTimeoutMs });
   return result.result;
 }
 
@@ -589,7 +595,7 @@ export async function runCommand(input: Record<string, unknown>): Promise<Record
   return requestJson<Record<string, unknown>>('/api/ai/command', {
     method: 'POST',
     body: JSON.stringify(input)
-  });
+  }, { timeoutMs: aiOsInferenceTimeoutMs });
 }
 
 export async function listToolCalls(limit = 50): Promise<AiToolCallEntry[]> {
@@ -601,7 +607,7 @@ export async function invokeMultimodal(kind: string, input: Record<string, unkno
   const result = await requestJson<{ result: Record<string, unknown> }>(`/api/ai/multimodal/${kind}/invoke`, {
     method: 'POST',
     body: JSON.stringify(input)
-  });
+  }, { timeoutMs: aiOsGenerationTimeoutMs });
   return result.result;
 }
 
@@ -649,7 +655,7 @@ export async function runBenchmark(input: Record<string, unknown>): Promise<AiBe
   const result = await requestJson<{ benchmark: AiBenchmarkRun }>('/api/ai/benchmarks', {
     method: 'POST',
     body: JSON.stringify(input)
-  });
+  }, { timeoutMs: aiOsInferenceTimeoutMs });
   return result.benchmark;
 }
 
@@ -674,7 +680,7 @@ export async function runAutotune(input: Record<string, unknown>): Promise<AiAut
   return requestJson<AiAutotuneResult>('/api/ai/autotune', {
     method: 'POST',
     body: JSON.stringify(input)
-  });
+  }, { timeoutMs: aiOsInferenceTimeoutMs });
 }
 
 export async function listBenchmarks(limit = 25): Promise<AiBenchmarkRun[]> {

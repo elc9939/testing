@@ -173,6 +173,17 @@
     return attentionSourceLabel(item.source);
   }
 
+  function displayAttentionDetail(item: AttentionItem): string {
+    const label = sourceLabel(item);
+    const detail = item.detail || label;
+    const compact = compactServiceIssueIfRecognized(detail, label);
+    const labelWithSpace = `${label} `;
+    const labelWithColon = `${label}: `;
+    if (compact.startsWith(labelWithSpace)) return compact.slice(labelWithSpace.length);
+    if (compact.startsWith(labelWithColon)) return compact.slice(labelWithColon.length);
+    return compact;
+  }
+
   function todayCountLabel(value: number): string {
     if ($attentionStore.loading && !attentionSnapshot) return 'checking';
     if (!attentionSnapshot) return 'refresh needed';
@@ -797,7 +808,7 @@
         >
           <time datetime={item.dueAt}>{displayEventTime(item)}</time>
           <strong>{item.title}</strong>
-          <small>{item.detail || sourceLabel(item)}</small>
+          <small>{displayAttentionDetail(item)}</small>
         </a>
       {/each}
     </div>
@@ -833,7 +844,7 @@
                 <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
                 <span class="queue-main">
                   <strong>{item.title}</strong>
-                  <small>{item.detail}</small>
+                  <small>{displayAttentionDetail(item)}</small>
                 </span>
                 <span class={`priority-pill ${priorityClass(item)}`}>{item.priority}</span>
                 <span class="queue-when">{itemMeta(item)}</span>
@@ -913,7 +924,7 @@
                 <span class={`priority-pill ${priorityClass(item)}`}>{item.priority}</span>
                 <span class="compact-main">
                   <strong>{item.title}</strong>
-                  <small>{item.detail}</small>
+                  <small>{displayAttentionDetail(item)}</small>
                 </span>
                 <span class="queue-when">{itemMeta(item)}</span>
               </a>
@@ -968,7 +979,7 @@
                 <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
                 <span class="compact-main">
                   <strong>{item.title}</strong>
-                  <small>{item.detail}</small>
+                  <small>{displayAttentionDetail(item)}</small>
                 </span>
                 <span class="queue-when">{itemMeta(item)}</span>
               </a>
@@ -1016,7 +1027,7 @@
               <span class={`source-pill ${sourceClass(item.source)}`}>{sourceLabel(item)}</span>
               <span>
                 <strong>{item.title}</strong>
-                <small>{item.detail}</small>
+                <small>{displayAttentionDetail(item)}</small>
               </span>
             </a>
           {/each}
