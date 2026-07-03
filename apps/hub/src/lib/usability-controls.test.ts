@@ -1087,9 +1087,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Start or connect the local API before using Gmail or Calendar write actions.');
     expect(source).toContain('Connect Google before using Gmail or Calendar write actions.');
     expect(source).toContain('Use Reconnect Google to refresh OAuth before using this action.');
-    expect(source).toContain('function googleConnectButtonLabel');
-    expect(source).toContain('function googleReconnectTitle');
-    expect(source).toContain('function googleRevokeTitle');
+    expect(source).toContain('googleHeaderButtonLabel = googleOAuthOpening');
+    expect(source).toContain('googleSetupButtonLabel = googleOAuthOpening');
+    expect(source).toContain('googleAccountPanelAddLabel = googleOAuthOpening');
+    expect(source).toContain('googleConnectionManageTitle = actionBusyKey');
     expect(source).toContain('getGoogleOAuthUrl(returnTo, popup ?');
     expect(source).toContain('connection?.accountLabel');
     expect(source).toContain('on:click={() => connectGoogle()}');
@@ -1167,8 +1168,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Reconnect saved accounts to refresh live Gmail and Calendar.');
     expect(source).toContain('Use Reconnect Google when saved tokens expire.');
     expect(source).toContain('disabled={googleConnectionManageDisabled}');
-    expect(source).toContain('title={googleRevokeTitle(connection)}');
-    expect(source).toContain('title={googleReconnectTitle(connection)}');
+    expect(source).toContain('title={googleConnectionManageDisabled ? googleConnectionManageTitle');
+    expect(source).toContain('title={googleConnectDisabled ? googleConnectTitle');
     expect(source).toContain('function gmailReadTitle');
     expect(source).toContain('function calendarWindowSummary');
     expect(source).toContain('Checking cached calendar events before live Google refresh.');
@@ -1201,8 +1202,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('calendarId: eventDraft.calendarId || selectedCalendarId');
     expect(source).toContain('const savedDraft = draftForApi()');
     expect(source).toContain('selectedCalendarId = savedDraft.calendarId');
-    expect(source).toContain('function googleRevokeTitle');
-    expect(source).toContain('Ask for confirmation before revoking ${label}.');
+    expect(source).toContain('Ask for confirmation before revoking ${connection.accountLabel}.');
     expect(source).toContain('Revoke ${label} for this hub? Live Gmail and Calendar actions for that account will stop until you connect it again.');
     expect(source).toContain('Ask for confirmation before deleting this Google Calendar event.');
     expect(source).toContain('Delete "${event.title}" from ${calendarName(event.calendarId)}? This removes the live Google Calendar event.');
@@ -1239,7 +1239,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('this does not delete it, and the priority list plus browser cache refresh afterward');
     expect(source).toContain('Remove the IMPORTANT label');
     expect(source).toContain('cached productivity data can stay visible');
-    expect(source).toContain("if (googleOAuthOpening) return 'Opening sign-in';");
+    expect(source).toContain("? 'Opening sign-in'");
     expect(source).not.toContain('No local cache yet');
     expect(source).not.toContain(": 'None'}</strong>");
     expect(source).toContain('Opening Google sign-in.');

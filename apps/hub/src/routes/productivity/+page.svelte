@@ -186,6 +186,28 @@
           ? 'Open Google OAuth account picker to add another Google account.'
           : 'Open Google OAuth account picker.';
   $: googleConnectionManageDisabled = loading || !canAct || Boolean(actionBusyKey);
+  $: googleHeaderButtonLabel = googleOAuthOpening
+    ? 'Opening sign-in'
+    : googleNeedsReconnect
+      ? 'Reconnect Google'
+      : googleConnected
+        ? 'Add Google Account'
+        : 'Connect Google';
+  $: googleSetupButtonLabel = googleOAuthOpening
+    ? 'Opening sign-in'
+    : googleNeedsReconnect
+      ? 'Reconnect Google'
+      : googleConnected
+        ? 'Add Another'
+        : 'Connect Google';
+  $: googleAccountPanelAddLabel = googleOAuthOpening ? 'Opening sign-in' : googleNeedsReconnect ? 'Reconnect Google' : 'Add';
+  $: googleConnectionManageTitle = actionBusyKey
+    ? 'Another Productivity action is already running.'
+    : loading
+      ? 'Productivity is still loading the latest connection state.'
+      : !canAct
+        ? 'Start or connect the local API before revoking a saved Google account.'
+        : 'Ask for confirmation before revoking this Google account.';
   $: selectedCalendar = calendars.find((calendar) => calendar.id === selectedCalendarId);
   $: calendarWeek = buildCalendarWeek(events, calendarCursor);
   $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
@@ -907,29 +929,6 @@
     }
   }
 
-  function googleConnectButtonLabel(addLabel = 'Add Google Account'): string {
-    if (googleOAuthOpening) return 'Opening sign-in';
-    if (googleNeedsReconnect) return 'Reconnect Google';
-    return googleConnected ? addLabel : 'Connect Google';
-  }
-
-  function googleReconnectTitle(connection?: PublicConnection): string {
-    if (actionBusyKey) return 'Another Productivity action is already running.';
-    if (googleOAuthOpening) return 'Google OAuth popup is already opening.';
-    if (loading) return 'Productivity is still loading the latest connection state.';
-    if (!canAct) return 'Start or connect the local API before opening Google OAuth.';
-    const label = connection?.accountLabel ?? 'a saved Google account';
-    return `Reconnect ${label} through Google OAuth; the popup will suggest this account when Google allows it.`;
-  }
-
-  function googleRevokeTitle(connection?: PublicConnection): string {
-    if (actionBusyKey) return 'Another Productivity action is already running.';
-    if (loading) return 'Productivity is still loading the latest connection state.';
-    if (!canAct) return 'Start or connect the local API before revoking a saved Google account.';
-    const label = connection?.accountLabel ?? 'this Google account';
-    return `Ask for confirmation before revoking ${label}.`;
-  }
-
   async function connectGoogle(connection?: PublicConnection): Promise<void> {
     const key = `google:connect:${connection?.id ?? 'new'}`;
     if (!beginProductivityAction(key, false)) return;
@@ -1326,10 +1325,10 @@
     {#if googleConnected}
       <button class="button" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={17} />
-        <span>{googleConnectButtonLabel()}</span>
+        <span>{googleHeaderButtonLabel}</span>
       </button>
       {#if googleConnections.length === 1}
-        <button class="button" type="button" disabled={googleConnectionManageDisabled} title={googleRevokeTitle(googleConnection)} on:click={() => disconnectGoogle(googleConnection)}>
+        <button class="button" type="button" disabled={googleConnectionManageDisabled} title={googleConnectionManageDisabled ? googleConnectionManageTitle : `Ask for confirmation before revoking ${googleConnection?.accountLabel ?? 'this Google account'}.`} on:click={() => disconnectGoogle(googleConnection)}>
           <Unlink size={17} />
           <span>{isActionBusy(`google:disconnect:${googleConnection?.id ?? 'default'}`) ? 'Revoking' : 'Revoke'}</span>
         </button>
@@ -1337,7 +1336,7 @@
     {:else}
       <button class="button primary" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={17} />
-        <span>{googleConnectButtonLabel()}</span>
+        <span>{googleHeaderButtonLabel}</span>
       </button>
     {/if}
   </div>
@@ -1364,7 +1363,7 @@
     {#if googleNeedsReconnect}
       <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={15} />
-        <span>{googleConnectButtonLabel('Reconnect Google')}</span>
+        <span>{googleHeaderButtonLabel}</span>
       </button>
     {:else}
       <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to inspect Mini Hub API, Google OAuth, and endpoint wiring.">
@@ -1424,7 +1423,7 @@
   </div>
   <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
     <Link size={15} />
-    <span>{googleConnectButtonLabel('Add Another')}</span>
+    <span>{googleSetupButtonLabel}</span>
   </button>
 </section>
 
@@ -1434,7 +1433,7 @@
       <strong>Connected Google Accounts</strong>
       <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={15} />
-        <span>{googleConnectButtonLabel('Add')}</span>
+        <span>{googleAccountPanelAddLabel}</span>
       </button>
     </div>
     <div class="account-list">
@@ -1446,12 +1445,12 @@
           </span>
           <span class="account-actions">
             {#if googleNeedsReconnect}
-              <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleReconnectTitle(connection)} on:click={() => connectGoogle(connection)}>
+              <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectDisabled ? googleConnectTitle : `Reconnect ${connection.accountLabel} through Google OAuth; the popup will suggest this account when Google allows it.`} on:click={() => connectGoogle(connection)}>
                 <Link size={14} />
                 <span>Reconnect</span>
               </button>
             {/if}
-            <button class="icon-button" type="button" disabled={googleConnectionManageDisabled} title={googleRevokeTitle(connection)} aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
+            <button class="icon-button" type="button" disabled={googleConnectionManageDisabled} title={googleConnectionManageDisabled ? googleConnectionManageTitle : `Ask for confirmation before revoking ${connection.accountLabel}.`} aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
               <Unlink size={16} />
             </button>
           </span>
