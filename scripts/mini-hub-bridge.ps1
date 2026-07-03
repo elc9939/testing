@@ -115,9 +115,9 @@ function Start-HubApi {
     Write-Output 'Mini Hub API already reachable on 127.0.0.1:8787'
     return
   }
-  $pid = Get-PortPid 8787
-  if ($pid) {
-    throw "Port 8787 is already in use by PID $pid and Mini Hub API did not answer health."
+  $existingPid = Get-PortPid 8787
+  if ($existingPid) {
+    throw "Port 8787 is already in use by PID $existingPid and Mini Hub API did not answer health."
   }
   Ensure-BridgeDir
   $lanHost = Get-BridgeHost
