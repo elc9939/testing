@@ -180,7 +180,12 @@
       ? 'Google OAuth popup is already opening.'
       : actionBusyKey
       ? 'Another Productivity action is already running.'
-      : 'Open Google OAuth account picker.';
+      : googleNeedsReconnect
+        ? 'Reconnect Google through OAuth; choose the saved account in the popup so Gmail and Calendar can refresh.'
+        : googleConnected
+          ? 'Open Google OAuth account picker to add another Google account.'
+          : 'Open Google OAuth account picker.';
+  $: googleConnectionManageDisabled = loading || !canAct || Boolean(actionBusyKey);
   $: selectedCalendar = calendars.find((calendar) => calendar.id === selectedCalendarId);
   $: calendarWeek = buildCalendarWeek(events, calendarCursor);
   $: calendarRangeLabel = `${displayShortDate(localDateKey(calendarCursor))} - ${displayShortDate(localDateKey(addDays(calendarCursor, 6)))}`;
@@ -523,7 +528,7 @@
 
   function productivityActionTitle(enabledTitle: string): string {
     if (actionBusyKey) return 'Another Productivity action is already running.';
-    if (googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
+    if (googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Reconnect Google to refresh OAuth before Gmail or Calendar actions.';
     if (!canAct) return 'Start or connect the local API before using Gmail or Calendar write actions.';
     if (!googleConnected) return 'Connect Google before using Gmail or Calendar write actions.';
     if (apiChecking) return 'Productivity is checking the local API before enabling this action.';
@@ -548,7 +553,7 @@
     if (state.actionBusyKey) return 'Another Productivity action is running; write controls stay locked until it finishes.';
     if (!state.canAct) return 'OAuth, Gmail, and Calendar writes need the local API; cached rows stay readable.';
     if (!state.googleConnected) return 'Use Connect Google or Add Google Account before sending mail or changing calendar events.';
-    if (googleNeedsReconnect) return 'Saved Google tokens are expired or revoked. Use Add Google Account to refresh OAuth before sending mail or editing calendar events.';
+    if (googleNeedsReconnect) return 'Saved Google tokens are expired or revoked. Use Reconnect Google to refresh OAuth before sending mail or editing calendar events.';
     return 'Gmail and Calendar write controls can use connected Google accounts.';
   }
 
@@ -689,7 +694,7 @@
 
   function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'googleNeedsReconnect' | 'productivityReady' | 'canAct' | 'googleConnected'>, enabledTitle: string): string {
     if (state.actionBusyKey) return 'Another Productivity action is already running.';
-    if (state.googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
+    if (state.googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Reconnect Google to refresh OAuth before Gmail or Calendar actions.';
     if (!state.canAct) return 'Start or connect the local API before using Gmail or Calendar write actions.';
     if (!state.googleConnected) return 'Connect Google before using Gmail or Calendar write actions.';
     if (state.apiChecking) return 'Productivity is checking the local API before enabling this action.';
@@ -746,7 +751,7 @@
       return false;
     }
     if (requiresGoogle && googleNeedsReconnect) {
-      actionError = 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before using this action.';
+      actionError = 'Google saved tokens are expired or revoked. Use Reconnect Google to refresh OAuth before using this action.';
       return false;
     }
     if (loading) {
@@ -760,7 +765,7 @@
     if (requiresGoogle ? !productivityReady : !canAct) {
       actionError = requiresGoogle
         ? googleNeedsReconnect
-          ? 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before using this action.'
+          ? 'Google saved tokens are expired or revoked. Use Reconnect Google to refresh OAuth before using this action.'
           : 'Connect the API and Google before using this action.'
         : 'Start or connect the local API before using this action.';
       return false;
@@ -902,8 +907,32 @@
     }
   }
 
-  async function connectGoogle(): Promise<void> {
-    if (!beginProductivityAction('google:connect', false)) return;
+  function googleConnectButtonLabel(addLabel = 'Add Google Account'): string {
+    if (googleOAuthOpening) return 'Opening sign-in';
+    if (googleNeedsReconnect) return 'Reconnect Google';
+    return googleConnected ? addLabel : 'Connect Google';
+  }
+
+  function googleReconnectTitle(connection?: PublicConnection): string {
+    if (actionBusyKey) return 'Another Productivity action is already running.';
+    if (googleOAuthOpening) return 'Google OAuth popup is already opening.';
+    if (loading) return 'Productivity is still loading the latest connection state.';
+    if (!canAct) return 'Start or connect the local API before opening Google OAuth.';
+    const label = connection?.accountLabel ?? 'a saved Google account';
+    return `Reconnect ${label} through Google OAuth; the popup will suggest this account when Google allows it.`;
+  }
+
+  function googleRevokeTitle(connection?: PublicConnection): string {
+    if (actionBusyKey) return 'Another Productivity action is already running.';
+    if (loading) return 'Productivity is still loading the latest connection state.';
+    if (!canAct) return 'Start or connect the local API before revoking a saved Google account.';
+    const label = connection?.accountLabel ?? 'this Google account';
+    return `Ask for confirmation before revoking ${label}.`;
+  }
+
+  async function connectGoogle(connection?: PublicConnection): Promise<void> {
+    const key = `google:connect:${connection?.id ?? 'new'}`;
+    if (!beginProductivityAction(key, false)) return;
     googleOAuthOpening = true;
     const popup =
       typeof window !== 'undefined'
@@ -912,7 +941,7 @@
     if (popup) {
       googleOAuthPopup = popup;
       try {
-        popup.document.title = 'Connect Google';
+        popup.document.title = connection ? `Reconnect ${connection.accountLabel}` : 'Connect Google';
         popup.document.body.innerHTML =
           '<main style="font-family: system-ui, sans-serif; padding: 24px;"><strong>Opening Google sign-in.</strong><p>You can close this window if you change your mind.</p></main>';
       } catch {
@@ -922,10 +951,10 @@
     try {
       const returnTo = googleReturnTo();
       rememberGoogleReturnTo(returnTo);
-      const url = await getGoogleOAuthUrl(returnTo, popup ? 'popup' : 'redirect', googleOAuthCallbackMode());
+      const url = await getGoogleOAuthUrl(returnTo, popup ? 'popup' : 'redirect', googleOAuthCallbackMode(), connection?.accountLabel);
       if (popup) {
         popup.location.href = url;
-        actionMessage = 'Complete Google sign-in in the popup.';
+        actionMessage = connection ? `Complete Google sign-in for ${connection.accountLabel} in the popup.` : 'Complete Google sign-in in the popup.';
       } else {
         window.location.href = url;
       }
@@ -935,7 +964,7 @@
       setError(error, 'Google OAuth is not configured');
     } finally {
       googleOAuthOpening = false;
-      endProductivityAction('google:connect');
+      endProductivityAction(key);
     }
   }
 
@@ -962,7 +991,7 @@
   }
 
   async function disconnectGoogle(connection?: PublicConnection): Promise<void> {
-    if (!beginProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`)) return;
+    if (!beginProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`, false)) return;
     const label = connection?.accountLabel ?? 'the stored Google OAuth grant';
     if (!confirm(`Revoke ${label} for this hub? Live Gmail and Calendar actions for that account will stop until you connect it again.`)) {
       endProductivityAction(`google:disconnect:${connection?.id ?? 'default'}`);
@@ -1295,20 +1324,20 @@
       <span>{backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
     {#if googleConnected}
-      <button class="button" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
+      <button class="button" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={17} />
-        <span>{googleOAuthOpening ? 'Opening sign-in' : 'Add Google Account'}</span>
+        <span>{googleConnectButtonLabel()}</span>
       </button>
       {#if googleConnections.length === 1}
-        <button class="button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Ask for confirmation before revoking this Google account connection.')} on:click={() => disconnectGoogle(googleConnection)}>
+        <button class="button" type="button" disabled={googleConnectionManageDisabled} title={googleRevokeTitle(googleConnection)} on:click={() => disconnectGoogle(googleConnection)}>
           <Unlink size={17} />
           <span>{isActionBusy(`google:disconnect:${googleConnection?.id ?? 'default'}`) ? 'Revoking' : 'Revoke'}</span>
         </button>
       {/if}
     {:else}
-      <button class="button primary" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
+      <button class="button primary" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={17} />
-        <span>{googleOAuthOpening ? 'Opening sign-in' : 'Connect Google'}</span>
+        <span>{googleConnectButtonLabel()}</span>
       </button>
     {/if}
   </div>
@@ -1332,9 +1361,16 @@
       <strong>Productivity action needs attention</strong>
       <p>{visibleActionError}</p>
     </div>
-    <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to inspect Mini Hub API, Google OAuth, and endpoint wiring.">
-      <span>Open Settings</span>
-    </a>
+    {#if googleNeedsReconnect}
+      <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
+        <Link size={15} />
+        <span>{googleConnectButtonLabel('Reconnect Google')}</span>
+      </button>
+    {:else}
+      <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to inspect Mini Hub API, Google OAuth, and endpoint wiring.">
+        <span>Open Settings</span>
+      </a>
+    {/if}
   </section>
 {:else if actionMessage}
   <section class="card card-pad success-banner">{actionMessage}</section>
@@ -1364,7 +1400,7 @@
   <div>
     <span>Accounts</span>
     <strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'No Google accounts connected'}</strong>
-    <small>{googleConnected ? 'Use Add Google Account for another inbox/calendar.' : 'OAuth setup is required for live data.'}</small>
+    <small>{googleConnected ? googleNeedsReconnect ? 'Reconnect saved accounts to refresh live Gmail and Calendar.' : 'Use Add Google Account for another inbox/calendar.' : 'OAuth setup is required for live data.'}</small>
   </div>
   <div>
     <span>Loaded</span>
@@ -1382,13 +1418,13 @@
   <div>
     <strong>Google account setup</strong>
     <p>
-      Use Add Google Account once for each account you want Mini Hub to control. The OAuth flow opens Google's
-      account picker in a popup, stores the token in your local API, and returns to this hub tab automatically.
+      Use Reconnect Google when saved tokens expire. Use Add Google Account once for each account you want
+      Mini Hub to control; the popup stores refreshed OAuth tokens in your local API and returns here automatically.
     </p>
   </div>
-  <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
+  <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
     <Link size={15} />
-    <span>{googleOAuthOpening ? 'Opening sign-in' : googleConnected ? 'Add Another' : 'Connect Google'}</span>
+    <span>{googleConnectButtonLabel('Add Another')}</span>
   </button>
 </section>
 
@@ -1396,9 +1432,9 @@
   <section class="account-panel" aria-label="Connected Google accounts">
     <div class="account-panel-title">
       <strong>Connected Google Accounts</strong>
-      <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={connectGoogle}>
+      <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={15} />
-        <span>{googleOAuthOpening ? 'Opening sign-in' : 'Add'}</span>
+        <span>{googleConnectButtonLabel('Add')}</span>
       </button>
     </div>
     <div class="account-list">
@@ -1408,9 +1444,17 @@
             <strong>{connection.accountLabel}</strong>
             <small>{connection.status}{connection.lastSyncAt ? ` - ${displayTime(connection.lastSyncAt)}` : ''}</small>
           </span>
-          <button class="icon-button" type="button" disabled={productivityWriteDisabled} title={productivityActionTitle('Ask for confirmation before revoking this Google account connection.')} aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
-            <Unlink size={16} />
-          </button>
+          <span class="account-actions">
+            {#if googleNeedsReconnect}
+              <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleReconnectTitle(connection)} on:click={() => connectGoogle(connection)}>
+                <Link size={14} />
+                <span>Reconnect</span>
+              </button>
+            {/if}
+            <button class="icon-button" type="button" disabled={googleConnectionManageDisabled} title={googleRevokeTitle(connection)} aria-label={`Revoke ${connection.accountLabel}`} on:click={() => disconnectGoogle(connection)}>
+              <Unlink size={16} />
+            </button>
+          </span>
         </article>
       {/each}
     </div>
@@ -2020,6 +2064,24 @@
 
   .account-list small {
     color: var(--muted);
+  }
+
+  .account-list .account-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: fit-content;
+  }
+
+  .account-list .account-actions span {
+    display: inline;
+    min-width: auto;
+  }
+
+  .account-actions .button.compact {
+    min-height: 32px;
+    padding: 0.32rem 0.55rem;
   }
 
   .connector-details {

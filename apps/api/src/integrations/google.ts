@@ -465,7 +465,7 @@ export function googleCatalog(): ConnectorCatalogEntry[] {
 }
 
 export function googleAuthUrl(
-  options: { returnTo?: string | undefined; mode?: OAuthState['mode'] | undefined; redirectUri?: string | undefined } = {}
+  options: { returnTo?: string | undefined; mode?: OAuthState['mode'] | undefined; redirectUri?: string | undefined; loginHint?: string | undefined } = {}
 ): string {
   requireGoogleConfig();
   const redirectUri = options.redirectUri ?? env.googleRedirectUri;
@@ -477,6 +477,7 @@ export function googleAuthUrl(
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent select_account');
   url.searchParams.set('include_granted_scopes', 'true');
+  if (options.loginHint) url.searchParams.set('login_hint', options.loginHint);
   url.searchParams.set(
     'state',
     createOAuthState('google', personalWorkspaceId, { returnTo: options.returnTo, mode: options.mode, redirectUri })

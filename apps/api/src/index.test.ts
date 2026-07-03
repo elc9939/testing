@@ -1123,11 +1123,15 @@ describe('mini hub api', () => {
       const app = createApp({ useLogger: false, store: createMemoryStore() });
       const returnTo = 'https://elc9939.github.io/testing/productivity?panel=mail';
 
-      const response = await app.request(`/api/integrations/google/oauth/start?returnTo=${encodeURIComponent(returnTo)}`);
+      const response = await app.request(
+        `/api/integrations/google/oauth/start?returnTo=${encodeURIComponent(returnTo)}&loginHint=${encodeURIComponent('elc9939@nyu.edu')}`
+      );
       expect(response.status).toBe(200);
       const body = (await response.json()) as { url: string };
-      const stateValue = new URL(body.url).searchParams.get('state');
+      const authUrl = new URL(body.url);
+      const stateValue = authUrl.searchParams.get('state');
       expect(stateValue).toBeTruthy();
+      expect(authUrl.searchParams.get('login_hint')).toBe('elc9939@nyu.edu');
       expect(verifyOAuthState(stateValue ?? '', 'google')).toMatchObject({ returnTo });
     } finally {
       env.googleClientId = previous.googleClientId;

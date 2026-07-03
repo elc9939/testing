@@ -111,12 +111,14 @@ export async function getConnections(): Promise<PublicConnection[]> {
 export async function getGoogleOAuthUrl(
   returnTo?: string,
   mode: 'redirect' | 'popup' = 'redirect',
-  callback: 'api' | 'hub' = 'api'
+  callback: 'api' | 'hub' = 'api',
+  loginHint?: string
 ): Promise<string> {
   const params = new URLSearchParams();
   if (returnTo) params.set('returnTo', returnTo);
   if (mode !== 'redirect') params.set('mode', mode);
   if (callback !== 'api') params.set('callback', callback);
+  if (loginHint) params.set('loginHint', loginHint);
   const suffix = params.toString() ? `?${params}` : '';
   const result = await requestProductivityOAuth<{ url: string }>(`/api/integrations/google/oauth/start${suffix}`, {
     headers: returnTo ? { 'X-Mini-Hub-Return-To': returnTo } : undefined

@@ -418,7 +418,8 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
         url: googleAuthUrl({
           returnTo,
           mode: oauthMode(c.req.query('mode')),
-          redirectUri: callbackMode === 'hub' ? hostedGoogleCallbackUri(returnTo) : undefined
+          redirectUri: callbackMode === 'hub' ? hostedGoogleCallbackUri(returnTo) : undefined,
+          loginHint: c.req.query('loginHint')
         })
       });
     } catch (error) {
