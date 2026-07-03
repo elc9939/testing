@@ -592,7 +592,7 @@ describe('Mini Hub usability control gates', () => {
     const source = await routeSource('../routes/ai-os/+page.svelte');
 
     expect(source).toContain("type StartupState = 'ready' | 'degraded' | 'offline' | 'unknown' | 'checking'");
-    expect(source).toContain('startupChecks = buildStartupChecks(status, actionError, loading)');
+    expect(source).toContain('startupChecks = buildStartupChecks(displayStatus, actionError, loading)');
     expect(source).toContain('Checking ${getAiOsApiUrl()} for the local AI OS service.');
     expect(source).toContain("if (checks.some((check) => check.state === 'checking')) return 'Checking AI OS'");
     expect(source).toContain("if (state === 'checking') return 'Checking'");
@@ -692,6 +692,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('type AiHardwareStatus');
     expect(source).toContain('hardware = mergedHardwareTelemetry(status?.hardware, machineProfile?.hardware)');
     expect(source).toContain('function mergedHardwareTelemetry');
+    expect(source).toContain('displayStatus = status ?? statusFromMachineProfile(machineProfileFallback)');
+    expect(source).toContain('function statusFromMachineProfile');
+    expect(source).toContain('Promise.allSettled');
     expect(source).toContain('const checkHardware = mergedHardwareTelemetry(nextStatus.hardware, nextStatus.machine_profile?.hardware)');
     expect(source).toContain('<p class="muted">{noGpuRowsMessage()}</p>');
     expect(source).toContain('disabled={Boolean(warmupBlockedReason)}');

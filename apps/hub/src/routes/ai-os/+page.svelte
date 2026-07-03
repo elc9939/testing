@@ -68,6 +68,7 @@
     type AiGenerationAsset,
     type AiHardwareStatus,
     type AiJobSnapshot,
+    type AiMachineProfile,
     type AiMachineProfileSnapshot,
     type AiStatus,
     type AiToolCallEntry,
@@ -105,6 +106,7 @@
   let generationAssets: AiGenerationAsset[] = [];
   let designPatches: AiDesignPatch[] = [];
   let benchmarkRuns: AiBenchmarkRun[] = [];
+  let machineProfileFallback: AiMachineProfile | null = null;
   let machineSnapshots: AiMachineProfileSnapshot[] = [];
   let loading = false;
   let actionError = '';
@@ -166,24 +168,25 @@
   let benchmarkResult = '';
   let benchmarkBusy = false;
 
-  $: providers = status?.providers ?? [];
+  $: machineProfile = status?.machine_profile ?? machineProfileFallback ?? undefined;
+  $: displayStatus = status ?? statusFromMachineProfile(machineProfileFallback);
+  $: providers = displayStatus?.providers ?? [];
   $: availableProviders = providers.filter((provider) => provider.available);
   $: providerOptions = providers.map((provider) => provider.id);
-  $: machineProfile = status?.machine_profile;
   $: hardware = mergedHardwareTelemetry(status?.hardware, machineProfile?.hardware);
   $: primaryGpu = hardware?.gpus?.[0];
   $: loadedModels = hardware?.loaded_models ?? [];
-  $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
-  $: plainCapabilities = buildPlainCapabilities(status);
+  $: capabilityGroups = groupCapabilities(displayStatus?.capabilities ?? []);
+  $: plainCapabilities = buildPlainCapabilities(displayStatus);
   $: recentActivity = buildAiActivityItems(status, 8);
-  $: autoRouteText = autoRouteSummary(status);
-  $: mediaProviderOptions = multimodalProviderOptions(status);
+  $: autoRouteText = autoRouteSummary(displayStatus);
+  $: mediaProviderOptions = multimodalProviderOptions(displayStatus);
   $: connectedLocalAiOsHref = localConnectedAiOsHref();
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: profilePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: profileBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: profileBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
-  $: startupChecks = buildStartupChecks(status, actionError, loading);
+  $: startupChecks = buildStartupChecks(displayStatus, actionError, loading);
   $: startupSummary = summarizeStartupChecks(startupChecks);
   $: aiOsReady = Boolean(status);
   $: aiOsActionBlocked = !aiOsReady;
@@ -288,6 +291,19 @@
   function setError(error: unknown, fallback: string): void {
     actionError = error instanceof Error ? error.message : fallback;
     actionMessage = '';
+  }
+
+  function statusFromMachineProfile(profile: AiMachineProfile | null): AiStatus | null {
+    if (!profile) return null;
+    return {
+      providers: profile.providers ?? [],
+      capabilities: profile.capabilities ?? [],
+      hardware: profile.hardware,
+      jobs: [],
+      background: [],
+      tools: [],
+      machine_profile: profile
+    };
   }
 
   function localConnectedAiOsHref(): string {
@@ -973,7 +989,7 @@
     loading = true;
     actionError = '';
     try {
-      const [nextStatus, nextUsage, nextToolCalls, nextAssets, nextPatches, nextBenchmarks, nextProfile] = await Promise.all([
+      const [nextStatus, nextUsage, nextToolCalls, nextAssets, nextPatches, nextBenchmarks, nextProfile] = await Promise.allSettled([
         getAiStatus(currentMachineMode.id),
         getAiUsage(30),
         listToolCalls(30),
@@ -982,15 +998,32 @@
         listBenchmarks(12),
         getMachineProfile(currentMachineMode.id, 5).catch(() => null)
       ]);
-      status = nextProfile ? { ...nextStatus, machine_profile: nextProfile.profile } : nextStatus;
-      usage = nextUsage;
-      toolCalls = nextToolCalls;
-      generationAssets = nextAssets;
-      designPatches = nextPatches;
-      benchmarkRuns = nextBenchmarks;
-      machineSnapshots = nextProfile?.snapshots ?? machineSnapshots;
-      jobs = status.jobs;
-      actionMessage = 'AI OS status refreshed.';
+
+      const profileResult = nextProfile.status === 'fulfilled' ? nextProfile.value : null;
+      if (profileResult?.profile) {
+        machineProfileFallback = profileResult.profile;
+        machineSnapshots = profileResult.snapshots ?? machineSnapshots;
+      }
+
+      if (nextStatus.status === 'fulfilled') {
+        status = profileResult?.profile ? { ...nextStatus.value, machine_profile: profileResult.profile } : nextStatus.value;
+        jobs = status.jobs;
+      } else if (!profileResult?.profile) {
+        throw nextStatus.reason;
+      } else {
+        status = null;
+        jobs = [];
+      }
+
+      if (nextUsage.status === 'fulfilled') usage = nextUsage.value;
+      if (nextToolCalls.status === 'fulfilled') toolCalls = nextToolCalls.value;
+      if (nextAssets.status === 'fulfilled') generationAssets = nextAssets.value;
+      if (nextPatches.status === 'fulfilled') designPatches = nextPatches.value;
+      if (nextBenchmarks.status === 'fulfilled') benchmarkRuns = nextBenchmarks.value;
+
+      actionMessage = status
+        ? 'AI OS status refreshed.'
+        : 'Machine profile refreshed; full AI OS status still needs attention.';
     } catch (error) {
       setError(error, 'Failed to load AI OS status.');
     } finally {
