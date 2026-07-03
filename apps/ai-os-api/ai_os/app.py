@@ -252,6 +252,20 @@ def create_app(
                 response.headers["Access-Control-Allow-Private-Network"] = "true"
             return response
 
+        origin = request.headers.get("origin")
+        if request.method.upper() == "OPTIONS" and origin and origin in settings.trusted_origins:
+            response = PlainTextResponse("", status_code=200)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = request.headers.get(
+                "access-control-request-method", "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            )
+            response.headers["Access-Control-Allow-Headers"] = request.headers.get("access-control-request-headers", "*")
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+            response.headers["Access-Control-Max-Age"] = "600"
+            response.headers["Vary"] = "Origin"
+            return response
+
         if settings.require_loopback and request.client and not is_loopback_host(request.client.host):
             logger.warning(
                 "Rejected non-loopback request",

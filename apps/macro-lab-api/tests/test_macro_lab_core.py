@@ -163,6 +163,30 @@ def test_bridge_token_protects_macro_lab_work_routes_when_configured(tmp_path):
     assert allowed.status_code == 200
 
 
+def test_trusted_web_origin_private_network_preflight_is_allowed(tmp_path):
+    settings = Settings(
+        data_dir=tmp_path,
+        clipboard_poll_interval_s=60,
+        trusted_origins=["https://elc9939.github.io"],
+    )
+    storage = MacroStorage(settings.database_path())
+    app = create_app(settings=settings, storage=storage)
+
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/macro-lab/status",
+            headers={
+                "Origin": "https://elc9939.github.io",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Private-Network": "true",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://elc9939.github.io"
+    assert response.headers["access-control-allow-private-network"] == "true"
+
+
 def test_api_restores_macro_file_recovery_artifacts(tmp_path):
     settings = Settings(data_dir=tmp_path / "data", clipboard_poll_interval_s=60)
     storage = MacroStorage(settings.database_path())

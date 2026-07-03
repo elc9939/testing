@@ -1576,6 +1576,31 @@ def test_trusted_web_origin_gets_private_network_header(tmp_path):
     assert response.headers["access-control-allow-private-network"] == "true"
 
 
+def test_trusted_web_origin_private_network_preflight_is_allowed(tmp_path):
+    settings = Settings(
+        data_dir=tmp_path,
+        backup_enabled=False,
+        trusted_origins=["https://elc9939.github.io"],
+    )
+    storage = AppStorage(settings.database_path())
+    registry = ProviderRegistry([EchoProvider()])
+    app = create_app(settings=settings, storage=storage, providers=registry)
+
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/ai/status?mode=balanced",
+            headers={
+                "Origin": "https://elc9939.github.io",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Private-Network": "true",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://elc9939.github.io"
+    assert response.headers["access-control-allow-private-network"] == "true"
+
+
 def test_bridge_token_protects_ai_os_work_routes_when_configured(tmp_path):
     settings = Settings(data_dir=tmp_path, backup_enabled=False, bridge_token="bridge-secret")
     storage = AppStorage(settings.database_path())

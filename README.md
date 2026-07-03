@@ -144,6 +144,13 @@ Use Settings -> Desktop Services to save LAN or localhost service URLs for this 
 Use Settings -> Feature Wiring to verify what the hosted page will actually call before
 debugging individual features.
 
+The modern hub also retires the old root arcade service worker that used to cache every GET
+under the GitHub Pages scope. That legacy worker could replay stale local API responses from
+AI OS or Macro Lab, making the site look connected while telemetry/actions were actually
+old. The current build unregisters that root worker on hub startup, deletes old `mini-hub-v*`
+caches, reloads once when needed, and publishes a neutral root `sw.js` that does not
+intercept API calls. The legacy arcade still lives under `/legacy/`.
+
 ## What The App Does Now
 
 ### Hub UI

@@ -108,6 +108,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function readPassiveEventLastRun');
     expect(source).toContain('function writePassiveEventLastRun');
     expect(source).toContain('Passive event throttling is best-effort; app startup should stay usable.');
+    expect(source).toContain('function retireLegacyRootServiceWorker');
+    expect(source).toContain("workerPath.endsWith('/sw.js')");
+    expect(source).toContain("scopePath.includes('/legacy/')");
+    expect(source).toContain("caches.delete(key)");
+    expect(source).toContain('window.location.reload()');
     expect(source).toContain('Auto-save ready');
     expect(source).toContain('Offline read-only: cached pages stay readable, but save buttons wait for the Mini Hub API.');
     expect(source).toContain('Online auto-save ready. Last sync:');

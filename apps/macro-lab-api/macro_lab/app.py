@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from . import __version__, platform
 from .config import Settings, get_settings
@@ -216,6 +216,20 @@ def create_app(settings: Settings | None = None, storage: MacroStorage | None = 
             origin = request.headers.get("origin")
             if origin and origin in settings.trusted_origins:
                 response.headers["Access-Control-Allow-Private-Network"] = "true"
+            return response
+
+        origin = request.headers.get("origin")
+        if request.method.upper() == "OPTIONS" and origin and origin in settings.trusted_origins:
+            response = PlainTextResponse("", status_code=200)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = request.headers.get(
+                "access-control-request-method", "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            )
+            response.headers["Access-Control-Allow-Headers"] = request.headers.get("access-control-request-headers", "*")
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+            response.headers["Access-Control-Max-Age"] = "600"
+            response.headers["Vary"] = "Origin"
             return response
 
         if settings.require_loopback and request.client and request.client.host not in {"127.0.0.1", "::1", "testclient"}:

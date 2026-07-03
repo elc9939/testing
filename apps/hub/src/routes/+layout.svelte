@@ -44,6 +44,7 @@
     { href: routeMap.settings, label: 'Settings', icon: Settings }
   ];
   const dataRecoveryRoute = `${routeMap.settings}#data-recovery`;
+  const retiredRootServiceWorkerReloadKey = 'miniHub.retiredRootServiceWorkerReload.v1';
 
   $: path = hubRouteFromPath($page.url.pathname);
   $: themeLabel = $theme === 'dark' ? 'Dark' : $theme === 'light' ? 'Light' : 'System';
@@ -111,6 +112,27 @@
       .catch(() => undefined);
   }
 
+  async function retireLegacyRootServiceWorker(): Promise<void> {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    let retired = false;
+    for (const registration of registrations) {
+      const workerUrl = registration.active?.scriptURL ?? registration.waiting?.scriptURL ?? registration.installing?.scriptURL ?? '';
+      const scopePath = new URL(registration.scope).pathname;
+      const workerPath = workerUrl ? new URL(workerUrl).pathname : '';
+      if (!workerPath.endsWith('/sw.js') || scopePath.includes('/legacy/')) continue;
+      retired = (await registration.unregister()) || retired;
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((key) => /^mini-hub-v\d+$/u.test(key)).map((key) => caches.delete(key)));
+    }
+    if (retired && navigator.serviceWorker.controller && sessionStorage.getItem(retiredRootServiceWorkerReloadKey) !== 'done') {
+      sessionStorage.setItem(retiredRootServiceWorkerReloadKey, 'done');
+      window.location.reload();
+    }
+  }
+
   onMount(() => {
     let remoteTheme = '';
     let currentTheme: ThemeMode = 'system';
@@ -127,6 +149,7 @@
       }
     });
     applyTheme($theme);
+    void retireLegacyRootServiceWorker().catch(() => undefined);
     void clientData.init().then(() => emitPassiveBrowserEvent('app.startup', 'hub-layout-startup', 30));
     void attentionStore.init();
     const handleOnline = () => emitPassiveBrowserEvent('app.reconnect', 'browser-online', 10);
