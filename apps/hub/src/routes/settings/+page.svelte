@@ -822,7 +822,7 @@
           detail: authError
             ? 'A saved Google account exists, but Google rejected the token. Reconnect the account before Calendar or Gmail actions can run.'
             : compactServiceIssueIfRecognized(message, 'Google productivity'),
-          fixAction: authError ? 'Open Productivity Hub and use Add Google Account to refresh OAuth.' : 'Open Productivity Hub, retry Refresh, then inspect the Google error.'
+          fixAction: authError ? 'Open Productivity Hub and use Reconnect Google to refresh OAuth.' : 'Open Productivity Hub, retry Refresh, then inspect the Google error.'
         };
       }
     } catch (error) {
