@@ -6,6 +6,7 @@ import { compactServiceIssueIfRecognized } from './service-issues';
 
 const activityCacheKey = 'miniHub.activity.snapshot.v1';
 const activityDismissedKey = 'miniHub.activity.dismissed.v1';
+const defaultActivitySourceTimeoutMs = 12_000;
 
 export interface ActivitySourceState {
   id: string;
@@ -173,7 +174,7 @@ export async function loadActivitySnapshot(
   options: { sourceTimeoutMs?: number } = {}
 ): Promise<ActivitySnapshot> {
   const checkedAt = new Date().toISOString();
-  const timeoutMs = options.sourceTimeoutMs ?? 6_000;
+  const timeoutMs = options.sourceTimeoutMs ?? defaultActivitySourceTimeoutMs;
   const [ai, passive, macro] = await Promise.all([
     settleActivitySource('AI OS activity source', getAiStatus(), timeoutMs),
     settleActivitySource('Passive Tasks activity source', getPassiveSnapshot(), timeoutMs),

@@ -1106,6 +1106,17 @@ describe('mini hub api', () => {
     );
   });
 
+  it('keeps the legacy Google connections endpoint as a JSON compatibility alias', async () => {
+    const app = createApp({ useLogger: false, store: connectedGoogleStore() });
+
+    const response = await app.request('/api/integrations/google/connections');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      connections: [expect.objectContaining({ provider: 'google', status: 'connected' })]
+    });
+  });
+
   it('keeps the starting hub URL in signed Google OAuth state', async () => {
     const previous = {
       googleClientId: env.googleClientId,

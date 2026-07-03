@@ -408,6 +408,14 @@ export function integrationRoutes(store: MemoryStore): Hono<AppBindings> {
     });
   });
 
+  app.get('/google/connections', (c) => {
+    const user = requireUser(c);
+    if (user instanceof Response) return user;
+    return c.json({
+      connections: Array.from(store.integrationConnections.values()).map(publicConnection)
+    });
+  });
+
   app.get('/google/oauth/start', (c) => {
     const user = requireUser(c);
     if (user instanceof Response) return user;
