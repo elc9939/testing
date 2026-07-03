@@ -92,6 +92,22 @@
     return JSON.stringify(value, null, 2);
   }
 
+  function compactResultValue(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(compactResultValue);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .filter(([, nextValue]) => nextValue !== null && nextValue !== undefined)
+          .map(([key, nextValue]) => [key, compactResultValue(nextValue)])
+      );
+    }
+    return value;
+  }
+
+  function stringifyResult(value: unknown): string {
+    return stringify(compactResultValue(value));
+  }
+
   function selectMacro(macro: MacroDefinition): void {
     selectedId = macro.id;
     editor = stringify(macro);
@@ -270,7 +286,7 @@
     try {
       const parsed = JSON.parse(editor) as MacroDefinition;
       const saved = await saveMacro(parsed);
-      result = stringify({ saved: saved.id, updated_at: saved.updated_at });
+      result = stringifyResult({ saved: saved.id, updated_at: saved.updated_at });
       actionMessage = `Saved ${saved.name}.`;
       await refresh();
       selectMacro(saved);
@@ -302,7 +318,7 @@
         updated_at: new Date().toISOString()
       };
       const created = await createMacro(macro);
-      result = stringify({ created: created.id });
+      result = stringifyResult({ created: created.id });
       actionMessage = `Created ${created.name}.`;
       await refresh();
       selectMacro(created);
@@ -321,7 +337,7 @@
     actionMessage = '';
     try {
       const saved = await patchMacro(selectedMacro.id, { [field]: !selectedMacro[field] } as Partial<MacroDefinition>);
-      result = stringify({ [field]: saved[field] });
+      result = stringifyResult({ [field]: saved[field] });
       actionMessage = `${saved.name} ${field === 'armed' ? (saved.armed ? 'armed' : 'disarmed') : saved.enabled ? 'enabled' : 'disabled'}.`;
       await refresh();
       selectMacro(saved);
@@ -341,7 +357,7 @@
     actionMessage = '';
     try {
       const run = await runMacro(selectedMacro.id, dryRun, confirm);
-      result = stringify(run);
+      result = stringifyResult(run);
       actionMessage = `${dryRun ? 'Dry run' : 'Confirmed run'} recorded for ${run.macro_name}: ${run.status}.`;
       runs = await listMacroRuns(30);
       status = await getMacroStatus();
@@ -372,7 +388,7 @@
               : kind === 'record'
                 ? await startRecording()
                 : await stopRecording();
-      result = stringify(value);
+      result = stringifyResult(value);
       actionMessage = `Macro ${kind} completed.`;
       await refresh();
     } catch (caught) {

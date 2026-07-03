@@ -833,6 +833,9 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain("visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Macro Lab action') :");
     expect(macro).toContain('let actionMessage =');
     expect(macro).toContain("actionMessage = `${dryRun ? 'Dry run' : 'Confirmed run'} recorded for ${run.macro_name}: ${run.status}.`");
+    expect(macro).toContain('function compactResultValue');
+    expect(macro).toContain('function stringifyResult');
+    expect(macro).toContain('result = stringifyResult(run)');
     expect(macro).toContain('<div class="notice success">{actionMessage}</div>');
     expect(macro).toContain('macroControlDisabled = Boolean(macroControlTitle)');
     expect(macro).toContain('macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy })');
