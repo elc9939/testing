@@ -522,11 +522,13 @@
   }
 
   function productivityActionTitle(enabledTitle: string): string {
-    if (googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
-    if (loading) return 'Productivity is still loading the latest connection state.';
-    if (apiChecking) return 'Productivity is checking the local API before enabling this action.';
-    if (!productivityReady) return 'Connect the API and Google before using this action.';
     if (actionBusyKey) return 'Another Productivity action is already running.';
+    if (googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
+    if (!canAct) return 'Start or connect the local API before using Gmail or Calendar write actions.';
+    if (!googleConnected) return 'Connect Google before using Gmail or Calendar write actions.';
+    if (apiChecking) return 'Productivity is checking the local API before enabling this action.';
+    if (loading) return 'Productivity is still loading the latest connection state.';
+    if (!productivityReady) return 'Connect the API and Google before using this action.';
     return enabledTitle;
   }
 
@@ -685,17 +687,19 @@
     return productivityActionTitle('Ask for confirmation before moving this event.');
   }
 
-  function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'googleNeedsReconnect' | 'productivityReady'>, enabledTitle: string): string {
-    if (state.googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
-    if (state.loading) return 'Productivity is still loading the latest connection state.';
-    if (state.apiChecking) return 'Productivity is checking the local API before enabling this action.';
-    if (!state.productivityReady) return 'Connect the API and Google before using this action.';
+  function productivityActionTitleForState(state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'googleNeedsReconnect' | 'productivityReady' | 'canAct' | 'googleConnected'>, enabledTitle: string): string {
     if (state.actionBusyKey) return 'Another Productivity action is already running.';
+    if (state.googleNeedsReconnect) return 'Google saved tokens are expired or revoked. Use Add Google Account to reconnect before Gmail or Calendar actions.';
+    if (!state.canAct) return 'Start or connect the local API before using Gmail or Calendar write actions.';
+    if (!state.googleConnected) return 'Connect Google before using Gmail or Calendar write actions.';
+    if (state.apiChecking) return 'Productivity is checking the local API before enabling this action.';
+    if (state.loading) return 'Productivity is still loading the latest connection state.';
+    if (!state.productivityReady) return 'Connect the API and Google before using this action.';
     return enabledTitle;
   }
 
   function productivityValidatedActionTitleForState(
-    state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'googleNeedsReconnect' | 'productivityReady'>,
+    state: Pick<ProductivityControlTitleState, 'loading' | 'apiChecking' | 'actionBusyKey' | 'googleNeedsReconnect' | 'productivityReady' | 'canAct' | 'googleConnected'>,
     enabledTitle: string,
     validationReason: string
   ): string {

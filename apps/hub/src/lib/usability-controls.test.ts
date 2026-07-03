@@ -1069,6 +1069,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function endProductivityAction');
     expect(source).toContain('Another Productivity action is already running.');
     expect(source).toContain('Productivity is still loading the latest connection state.');
+    expect(source).toContain('Start or connect the local API before using Gmail or Calendar write actions.');
+    expect(source).toContain('Connect Google before using Gmail or Calendar write actions.');
     expect(source).toContain('function productivityReadTitle');
     expect(source).toContain('function productivityValidatedActionTitle');
     expect(source).toContain('interface ProductivityStatusState');
