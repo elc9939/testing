@@ -6,6 +6,7 @@ export type CompactServiceIssueKind =
   | 'browser-blocked'
   | 'offline'
   | 'auth'
+  | 'invalid-response'
   | 'unknown';
 
 export interface CompactServiceIssue {
@@ -15,7 +16,7 @@ export interface CompactServiceIssue {
 }
 
 const serviceIssuePattern =
-  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|fetch failed|CORS|mixed-content|timed out|timeout|abort|aborted|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|token|expired|revoked|401|403|unauthori[sz]ed|forbidden|permission|GPU telemetry|nvidia-smi|Win32_|Win32|VideoController|PowerShell|HardwareInformation|GPUAdapterMemory|api\.openai\.com|Client error)/iu;
+  /(?:AI OS|Mini Hub API|Macro Lab|api|service|route|Failed to fetch|fetch failed|CORS|mixed-content|timed out|timeout|abort|aborted|unavailable|offline|Not Found|ECONNREFUSED|connection refused|returned.*HTML|static site|github pages|token|expired|revoked|401|403|unauthori[sz]ed|forbidden|permission|invalid_type|expected .* received|validation|schema|GPU telemetry|nvidia-smi|Win32_|Win32|VideoController|PowerShell|HardwareInformation|GPUAdapterMemory|api\.openai\.com|Client error)/iu;
 
 export function isLikelyServiceIssue(value: string): boolean {
   return serviceIssuePattern.test(value.trim());
@@ -34,6 +35,9 @@ export function classifyServiceIssue(message = ''): CompactServiceIssue {
   }
   if (/auth|token|expired|revoked|unauthori[sz]ed|permission|forbidden|401|403/iu.test(text)) {
     return { kind: 'auth', summary: 'auth or permission needed', raw: text };
+  }
+  if (/invalid_type|expected .* received|validation|schema|zod/iu.test(text)) {
+    return { kind: 'invalid-response', summary: 'unexpected response shape', raw: text };
   }
   const genericNetworkHint = /This can also be a CORS, firewall, service-offline, or mixed-content block/iu.test(text);
   const explicitBrowserBlock =
@@ -71,6 +75,9 @@ export function compactServiceIssueLine(message = '', serviceLabel = 'Service'):
   }
   if (issue.kind === 'auth') {
     return `${serviceLabel} needs authentication or permission before this action can run.`;
+  }
+  if (issue.kind === 'invalid-response') {
+    return `${serviceLabel} returned data in an unexpected shape. Restart or update the desktop service, then retry.`;
   }
   if (issue.kind === 'none') {
     return `${serviceLabel} is unavailable. Refresh or open Settings Feature Wiring.`;
