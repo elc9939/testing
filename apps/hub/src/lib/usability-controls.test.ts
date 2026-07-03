@@ -2113,6 +2113,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('AI OS is unavailable. Start AI OS or fix the endpoint, then retry the profile check.');
     expect(source).toContain("visibleMachineProfileError = machineProfileError ? compactServiceIssueIfRecognized(machineProfileError, 'AI OS machine profile') :");
     expect(source).toContain('Machine profile diagnostic is compacted for display. Retry Profile or open Feature Wiring for service setup.');
+    expect(source).toContain('ollamaViaAiOsReady');
+    expect(source).toContain('function ollamaWiringDetail');
+    expect(source).toContain('Direct browser-to-Ollama checks are optional and may be blocked on hosted pages.');
     expect(source).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
     expect(source).toContain('disabled={Boolean(machineAutotuneBlockedReason)}');
     expect(source).toContain('disabled={Boolean(machineSnapshotBlockedReason)}');

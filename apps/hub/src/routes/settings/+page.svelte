@@ -148,6 +148,9 @@
   $: machinePressure = machineProfile?.autotune?.resource_pressure?.level ?? 'unknown';
   $: machineBestRoute = routeLabel(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: machineBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
+  $: ollamaProviderViaAiOs = machineProfile?.providers.find((provider) => provider.id === 'ollama' || /ollama/iu.test(provider.label));
+  $: ollamaViaAiOsReady = Boolean(ollamaProviderViaAiOs?.available || (machineBestRoute.toLowerCase().startsWith('ollama/') && machineProfile));
+  $: ollamaVisibleModelCount = Math.max(ollamaModelCount, ollamaProviderViaAiOs?.models.length ?? 0, machineProfile?.loaded_models.length ?? 0);
   $: visibleSettingsError = settingsError ? compactSettingsIssue(settingsError, 'Settings') : '';
   $: visibleClientDataError = $clientData.error ? compactSettingsIssue($clientData.error, 'Mini Hub cache') : '';
   $: visibleEndpointError = endpointError ? compactSettingsIssue(endpointError, 'Desktop Services') : '';
@@ -231,11 +234,12 @@
       detail: capabilityServiceReady('macro-lab') ? 'Macro status, run history, and actions are reachable.' : undefined
     },
     ollama: {
-      ready: apiStatusReady(ollamaStatus),
-      loading: ollamaStatus === 'Checking',
-      error: apiStatusError(ollamaStatus),
-      detail: apiStatusReady(ollamaStatus)
-        ? `Ollama responded with ${ollamaModelCount} local model${ollamaModelCount === 1 ? '' : 's'}.`
+      ready: apiStatusReady(ollamaStatus) || ollamaViaAiOsReady,
+      loading: ollamaStatus === 'Checking' || machineProfileLoading,
+      error: apiStatusReady(ollamaStatus) || ollamaViaAiOsReady ? '' : apiStatusError(ollamaStatus),
+      detail: ollamaWiringDetail(ollamaStatus, ollamaVisibleModelCount, ollamaViaAiOsReady, machineBestRoute),
+      fixAction: ollamaViaAiOsReady && apiStatusError(ollamaStatus)
+        ? 'No action needed for AI OS. Only fix the direct Ollama URL if you want browser-to-Ollama checks.'
         : undefined
     },
     google: {
@@ -1116,6 +1120,15 @@
   function routeSpeed(route: Record<string, unknown> | null | undefined): string {
     const value = route?.tokens_per_second;
     return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} tok/s` : 'not measured';
+  }
+
+  function ollamaWiringDetail(status: string, modelCount: number, readyViaAiOs: boolean, bestRoute: string): string | undefined {
+    if (apiStatusReady(status)) return `Ollama responded directly with ${modelCount} local model${modelCount === 1 ? '' : 's'}.`;
+    if (readyViaAiOs) {
+      const modelText = modelCount > 0 ? `${modelCount} local model${modelCount === 1 ? '' : 's'}` : 'local model telemetry';
+      return `AI OS can reach Ollama (${modelText}; best route ${bestRoute}). Direct browser-to-Ollama checks are optional and may be blocked on hosted pages.`;
+    }
+    return undefined;
   }
 
   function formatPercent(value: number | undefined): string {
