@@ -1156,6 +1156,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Browser productivity cache could not be updated');
     expect(source).toContain('No browser cache snapshot yet');
     expect(source).toContain('No Google accounts connected');
+    expect(source).toContain("googleStatusDisplay = googleConnected ? (googleNeedsReconnect ? 'Needs reconnect' : 'Connected') : 'Not connected'");
+    expect(source).toContain('function googleAccountStatusLabel');
+    expect(source).toContain("'needs reconnect'");
+    expect(source).toContain("googleNeedsReconnect ? 'Saved Google Accounts' : 'Connected Google Accounts'");
     expect(source).toContain('{#if cacheWarning}');
     expect(source).toContain('Write Mode');
     expect(source).toContain('Read Mode');

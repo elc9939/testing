@@ -260,6 +260,7 @@
       ? `${googleConnections.length} saved Google account${googleConnections.length === 1 ? '' : 's'} need OAuth refresh before Gmail or Calendar actions can run.`
       : `${googleConnections.length} account${googleConnections.length === 1 ? '' : 's'} available for Gmail and Calendar actions.`
     : 'Connect Google to enable live Gmail, Calendar, and write actions.';
+  $: googleStatusDisplay = googleConnected ? (googleNeedsReconnect ? 'Needs reconnect' : 'Connected') : 'Not connected';
   $: productivityApiDetail = canAct
     ? `Using Mini Hub API at ${getApiUrl()} for OAuth and writes.`
     : apiChecking
@@ -601,6 +602,11 @@
     if (!state.googleConnected) return 'Connect Google to load live Gmail and Calendar data.';
     if (googleNeedsReconnect) return 'Saved Google tokens are expired or revoked. Reconnect Google to load live Calendar and Gmail data.';
     return 'Open Settings to inspect Productivity wiring.';
+  }
+
+  function googleAccountStatusLabel(connection: PublicConnection): string {
+    if (connection.provider === 'google' && googleNeedsReconnect) return 'needs reconnect';
+    return connection.status;
   }
 
   function productivityRefreshTitle(state: ProductivityControlTitleState): string {
@@ -1393,7 +1399,7 @@
   </div>
   <div>
     <span>Google</span>
-    <strong>{googleConnected ? 'Connected' : 'Not connected'}</strong>
+    <strong>{googleStatusDisplay}</strong>
     <small>{productivityConnectionDetail}</small>
   </div>
   <div>
@@ -1430,7 +1436,7 @@
 {#if googleConnected}
   <section class="account-panel" aria-label="Connected Google accounts">
     <div class="account-panel-title">
-      <strong>Connected Google Accounts</strong>
+      <strong>{googleNeedsReconnect ? 'Saved Google Accounts' : 'Connected Google Accounts'}</strong>
       <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
         <Link size={15} />
         <span>{googleAccountPanelAddLabel}</span>
@@ -1441,7 +1447,7 @@
         <article>
           <span>
             <strong>{connection.accountLabel}</strong>
-            <small>{connection.status}{connection.lastSyncAt ? ` - ${displayTime(connection.lastSyncAt)}` : ''}</small>
+            <small>{googleAccountStatusLabel(connection)}{connection.lastSyncAt ? ` - ${displayTime(connection.lastSyncAt)}` : ''}</small>
           </span>
           <span class="account-actions">
             {#if googleNeedsReconnect}
