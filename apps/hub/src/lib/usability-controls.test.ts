@@ -450,6 +450,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('will appear after this ${selectedRun.status} run produces that part of the report.');
     expect(source).toContain('The run remains recoverable from Activity.');
     expect(source).toContain('Open logs or retry from Activity.');
+    expect(source).toContain('Source fetch warning: one page could not be fetched; cached sources stayed available when possible.');
+    expect(source).toContain('Run log warnings are diagnostics for this selected report, not a Research Desk page failure.');
     expect(source).toContain("selectedReportSectionEmptyMessage('tldr')");
     expect(source).toContain("selectedReportSectionEmptyMessage('reliability')");
     expect(source).toContain("selectedReportSectionEmptyMessage('detailedSummary')");

@@ -1022,7 +1022,13 @@
   }
 
   function logMessage(log: Record<string, unknown>): string {
-    return typeof log.message === 'string' ? compactDisplayText(log.message, 420) : compactDisplayText(formatJson(log), 420);
+    if (typeof log.message === 'string') {
+      if (log.message.trim().toLowerCase() === 'fetch failed.') {
+        return 'Source fetch warning: one page could not be fetched; cached sources stayed available when possible.';
+      }
+      return compactDisplayText(log.message, 420);
+    }
+    return compactDisplayText(formatJson(log), 420);
   }
 
   function logTime(log: Record<string, unknown>): string {
@@ -1665,6 +1671,7 @@
         <article>
           <h3>Run Log</h3>
           {#if selectedRun.logs.length}
+            <p class="empty-note">Run log warnings are diagnostics for this selected report, not a Research Desk page failure.</p>
             <div class="log-list">
               {#each selectedRun.logs as log}
                 <div>
