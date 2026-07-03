@@ -120,7 +120,7 @@
   let jobCancelBusyId = '';
   let backgroundBusyId = '';
 
-  let inferPrompt = 'Return one sentence confirming which provider handled this ad hoc capability test.';
+  let inferPrompt = 'Return one short sentence confirming that this ad hoc AI OS inference request completed.';
   let inferProvider = '';
   let inferModel = '';
   let inferResult = '';

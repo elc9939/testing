@@ -659,6 +659,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("aiOsPanelEmptyMessage('No design patches yet.', 'Checking AI OS design patch history.', 'Design patches')");
     expect(source).toContain('Checking AI OS jobs.');
     expect(source).toContain('Process this queued item for an ad hoc capability test: {item}');
+    expect(source).toContain('Return one short sentence confirming that this ad hoc AI OS inference request completed.');
+    expect(source).not.toContain('Return one sentence confirming which provider handled this ad hoc capability test.');
     expect(source).not.toContain('placeholder capability test');
     expect(source).toContain('No verified AI OS backup recorded yet.');
     expect(source).toContain('Loading GPU telemetry rows from AI OS.');
