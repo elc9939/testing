@@ -16,6 +16,7 @@ const routeTitles = [
   ['../routes/ai-lab/+page.svelte', 'AI Lab - Mini Hub'],
   ['../routes/ai-os/+page.svelte', 'AI OS - Mini Hub'],
   ['../routes/macro-lab/+page.svelte', 'Macro Lab - Mini Hub'],
+  ['../routes/passive/+page.svelte', 'Passive Tasks - Mini Hub'],
   ['../routes/passive-tasks/+page.svelte', 'Passive Tasks - Mini Hub'],
   ['../routes/settings/+page.svelte', 'Settings - Mini Hub']
 ] as const;
@@ -34,6 +35,7 @@ const routeHeadings = [
   ['../routes/ai-lab/+page.svelte', '<h1>Browser Experiments</h1>'],
   ['../routes/ai-os/+page.svelte', '<h1>Ask AI OS</h1>'],
   ['../routes/macro-lab/+page.svelte', '<h1>Macro Lab</h1>'],
+  ['../routes/passive/+page.svelte', '<h1>Passive Tasks</h1>'],
   ['../routes/passive-tasks/+page.svelte', '<h1>Passive Tasks</h1>'],
   ['../routes/settings/+page.svelte', '<h1>Settings</h1>']
 ] as const;
