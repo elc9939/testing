@@ -689,6 +689,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).not.toContain('n/a tok/s');
     expect(source).not.toContain("return '...'");
     expect(source).not.toContain('Loading GPU telemetry rows from AI OS...');
+    expect(source).toContain('type AiHardwareStatus');
+    expect(source).toContain('hardware = mergedHardwareTelemetry(status?.hardware, machineProfile?.hardware)');
+    expect(source).toContain('function mergedHardwareTelemetry');
+    expect(source).toContain('const checkHardware = mergedHardwareTelemetry(nextStatus.hardware, nextStatus.machine_profile?.hardware)');
     expect(source).toContain('<p class="muted">{noGpuRowsMessage()}</p>');
     expect(source).toContain('disabled={Boolean(warmupBlockedReason)}');
     expect(source).toContain('function requireAiOsReady');

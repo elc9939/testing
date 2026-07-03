@@ -66,6 +66,7 @@
     type AiBenchmarkRun,
     type AiDesignPatch,
     type AiGenerationAsset,
+    type AiHardwareStatus,
     type AiJobSnapshot,
     type AiMachineProfileSnapshot,
     type AiStatus,
@@ -168,8 +169,8 @@
   $: providers = status?.providers ?? [];
   $: availableProviders = providers.filter((provider) => provider.available);
   $: providerOptions = providers.map((provider) => provider.id);
-  $: hardware = status?.hardware;
   $: machineProfile = status?.machine_profile;
+  $: hardware = mergedHardwareTelemetry(status?.hardware, machineProfile?.hardware);
   $: primaryGpu = hardware?.gpus?.[0];
   $: loadedModels = hardware?.loaded_models ?? [];
   $: capabilityGroups = groupCapabilities(status?.capabilities ?? []);
@@ -567,6 +568,22 @@
     return `${hardware.memory_used_gb} / ${hardware.memory_total_gb} GB`;
   }
 
+  function mergedHardwareTelemetry(statusHardware: AiHardwareStatus | undefined, profileHardware: AiHardwareStatus | undefined): AiHardwareStatus | undefined {
+    if (!statusHardware) return profileHardware;
+    if (!profileHardware) return statusHardware;
+    const statusGpus = statusHardware.gpus ?? [];
+    const profileGpus = profileHardware.gpus ?? [];
+    const statusModels = statusHardware.loaded_models ?? [];
+    const profileModels = profileHardware.loaded_models ?? [];
+    return {
+      ...statusHardware,
+      gpus: statusGpus.length ? statusGpus : profileGpus,
+      loaded_models: statusModels.length ? statusModels : profileModels,
+      recent_tokens_per_second: statusHardware.recent_tokens_per_second ?? profileHardware.recent_tokens_per_second,
+      error: statusGpus.length || profileGpus.length ? (profileHardware.error ?? statusHardware.error) : (statusHardware.error ?? profileHardware.error)
+    };
+  }
+
   function aiOsGpuDetail(gpu: Record<string, unknown> | undefined): string {
     if (loading && !status) return 'Loading GPU, VRAM, and temperature telemetry.';
     if (!status) return 'Service status is shown above; GPU telemetry has not been checked.';
@@ -776,8 +793,9 @@
     }
 
     const ollama = providerById(nextStatus, 'ollama');
-    const gpus = nextStatus.hardware?.gpus ?? [];
-    const models = nextStatus.hardware?.loaded_models ?? [];
+    const checkHardware = mergedHardwareTelemetry(nextStatus.hardware, nextStatus.machine_profile?.hardware);
+    const gpus = checkHardware?.gpus ?? [];
+    const models = checkHardware?.loaded_models ?? [];
     return [
       {
         id: 'service',
@@ -801,8 +819,8 @@
         state: gpus.length ? (isStaleGpu(gpus[0]) ? 'degraded' : 'ready') : 'degraded',
         detail: gpus.length
           ? `${gpuName(gpus[0])} - ${gpuMemoryLabel(gpus[0])}${gpuFreshnessLabel(gpus[0]) ? ` - ${gpuFreshnessLabel(gpus[0])}` : ''}.`
-          : nextStatus.hardware?.error
-            ? compactServiceIssueIfRecognized(nextStatus.hardware.error, 'GPU telemetry')
+          : checkHardware?.error
+            ? compactServiceIssueIfRecognized(checkHardware.error, 'GPU telemetry')
             : 'AI OS is running, but no GPU telemetry rows were returned from Windows counters or vendor tools.'
       },
       {
