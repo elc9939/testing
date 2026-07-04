@@ -1,4 +1,5 @@
 import { env as publicEnv } from '$env/dynamic/public';
+import { getBrowserStorage } from './browser-storage';
 import { requestServiceJson, requestServiceResponse, resolveServiceUrl } from './service-config';
 
 export function getAiOsApiUrl(): string {
@@ -278,6 +279,70 @@ export interface AiStatus {
   integrity?: AiIntegrityStatus;
   backups?: AiBackupSummary[];
   metrics?: AiMetrics;
+}
+
+export const aiOsDashboardCacheKey = 'miniHub.aiOs.dashboard.v1';
+
+export interface AiOsDashboardSnapshot {
+  checkedAt: string;
+  status: AiStatus | null;
+  usage: AiUsageEntry[];
+  jobs: AiJobSnapshot[];
+  toolCalls: AiToolCallEntry[];
+  generationAssets: AiGenerationAsset[];
+  designPatches: AiDesignPatch[];
+  benchmarkRuns: AiBenchmarkRun[];
+  machineProfileFallback: AiMachineProfile | null;
+  machineSnapshots: AiMachineProfileSnapshot[];
+}
+
+interface AiOsDashboardCache {
+  version: 1;
+  cachedAt: string;
+  snapshot: AiOsDashboardSnapshot;
+}
+
+function validAiOsDashboardSnapshot(value: Partial<AiOsDashboardSnapshot> | null | undefined): value is AiOsDashboardSnapshot {
+  return Boolean(
+    value &&
+      typeof value.checkedAt === 'string' &&
+      Array.isArray(value.usage) &&
+      Array.isArray(value.jobs) &&
+      Array.isArray(value.toolCalls) &&
+      Array.isArray(value.generationAssets) &&
+      Array.isArray(value.designPatches) &&
+      Array.isArray(value.benchmarkRuns) &&
+      Array.isArray(value.machineSnapshots) &&
+      (value.status === null || typeof value.status === 'object') &&
+      (value.machineProfileFallback === null || typeof value.machineProfileFallback === 'object')
+  );
+}
+
+export function readCachedAiOsDashboardSnapshot(): { cachedAt: string; snapshot: AiOsDashboardSnapshot } | null {
+  const storage = getBrowserStorage();
+  if (!storage) return null;
+  try {
+    const parsed = JSON.parse(storage.getItem(aiOsDashboardCacheKey) ?? 'null') as Partial<AiOsDashboardCache> | null;
+    if (!parsed || parsed.version !== 1 || typeof parsed.cachedAt !== 'string') return null;
+    if (!validAiOsDashboardSnapshot(parsed.snapshot)) return null;
+    return { cachedAt: parsed.cachedAt, snapshot: parsed.snapshot };
+  } catch {
+    return null;
+  }
+}
+
+export function writeAiOsDashboardCache(snapshot: AiOsDashboardSnapshot): { cachedAt?: string; error?: string } {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return { error: 'Browser AI OS cache is unavailable; live status is visible but may not survive refresh.' };
+  }
+  const cachedAt = new Date().toISOString();
+  try {
+    storage.setItem(aiOsDashboardCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies AiOsDashboardCache));
+    return { cachedAt };
+  } catch {
+    return { error: 'Browser AI OS cache could not be updated; live status is visible but may not survive refresh.' };
+  }
 }
 
 export interface AiInferenceInput {

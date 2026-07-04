@@ -51,6 +51,7 @@
     listAiJobs,
     proposeDesignPatch,
     queryMemory,
+    readCachedAiOsDashboardSnapshot,
     revertDesignPatch,
     runAgent,
     runAutotune,
@@ -70,9 +71,11 @@
     type AiJobSnapshot,
     type AiMachineProfile,
     type AiMachineProfileSnapshot,
+    type AiOsDashboardSnapshot,
     type AiStatus,
     type AiToolCallEntry,
-    type AiUsageEntry
+    type AiUsageEntry,
+    writeAiOsDashboardCache
   } from '$lib/ai-os-api';
 
   interface PlainCapability {
@@ -109,6 +112,10 @@
   let machineProfileFallback: AiMachineProfile | null = null;
   let machineSnapshots: AiMachineProfileSnapshot[] = [];
   let loading = false;
+  let backgroundRefreshing = false;
+  let liveStatusReady = false;
+  let statusCachedAt = '';
+  let cacheWarning = '';
   let actionError = '';
   let actionMessage = '';
   let foundationResult = '';
@@ -188,10 +195,10 @@
   $: profileBestSpeed = routeSpeed(machineProfile?.autotune?.best_text_route ?? machineProfile?.benchmarks?.best_text_route);
   $: startupChecks = buildStartupChecks(displayStatus, actionError, loading);
   $: startupSummary = summarizeStartupChecks(startupChecks);
-  $: aiOsReady = Boolean(status);
+  $: aiOsReady = Boolean(status && liveStatusReady);
   $: aiOsActionBlocked = !aiOsReady;
   $: aiOsActionBlockedReason = aiOsServiceActionBlockedReason({
-    loading,
+    loading: loading || backgroundRefreshing,
     ready: aiOsReady,
     apiUrl: getAiOsApiUrl()
   });
@@ -201,7 +208,7 @@
     loadedCount: loadedModels.length,
     aiOsReason: aiOsActionBlockedReason
   });
-  $: aiOsBlockedLabel = loading ? 'Checking AI OS' : 'Connect AI OS';
+  $: aiOsBlockedLabel = loading || backgroundRefreshing ? 'Checking AI OS' : 'Connect AI OS';
   $: linkedActivityKind = $page.url.searchParams.get('activity') ?? ($page.url.searchParams.get('job') ? 'job' : '');
   $: linkedActivityId = $page.url.searchParams.get('id') ?? $page.url.searchParams.get('job') ?? '';
   $: highlightedJobId = linkedActivityKind === 'job' ? linkedActivityId : '';
@@ -214,12 +221,13 @@
   $: highlightedBenchmarkPresent = highlightedBenchmarkId ? benchmarkRuns.some((run) => run.id === highlightedBenchmarkId) : true;
   $: highlightedBackupPresent = highlightedBackupId ? (status?.backups ?? []).some((backup) => backup.id === highlightedBackupId) : true;
   $: highlightedGenerationPresent = highlightedGenerationId ? generationAssets.some((asset) => asset.id === highlightedGenerationId) : true;
-  $: aiOsDefaultRefreshTitle = aiOsRefreshTitle(loading);
-  $: aiOsStartupCheckTitle = aiOsRefreshTitle(loading, 'Check AI OS startup health now.');
-  $: aiOsReconnectTitle = aiOsRefreshTitle(loading, 'Reconnect to the local AI OS service.');
-  $: aiOsCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before running command actions.');
-  $: aiOsProfileRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status and machine profile.');
-  $: aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(loading, 'Refresh AI OS status before using advanced command controls.');
+  $: aiOsRefreshing = loading || backgroundRefreshing;
+  $: aiOsDefaultRefreshTitle = aiOsRefreshTitle(aiOsRefreshing);
+  $: aiOsStartupCheckTitle = aiOsRefreshTitle(aiOsRefreshing, 'Check AI OS startup health now.');
+  $: aiOsReconnectTitle = aiOsRefreshTitle(aiOsRefreshing, 'Reconnect to the local AI OS service.');
+  $: aiOsCommandRefreshTitle = aiOsRefreshTitle(aiOsRefreshing, 'Refresh AI OS status before running command actions.');
+  $: aiOsProfileRefreshTitle = aiOsRefreshTitle(aiOsRefreshing, 'Refresh AI OS status and machine profile.');
+  $: aiOsAdvancedCommandRefreshTitle = aiOsRefreshTitle(aiOsRefreshing, 'Refresh AI OS status before using advanced command controls.');
   $: aiOsCommandButtonTitle = aiOsActionBlocked
     ? aiOsActionBlockedReason
     : commandBusy
@@ -985,9 +993,70 @@
     return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
   }
 
-  async function refresh(): Promise<void> {
-    loading = true;
-    actionError = '';
+  function displayShortDate(value: string | undefined): string {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  }
+
+  function currentAiOsDashboardSnapshot(): AiOsDashboardSnapshot {
+    return {
+      checkedAt: new Date().toISOString(),
+      status,
+      usage,
+      jobs,
+      toolCalls,
+      generationAssets,
+      designPatches,
+      benchmarkRuns,
+      machineProfileFallback,
+      machineSnapshots
+    };
+  }
+
+  function syncAiOsDashboardSnapshot(snapshotValue: AiOsDashboardSnapshot, options: { live?: boolean } = {}): void {
+    status = snapshotValue.status;
+    usage = snapshotValue.usage;
+    jobs = snapshotValue.jobs.length ? snapshotValue.jobs : snapshotValue.status?.jobs ?? [];
+    toolCalls = snapshotValue.toolCalls;
+    generationAssets = snapshotValue.generationAssets;
+    designPatches = snapshotValue.designPatches;
+    benchmarkRuns = snapshotValue.benchmarkRuns;
+    machineProfileFallback = snapshotValue.machineProfileFallback;
+    machineSnapshots = snapshotValue.machineSnapshots;
+    liveStatusReady = options.live === true && Boolean(snapshotValue.status);
+  }
+
+  function writeAiOsDashboardSnapshot(): void {
+    const cacheWrite = writeAiOsDashboardCache(currentAiOsDashboardSnapshot());
+    if (cacheWrite.cachedAt) {
+      statusCachedAt = cacheWrite.cachedAt;
+      cacheWarning = '';
+    } else if (cacheWrite.error) {
+      cacheWarning = cacheWrite.error;
+    }
+  }
+
+  function hydrateAiOsCache(): boolean {
+    const cached = readCachedAiOsDashboardSnapshot();
+    if (!cached) return false;
+    syncAiOsDashboardSnapshot(cached.snapshot, { live: false });
+    statusCachedAt = cached.cachedAt;
+    cacheWarning = '';
+    return true;
+  }
+
+  async function refresh(options: { background?: boolean } = {}): Promise<void> {
+    const background = options.background === true && Boolean(status ?? machineProfileFallback);
+    if (background) backgroundRefreshing = true;
+    else loading = true;
+    if (!background) actionError = '';
     try {
       const [nextStatus, nextUsage, nextToolCalls, nextAssets, nextPatches, nextBenchmarks, nextProfile] = await Promise.allSettled([
         getAiStatus(currentMachineMode.id),
@@ -1008,11 +1077,14 @@
       if (nextStatus.status === 'fulfilled') {
         status = profileResult?.profile ? { ...nextStatus.value, machine_profile: profileResult.profile } : nextStatus.value;
         jobs = status.jobs;
+        liveStatusReady = true;
       } else if (!profileResult?.profile) {
+        liveStatusReady = false;
         throw nextStatus.reason;
       } else {
-        status = null;
+        status = statusFromMachineProfile(profileResult.profile);
         jobs = [];
+        liveStatusReady = false;
       }
 
       if (nextUsage.status === 'fulfilled') usage = nextUsage.value;
@@ -1020,14 +1092,19 @@
       if (nextAssets.status === 'fulfilled') generationAssets = nextAssets.value;
       if (nextPatches.status === 'fulfilled') designPatches = nextPatches.value;
       if (nextBenchmarks.status === 'fulfilled') benchmarkRuns = nextBenchmarks.value;
+      writeAiOsDashboardSnapshot();
 
-      actionMessage = status
-        ? 'AI OS status refreshed.'
-        : 'Machine profile refreshed; full AI OS status still needs attention.';
+      if (!background) {
+        actionMessage = liveStatusReady
+          ? 'AI OS status refreshed.'
+          : 'Machine profile refreshed; full AI OS status still needs attention.';
+      }
     } catch (error) {
+      liveStatusReady = false;
       setError(error, 'Failed to load AI OS status.');
     } finally {
-      loading = false;
+      if (background) backgroundRefreshing = false;
+      else loading = false;
     }
   }
 
@@ -1479,14 +1556,15 @@
 
   onMount(() => {
     void clientData.init();
-    void refresh();
+    const hydrated = hydrateAiOsCache();
+    void refresh({ background: hydrated });
     const retry = window.setInterval(() => {
       startupRetryCount += 1;
-      if (startupRetryCount > 20 || status) {
+      if (startupRetryCount > 20 || liveStatusReady) {
         window.clearInterval(retry);
         return;
       }
-      if (!loading) void refresh();
+      if (!loading && !backgroundRefreshing) void refresh({ background: Boolean(status ?? machineProfileFallback) });
     }, 3000);
     return () => window.clearInterval(retry);
   });
@@ -1500,10 +1578,24 @@
   <div>
     <p class="eyebrow">Personal AI OS</p>
     <h1>Ask AI OS</h1>
+    {#if statusCachedAt || backgroundRefreshing || cacheWarning}
+      <p class="header-substatus">
+        {#if backgroundRefreshing}
+          Showing saved AI OS status while the desktop service refreshes.
+        {:else if statusCachedAt && !liveStatusReady}
+          Saved AI OS status {displayShortDate(statusCachedAt)}; actions wait for a live reconnect.
+        {:else if statusCachedAt}
+          Saved AI OS status {displayShortDate(statusCachedAt)}.
+        {/if}
+        {#if cacheWarning}
+          {cacheWarning}
+        {/if}
+      </p>
+    {/if}
   </div>
-  <button class="button" type="button" disabled={loading} title={aiOsDefaultRefreshTitle} on:click={refresh}>
+  <button class="button" type="button" disabled={aiOsRefreshing} title={aiOsDefaultRefreshTitle} on:click={() => refresh()}>
     <RefreshCw size={17} />
-    <span>{loading ? 'Refreshing' : 'Refresh'}</span>
+    <span>{loading || backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
   </button>
 </section>
 
@@ -1532,9 +1624,9 @@
       <strong>Local AI Startup</strong>
       <span>{startupSummary}</span>
     </div>
-    <button class="button" type="button" disabled={loading} title={aiOsStartupCheckTitle} on:click={refresh}>
+    <button class="button" type="button" disabled={aiOsRefreshing} title={aiOsStartupCheckTitle} on:click={() => refresh()}>
       <RefreshCw size={17} />
-      <span>{loading ? 'Checking' : 'Check Now'}</span>
+      <span>{aiOsRefreshing ? 'Checking' : 'Check Now'}</span>
     </button>
   </div>
   <div class="startup-grid">
@@ -1549,7 +1641,7 @@
     {/each}
   </div>
   <div class="action-row tight startup-actions">
-    <button class="button" type="button" disabled={loading} title={aiOsReconnectTitle} on:click={refresh}>
+    <button class="button" type="button" disabled={aiOsRefreshing} title={aiOsReconnectTitle} on:click={() => refresh()}>
       <RefreshCw size={17} />
       <span>Reconnect</span>
     </button>
@@ -1602,9 +1694,9 @@
       <Play size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : commandBusy ? 'Working' : 'Do it'}</span>
     </button>
-    <button class="button" type="button" disabled={loading} title={aiOsCommandRefreshTitle} on:click={refresh}>
+    <button class="button" type="button" disabled={aiOsRefreshing} title={aiOsCommandRefreshTitle} on:click={() => refresh()}>
       <RefreshCw size={17} />
-      <span>{loading ? 'Refreshing' : 'Refresh status'}</span>
+      <span>{aiOsRefreshing ? 'Refreshing' : 'Refresh status'}</span>
     </button>
   </div>
   {#if commandResult}
@@ -1697,9 +1789,9 @@
       <Zap size={17} />
       <span>{aiOsActionBlocked ? aiOsBlockedLabel : autotuneBusy ? 'Running' : 'Run Autotune'}</span>
     </button>
-    <button class="button" type="button" disabled={loading} title={aiOsProfileRefreshTitle} on:click={refresh}>
+    <button class="button" type="button" disabled={aiOsRefreshing} title={aiOsProfileRefreshTitle} on:click={() => refresh()}>
       <RefreshCw size={17} />
-      <span>{loading ? 'Refreshing' : 'Refresh Profile'}</span>
+      <span>{aiOsRefreshing ? 'Refreshing' : 'Refresh Profile'}</span>
     </button>
   </div>
   {#if autotuneResult}
@@ -1861,9 +1953,9 @@
         <Play size={17} />
         <span>{aiOsActionBlocked ? aiOsBlockedLabel : 'Execute'}</span>
       </button>
-      <button class="button" type="button" disabled={loading} title={aiOsAdvancedCommandRefreshTitle} on:click={refresh}>
+      <button class="button" type="button" disabled={aiOsRefreshing} title={aiOsAdvancedCommandRefreshTitle} on:click={() => refresh()}>
         <RefreshCw size={17} />
-        <span>{loading ? 'Refreshing' : 'Refresh'}</span>
+        <span>{aiOsRefreshing ? 'Refreshing' : 'Refresh'}</span>
       </button>
     </div>
     <pre>{commandResult}</pre>
@@ -2439,6 +2531,13 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
+  }
+
+  .header-substatus {
+    margin: 4px 0 0;
+    max-width: 720px;
+    color: var(--muted);
+    font-size: 13px;
   }
 
   .plain-guide {

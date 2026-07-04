@@ -195,7 +195,10 @@ The Svelte app under `apps/hub` provides these main pages:
   It shows whether the local browser assets are configured, distinguishes loading,
   healthy-empty, and error states, and does not require the AI OS API.
 - AI OS: capability dashboard for local AI, tools, memory, jobs, agents, media, health,
-  backups, telemetry, Machine Profile/Autotune, and web/browser access.
+  backups, telemetry, Machine Profile/Autotune, and web/browser access. The dashboard
+  warm-loads the last browser AI OS status snapshot, then reconnects in the background;
+  cached status is readable, but service-backed actions stay disabled until a live
+  reconnect succeeds.
 - Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
 - Passive Tasks: durable background watcher dashboard for app health, backups, idle
   compute, research monitor sweeps, career radar, local file intelligence, and project
