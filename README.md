@@ -366,9 +366,10 @@ real-data only:
   "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports can
   save source-backed candidates into Career Desk as `lead` rows when a source URL passes
   opportunity, timing, seniority, duplicate, feedback, and fit-score checks; notes preserve
-  the source and evidence. Career Desk exposes discovered leads as a ranked panel where each
-  candidate can be moved to `saved`, moved to `watching`, or archived as not fit without
-  opening the full table row.
+  the source and evidence. When a sweep finds candidates but saves none, a durable filter
+  summary card shows what was rejected, such as duplicate roles or low-fit listings. Career
+  Desk exposes discovered leads as a ranked panel where each candidate can be moved to
+  `saved`, moved to `watching`, or archived as not fit without opening the full table row.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. High-confidence Gmail confirmations and completed linked apply/submit actions

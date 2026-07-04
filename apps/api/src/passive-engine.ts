@@ -3858,13 +3858,64 @@ function importCareerLeadsFromResearchRun(
   };
 }
 
+function careerLeadSkipReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    'duplicate-company-role': 'duplicate role',
+    'duplicate-url': 'duplicate URL',
+    'excluded-company': 'excluded company',
+    'low-fit-score': 'low fit score',
+    'missing-company-role': 'missing company or role',
+    'missing-url': 'missing source URL',
+    'not-opportunity': 'not a role listing'
+  };
+  return labels[reason] ?? reason.replaceAll('-', ' ');
+}
+
+function careerLeadSkipReasonSummary(skippedReasons: Record<string, number>, limit = 4): string {
+  return Object.entries(skippedReasons)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, limit)
+    .map(([reason, count]) => `${careerLeadSkipReasonLabel(reason)}: ${count}`)
+    .join('; ');
+}
+
 function careerLeadImportCard(
   task: PassiveTask,
   passiveRunId: string,
   researchRun: Record<string, unknown>,
   result: CareerLeadImportResult
 ): PassiveResultCard | null {
-  if (!result.createdJobs.length) return null;
+  const skippedSummary = careerLeadSkipReasonSummary(result.skippedReasons);
+  if (!result.createdJobs.length) {
+    if (!result.skipped) return null;
+    return card({
+      id: id('passive-card'),
+      taskId: task.id,
+      runId: passiveRunId,
+      family: task.family,
+      title: `${result.skipped} Career Discovery candidate${result.skipped === 1 ? '' : 's'} filtered`,
+      summary: skippedSummary
+        ? `No new Career Desk rows were saved. Filtered by ${skippedSummary}.`
+        : 'No new Career Desk rows were saved after source, duplicate, timing, and fit checks.',
+      urgency: 34,
+      confidence: 0.76,
+      route: routeMap.careerDesk,
+      sourceRefs: [
+        stableSourceRef('record', 'AI OS research run', {
+          id: String(researchRun.id ?? passiveRunId),
+          route: routeMap.research,
+          metadata: compactRecord({
+            researchRunId: researchRun.id,
+            skippedCareerLeadCandidates: result.skipped,
+            skippedCareerLeadReasons: result.skippedReasons
+          })
+        })
+      ],
+      suggestedAction: 'Review filters',
+      actionKind: 'inspect',
+      why: 'Career Discovery returned source-backed candidates, but the passive engine rejected them before saving because they did not pass opportunity, timing, seniority, duplicate, feedback, or fit-score filters.'
+    });
+  }
   return card({
     id: id('passive-card'),
     taskId: task.id,
@@ -3874,7 +3925,7 @@ function careerLeadImportCard(
     summary: result.createdJobs
       .slice(0, 4)
       .map((job) => `${job.company} - ${job.role}${typeof job.fitScore === 'number' ? ` (${job.fitScore})` : ''}`)
-      .join('; '),
+      .join('; ') + (result.skipped && skippedSummary ? `; filtered ${result.skipped} (${skippedSummary})` : ''),
     urgency: result.createdJobs.some((job) => (job.fitScore ?? 0) >= 86) ? 78 : 66,
     confidence: 0.82,
     route: routeMap.careerDesk,
@@ -3894,7 +3945,7 @@ function careerLeadImportCard(
     ),
     suggestedAction: 'Review saved leads',
     actionKind: 'inspect',
-    why: 'A Career Discovery monitor returned source URLs that passed the role, timing, seniority, duplicate, and fit-score filters, so the passive engine saved them as ranked Career Desk leads.'
+    why: 'A Career Discovery monitor returned source URLs that passed the role, timing, seniority, duplicate, feedback, and fit-score filters, so the passive engine saved them as ranked Career Desk leads.'
   });
 }
 

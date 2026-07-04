@@ -3344,6 +3344,120 @@ describe('passive task engine', () => {
     );
   });
 
+  it('surfaces Career Discovery filter summaries when no new leads pass', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-existing-quant',
+      workspaceId: personalWorkspaceId,
+      company: 'Existing Quant Co',
+      role: 'Quant Research Intern',
+      status: 'applied',
+      applicationUrl: 'https://existing.example.com/jobs/quant-research-intern',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-06-01T10:00:00.000Z'
+    });
+    const researchFetch = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [{ id: 'monitor-career-filtered', metadata: { passive_watch_key: 'topic:career-discovery-filtered' } }] });
+      }
+      if (href.includes('/api/ai/research/runs?limit=10')) {
+        return jsonResponse({
+          runs: [
+            {
+              id: 'research-career-filtered',
+              mode: 'monitor_topic',
+              goal: 'Find May 2027 / Summer 2027 start quant research roles.',
+              status: 'succeeded',
+              report: {
+                title: 'Filtered career discovery sweep',
+                tldr: 'The sweep found only duplicate or senior-only listings.',
+                key_facts: ['Existing Quant Co is already tracked.', 'A senior-only role was rejected.']
+              },
+              sources: [
+                {
+                  id: 'source-duplicate-quant',
+                  url: 'https://existing.example.com/jobs/quant-research-intern',
+                  canonical_url: 'https://existing.example.com/jobs/quant-research-intern',
+                  title: 'Quant Research Intern at Existing Quant Co - Summer 2027',
+                  description: 'Apply for a Summer 2027 Quant Research Intern opening.',
+                  score: 0.92,
+                  rank: 1
+                },
+                {
+                  id: 'source-senior-quant',
+                  url: 'https://apex.example.com/jobs/senior-quant-researcher',
+                  canonical_url: 'https://apex.example.com/jobs/senior-quant-researcher',
+                  title: 'Senior Quant Researcher at Apex Capital',
+                  description: 'Opening for a senior quant researcher requiring 8 years of experience. Apply online.',
+                  score: 0.9,
+                  rank: 2
+                }
+              ],
+              options: {
+                metadata: {
+                  source: 'mini-hub-passive',
+                  career_discovery: true,
+                  passive_watch_key: 'topic:career-discovery-filtered',
+                  passive_watch_kind: 'topic',
+                  passive_watch_label: 'May 2027 / Summer 2027 start Quant Research Intern roles',
+                  target_start_window: 'May 2027 / Summer 2027 start',
+                  target_roles: ['Quant Research Intern'],
+                  locations: ['New York'],
+                  profile_background: 'Math/CS quant projects',
+                  excluded_companies: []
+                }
+              },
+              runtime_ms: 1800,
+              cost_usd: 0,
+              total_tokens: 0
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-filter-summary-test' }
+    });
+
+    const filterCard = run.cards.find((item) => item.title === '2 Career Discovery candidates filtered');
+    expect(run.status).toBe('succeeded');
+    expect(store.jobs.filter((job) => job.id !== 'job-existing-quant')).toHaveLength(0);
+    expect(filterCard).toMatchObject({
+      route: '/desk/career',
+      suggestedAction: 'Review filters',
+      summary: expect.stringContaining('duplicate URL: 1')
+    });
+    expect(filterCard?.summary).toContain('low fit score: 1');
+    expect(filterCard?.why).toContain('feedback');
+    expect(filterCard?.sourceRefs[0]).toMatchObject({
+      id: 'research-career-filtered',
+      route: '/research',
+      metadata: {
+        researchRunId: 'research-career-filtered',
+        skippedCareerLeadCandidates: 2,
+        skippedCareerLeadReasons: {
+          'duplicate-url': 1,
+          'low-fit-score': 1
+        }
+      }
+    });
+    expect(run.metadata.recentResearch).toMatchObject({
+      importedCareerLeads: 0,
+      skippedCareerLeadCandidates: 2
+    });
+  });
+
   it('surfaces failing project health artifacts without running project scripts', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-project-health-'));
     try {
