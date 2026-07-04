@@ -1379,6 +1379,11 @@
         </button>
       {/each}
     </div>
+    {#if currentMachineMode.id === 'auto'}
+      <p class="helper-text">
+        Auto uses AI OS machine pressure and idle state: active or high-pressure sessions defer heavier passive work, while idle low-pressure sessions can run local batches and sweeps.
+      </p>
+    {/if}
     <details class="advanced-mode-options">
       <summary>
         <span>Advanced modes</span>

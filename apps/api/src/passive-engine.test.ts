@@ -192,6 +192,137 @@ describe('passive task engine', () => {
     expect(duePassiveTasks(store, now, { idle: true }).some((task) => task.family === 'project_drift')).toBe(true);
   });
 
+  it('uses Auto mode to defer heavier passive work until idle time', () => {
+    const store = createMemoryStore();
+    const now = new Date('2026-06-20T10:00:00.000Z');
+    ensurePassiveDefaults(store, now);
+    setMachineMode(store, 'auto');
+    store.passiveWorker = {
+      id: 'passive-worker',
+      enabled: true,
+      running: false,
+      intervalMs: 5 * 60 * 1000,
+      lastIdle: {
+        idle: false,
+        thresholdMinutes: 30,
+        checkedAt: now.toISOString(),
+        source: 'test-active-window',
+        idleMinutes: 0
+      },
+      activeFileWatchCount: 0,
+      pendingFileEvent: false,
+      updatedAt: now.toISOString()
+    };
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: '2026-06-20T09:00:00.000Z',
+      trigger: { ...task.trigger, nextRunAt: task.trigger.kind === 'event' ? undefined : '2026-06-20T09:00:00.000Z' }
+    }));
+
+    const activeFamilies = duePassiveTasks(store, now).map((task) => task.family);
+    expect(activeFamilies).toContain('app_health');
+    expect(activeFamilies).toContain('backup_snapshot');
+    expect(activeFamilies).toContain('career_radar');
+    expect(activeFamilies).not.toContain('idle_compute');
+    expect(activeFamilies).not.toContain('research_monitor');
+    expect(activeFamilies).not.toContain('file_intelligence');
+    expect(activeFamilies).not.toContain('project_drift');
+
+    const researchSource = buildPassiveSnapshot(store).sources.find((source) => source.id === 'research_monitor')!;
+    expect(researchSource.details).toMatchObject({
+      scheduleState: 'mode_deferred',
+      modePolicy: 'deferred',
+      autoIdle: false,
+      autoHighPressure: false
+    });
+    expect(String(researchSource.details.modePolicyReason)).toContain('Auto waits for idle time');
+
+    store.passiveWorker = {
+      ...store.passiveWorker,
+      lastIdle: {
+        idle: true,
+        thresholdMinutes: 30,
+        checkedAt: now.toISOString(),
+        source: 'test-idle',
+        idleMinutes: 45
+      },
+      updatedAt: now.toISOString()
+    };
+    const idleFamilies = duePassiveTasks(store, now, { idle: true }).map((task) => task.family);
+    expect(idleFamilies).toContain('idle_compute');
+    expect(idleFamilies).toContain('research_monitor');
+    expect(idleFamilies).toContain('file_intelligence');
+    expect(idleFamilies).toContain('project_drift');
+  });
+
+  it('keeps Auto mode heavy passive work deferred under measured resource pressure', async () => {
+    const store = createMemoryStore();
+    const now = new Date('2026-06-20T10:00:00.000Z');
+    ensurePassiveDefaults(store, now);
+    setMachineMode(store, 'auto');
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: '2026-06-20T09:00:00.000Z',
+      trigger: { ...task.trigger, nextRunAt: task.trigger.kind === 'event' ? undefined : '2026-06-20T09:00:00.000Z' }
+    }));
+    const appHealthTask = store.passiveTasks.find((item) => item.family === 'app_health')!;
+    const pressureFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/status')) {
+        return jsonResponse({
+          jobs: [],
+          backups: [{ id: 'backup-1', ok: true }],
+          machine_profile: {
+            mode: 'auto',
+            created_at: now.toISOString(),
+            provider_summary: { total: 1, available: 1, local_configured: 1, local_available: 1 },
+            ai_os_health: { integrity_ok: true, jobs_count: 0 },
+            capability_readiness: { total: 4, available: 4, unavailable: 0 },
+            benchmarks: { text_samples: 2 },
+            autotune: {
+              resource_pressure: {
+                level: 'high',
+                drivers: ['gpu', 'vram'],
+                gpu_utilization_percent: 98,
+                vram_percent: 93
+              },
+              suggested_max_job_concurrency: 1,
+              best_text_route: {
+                provider: 'ollama',
+                model: 'llama3.1:8b',
+                tokens_per_second: 22,
+                local: true,
+                paid: false
+              },
+              confidence: 'measured'
+            }
+          }
+        });
+      }
+      return healthyServiceFetch()(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+    }) as typeof fetch;
+
+    await runPassiveTask(store, appHealthTask.id, {
+      externalFetch: pressureFetch,
+      force: true,
+      input: { reason: 'auto-pressure-source' }
+    });
+
+    const idleFamilies = duePassiveTasks(store, now, { idle: true }).map((task) => task.family);
+    expect(idleFamilies).not.toContain('idle_compute');
+    expect(idleFamilies).not.toContain('research_monitor');
+    expect(idleFamilies).not.toContain('file_intelligence');
+    expect(idleFamilies).not.toContain('project_drift');
+
+    const researchSource = buildPassiveSnapshot(store).sources.find((source) => source.id === 'research_monitor')!;
+    expect(researchSource.details).toMatchObject({
+      modePolicy: 'deferred',
+      autoHighPressure: true,
+      autoPressureDrivers: ['gpu', 'vram']
+    });
+    expect(String(researchSource.details.modePolicyReason)).toContain('machine pressure is high');
+  });
+
   it('keeps event tasks out of scheduled ticks and runs them only for matching events', () => {
     const store = createMemoryStore();
     const now = new Date('2026-06-20T10:00:00.000Z');

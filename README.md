@@ -205,8 +205,8 @@ The Svelte app under `apps/hub` provides these main pages:
   import/export, dark mode. Machine Mode now keeps everyday presets visible
   (Auto/Balanced/Beast/Quiet) and moves special modes (Offline/Night/Maintenance) plus
   verbose policy details behind Advanced modes. Auto uses measured machine pressure to
-  recommend lighter behavior when the GPU/VRAM/CPU is busy and more local-first background
-  work when the PC appears available.
+  recommend and enforce lighter passive behavior when the GPU/VRAM/CPU is busy and more
+  local-first background work when the PC is idle and available.
 
 The product direction is intentionally shifting toward a unified local-first Personal AI OS:
 Today should show what needs attention, AI OS should become the intelligence/capability
@@ -408,10 +408,12 @@ offline cache into one machine capability snapshot. Today uses that snapshot to 
 is ready, running, needs setup, degraded, blocked, or offline without inventing fake data.
 Settings uses the same snapshot as the service control surface, with per-service health
 links and routes into the panels that can fix or inspect each capability. Settings also
-stores Machine Modes v1: Balanced, Beast, Quiet, Offline, Night Shift, and Maintenance.
-These modes are now enforced by AI OS for routed text calls and queued jobs: Offline blocks
-paid/cloud providers, Quiet and Night Shift avoid paid providers unless explicitly selected,
-and Quiet/Maintenance clamp job concurrency. AI OS also exposes Machine Profile/Autotune v1:
+stores Machine Modes v1: Auto, Balanced, Beast, Quiet, Offline, Night Shift, and
+Maintenance. These modes are now enforced by AI OS for routed text calls and queued jobs:
+Offline blocks paid/cloud providers, Quiet and Night Shift avoid paid providers unless
+explicitly selected, and Quiet/Maintenance clamp job concurrency. Auto also uses idle state
+and measured resource pressure to defer heavier passive research, indexing, drift, and idle
+compute work until the machine is available. AI OS also exposes Machine Profile/Autotune v1:
 OS, CPU/RAM, GPU/VRAM telemetry when available, provider readiness, loaded models, health,
 benchmark history, snapshots, resource pressure, best measured text route, and suggested
 job concurrency. The assistant, Settings, Today, and AI OS dashboard pass the current mode
@@ -536,7 +538,7 @@ Current capabilities include:
 - AMD/Windows GPU telemetry where the local machine exposes it.
 - Machine Profile + Autotune v1: persisted profile snapshots, safe local text probes,
   recent benchmark summaries, resource-pressure summaries, and measured-route feedback
-  into routing and machine-mode recommendations.
+  into routing, machine-mode recommendations, and Auto passive-task throttling.
 - AI OS action ledger endpoint that normalizes tool calls, inference usage, jobs,
   benchmarks, backups, machine-profile snapshots, generation assets, and design patches
   into one audit/recoverability stream. The Mini Hub API also exposes

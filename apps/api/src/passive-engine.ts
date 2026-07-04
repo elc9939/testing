@@ -176,6 +176,14 @@ interface PassiveResourceDecision {
   preferredLocalRoute?: Record<string, unknown>;
 }
 
+interface PassiveModePolicyContext {
+  idle?: boolean;
+  eventName?: string;
+  highPressure?: boolean;
+  pressureDrivers?: string[];
+  profileFresh?: boolean;
+}
+
 export interface PassiveRunInput {
   idle?: boolean;
   manual?: boolean;
@@ -338,6 +346,7 @@ function resourceBudget(settings: PassiveEngineSettings): PassiveResourceBudget 
 
 const passiveMachineModes = new Set<PassiveMachineMode>(['auto', 'balanced', 'beast', 'quiet', 'offline', 'night', 'maintenance']);
 const quietDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
+const autoDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
 
 function passiveMachineMode(value: unknown): PassiveMachineMode | null {
   return typeof value === 'string' && passiveMachineModes.has(value as PassiveMachineMode) ? (value as PassiveMachineMode) : null;
@@ -357,7 +366,8 @@ function taskMachineMode(store: MemoryStore, task: PassiveTask): { mode: Passive
 
 function passiveModePolicy(
   task: PassiveTask,
-  currentMode: PassiveMachineMode
+  currentMode: PassiveMachineMode,
+  context: PassiveModePolicyContext = {}
 ): { allowed: boolean; priorityDelta: number; reason?: string } {
   const explicitMode = passiveMachineMode(task.machineMode);
   if (explicitMode && explicitMode !== currentMode) {
@@ -366,6 +376,24 @@ function passiveModePolicy(
       priorityDelta: 0,
       reason: `Task is pinned to ${explicitMode} mode.`
     };
+  }
+
+  if (currentMode === 'auto' && autoDeferredFamilies.has(task.family)) {
+    if (context.highPressure) {
+      return {
+        allowed: false,
+        priorityDelta: 0,
+        reason: `Auto defers heavier passive work while machine pressure is high${context.pressureDrivers?.length ? ` from ${context.pressureDrivers.join(', ')}` : ''}.`
+      };
+    }
+    if (!context.idle) {
+      return {
+        allowed: false,
+        priorityDelta: 0,
+        reason: 'Auto waits for idle time before running heavier passive work.'
+      };
+    }
+    return { allowed: true, priorityDelta: 7 };
   }
 
   if (currentMode === 'quiet' && quietDeferredFamilies.has(task.family)) {
@@ -397,6 +425,20 @@ function passiveModePolicy(
   }
 
   return { allowed: true, priorityDelta: 0 };
+}
+
+function passiveModePolicyContext(store: MemoryStore, date: Date, input: PassiveRunInput = {}): PassiveModePolicyContext {
+  const decision = passiveResourceDecision(store, date);
+  const context: PassiveModePolicyContext = {
+    highPressure: decision.resourcePressureLevel === 'high',
+    pressureDrivers: decision.resourcePressureDrivers,
+    profileFresh: decision.profileFresh
+  };
+  const idle = input.idle ?? store.passiveWorker?.lastIdle?.idle;
+  const eventName = input.eventName?.trim();
+  if (idle !== undefined) context.idle = idle;
+  if (eventName) context.eventName = eventName;
+  return context;
 }
 
 const defaultTaskDefinitions: DefaultTaskDefinition[] = [
@@ -1374,6 +1416,7 @@ export function duePassiveTasks(store: MemoryStore, date = new Date(), input: Pa
   const nowMs = date.getTime();
   const eventName = input.eventName?.trim();
   const mode = currentPassiveMachineMode(store);
+  const policyContext = passiveModePolicyContext(store, date, input);
   if (!store.passiveSettings?.enabled) return [];
   if (store.passiveSettings.idleOnly && !input.idle && !eventName) return [];
   return store.passiveTasks
@@ -1381,7 +1424,7 @@ export function duePassiveTasks(store: MemoryStore, date = new Date(), input: Pa
     .filter((task) => watcherEnabled(store, task))
     .filter((task) => !task.idleOnly || Boolean(input.idle))
     .filter((task) => (eventName ? taskMatchesEvent(task, eventName) : task.trigger.kind !== 'event'))
-    .map((task) => ({ task, policy: passiveModePolicy(task, mode) }))
+    .map((task) => ({ task, policy: passiveModePolicy(task, mode, policyContext) }))
     .filter((item) => item.policy.allowed)
     .filter((task) => {
       const retryAt = parseTime(task.task.retry.nextRetryAt);
@@ -5375,6 +5418,11 @@ export function buildPassiveSourceStatuses(store: MemoryStore, backupHealth = bu
   const currentMode = currentPassiveMachineMode(store);
   const checkedAt = new Date();
   const settings = store.passiveSettings ?? defaultPassiveSettings(checkedAt);
+  const policyInput: PassiveRunInput = {};
+  if (store.passiveWorker?.lastIdle?.idle !== undefined) policyInput.idle = store.passiveWorker.lastIdle.idle;
+  if (store.passiveWorker?.lastIdle?.idleMinutes !== undefined) policyInput.idleMinutes = store.passiveWorker.lastIdle.idleMinutes;
+  if (store.passiveWorker?.lastIdle?.source) policyInput.idleSource = store.passiveWorker.lastIdle.source;
+  const policyContext = passiveModePolicyContext(store, checkedAt, policyInput);
   const workerIntervalMs =
     typeof store.passiveWorker?.intervalMs === 'number' && store.passiveWorker.intervalMs > 0
       ? store.passiveWorker.intervalMs
@@ -5388,7 +5436,7 @@ export function buildPassiveSourceStatuses(store: MemoryStore, backupHealth = bu
     const nextRunAtMs = parseTime(nextRunAt);
     const scheduleLagMs = Number.isFinite(nextRunAtMs) ? checkedAt.getTime() - nextRunAtMs : Number.NaN;
     const taskMode = taskMachineMode(store, task);
-    const modePolicy = passiveModePolicy(task, currentMode);
+    const modePolicy = passiveModePolicy(task, currentMode, policyContext);
     const taskEnabled =
       settings.enabled && watcherEnabled(store, task) && !['paused', 'cancelled'].includes(task.status);
     const waitsForIdle =
@@ -5461,6 +5509,14 @@ export function buildPassiveSourceStatuses(store: MemoryStore, backupHealth = bu
         machineModeSource: taskMode.source,
         modePolicy: modePolicy.allowed ? 'allowed' : 'deferred',
         ...(modePolicy.reason ? { modePolicyReason: modePolicy.reason } : {}),
+        ...(currentMode === 'auto'
+          ? {
+              autoIdle: policyContext.idle,
+              autoProfileFresh: policyContext.profileFresh,
+              autoHighPressure: policyContext.highPressure,
+              autoPressureDrivers: policyContext.pressureDrivers
+            }
+          : {}),
         ...(task.idleOnly || task.family === 'idle_compute'
           ? {
               idleOnly: task.idleOnly,
