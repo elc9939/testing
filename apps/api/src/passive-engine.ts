@@ -5,6 +5,7 @@ import {
   passiveBackupHealthSchema,
   passiveCardTriageStateSchema,
   personalWorkspaceId,
+  personalSettingsSchema,
   passiveNotificationSchema,
   passiveResultSchema,
   passiveResultCardSchema,
@@ -3573,10 +3574,30 @@ interface CareerLeadCandidate {
   evidence: string[];
 }
 
+interface CareerLeadFilteredCandidate {
+  candidate: CareerLeadCandidate;
+  reason: string;
+}
+
+interface CareerDiscoveryFilterMemoryEntry {
+  fingerprint: string;
+  reason: string;
+  company: string;
+  role: string;
+  applicationUrl: string;
+  sourceTitle?: string;
+  fitScore?: number;
+  evidence: string[];
+  firstSeenAt: string;
+  lastSeenAt: string;
+  seenCount: number;
+}
+
 interface CareerLeadImportResult {
   createdJobs: JobRecord[];
   skipped: number;
   skippedReasons: Record<string, number>;
+  rememberedFilters: number;
 }
 
 function textValue(value: unknown): string {
@@ -3653,6 +3674,130 @@ function canonicalUrlKey(value: string): string {
   } catch {
     return value.trim().toLowerCase();
   }
+}
+
+function careerLeadCandidateFingerprint(candidate: Pick<CareerLeadCandidate, 'company' | 'role' | 'applicationUrl'>): string {
+  const urlKey = candidate.applicationUrl ? canonicalUrlKey(candidate.applicationUrl) : '';
+  if (urlKey) return `url:${urlKey}`;
+  return `company-role:${normalizeCompanyKey(candidate.company)}|${normalizeDedupeText(candidate.role)}`;
+}
+
+function careerDiscoveryFilterMemory(store: MemoryStore): CareerDiscoveryFilterMemoryEntry[] {
+  const raw = store.settings?.preferences.careerDiscoveryMemory;
+  const entries = isRecord(raw) && Array.isArray(raw.rejectedCandidates) ? raw.rejectedCandidates : [];
+  return entries
+    .filter(isRecord)
+    .map((entry): CareerDiscoveryFilterMemoryEntry | null => {
+      const fingerprint = textValue(entry.fingerprint);
+      const company = textValue(entry.company);
+      const role = textValue(entry.role);
+      const applicationUrl = textValue(entry.applicationUrl);
+      const reason = textValue(entry.reason) || 'filtered';
+      const firstSeenAt = textValue(entry.firstSeenAt);
+      const lastSeenAt = textValue(entry.lastSeenAt);
+      const seenCount = Number(entry.seenCount);
+      const fitScore = Number(entry.fitScore);
+      if (!fingerprint || !company || !role || !applicationUrl) return null;
+      const parsed: CareerDiscoveryFilterMemoryEntry = {
+        fingerprint,
+        reason,
+        company,
+        role,
+        applicationUrl,
+        evidence: compactTextList(entry.evidence, 8),
+        firstSeenAt: firstSeenAt || lastSeenAt || new Date(0).toISOString(),
+        lastSeenAt: lastSeenAt || firstSeenAt || new Date(0).toISOString(),
+        seenCount: Number.isFinite(seenCount) ? Math.max(1, Math.trunc(seenCount)) : 1
+      };
+      const title = textValue(entry.sourceTitle);
+      if (title) parsed.sourceTitle = title;
+      if (Number.isFinite(fitScore)) parsed.fitScore = fitScore;
+      return parsed;
+    })
+    .filter((entry): entry is CareerDiscoveryFilterMemoryEntry => Boolean(entry));
+}
+
+function careerLeadPreviouslyFilteredReason(
+  candidate: CareerLeadCandidate,
+  memoryFingerprints: Set<string>,
+  reconsiderScore = 86
+): string | null {
+  if (candidate.fitScore >= reconsiderScore) return null;
+  return memoryFingerprints.has(careerLeadCandidateFingerprint(candidate)) ? 'previously-filtered' : null;
+}
+
+function shouldRememberCareerLeadFilter(reason: string): boolean {
+  return ['low-fit-score', 'excluded-company', 'previously-filtered'].includes(reason);
+}
+
+function upsertCareerDiscoveryFilterMemory(
+  store: MemoryStore,
+  filtered: CareerLeadFilteredCandidate[],
+  passiveRunId: string,
+  date = new Date()
+): number {
+  const memorable = filtered.filter((item) => shouldRememberCareerLeadFilter(item.reason));
+  if (!memorable.length) return 0;
+  const now = nowIso(date);
+  const before = store.settings ? personalSettingsSchema.parse(store.settings) : null;
+  const base = before
+    ? before
+    : personalSettingsSchema.parse({
+        workspaceId: personalWorkspaceId,
+        highScores: {},
+        recentState: {},
+        preferences: {},
+        deviceId: 'passive-engine',
+        updatedAt: now
+      });
+  const existingMemory = careerDiscoveryFilterMemory({ ...store, settings: base });
+  const byFingerprint = new Map(existingMemory.map((entry) => [entry.fingerprint, entry]));
+  for (const item of memorable) {
+    const fingerprint = careerLeadCandidateFingerprint(item.candidate);
+    const existing = byFingerprint.get(fingerprint);
+    const updatedEntry: CareerDiscoveryFilterMemoryEntry = {
+      fingerprint,
+      reason: item.reason,
+      company: item.candidate.company,
+      role: item.candidate.role,
+      applicationUrl: item.candidate.applicationUrl,
+      evidence: item.candidate.evidence.slice(0, 8),
+      firstSeenAt: existing?.firstSeenAt ?? now,
+      lastSeenAt: now,
+      seenCount: (existing?.seenCount ?? 0) + 1
+    };
+    const title = sourceTitle(item.candidate.source) || existing?.sourceTitle;
+    if (title) updatedEntry.sourceTitle = title;
+    if (Number.isFinite(item.candidate.fitScore)) updatedEntry.fitScore = item.candidate.fitScore;
+    byFingerprint.set(fingerprint, updatedEntry);
+  }
+  const rejectedCandidates = Array.from(byFingerprint.values())
+    .sort((left, right) => parseTime(right.lastSeenAt) - parseTime(left.lastSeenAt))
+    .slice(0, 120);
+  const settings = personalSettingsSchema.parse({
+    ...base,
+    preferences: {
+      ...base.preferences,
+      careerDiscoveryMemory: {
+        rejectedCandidates,
+        updatedAt: now,
+        passiveRunId,
+        limit: 120
+      }
+    },
+    deviceId: 'passive-engine',
+    updatedAt: now
+  });
+  store.settings = settings;
+  appendSyncEvent(store, {
+    workspaceId: settings.workspaceId,
+    entityType: 'settings',
+    entityId: settings.workspaceId,
+    operation: 'update',
+    payload: before ? withBeforeSnapshot(settings, before, 'passive-career-discovery-filter-memory') : settings,
+    deviceId: settings.deviceId
+  });
+  return memorable.length;
 }
 
 function hostCompanyHint(value: string): string {
@@ -3849,11 +3994,13 @@ function importCareerLeadsFromResearchRun(
 ): CareerLeadImportResult {
   const options = nestedRecord(researchRun, 'options');
   const metadata = nestedRecord(options, 'metadata');
-  if (metadata.career_discovery !== true) return { createdJobs: [], skipped: 0, skippedReasons: {} };
+  if (metadata.career_discovery !== true) return { createdJobs: [], skipped: 0, skippedReasons: {}, rememberedFilters: 0 };
   const report = nestedRecord(researchRun, 'report');
   const sources = Array.isArray(researchRun.sources) ? researchRun.sources.filter(isRecord) : [];
   const existing = existingCareerLeadKeys(store);
+  const memoryFingerprints = new Set(careerDiscoveryFilterMemory(store).map((entry) => entry.fingerprint));
   const skippedReasons: Record<string, number> = {};
+  const filteredForMemory: CareerLeadFilteredCandidate[] = [];
   const createdJobs: JobRecord[] = [];
   const workspaceId = store.settings?.workspaceId ?? personalWorkspaceId;
   const now = nowIso(date);
@@ -3868,10 +4015,18 @@ function importCareerLeadsFromResearchRun(
     const duplicateReason = careerLeadDuplicateReason(candidate, existing, metadata);
     if (duplicateReason) {
       skippedReasons[duplicateReason] = (skippedReasons[duplicateReason] ?? 0) + 1;
+      if (shouldRememberCareerLeadFilter(duplicateReason)) filteredForMemory.push({ candidate, reason: duplicateReason });
+      continue;
+    }
+    const memoryReason = careerLeadPreviouslyFilteredReason(candidate, memoryFingerprints);
+    if (memoryReason) {
+      skippedReasons[memoryReason] = (skippedReasons[memoryReason] ?? 0) + 1;
+      filteredForMemory.push({ candidate, reason: memoryReason });
       continue;
     }
     if (candidate.fitScore < 72) {
       skippedReasons['low-fit-score'] = (skippedReasons['low-fit-score'] ?? 0) + 1;
+      filteredForMemory.push({ candidate, reason: 'low-fit-score' });
       continue;
     }
     const job = jobSchema.parse({
@@ -3926,14 +4081,17 @@ function importCareerLeadsFromResearchRun(
       metadata: {
         imported: createdJobs.length,
         skippedReasons,
+        rememberedFilters: filteredForMemory.filter((item) => shouldRememberCareerLeadFilter(item.reason)).length,
         fitScores: createdJobs.map((job) => job.fitScore).filter((score): score is number => typeof score === 'number')
       }
     });
   }
+  const rememberedFilters = upsertCareerDiscoveryFilterMemory(store, filteredForMemory, passiveRunId, date);
   return {
     createdJobs,
     skipped: Object.values(skippedReasons).reduce((total, count) => total + count, 0),
-    skippedReasons
+    skippedReasons,
+    rememberedFilters
   };
 }
 
@@ -3945,7 +4103,8 @@ function careerLeadSkipReasonLabel(reason: string): string {
     'low-fit-score': 'low fit score',
     'missing-company-role': 'missing company or role',
     'missing-url': 'missing source URL',
-    'not-opportunity': 'not a role listing'
+    'not-opportunity': 'not a role listing',
+    'previously-filtered': 'previously filtered'
   };
   return labels[reason] ?? reason.replaceAll('-', ' ');
 }
@@ -3986,7 +4145,8 @@ function careerLeadImportCard(
           metadata: compactRecord({
             researchRunId: researchRun.id,
             skippedCareerLeadCandidates: result.skipped,
-            skippedCareerLeadReasons: result.skippedReasons
+            skippedCareerLeadReasons: result.skippedReasons,
+            rememberedCareerLeadFilters: result.rememberedFilters
           })
         })
       ],
@@ -4143,7 +4303,9 @@ async function recentResearchMonitorRunCards(
     importCareerLeadsFromResearchRun(store, task, passiveRunId, run, Math.max(2, budget.researchPerDomainLimit))
   );
   const importCards = freshMonitorRuns
-    .map((run, index) => careerLeadImportCard(task, passiveRunId, run, importResults[index] ?? { createdJobs: [], skipped: 0, skippedReasons: {} }))
+    .map((run, index) =>
+      careerLeadImportCard(task, passiveRunId, run, importResults[index] ?? { createdJobs: [], skipped: 0, skippedReasons: {}, rememberedFilters: 0 })
+    )
     .filter((item): item is PassiveResultCard => Boolean(item));
   const cards = freshMonitorRuns
     .map((run) => researchRunCard(task, passiveRunId, run))
@@ -4154,6 +4316,7 @@ async function recentResearchMonitorRunCards(
     for (const [reason, count] of Object.entries(result.skippedReasons)) acc[reason] = (acc[reason] ?? 0) + count;
     return acc;
   }, {});
+  const rememberedFilters = importResults.reduce((total, result) => total + result.rememberedFilters, 0);
   return {
     cards: [...importCards, ...cards],
     changed: [
@@ -4170,7 +4333,9 @@ async function recentResearchMonitorRunCards(
       surfacedResearchRuns: cards.length,
       importedCareerLeads: importedJobs.length,
       skippedCareerLeadCandidates: Object.values(skippedReasons).reduce((total, count) => total + count, 0),
-      skippedCareerLeadReasons: skippedReasons
+      skippedCareerLeadReasons: skippedReasons,
+      rememberedCareerLeadFilters: rememberedFilters,
+      careerDiscoveryFilterMemorySize: careerDiscoveryFilterMemory(store).length
     }
   };
 }

@@ -3688,6 +3688,122 @@ describe('passive task engine', () => {
     });
   });
 
+  it('remembers filtered Career Discovery candidates so weak repeated sources do not resurface', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    let sweep = 0;
+    const researchFetch = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [{ id: 'monitor-career-memory', metadata: { passive_watch_key: 'topic:career-discovery-memory' } }] });
+      }
+      if (href.includes('/api/ai/research/runs?limit=10')) {
+        sweep += 1;
+        const strongerRepeat = sweep > 1;
+        return jsonResponse({
+          runs: [
+            {
+              id: `research-career-memory-${sweep}`,
+              mode: 'monitor_topic',
+              goal: 'Find May 2027 / Summer 2027 start Data Analyst roles.',
+              status: 'succeeded',
+              report: {
+                title: 'Career discovery memory sweep',
+                tldr: strongerRepeat
+                  ? 'The same source returned with slightly stronger text but still does not look like a high-fit target role.'
+                  : 'The sweep found a weak source that should be filtered.',
+                key_facts: ['DriftCo has a Summer 2027 marketing coordinator listing.']
+              },
+              sources: [
+                {
+                  id: `source-memory-${sweep}`,
+                  url: 'https://drift.example.com/careers/marketing-coordinator-summer-2027',
+                  canonical_url: 'https://drift.example.com/careers/marketing-coordinator-summer-2027',
+                  title: 'Marketing Coordinator at DriftCo - Summer 2027',
+                  description: strongerRepeat
+                    ? 'Apply for a Summer 2027 Marketing Coordinator opening. Entry-level analytics operations for Math/CS projects.'
+                    : 'Apply for a Summer 2027 Marketing Coordinator opening.',
+                  score: 0.86,
+                  rank: 1,
+                  metadata: {
+                    company: 'DriftCo',
+                    role: 'Marketing Coordinator'
+                  }
+                }
+              ],
+              options: {
+                metadata: {
+                  source: 'mini-hub-passive',
+                  career_discovery: true,
+                  passive_watch_key: 'topic:career-discovery-memory',
+                  passive_watch_kind: 'topic',
+                  passive_watch_label: 'May 2027 / Summer 2027 start Data Analyst roles',
+                  target_start_window: 'May 2027 / Summer 2027 start',
+                  target_roles: ['Data Analyst'],
+                  locations: ['Remote', 'New York'],
+                  profile_background: 'Math/CS analytics projects',
+                  excluded_companies: []
+                }
+              },
+              runtime_ms: 1200,
+              cost_usd: 0,
+              total_tokens: 0
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const firstRun = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-filter-memory-first' }
+    });
+    const firstFilterCard = firstRun.cards.find((item) => item.title === '1 Career Discovery candidate filtered');
+
+    expect(firstRun.status).toBe('succeeded');
+    expect(firstFilterCard?.summary).toContain('low fit score: 1');
+    expect(store.jobs.some((job) => job.company === 'DriftCo')).toBe(false);
+    expect(firstRun.metadata.recentResearch).toMatchObject({
+      skippedCareerLeadReasons: { 'low-fit-score': 1 },
+      rememberedCareerLeadFilters: 1,
+      careerDiscoveryFilterMemorySize: 1
+    });
+
+    const secondRun = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-filter-memory-second' }
+    });
+    const secondFilterCard = secondRun.cards.find((item) => item.title === '1 Career Discovery candidate filtered');
+    const memory = store.settings?.preferences.careerDiscoveryMemory as { rejectedCandidates?: Array<Record<string, unknown>> } | undefined;
+
+    expect(secondRun.status).toBe('succeeded');
+    expect(secondFilterCard?.summary).toContain('previously filtered: 1');
+    expect(store.jobs.some((job) => job.company === 'DriftCo')).toBe(false);
+    expect(secondRun.metadata.recentResearch).toMatchObject({
+      skippedCareerLeadReasons: { 'previously-filtered': 1 },
+      rememberedCareerLeadFilters: 1,
+      careerDiscoveryFilterMemorySize: 1
+    });
+    expect(memory?.rejectedCandidates?.[0]).toMatchObject({
+      company: 'DriftCo',
+      role: 'Marketing Coordinator',
+      reason: 'previously-filtered',
+      seenCount: 2
+    });
+    expect(store.syncEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entityType: 'settings', entityId: personalWorkspaceId, operation: 'update' })
+      ])
+    );
+  });
+
   it('surfaces failing project health artifacts without running project scripts', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-project-health-'));
     try {

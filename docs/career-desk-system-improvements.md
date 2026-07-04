@@ -14,6 +14,7 @@ Make Career Desk better at remembering what it has already found, ranking new le
 - [x] Improve To-do sections so passive "check email/portal" work does not crowd out real actions.
 - [x] Show resume-angle suggestions for strong leads so applications can be tailored faster.
 - [x] Add a compact scout-intelligence panel with counts for high-fit leads, duplicate risks, urgent actions, and stale active rows.
+- [x] Add bounded Career Discovery filter memory so repeated low-fit/excluded source fingerprints do not resurface every passive sweep.
 - [ ] Add a true persisted `seenLeadRegistry` export/import object once scout results are added through an in-app import flow instead of only by seed JSON.
 - [ ] Add a weekly strategy review view that summarizes rejections, interviews, stale leads, and role categories.
 - [ ] Add a company watchlist editor so priority companies can be managed without code edits.

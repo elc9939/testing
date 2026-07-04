@@ -212,8 +212,11 @@ normal API startup.
   review date, sync events, and an Action Ledger entry. Lower-fit, senior-only, duplicate,
   excluded, feedback-penalized, or unsourced candidates are counted in run metadata instead
   of being saved; if a sweep finds candidates but saves none, Passive Tasks emits a durable
-  Career Discovery filter-summary card so the run is still visible and recoverable. Career
-  Desk reads the real Passive Tasks snapshot for Career Radar and Career Discovery status,
+  Career Discovery filter-summary card so the run is still visible and recoverable. Repeated
+  low-fit, excluded, or already filtered source fingerprints are stored in a bounded
+  `careerDiscoveryMemory` preference and skipped as `previously-filtered` on later sweeps
+  unless their score rises enough to justify reconsideration. Career Desk reads the real
+  Passive Tasks snapshot for Career Radar and Career Discovery status,
   cached fallback, latest run/card summaries, next run times, and manual run buttons for the
   existing tasks. It then treats imported rows as reviewable discovered leads:
   the ranked panel can keep a candidate as `saved`, move it to `watching`, or archive it as

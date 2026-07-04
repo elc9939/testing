@@ -371,8 +371,11 @@ real-data only:
   save source-backed candidates into Career Desk as `lead` rows when a source URL passes
   opportunity, timing, seniority, duplicate, feedback, and fit-score checks; notes preserve
   the source and evidence. When a sweep finds candidates but saves none, a durable filter
-  summary card shows what was rejected, such as duplicate roles or low-fit listings. Career
-  Desk exposes Career Radar and Discovery status from the real Passive Tasks snapshot, with
+  summary card shows what was rejected, such as duplicate roles or low-fit listings. The
+  passive engine also keeps a bounded Career Discovery filter memory in synced settings, so
+  repeated low-fit or excluded source fingerprints are skipped as `previously-filtered`
+  unless a later sweep scores them strongly enough to reconsider. Career Desk exposes
+  Career Radar and Discovery status from the real Passive Tasks snapshot, with
   cached fallback, latest run/card summaries, next run times, and manual run buttons for the
   existing tasks. It also exposes discovered leads as a ranked panel where each candidate can
   be moved to `saved`, moved to `watching`, or archived as not fit without opening the full
