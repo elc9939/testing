@@ -181,6 +181,7 @@ interface PassiveModePolicyContext {
   eventName?: string;
   activeUse?: boolean;
   activeReason?: string;
+  activeSignalAgeMinutes?: number;
   highPressure?: boolean;
   pressureDrivers?: string[];
   profileFresh?: boolean;
@@ -350,6 +351,7 @@ const passiveMachineModes = new Set<PassiveMachineMode>(['auto', 'balanced', 'be
 const quietDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
 const autoDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
 const passiveActiveUseEvents = new Set(['app.user_active', 'app.game_active']);
+const passiveActiveUseSignalMaxAgeMs = 20 * minuteMs;
 
 function passiveMachineMode(value: unknown): PassiveMachineMode | null {
   return typeof value === 'string' && passiveMachineModes.has(value as PassiveMachineMode) ? (value as PassiveMachineMode) : null;
@@ -448,11 +450,17 @@ function passiveModePolicyContext(store: MemoryStore, date: Date, input: Passive
   const eventName = input.eventName?.trim();
   if (eventName) context.eventName = eventName;
   const idleSource = input.idleSource ?? store.passiveWorker?.lastIdle?.source;
+  const idleCheckedAt = store.passiveWorker?.lastIdle?.checkedAt;
+  const idleCheckedAtMs = parseTime(idleCheckedAt);
+  const activeSignalAgeMs = Number.isFinite(idleCheckedAtMs) ? Math.max(0, date.getTime() - idleCheckedAtMs) : Number.NaN;
+  const activeSignalFresh = !Number.isFinite(activeSignalAgeMs) || activeSignalAgeMs <= passiveActiveUseSignalMaxAgeMs;
   const activeFromEvent = eventName ? passiveActiveUseEvents.has(eventName) : false;
-  const activeFromIdleSource = idleSource === 'hub-route:games' || idleSource === 'hub-route:active' || idleSource === 'browser-focus';
+  const activeFromIdleSource =
+    activeSignalFresh && (idleSource === 'hub-route:games' || idleSource === 'hub-route:active' || idleSource === 'browser-focus');
   if (activeFromEvent || activeFromIdleSource) {
     context.activeUse = true;
     context.activeReason = eventName === 'app.game_active' || idleSource === 'hub-route:games' ? 'game route' : 'hub activity';
+    if (Number.isFinite(activeSignalAgeMs)) context.activeSignalAgeMinutes = Math.round((activeSignalAgeMs / minuteMs) * 10) / 10;
   }
   if (context.activeUse) {
     context.idle = false;
@@ -5572,6 +5580,7 @@ export function buildPassiveSourceStatuses(store: MemoryStore, backupHealth = bu
               autoIdle: policyContext.idle,
               autoActiveUse: policyContext.activeUse,
               autoActiveReason: policyContext.activeReason,
+              autoActiveSignalAgeMinutes: policyContext.activeSignalAgeMinutes,
               autoProfileFresh: policyContext.profileFresh,
               autoHighPressure: policyContext.highPressure,
               autoPressureDrivers: policyContext.pressureDrivers

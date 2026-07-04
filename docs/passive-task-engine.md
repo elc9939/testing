@@ -96,7 +96,9 @@ throttled `app.startup` on open and `app.reconnect` after the browser comes back
 The shared layout emits throttled `app.user_active` and `app.game_active` events with
 `idle: false`, `idleMinutes: 0`, and an idle source such as `browser-focus`,
 `hub-route:active`, or `hub-route:games`; Auto mode uses that signal to defer heavier work
-while the user is actively browsing or playing. Google OAuth connect/revoke flows emit
+while the user is actively browsing or playing. Browser active-use signals expire after a
+short freshness window, so stale game or focus events stop explaining Auto deferrals and the
+desktop idle detector can later allow heavier work. Google OAuth connect/revoke flows emit
 `google.oauth.connected` and `google.oauth.revoked`. Those lifecycle events all feed the App
 Health Watchdog event task.
 

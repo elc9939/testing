@@ -309,6 +309,49 @@ describe('passive task engine', () => {
     expect(String(researchSource.details.modePolicyReason)).toContain('game route');
   });
 
+  it('expires stale browser game activity before explaining Auto mode deferrals', () => {
+    const store = createMemoryStore();
+    const now = new Date();
+    ensurePassiveDefaults(store, now);
+    setMachineMode(store, 'auto');
+    const staleActiveAt = new Date(now.getTime() - 45 * 60 * 1000).toISOString();
+    store.passiveWorker = {
+      id: 'passive-worker',
+      enabled: true,
+      running: false,
+      intervalMs: 5 * 60 * 1000,
+      lastIdle: {
+        idle: false,
+        thresholdMinutes: 30,
+        checkedAt: staleActiveAt,
+        source: 'hub-route:games',
+        idleMinutes: 0
+      },
+      activeFileWatchCount: 0,
+      pendingFileEvent: false,
+      updatedAt: staleActiveAt
+    };
+    const overdueAt = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: overdueAt,
+      trigger: { ...task.trigger, nextRunAt: task.trigger.kind === 'event' ? undefined : overdueAt }
+    }));
+
+    const activeFamilies = duePassiveTasks(store, now).map((task) => task.family);
+    expect(activeFamilies).not.toContain('idle_compute');
+    expect(activeFamilies).not.toContain('research_monitor');
+
+    const researchSource = buildPassiveSnapshot(store).sources.find((source) => source.id === 'research_monitor')!;
+    expect(researchSource.details).toMatchObject({
+      modePolicy: 'deferred',
+      autoIdle: false
+    });
+    expect(researchSource.details.autoActiveUse).toBeUndefined();
+    expect(String(researchSource.details.modePolicyReason)).toContain('Auto waits for idle time');
+    expect(String(researchSource.details.modePolicyReason)).not.toContain('game route');
+  });
+
   it('keeps Auto mode heavy passive work deferred under measured resource pressure', async () => {
     const store = createMemoryStore();
     const now = new Date('2026-06-20T10:00:00.000Z');
