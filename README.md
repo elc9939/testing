@@ -210,6 +210,8 @@ The Svelte app under `apps/hub` provides these main pages:
   compute, research monitor sweeps, career radar, local file intelligence, and project
   drift detection. The page hydrates from a browser snapshot cache first, then refreshes the
   live API snapshot in the background so route changes and browser refreshes feel warmer.
+  The default view is status-first; individual watcher toggles and noisier controls live
+  behind management/advanced disclosures.
 - Settings: service and machine control, capability health, endpoint configuration, theme,
   sync status, Data & Recovery persistence map, passive task preferences, legacy
   import/export, dark mode. Machine Mode now keeps everyday presets visible
@@ -412,7 +414,9 @@ The Passive Tasks dashboard exposes the same practical controls for day-to-day u
 idle-only scheduling, AI preference, family toggles, tick limits, watcher toggles, manual
 ticks, source scope edits, first-class trigger/result state, and live worker state such as
 last/next tick, idle probe, active file watcher count, pending file events, and worker-level
-issues.
+issues. Its default surface stays compact: engine state, source health, digest cards, and
+run evidence stay visible, while watcher toggles and high-detail settings sit behind
+management/advanced disclosures.
 Idle cleanup planning is dry-run only and scans Mini Hub-owned data paths, not broad user
 folders.
 

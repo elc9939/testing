@@ -988,6 +988,11 @@ describe('Mini Hub usability control gates', () => {
     expect(passive).toContain('function passiveScheduleLabel');
     expect(passive).toContain('function passiveBackupStatusLabel');
     expect(passive).toContain('function passiveCountLabel');
+    expect(passive).toContain('watcherSummary = passiveWatcherSummary(snapshot, activeTasks.length)');
+    expect(passive).toContain('function passiveWatcherSummary');
+    expect(passive).toContain('<strong>{watcherSummary.enabled}/{watcherSummary.total} enabled</strong>');
+    expect(passive).toContain('<details class="advanced-watchers">');
+    expect(passive).toContain('Manage watcher toggles');
     expect(passive).toContain('function passivePanelEmptyMessage');
     expect(passive).toContain('function passiveRecentRunsEmptyMessage');
     expect(passive).toContain('This panel will reload after the Passive Tasks service card reconnects.');

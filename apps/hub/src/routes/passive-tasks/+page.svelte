@@ -125,6 +125,7 @@
   $: sourceIssueSummary = summarizedServiceIssueLine(summarizedServiceIssueCount, sourceRows);
   $: visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Passive Tasks API') : '';
   $: visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Passive Tasks action') : '';
+  $: watcherSummary = passiveWatcherSummary(snapshot, activeTasks.length);
   $: passiveRunDueTitle = passiveWriteDisabled
     ? passiveWriteTitle
     : 'Check due passive tasks now; run history and Activity will show what started, skipped, or failed.';
@@ -204,6 +205,21 @@
     if (loading && !snapshot) return 'checking';
     if (!snapshot) return 'refresh needed';
     return String(value);
+  }
+
+  function passiveWatcherSummary(snapshotValue: PassiveSnapshot | null, runnableTaskCount: number): { enabled: number; disabled: number; total: number; detail: string } {
+    const watchers = snapshotValue?.watchers ?? [];
+    const enabled = watchers.filter((watcher) => watcher.enabled).length;
+    const disabled = Math.max(0, watchers.length - enabled);
+    const engine = snapshotValue?.settings.enabled === false ? 'engine paused' : 'engine on';
+    const taskText = runnableTaskCount === 1 ? '1 runnable task' : `${runnableTaskCount} runnable tasks`;
+    const disabledText = disabled ? `, ${disabled} paused` : '';
+    return {
+      enabled,
+      disabled,
+      total: watchers.length,
+      detail: watchers.length ? `${engine}; ${taskText}${disabledText}.` : 'Watchers appear after the passive snapshot loads.'
+    };
   }
 
   function passivePanelEmptyMessage(
@@ -1097,27 +1113,40 @@
       <div class="panel-title">
         <div>
           <span class="icon-chip"><CheckCircle2 size={16} /></span>
-          <strong>Active Watchers</strong>
+          <strong>Watchers</strong>
         </div>
         <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveEngineTitle(settings?.enabled)} on:click={toggleEngine}>
           {settings?.enabled ? 'Pause Engine' : 'Enable Engine'}
         </button>
       </div>
       {#if snapshot?.watchers.length}
-        <div class="watcher-list">
-          {#each snapshot.watchers as watcher}
-            <div class="watcher-row">
-              <span class={`state ${watcher.enabled ? 'ready' : 'paused'}`}>{watcher.enabled ? 'on' : 'off'}</span>
-              <span class="watcher-main">
-                <strong>{watcher.title}</strong>
-                <small>{watcher.description}</small>
-              </span>
-              <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveWatcherTitle(watcher)} on:click={() => applyAction(`watcher:${watcher.id}`, () => togglePassiveWatcher(watcher.id, !watcher.enabled), `${watcher.title} ${watcher.enabled ? 'disabled' : 'enabled'}.`)}>
-                {watcher.enabled ? 'Disable' : 'Enable'}
-              </button>
-            </div>
-          {/each}
+        <div class="watcher-summary-row">
+          <div>
+            <strong>{watcherSummary.enabled}/{watcherSummary.total} enabled</strong>
+            <small>{watcherSummary.detail}</small>
+          </div>
+          <span class={`state ${settings?.enabled ? 'ready' : 'paused'}`}>{settings?.enabled ? 'engine on' : 'engine off'}</span>
         </div>
+        <details class="advanced-watchers">
+          <summary>
+            <span>Manage watcher toggles</span>
+            <small>{watcherSummary.disabled ? `${watcherSummary.disabled} paused watcher${watcherSummary.disabled === 1 ? '' : 's'}` : 'All watchers enabled'}</small>
+          </summary>
+          <div class="watcher-list">
+            {#each snapshot.watchers as watcher}
+              <div class="watcher-row">
+                <span class={`state ${watcher.enabled ? 'ready' : 'paused'}`}>{watcher.enabled ? 'on' : 'off'}</span>
+                <span class="watcher-main">
+                  <strong>{watcher.title}</strong>
+                  <small>{watcher.description}</small>
+                </span>
+                <button class="button compact" type="button" disabled={passiveWriteDisabled} title={passiveWatcherTitle(watcher)} on:click={() => applyAction(`watcher:${watcher.id}`, () => togglePassiveWatcher(watcher.id, !watcher.enabled), `${watcher.title} ${watcher.enabled ? 'disabled' : 'enabled'}.`)}>
+                  {watcher.enabled ? 'Disable' : 'Enable'}
+                </button>
+              </div>
+            {/each}
+          </div>
+        </details>
       {:else}
         <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'No passive watchers are registered yet.', 'Checking passive watchers.')}</p>
       {/if}
@@ -1702,6 +1731,66 @@
 
   .watcher-row {
     grid-template-columns: 58px minmax(0, 1fr) auto;
+  }
+
+  .watcher-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 58px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .watcher-summary-row div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .watcher-summary-row strong,
+  .watcher-summary-row small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .watcher-summary-row small {
+    color: var(--muted);
+  }
+
+  .advanced-watchers {
+    display: grid;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .advanced-watchers summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 40px;
+    padding: 9px 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .advanced-watchers summary small {
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+  }
+
+  .advanced-watchers .watcher-list {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
   }
 
   .run-row {
