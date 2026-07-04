@@ -349,11 +349,14 @@
       'duplicate-company-role': 'duplicate role',
       'duplicate-url': 'duplicate URL',
       'excluded-company': 'excluded company',
+      'job-board-mirror': 'job-board mirror',
       'low-fit-score': 'low fit',
+      'low-timing-confidence': 'weak timing',
       'missing-company-role': 'missing company/role',
       'missing-url': 'missing URL',
       'not-opportunity': 'not a role',
-      'previously-filtered': 'previously filtered'
+      'previously-filtered': 'previously filtered',
+      'unclear-source': 'unclear source'
     };
     return labels[reason] ?? reason.replaceAll('-', ' ');
   }

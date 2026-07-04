@@ -3663,6 +3663,126 @@ describe('passive task engine', () => {
     );
   });
 
+  it('filters Career Discovery findings with weak timing or non-authoritative sources before saving leads', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const researchFetch = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [{ id: 'monitor-career-quality', metadata: { passive_watch_key: 'topic:career-discovery-quality' } }] });
+      }
+      if (href.includes('/api/ai/research/runs?limit=10')) {
+        return jsonResponse({
+          runs: [
+            {
+              id: 'research-career-quality',
+              mode: 'monitor_topic',
+              goal: 'Find May 2027 / Summer 2027 start Data Analyst and Quant Research Intern roles.',
+              status: 'succeeded',
+              report: {
+                title: 'Career discovery quality gate sweep',
+                tldr: 'Strong-looking sources still need source-local 2027 timing and authoritative application pages before import.',
+                key_facts: ['The surrounding research goal is May 2027, but one source does not say that itself.']
+              },
+              sources: [
+                {
+                  id: 'source-low-timing',
+                  url: 'https://timingdrift.example.com/careers/data-analyst',
+                  canonical_url: 'https://timingdrift.example.com/careers/data-analyst',
+                  title: 'Data Analyst at Timing Drift Co',
+                  description: 'Apply for a Data Analyst opening. Remote. Good fit for Math/CS analytics projects.',
+                  score: 0.96,
+                  rank: 1,
+                  metadata: {
+                    company: 'Timing Drift Co',
+                    role: 'Data Analyst',
+                    location: 'Remote'
+                  }
+                },
+                {
+                  id: 'source-unclear-host',
+                  url: 'https://briefs.example.net/post/571',
+                  canonical_url: 'https://briefs.example.net/post/571',
+                  title: 'Data Analyst Intern at Opaque Source Co - Summer 2027',
+                  description: 'Apply for a Summer 2027 Data Analyst Intern opening. Remote. Good fit for Math/CS analytics projects.',
+                  score: 0.94,
+                  rank: 2,
+                  metadata: {
+                    company: 'Opaque Source Co',
+                    role: 'Data Analyst Intern',
+                    location: 'Remote'
+                  }
+                },
+                {
+                  id: 'source-job-board',
+                  url: 'https://linkedin.com/jobs/view/123456',
+                  canonical_url: 'https://linkedin.com/jobs/view/123456',
+                  title: 'Quant Research Intern at Job Board Co - Summer 2027',
+                  description: 'Apply for a Summer 2027 Quant Research Intern opening. Remote. Good fit for Math/CS quant projects.',
+                  score: 0.93,
+                  rank: 3,
+                  metadata: {
+                    company: 'Job Board Co',
+                    role: 'Quant Research Intern',
+                    location: 'Remote'
+                  }
+                }
+              ],
+              options: {
+                metadata: {
+                  source: 'mini-hub-passive',
+                  career_discovery: true,
+                  passive_watch_key: 'topic:career-discovery-quality',
+                  passive_watch_kind: 'topic',
+                  passive_watch_label: 'May 2027 / Summer 2027 source-quality gate',
+                  target_start_window: 'May 2027 / Summer 2027 start',
+                  target_roles: ['Data Analyst', 'Quant Research Intern'],
+                  locations: ['Remote', 'New York'],
+                  profile_background: 'Math/CS analytics and quant projects',
+                  excluded_companies: []
+                }
+              },
+              runtime_ms: 2100,
+              cost_usd: 0,
+              total_tokens: 0
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-quality-gate-test' }
+    });
+    const filterCard = run.cards.find((item) => item.title === '3 Career Discovery candidates filtered');
+    const memory = store.settings?.preferences.careerDiscoveryMemory as { rejectedCandidates?: Array<Record<string, unknown>> } | undefined;
+
+    expect(run.status).toBe('succeeded');
+    expect(store.jobs).toHaveLength(0);
+    expect(filterCard?.summary).toContain('weak timing evidence: 1');
+    expect(filterCard?.summary).toContain('job-board mirror: 1');
+    expect(filterCard?.summary).toContain('unclear source: 1');
+    expect(run.metadata.recentResearch).toMatchObject({
+      importedCareerLeads: 0,
+      skippedCareerLeadCandidates: 3,
+      rememberedCareerLeadFilters: 3,
+      careerDiscoveryFilterMemorySize: 3,
+      skippedCareerLeadReasons: {
+        'low-timing-confidence': 1,
+        'job-board-mirror': 1,
+        'unclear-source': 1
+      }
+    });
+    expect(memory?.rejectedCandidates?.map((entry) => entry.reason).sort()).toEqual(['job-board-mirror', 'low-timing-confidence', 'unclear-source']);
+  });
+
   it('uses the synced seen-lead registry to reject discovered duplicates even after rows are gone', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

@@ -3824,7 +3824,9 @@ function careerLeadPreviouslyFilteredReason(
 }
 
 function shouldRememberCareerLeadFilter(reason: string): boolean {
-  return ['low-fit-score', 'excluded-company', 'previously-filtered'].includes(reason);
+  return ['low-fit-score', 'excluded-company', 'previously-filtered', 'low-timing-confidence', 'job-board-mirror', 'unclear-source'].includes(
+    reason
+  );
 }
 
 function upsertCareerDiscoveryFilterMemory(
@@ -4144,6 +4146,13 @@ function careerLeadDuplicateReason(
   return null;
 }
 
+function careerLeadQualityRejectReason(candidate: CareerLeadCandidate): string | null {
+  if (candidate.quality.timingConfidence === 'low') return 'low-timing-confidence';
+  if (candidate.quality.sourceQuality === 'job-board') return 'job-board-mirror';
+  if (candidate.quality.sourceQuality === 'unclear') return 'unclear-source';
+  return null;
+}
+
 function careerLeadCandidateFromSource(
   source: Record<string, unknown>,
   researchRun: Record<string, unknown>,
@@ -4236,6 +4245,12 @@ function importCareerLeadsFromResearchRun(
       filteredForMemory.push({ candidate, reason: 'low-fit-score' });
       continue;
     }
+    const qualityReason = careerLeadQualityRejectReason(candidate);
+    if (qualityReason) {
+      skippedReasons[qualityReason] = (skippedReasons[qualityReason] ?? 0) + 1;
+      filteredForMemory.push({ candidate, reason: qualityReason });
+      continue;
+    }
     const job = jobSchema.parse({
       id: id('career-job'),
       workspaceId,
@@ -4316,11 +4331,14 @@ function careerLeadSkipReasonLabel(reason: string): string {
     'duplicate-company-role': 'duplicate role',
     'duplicate-url': 'duplicate URL',
     'excluded-company': 'excluded company',
+    'job-board-mirror': 'job-board mirror',
     'low-fit-score': 'low fit score',
+    'low-timing-confidence': 'weak timing evidence',
     'missing-company-role': 'missing company or role',
     'missing-url': 'missing source URL',
     'not-opportunity': 'not a role listing',
-    'previously-filtered': 'previously filtered'
+    'previously-filtered': 'previously filtered',
+    'unclear-source': 'unclear source'
   };
   return labels[reason] ?? reason.replaceAll('-', ' ');
 }

@@ -213,16 +213,18 @@ normal API startup.
   Career Desk state: saved/watching/applied/interview roles become positive role-signal
   hints, while archived/rejected or "not fit" discovery reviews become avoidance hints.
   When completed Career Discovery monitor runs return source URLs that pass the opportunity,
-  timing, seniority, duplicate, feedback, and fit-score filters, the passive engine can save
+  source-quality, timing, seniority, duplicate, feedback, and fit-score filters, the passive engine can save
   them directly into Career Desk as ranked `lead` rows with source/evidence notes, a near-term
   review date, sync events, and an Action Ledger entry. Imported notes include source quality,
   timing confidence, deadline confidence, posting date when available, duplicate status, and
   a parseable `Discovery metadata` line; Passive result source refs expose the same key
-  metadata. Lower-fit, senior-only, duplicate,
-  excluded, feedback-penalized, or unsourced candidates are counted in run metadata instead
+  metadata. Job-board mirrors and unclear hosts can guide research but are not auto-saved as
+  leads until a direct company/ATS-style source is found; sources whose May/Summer 2027 timing
+  only appears in the surrounding research context are also filtered. Lower-fit, senior-only, duplicate,
+  excluded, feedback-penalized, weak-timing, weak-source, or unsourced candidates are counted in run metadata instead
   of being saved; if a sweep finds candidates but saves none, Passive Tasks emits a durable
   Career Discovery filter-summary card so the run is still visible and recoverable. Repeated
-  low-fit, excluded, or already filtered source fingerprints are stored in a bounded
+  low-fit, weak-timing, weak-source, excluded, or already filtered source fingerprints are stored in a bounded
   `careerDiscoveryMemory` preference and skipped as `previously-filtered` on later sweeps
   unless their score rises enough to justify reconsideration. Career Desk reads the real
   Passive Tasks snapshot for Career Radar and Career Discovery status,

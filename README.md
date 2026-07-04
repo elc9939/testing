@@ -376,12 +376,14 @@ real-data only:
   saved/watching/applied roles become positive ranking hints, while archived/rejected and
   "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports can
   save source-backed candidates into Career Desk as `lead` rows when a source URL passes
-  opportunity, timing, seniority, duplicate, feedback, and fit-score checks; notes preserve
-  the source and evidence, plus parseable discovery metadata for source quality, timing
+  opportunity, source-quality, timing, seniority, duplicate, feedback, and fit-score checks;
+  job-board mirrors, unclear hosts, and listings whose May/Summer 2027 timing only appears
+  in surrounding research context stay filtered until a stronger direct/ATS source is found.
+  Notes preserve the source and evidence, plus parseable discovery metadata for source quality, timing
   confidence, deadline confidence, posting date, and duplicate status. When a sweep finds candidates but saves none, a durable filter
   summary card shows what was rejected, such as duplicate roles or low-fit listings. The
   passive engine also keeps a bounded Career Discovery filter memory in synced settings, so
-  repeated low-fit or excluded source fingerprints are skipped as `previously-filtered`
+  repeated low-fit, weak-timing, weak-source, or excluded source fingerprints are skipped as `previously-filtered`
   unless a later sweep scores them strongly enough to reconsider. Career Desk exposes
   Career Radar and Discovery status from the real Passive Tasks snapshot, with
   cached fallback, latest run/card summaries, next run times, remembered-filter counts,
