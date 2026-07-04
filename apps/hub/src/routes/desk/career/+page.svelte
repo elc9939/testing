@@ -9,7 +9,7 @@
   import { hubHref } from '$lib/routes';
   import { compactServiceIssueIfRecognized, compactServiceIssueLine } from '$lib/service-issues';
 
-  const statuses = ['lead', 'applied', 'interview', 'offer', 'rejected', 'archived'];
+  const statuses = ['lead', 'saved', 'watching', 'applied', 'interview', 'offer', 'rejected', 'archived'];
 
   interface LegacyImportState {
     importedAt?: string;
@@ -543,6 +543,26 @@
       .join(' - ');
   }
 
+  function canReviewDiscoveredLead(job: JobRecord): boolean {
+    return canSave && isDiscoveredCareerLead(job) && !editingJobId && !rowBusyId;
+  }
+
+  function discoveredLeadReviewTitle(state: CareerControlState, job: JobRecord, action: 'save' | 'watch' | 'archive'): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before reviewing discovered leads.';
+    if (state.rowBusyId === job.id) return 'This discovered lead review is already saving.';
+    if (state.rowBusyId) return 'Another Career row action is already running.';
+    if (state.editingJobId) return 'Finish or cancel the current edit before reviewing discovered leads.';
+    if (!isDiscoveredCareerLead(job)) return 'This discovered lead has already been reviewed.';
+    if (action === 'save') return 'Keep this discovered lead as saved for near-term review.';
+    if (action === 'watch') return 'Move this discovered lead to watching for a later check-in.';
+    return 'Archive this discovered lead as not fit while preserving the source notes.';
+  }
+
+  function appendDiscoveryReviewNote(existingNotes: string, label: string): string {
+    const date = localDateInput();
+    return [existingNotes.trim(), `Career Discovery review: ${label} on ${date}.`].filter(Boolean).join('\n\n');
+  }
+
   function canMarkJobApplied(job: JobRecord): boolean {
     return canSave && !editingJobId && !rowBusyId && !['applied', 'interview', 'offer', 'rejected', 'archived'].includes(job.status);
   }
@@ -826,6 +846,44 @@
     }
   }
 
+  async function reviewDiscoveredLead(job: JobRecord, decision: 'save' | 'watch' | 'archive'): Promise<void> {
+    if (!canReviewDiscoveredLead(job)) return;
+    rowError = '';
+    saveError = '';
+    saveMessage = '';
+    rowBusyId = job.id;
+    const statusByDecision = {
+      save: 'saved',
+      watch: 'watching',
+      archive: 'archived'
+    } as const;
+    const noteByDecision = {
+      save: 'saved for review',
+      watch: 'moved to watching',
+      archive: 'archived as not fit'
+    } as const;
+    const nextActionByDecision = {
+      save: localDateInput(7),
+      watch: localDateInput(21),
+      archive: null
+    } as const;
+    try {
+      await clientData.updateJob(job.id, {
+        status: statusByDecision[decision],
+        nextActionAt: nextActionByDecision[decision],
+        notes: appendDiscoveryReviewNote(job.notes, noteByDecision[decision])
+      });
+      saveMessage =
+        decision === 'archive'
+          ? `Archived discovered lead ${job.role} at ${job.company} as not fit.`
+          : `Moved discovered lead ${job.role} at ${job.company} to ${statusByDecision[decision]}.`;
+    } catch (error) {
+      rowError = error instanceof Error ? error.message : 'Discovered lead review failed';
+    } finally {
+      rowBusyId = '';
+    }
+  }
+
   async function saveCareerDiscoveryProfile(): Promise<void> {
     if (!canSave || careerProfileSaving) return;
     rowError = '';
@@ -958,12 +1016,28 @@
     </div>
     <div class="discovered-lead-list">
       {#each topDiscoveredCareerLeads as job}
-        <a class="discovered-lead-row" href={jobApplicationHref(job) || '#job-search'} target={jobApplicationHref(job) ? '_blank' : undefined} rel={jobApplicationHref(job) ? 'noreferrer' : undefined} title={`Review discovered lead: ${job.role} at ${job.company}.`}>
-          <span>{displayFitScore(job)}</span>
-          <strong>{job.company}</strong>
-          <small>{job.role}</small>
-          <small>{discoveredLeadMeta(job)}</small>
-        </a>
+        <div class="discovered-lead-row">
+          <a class="discovered-lead-main" href={jobApplicationHref(job) || '#job-search'} target={jobApplicationHref(job) ? '_blank' : undefined} rel={jobApplicationHref(job) ? 'noreferrer' : undefined} title={`Review discovered lead: ${job.role} at ${job.company}.`}>
+            <span>{displayFitScore(job)}</span>
+            <strong>{job.company}</strong>
+            <small>{job.role}</small>
+            <small>{discoveredLeadMeta(job)}</small>
+          </a>
+          <div class="discovered-lead-actions">
+            <button class="row-command" type="button" disabled={!canReviewDiscoveredLead(job)} title={discoveredLeadReviewTitle(careerControlState, job, 'save')} on:click={() => reviewDiscoveredLead(job, 'save')}>
+              <Save size={14} />
+              <span>Save</span>
+            </button>
+            <button class="row-command" type="button" disabled={!canReviewDiscoveredLead(job)} title={discoveredLeadReviewTitle(careerControlState, job, 'watch')} on:click={() => reviewDiscoveredLead(job, 'watch')}>
+              <Search size={14} />
+              <span>Watch</span>
+            </button>
+            <button class="row-command danger" type="button" disabled={!canReviewDiscoveredLead(job)} title={discoveredLeadReviewTitle(careerControlState, job, 'archive')} on:click={() => reviewDiscoveredLead(job, 'archive')}>
+              <X size={14} />
+              <span>Not fit</span>
+            </button>
+          </div>
+        </div>
       {/each}
     </div>
   </section>
@@ -1403,10 +1477,18 @@
 
   .discovered-lead-row {
     display: grid;
-    grid-template-columns: 58px minmax(130px, 0.75fr) minmax(0, 1fr) 150px;
-    gap: 3px 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
     padding: 9px 11px;
     border-top: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .discovered-lead-main {
+    display: grid;
+    grid-template-columns: 58px minmax(130px, 0.75fr) minmax(0, 1fr) 150px;
+    gap: 3px 10px;
     color: var(--text);
     text-decoration: none;
   }
@@ -1415,26 +1497,38 @@
     background: var(--active);
   }
 
-  .discovered-lead-row span {
+  .discovered-lead-main span {
     color: var(--text);
     font-size: 12px;
     font-weight: 850;
   }
 
-  .discovered-lead-row strong,
-  .discovered-lead-row small {
+  .discovered-lead-main strong,
+  .discovered-lead-main small {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .discovered-lead-row small {
+  .discovered-lead-main small {
     color: var(--muted);
   }
 
-  .discovered-lead-row small:last-child {
+  .discovered-lead-main small:last-child {
     text-align: right;
+  }
+
+  .discovered-lead-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .row-command.danger {
+    color: var(--danger-text);
+    border-color: var(--danger-border);
   }
 
   .mail-update-list {
@@ -1850,15 +1944,23 @@
     }
 
     .discovered-lead-row {
+      grid-template-columns: 1fr;
+    }
+
+    .discovered-lead-main {
       grid-template-columns: 52px minmax(0, 1fr);
     }
 
-    .discovered-lead-row small {
+    .discovered-lead-main small {
       grid-column: 2;
     }
 
-    .discovered-lead-row small:last-child {
+    .discovered-lead-main small:last-child {
       text-align: left;
+    }
+
+    .discovered-lead-actions {
+      justify-content: flex-start;
     }
 
     .mail-update-row small:last-child {

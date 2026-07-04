@@ -1604,11 +1604,18 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('function markAppliedTitle');
     expect(career).toContain('function canMarkJobApplied');
     expect(career).toContain('function markJobApplied');
+    expect(career).toContain("const statuses = ['lead', 'saved', 'watching', 'applied', 'interview', 'offer', 'rejected', 'archived']");
     expect(career).toContain('discoveredCareerLeads = jobs.filter(isDiscoveredCareerLead).sort(compareCareerJobs)');
     expect(career).toContain('function isDiscoveredCareerLead');
+    expect(career).toContain('function canReviewDiscoveredLead');
+    expect(career).toContain('function reviewDiscoveredLead');
+    expect(career).toContain("reviewDiscoveredLead(job, 'save')");
+    expect(career).toContain("reviewDiscoveredLead(job, 'watch')");
+    expect(career).toContain("reviewDiscoveredLead(job, 'archive')");
     expect(career).toContain('Discovered by Career Discovery');
     expect(career).toContain('Discovered Leads');
     expect(career).toContain('ranked by fit');
+    expect(career).toContain('Career Discovery review:');
     expect(career).toContain('interface CareerDiscoveryProfile');
     expect(career).toContain('function saveCareerDiscoveryProfile');
     expect(career).toContain('function currentCareerDiscoveryProfile');

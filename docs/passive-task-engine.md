@@ -205,7 +205,9 @@ normal API startup.
   can save them directly into Career Desk as ranked `lead` rows with source/evidence notes,
   a near-term review date, sync events, and an Action Ledger entry. Lower-fit, senior-only,
   duplicate, excluded, or unsourced candidates are counted in run metadata instead of being
-  saved.
+  saved. Career Desk then treats those imported rows as reviewable discovered leads: the
+  ranked panel can keep a candidate as `saved`, move it to `watching`, or archive it as
+  not fit while preserving the original source/evidence note.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. Career Desk's quick "mark applied" flow writes both the applied job status
