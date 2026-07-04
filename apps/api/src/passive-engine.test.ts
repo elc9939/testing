@@ -2957,10 +2957,24 @@ describe('passive task engine', () => {
         }
       }
     });
+    const laneBody = createdBodies.find((body) => body.name === 'Passive career discovery: May 2027 / Summer 2027 start company career pages and ATS postings');
+    expect(laneBody).toMatchObject({
+      metadata: {
+        career_discovery: true,
+        discovery_scope: 'source_lane',
+        source_lane: 'company-career-pages',
+        source_lane_label: 'company career pages and ATS postings'
+      }
+    });
+    expect(String((laneBody?.request as Record<string, unknown> | undefined)?.goal)).toContain(
+      'This monitor is a source lane for company career pages and ATS postings.'
+    );
+    expect(String((laneBody?.request as Record<string, unknown> | undefined)?.goal)).toContain('Greenhouse, Lever, Ashby, Workday');
     expect(run.metadata).toMatchObject({
       careerDiscoveryTopics: expect.arrayContaining([
         'May 2027 / Summer 2027 start career discovery',
         'May 2027 / Summer 2027 start Data Analyst roles',
+        'May 2027 / Summer 2027 start company career pages and ATS postings',
         'May 2027 / Summer 2027 start Data Analyst roles in New York'
       ])
     });

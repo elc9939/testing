@@ -199,8 +199,11 @@ normal API startup.
   saved target roles, background/status text, preferred locations, and existing companies as
   duplicate/exclusion hints. The profile's focused/broad/max research intensity controls how
   many bounded discovery monitor variants are prepared; max intensity adds role/location
-  combinations while the prompt still rejects senior-only, closed, vague, duplicate, or
-  unsourced roles. Discovery monitors also carry a compact feedback profile learned from
+  combinations and source-lane monitors for direct company/ATS pages, new-grad programs,
+  internships/fellowships, data/analytics roles, quant/finance searches, and local-AI or
+  technical analyst searches when those lanes match the saved role profile. The prompt still
+  rejects senior-only, closed, vague, duplicate, or unsourced roles. Discovery monitors also
+  carry a compact feedback profile learned from
   Career Desk state: saved/watching/applied/interview roles become positive role-signal
   hints, while archived/rejected or "not fit" discovery reviews become avoidance hints.
   When completed Career Discovery monitor runs return source URLs that pass the opportunity,

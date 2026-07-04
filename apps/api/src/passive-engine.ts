@@ -1049,6 +1049,79 @@ function careerDiscoveryFeedbackProfile(store: MemoryStore): Record<string, unkn
   });
 }
 
+interface CareerDiscoverySourceLane {
+  key: string;
+  label: string;
+  instruction: string;
+  roles?: RegExp;
+}
+
+const careerDiscoverySourceLanes: CareerDiscoverySourceLane[] = [
+  {
+    key: 'company-career-pages',
+    label: 'company career pages and ATS postings',
+    instruction: 'Prioritize direct employer career pages, Greenhouse, Lever, Ashby, Workday, SmartRecruiters, and other ATS postings with application URLs.'
+  },
+  {
+    key: 'new-grad-rotational',
+    label: 'new-grad and rotational programs',
+    instruction: 'Prioritize new-grad, rotational, analyst program, early-career, and upcoming-graduate programs with 2027 eligibility.'
+  },
+  {
+    key: 'internships-fellowships',
+    label: 'internships and fellowships',
+    instruction: 'Prioritize internships, fellowships, summer analyst roles, and structured student programs that can fit a May/Summer 2027 start.'
+  },
+  {
+    key: 'data-analytics',
+    label: 'data and analytics role boards',
+    instruction: 'Prioritize data analyst, analytics engineer, GTM/product analytics, business analytics, and data operations listings that match the profile background.',
+    roles: /\b(data|analytics?|analyst|gtm|product)\b/iu
+  },
+  {
+    key: 'quant-finance',
+    label: 'quant and finance early-career searches',
+    instruction: 'Prioritize quant research, investment analyst, trading, risk, and finance research opportunities that are explicitly student/new-grad eligible.',
+    roles: /\b(quant|investment|trading|finance|risk|research)\b/iu
+  },
+  {
+    key: 'local-ai-technical',
+    label: 'AI tooling and technical analyst searches',
+    instruction: 'Prioritize AI tooling, machine learning operations, automation, technical analyst, and software-adjacent roles that value local AI or CS project experience.',
+    roles: /\b(ai|machine learning|ml|software|automation|technical|engineer|developer|cs)\b/iu
+  }
+];
+
+function careerDiscoveryLaneEntries(
+  sharedMetadata: Record<string, unknown>,
+  roles: string[],
+  targetStartWindow: string,
+  intensity: 'focused' | 'broad' | 'max',
+  entryLimit: number
+): PassiveResearchDomainEntry[] {
+  if (intensity === 'focused') return [];
+  const roleText = roles.join(' ');
+  const laneLimit = intensity === 'max' ? Math.min(6, Math.max(2, entryLimit - 1)) : Math.min(3, Math.max(1, entryLimit - 2));
+  return careerDiscoverySourceLanes
+    .filter((lane) => !lane.roles || lane.roles.test(roleText))
+    .slice(0, laneLimit)
+    .map((lane) => ({
+      key: `topic:career-discovery-${slugResearchWatchKey(targetStartWindow)}-lane-${lane.key}`,
+      kind: 'topic' as const,
+      source: 'career_profile' as const,
+      labels: [`${targetStartWindow} ${lane.label}`],
+      jobIds: [],
+      urls: [],
+      metadata: {
+        ...sharedMetadata,
+        discovery_scope: 'source_lane',
+        source_lane: lane.key,
+        source_lane_label: lane.label,
+        source_lane_instruction: lane.instruction
+      }
+    }));
+}
+
 function careerDiscoveryProfileEntries(
   store: MemoryStore,
   budget = resourceBudget(store.passiveSettings ?? defaultPassiveSettings())
@@ -1110,6 +1183,8 @@ function careerDiscoveryProfileEntries(
       }
     });
   }
+
+  entries.push(...careerDiscoveryLaneEntries(sharedMetadata, roles, targetStartWindow, intensity, entryLimit));
 
   if (intensity === 'max' && locations.length) {
     for (const role of roles) {
@@ -3327,10 +3402,14 @@ function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
     const feedback = isRecord(metadata.feedback) ? metadata.feedback : {};
     const preferredRoleTerms = compactTextList(feedback.preferred_role_terms, 12);
     const avoidedRoleTerms = compactTextList(feedback.avoided_role_terms, 12);
+    const sourceLaneLabel = typeof metadata.source_lane_label === 'string' ? metadata.source_lane_label : '';
+    const sourceLaneInstruction = typeof metadata.source_lane_instruction === 'string' ? metadata.source_lane_instruction : '';
     return [
       `Find source-backed career opportunities for ${label}.`,
       `Only prioritize roles that explicitly fit a ${startWindow} timeline, new-grad, early-career, analyst, internship, rotational, or upcoming-graduate style eligibility.`,
       `Research intensity: ${intensity}; prefer breadth only when each result still passes the fit and novelty filters.`,
+      sourceLaneLabel ? `This monitor is a source lane for ${sourceLaneLabel}.` : '',
+      sourceLaneInstruction ? `Source lane instruction: ${sourceLaneInstruction}` : '',
       roles.length ? `Target role families: ${roles.join('; ')}.` : '',
       locations.length ? `Preferred locations/work modes: ${locations.join('; ')}.` : '',
       background ? `Candidate background filter: ${background}.` : '',

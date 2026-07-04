@@ -361,7 +361,10 @@ real-data only:
   not repeat endlessly. Career Discovery profile filters can expand role discovery from
   focused to max intensity, creating bounded role/location monitor variants while still
   carrying the May 2027/Summer 2027 start window, background/status fit text, and duplicate
-  company exclusions. The monitor metadata also learns from Career Desk review state:
+  company exclusions. Broad/max discovery also creates source-lane monitors for direct
+  company/ATS pages, new-grad programs, internships/fellowships, data/analytics searches,
+  quant/finance searches, and local-AI technical searches when those lanes match the saved
+  role profile. The monitor metadata also learns from Career Desk review state:
   saved/watching/applied roles become positive ranking hints, while archived/rejected and
   "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports can
   save source-backed candidates into Career Desk as `lead` rows when a source URL passes
