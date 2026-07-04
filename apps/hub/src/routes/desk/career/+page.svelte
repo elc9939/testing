@@ -95,6 +95,14 @@
     status: string;
   }
 
+  interface CareerDiscoveryLeadMetadata {
+    sourceQuality?: string;
+    timingConfidence?: string;
+    deadlineConfidence?: string;
+    postingDate?: string;
+    duplicateStatus?: string;
+  }
+
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
   const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
@@ -763,10 +771,57 @@
     return job.status === 'lead' && /Discovered by Career Discovery/u.test(job.notes);
   }
 
+  function discoveryMetadataFromNotes(notes: string): CareerDiscoveryLeadMetadata {
+    const match = notes.match(/^Discovery metadata:\s*(\{.+\})\s*$/imu);
+    if (!match?.[1]) return {};
+    try {
+      const parsed = JSON.parse(match[1]) as unknown;
+      const record = plainRecord(parsed);
+      const metadata: CareerDiscoveryLeadMetadata = {};
+      if (typeof record.sourceQuality === 'string') metadata.sourceQuality = record.sourceQuality;
+      if (typeof record.timingConfidence === 'string') metadata.timingConfidence = record.timingConfidence;
+      if (typeof record.deadlineConfidence === 'string') metadata.deadlineConfidence = record.deadlineConfidence;
+      if (typeof record.postingDate === 'string') metadata.postingDate = record.postingDate;
+      if (typeof record.duplicateStatus === 'string') metadata.duplicateStatus = record.duplicateStatus;
+      return metadata;
+    } catch {
+      return {};
+    }
+  }
+
+  function discoveryQualityLabel(value?: string): string {
+    if (value === 'direct-career-page') return 'direct source';
+    if (value === 'ats-posting') return 'ATS';
+    if (value === 'job-board') return 'job board';
+    if (value === 'unclear') return 'unclear source';
+    return '';
+  }
+
+  function discoveredLeadQualityMeta(job: JobRecord): string {
+    const metadata = discoveryMetadataFromNotes(job.notes);
+    return [
+      discoveryQualityLabel(metadata.sourceQuality),
+      metadata.timingConfidence ? `timing ${metadata.timingConfidence}` : '',
+      metadata.deadlineConfidence ? `deadline ${metadata.deadlineConfidence}` : '',
+      metadata.postingDate ? `posted ${metadata.postingDate}` : '',
+      metadata.duplicateStatus && metadata.duplicateStatus !== 'new-source' ? metadata.duplicateStatus.replaceAll('-', ' ') : ''
+    ]
+      .filter(Boolean)
+      .join(' / ');
+  }
+
   function discoveredLeadMeta(job: JobRecord): string {
-    return [`Fit ${displayFitScore(job)}`, job.nextActionAt ? `Review ${displayDate(job.nextActionAt)}` : 'No review date']
+    const quality = discoveredLeadQualityMeta(job);
+    return [quality, job.nextActionAt ? `Review ${displayDate(job.nextActionAt)}` : 'No review date']
       .filter(Boolean)
       .join(' - ');
+  }
+
+  function discoveredLeadTitle(job: JobRecord): string {
+    const quality = discoveredLeadQualityMeta(job);
+    return [`Review discovered lead: ${job.role} at ${job.company}.`, quality ? `Discovery signals: ${quality}.` : 'No structured discovery metadata yet.']
+      .filter(Boolean)
+      .join(' ');
   }
 
   function canReviewDiscoveredLead(job: JobRecord): boolean {
@@ -1305,7 +1360,7 @@
     <div class="discovered-lead-list">
       {#each topDiscoveredCareerLeads as job}
         <div class="discovered-lead-row">
-          <a class="discovered-lead-main" href={jobApplicationHref(job) || '#job-search'} target={jobApplicationHref(job) ? '_blank' : undefined} rel={jobApplicationHref(job) ? 'noreferrer' : undefined} title={`Review discovered lead: ${job.role} at ${job.company}.`}>
+          <a class="discovered-lead-main" href={jobApplicationHref(job) || '#job-search'} target={jobApplicationHref(job) ? '_blank' : undefined} rel={jobApplicationHref(job) ? 'noreferrer' : undefined} title={discoveredLeadTitle(job)}>
             <span>{displayFitScore(job)}</span>
             <strong>{job.company}</strong>
             <small>{job.role}</small>

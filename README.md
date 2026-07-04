@@ -381,7 +381,8 @@ real-data only:
   skipped-reason summaries, and manual run buttons for the
   existing tasks. It also exposes discovered leads as a ranked panel where each candidate can
   be moved to `saved`, moved to `watching`, or archived as not fit without opening the full
-  table row.
+  table row; rows show source quality, timing confidence, deadline confidence, posting date,
+  and review date when the imported discovery metadata is available.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. High-confidence Gmail confirmations and completed linked apply/submit actions
