@@ -3572,6 +3572,18 @@ interface CareerLeadCandidate {
   notes: string;
   source: Record<string, unknown>;
   evidence: string[];
+  quality: CareerLeadQualitySignals;
+}
+
+interface CareerLeadQualitySignals {
+  sourceQuality: 'direct-career-page' | 'ats-posting' | 'job-board' | 'unclear';
+  sourceQualityEvidence: string;
+  timingConfidence: 'high' | 'medium' | 'low';
+  timingEvidence: string;
+  deadlineConfidence: 'high' | 'medium' | 'unknown';
+  deadlineEvidence: string;
+  duplicateStatus: string;
+  postingDate?: string;
 }
 
 interface CareerLeadFilteredCandidate {
@@ -3854,6 +3866,106 @@ function parseCompanyRoleFromSource(source: Record<string, unknown>, metadata: R
   };
 }
 
+function sourceHost(value: string): string {
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./u, '');
+  } catch {
+    return '';
+  }
+}
+
+function sourcePath(value: string): string {
+  try {
+    return new URL(value).pathname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function careerLeadSourceQuality(applicationUrl: string, company: string): Pick<CareerLeadQualitySignals, 'sourceQuality' | 'sourceQualityEvidence'> {
+  const host = sourceHost(applicationUrl);
+  const path = sourcePath(applicationUrl);
+  const companyTokens = normalizeCompanyKey(company).split(/\s+/u).filter((token) => token.length >= 4);
+  if (/\b(greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|workdayjobs\.com|smartrecruiters\.com|icims\.com|workable\.com|jobvite\.com|bamboohr\.com)\b/iu.test(host)) {
+    return { sourceQuality: 'ats-posting', sourceQualityEvidence: `ATS posting on ${host}` };
+  }
+  if (/\b(linkedin\.com|indeed\.com|glassdoor\.com|builtin\.com|simplify\.jobs|handshake\.com|wayup\.com|ziprecruiter\.com)\b/iu.test(host)) {
+    return { sourceQuality: 'job-board', sourceQualityEvidence: `job-board mirror on ${host}` };
+  }
+  if ((/\/(careers?|jobs?|openings?|roles?)\b/iu.test(path) || companyTokens.some((token) => host.includes(token))) && host) {
+    return { sourceQuality: 'direct-career-page', sourceQualityEvidence: `direct employer/career source on ${host}` };
+  }
+  return { sourceQuality: 'unclear', sourceQualityEvidence: host ? `unclear source host ${host}` : 'source host unavailable' };
+}
+
+function careerLeadTimingSignal(
+  sourceOnlyText: string,
+  fullText: string,
+  metadata: Record<string, unknown>
+): Pick<CareerLeadQualitySignals, 'timingConfidence' | 'timingEvidence'> {
+  const targetStartWindow = textValue(metadata.target_start_window) || 'May 2027 / Summer 2027 start';
+  if (/\b(may\s*2027|summer\s*2027|class of 2027|2027\s+(?:start|intern|internship|graduate|new grad)|(?:start|starting)\s+(?:in\s+)?2027)\b/iu.test(sourceOnlyText)) {
+    return { timingConfidence: 'high', timingEvidence: `source explicitly matches ${targetStartWindow}` };
+  }
+  if (/\b(new grad|new graduate|upcoming graduate|early career|entry[- ]level|internship|intern|rotational|analyst program)\b/iu.test(sourceOnlyText)) {
+    return { timingConfidence: 'medium', timingEvidence: 'source has early-career or student eligibility language' };
+  }
+  if (/\b(may\s*2027|summer\s*2027|class of 2027|2027)\b/iu.test(fullText)) {
+    return { timingConfidence: 'low', timingEvidence: `only surrounding research context mentions ${targetStartWindow}` };
+  }
+  return { timingConfidence: 'low', timingEvidence: 'no explicit May/Summer 2027 timing found in source text' };
+}
+
+function careerLeadPostingDate(source: Record<string, unknown>): string | undefined {
+  const value = sourceField(source, ['posted_at', 'posting_date', 'postingDate', 'date_posted', 'datePosted', 'published_at', 'publishedAt']);
+  return value ? truncateText(value, 80) : undefined;
+}
+
+function careerLeadDeadlineSignal(
+  source: Record<string, unknown>,
+  sourceOnlyText: string
+): Pick<CareerLeadQualitySignals, 'deadlineConfidence' | 'deadlineEvidence'> {
+  const explicit = sourceField(source, ['deadline', 'application_deadline', 'applicationDeadline', 'closing_date', 'closingDate', 'close_date', 'closeDate']);
+  if (explicit) return { deadlineConfidence: 'high', deadlineEvidence: truncateText(explicit, 100) };
+  const deadlineMatch = sourceOnlyText.match(
+    /\b(?:deadline|apply by|applications? (?:close|due)|closing date|closes)\b[:\s-]*(.{0,80}?\b(?:20\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b.{0,40})/iu
+  );
+  if (deadlineMatch?.[1]) return { deadlineConfidence: 'medium', deadlineEvidence: truncateText(deadlineMatch[1].trim(), 100) };
+  if (/\b(rolling|open until filled|applications reviewed on a rolling basis)\b/iu.test(sourceOnlyText)) {
+    return { deadlineConfidence: 'medium', deadlineEvidence: 'rolling or open-until-filled language' };
+  }
+  return { deadlineConfidence: 'unknown', deadlineEvidence: 'no application deadline found' };
+}
+
+function careerLeadQualitySignals(
+  source: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+  company: string,
+  applicationUrl: string,
+  sourceOnlyText: string,
+  fullText: string
+): CareerLeadQualitySignals {
+  const postingDate = careerLeadPostingDate(source);
+  const signals: CareerLeadQualitySignals = {
+    ...careerLeadSourceQuality(applicationUrl, company),
+    ...careerLeadTimingSignal(sourceOnlyText, fullText, metadata),
+    ...careerLeadDeadlineSignal(source, sourceOnlyText),
+    duplicateStatus: 'new-source'
+  };
+  if (postingDate) signals.postingDate = postingDate;
+  return signals;
+}
+
+function careerLeadQualityMetadata(quality: CareerLeadQualitySignals): Record<string, unknown> {
+  return compactRecord({
+    sourceQuality: quality.sourceQuality,
+    timingConfidence: quality.timingConfidence,
+    deadlineConfidence: quality.deadlineConfidence,
+    postingDate: quality.postingDate,
+    duplicateStatus: quality.duplicateStatus
+  });
+}
+
 function careerLeadFitScore(text: string, metadata: Record<string, unknown>, source: Record<string, unknown>): { score: number; evidence: string[] } {
   const lower = text.toLowerCase();
   const targetRoles = compactTextList(metadata.target_roles, 12);
@@ -3960,7 +4072,9 @@ function careerLeadCandidateFromSource(
   }
   const { company, role } = parseCompanyRoleFromSource(source, metadata);
   if (!company || !role || role.length < 4) return { skipped: 'missing-company-role' };
+  const sourceOnlyText = sourceText(source, {});
   const fit = careerLeadFitScore(text, metadata, source);
+  const quality = careerLeadQualitySignals(source, metadata, company, applicationUrl, sourceOnlyText, text);
   const title = sourceTitle(source);
   const description = sourceField(source, ['description', 'snippet', 'summary']);
   const researchRunId = textValue(researchRun.id);
@@ -3969,7 +4083,13 @@ function careerLeadCandidateFromSource(
     title ? `Source title: ${title}` : '',
     description ? `Source summary: ${truncateText(description, 260)}` : '',
     `Source: ${applicationUrl}`,
-    `Fit evidence: ${fit.evidence.join('; ') || 'source-backed candidate'}`
+    `Source quality: ${quality.sourceQuality} (${quality.sourceQualityEvidence})`,
+    `Timing confidence: ${quality.timingConfidence} (${quality.timingEvidence})`,
+    `Deadline confidence: ${quality.deadlineConfidence} (${quality.deadlineEvidence})`,
+    quality.postingDate ? `Posting date: ${quality.postingDate}` : '',
+    `Duplicate status: ${quality.duplicateStatus}`,
+    `Fit evidence: ${fit.evidence.join('; ') || 'source-backed candidate'}`,
+    `Discovery metadata: ${JSON.stringify(careerLeadQualityMetadata(quality))}`
   ]
     .filter(Boolean)
     .join('\n');
@@ -3980,7 +4100,8 @@ function careerLeadCandidateFromSource(
     fitScore: fit.score,
     notes,
     source,
-    evidence: fit.evidence
+    evidence: fit.evidence,
+    quality
   };
 }
 
@@ -4117,6 +4238,17 @@ function careerLeadSkipReasonSummary(skippedReasons: Record<string, number>, lim
     .join('; ');
 }
 
+function careerLeadDiscoveryMetadataFromJob(job: JobRecord): Record<string, unknown> {
+  const match = job.notes.match(/^Discovery metadata:\s*(\{.+\})\s*$/imu);
+  if (!match?.[1]) return {};
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function careerLeadImportCard(
   task: PassiveTask,
   passiveRunId: string,
@@ -4178,7 +4310,8 @@ function careerLeadImportCard(
           fitScore: job.fitScore,
           applicationUrl: job.applicationUrl,
           nextActionAt: job.nextActionAt,
-          researchRunId: researchRun.id
+          researchRunId: researchRun.id,
+          ...careerLeadDiscoveryMetadataFromJob(job)
         })
       })
     ),

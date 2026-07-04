@@ -370,7 +370,8 @@ real-data only:
   "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports can
   save source-backed candidates into Career Desk as `lead` rows when a source URL passes
   opportunity, timing, seniority, duplicate, feedback, and fit-score checks; notes preserve
-  the source and evidence. When a sweep finds candidates but saves none, a durable filter
+  the source and evidence, plus parseable discovery metadata for source quality, timing
+  confidence, deadline confidence, posting date, and duplicate status. When a sweep finds candidates but saves none, a durable filter
   summary card shows what was rejected, such as duplicate roles or low-fit listings. The
   passive engine also keeps a bounded Career Discovery filter memory in synced settings, so
   repeated low-fit or excluded source fingerprints are skipped as `previously-filtered`

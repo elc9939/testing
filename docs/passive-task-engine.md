@@ -209,7 +209,10 @@ normal API startup.
   When completed Career Discovery monitor runs return source URLs that pass the opportunity,
   timing, seniority, duplicate, feedback, and fit-score filters, the passive engine can save
   them directly into Career Desk as ranked `lead` rows with source/evidence notes, a near-term
-  review date, sync events, and an Action Ledger entry. Lower-fit, senior-only, duplicate,
+  review date, sync events, and an Action Ledger entry. Imported notes include source quality,
+  timing confidence, deadline confidence, posting date when available, duplicate status, and
+  a parseable `Discovery metadata` line; Passive result source refs expose the same key
+  metadata. Lower-fit, senior-only, duplicate,
   excluded, feedback-penalized, or unsourced candidates are counted in run metadata instead
   of being saved; if a sweep finds candidates but saves none, Passive Tasks emits a durable
   Career Discovery filter-summary card so the run is still visible and recoverable. Repeated

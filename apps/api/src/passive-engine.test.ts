@@ -3456,7 +3456,9 @@ describe('passive task engine', () => {
                   metadata: {
                     company: 'Northstar Analytics',
                     role: 'Data Analyst Intern',
-                    location: 'Remote'
+                    location: 'Remote',
+                    posting_date: '2026-06-15',
+                    application_deadline: '2026-09-01'
                   }
                 },
                 {
@@ -3542,14 +3544,34 @@ describe('passive task engine', () => {
     });
     expect(imported?.fitScore).toBeGreaterThanOrEqual(75);
     expect(imported?.notes).toContain('Discovered by Career Discovery');
+    expect(imported?.notes).toContain('Source quality: direct-career-page');
+    expect(imported?.notes).toContain('Timing confidence: high');
+    expect(imported?.notes).toContain('Deadline confidence: high (2026-09-01)');
+    expect(imported?.notes).toContain('Posting date: 2026-06-15');
+    expect(imported?.notes).toContain('Duplicate status: new-source');
     expect(imported?.notes).toContain('Fit evidence:');
+    expect(imported?.notes).toContain('"sourceQuality":"direct-career-page"');
+    expect(imported?.notes).toContain('"timingConfidence":"high"');
+    expect(imported?.notes).toContain('"deadlineConfidence":"high"');
     expect(store.jobs.some((job) => job.company === 'Senior Only Co')).toBe(false);
     expect(store.jobs.some((job) => job.company === 'Pitch Systems')).toBe(false);
     expect(store.jobs.filter((job) => job.company === 'Old Applied Co')).toHaveLength(1);
     expect(importCard).toMatchObject({
       route: '/desk/career',
       suggestedAction: 'Review saved leads',
-      sourceRefs: [expect.objectContaining({ id: imported?.id, url: imported?.applicationUrl })]
+      sourceRefs: [
+        expect.objectContaining({
+          id: imported?.id,
+          url: imported?.applicationUrl,
+          metadata: expect.objectContaining({
+            sourceQuality: 'direct-career-page',
+            timingConfidence: 'high',
+            deadlineConfidence: 'high',
+            postingDate: '2026-06-15',
+            duplicateStatus: 'new-source'
+          })
+        })
+      ]
     });
     expect(run.changed).toEqual(expect.arrayContaining([`job:${imported?.id}`, 'research-run:research-career-1']));
     expect(run.metadata.recentResearch).toMatchObject({
