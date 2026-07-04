@@ -36,6 +36,16 @@
     statusFilter: string;
   }
 
+  interface CareerDiscoveryProfile {
+    enabled: boolean;
+    background: string;
+    graduationStatus: string;
+    targetStartWindow: string;
+    targetRoles: string[];
+    locations: string[];
+    excludeCompanies: string[];
+  }
+
   interface LegacyJobDetail {
     label: string;
     value: string;
@@ -49,11 +59,13 @@
     careerSummaryLoading: boolean;
     careerExportLoading: boolean;
     mailUpdatesLoading: boolean;
+    careerProfileSaving: boolean;
   }
 
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
   const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
+  const defaultCareerDiscoveryStartWindow = 'May 2027 / Summer 2027 start';
 
   let summary: LegacyImportSummary | null = null;
   let localDevOrigin = false;
@@ -77,6 +89,15 @@
   let rowBusyId = '';
   let editingJobId = '';
   let jobDraft: JobDraft = emptyJobDraft();
+  let careerProfileHydrated = false;
+  let careerProfileSaving = false;
+  let careerDiscoveryEnabled = true;
+  let careerDiscoveryBackground = '';
+  let careerDiscoveryGraduationStatus = '';
+  let careerDiscoveryStartWindow = defaultCareerDiscoveryStartWindow;
+  let careerDiscoveryRoles = '';
+  let careerDiscoveryLocations = '';
+  let careerDiscoveryExclusions = '';
   let connections: PublicConnection[] = [];
   let careerMailUpdates: GmailThreadInsight[] = [];
   let mailUpdatesLoading = false;
@@ -97,6 +118,8 @@
   $: matchedCareerMailUpdates = careerMailUpdates.filter((insight) => isKnownApplicationMail(insight, submittedJobs));
   $: unreadCareerMailUpdates = matchedCareerMailUpdates.filter((insight) => insight.thread.unread);
   $: visibleCareerMailUpdates = (unreadCareerMailUpdates.length ? unreadCareerMailUpdates : matchedCareerMailUpdates).slice(0, 5);
+  $: suggestedDiscoveryRoles = suggestedCareerDiscoveryRoles(jobs);
+  $: trackedCareerCompanies = trackedCareerCompanyNames(jobs);
   $: careerControlState = {
     canSave,
     saving,
@@ -104,7 +127,8 @@
     editingJobId,
     careerSummaryLoading,
     careerExportLoading,
-    mailUpdatesLoading
+    mailUpdatesLoading,
+    careerProfileSaving
   };
   $: addJobButtonTitle = addJobTitle(careerControlState, company, role);
   $: saveJobEditButtonTitle = saveJobEditTitle(careerControlState, jobDraft);
@@ -117,6 +141,7 @@
   $: visibleCareerDeskError = visibleSaveError || visibleRowError;
   $: rawCareerDeskError = saveError || rowError;
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
+  $: if ($clientData.initialized && !careerProfileHydrated) hydrateCareerDiscoveryProfile($clientData.settings?.preferences?.careerDiscovery);
 
   function careerSaveTitle(state: Pick<CareerControlState, 'canSave' | 'saving'>, enabledTitle: string): string {
     if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Career changes.';
@@ -256,6 +281,76 @@
     } catch {
       viewStatus = 'Browser storage is full or blocked; Career filters may not persist.';
     }
+  }
+
+  function splitListField(value: string): string[] {
+    return Array.from(
+      new Set(
+        value
+          .split(/[\n,;]+/u)
+          .map((item) => item.trim().replace(/\s+/gu, ' '))
+          .filter(Boolean)
+      )
+    );
+  }
+
+  function normalizeCareerDiscoveryProfile(value: unknown): CareerDiscoveryProfile {
+    const record = value && typeof value === 'object' && !Array.isArray(value) ? (value as Partial<CareerDiscoveryProfile>) : {};
+    return {
+      enabled: record.enabled !== false,
+      background: typeof record.background === 'string' ? record.background : '',
+      graduationStatus: typeof record.graduationStatus === 'string' ? record.graduationStatus : '',
+      targetStartWindow: typeof record.targetStartWindow === 'string' && record.targetStartWindow.trim() ? record.targetStartWindow : defaultCareerDiscoveryStartWindow,
+      targetRoles: Array.isArray(record.targetRoles) ? record.targetRoles.map(String).filter(Boolean) : [],
+      locations: Array.isArray(record.locations) ? record.locations.map(String).filter(Boolean) : [],
+      excludeCompanies: Array.isArray(record.excludeCompanies) ? record.excludeCompanies.map(String).filter(Boolean) : []
+    };
+  }
+
+  function hydrateCareerDiscoveryProfile(value: unknown): void {
+    const profile = normalizeCareerDiscoveryProfile(value);
+    careerDiscoveryEnabled = profile.enabled;
+    careerDiscoveryBackground = profile.background;
+    careerDiscoveryGraduationStatus = profile.graduationStatus;
+    careerDiscoveryStartWindow = profile.targetStartWindow;
+    careerDiscoveryRoles = profile.targetRoles.join('\n');
+    careerDiscoveryLocations = profile.locations.join('\n');
+    careerDiscoveryExclusions = profile.excludeCompanies.join('\n');
+    careerProfileHydrated = true;
+  }
+
+  function currentCareerDiscoveryProfile(): CareerDiscoveryProfile {
+    return {
+      enabled: careerDiscoveryEnabled,
+      background: careerDiscoveryBackground.trim(),
+      graduationStatus: careerDiscoveryGraduationStatus.trim(),
+      targetStartWindow: careerDiscoveryStartWindow.trim() || defaultCareerDiscoveryStartWindow,
+      targetRoles: splitListField(careerDiscoveryRoles),
+      locations: splitListField(careerDiscoveryLocations),
+      excludeCompanies: splitListField(careerDiscoveryExclusions)
+    };
+  }
+
+  function suggestedCareerDiscoveryRoles(records: JobRecord[]): string[] {
+    return Array.from(
+      new Set(
+        records
+          .filter((job) => !['rejected', 'archived'].includes(job.status))
+          .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
+          .map((job) => job.role.trim())
+          .filter((item) => item.length >= 4)
+      )
+    ).slice(0, 5);
+  }
+
+  function trackedCareerCompanyNames(records: JobRecord[]): string[] {
+    return Array.from(new Set(records.map((job) => job.company.trim()).filter(Boolean))).slice(0, 12);
+  }
+
+  function careerDiscoveryProfileTitle(state: Pick<CareerControlState, 'canSave' | 'careerProfileSaving'>): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Career Discovery settings.';
+    if (state.careerProfileSaving) return 'Career Discovery profile is already saving.';
+    return 'Save Career Discovery filters for passive role research and dedupe.';
   }
 
   function dateInputValue(value?: string): string {
@@ -706,6 +801,27 @@
     }
   }
 
+  async function saveCareerDiscoveryProfile(): Promise<void> {
+    if (!canSave || careerProfileSaving) return;
+    rowError = '';
+    saveError = '';
+    saveMessage = '';
+    careerProfileSaving = true;
+    try {
+      await clientData.saveSettings({
+        preferences: {
+          ...($clientData.settings?.preferences ?? {}),
+          careerDiscovery: currentCareerDiscoveryProfile()
+        }
+      });
+      saveMessage = 'Saved Career Discovery filters for passive role research.';
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : 'Career Discovery profile save failed';
+    } finally {
+      careerProfileSaving = false;
+    }
+  }
+
   async function deleteJob(job: JobRecord): Promise<void> {
     if (!canSave || rowBusyId) return;
     if (!window.confirm(`Delete "${job.role}" at ${job.company}? This removes the saved Career Desk record from this workspace.`)) {
@@ -1066,6 +1182,51 @@
 
   <details class="card card-pad compact-panel">
     <summary>
+      <span>Career discovery</span>
+      <small>{careerDiscoveryEnabled ? `Targets ${careerDiscoveryStartWindow || defaultCareerDiscoveryStartWindow}` : 'Passive role discovery is off'}</small>
+    </summary>
+    <form class="form compact-form" on:submit|preventDefault={saveCareerDiscoveryProfile}>
+      <label class="check-row">
+        <input type="checkbox" bind:checked={careerDiscoveryEnabled} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} />
+        <span>Use this profile for routine passive role research</span>
+      </label>
+      <div class="field wide">
+        <label for="career-background">Background filter</label>
+        <textarea id="career-background" aria-label="Career background filter" bind:value={careerDiscoveryBackground} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} rows="2" placeholder="Math/CS, analytics, local AI projects, coursework, tools..."></textarea>
+      </div>
+      <div class="field">
+        <label for="career-graduation-status">Status</label>
+        <input id="career-graduation-status" aria-label="Career graduation and work status" bind:value={careerDiscoveryGraduationStatus} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} placeholder="Upcoming graduate, May 2027..." />
+      </div>
+      <div class="field">
+        <label for="career-start-window">Start window</label>
+        <input id="career-start-window" aria-label="Career target start window" bind:value={careerDiscoveryStartWindow} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} />
+      </div>
+      <div class="field">
+        <label for="career-target-roles">Target roles</label>
+        <textarea id="career-target-roles" aria-label="Career target roles" bind:value={careerDiscoveryRoles} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} rows="4" placeholder="One role family per line"></textarea>
+      </div>
+      <div class="field">
+        <label for="career-locations">Locations / modes</label>
+        <textarea id="career-locations" aria-label="Career target locations and work modes" bind:value={careerDiscoveryLocations} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} rows="4" placeholder="New York&#10;Remote&#10;Hybrid"></textarea>
+      </div>
+      <div class="field wide">
+        <label for="career-exclusions">Extra exclusions</label>
+        <textarea id="career-exclusions" aria-label="Career excluded companies" bind:value={careerDiscoveryExclusions} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} rows="2" placeholder="Companies or sources to avoid, one per line"></textarea>
+      </div>
+      <div class="profile-hints wide">
+        <small>Saved-role seeds: {suggestedDiscoveryRoles.length ? suggestedDiscoveryRoles.join(', ') : 'none yet'}</small>
+        <small>Duplicate guard: {trackedCareerCompanies.length ? trackedCareerCompanies.join(', ') : 'no tracked companies yet'}</small>
+      </div>
+      <button class="button primary" type="submit" disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)}>
+        <Save size={17} />
+        <span>{careerProfileSaving ? 'Saving' : 'Save Discovery'}</span>
+      </button>
+    </form>
+  </details>
+
+  <details class="card card-pad compact-panel">
+    <summary>
       <span>Legacy data</span>
       <small>{importedLegacy ? `${importedLegacy.jobs ?? 0} imported jobs, ${importedLegacy.careerActions ?? importedLegacy.studyCareerActions ?? 0} actions` : 'Scan/export old local browser data'}</small>
     </summary>
@@ -1338,6 +1499,28 @@
   .compact-form {
     padding-top: 12px;
     border-top: 1px solid var(--border);
+  }
+
+  .check-row {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-weight: 800;
+  }
+
+  .check-row input {
+    width: 16px;
+    height: 16px;
+  }
+
+  .profile-hints {
+    display: grid;
+    gap: 4px;
+    color: var(--muted);
+    font-weight: 700;
+    line-height: 1.35;
   }
 
   .table-section-title {

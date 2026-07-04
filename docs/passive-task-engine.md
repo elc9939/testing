@@ -194,11 +194,17 @@ normal API startup.
   domains plus `page:`, `topic:`, `tool:`, and `company:` lines; pages/domains stay
   domain-constrained, while topic/tool/company watches search by goal text without invented
   seed URLs. Career-derived monitors carry the source job ids and labels in metadata so the
-  watcher remains source-backed rather than guessed.
+  watcher remains source-backed rather than guessed. Career Discovery profile filters saved
+  from Career Desk add topic monitors for May 2027/Summer 2027-style role discovery, using
+  saved target roles, background/status text, preferred locations, and existing companies as
+  duplicate/exclusion hints.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. Career Desk's quick "mark applied" flow writes both the applied job status
-  and a dated follow-up action, so the radar has durable data to review later.
+  and a dated follow-up action, so the radar has durable data to review later. When Gmail is
+  connected, Career Radar also checks recent high-confidence application-confirmation mail
+  against saved leads and surfaces review cards that point back to the row-level Mark applied
+  action instead of silently changing job status on weak evidence.
 - Local File Intelligence: scans only configured watched folders for recent document,
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
   task. It adds bounded text previews for text-like files, source-backed metadata summaries

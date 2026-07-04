@@ -181,7 +181,8 @@ without kicking every local API or desktop service just because the sidebar is v
   back to the owning feature.
 - Career Desk: job/application tracking, manual fit scores, one-click "mark applied"
   status updates that create a 14-day follow-up action, Gmail update matching for submitted
-  applications, action items, and legacy career data import.
+  applications, action items, synced Career Discovery profile filters for routine passive
+  role research, passive Gmail confirmation detection, and legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
   browser-side last-good snapshot so calendar/mail views show cached real data while

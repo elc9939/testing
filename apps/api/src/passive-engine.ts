@@ -14,6 +14,8 @@ import {
   passiveWorkerStateSchema,
   passiveWatcherSchema,
   routeMap,
+  type GmailThread,
+  type JobRecord,
   type AttentionAction,
   type AttentionItem,
   type IntegrationConnection,
@@ -55,6 +57,7 @@ import { createHash } from 'node:crypto';
 import { platform } from 'node:os';
 import { promisify } from 'node:util';
 import { env } from './env';
+import { GoogleGmailConnector } from './integrations/google';
 import { appendActionLedgerEvent, persistPassiveTasks, redactActionLedgerEvent, type MemoryStore } from './store';
 
 type FetchLike = typeof fetch;
@@ -152,10 +155,11 @@ interface PassiveResearchDomainEntry {
   key: string;
   kind: PassiveResearchWatchKind;
   domain?: string;
-  source: 'settings' | 'career_job';
+  source: 'settings' | 'career_job' | 'career_profile';
   labels: string[];
   jobIds: string[];
   urls: string[];
+  metadata?: Record<string, unknown>;
 }
 
 interface PassiveResourceDecision {
@@ -906,6 +910,114 @@ function activeCareerResearchJobs(store: MemoryStore) {
     .sort((a, b) => parseTime(b.nextActionAt ?? b.updatedAt) - parseTime(a.nextActionAt ?? a.updatedAt));
 }
 
+function activeCareerRoleSeedJobs(store: MemoryStore) {
+  const inactiveStatuses = new Set(['archived', 'closed', 'rejected', 'declined', 'withdrawn']);
+  return store.jobs
+    .filter((job) => !inactiveStatuses.has(job.status.trim().toLowerCase()))
+    .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1) || parseTime(b.updatedAt) - parseTime(a.updatedAt));
+}
+
+function compactTextList(value: unknown, limit = 12): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[\n,;]+/u)
+      : [];
+  return Array.from(
+    new Set(
+      raw
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+        .map((item) => item.replace(/\s+/gu, ' '))
+    )
+  ).slice(0, limit);
+}
+
+function careerDiscoveryPreference(store: MemoryStore): Record<string, unknown> {
+  const raw = store.settings?.preferences?.careerDiscovery;
+  return isRecord(raw) ? raw : {};
+}
+
+function careerDiscoveryEnabled(store: MemoryStore): boolean {
+  const profile = careerDiscoveryPreference(store);
+  return profile.enabled !== false;
+}
+
+function careerDiscoveryRoleSeeds(store: MemoryStore, profile: Record<string, unknown>, limit = 6): string[] {
+  const configured = compactTextList(profile.targetRoles, limit);
+  const fromJobs = activeCareerRoleSeedJobs(store)
+    .map((job) => job.role.trim())
+    .filter(Boolean)
+    .filter((role) => role.length >= 4);
+  return Array.from(new Set([...configured, ...fromJobs])).slice(0, limit);
+}
+
+function careerDiscoveryExistingCompanies(store: MemoryStore, profile: Record<string, unknown>, limit = 24): string[] {
+  const configured = compactTextList(profile.excludeCompanies, limit);
+  const fromJobs = store.jobs.map((job) => job.company.trim()).filter(Boolean);
+  return Array.from(new Set([...configured, ...fromJobs])).slice(0, limit);
+}
+
+function careerDiscoveryProfileEntries(
+  store: MemoryStore,
+  budget = resourceBudget(store.passiveSettings ?? defaultPassiveSettings())
+): PassiveResearchDomainEntry[] {
+  if (!careerDiscoveryEnabled(store)) return [];
+  const profile = careerDiscoveryPreference(store);
+  const roles = careerDiscoveryRoleSeeds(store, profile, Math.max(3, budget.researchMonitorCreateLimit));
+  if (!roles.length) return [];
+  const targetStartWindow =
+    typeof profile.targetStartWindow === 'string' && profile.targetStartWindow.trim()
+      ? profile.targetStartWindow.trim()
+      : 'May 2027 / Summer 2027 start';
+  const background = typeof profile.background === 'string' ? profile.background.trim() : '';
+  const graduationStatus = typeof profile.graduationStatus === 'string' ? profile.graduationStatus.trim() : '';
+  const locations = compactTextList(profile.locations, 8);
+  const excludedCompanies = careerDiscoveryExistingCompanies(store, profile);
+  const sharedMetadata = compactRecord({
+    career_discovery: true,
+    target_start_window: targetStartWindow,
+    profile_background: background || undefined,
+    graduation_status: graduationStatus || undefined,
+    target_roles: roles,
+    locations,
+    excluded_companies: excludedCompanies,
+    existing_company_count: store.jobs.length
+  });
+  const entries: PassiveResearchDomainEntry[] = [
+    {
+      key: `topic:career-discovery-${slugResearchWatchKey(targetStartWindow)}`,
+      kind: 'topic',
+      source: 'career_profile',
+      labels: [`${targetStartWindow} career discovery`],
+      jobIds: [],
+      urls: [],
+      metadata: {
+        ...sharedMetadata,
+        discovery_scope: 'broad'
+      }
+    }
+  ];
+
+  for (const role of roles) {
+    entries.push({
+      key: `topic:career-discovery-${slugResearchWatchKey(targetStartWindow)}-${slugResearchWatchKey(role)}`,
+      kind: 'topic',
+      source: 'career_profile',
+      labels: [`${targetStartWindow} ${role} roles`],
+      jobIds: [],
+      urls: [],
+      metadata: {
+        ...sharedMetadata,
+        discovery_scope: 'role',
+        role
+      }
+    });
+  }
+
+  return entries.slice(0, Math.max(1, budget.researchMonitorCreateLimit));
+}
+
 function safeCareerResearchDomainEntries(
   store: MemoryStore,
   budget = resourceBudget(store.passiveSettings ?? defaultPassiveSettings())
@@ -948,7 +1060,11 @@ function passiveResearchDomainEntries(
 ): PassiveResearchDomainEntry[] {
   const limit = Math.max(budget.researchMonitorCreateLimit, budget.researchMonitorRunLimit);
   const byKey = new Map<string, PassiveResearchDomainEntry>();
-  for (const entry of [...safeConfiguredDomainEntries(settings, budget), ...safeCareerResearchDomainEntries(store, budget)]) {
+  for (const entry of [
+    ...safeConfiguredDomainEntries(settings, budget),
+    ...safeCareerResearchDomainEntries(store, budget),
+    ...careerDiscoveryProfileEntries(store, budget)
+  ]) {
     const existing = byKey.get(entry.key);
     if (!existing) {
       byKey.set(entry.key, entry);
@@ -961,7 +1077,11 @@ function passiveResearchDomainEntries(
       source: existing.source === 'settings' || entry.source === 'settings' ? 'settings' : entry.source,
       labels: Array.from(new Set([...existing.labels, ...entry.labels])).slice(0, 4),
       jobIds: Array.from(new Set([...existing.jobIds, ...entry.jobIds])).slice(0, 8),
-      urls: Array.from(new Set([...existing.urls, ...entry.urls])).slice(0, 4)
+      urls: Array.from(new Set([...existing.urls, ...entry.urls])).slice(0, 4),
+      metadata: compactRecord({
+        ...(existing.metadata ?? {}),
+        ...(entry.metadata ?? {})
+      })
     });
   }
   return Array.from(byKey.values()).slice(0, limit);
@@ -985,6 +1105,9 @@ function researchDomainMetadata(entries: PassiveResearchDomainEntry[]): Record<s
       })
     ),
     watchedTopics: nonDomainEntries.filter((entry) => entry.kind === 'topic').map((entry) => entry.labels[0] ?? entry.key),
+    careerDiscoveryTopics: nonDomainEntries
+      .filter((entry) => entry.source === 'career_profile')
+      .map((entry) => entry.labels[0] ?? entry.key),
     watchedTools: nonDomainEntries.filter((entry) => entry.kind === 'tool').map((entry) => entry.labels[0] ?? entry.key),
     watchedCompanies: nonDomainEntries.filter((entry) => entry.kind === 'company').map((entry) => entry.labels[0] ?? entry.key),
     watchedPages: nonDomainEntries.filter((entry) => entry.kind === 'page').map((entry) => entry.urls[0]).filter(Boolean)
@@ -3061,6 +3184,7 @@ function passiveResearchWatchLabel(entry: PassiveResearchDomainEntry): string {
 function passiveResearchWatchName(entry: PassiveResearchDomainEntry): string {
   const label = passiveResearchWatchLabel(entry);
   if (entry.source === 'career_job' && entry.domain) return `Passive career watch: ${entry.domain}`;
+  if (entry.source === 'career_profile') return `Passive career discovery: ${label}`;
   if (entry.kind === 'domain' && entry.domain) return `Passive watch: ${entry.domain}`;
   if (entry.kind === 'page') return `Passive page watch: ${label}`;
   if (entry.kind === 'tool') return `Passive tool watch: ${label}`;
@@ -3071,6 +3195,29 @@ function passiveResearchWatchName(entry: PassiveResearchDomainEntry): string {
 function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
   const label = passiveResearchWatchLabel(entry);
   const labelText = entry.labels.length ? ` Sources: ${entry.labels.join('; ')}.` : '';
+  if (entry.source === 'career_profile') {
+    const metadata = entry.metadata ?? {};
+    const startWindow = typeof metadata.target_start_window === 'string' ? metadata.target_start_window : 'May 2027 / Summer 2027 start';
+    const roles = compactTextList(metadata.target_roles, 8);
+    const locations = compactTextList(metadata.locations, 8);
+    const excludedCompanies = compactTextList(metadata.excluded_companies, 24);
+    const background = typeof metadata.profile_background === 'string' ? metadata.profile_background : '';
+    const graduationStatus = typeof metadata.graduation_status === 'string' ? metadata.graduation_status : '';
+    return [
+      `Find source-backed career opportunities for ${label}.`,
+      `Only prioritize roles that explicitly fit a ${startWindow} timeline, new-grad, early-career, analyst, internship, rotational, or upcoming-graduate style eligibility.`,
+      roles.length ? `Target role families: ${roles.join('; ')}.` : '',
+      locations.length ? `Preferred locations/work modes: ${locations.join('; ')}.` : '',
+      background ? `Candidate background filter: ${background}.` : '',
+      graduationStatus ? `Current school/work status: ${graduationStatus}.` : '',
+      excludedCompanies.length
+        ? `Avoid duplicates and low-value repeats from already tracked or excluded companies: ${excludedCompanies.join('; ')}.`
+        : '',
+      'Reject senior-only, already-closed, vague, or unsourced listings. Rank findings by fit, start-date match, source quality, and novelty. Summarize only source-backed roles with links.'
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
   if (entry.source === 'career_job' && entry.domain) {
     return `Monitor ${entry.domain} for meaningful career/company changes relevant to saved Career Desk targets.${labelText} Summarize only source-backed changes.`;
   }
@@ -3099,7 +3246,8 @@ function passiveResearchWatchMetadata(entry: PassiveResearchDomainEntry): Record
     watched_domain_source: entry.domain ? entry.source : undefined,
     created_by_task: 'research_monitor',
     source_labels: entry.labels,
-    source_job_ids: entry.jobIds
+    source_job_ids: entry.jobIds,
+    ...(entry.metadata ?? {})
   });
 }
 
@@ -3513,7 +3661,129 @@ async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: 
   }
 }
 
-function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): FamilyRunResult {
+function careerMailConnections(store: MemoryStore): IntegrationConnection[] {
+  return Array.from(store.integrationConnections.values()).filter(
+    (connection) => connection.provider === 'google' && connection.status === 'connected'
+  );
+}
+
+function careerMailText(thread: GmailThread): string {
+  return [
+    thread.subject,
+    thread.from,
+    thread.snippet,
+    ...thread.messages.flatMap((message) => [message.subject, message.from, message.bodyText])
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+
+function careerWordTokens(value: string): string[] {
+  const stop = new Set(['and', 'the', 'inc', 'llc', 'ltd', 'corp', 'company', 'careers', 'jobs', 'job', 'role']);
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, ' ')
+    .split(' ')
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 3 && !stop.has(item));
+}
+
+function applicationConfirmationReason(thread: GmailThread): string | null {
+  const text = careerMailText(thread);
+  if (/\b(thank you for applying|thanks for applying|application (?:was )?(?:submitted|received)|we (?:have )?received your application|your application (?:has been|was) received|application confirmation|successfully submitted)\b/iu.test(text)) {
+    return 'Gmail contains application confirmation language';
+  }
+  return null;
+}
+
+function careerMailMatchesJob(thread: GmailThread, job: JobRecord): boolean {
+  const text = careerMailText(thread);
+  const company = job.company.toLowerCase().trim();
+  const role = job.role.toLowerCase().trim();
+  const companyTokens = careerWordTokens(job.company);
+  const roleTokens = careerWordTokens(job.role);
+  if (company.length >= 3 && text.includes(company)) return true;
+  if (role.length >= 8 && text.includes(role) && companyTokens.some((token) => text.includes(token))) return true;
+  return companyTokens.some((token) => text.includes(token)) && roleTokens.filter((token) => text.includes(token)).length >= 1;
+}
+
+async function careerApplicationConfirmationCards(
+  store: MemoryStore,
+  task: PassiveTask,
+  runId: string
+): Promise<{ cards: PassiveResultCard[]; matchedCount: number; error?: string }> {
+  const connections = careerMailConnections(store);
+  if (!connections.length) return { cards: [], matchedCount: 0 };
+  const candidateJobs = store.jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status));
+  if (!candidateJobs.length) return { cards: [], matchedCount: 0 };
+  const results = await Promise.allSettled(
+    connections.map((connection) =>
+      new GoogleGmailConnector(store, connection.id).listThreads({
+        q: 'newer_than:45d ("thank you for applying" OR "application received" OR "application submitted" OR "we received your application" OR "application confirmation") -category:promotions -category:social',
+        maxResults: 20
+      })
+    )
+  );
+  const threads = results.flatMap((result) => (result.status === 'fulfilled' ? result.value.threads : []));
+  const errors = results
+    .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    .map((result) => describeError(result.reason));
+  const matches: Array<{ job: JobRecord; thread: GmailThread; reason: string }> = [];
+  for (const thread of threads) {
+    const reason = applicationConfirmationReason(thread);
+    if (!reason) continue;
+    const job = candidateJobs.find((item) => careerMailMatchesJob(thread, item));
+    if (!job) continue;
+    if (matches.some((match) => match.job.id === job.id && match.thread.id === thread.id)) continue;
+    matches.push({ job, thread, reason });
+  }
+  if (!matches.length) {
+    return {
+      cards: [],
+      matchedCount: 0,
+      ...(errors[0] ? { error: errors[0] } : {})
+    };
+  }
+  return {
+    matchedCount: matches.length,
+    ...(errors[0] ? { error: errors[0] } : {}),
+    cards: [
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: `${matches.length} likely application confirmation${matches.length === 1 ? '' : 's'} found in Gmail`,
+        summary: matches
+          .slice(0, 4)
+          .map((match) => `${match.job.company} - ${match.job.role}`)
+          .join('; '),
+        urgency: 78,
+        confidence: 0.84,
+        route: routeMap.careerDesk,
+        sourceRefs: matches.slice(0, 8).map((match) =>
+          stableSourceRef('record', `${match.job.company} - ${match.job.role}`, {
+            id: match.job.id,
+            route: routeMap.careerDesk,
+            metadata: {
+              status: match.job.status,
+              gmailThreadId: match.thread.id,
+              gmailSubject: match.thread.subject,
+              gmailFrom: match.thread.from,
+              gmailDate: match.thread.date,
+              reason: match.reason
+            }
+          })
+        ),
+        suggestedAction: 'Mark applied',
+        actionKind: 'inspect',
+        why: 'Gmail returned recent application-confirmation language that matched saved Career Desk leads. Use the row-level Mark applied action after reviewing the match.'
+      })
+    ]
+  };
+}
+
+async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): Promise<FamilyRunResult> {
   const now = Date.now();
   const soonMs = now + 14 * dayMs;
   const overdueActions = store.careerActions.filter((item) => !item.completedAt && item.dueAt && parseTime(item.dueAt) <= now);
@@ -3532,6 +3802,7 @@ function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): F
     return parseTime(job.updatedAt) <= now - thresholdDays * dayMs;
   });
   const cards: PassiveResultCard[] = [];
+  const mailConfirmations = await careerApplicationConfirmationCards(store, task, runId);
 
   if (overdueActions.length || dueActions.length) {
     cards.push(
@@ -3635,6 +3906,8 @@ function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): F
     );
   }
 
+  cards.push(...mailConfirmations.cards);
+
   if (!cards.length) {
     cards.push(
       card({
@@ -3662,7 +3935,9 @@ function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): F
       overdueCareerActions: overdueActions.length,
       upcomingCareerActions: dueActions.length,
       leadFollowUps: leadJobs.length,
-      submittedApplicationFollowUps: submittedJobs.length
+      submittedApplicationFollowUps: submittedJobs.length,
+      gmailApplicationConfirmations: mailConfirmations.matchedCount,
+      ...(mailConfirmations.error ? { gmailApplicationConfirmationError: mailConfirmations.error } : {})
     }
   };
 }

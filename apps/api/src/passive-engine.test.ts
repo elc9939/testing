@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { personalWorkspaceId, type IntegrationConnection } from '@mini-hub/core';
 import {
   buildPassiveDigest,
@@ -28,12 +28,17 @@ import {
   passiveTasksPath,
   persistPassiveTasks
 } from './store';
+import { encryptTokenSet } from './integrations/token-vault';
 
 function jsonResponse(value: unknown, ok = true): Response {
   return new Response(JSON.stringify(value), {
     status: ok ? 200 : 500,
     headers: { 'content-type': 'application/json' }
   });
+}
+
+function base64Url(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64').replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
 }
 
 function healthyServiceFetch(): typeof fetch {
@@ -2207,6 +2212,98 @@ describe('passive task engine', () => {
     expect(buildPassiveDigest(store)[0]?.id).toBe(applicationCard?.id);
   });
 
+  it('surfaces likely Gmail application confirmations for saved leads', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-gmail-confirmed',
+      workspaceId: personalWorkspaceId,
+      company: 'Acme',
+      role: 'Data Analyst',
+      status: 'lead',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    store.integrationConnections.set('google-personal', {
+      id: 'google-personal',
+      workspaceId: personalWorkspaceId,
+      provider: 'google',
+      accountLabel: 'personal@example.com',
+      scopes: ['gmail.modify'],
+      encryptedTokenSet: encryptTokenSet({
+        accessToken: 'test-access-token',
+        expiresAt: '2999-01-01T00:00:00.000Z'
+      }),
+      status: 'connected',
+      createdAt: '2026-06-20T10:00:00.000Z',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    vi.stubGlobal(
+      'fetch',
+      (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/gmail/v1/users/me/threads?')) {
+          return jsonResponse({ threads: [{ id: 'thread-confirmed' }] });
+        }
+        if (href.includes('/gmail/v1/users/me/threads/thread-confirmed')) {
+          return jsonResponse({
+            id: 'thread-confirmed',
+            snippet: 'Thank you for applying to the Data Analyst role at Acme.',
+            messages: [
+              {
+                id: 'message-confirmed',
+                threadId: 'thread-confirmed',
+                labelIds: ['INBOX', 'UNREAD'],
+                internalDate: String(Date.parse('2026-06-21T10:00:00.000Z')),
+                snippet: 'Thank you for applying to the Data Analyst role at Acme.',
+                payload: {
+                  mimeType: 'text/plain',
+                  headers: [
+                    { name: 'Subject', value: 'Application received - Acme Data Analyst' },
+                    { name: 'From', value: 'Acme Recruiting <jobs@acme.example>' },
+                    { name: 'Date', value: 'Sun, 21 Jun 2026 10:00:00 -0700' }
+                  ],
+                  body: {
+                    data: base64Url('Thank you for applying to the Data Analyst role at Acme. We received your application.')
+                  }
+                }
+              }
+            ]
+          });
+        }
+        return jsonResponse({ ok: true });
+      }) as typeof fetch
+    );
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    try {
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'gmail-application-confirmation-test' }
+      });
+
+      const confirmationCard = run.cards.find((card) => card.title === '1 likely application confirmation found in Gmail');
+      expect(run.status).toBe('succeeded');
+      expect(confirmationCard?.summary).toContain('Acme - Data Analyst');
+      expect(confirmationCard?.suggestedAction).toBe('Mark applied');
+      expect(confirmationCard?.sourceRefs[0]).toMatchObject({
+        id: 'job-gmail-confirmed',
+        route: '/desk/career',
+        metadata: {
+          status: 'lead',
+          gmailSubject: 'Application received - Acme Data Analyst',
+          reason: 'Gmail contains application confirmation language'
+        }
+      });
+      expect(run.metadata.gmailApplicationConfirmations).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('dedupes repeated non-urgent passive notifications while keeping run history', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
@@ -2549,6 +2646,127 @@ describe('passive task engine', () => {
     );
   });
 
+  it('prepares selective career discovery monitors from the saved Career profile', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.passiveSettings = {
+      ...store.passiveSettings!,
+      watchedDomains: [],
+      localAiPreference: 'cloud_allowed',
+      resourceLimit: 'balanced'
+    };
+    store.settings = {
+      workspaceId: personalWorkspaceId,
+      highScores: {},
+      recentState: {},
+      preferences: {
+        careerDiscovery: {
+          enabled: true,
+          background: 'Math/CS student with data, analytics, and local AI projects',
+          graduationStatus: 'Upcoming graduate targeting post-graduation roles',
+          targetStartWindow: 'May 2027 / Summer 2027 start',
+          targetRoles: ['Data Analyst', 'Quant Research Intern'],
+          locations: ['New York', 'Remote'],
+          excludeCompanies: ['Old Applied Co']
+        }
+      },
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    };
+    store.jobs.push(
+      {
+        id: 'job-applied-existing',
+        workspaceId: personalWorkspaceId,
+        company: 'Old Applied Co',
+        role: 'Data Analyst',
+        status: 'applied',
+        applicationUrl: '',
+        fitScore: 91,
+        notes: '',
+        deviceId: 'test',
+        updatedAt: '2026-06-20T10:00:00.000Z'
+      },
+      {
+        id: 'job-active-role-seed',
+        workspaceId: personalWorkspaceId,
+        company: 'Pipeline Co',
+        role: 'GTM Data Analyst',
+        status: 'lead',
+        applicationUrl: '',
+        fitScore: 88,
+        notes: '',
+        deviceId: 'test',
+        updatedAt: '2026-06-21T10:00:00.000Z'
+      }
+    );
+    const createdBodies: Array<Record<string, unknown>> = [];
+    const researchFetch = (async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [] });
+      }
+      if (href.endsWith('/api/ai/research/monitors')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        createdBodies.push(body);
+        const metadata = body.metadata as Record<string, unknown>;
+        return jsonResponse({
+          monitor: {
+            id: `monitor-${metadata.passive_watch_key}`,
+            name: body.name,
+            metadata,
+            request: body.request
+          }
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-discovery-profile-test' }
+    });
+
+    expect(run.status).toBe('succeeded');
+    expect(createdBodies.length).toBeGreaterThanOrEqual(3);
+    expect(createdBodies[0]).toMatchObject({
+      name: 'Passive career discovery: May 2027 / Summer 2027 start career discovery',
+      metadata: {
+        source: 'mini-hub-passive',
+        passive_watch_kind: 'topic',
+        career_discovery: true,
+        target_start_window: 'May 2027 / Summer 2027 start',
+        profile_background: 'Math/CS student with data, analytics, and local AI projects',
+        graduation_status: 'Upcoming graduate targeting post-graduation roles'
+      }
+    });
+    const firstRequest = createdBodies[0]?.request as Record<string, unknown>;
+    expect(String(firstRequest.goal)).toContain('May 2027 / Summer 2027 start');
+    expect(String(firstRequest.goal)).toContain('Avoid duplicates');
+    expect(String(firstRequest.goal)).toContain('Old Applied Co');
+    expect(firstRequest).toMatchObject({
+      seed_urls: [],
+      include_domains: [],
+      use_ai: true,
+      use_cloud_ai: true,
+      metadata: {
+        career_discovery: true,
+        locations: ['New York', 'Remote'],
+        excluded_companies: expect.arrayContaining(['Old Applied Co', 'Pipeline Co'])
+      }
+    });
+    expect(run.metadata).toMatchObject({
+      careerDiscoveryTopics: expect.arrayContaining([
+        'May 2027 / Summer 2027 start career discovery',
+        'May 2027 / Summer 2027 start Data Analyst roles'
+      ])
+    });
+  });
+
   it('prepares research monitors from active saved career job URLs', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
@@ -2615,8 +2833,17 @@ describe('passive task engine', () => {
     });
 
     expect(run.status).toBe('succeeded');
-    expect(createdBodies).toHaveLength(1);
-    expect(createdBodies[0]).toMatchObject({
+    expect(createdBodies).toHaveLength(2);
+    const careerDomainBody = createdBodies.find((body) => body.name === 'Passive career watch: clay.com');
+    const careerDiscoveryBody = createdBodies.find((body) => body.name === 'Passive career discovery: May 2027 / Summer 2027 start career discovery');
+    expect(careerDiscoveryBody).toMatchObject({
+      metadata: {
+        career_discovery: true,
+        target_start_window: 'May 2027 / Summer 2027 start',
+        target_roles: ['GTM Data Analyst']
+      }
+    });
+    expect(careerDomainBody).toMatchObject({
       name: 'Passive career watch: clay.com',
       metadata: {
         source: 'mini-hub-passive',
@@ -2625,7 +2852,7 @@ describe('passive task engine', () => {
         source_job_ids: ['job-career-research']
       }
     });
-    expect(createdBodies[0]?.request).toMatchObject({
+    expect(careerDomainBody?.request).toMatchObject({
       seed_urls: ['https://www.clay.com/careers/gtm-data-analyst'],
       include_domains: ['clay.com'],
       metadata: {
@@ -2637,7 +2864,8 @@ describe('passive task engine', () => {
     expect(run.metadata).toMatchObject({
       watchedDomains: ['clay.com'],
       watchedDomainSources: { 'clay.com': 'career_job' },
-      careerJobDomains: ['clay.com']
+      careerJobDomains: ['clay.com'],
+      careerDiscoveryTopics: ['May 2027 / Summer 2027 start career discovery']
     });
   });
 
