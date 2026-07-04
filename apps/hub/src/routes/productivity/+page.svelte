@@ -89,7 +89,9 @@
     timeline: TimelineItem[];
     priorityThreads: GmailThreadInsight[];
     gmailLabels: GmailLabel[];
+    selectedGmailThread: GmailThread | null;
     selectedCalendarId: string;
+    calendarCursorKey: string;
     query: string;
     gmailQuery: string;
     selectedGmailLabelId: string;
@@ -456,7 +458,9 @@
         timeline: Array.isArray(parsed.timeline) ? parsed.timeline : [],
         priorityThreads: Array.isArray(parsed.priorityThreads) ? parsed.priorityThreads : [],
         gmailLabels: Array.isArray(parsed.gmailLabels) ? parsed.gmailLabels : [],
+        selectedGmailThread: isRecord(parsed.selectedGmailThread) ? (parsed.selectedGmailThread as GmailThread) : null,
         selectedCalendarId: typeof parsed.selectedCalendarId === 'string' ? parsed.selectedCalendarId : 'primary',
+        calendarCursorKey: typeof parsed.calendarCursorKey === 'string' ? parsed.calendarCursorKey : localDateKey(calendarCursor),
         query: typeof parsed.query === 'string' ? parsed.query : '',
         gmailQuery: typeof parsed.gmailQuery === 'string' ? parsed.gmailQuery : defaultGmailQuery,
         selectedGmailLabelId: typeof parsed.selectedGmailLabelId === 'string' ? parsed.selectedGmailLabelId : ''
@@ -466,9 +470,9 @@
     }
   }
 
-  function hydrateProductivityCache(): void {
+  function hydrateProductivityCache(): boolean {
     const cached = readProductivityCache();
-    if (!cached) return;
+    if (!cached) return false;
     catalog = cached.catalog;
     connections = cached.connections;
     calendars = cached.calendars;
@@ -481,12 +485,23 @@
       ? cached.selectedCalendarId
       : (cached.calendars.find((calendar) => calendar.primary)?.id ?? cached.calendars[0]?.id ?? 'primary');
     moveTargetCalendarId = cached.calendars.find((calendar) => calendar.id !== selectedCalendarId)?.id ?? '';
+    eventDraft = {
+      ...eventDraft,
+      calendarId: selectedCalendarId,
+      timeZone: cached.calendars.find((calendar) => calendar.id === selectedCalendarId)?.timeZone ?? localTimeZone
+    };
     query = cached.query;
     gmailQuery = cached.gmailQuery;
     selectedGmailLabelId = cached.selectedGmailLabelId;
-    selectedGmailThread = gmailThreads[0] ?? null;
+    const restoredThread = cached.selectedGmailThread
+      ? (gmailThreads.find((thread) => thread.id === cached.selectedGmailThread?.id) ?? cached.selectedGmailThread)
+      : null;
+    selectedGmailThread = restoredThread ?? gmailThreads[0] ?? null;
+    const restoredCursor = localDateFromKey(cached.calendarCursorKey);
+    calendarCursor = Number.isNaN(restoredCursor.getTime()) ? startOfLocalDay(new Date()) : startOfLocalDay(restoredCursor);
     cacheLoadedAt = cached.cachedAt;
     cacheWarning = '';
+    return true;
   }
 
   function persistProductivityCache(): void {
@@ -501,7 +516,9 @@
       timeline,
       priorityThreads,
       gmailLabels,
+      selectedGmailThread,
       selectedCalendarId,
+      calendarCursorKey: localDateKey(calendarCursor),
       query,
       gmailQuery,
       selectedGmailLabelId
@@ -1110,12 +1127,14 @@
       replyBody = '';
       actionError = '';
       actionMessage = 'Showing cached thread preview. Connect the API and Google to fetch full messages, reply, label, or archive.';
+      persistProductivityCache();
       return;
     }
     if (!beginProductivityAction(`gmail:open:${thread.id}`)) return;
     try {
       selectedGmailThread = await getGmailThread(thread.id);
       replyBody = '';
+      persistProductivityCache();
     } catch (error) {
       setError(error, 'Failed to open Gmail thread');
     } finally {
@@ -1286,10 +1305,10 @@
   }
 
   onMount(() => {
-    hydrateProductivityCache();
+    const hydrated = hydrateProductivityCache();
     consumeGoogleQueryStatus();
     void clientData.init();
-    void loadOverview();
+    void loadOverview({ background: hydrated });
     const interval = window.setInterval(refreshIfVisible, 120_000);
     const oauthListener = (event: MessageEvent) => {
       void handleGoogleOAuthMessage(event);

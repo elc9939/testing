@@ -1183,6 +1183,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
     expect(source).toContain("const storage = getBrowserStorage('session')");
     expect(source).toContain('const storage = getBrowserStorage()');
+    expect(source).toContain('selectedGmailThread: GmailThread | null');
+    expect(source).toContain('calendarCursorKey: string');
+    expect(source).toContain('function hydrateProductivityCache(): boolean');
+    expect(source).toContain('selectedGmailThread = restoredThread ?? gmailThreads[0] ?? null');
+    expect(source).toContain('calendarCursor = Number.isNaN(restoredCursor.getTime()) ? startOfLocalDay(new Date()) : startOfLocalDay(restoredCursor)');
+    expect(source).toContain('const hydrated = hydrateProductivityCache()');
+    expect(source).toContain('void loadOverview({ background: hydrated })');
+    expect(source).toContain('persistProductivityCache()');
     expect(source).toContain('productivityCacheDetail = cacheWarning');
     expect(source).toContain('Browser productivity cache is unavailable');
     expect(source).toContain('Browser productivity cache could not be updated');
