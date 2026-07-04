@@ -361,11 +361,14 @@ real-data only:
   not repeat endlessly. Career Discovery profile filters can expand role discovery from
   focused to max intensity, creating bounded role/location monitor variants while still
   carrying the May 2027/Summer 2027 start window, background/status fit text, and duplicate
-  company exclusions. Completed Career Discovery monitor reports can save source-backed
-  candidates into Career Desk as `lead` rows when a source URL passes opportunity, timing,
-  seniority, duplicate, and fit-score checks; notes preserve the source and evidence.
-  Career Desk exposes discovered leads as a ranked panel where each candidate can be moved
-  to `saved`, moved to `watching`, or archived as not fit without opening the full table row.
+  company exclusions. The monitor metadata also learns from Career Desk review state:
+  saved/watching/applied roles become positive ranking hints, while archived/rejected and
+  "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports can
+  save source-backed candidates into Career Desk as `lead` rows when a source URL passes
+  opportunity, timing, seniority, duplicate, feedback, and fit-score checks; notes preserve
+  the source and evidence. Career Desk exposes discovered leads as a ranked panel where each
+  candidate can be moved to `saved`, moved to `watching`, or archived as not fit without
+  opening the full table row.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. High-confidence Gmail confirmations and completed linked apply/submit actions

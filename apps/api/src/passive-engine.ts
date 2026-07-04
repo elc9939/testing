@@ -983,6 +983,72 @@ function careerDiscoveryExistingCompanies(store: MemoryStore, profile: Record<st
   return Array.from(new Set([...configured, ...fromJobs])).slice(0, limit);
 }
 
+const careerSignalStopTerms = new Set([
+  'analyst',
+  'assistant',
+  'associate',
+  'career',
+  'careers',
+  'company',
+  'developer',
+  'engineer',
+  'entry',
+  'graduate',
+  'intern',
+  'internship',
+  'jobs',
+  'junior',
+  'level',
+  'new',
+  'opening',
+  'program',
+  'role',
+  'roles',
+  'summer'
+]);
+
+function careerSignalTerms(values: string[], limit = 18): string[] {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    for (const token of value.toLowerCase().match(/[a-z][a-z0-9+#.-]{2,}/gu) ?? []) {
+      const normalized = token.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gu, '');
+      if (normalized.length < 3 || careerSignalStopTerms.has(normalized)) continue;
+      counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([term]) => term)
+    .slice(0, limit);
+}
+
+function hasCareerDiscoveryNotFitReview(job: JobRecord): boolean {
+  return /Career Discovery review:\s*archived as not fit/iu.test(job.notes);
+}
+
+function careerDiscoveryFeedbackProfile(store: MemoryStore): Record<string, unknown> {
+  const positiveStatuses = new Set(['saved', 'watching', 'applied', 'interview', 'offer']);
+  const negativeStatuses = new Set(['archived', 'rejected', 'declined', 'withdrawn']);
+  const positiveJobs = store.jobs
+    .filter((job) => positiveStatuses.has(job.status.trim().toLowerCase()))
+    .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1) || parseTime(b.updatedAt) - parseTime(a.updatedAt));
+  const negativeJobs = store.jobs
+    .filter((job) => negativeStatuses.has(job.status.trim().toLowerCase()) || hasCareerDiscoveryNotFitReview(job))
+    .sort((a, b) => parseTime(b.updatedAt) - parseTime(a.updatedAt));
+  const preferredRoleTerms = careerSignalTerms(positiveJobs.map((job) => job.role), 18);
+  const targetRoleTerms = careerSignalTerms(careerDiscoveryRoleSeeds(store, careerDiscoveryPreference(store), 12), 24);
+  const blockedPositiveTerms = new Set([...preferredRoleTerms, ...targetRoleTerms]);
+  const avoidedRoleTerms = careerSignalTerms(negativeJobs.map((job) => job.role), 18).filter((term) => !blockedPositiveTerms.has(term));
+  return compactRecord({
+    positive_review_count: positiveJobs.length,
+    negative_review_count: negativeJobs.length,
+    preferred_role_terms: preferredRoleTerms,
+    avoided_role_terms: avoidedRoleTerms,
+    positive_examples: positiveJobs.slice(0, 8).map((job) => `${job.company} - ${job.role}`),
+    negative_examples: negativeJobs.slice(0, 8).map((job) => `${job.company} - ${job.role}`)
+  });
+}
+
 function careerDiscoveryProfileEntries(
   store: MemoryStore,
   budget = resourceBudget(store.passiveSettings ?? defaultPassiveSettings())
@@ -1001,6 +1067,7 @@ function careerDiscoveryProfileEntries(
   const graduationStatus = typeof profile.graduationStatus === 'string' ? profile.graduationStatus.trim() : '';
   const locations = compactTextList(profile.locations, 8);
   const excludedCompanies = careerDiscoveryExistingCompanies(store, profile);
+  const feedback = careerDiscoveryFeedbackProfile(store);
   const sharedMetadata = compactRecord({
     career_discovery: true,
     target_start_window: targetStartWindow,
@@ -1010,7 +1077,8 @@ function careerDiscoveryProfileEntries(
     target_roles: roles,
     locations,
     excluded_companies: excludedCompanies,
-    existing_company_count: store.jobs.length
+    existing_company_count: store.jobs.length,
+    feedback
   });
   const entries: PassiveResearchDomainEntry[] = [
     {
@@ -3256,6 +3324,9 @@ function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
     const intensity = typeof metadata.research_intensity === 'string' ? metadata.research_intensity : 'focused';
     const background = typeof metadata.profile_background === 'string' ? metadata.profile_background : '';
     const graduationStatus = typeof metadata.graduation_status === 'string' ? metadata.graduation_status : '';
+    const feedback = isRecord(metadata.feedback) ? metadata.feedback : {};
+    const preferredRoleTerms = compactTextList(feedback.preferred_role_terms, 12);
+    const avoidedRoleTerms = compactTextList(feedback.avoided_role_terms, 12);
     return [
       `Find source-backed career opportunities for ${label}.`,
       `Only prioritize roles that explicitly fit a ${startWindow} timeline, new-grad, early-career, analyst, internship, rotational, or upcoming-graduate style eligibility.`,
@@ -3264,6 +3335,8 @@ function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
       locations.length ? `Preferred locations/work modes: ${locations.join('; ')}.` : '',
       background ? `Candidate background filter: ${background}.` : '',
       graduationStatus ? `Current school/work status: ${graduationStatus}.` : '',
+      preferredRoleTerms.length ? `Career Desk feedback prefers role signals: ${preferredRoleTerms.join('; ')}.` : '',
+      avoidedRoleTerms.length ? `Career Desk not-fit feedback should de-prioritize role signals: ${avoidedRoleTerms.join('; ')}.` : '',
       excludedCompanies.length
         ? `Avoid duplicates and low-value repeats from already tracked or excluded companies: ${excludedCompanies.join('; ')}.`
         : '',
@@ -3561,7 +3634,16 @@ function careerLeadFitScore(text: string, metadata: Record<string, unknown>, sou
   const lower = text.toLowerCase();
   const targetRoles = compactTextList(metadata.target_roles, 12);
   const locations = compactTextList(metadata.locations, 8);
-  const backgroundTerms = compactTextList(metadata.profile_background, 20).filter((term) => term.length >= 4);
+  const feedback = isRecord(metadata.feedback) ? metadata.feedback : {};
+  const targetRoleTerms = new Set(careerSignalTerms(targetRoles, 30));
+  const preferredRoleTerms = compactTextList(feedback.preferred_role_terms, 18).filter((term) => term.length >= 3);
+  const preferredRoleTermSet = new Set(preferredRoleTerms.map((term) => term.toLowerCase()));
+  const avoidedRoleTerms = compactTextList(feedback.avoided_role_terms, 18).filter(
+    (term) => term.length >= 3 && !targetRoleTerms.has(term.toLowerCase()) && !preferredRoleTermSet.has(term.toLowerCase())
+  );
+  const backgroundTerms = Array.from(
+    new Set([...compactTextList(metadata.profile_background, 20), ...careerSignalTerms([textValue(metadata.profile_background)], 20)])
+  ).filter((term) => term.length >= 4);
   const startWindow = textValue(metadata.target_start_window) || 'May 2027 / Summer 2027 start';
   const sourceScore = Number(source.score ?? sourceMetadata(source).score);
   const evidence: string[] = [];
@@ -3584,6 +3666,16 @@ function careerLeadFitScore(text: string, metadata: Record<string, unknown>, sou
   if (backgroundTerms.some((term) => lower.includes(term.toLowerCase()))) {
     score += 8;
     evidence.push('background keyword match');
+  }
+  const preferredMatches = preferredRoleTerms.filter((term) => lower.includes(term.toLowerCase()));
+  if (preferredMatches.length) {
+    score += Math.min(12, 4 + preferredMatches.length * 3);
+    evidence.push(`Career Desk feedback match: ${preferredMatches.slice(0, 4).join(', ')}`);
+  }
+  const avoidedMatches = avoidedRoleTerms.filter((term) => lower.includes(term.toLowerCase()));
+  if (avoidedMatches.length) {
+    score -= Math.min(26, 12 + avoidedMatches.length * 6);
+    evidence.push(`not-fit feedback penalty: ${avoidedMatches.slice(0, 4).join(', ')}`);
   }
   if (Number.isFinite(sourceScore)) {
     score += Math.round(Math.min(8, Math.max(0, sourceScore * 8)));
@@ -3638,7 +3730,7 @@ function careerLeadCandidateFromSource(
 ): CareerLeadCandidate | { skipped: string } {
   const applicationUrl = sourceUrl(source);
   if (!applicationUrl) return { skipped: 'missing-url' };
-  const text = sourceText(source, report);
+  const text = sourceText(source, {}) || sourceText(source, report);
   if (!/\b(apply|application|job|jobs|career|careers|opening|role|intern|internship|new grad|graduate|rotational)\b/iu.test(text)) {
     return { skipped: 'not-opportunity' };
   }

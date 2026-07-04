@@ -2873,6 +2873,18 @@ describe('passive task engine', () => {
         notes: '',
         deviceId: 'test',
         updatedAt: '2026-06-21T10:00:00.000Z'
+      },
+      {
+        id: 'job-not-fit-feedback',
+        workspaceId: personalWorkspaceId,
+        company: 'No Fit Co',
+        role: 'Business Development Analyst',
+        status: 'archived',
+        applicationUrl: '',
+        fitScore: 40,
+        notes: 'Discovered by Career Discovery.\n\nCareer Discovery review: archived as not fit on 2026-06-21.',
+        deviceId: 'test',
+        updatedAt: '2026-06-22T10:00:00.000Z'
       }
     );
     const createdBodies: Array<Record<string, unknown>> = [];
@@ -2926,6 +2938,8 @@ describe('passive task engine', () => {
     expect(String(firstRequest.goal)).toContain('Research intensity: max');
     expect(String(firstRequest.goal)).toContain('Avoid duplicates');
     expect(String(firstRequest.goal)).toContain('Old Applied Co');
+    expect(String(firstRequest.goal)).toContain('Career Desk feedback prefers role signals: data.');
+    expect(String(firstRequest.goal)).toContain('Career Desk not-fit feedback should de-prioritize role signals: business; development.');
     expect(firstRequest).toMatchObject({
       seed_urls: [],
       include_domains: [],
@@ -2934,7 +2948,13 @@ describe('passive task engine', () => {
       metadata: {
         career_discovery: true,
         locations: ['New York', 'Remote'],
-        excluded_companies: expect.arrayContaining(['Old Applied Co', 'Pipeline Co'])
+        excluded_companies: expect.arrayContaining(['Old Applied Co', 'Pipeline Co', 'No Fit Co']),
+        feedback: {
+          positive_review_count: 1,
+          negative_review_count: 1,
+          preferred_role_terms: ['data'],
+          avoided_role_terms: ['business', 'development']
+        }
       }
     });
     expect(run.metadata).toMatchObject({
@@ -3226,6 +3246,19 @@ describe('passive task engine', () => {
                   description: 'Senior-only opening requiring 8 years of experience.',
                   score: 0.9,
                   rank: 3
+                },
+                {
+                  id: 'source-not-fit-feedback',
+                  url: 'https://pitch.example.com/careers/business-development-analyst-summer-2027',
+                  canonical_url: 'https://pitch.example.com/careers/business-development-analyst-summer-2027',
+                  title: 'Business Development Analyst at Pitch Systems - Summer 2027',
+                  description: 'Apply for a Summer 2027 Business Development Analyst opening. Early-career role.',
+                  score: 0.96,
+                  rank: 4,
+                  metadata: {
+                    company: 'Pitch Systems',
+                    role: 'Business Development Analyst'
+                  }
                 }
               ],
               options: {
@@ -3239,7 +3272,11 @@ describe('passive task engine', () => {
                   target_roles: ['Data Analyst', 'Quant Research Intern'],
                   locations: ['Remote', 'New York'],
                   profile_background: 'Math/CS analytics projects',
-                  excluded_companies: ['Old Applied Co']
+                  excluded_companies: ['Old Applied Co'],
+                  feedback: {
+                    preferred_role_terms: ['data', 'quant'],
+                    avoided_role_terms: ['business', 'development']
+                  }
                 }
               },
               runtime_ms: 2400,
@@ -3277,6 +3314,7 @@ describe('passive task engine', () => {
     expect(imported?.notes).toContain('Discovered by Career Discovery');
     expect(imported?.notes).toContain('Fit evidence:');
     expect(store.jobs.some((job) => job.company === 'Senior Only Co')).toBe(false);
+    expect(store.jobs.some((job) => job.company === 'Pitch Systems')).toBe(false);
     expect(store.jobs.filter((job) => job.company === 'Old Applied Co')).toHaveLength(1);
     expect(importCard).toMatchObject({
       route: '/desk/career',
@@ -3286,10 +3324,10 @@ describe('passive task engine', () => {
     expect(run.changed).toEqual(expect.arrayContaining([`job:${imported?.id}`, 'research-run:research-career-1']));
     expect(run.metadata.recentResearch).toMatchObject({
       importedCareerLeads: 1,
-      skippedCareerLeadCandidates: 2,
+      skippedCareerLeadCandidates: 3,
       skippedCareerLeadReasons: {
         'duplicate-company-role': 1,
-        'low-fit-score': 1
+        'low-fit-score': 2
       }
     });
     expect(store.syncEvents).toEqual(
