@@ -74,5 +74,7 @@ describe('route document titles', () => {
     ]) {
       expect(source).toContain(expectedNav);
     }
+    expect(source).toContain('data-sveltekit-preload-code="viewport"');
+    expect(source).toContain('data-sveltekit-preload-data="hover"');
   });
 });

@@ -220,7 +220,7 @@
       <span>{themeLabel}</span>
     </button>
 
-    <nav>
+    <nav data-sveltekit-preload-code="viewport" data-sveltekit-preload-data="hover">
       {#each nav as item}
         <a class:active={path === item.href || (item.href !== '/' && path.startsWith(item.href))} href={hubHref(item.href)} title={`Open ${item.label}.`}>
           <svelte:component this={item.icon} size={18} strokeWidth={1.9} />

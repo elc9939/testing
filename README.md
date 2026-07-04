@@ -157,6 +157,10 @@ intercept API calls. The legacy arcade still lives under `/legacy/`.
 
 The Svelte app under `apps/hub` provides these main pages:
 
+The shared shell keeps primary navigation warm by preloading route code for visible nav
+links and only preloading page data on hover. That makes first page switches feel faster
+without kicking every local API or desktop service just because the sidebar is visible.
+
 - Today dashboard: unified attention cockpit backed by `/api/attention/snapshot`, with a
   Now/Next calendar strip, priority action queue, Mail Triage, Career/Study Focus,
   System/Service issues, source freshness, capability health, and Machine Mode-aware next
