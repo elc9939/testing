@@ -117,6 +117,64 @@ export function buildModeRecommendations(input: ModeRecommendationInput): ModeRe
 
   const recommendations: ModeRecommendation[] = [];
 
+  if (mode.id === 'auto') {
+    if (resourcePressure === 'high') {
+      recommendations.push(
+        rec(
+          'auto:lighten-up',
+          'Keep background work light',
+          `Machine profile reports high pressure${suggestedConcurrency ? `; keep AI work near ${suggestedConcurrency} concurrent job${suggestedConcurrency === 1 ? '' : 's'}` : ''}. Auto should defer indexing, benchmarks, and media generation while you play or work.`,
+          '/ai-os',
+          'Light',
+          110,
+          'machine.profile'
+        )
+      );
+    } else if (ready(aiJobs) && ready(localLlm)) {
+      recommendations.push(
+        withAction(
+          rec(
+            'auto:idle-local-work',
+            'Use idle local compute',
+            `The local route is available and pressure is ${resourcePressure}; Auto can use idle capacity for a small local batch without jumping to paid APIs.`,
+            '/ai-os',
+            'Idle',
+            100,
+            'ai.jobs'
+          ),
+          { kind: 'queue_local_summary_batch', label: 'Queue' }
+        )
+      );
+    }
+
+    if (attentionCount > 0) {
+      recommendations.push(
+        rec(
+          'auto:attention-first',
+          'Handle attention first',
+          `${attentionCount} real signal${attentionCount === 1 ? '' : 's'} are waiting; Auto keeps the cockpit focused before doing background work.`,
+          '/',
+          'Today',
+          90
+        )
+      );
+    }
+
+    if (!ready(telemetry) && !ready(machineProfile)) {
+      recommendations.push(
+        rec(
+          'auto:needs-profile',
+          'Measure this machine',
+          'Auto needs AI OS telemetry and a recent machine profile before it can confidently lighten up or work harder.',
+          '/settings#machine-mode',
+          'Profile',
+          85,
+          'machine.profile'
+        )
+      );
+    }
+  }
+
   if (mode.id === 'balanced') {
     if (attentionCount > 0) {
       recommendations.push(

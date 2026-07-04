@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  advancedMachineModes,
   formatMachineModeContext,
   machineModeContext,
   machineModeFromPreferences,
   machineModePreferenceKey,
+  primaryMachineModes,
   normalizeMachineMode
 } from './machine-mode';
 
@@ -15,9 +17,15 @@ describe('machine modes', () => {
   });
 
   it('reads a saved mode from settings preferences', () => {
+    expect(machineModeFromPreferences({ [machineModePreferenceKey]: 'auto' }).label).toBe('Auto');
     expect(machineModeFromPreferences({ [machineModePreferenceKey]: 'beast' }).id).toBe('beast');
     expect(machineModeFromPreferences({ [machineModePreferenceKey]: 'offline' }).label).toBe('Offline Mode');
     expect(machineModeFromPreferences({ [machineModePreferenceKey]: 'night' }).label).toBe('Night Shift');
+  });
+
+  it('keeps everyday presets separate from advanced special modes', () => {
+    expect(primaryMachineModes.map((mode) => mode.id)).toEqual(['auto', 'balanced', 'beast', 'quiet']);
+    expect(advancedMachineModes.map((mode) => mode.id)).toEqual(['offline', 'night', 'maintenance']);
   });
 
   it('produces assistant and AI OS command context', () => {

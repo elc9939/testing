@@ -104,6 +104,65 @@ describe('buildModeRecommendations', () => {
     expect(recommendations.map((item) => item.id)).toContain('beast:media');
   });
 
+  it('uses Auto mode to work locally when idle capacity is available', () => {
+    const recommendations = buildModeRecommendations({
+      mode: machineModeDefinition('auto'),
+      capabilitySnapshot: readySnapshot(),
+      attentionCount: 1
+    });
+
+    expect(recommendations.find((item) => item.id === 'auto:idle-local-work')?.action?.kind).toBe('queue_local_summary_batch');
+    expect(recommendations.map((item) => item.id)).toContain('auto:attention-first');
+  });
+
+  it('uses Auto mode to keep background work light under high measured pressure', () => {
+    const snapshot = buildCapabilityRegistry({
+      isOnline: true,
+      syncStatus: 'idle',
+      googleConnected: true,
+      hubHealth: { ok: true, service: 'mini-hub-api' },
+      aiStatus: aiStatus({
+        machine_profile: {
+          created_at: '2026-06-20T16:00:00.000Z',
+          source: 'status',
+          mode: 'auto',
+          host: {},
+          hardware: {
+            gpus: [{ name: 'AMD Radeon RX 6600', utilization_percent: 96 }],
+            loaded_models: [{ name: 'llama3.1:8b' }]
+          },
+          providers: [],
+          provider_summary: {},
+          loaded_models: [{ name: 'llama3.1:8b' }],
+          local_services: {},
+          ai_os_health: {},
+          capabilities: [],
+          capability_readiness: {},
+          benchmarks: { recent: [] },
+          autotune: {
+            mode: 'auto',
+            suggested_max_job_concurrency: 1,
+            resource_pressure: { level: 'high', drivers: ['gpu', 'vram'] },
+            best_text_route: {
+              provider: 'ollama',
+              model: 'llama3.1:8b',
+              label: 'Ollama llama3.1:8b',
+              local: true,
+              tokens_per_second: 28
+            }
+          }
+        }
+      })
+    });
+    const recommendations = buildModeRecommendations({
+      mode: machineModeDefinition('auto'),
+      capabilitySnapshot: snapshot
+    });
+
+    expect(recommendations[0].id).toBe('auto:lighten-up');
+    expect(recommendations.some((item) => item.id === 'auto:idle-local-work')).toBe(false);
+  });
+
   it('marks night shift batch and backup work as executable when local foundations are ready', () => {
     const recommendations = buildModeRecommendations({
       mode: machineModeDefinition('night'),

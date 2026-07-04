@@ -1,4 +1,4 @@
-export type MachineModeId = 'balanced' | 'beast' | 'quiet' | 'offline' | 'night' | 'maintenance';
+export type MachineModeId = 'auto' | 'balanced' | 'beast' | 'quiet' | 'offline' | 'night' | 'maintenance';
 
 export interface MachineModeDefinition {
   id: MachineModeId;
@@ -9,6 +9,7 @@ export interface MachineModeDefinition {
   background: string;
   cost: string;
   safety: string;
+  advanced?: boolean;
 }
 
 export interface MachineModeContext {
@@ -24,6 +25,16 @@ export interface MachineModeContext {
 export const machineModePreferenceKey = 'machineMode';
 
 export const machineModes: MachineModeDefinition[] = [
+  {
+    id: 'auto',
+    label: 'Auto',
+    shortLabel: 'Auto',
+    summary: 'Lighten up when the machine is busy, use more local compute when it is idle.',
+    routing: 'Use measured machine pressure to prefer light local work under load and stronger local routes when idle.',
+    background: 'Treat normal browsing, games, and high GPU/VRAM pressure as a signal to defer heavy background work.',
+    cost: 'Prefer local/free routes; paid fallback stays explicit and conservative.',
+    safety: 'Normal confirmations for write/system/destructive actions.'
+  },
   {
     id: 'balanced',
     label: 'Balanced',
@@ -62,7 +73,8 @@ export const machineModes: MachineModeDefinition[] = [
     routing: 'Use local/cache-only routes; do not plan paid/cloud provider calls.',
     background: 'Run only local jobs that do not need network access.',
     cost: 'Never use paid/API fallback unless the user changes mode or explicitly overrides.',
-    safety: 'Prefer read-only cache behavior and local dry runs.'
+    safety: 'Prefer read-only cache behavior and local dry runs.',
+    advanced: true
   },
   {
     id: 'night',
@@ -72,7 +84,8 @@ export const machineModes: MachineModeDefinition[] = [
     routing: 'Prefer local/batch-friendly routes and avoid interactive-only tools.',
     background: 'Allow backups, restore tests, indexing, embeddings, summaries, cleanup, and batch analysis.',
     cost: 'Avoid paid/API fallback unless the user explicitly requested a cloud-backed night job.',
-    safety: 'Snapshot before risky work and produce a clear morning change report.'
+    safety: 'Snapshot before risky work and produce a clear morning change report.',
+    advanced: true
   },
   {
     id: 'maintenance',
@@ -82,9 +95,13 @@ export const machineModes: MachineModeDefinition[] = [
     routing: 'Prefer diagnostic tools over open-ended generation.',
     background: 'Allow maintenance jobs such as backups, verification, indexing, cleanup, and dependency checks.',
     cost: 'Avoid paid/API fallback unless needed to diagnose an explicitly requested service.',
-    safety: 'Prefer non-destructive checks; require confirmation before cleanup or repair.'
+    safety: 'Prefer non-destructive checks; require confirmation before cleanup or repair.',
+    advanced: true
   }
 ];
+
+export const primaryMachineModes = machineModes.filter((mode) => !mode.advanced);
+export const advancedMachineModes = machineModes.filter((mode) => mode.advanced);
 
 export function normalizeMachineMode(value: unknown): MachineModeId {
   return machineModes.some((mode) => mode.id === value) ? (value as MachineModeId) : 'balanced';

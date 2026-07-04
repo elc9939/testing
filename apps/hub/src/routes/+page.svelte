@@ -48,7 +48,9 @@
   import {
     formatCapabilityRegistrySummary,
     loadCapabilityRegistry,
+    readCachedCapabilityRegistrySnapshot,
     selectCapabilityIssues,
+    writeCapabilityRegistryCache,
     type CapabilityRegistryEntry,
     type CapabilityRegistrySnapshot,
     type CapabilityState
@@ -68,6 +70,7 @@
   import { compactServiceIssueIfRecognized } from '$lib/service-issues';
 
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
+  let capabilityCachedAt = '';
   let capabilityLoading = false;
   let capabilityError = '';
   let actionLedgerSnapshot: ActionLedgerSnapshot | null = null;
@@ -616,21 +619,33 @@
     }
   }
 
-  async function refreshCapabilities(nextGoogleConnected = googleConnected): Promise<void> {
-    capabilityLoading = true;
+  function hydrateCapabilityCache(): void {
+    const cached = readCachedCapabilityRegistrySnapshot();
+    if (!cached) return;
+    capabilitySnapshot = cached.snapshot;
+    capabilityCachedAt = cached.cachedAt;
+  }
+
+  async function refreshCapabilities(nextGoogleConnected = googleConnected, options: { background?: boolean } = {}): Promise<void> {
+    const background = options.background === true && Boolean(capabilitySnapshot);
+    if (!background) capabilityLoading = true;
     capabilityError = '';
     try {
-      capabilitySnapshot = await loadCapabilityRegistry({
+      const snapshot = await loadCapabilityRegistry({
         isOnline: $clientData.isOnline,
         syncStatus: $clientData.status,
         syncError: $clientData.error,
         googleConnected: nextGoogleConnected,
         machineMode: currentMachineMode.id
       });
+      const cacheWrite = writeCapabilityRegistryCache(snapshot);
+      capabilitySnapshot = snapshot;
+      if (cacheWrite.cachedAt) capabilityCachedAt = cacheWrite.cachedAt;
+      if (cacheWrite.error) capabilityError = cacheWrite.error;
     } catch (error) {
       capabilityError = error instanceof Error ? error.message : 'Capability registry failed to load.';
     } finally {
-      capabilityLoading = false;
+      if (!background) capabilityLoading = false;
     }
   }
 
@@ -648,7 +663,7 @@
 
   async function refreshToday(): Promise<void> {
     const snapshot = await attentionStore.refresh();
-    await Promise.all([refreshCapabilities(snapshotGoogleConnected(snapshot)), refreshActionLedger()]);
+    await Promise.all([refreshCapabilities(snapshotGoogleConnected(snapshot), { background: Boolean(capabilitySnapshot) }), refreshActionLedger()]);
   }
 
   function todayRefreshTitle(state: TodayRefreshControlState): string {
@@ -730,8 +745,9 @@
   }
 
   onMount(() => {
+    hydrateCapabilityCache();
     void clientData.init();
-    void attentionStore.init().then(() => refreshCapabilities(snapshotGoogleConnected($attentionStore.snapshot)));
+    void attentionStore.init().then(() => refreshCapabilities(snapshotGoogleConnected($attentionStore.snapshot), { background: Boolean(capabilitySnapshot) }));
     void refreshActionLedger();
     let retryCount = 0;
     const retry = window.setInterval(() => {
@@ -740,7 +756,7 @@
         window.clearInterval(retry);
         return;
       }
-      if (!capabilityLoading) void refreshCapabilities();
+      if (!capabilityLoading) void refreshCapabilities(googleConnected, { background: Boolean(capabilitySnapshot) });
     }, 3000);
     return () => window.clearInterval(retry);
   });
@@ -1183,6 +1199,11 @@
         <div>
           <span class="icon-chip"><Activity size={16} /></span>
           <strong>Capability Health</strong>
+          {#if capabilityLoading && capabilitySnapshot}
+            <small>Updating quietly</small>
+          {:else if capabilityCachedAt}
+            <small>Cached {displayShortDate(capabilityCachedAt)}</small>
+          {/if}
         </div>
         <a class="button compact" href={hubHref('/settings#feature-wiring')} title="Open Settings Feature Wiring to repair unavailable capabilities.">
           <span>Fix</span>

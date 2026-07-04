@@ -16,7 +16,9 @@
     capabilityServiceLabel,
     capabilityStateLabel,
     loadCapabilityRegistry,
+    readCachedCapabilityRegistrySnapshot,
     selectCapabilityIssues,
+    writeCapabilityRegistryCache,
     type CapabilityRegistryEntry,
     type CapabilityRegistrySnapshot,
     type CapabilityService
@@ -30,9 +32,11 @@
   } from '$lib/feature-wiring';
   import {
     formatMachineModeContext,
+    advancedMachineModes,
     machineModeFromPreferences,
     machineModePreferenceKey,
     machineModes,
+    primaryMachineModes,
     type MachineModeDefinition,
     type MachineModeId
   } from '$lib/machine-mode';
@@ -115,6 +119,7 @@
   let themeSaving = false;
   let modeSaving = false;
   let capabilitySnapshot: CapabilityRegistrySnapshot | null = null;
+  let capabilityCachedAt = '';
   let capabilityIssues: CapabilityRegistryEntry[] = [];
   let capabilityGroups: CapabilityServiceGroup[] = [];
   let capabilityLoading = false;
@@ -321,7 +326,14 @@
     if (serviceChecking) return;
     serviceChecking = true;
     try {
-      await Promise.all([checkApi(), checkOllama(), refreshCapabilities(), refreshMachineProfile(), refreshActionLedger(), refreshPassiveSettings()]);
+      await Promise.all([
+        checkApi(),
+        checkOllama(),
+        refreshCapabilities({ background: Boolean(capabilitySnapshot) }),
+        refreshMachineProfile(),
+        refreshActionLedger(),
+        refreshPassiveSettings()
+      ]);
       serviceCheckedAt = new Date().toISOString();
     } finally {
       serviceChecking = false;
@@ -703,8 +715,16 @@
     return exportCacheBlockedReason(state) || 'Download the current browser cache as JSON for local inspection, backup, or recovery.';
   }
 
-  async function refreshCapabilities(): Promise<void> {
-    capabilityLoading = true;
+  function hydrateCapabilityCache(): void {
+    const cached = readCachedCapabilityRegistrySnapshot();
+    if (!cached) return;
+    capabilitySnapshot = cached.snapshot;
+    capabilityCachedAt = cached.cachedAt;
+  }
+
+  async function refreshCapabilities(options: { background?: boolean } = {}): Promise<void> {
+    const background = options.background === true && Boolean(capabilitySnapshot);
+    if (!background) capabilityLoading = true;
     capabilityError = '';
     try {
       const googleStatus = await loadGoogleStatus();
@@ -713,17 +733,21 @@
       googleNeedsReconnect = googleStatus.needsReconnect;
       googleStatusDetail = googleStatus.detail;
       googleFixAction = googleStatus.fixAction;
-      capabilitySnapshot = await loadCapabilityRegistry({
+      const snapshot = await loadCapabilityRegistry({
         isOnline: $clientData.isOnline,
         syncStatus: $clientData.status,
         syncError: $clientData.error,
         googleConnected: googleReady,
         machineMode: currentMachineMode.id
       });
+      const cacheWrite = writeCapabilityRegistryCache(snapshot);
+      capabilitySnapshot = snapshot;
+      if (cacheWrite.cachedAt) capabilityCachedAt = cacheWrite.cachedAt;
+      if (cacheWrite.error) capabilityError = cacheWrite.error;
     } catch (error) {
       capabilityError = error instanceof Error ? error.message : 'Capability registry failed to load.';
     } finally {
-      capabilityLoading = false;
+      if (!background) capabilityLoading = false;
     }
   }
 
@@ -1220,6 +1244,7 @@
 
   onMount(() => {
     loadEndpointInputs();
+    hydrateCapabilityCache();
     void clientData.init();
     void checkServices();
   });
@@ -1246,7 +1271,7 @@
       <p class="eyebrow">Machine Control</p>
       <h2>Services And Capabilities</h2>
     </div>
-    <button class="button" type="button" disabled={capabilityLoading} title={capabilityRefreshButtonTitle} on:click={refreshCapabilities}>
+    <button class="button" type="button" disabled={capabilityLoading} title={capabilityRefreshButtonTitle} on:click={() => refreshCapabilities()}>
       <Activity size={17} />
       <span>{capabilityLoading ? 'Checking' : 'Refresh Capabilities'}</span>
     </button>
@@ -1339,8 +1364,8 @@
       </div>
       <small>{modeSaving ? 'Saving' : currentMachineMode.label}</small>
     </div>
-    <div class="mode-segment" aria-label="Machine mode">
-      {#each machineModes as mode}
+    <div class="mode-segment" aria-label="Primary machine mode presets">
+      {#each primaryMachineModes as mode}
         <button
           class:active={currentMachineMode.id === mode.id}
           type="button"
@@ -1354,7 +1379,28 @@
         </button>
       {/each}
     </div>
-    <pre class="mode-context">{currentMachineModeDetails}</pre>
+    <details class="advanced-mode-options">
+      <summary>
+        <span>Advanced modes</span>
+        <small>{advancedMachineModes.length} special presets; {machineModes.length} total</small>
+      </summary>
+      <div class="mode-segment compact" aria-label="Advanced machine mode presets">
+        {#each advancedMachineModes as mode}
+          <button
+            class:active={currentMachineMode.id === mode.id}
+            type="button"
+            title={modeButtonTitle(mode, machineModeBlocked)}
+            aria-pressed={currentMachineMode.id === mode.id}
+            disabled={Boolean(machineModeBlocked)}
+            on:click={() => chooseMachineMode(mode.id)}
+          >
+            <strong>{mode.shortLabel}</strong>
+            <span>{mode.summary}</span>
+          </button>
+        {/each}
+      </div>
+      <pre class="mode-context">{currentMachineModeDetails}</pre>
+    </details>
   </div>
 
   <div class="machine-profile-panel">
@@ -1426,6 +1472,15 @@
   </div>
 
   {#if capabilitySnapshot}
+    <p class="helper-text">
+      {#if capabilityLoading}
+        Updating capability registry quietly; cached service status remains visible.
+      {:else if capabilityCachedAt}
+        Capability registry warm-loaded from browser cache saved {new Date(capabilityCachedAt).toLocaleString()}.
+      {:else}
+        Capability registry loaded from live services.
+      {/if}
+    </p>
     <div class="capability-kpis">
       <div>
         <span>Usable</span>
@@ -2214,6 +2269,10 @@
     gap: 6px;
   }
 
+  .mode-segment.compact {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+
   .mode-segment button {
     display: grid;
     gap: 4px;
@@ -2248,6 +2307,36 @@
     color: var(--muted);
     font-size: 12px;
     line-height: 1.3;
+  }
+
+  .advanced-mode-options {
+    display: grid;
+    gap: 8px;
+  }
+
+  .advanced-mode-options summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+
+  .advanced-mode-options summary span {
+    font-weight: 800;
+  }
+
+  .advanced-mode-options summary small {
+    color: var(--muted);
+  }
+
+  .advanced-mode-options[open] summary {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   }
 
   .mode-context {

@@ -168,7 +168,9 @@ The Svelte app under `apps/hub` provides these main pages:
   leave the cockpit spinning forever; cached attention is shown read-only until the hub
   responds again. Today also shows a compact **Save & Recovery** strip with browser-cache
   row count, last sync status, current save mode, and links to Activity plus the full
-  Settings -> Data & Recovery map.
+  Settings -> Data & Recovery map. Capability Health and Machine Mode recommendations also
+  warm-load from the last browser snapshot, then refresh quietly, so switching back to Today
+  does not start from a blank service panel.
 - Activity: a durable recovery surface for long-running or recently finished work. It
   projects persisted Research runs, AI OS jobs/backups/benchmarks, Passive Task runs, and
   Macro Lab run history into one list with source health, progress, errors, and deep links
@@ -200,7 +202,11 @@ The Svelte app under `apps/hub` provides these main pages:
   drift detection.
 - Settings: service and machine control, capability health, endpoint configuration, theme,
   sync status, Data & Recovery persistence map, passive task preferences, legacy
-  import/export, dark mode.
+  import/export, dark mode. Machine Mode now keeps everyday presets visible
+  (Auto/Balanced/Beast/Quiet) and moves special modes (Offline/Night/Maintenance) plus
+  verbose policy details behind Advanced modes. Auto uses measured machine pressure to
+  recommend lighter behavior when the GPU/VRAM/CPU is busy and more local-first background
+  work when the PC appears available.
 
 The product direction is intentionally shifting toward a unified local-first Personal AI OS:
 Today should show what needs attention, AI OS should become the intelligence/capability

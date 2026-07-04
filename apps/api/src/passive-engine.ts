@@ -58,7 +58,7 @@ import { env } from './env';
 import { appendActionLedgerEvent, persistPassiveTasks, redactActionLedgerEvent, type MemoryStore } from './store';
 
 type FetchLike = typeof fetch;
-type PassiveMachineMode = 'balanced' | 'beast' | 'quiet' | 'offline' | 'night' | 'maintenance';
+type PassiveMachineMode = 'auto' | 'balanced' | 'beast' | 'quiet' | 'offline' | 'night' | 'maintenance';
 const execFileAsync = promisify(execFile);
 
 interface FileInsight {
@@ -336,7 +336,7 @@ function resourceBudget(settings: PassiveEngineSettings): PassiveResourceBudget 
   return passiveResourceBudgets[settings.resourceLimit] ?? passiveResourceBudgets.balanced;
 }
 
-const passiveMachineModes = new Set<PassiveMachineMode>(['balanced', 'beast', 'quiet', 'offline', 'night', 'maintenance']);
+const passiveMachineModes = new Set<PassiveMachineMode>(['auto', 'balanced', 'beast', 'quiet', 'offline', 'night', 'maintenance']);
 const quietDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
 
 function passiveMachineMode(value: unknown): PassiveMachineMode | null {
@@ -1699,7 +1699,7 @@ function passiveResourceDecision(store: MemoryStore, date = new Date()): Passive
   const heavyAiAllowed = !highPressure && !offline;
   const suggestedMaxJobConcurrency = optionalNumber(latest.profile.suggestedMaxJobConcurrency);
   const preferredLocalRoute =
-    mode === 'beast' && route?.local === true && provider
+    (mode === 'beast' || mode === 'auto') && !highPressure && route?.local === true && provider
       ? compactRecord({
           provider,
           model,

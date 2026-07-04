@@ -323,6 +323,12 @@ export async function parseResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
+function googleTokenRefreshFailureStatus(message: string): IntegrationConnection['status'] {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('expired or revoked') || normalized.includes('invalid_grant')) return 'revoked';
+  return 'needs_reauth';
+}
+
 export class GoogleApiClient {
   constructor(
     private readonly store: MemoryStore,
@@ -368,7 +374,20 @@ export class GoogleApiClient {
         grant_type: 'refresh_token'
       })
     });
-    const body = await parseResponse<GoogleTokenResponse>(response);
+    let body: GoogleTokenResponse;
+    try {
+      body = await parseResponse<GoogleTokenResponse>(response);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Google connection needs reauthorization';
+      this.store.integrationConnections.set(connection.id, {
+        ...connection,
+        status: googleTokenRefreshFailureStatus(message),
+        error: message,
+        updatedAt: new Date().toISOString()
+      });
+      persistIntegrationConnections(this.store);
+      throw new Error(message);
+    }
     const refreshedTokenSet: OAuthTokenSet = {
       ...tokenSet,
       accessToken: body.access_token

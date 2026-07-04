@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PassiveSnapshot } from '@mini-hub/core';
 import type { AiStatus } from './ai-os-api';
 import type { MacroStatus } from './macro-lab-api';
@@ -7,7 +7,9 @@ import {
   capabilityServiceLabel,
   compactCapabilityRegistryContext,
   formatCapabilityRegistrySummary,
-  selectCapabilityIssues
+  readCachedCapabilityRegistrySnapshot,
+  selectCapabilityIssues,
+  writeCapabilityRegistryCache
 } from './capability-registry';
 
 function aiStatus(partial: Partial<AiStatus> = {}): AiStatus {
@@ -184,6 +186,10 @@ function passiveSnapshot(partial: Partial<PassiveSnapshot> = {}): PassiveSnapsho
 }
 
 describe('capability registry', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('summarizes ready local capabilities across hub, AI OS, Macro Lab, Google, and cache', () => {
     const snapshot = buildCapabilityRegistry({
       checkedAt: '2026-06-20T16:00:00.000Z',
@@ -347,5 +353,35 @@ describe('capability registry', () => {
     expect(summary).toContain('Capability registry:');
     expect(summary).toContain('Ready now:');
     expect(summary).toContain('Needs attention:');
+  });
+
+  it('persists a browser capability snapshot for warm route rehydration', () => {
+    const values = new Map<string, string>();
+    const storage = {
+      get length() {
+        return values.size;
+      },
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => Array.from(values.keys())[index] ?? null,
+      removeItem: (key: string) => values.delete(key),
+      setItem: (key: string, value: string) => values.set(key, value)
+    } as Storage;
+    vi.stubGlobal('localStorage', storage);
+    const snapshot = buildCapabilityRegistry({
+      checkedAt: '2026-06-20T16:00:00.000Z',
+      isOnline: true,
+      syncStatus: 'idle',
+      googleConnected: true,
+      hubHealth: { ok: true, service: 'mini-hub-api' },
+      aiStatus: aiStatus()
+    });
+
+    const write = writeCapabilityRegistryCache(snapshot);
+    const cached = readCachedCapabilityRegistrySnapshot();
+
+    expect(write.cachedAt).toBeTruthy();
+    expect(cached?.snapshot.checkedAt).toBe(snapshot.checkedAt);
+    expect(cached?.snapshot.summary.total).toBe(snapshot.summary.total);
   });
 });

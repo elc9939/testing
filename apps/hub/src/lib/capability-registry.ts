@@ -44,6 +44,14 @@ export interface CapabilityRegistrySnapshot {
   };
 }
 
+export const capabilityRegistryCacheKey = 'miniHub.capability.snapshot.v1';
+
+interface CapabilityRegistryCache {
+  version: 1;
+  cachedAt: string;
+  snapshot: CapabilityRegistrySnapshot;
+}
+
 export interface CompactCapabilityRegistryContext {
   checkedAt: string;
   summary: CapabilityRegistrySnapshot['summary'];
@@ -73,6 +81,51 @@ export interface LoadCapabilityRegistryInput {
   syncError?: string;
   googleConnected: boolean;
   machineMode?: string;
+}
+
+function getBrowserStorage(): Storage | null {
+  try {
+    return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function validCapabilitySnapshot(value: Partial<CapabilityRegistrySnapshot> | null | undefined): value is CapabilityRegistrySnapshot {
+  return Boolean(
+    value &&
+      typeof value.checkedAt === 'string' &&
+      Array.isArray(value.capabilities) &&
+      value.summary &&
+      typeof value.summary.total === 'number'
+  );
+}
+
+export function readCachedCapabilityRegistrySnapshot(): { cachedAt: string; snapshot: CapabilityRegistrySnapshot } | null {
+  const storage = getBrowserStorage();
+  if (!storage) return null;
+  try {
+    const parsed = JSON.parse(storage.getItem(capabilityRegistryCacheKey) ?? 'null') as Partial<CapabilityRegistryCache> | null;
+    if (!parsed || parsed.version !== 1 || typeof parsed.cachedAt !== 'string') return null;
+    if (!validCapabilitySnapshot(parsed.snapshot)) return null;
+    return { cachedAt: parsed.cachedAt, snapshot: parsed.snapshot };
+  } catch {
+    return null;
+  }
+}
+
+export function writeCapabilityRegistryCache(snapshot: CapabilityRegistrySnapshot): { cachedAt?: string; error?: string } {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return { error: 'Browser capability cache is unavailable; live service status is visible but may not survive refresh.' };
+  }
+  const cachedAt = new Date().toISOString();
+  try {
+    storage.setItem(capabilityRegistryCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies CapabilityRegistryCache));
+    return { cachedAt };
+  } catch {
+    return { error: 'Browser capability cache could not be updated; live service status is visible but may not survive refresh.' };
+  }
 }
 
 export async function loadCapabilityRegistry(input: LoadCapabilityRegistryInput): Promise<CapabilityRegistrySnapshot> {
