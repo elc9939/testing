@@ -4375,6 +4375,35 @@ interface CareerApplicationAutoUpdate {
   evidence: CareerApplicationEvidence;
 }
 
+type CareerStatusTarget = 'interview' | 'offer' | 'rejected';
+
+interface CareerMailJobMatch {
+  matchedOn: string[];
+  exactCompany: boolean;
+  exactRole: boolean;
+  companyMatches: string[];
+  roleMatches: string[];
+  confidenceBoost: number;
+}
+
+interface CareerStatusEvidence {
+  job: JobRecord;
+  targetStatus: CareerStatusTarget;
+  source: 'gmail';
+  reason: string;
+  confidence: number;
+  matchedOn: string[];
+  occurredAt?: string;
+  thread: GmailThread;
+}
+
+interface CareerStatusAutoUpdate {
+  job: JobRecord;
+  before: JobRecord;
+  evidence: CareerStatusEvidence;
+  followUpAction?: CareerActionRecord;
+}
+
 function careerAutoMarkAppliedEnabled(store: MemoryStore): boolean {
   const profile = careerDiscoveryPreference(store);
   return profile.autoMarkAppliedFromEvidence !== false;
@@ -4389,6 +4418,10 @@ function careerAutoMarkConfidenceThreshold(store: MemoryStore): number {
 
 function applicationCandidateJobs(store: MemoryStore): JobRecord[] {
   return store.jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status.trim().toLowerCase()));
+}
+
+function statusUpdateCandidateJobs(store: MemoryStore): JobRecord[] {
+  return store.jobs.filter((job) => ['lead', 'saved', 'watching', 'applied', 'interview'].includes(job.status.trim().toLowerCase()));
 }
 
 function careerMailText(thread: GmailThread): string {
@@ -4422,17 +4455,7 @@ function careerUrlTokens(value: string): string[] {
   }
 }
 
-function applicationConfirmationReason(thread: GmailThread): string | null {
-  const text = careerMailText(thread);
-  if (/\b(thank you for applying|thanks for applying|application (?:was )?(?:submitted|received)|we (?:have )?received your application|your application (?:has been|was) received|application confirmation|successfully submitted)\b/iu.test(text)) {
-    return 'Gmail contains application confirmation language';
-  }
-  return null;
-}
-
-function careerMailApplicationEvidence(thread: GmailThread, job: JobRecord): CareerApplicationEvidence | null {
-  const reason = applicationConfirmationReason(thread);
-  if (!reason) return null;
+function careerMailJobMatch(thread: GmailThread, job: JobRecord): CareerMailJobMatch | null {
   const text = careerMailText(thread);
   const company = job.company.toLowerCase().trim();
   const role = job.role.toLowerCase().trim();
@@ -4451,12 +4474,38 @@ function careerMailApplicationEvidence(thread: GmailThread, job: JobRecord): Car
   if (!exactCompany && !companyMatches.length) return null;
   if (!exactRole && roleMatches.length < 1) return null;
 
-  let confidence = 0.84;
-  if (exactCompany) confidence += 0.06;
-  if (exactRole) confidence += 0.06;
-  if (!exactRole && roleMatches.length >= 2) confidence += 0.04;
-  if (companyMatches.length >= 2) confidence += 0.02;
-  if (/\b(intern|graduate|analyst|engineer|research|quant|data)\b/iu.test(role) && roleMatches.length) confidence += 0.01;
+  let confidenceBoost = 0;
+  if (exactCompany) confidenceBoost += 0.06;
+  if (exactRole) confidenceBoost += 0.06;
+  if (!exactRole && roleMatches.length >= 2) confidenceBoost += 0.04;
+  if (companyMatches.length >= 2) confidenceBoost += 0.02;
+  if (/\b(intern|graduate|analyst|engineer|research|quant|data)\b/iu.test(role) && roleMatches.length) confidenceBoost += 0.01;
+
+  return {
+    matchedOn: Array.from(new Set(matchedOn)).slice(0, 8),
+    exactCompany,
+    exactRole,
+    companyMatches,
+    roleMatches,
+    confidenceBoost
+  };
+}
+
+function applicationConfirmationReason(thread: GmailThread): string | null {
+  const text = careerMailText(thread);
+  if (/\b(thank you for applying|thanks for applying|application (?:was )?(?:submitted|received)|we (?:have )?received your application|your application (?:has been|was) received|application confirmation|successfully submitted)\b/iu.test(text)) {
+    return 'Gmail contains application confirmation language';
+  }
+  return null;
+}
+
+function careerMailApplicationEvidence(thread: GmailThread, job: JobRecord): CareerApplicationEvidence | null {
+  const reason = applicationConfirmationReason(thread);
+  if (!reason) return null;
+  const match = careerMailJobMatch(thread, job);
+  if (!match) return null;
+
+  let confidence = 0.84 + match.confidenceBoost;
   confidence = Math.min(0.98, confidence);
 
   const occurredAt = thread.date || thread.messages[0]?.date;
@@ -4465,7 +4514,67 @@ function careerMailApplicationEvidence(thread: GmailThread, job: JobRecord): Car
     source: 'gmail',
     reason,
     confidence,
-    matchedOn: Array.from(new Set(matchedOn)).slice(0, 8),
+    matchedOn: match.matchedOn,
+    ...(occurredAt ? { occurredAt } : {}),
+    thread
+  };
+}
+
+function careerMailStatusReason(thread: GmailThread): { targetStatus: CareerStatusTarget; reason: string } | null {
+  const text = careerMailText(thread);
+  if (
+    /\b(congratulations|congrats|pleased to offer|offer letter|employment offer|we would like to offer|would like to extend (?:an )?offer|extend (?:an )?offer)\b/iu.test(
+      text
+    )
+  ) {
+    return { targetStatus: 'offer', reason: 'Gmail contains offer-stage language' };
+  }
+  if (
+    /\b(after careful consideration|not moving forward|will not be moving forward|not selected|no longer under consideration|decided not to proceed|pursue other candidates|unable to offer|we regret to inform)\b/iu.test(
+      text
+    )
+  ) {
+    return { targetStatus: 'rejected', reason: 'Gmail contains rejection/no-longer-moving-forward language' };
+  }
+  if (
+    /\b(interview|schedule (?:a |an )?(?:call|conversation|interview)|availability for (?:a |an )?(?:call|interview)|next round|phone screen|technical screen|recruiter screen|onsite|final round)\b/iu.test(
+      text
+    )
+  ) {
+    return { targetStatus: 'interview', reason: 'Gmail contains interview or scheduling language' };
+  }
+  return null;
+}
+
+function careerStatusTransitionAllowed(currentStatus: string, targetStatus: CareerStatusTarget): boolean {
+  const current = currentStatus.trim().toLowerCase();
+  if (['archived', 'rejected'].includes(current)) return false;
+  if (targetStatus === 'interview') return ['lead', 'saved', 'watching', 'applied'].includes(current);
+  if (targetStatus === 'offer') return ['lead', 'saved', 'watching', 'applied', 'interview'].includes(current);
+  return ['lead', 'saved', 'watching', 'applied', 'interview'].includes(current);
+}
+
+function careerStatusAutoThreshold(store: MemoryStore, targetStatus: CareerStatusTarget): number {
+  const base = careerAutoMarkConfidenceThreshold(store);
+  if (targetStatus === 'rejected') return Math.max(0.95, base);
+  if (targetStatus === 'offer') return Math.max(0.93, base);
+  return base;
+}
+
+function careerMailStatusEvidence(thread: GmailThread, job: JobRecord): CareerStatusEvidence | null {
+  const reason = careerMailStatusReason(thread);
+  if (!reason || !careerStatusTransitionAllowed(job.status, reason.targetStatus)) return null;
+  const match = careerMailJobMatch(thread, job);
+  if (!match) return null;
+  const confidence = Math.min(0.99, 0.85 + match.confidenceBoost + (reason.targetStatus === 'offer' && match.exactRole ? 0.01 : 0));
+  const occurredAt = thread.date || thread.messages[0]?.date;
+  return {
+    job,
+    targetStatus: reason.targetStatus,
+    source: 'gmail',
+    reason: reason.reason,
+    confidence,
+    matchedOn: match.matchedOn,
     ...(occurredAt ? { occurredAt } : {}),
     thread
   };
@@ -4567,6 +4676,69 @@ function upsertPassiveApplicationFollowUp(
   return action;
 }
 
+function statusFollowUpLabel(status: CareerStatusTarget, job: Pick<JobRecord, 'company' | 'role'>): string | undefined {
+  if (status === 'interview') return `Prepare interview: ${job.role} at ${job.company}`;
+  if (status === 'offer') return `Review offer: ${job.role} at ${job.company}`;
+  return undefined;
+}
+
+function appendPassiveStatusNote(existingNotes: string, evidence: CareerStatusEvidence, statusDate: string): string {
+  if (new RegExp(`Career Radar marked this as ${evidence.targetStatus} on \\d{4}-\\d{2}-\\d{2}\\.`, 'u').test(existingNotes)) {
+    return existingNotes;
+  }
+  const source = `Gmail status update${evidence.thread?.subject ? ` "${evidence.thread.subject}"` : ''}`;
+  return [
+    existingNotes.trim(),
+    `Career Radar marked this as ${evidence.targetStatus} on ${statusDate} from ${source}. Evidence confidence: ${Math.round(
+      evidence.confidence * 100
+    )}%.`
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function upsertPassiveStatusFollowUp(
+  store: MemoryStore,
+  job: JobRecord,
+  targetStatus: CareerStatusTarget,
+  dueAt: string,
+  date: Date
+): CareerActionRecord | undefined {
+  const label = statusFollowUpLabel(targetStatus, job);
+  if (!label) return undefined;
+  const prefix = targetStatus === 'interview' ? 'prepare interview:' : 'review offer:';
+  const now = nowIso(date);
+  const existingIndex = store.careerActions.findIndex(
+    (action) => action.jobId === job.id && !action.completedAt && action.label.toLowerCase().startsWith(prefix)
+  );
+  const existing = existingIndex >= 0 ? store.careerActions[existingIndex] : undefined;
+  const action = careerActionSchema.parse({
+    ...(existing ?? {}),
+    id: existing?.id ?? id('career-action'),
+    workspaceId: job.workspaceId,
+    jobId: job.id,
+    label,
+    dueAt,
+    completedAt: existing?.completedAt,
+    deviceId: 'passive-engine',
+    updatedAt: now
+  });
+  if (existingIndex >= 0) {
+    store.careerActions[existingIndex] = action;
+  } else {
+    store.careerActions.push(action);
+  }
+  appendSyncEvent(store, {
+    workspaceId: action.workspaceId,
+    entityType: 'career_action',
+    entityId: action.id,
+    operation: existingIndex >= 0 ? 'update' : 'insert',
+    payload: existing ? withBeforeSnapshot(action, existing, 'passive-career-status-follow-up') : action,
+    deviceId: action.deviceId
+  });
+  return action;
+}
+
 function promoteCareerApplicationEvidence(
   store: MemoryStore,
   evidence: CareerApplicationEvidence,
@@ -4627,6 +4799,73 @@ function promoteCareerApplicationEvidence(
     })
   });
   return { job: updated, before, followUpAction, evidence };
+}
+
+function promoteCareerStatusEvidence(
+  store: MemoryStore,
+  evidence: CareerStatusEvidence,
+  runId: string,
+  date = new Date()
+): CareerStatusAutoUpdate | null {
+  const index = store.jobs.findIndex((job) => job.id === evidence.job.id);
+  const before = index >= 0 ? store.jobs[index] : undefined;
+  if (!before || !careerStatusTransitionAllowed(before.status, evidence.targetStatus)) return null;
+  const statusDate = dateInputFromEvidence(evidence.occurredAt, date);
+  const followUpDate =
+    evidence.targetStatus === 'interview'
+      ? addDaysToDateInput(statusDate, 3)
+      : evidence.targetStatus === 'offer'
+        ? addDaysToDateInput(statusDate, 2)
+        : undefined;
+  const updated = jobSchema.parse({
+    ...before,
+    status: evidence.targetStatus,
+    nextActionAt: followUpDate,
+    notes: appendPassiveStatusNote(before.notes, evidence, statusDate),
+    deviceId: 'passive-engine',
+    updatedAt: nowIso(date)
+  });
+  store.jobs[index] = updated;
+  appendSyncEvent(store, {
+    workspaceId: updated.workspaceId,
+    entityType: 'job',
+    entityId: updated.id,
+    operation: 'update',
+    payload: withBeforeSnapshot(updated, before, 'passive-career-status-update'),
+    deviceId: updated.deviceId
+  });
+  const followUpAction = followUpDate ? upsertPassiveStatusFollowUp(store, updated, evidence.targetStatus, followUpDate, date) : undefined;
+  appendActionLedgerEvent(store, {
+    system: 'mini-hub',
+    source: 'passive-career-radar',
+    actionType: 'career.auto_status_update',
+    summary: `Marked ${updated.role} at ${updated.company} ${evidence.targetStatus} from Gmail status evidence.`,
+    status: 'succeeded',
+    risk: 'write',
+    changed: [`job:${updated.id}`, ...(followUpAction ? [`career_action:${followUpAction.id}`] : [])],
+    recoverability: {
+      kind: 'snapshot',
+      referenceId: runId,
+      route: routeMap.careerDesk,
+      description: 'The sync event stores a before-snapshot for the job update.',
+      reversible: true
+    },
+    rawRef: compactRecord({
+      runId,
+      jobId: updated.id,
+      gmailThreadId: evidence.thread.id
+    }),
+    metadata: compactRecord({
+      previousStatus: before.status,
+      status: updated.status,
+      confidence: evidence.confidence,
+      matchedOn: evidence.matchedOn,
+      reason: evidence.reason,
+      statusDate,
+      followUpDate
+    })
+  });
+  return { job: updated, before, evidence, ...(followUpAction ? { followUpAction } : {}) };
 }
 
 async function careerApplicationConfirmationCards(
@@ -4774,6 +5013,158 @@ async function careerApplicationConfirmationCards(
   };
 }
 
+async function careerStatusUpdateCards(
+  store: MemoryStore,
+  task: PassiveTask,
+  runId: string
+): Promise<{
+  cards: PassiveResultCard[];
+  matchedCount: number;
+  autoUpdatedCount: number;
+  reviewCount: number;
+  error?: string;
+}> {
+  const connections = careerMailConnections(store);
+  if (!connections.length) return { cards: [], matchedCount: 0, autoUpdatedCount: 0, reviewCount: 0 };
+  const candidateJobs = statusUpdateCandidateJobs(store);
+  if (!candidateJobs.length) return { cards: [], matchedCount: 0, autoUpdatedCount: 0, reviewCount: 0 };
+  const results = await Promise.allSettled(
+    connections.map((connection) =>
+      new GoogleGmailConnector(store, connection.id).listThreads({
+        q: 'newer_than:45d (interview OR "schedule interview" OR "schedule a call" OR "next round" OR "phone screen" OR "technical screen" OR "offer letter" OR "we would like to offer" OR "not moving forward" OR "not selected" OR "after careful consideration") -category:promotions -category:social',
+        maxResults: 25
+      })
+    )
+  );
+  const threads = results.flatMap((result) => (result.status === 'fulfilled' ? result.value.threads : []));
+  const errors = results
+    .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    .map((result) => describeError(result.reason));
+  const matches: CareerStatusEvidence[] = [];
+  for (const thread of threads) {
+    const evidence = candidateJobs
+      .map((item) => careerMailStatusEvidence(thread, item))
+      .filter((item): item is CareerStatusEvidence => Boolean(item))
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    if (!evidence) continue;
+    if (
+      matches.some(
+        (match) =>
+          match.job.id === evidence.job.id && match.thread.id === evidence.thread.id && match.targetStatus === evidence.targetStatus
+      )
+    ) {
+      continue;
+    }
+    matches.push(evidence);
+  }
+  if (!matches.length) {
+    return {
+      cards: [],
+      matchedCount: 0,
+      autoUpdatedCount: 0,
+      reviewCount: 0,
+      ...(errors[0] ? { error: errors[0] } : {})
+    };
+  }
+  const autoEligible = careerAutoMarkAppliedEnabled(store)
+    ? matches.filter((match) => match.confidence >= careerStatusAutoThreshold(store, match.targetStatus))
+    : [];
+  const updates = autoEligible
+    .map((match) => promoteCareerStatusEvidence(store, match, runId))
+    .filter((item): item is CareerStatusAutoUpdate => Boolean(item));
+  const updatedKeys = new Set(updates.map((item) => `${item.job.id}:${item.evidence.thread.id}:${item.evidence.targetStatus}`));
+  const reviewMatches = matches.filter((match) => !updatedKeys.has(`${match.job.id}:${match.thread.id}:${match.targetStatus}`));
+  const cards: PassiveResultCard[] = [];
+  if (updates.length) {
+    cards.push(
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: `${updates.length} career status update${updates.length === 1 ? '' : 's'} applied from Gmail`,
+        summary: updates
+          .slice(0, 4)
+          .map((update) => `${update.job.company} - ${update.job.role} (${update.before.status} -> ${update.job.status})`)
+          .join('; '),
+        urgency: updates.some((update) => update.job.status === 'offer') ? 88 : updates.some((update) => update.job.status === 'interview') ? 82 : 76,
+        confidence: Math.min(0.99, Math.max(...updates.map((update) => update.evidence.confidence))),
+        route: routeMap.careerDesk,
+        sourceRefs: updates.slice(0, 8).map((update) =>
+          stableSourceRef('record', `${update.job.company} - ${update.job.role}`, {
+            id: update.job.id,
+            route: routeMap.careerDesk,
+            metadata: compactRecord({
+              previousStatus: update.before.status,
+              status: update.job.status,
+              source: update.evidence.source,
+              confidence: update.evidence.confidence,
+              matchedOn: update.evidence.matchedOn,
+              gmailThreadId: update.evidence.thread.id,
+              gmailSubject: update.evidence.thread.subject,
+              gmailFrom: update.evidence.thread.from,
+              gmailDate: update.evidence.thread.date,
+              followUpActionId: update.followUpAction?.id,
+              followUpDueAt: update.followUpAction?.dueAt,
+              reason: update.evidence.reason
+            })
+          })
+        ),
+        suggestedAction: 'Review status',
+        actionKind: 'inspect',
+        why: 'Career Radar found high-confidence Gmail status evidence for matching Career Desk records and updated the job pipeline with a synced audit trail.'
+      })
+    );
+  }
+  if (reviewMatches.length) {
+    cards.push(
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: `${reviewMatches.length} likely career status update${reviewMatches.length === 1 ? '' : 's'} need review`,
+        summary: reviewMatches
+          .slice(0, 4)
+          .map((match) => `${match.job.company} - ${match.job.role} (${match.job.status} -> ${match.targetStatus})`)
+          .join('; '),
+        urgency: reviewMatches.some((match) => match.targetStatus === 'offer') ? 86 : 78,
+        confidence: Math.max(...reviewMatches.map((match) => match.confidence)),
+        route: routeMap.careerDesk,
+        sourceRefs: reviewMatches.slice(0, 8).map((match) =>
+          stableSourceRef('record', `${match.job.company} - ${match.job.role}`, {
+            id: match.job.id,
+            route: routeMap.careerDesk,
+            metadata: compactRecord({
+              status: match.job.status,
+              targetStatus: match.targetStatus,
+              source: match.source,
+              confidence: match.confidence,
+              threshold: careerStatusAutoThreshold(store, match.targetStatus),
+              matchedOn: match.matchedOn,
+              gmailThreadId: match.thread.id,
+              gmailSubject: match.thread.subject,
+              gmailFrom: match.thread.from,
+              gmailDate: match.thread.date,
+              reason: match.reason
+            })
+          })
+        ),
+        suggestedAction: 'Review status',
+        actionKind: 'inspect',
+        why: 'Gmail returned possible interview, offer, or rejection evidence, but the match stayed below the auto-update threshold or needed human review.'
+      })
+    );
+  }
+  return {
+    matchedCount: matches.length,
+    autoUpdatedCount: updates.length,
+    reviewCount: reviewMatches.length,
+    ...(errors[0] ? { error: errors[0] } : {}),
+    cards
+  };
+}
+
 async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): Promise<FamilyRunResult> {
   const now = Date.now();
   const soonMs = now + 14 * dayMs;
@@ -4824,6 +5215,7 @@ async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: stri
     );
   }
   const mailConfirmations = await careerApplicationConfirmationCards(store, task, runId);
+  const mailStatusUpdates = await careerStatusUpdateCards(store, task, runId);
   const overdueActions = store.careerActions.filter((item) => !item.completedAt && item.dueAt && parseTime(item.dueAt) <= now);
   const dueActions = store.careerActions.filter((item) => !item.completedAt && item.dueAt && parseTime(item.dueAt) > now && parseTime(item.dueAt) <= soonMs);
   const leadJobs = store.jobs.filter((job) => {
@@ -4943,6 +5335,7 @@ async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: stri
   }
 
   cards.push(...mailConfirmations.cards);
+  cards.push(...mailStatusUpdates.cards);
 
   if (!cards.length) {
     cards.push(
@@ -4975,8 +5368,12 @@ async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: stri
       gmailApplicationConfirmations: mailConfirmations.matchedCount,
       gmailAutoMarkedApplied: mailConfirmations.autoAppliedCount,
       gmailApplicationConfirmationsNeedingReview: mailConfirmations.reviewCount,
+      gmailCareerStatusUpdates: mailStatusUpdates.matchedCount,
+      gmailCareerStatusAutoUpdated: mailStatusUpdates.autoUpdatedCount,
+      gmailCareerStatusUpdatesNeedingReview: mailStatusUpdates.reviewCount,
       completedApplyActionAutoMarkedApplied: completedActionUpdates.length,
-      ...(mailConfirmations.error ? { gmailApplicationConfirmationError: mailConfirmations.error } : {})
+      ...(mailConfirmations.error ? { gmailApplicationConfirmationError: mailConfirmations.error } : {}),
+      ...(mailStatusUpdates.error ? { gmailCareerStatusUpdateError: mailStatusUpdates.error } : {})
     }
   };
 }

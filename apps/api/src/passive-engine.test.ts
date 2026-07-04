@@ -2430,6 +2430,222 @@ describe('passive task engine', () => {
     }
   });
 
+  it('auto-updates high-confidence Gmail interview status and creates a prep action', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-gmail-interview',
+      workspaceId: personalWorkspaceId,
+      company: 'Acme',
+      role: 'Data Analyst',
+      status: 'applied',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    store.integrationConnections.set('google-personal', {
+      id: 'google-personal',
+      workspaceId: personalWorkspaceId,
+      provider: 'google',
+      accountLabel: 'personal@example.com',
+      scopes: ['gmail.modify'],
+      encryptedTokenSet: encryptTokenSet({
+        accessToken: 'test-access-token',
+        expiresAt: '2999-01-01T00:00:00.000Z'
+      }),
+      status: 'connected',
+      createdAt: '2026-06-20T10:00:00.000Z',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    vi.stubGlobal(
+      'fetch',
+      (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/gmail/v1/users/me/threads?')) {
+          return jsonResponse({ threads: [{ id: 'thread-interview' }] });
+        }
+        if (href.includes('/gmail/v1/users/me/threads/thread-interview')) {
+          return jsonResponse({
+            id: 'thread-interview',
+            snippet: 'We would like to schedule an interview for the Data Analyst role at Acme.',
+            messages: [
+              {
+                id: 'message-interview',
+                threadId: 'thread-interview',
+                labelIds: ['INBOX', 'UNREAD'],
+                internalDate: String(Date.parse('2026-06-21T10:00:00.000Z')),
+                snippet: 'We would like to schedule an interview for the Data Analyst role at Acme.',
+                payload: {
+                  mimeType: 'text/plain',
+                  headers: [
+                    { name: 'Subject', value: 'Interview invitation - Acme Data Analyst' },
+                    { name: 'From', value: 'Acme Recruiting <jobs@acme.example>' },
+                    { name: 'Date', value: 'Sun, 21 Jun 2026 10:00:00 -0700' }
+                  ],
+                  body: {
+                    data: base64Url('We would like to schedule an interview for the Data Analyst role at Acme. Please send your availability.')
+                  }
+                }
+              }
+            ]
+          });
+        }
+        return jsonResponse({ ok: true });
+      }) as typeof fetch
+    );
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    try {
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'gmail-interview-status-test' }
+      });
+
+      const statusCard = run.cards.find((card) => card.title === '1 career status update applied from Gmail');
+      expect(run.status).toBe('succeeded');
+      expect(statusCard?.summary).toContain('Acme - Data Analyst (applied -> interview)');
+      expect(statusCard?.sourceRefs[0]).toMatchObject({
+        id: 'job-gmail-interview',
+        route: '/desk/career',
+        metadata: {
+          previousStatus: 'applied',
+          status: 'interview',
+          gmailSubject: 'Interview invitation - Acme Data Analyst',
+          reason: 'Gmail contains interview or scheduling language',
+          followUpDueAt: '2026-06-24'
+        }
+      });
+      expect(store.jobs[0]).toMatchObject({
+        id: 'job-gmail-interview',
+        status: 'interview',
+        nextActionAt: '2026-06-24'
+      });
+      expect(store.jobs[0]?.notes).toContain('Career Radar marked this as interview on 2026-06-21');
+      expect(store.careerActions).toContainEqual(
+        expect.objectContaining({
+          jobId: 'job-gmail-interview',
+          label: 'Prepare interview: Data Analyst at Acme',
+          dueAt: '2026-06-24'
+        })
+      );
+      expect(store.actionEvents).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            source: 'passive-career-radar',
+            actionType: 'career.auto_status_update',
+            risk: 'write'
+          })
+        ])
+      );
+      expect(run.metadata).toMatchObject({
+        gmailCareerStatusUpdates: 1,
+        gmailCareerStatusAutoUpdated: 1,
+        gmailCareerStatusUpdatesNeedingReview: 0
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps ambiguous Gmail rejection status evidence review-only', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-gmail-rejection-review',
+      workspaceId: personalWorkspaceId,
+      company: 'Acme',
+      role: 'Data Analyst',
+      status: 'applied',
+      applicationUrl: '',
+      nextActionAt: '2026-08-01',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    store.integrationConnections.set('google-personal', {
+      id: 'google-personal',
+      workspaceId: personalWorkspaceId,
+      provider: 'google',
+      accountLabel: 'personal@example.com',
+      scopes: ['gmail.modify'],
+      encryptedTokenSet: encryptTokenSet({
+        accessToken: 'test-access-token',
+        expiresAt: '2999-01-01T00:00:00.000Z'
+      }),
+      status: 'connected',
+      createdAt: '2026-06-20T10:00:00.000Z',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    vi.stubGlobal(
+      'fetch',
+      (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/gmail/v1/users/me/threads?')) {
+          return jsonResponse({ threads: [{ id: 'thread-rejection-review' }] });
+        }
+        if (href.includes('/gmail/v1/users/me/threads/thread-rejection-review')) {
+          return jsonResponse({
+            id: 'thread-rejection-review',
+            snippet: 'After careful consideration, Acme analyst recruiting is not moving forward.',
+            messages: [
+              {
+                id: 'message-rejection-review',
+                threadId: 'thread-rejection-review',
+                labelIds: ['INBOX'],
+                internalDate: String(Date.parse('2026-06-21T10:00:00.000Z')),
+                snippet: 'After careful consideration, Acme analyst recruiting is not moving forward.',
+                payload: {
+                  mimeType: 'text/plain',
+                  headers: [
+                    { name: 'Subject', value: 'Update from Acme analyst recruiting' },
+                    { name: 'From', value: 'Acme Recruiting <jobs@acme.example>' },
+                    { name: 'Date', value: 'Sun, 21 Jun 2026 10:00:00 -0700' }
+                  ],
+                  body: {
+                    data: base64Url('After careful consideration, Acme analyst recruiting is not moving forward at this time.')
+                  }
+                }
+              }
+            ]
+          });
+        }
+        return jsonResponse({ ok: true });
+      }) as typeof fetch
+    );
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    try {
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'gmail-rejection-review-test' }
+      });
+
+      const reviewCard = run.cards.find((card) => card.title === '1 likely career status update need review');
+      expect(run.status).toBe('succeeded');
+      expect(reviewCard?.sourceRefs[0]?.metadata).toMatchObject({
+        status: 'applied',
+        targetStatus: 'rejected',
+        confidence: expect.any(Number),
+        threshold: expect.any(Number),
+        reason: 'Gmail contains rejection/no-longer-moving-forward language'
+      });
+      expect(Number(reviewCard?.sourceRefs[0]?.metadata.confidence)).toBeLessThan(
+        Number(reviewCard?.sourceRefs[0]?.metadata.threshold)
+      );
+      expect(store.jobs[0]?.status).toBe('applied');
+      expect(run.metadata).toMatchObject({
+        gmailCareerStatusUpdates: 1,
+        gmailCareerStatusAutoUpdated: 0,
+        gmailCareerStatusUpdatesNeedingReview: 1
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('auto-marks saved leads from completed apply actions', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);

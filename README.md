@@ -183,7 +183,7 @@ without kicking every local API or desktop service just because the sidebar is v
   status updates that create a 14-day follow-up action, Gmail update matching for submitted
   applications, action items, synced Career Discovery profile filters for routine passive
   role research with focused/broad/max intensity, high-confidence passive Gmail/completed-action
-  application confirmation updates, source-backed discovered lead import with fit scores,
+  application confirmation and career-status updates, source-backed discovered lead import with fit scores,
   quick save/watch/not-fit review actions, an automation status panel for Career Radar and
   Discovery runs, and legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
@@ -381,7 +381,11 @@ real-data only:
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. High-confidence Gmail confirmations and completed linked apply/submit actions
   can auto-promote saved leads to `applied`, add a 14-day follow-up action, write sync events,
-  and emit a passive result card explaining the evidence; weaker mail matches stay review-only.
+  and emit a passive result card explaining the evidence. Career Radar also scans recent Gmail
+  interview, offer, and rejection signals: strong interview/offer matches can advance the job
+  pipeline and create a prep/review action, while ambiguous or sensitive matches, especially
+  lower-confidence rejection evidence, stay review-only. Every automatic status update writes
+  a before-snapshot sync event and Action Ledger entry.
 - Local File Intelligence scans only configured watched folders for recent document,
   note/data, and image metadata; text-like files get bounded previews, suggested tags,
   cleanup hints, and optional AI OS semantic-memory indexing from debounced folder events

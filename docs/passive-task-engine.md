@@ -226,8 +226,10 @@ normal API startup.
   Evidence above the configured confidence threshold can auto-mark the job `applied`, create
   or update the 14-day follow-up action, append synced before-snapshot events, and write an
   Action Ledger entry. Completed linked Career actions that look like apply/submit actions
-  can do the same. Lower-confidence mail remains review-only and points back to the row-level
-  Mark applied action instead of silently changing job status.
+  can do the same. It also checks recent Gmail interview, offer, and rejection signals against
+  active Career Desk rows. High-confidence interview/offer evidence can advance the pipeline
+  and create a prep/review action; ambiguous matches and lower-confidence rejection evidence
+  remain review-only instead of silently changing job status.
 - Local File Intelligence: scans only configured watched folders for recent document,
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
   task. It adds bounded text previews for text-like files, source-backed metadata summaries
