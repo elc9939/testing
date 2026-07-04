@@ -978,7 +978,7 @@ function careerDiscoveryIntensity(profile: Record<string, unknown>): 'focused' |
 function careerDiscoveryEntryLimit(profile: Record<string, unknown>, budget: PassiveResourceBudget): number {
   const base = Math.max(1, budget.researchMonitorCreateLimit);
   const intensity = careerDiscoveryIntensity(profile);
-  if (intensity === 'max') return Math.max(base, 16);
+  if (intensity === 'max') return Math.max(base, 24);
   if (intensity === 'broad') return Math.max(base, 8);
   return base;
 }
@@ -1094,10 +1094,31 @@ const careerDiscoverySourceLanes: CareerDiscoverySourceLane[] = [
     instruction: 'Prioritize internships, fellowships, summer analyst roles, and structured student programs that can fit a May/Summer 2027 start.'
   },
   {
+    key: 'application-deadlines-cycles',
+    label: 'application deadlines and recruiting cycles',
+    instruction: 'Prioritize source-backed application windows, deadline pages, campus recruiting timelines, and newly opened 2027 cycles so promising leads are not found too late.'
+  },
+  {
+    key: 'early-career-job-boards',
+    label: 'early-career job boards and source roundups',
+    instruction: 'Use reputable early-career boards and roundups only as discovery indexes; prefer links that resolve to the official employer or ATS application page.'
+  },
+  {
+    key: 'student-program-directories',
+    label: 'student program directories',
+    instruction: 'Prioritize university-facing student program directories, fellowship pages, internship program lists, and employer student-opportunity pages with official source links.'
+  },
+  {
     key: 'data-analytics',
     label: 'data and analytics role boards',
     instruction: 'Prioritize data analyst, analytics engineer, GTM/product analytics, business analytics, and data operations listings that match the profile background.',
     roles: /\b(data|analytics?|analyst|gtm|product)\b/iu
+  },
+  {
+    key: 'data-vendor-startups',
+    label: 'data vendor and GTM analytics startups',
+    instruction: 'Prioritize data vendors, analytics platforms, AI data infrastructure, GTM data, product analytics, and research-operations startups with early-career roles.',
+    roles: /\b(data|analytics?|analyst|gtm|product|startup)\b/iu
   },
   {
     key: 'quant-finance',
@@ -1106,10 +1127,22 @@ const careerDiscoverySourceLanes: CareerDiscoverySourceLane[] = [
     roles: /\b(quant|investment|trading|finance|risk|research)\b/iu
   },
   {
+    key: 'finance-summer-analyst',
+    label: 'finance summer analyst and academy programs',
+    instruction: 'Prioritize Summer 2027 analyst, academy, research, portfolio, risk, and rotational finance programs with undergraduate/upcoming-graduate eligibility.',
+    roles: /\b(quant|investment|trading|finance|risk|research|analyst)\b/iu
+  },
+  {
     key: 'local-ai-technical',
     label: 'AI tooling and technical analyst searches',
     instruction: 'Prioritize AI tooling, machine learning operations, automation, technical analyst, and software-adjacent roles that value local AI or CS project experience.',
     roles: /\b(ai|machine learning|ml|software|automation|technical|engineer|developer|cs)\b/iu
+  },
+  {
+    key: 'ai-research-labs',
+    label: 'AI research labs and applied ML teams',
+    instruction: 'Prioritize applied AI labs, research engineering teams, data/ML evaluation teams, and AI product teams with internships or early-career analyst/technical roles.',
+    roles: /\b(ai|machine learning|ml|software|automation|technical|engineer|developer|cs|data|research)\b/iu
   }
 ];
 
@@ -1121,8 +1154,9 @@ function careerDiscoveryLaneEntries(
   entryLimit: number
 ): PassiveResearchDomainEntry[] {
   if (intensity === 'focused') return [];
-  const roleText = roles.join(' ');
-  const laneLimit = intensity === 'max' ? Math.min(6, Math.max(2, entryLimit - 1)) : Math.min(3, Math.max(1, entryLimit - 2));
+  const profileText = typeof sharedMetadata.profile_background === 'string' ? sharedMetadata.profile_background : '';
+  const roleText = [roles.join(' '), profileText].join(' ');
+  const laneLimit = intensity === 'max' ? Math.min(12, Math.max(4, entryLimit - 4)) : Math.min(5, Math.max(2, entryLimit - 2));
   return careerDiscoverySourceLanes
     .filter((lane) => !lane.roles || lane.roles.test(roleText))
     .slice(0, laneLimit)

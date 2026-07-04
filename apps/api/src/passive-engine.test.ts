@@ -3188,6 +3188,39 @@ describe('passive task engine', () => {
       'This monitor is a source lane for company career pages and ATS postings.'
     );
     expect(String((laneBody?.request as Record<string, unknown> | undefined)?.goal)).toContain('Greenhouse, Lever, Ashby, Workday');
+    const deadlineLaneBody = createdBodies.find(
+      (body) => body.name === 'Passive career discovery: May 2027 / Summer 2027 start application deadlines and recruiting cycles'
+    );
+    expect(deadlineLaneBody).toMatchObject({
+      metadata: {
+        career_discovery: true,
+        discovery_scope: 'source_lane',
+        source_lane: 'application-deadlines-cycles'
+      }
+    });
+    expect(String((deadlineLaneBody?.request as Record<string, unknown> | undefined)?.goal)).toContain('campus recruiting timelines');
+    const studentDirectoryLaneBody = createdBodies.find(
+      (body) => body.name === 'Passive career discovery: May 2027 / Summer 2027 start student program directories'
+    );
+    expect(studentDirectoryLaneBody).toMatchObject({
+      metadata: {
+        career_discovery: true,
+        discovery_scope: 'source_lane',
+        source_lane: 'student-program-directories'
+      }
+    });
+    expect(String((studentDirectoryLaneBody?.request as Record<string, unknown> | undefined)?.goal)).toContain('university-facing student program directories');
+    const aiLabLaneBody = createdBodies.find(
+      (body) => body.name === 'Passive career discovery: May 2027 / Summer 2027 start AI research labs and applied ML teams'
+    );
+    expect(aiLabLaneBody).toMatchObject({
+      metadata: {
+        career_discovery: true,
+        discovery_scope: 'source_lane',
+        source_lane: 'ai-research-labs'
+      }
+    });
+    expect(String((aiLabLaneBody?.request as Record<string, unknown> | undefined)?.goal)).toContain('applied AI labs');
     const priorityCompanyBody = createdBodies.find((body) => body.name === 'Passive career discovery: Clay Labs May 2027 / Summer 2027 start opportunities');
     expect(priorityCompanyBody).toMatchObject({
       metadata: {
@@ -3205,6 +3238,9 @@ describe('passive task engine', () => {
         'May 2027 / Summer 2027 start career discovery',
         'May 2027 / Summer 2027 start Data Analyst roles',
         'May 2027 / Summer 2027 start company career pages and ATS postings',
+        'May 2027 / Summer 2027 start application deadlines and recruiting cycles',
+        'May 2027 / Summer 2027 start student program directories',
+        'May 2027 / Summer 2027 start AI research labs and applied ML teams',
         'Clay Labs May 2027 / Summer 2027 start opportunities',
         'May 2027 / Summer 2027 start Data Analyst roles in New York'
       ]),

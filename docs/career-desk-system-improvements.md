@@ -18,6 +18,7 @@ Make Career Desk better at remembering what it has already found, ranking new le
 - [x] Add bounded Career Discovery filter memory so repeated low-fit/excluded source fingerprints do not resurface every passive sweep.
 - [x] Add structured import metadata for source URL quality, posting date, deadline confidence, graduation-fit/timing confidence, and duplicate status.
 - [x] Add a company watchlist editor so priority companies can be managed without code edits.
+- [x] Expand max-intensity discovery lanes across deadlines/cycles, student programs, early-career indexes, startups, finance programs, and AI research labs.
 - [x] Add a true persisted `seenLeadRegistry` export/import object once scout results are added through an in-app import flow instead of only by seed JSON.
 - [x] Add a weekly strategy review view that summarizes rejections, interviews, stale leads, and role categories.
 

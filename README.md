@@ -366,9 +366,11 @@ real-data only:
   focused to max intensity, creating bounded role/location monitor variants while still
   carrying the May 2027/Summer 2027 start window, background/status fit text, and duplicate
   company exclusions. Broad/max discovery also creates source-lane monitors for direct
-  company/ATS pages, new-grad programs, internships/fellowships, data/analytics searches,
-  quant/finance searches, and local-AI technical searches when those lanes match the saved
-  role profile. A saved priority-company watchlist creates company-specific monitors that
+  company/ATS pages, new-grad programs, internships/fellowships, application-deadline and
+  recruiting-cycle pages, early-career boards used as source indexes, student-program
+  directories, data/analytics searches, data-vendor/startup searches, quant/finance searches,
+  finance summer analyst/academy programs, local-AI technical searches, and AI research lab
+  searches when those lanes match the saved role/background profile. A saved priority-company watchlist creates company-specific monitors that
   search official career pages, ATS postings, student programs, and new-cycle roles while
   still rejecting exact duplicate company-role matches. The monitor metadata also learns from Career Desk review state:
   saved/watching/applied roles become positive ranking hints, while archived/rejected and

@@ -198,10 +198,13 @@ normal API startup.
   from Career Desk add topic monitors for May 2027/Summer 2027-style role discovery, using
   saved target roles, background/status text, preferred locations, and existing companies as
   duplicate/exclusion hints. The profile's focused/broad/max research intensity controls how
-  many bounded discovery monitor variants are prepared; max intensity adds role/location
-  combinations and source-lane monitors for direct company/ATS pages, new-grad programs,
-  internships/fellowships, data/analytics roles, quant/finance searches, and local-AI or
-  technical analyst searches when those lanes match the saved role profile. The editable
+  many bounded discovery monitor variants are prepared; max intensity now raises the bounded
+  monitor target and adds role/location combinations plus source-lane monitors for direct
+  company/ATS pages, new-grad programs, internships/fellowships, application deadlines and
+  recruiting cycles, early-career boards as source indexes, student-program directories,
+  data/analytics roles, data-vendor/startup searches, quant/finance searches, finance summer
+  analyst/academy programs, local-AI technical searches, and AI research labs when those lanes
+  match the saved role/background profile. The editable
   priority-company watchlist adds company-specific monitors for official career pages, ATS
   postings, student programs, and new-cycle roles while still rejecting exact duplicate
   company-role matches. The prompt still
