@@ -1192,6 +1192,9 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('void loadOverview({ background: hydrated })');
     expect(source).toContain('persistProductivityCache()');
     expect(source).toContain('productivityCacheDetail = cacheWarning');
+    expect(source).toContain('productivityApiStatus = canAct ?');
+    expect(source).toContain('productivityLoadedSummary = `${calendars.length} calendar');
+    expect(source).toContain('productivityAdvancedSummary = `${productivityWriteStatus} writes');
     expect(source).toContain('Browser productivity cache is unavailable');
     expect(source).toContain('Browser productivity cache could not be updated');
     expect(source).toContain('No browser cache snapshot yet');
@@ -1201,6 +1204,11 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("'needs reconnect'");
     expect(source).toContain("googleNeedsReconnect ? 'Saved Google Accounts' : 'Connected Google Accounts'");
     expect(source).toContain('{#if cacheWarning}');
+    expect(source).toContain('<span>Live data</span>');
+    expect(source).toContain('<span>Saved context</span>');
+    expect(source).toContain('Connection details');
+    expect(source).toContain('advanced-status-list');
+    expect(source).toContain('advanced-account-list');
     expect(source).toContain('Write Mode');
     expect(source).toContain('Read Mode');
     expect(source).toContain('Checking connections');
@@ -1219,6 +1227,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('disabled={googleConnectionManageDisabled}');
     expect(source).toContain('title={googleConnectionManageDisabled ? googleConnectionManageTitle');
     expect(source).toContain('title={googleConnectDisabled ? googleConnectTitle');
+    expect(source).toContain('{#if !googleConnected || googleNeedsReconnect}');
+    expect(source).not.toContain('class="account-panel"');
     expect(source).toContain('function gmailReadTitle');
     expect(source).toContain('function calendarWindowSummary');
     expect(source).toContain('Checking cached calendar events before live Google refresh.');

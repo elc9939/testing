@@ -267,7 +267,11 @@
     ? `Using Mini Hub API at ${getApiUrl()} for OAuth and writes.`
     : apiChecking
       ? `Checking Mini Hub API at ${getApiUrl()}; cached data stays visible while writes wait.`
-    : `Mini Hub API is unavailable at ${getApiUrl()}; cached data remains read-only.`;
+      : `Mini Hub API is unavailable at ${getApiUrl()}; cached data remains read-only.`;
+  $: productivityApiStatus = canAct ? 'Reachable' : apiChecking ? 'Checking' : 'Offline';
+  $: productivityLoadedSummary = `${calendars.length} calendar${calendars.length === 1 ? '' : 's'} / ${priorityThreads.length} thread${priorityThreads.length === 1 ? '' : 's'}`;
+  $: productivityLoadedDetail = `${timeline.length} unified timeline item${timeline.length === 1 ? '' : 's'} loaded.`;
+  $: productivityAdvancedSummary = `${productivityWriteStatus} writes - ${productivityApiStatus.toLowerCase()} API - ${googleConnections.length || 'no'} Google account${googleConnections.length === 1 ? '' : 's'}`;
   $: productivityApiBannerText = apiChecking
     ? 'Checking the local API and browser cache: cached productivity data can stay visible, and OAuth, Gmail, and Calendar writes will unlock when the API is ready.'
     : 'API unavailable or offline: cached productivity data can stay visible, but OAuth, Gmail, and Calendar writes need the local API.';
@@ -1402,19 +1406,9 @@
 
 <section class="status-strip" aria-label="Productivity status">
   <div>
-    <span>Write Mode</span>
-    <strong>{productivityWriteStatus}</strong>
-    <small>{productivityWriteDetail}</small>
-  </div>
-  <div>
-    <span>Read Mode</span>
+    <span>Live data</span>
     <strong>{productivityReadStatus}</strong>
-    <small>{productivityReadDetail}</small>
-  </div>
-  <div>
-    <span>API</span>
-    <strong>{canAct ? 'Reachable' : apiChecking ? 'Checking' : 'Offline'}</strong>
-    <small>{productivityApiDetail}</small>
+    <small>{productivityLoadedSummary}. {productivityReadDetail}</small>
   </div>
   <div>
     <span>Google</span>
@@ -1422,53 +1416,76 @@
     <small>{productivityConnectionDetail}</small>
   </div>
   <div>
-    <span>Accounts</span>
-    <strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'No Google accounts connected'}</strong>
-    <small>{googleConnected ? googleNeedsReconnect ? 'Reconnect saved accounts to refresh live Gmail and Calendar.' : 'Use Add Google Account for another inbox/calendar.' : 'OAuth setup is required for live data.'}</small>
-  </div>
-  <div>
-    <span>Loaded</span>
-    <strong>{calendars.length} calendars / {priorityThreads.length} threads</strong>
-    <small>{timeline.length} unified timeline item{timeline.length === 1 ? '' : 's'} loaded.</small>
-  </div>
-  <div>
-    <span>Local snapshot</span>
+    <span>Saved context</span>
     <strong>{cacheStatus}</strong>
     <small>{productivityCacheDetail}</small>
   </div>
 </section>
 
-<section class="google-setup-panel" aria-label="Google account setup">
-  <div>
-    <strong>Google account setup</strong>
-    <p>
-      Use Reconnect Google when saved tokens expire. Use Add Google Account once for each account you want
-      Mini Hub to control; the popup stores refreshed OAuth tokens in your local API and returns here automatically.
-    </p>
-  </div>
-  <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
-    <Link size={15} />
-    <span>{googleSetupButtonLabel}</span>
-  </button>
-</section>
-
-{#if googleConnected}
-  <section class="account-panel" aria-label="Connected Google accounts">
-    <div class="account-panel-title">
-      <strong>{googleNeedsReconnect ? 'Saved Google Accounts' : 'Connected Google Accounts'}</strong>
-      <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
-        <Link size={15} />
-        <span>{googleAccountPanelAddLabel}</span>
-      </button>
+{#if !googleConnected || googleNeedsReconnect}
+  <section class="google-setup-panel" aria-label="Google account setup">
+    <div>
+      <strong>Google account setup</strong>
+      <p>
+        Use Reconnect Google when saved tokens expire. Use Add Google Account once for each account you want
+        Mini Hub to control; the popup stores refreshed OAuth tokens in your local API and returns here automatically.
+      </p>
     </div>
-    <div class="account-list">
+    <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
+      <Link size={15} />
+      <span>{googleSetupButtonLabel}</span>
+    </button>
+  </section>
+{/if}
+
+<details class="connector-details productivity-advanced">
+  <summary>
+    <span>Connection details</span>
+    <small>{productivityAdvancedSummary}</small>
+  </summary>
+  <div class="advanced-status-list" aria-label="Advanced productivity connection details">
+    <article>
+      <span>Write Mode</span>
+      <strong>{productivityWriteStatus}</strong>
+      <small>{productivityWriteDetail}</small>
+    </article>
+    <article>
+      <span>Read Mode</span>
+      <strong>{productivityReadStatus}</strong>
+      <small>{productivityReadDetail}</small>
+    </article>
+    <article>
+      <span>API</span>
+      <strong>{productivityApiStatus}</strong>
+      <small>{productivityApiDetail}</small>
+    </article>
+    <article>
+      <span>Accounts</span>
+      <strong>{googleConnections.length ? googleConnections.map((connection) => connection.accountLabel).join(', ') : 'No Google accounts connected'}</strong>
+      <small>{googleConnected ? googleNeedsReconnect ? 'Reconnect saved accounts to refresh live Gmail and Calendar.' : 'Use Add Google Account for another inbox/calendar.' : 'OAuth setup is required for live data.'}</small>
+    </article>
+    <article>
+      <span>Loaded</span>
+      <strong>{productivityLoadedSummary}</strong>
+      <small>{productivityLoadedDetail}</small>
+    </article>
+  </div>
+  {#if googleConnected}
+    <div class="advanced-account-list" aria-label="Connected Google accounts">
+      <div class="advanced-account-title">
+        <strong>{googleNeedsReconnect ? 'Saved Google Accounts' : 'Connected Google Accounts'}</strong>
+        <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectTitle} on:click={() => connectGoogle()}>
+          <Link size={15} />
+          <span>{googleAccountPanelAddLabel}</span>
+        </button>
+      </div>
       {#each googleConnections as connection}
         <article>
           <span>
             <strong>{connection.accountLabel}</strong>
             <small>{googleAccountStatusLabel(connection)}{connection.lastSyncAt ? ` - ${displayTime(connection.lastSyncAt)}` : ''}</small>
           </span>
-          <span class="account-actions">
+          <span class="advanced-account-actions">
             {#if googleNeedsReconnect}
               <button class="button compact" type="button" disabled={googleConnectDisabled} title={googleConnectDisabled ? googleConnectTitle : `Reconnect ${connection.accountLabel} through Google OAuth; the popup will suggest this account when Google allows it.`} on:click={() => connectGoogle(connection)}>
                 <Link size={14} />
@@ -1482,8 +1499,8 @@
         </article>
       {/each}
     </div>
-  </section>
-{/if}
+  {/if}
+</details>
 
 {#if catalog.length}
   <details class="connector-details">
@@ -1979,7 +1996,7 @@
 
   .status-strip {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0;
     margin: 0 0 10px;
     border: 1px solid var(--border);
@@ -2037,15 +2054,52 @@
     line-height: 1.35;
   }
 
-  .account-panel {
-    margin: 0 0 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface);
-    overflow: hidden;
+  .advanced-status-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-top: 1px solid var(--border);
   }
 
-  .account-panel-title {
+  .advanced-status-list article {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 11px;
+    border-right: 1px solid var(--border);
+  }
+
+  .advanced-status-list article:last-child {
+    border-right: 0;
+  }
+
+  .advanced-status-list span,
+  .advanced-account-list small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .advanced-status-list strong,
+  .advanced-status-list small,
+  .advanced-account-list strong,
+  .advanced-account-list small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .advanced-status-list small {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .advanced-account-list {
+    display: grid;
+    border-top: 1px solid var(--border);
+  }
+
+  .advanced-account-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2055,11 +2109,7 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .account-list {
-    display: grid;
-  }
-
-  .account-list article {
+  .advanced-account-list article {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
@@ -2069,28 +2119,17 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .account-list article:last-child {
+  .advanced-account-list article:last-child {
     border-bottom: 0;
   }
 
-  .account-list span {
+  .advanced-account-list span {
     display: grid;
     gap: 2px;
     min-width: 0;
   }
 
-  .account-list strong,
-  .account-list small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .account-list small {
-    color: var(--muted);
-  }
-
-  .account-list .account-actions {
+  .advanced-account-list .advanced-account-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -2098,12 +2137,12 @@
     min-width: fit-content;
   }
 
-  .account-list .account-actions span {
+  .advanced-account-list .advanced-account-actions span {
     display: inline;
     min-width: auto;
   }
 
-  .account-actions .button.compact {
+  .advanced-account-actions .button.compact {
     min-height: 32px;
     padding: 0.32rem 0.55rem;
   }
@@ -2116,8 +2155,18 @@
   }
 
   .connector-details summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     padding: 8px 11px;
     cursor: pointer;
+  }
+
+  .connector-details summary small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .connector-list {
@@ -2573,7 +2622,8 @@
   }
 
   @media (max-width: 1100px) {
-    .status-strip {
+    .status-strip,
+    .advanced-status-list {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
@@ -2584,7 +2634,9 @@
 
   @media (max-width: 760px) {
     .status-strip,
+    .advanced-status-list,
     .google-setup-panel,
+    .advanced-account-list article,
     .connector-list article,
     .calendar-filter-row,
     .table-header,
@@ -2615,6 +2667,19 @@
 
     .status-strip div:last-child {
       border-bottom: 0;
+    }
+
+    .advanced-status-list article {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .advanced-status-list article:last-child {
+      border-bottom: 0;
+    }
+
+    .advanced-account-list .advanced-account-actions {
+      justify-content: flex-start;
     }
   }
 </style>

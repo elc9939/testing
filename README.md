@@ -183,7 +183,8 @@ The Svelte app under `apps/hub` provides these main pages:
   calendar week and selected Gmail thread so route changes and browser refreshes do not
   jump back to the first row. Calendar has both a visual week board and detailed text
   table; priority mail shows summaries with hover/focus quick actions for read/unread,
-  important, and archive.
+  important, and archive. The default header keeps only live data, Google, and saved
+  context status visible; API/write/account diagnostics live under Connection details.
 - Games: new game surfaces plus a link to the legacy arcade.
 - Stick Arena Lab: Pixi/Rapier-style game-engine slice and saved run metadata.
 - Analytics: local dashboard surface over the real Mini Hub browser cache for career,
