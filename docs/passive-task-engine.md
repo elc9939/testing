@@ -229,9 +229,11 @@ normal API startup.
   the ranked panel can keep a candidate as `saved`, move it to `watching`, or archive it as
   not fit while preserving the original source/evidence note, and each row can show source
   quality, timing confidence, deadline confidence, posting date, and review date when the
-  imported discovery metadata is available. A compact Strategy Review panel also rolls the
-  same real jobs/actions into next-focus, stale/quiet-record, submitted/high-fit, interview,
-  offer, rejection, and active role-family summaries. Career Discovery and Career Radar now
+  imported discovery metadata is available. Career Desk also projects the strongest active
+  leads into a ranked Apply Queue using fit score, timing confidence, source quality, status,
+  and review-date urgency, with quick open/save/watch/applied controls. A compact Strategy
+  Review panel also rolls the same real jobs/actions into next-focus, stale/quiet-record,
+  submitted/high-fit, interview, offer, rejection, and active role-family summaries. Career Discovery and Career Radar now
   maintain `preferences.careerSeenLeadRegistry`, a synced compact registry of seen URLs and
   company-role keys. The registry is consulted before imports, so already applied,
   archived, deleted, or passively imported roles can still be rejected as duplicates even

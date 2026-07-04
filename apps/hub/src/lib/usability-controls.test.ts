@@ -1614,6 +1614,14 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('Discovery metadata:');
     expect(career).toContain('timing ${metadata.timingConfidence}');
     expect(career).toContain('deadline ${metadata.deadlineConfidence}');
+    expect(career).toContain('interface ApplyQueueItem');
+    expect(career).toContain('topApplyQueue = applyQueue.slice(0, 6).map(applyQueueItem)');
+    expect(career).toContain('function applyQueueScore');
+    expect(career).toContain('function compareApplyQueueJobs');
+    expect(career).toContain('function applicationAngle');
+    expect(career).toContain('Career apply queue');
+    expect(career).toContain('ranked by fit, timing, source, and urgency');
+    expect(career).toContain('No active leads are ready for the apply queue.');
     expect(career).toContain('function canReviewDiscoveredLead');
     expect(career).toContain('function reviewDiscoveredLead');
     expect(career).toContain("reviewDiscoveredLead(job, 'save')");

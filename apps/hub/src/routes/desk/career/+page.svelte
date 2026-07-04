@@ -115,6 +115,15 @@
     recentLine: string;
   }
 
+  interface ApplyQueueItem {
+    job: JobRecord;
+    score: number;
+    reason: string;
+    angle: string;
+    urgency: string;
+    href: string;
+  }
+
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
   const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
@@ -171,7 +180,8 @@
   $: filteredJobs = jobs.filter(matchesJob).sort(compareCareerJobs);
   $: filteredCareerActions = careerActions.filter(matchesCareerAction);
   $: importedLegacy = (($clientData.settings?.recentState?.legacyImport ?? null) as LegacyImportState | null);
-  $: applyQueue = jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status));
+  $: applyQueue = jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status)).sort(compareApplyQueueJobs);
+  $: topApplyQueue = applyQueue.slice(0, 6).map(applyQueueItem);
   $: activeJobs = jobs.filter((job) => !['rejected', 'archived'].includes(job.status));
   $: openCareerActions = careerActions.filter((action) => !action.completedAt);
   $: dueCareerActions = openCareerActions.filter((action) => action.dueAt);
@@ -758,6 +768,47 @@
     return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
   }
 
+  function applyQueueDueBoost(job: JobRecord): number {
+    const due = Date.parse(job.nextActionAt ?? '');
+    if (!Number.isFinite(due)) return 0;
+    const daysUntil = Math.floor((due - Date.now()) / 86_400_000);
+    if (daysUntil < 0) return 14;
+    if (daysUntil <= 3) return 10;
+    if (daysUntil <= 7) return 6;
+    return 0;
+  }
+
+  function applyQueueSourceBoost(job: JobRecord): number {
+    const metadata = discoveryMetadataFromNotes(job.notes);
+    if (metadata.sourceQuality === 'direct-career-page') return 8;
+    if (metadata.sourceQuality === 'ats-posting') return 6;
+    if (metadata.sourceQuality === 'job-board') return -4;
+    if (metadata.sourceQuality === 'unclear') return -6;
+    return 0;
+  }
+
+  function applyQueueTimingBoost(job: JobRecord): number {
+    const metadata = discoveryMetadataFromNotes(job.notes);
+    if (metadata.timingConfidence === 'high') return 10;
+    if (metadata.timingConfidence === 'medium') return 5;
+    if (metadata.timingConfidence === 'low') return -3;
+    return 0;
+  }
+
+  function applyQueueScore(job: JobRecord): number {
+    const baseFit = typeof job.fitScore === 'number' ? job.fitScore : 50;
+    const statusBoost = job.status === 'saved' ? 8 : job.status === 'watching' ? 4 : 0;
+    const score = baseFit + statusBoost + applyQueueDueBoost(job) + applyQueueSourceBoost(job) + applyQueueTimingBoost(job);
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  function compareApplyQueueJobs(left: JobRecord, right: JobRecord): number {
+    const leftScore = applyQueueScore(left);
+    const rightScore = applyQueueScore(right);
+    if (leftScore !== rightScore) return rightScore - leftScore;
+    return compareCareerJobs(left, right);
+  }
+
   function matchesCareerAction(action: CareerActionRecord): boolean {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
@@ -927,6 +978,57 @@
     return [`Review discovered lead: ${job.role} at ${job.company}.`, quality ? `Discovery signals: ${quality}.` : 'No structured discovery metadata yet.']
       .filter(Boolean)
       .join(' ');
+  }
+
+  function applyQueueUrgency(job: JobRecord): string {
+    const score = applyQueueScore(job);
+    const due = Date.parse(job.nextActionAt ?? '');
+    if (Number.isFinite(due) && due <= Date.now()) return 'due now';
+    if (score >= 90) return 'apply first';
+    if (score >= 82) return 'strong fit';
+    if (job.status === 'watching') return 'watch';
+    return 'review';
+  }
+
+  function applyQueueReason(job: JobRecord): string {
+    const metadata = discoveryMetadataFromNotes(job.notes);
+    const reasons = [
+      typeof job.fitScore === 'number' ? `fit ${job.fitScore}` : 'unranked fit',
+      job.status,
+      metadata.timingConfidence ? `${metadata.timingConfidence} timing` : '',
+      discoveryQualityLabel(metadata.sourceQuality),
+      metadata.deadlineConfidence && metadata.deadlineConfidence !== 'unknown' ? `${metadata.deadlineConfidence} deadline` : '',
+      job.nextActionAt ? `next ${displayDate(job.nextActionAt)}` : ''
+    ].filter(Boolean);
+    return reasons.join(' / ');
+  }
+
+  function applicationAngle(job: JobRecord): string {
+    const text = `${job.role} ${job.notes}`.toLowerCase();
+    if (/\b(quant|trading|investment|finance|risk|portfolio)\b/u.test(text)) {
+      return 'Angle: math, probability, market curiosity, research discipline.';
+    }
+    if (/\b(data|analytics?|analyst|gtm|business intelligence|bi)\b/u.test(text)) {
+      return 'Angle: analytics projects, SQL/Python, experimental thinking, clear business judgment.';
+    }
+    if (/\b(ai|machine learning|ml|software|engineer|developer|automation|technical)\b/u.test(text)) {
+      return 'Angle: local AI systems, automation, full-stack projects, careful technical writing.';
+    }
+    if (/\b(product|operations|strategy)\b/u.test(text)) {
+      return 'Angle: structured problem solving, user empathy, metrics, execution follow-through.';
+    }
+    return 'Angle: connect the role to math/CS coursework, projects, and May 2027 availability.';
+  }
+
+  function applyQueueItem(job: JobRecord): ApplyQueueItem {
+    return {
+      job,
+      score: applyQueueScore(job),
+      reason: applyQueueReason(job),
+      angle: applicationAngle(job),
+      urgency: applyQueueUrgency(job),
+      href: jobApplicationHref(job)
+    };
   }
 
   function canReviewDiscoveredLead(job: JobRecord): boolean {
@@ -1420,6 +1522,59 @@
       <small>Based on active Career Desk rows.</small>
     </div>
   </div>
+</section>
+
+<section class="card apply-queue-panel" aria-label="Career apply queue">
+  <div class="table-section-title">
+    <div>
+      <strong>Apply Queue</strong>
+      <span>{applyQueue.length} lead{applyQueue.length === 1 ? '' : 's'} ranked by fit, timing, source, and urgency</span>
+    </div>
+  </div>
+  {#if topApplyQueue.length}
+    <div class="apply-queue-list">
+      {#each topApplyQueue as item (item.job.id)}
+        <article class="apply-queue-row">
+          <div class="apply-score">
+            <strong>{item.score}</strong>
+            <small>{item.urgency}</small>
+          </div>
+          <div class="apply-main">
+            <div>
+              <strong>{item.job.company}</strong>
+              <span>{item.job.role}</span>
+            </div>
+            <small>{item.reason}</small>
+            <small>{item.angle}</small>
+          </div>
+          <div class="row-actions apply-row-actions">
+            {#if item.href}
+              <a class="row-command" href={item.href} target="_blank" rel="noreferrer" title={`Open application source for ${item.job.role} at ${item.job.company}.`}>
+                <ExternalLink size={14} />
+                <span>Open</span>
+              </a>
+            {/if}
+            {#if canReviewDiscoveredLead(item.job)}
+              <button class="row-command" type="button" disabled={!canReviewDiscoveredLead(item.job)} title={discoveredLeadReviewTitle(careerControlState, item.job, 'save')} on:click={() => reviewDiscoveredLead(item.job, 'save')}>
+                <Save size={14} />
+                <span>Save</span>
+              </button>
+              <button class="row-command" type="button" disabled={!canReviewDiscoveredLead(item.job)} title={discoveredLeadReviewTitle(careerControlState, item.job, 'watch')} on:click={() => reviewDiscoveredLead(item.job, 'watch')}>
+                <Search size={14} />
+                <span>Watch</span>
+              </button>
+            {/if}
+            <button class="row-command" type="button" aria-label={`Mark ${item.job.company} applied`} title={markAppliedTitle(careerControlState, item.job)} disabled={!canMarkJobApplied(item.job)} on:click={() => markJobApplied(item.job)}>
+              <CheckCircle2 size={14} />
+              <span>Applied</span>
+            </button>
+          </div>
+        </article>
+      {/each}
+    </div>
+  {:else}
+    <p class="muted apply-queue-empty">No active leads are ready for the apply queue. Run Career Discovery or add a lead manually.</p>
+  {/if}
 </section>
 
 <section class="card career-automation-panel" aria-label="Career automation status">
@@ -1977,6 +2132,80 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .apply-queue-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .apply-queue-list {
+    display: grid;
+  }
+
+  .apply-queue-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .apply-queue-row:hover {
+    background: var(--active);
+  }
+
+  .apply-score {
+    display: grid;
+    gap: 2px;
+  }
+
+  .apply-score strong {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .apply-score small,
+  .apply-main small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .apply-main {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .apply-main div {
+    display: grid;
+    grid-template-columns: minmax(100px, 0.4fr) minmax(0, 1fr);
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .apply-main strong,
+  .apply-main span,
+  .apply-main small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .apply-main span {
+    color: var(--text-soft);
+    font-weight: 750;
+  }
+
+  .apply-row-actions {
+    justify-content: flex-end;
+  }
+
+  .apply-queue-empty {
+    margin: 0;
+    padding: 12px 14px;
   }
 
   .mail-updates-panel {
@@ -2595,6 +2824,20 @@
     .automation-row,
     .automation-learning {
       grid-template-columns: 1fr;
+    }
+
+    .apply-queue-row {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+
+    .apply-main div {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+
+    .apply-row-actions {
+      justify-content: start;
     }
 
     .automation-row:first-child {

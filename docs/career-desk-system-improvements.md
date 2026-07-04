@@ -13,6 +13,7 @@ Make Career Desk better at remembering what it has already found, ranking new le
 - [x] Add source-quality labels so official/direct leads are distinguished from job-board mirrors or unclear sources.
 - [x] Improve To-do sections so passive "check email/portal" work does not crowd out real actions.
 - [x] Show resume-angle suggestions for strong leads so applications can be tailored faster.
+- [x] Add a ranked Apply Queue so high-fit active leads are separated from the full table with quick open/save/watch/applied controls.
 - [x] Add a compact scout-intelligence panel with counts for high-fit leads, duplicate risks, urgent actions, and stale active rows.
 - [x] Add bounded Career Discovery filter memory so repeated low-fit/excluded source fingerprints do not resurface every passive sweep.
 - [x] Add structured import metadata for source URL quality, posting date, deadline confidence, graduation-fit/timing confidence, and duplicate status.

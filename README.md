@@ -184,7 +184,8 @@ without kicking every local API or desktop service just because the sidebar is v
   applications, action items, synced Career Discovery profile filters for routine passive
   role research with focused/broad/max intensity, high-confidence passive Gmail/completed-action
   application confirmation and career-status updates, source-backed discovered lead import with fit scores,
-  quick save/watch/not-fit review actions, an automation status panel for Career Radar and
+  a ranked Apply Queue with application-angle guidance and quick open/save/watch/applied
+  actions, quick save/watch/not-fit review actions, an automation status panel for Career Radar and
   Discovery runs, a compact Strategy Review panel for pipeline risk, role mix, interviews,
   offers, rejections, and next focus, a synced seen-lead registry for duplicate avoidance
   across manual rows, passive imports, reviews, deletes, and exports, and legacy career data import.
@@ -386,9 +387,12 @@ real-data only:
   existing tasks. It also exposes discovered leads as a ranked panel where each candidate can
   be moved to `saved`, moved to `watching`, or archived as not fit without opening the full
   table row; rows show source quality, timing confidence, deadline confidence, posting date,
-  and review date when the imported discovery metadata is available. A compact Strategy
-  Review panel summarizes the current pipeline from real jobs/actions: next focus, stale or
-  quiet records, submitted/high-fit counts, interview/offer/rejection counts, and active role
+  and review date when the imported discovery metadata is available. A ranked Apply Queue
+  promotes the strongest active leads using stored fit score, timing confidence, source
+  quality, status, and review-date urgency, then shows an application angle plus quick
+  Open, Save, Watch, and Mark Applied controls where allowed. A compact Strategy Review
+  panel summarizes the current pipeline from real jobs/actions: next focus, stale or quiet
+  records, submitted/high-fit counts, interview/offer/rejection counts, and active role
   family mix. Job writes and passive imports also maintain a synced
   `preferences.careerSeenLeadRegistry` object, so future discovery sweeps can reject
   duplicate URLs or company-role matches even if a row was later archived or deleted; the
