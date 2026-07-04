@@ -104,6 +104,15 @@
     duplicateStatus?: string;
   }
 
+  interface CareerStrategySummary {
+    headline: string;
+    nextAction: string;
+    pipelineLine: string;
+    riskLine: string;
+    roleLine: string;
+    recentLine: string;
+  }
+
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
   const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
@@ -166,6 +175,7 @@
   $: dueCareerActions = openCareerActions.filter((action) => action.dueAt);
   $: googleConnected = connections.some((connection) => connection.provider === 'google' && connection.status === 'connected');
   $: submittedJobs = jobs.filter(isSubmittedApplication);
+  $: careerStrategy = buildCareerStrategySummary(jobs, careerActions);
   $: matchedCareerMailUpdates = careerMailUpdates.filter((insight) => isKnownApplicationMail(insight, submittedJobs));
   $: unreadCareerMailUpdates = matchedCareerMailUpdates.filter((insight) => insight.thread.unread);
   $: visibleCareerMailUpdates = (unreadCareerMailUpdates.length ? unreadCareerMailUpdates : matchedCareerMailUpdates).slice(0, 5);
@@ -636,6 +646,77 @@
   function displayUpdated(value: string): string {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  }
+
+  function daysSince(value?: string): number {
+    const parsed = Date.parse(value ?? '');
+    if (!Number.isFinite(parsed)) return Number.POSITIVE_INFINITY;
+    return Math.max(0, Math.floor((Date.now() - parsed) / 86_400_000));
+  }
+
+  function dueOrStale(job: JobRecord, staleDays: number): boolean {
+    const nextAction = Date.parse(job.nextActionAt ?? '');
+    if (Number.isFinite(nextAction)) return nextAction <= Date.now();
+    return daysSince(job.updatedAt) >= staleDays;
+  }
+
+  function roleFamily(role: string): string {
+    const text = role.toLowerCase();
+    if (/\b(quant|trading|investment|finance|risk|portfolio)\b/u.test(text)) return 'Quant/finance';
+    if (/\b(data|analytics?|analyst|gtm|business intelligence|bi)\b/u.test(text)) return 'Data/analytics';
+    if (/\b(ai|machine learning|ml|software|engineer|developer|automation|technical)\b/u.test(text)) return 'Technical/AI';
+    if (/\b(product|operations|strategy)\b/u.test(text)) return 'Product/ops';
+    return 'Other';
+  }
+
+  function topRoleFamilies(records: JobRecord[]): string {
+    const counts = new Map<string, number>();
+    for (const job of records) counts.set(roleFamily(job.role), (counts.get(roleFamily(job.role)) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .slice(0, 3)
+      .map(([label, count]) => `${label} ${count}`)
+      .join(' / ');
+  }
+
+  function plural(count: number, one: string, many = `${one}s`): string {
+    return `${count} ${count === 1 ? one : many}`;
+  }
+
+  function buildCareerStrategySummary(records: JobRecord[], actions: CareerActionRecord[]): CareerStrategySummary {
+    const active = records.filter((job) => !['archived', 'rejected'].includes(job.status));
+    const discovered = records.filter(isDiscoveredCareerLead);
+    const submitted = records.filter(isSubmittedApplication);
+    const interviews = records.filter((job) => job.status === 'interview');
+    const offers = records.filter((job) => job.status === 'offer');
+    const recentRejections = records.filter((job) => job.status === 'rejected' && daysSince(job.updatedAt) <= 30);
+    const staleLeads = records.filter((job) => ['lead', 'saved', 'watching'].includes(job.status) && dueOrStale(job, 21));
+    const quietSubmitted = submitted.filter((job) => ['applied', 'interview', 'offer'].includes(job.status) && dueOrStale(job, job.status === 'applied' ? 14 : 7));
+    const highFitLeads = records.filter((job) => ['lead', 'saved', 'watching'].includes(job.status) && (job.fitScore ?? 0) >= 82);
+    const open = actions.filter((action) => !action.completedAt);
+    const overdueActions = open.filter((action) => {
+      const due = Date.parse(action.dueAt ?? '');
+      return Number.isFinite(due) && due <= Date.now();
+    });
+    const nextAction = overdueActions.length
+      ? `${plural(overdueActions.length, 'overdue action')}`
+      : interviews.length
+        ? `Prep ${plural(interviews.length, 'interview')}`
+        : offers.length
+          ? `Review ${plural(offers.length, 'offer')}`
+          : highFitLeads.length
+            ? `Review ${plural(highFitLeads.length, 'high-fit lead')}`
+            : staleLeads.length || quietSubmitted.length
+              ? 'Refresh stale pipeline'
+              : 'Pipeline steady';
+    return {
+      headline: `${plural(active.length, 'active job')} / ${plural(discovered.length, 'discovered lead')} / ${plural(open.length, 'open action')}`,
+      nextAction,
+      pipelineLine: `${plural(submitted.length, 'submitted application')} / ${plural(highFitLeads.length, 'high-fit lead')}`,
+      riskLine: `${plural(staleLeads.length, 'stale lead')} / ${plural(quietSubmitted.length, 'quiet submitted record')}`,
+      roleLine: topRoleFamilies(active) || 'No active role mix yet',
+      recentLine: `${plural(interviews.length, 'interview')} / ${plural(offers.length, 'offer')} / ${plural(recentRejections.length, 'recent rejection')}`
+    };
   }
 
   function matchesJob(job: JobRecord): boolean {
@@ -1296,6 +1377,32 @@
   <div><span>Dated follow-ups</span><strong>{dueCareerActions.length}</strong></div>
 </section>
 
+<section class="card career-strategy-panel" aria-label="Career strategy review">
+  <div class="table-section-title">
+    <div>
+      <strong>Strategy Review</strong>
+      <span>{careerStrategy.headline}</span>
+    </div>
+  </div>
+  <div class="strategy-grid">
+    <div>
+      <span>Next focus</span>
+      <strong>{careerStrategy.nextAction}</strong>
+      <small>{careerStrategy.riskLine}</small>
+    </div>
+    <div>
+      <span>Pipeline</span>
+      <strong>{careerStrategy.pipelineLine}</strong>
+      <small>{careerStrategy.recentLine}</small>
+    </div>
+    <div>
+      <span>Role mix</span>
+      <strong>{careerStrategy.roleLine}</strong>
+      <small>Based on active Career Desk rows.</small>
+    </div>
+  </div>
+</section>
+
 <section class="card career-automation-panel" aria-label="Career automation status">
   <div class="table-section-title">
     <div>
@@ -1811,6 +1918,45 @@
 
   .focus-strip strong {
     font-size: 18px;
+  }
+
+  .career-strategy-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .career-strategy-panel .table-section-title {
+    align-items: start;
+  }
+
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--border);
+  }
+
+  .strategy-grid div {
+    display: grid;
+    gap: 4px;
+    padding: 10px 14px;
+    border-right: 1px solid var(--border);
+  }
+
+  .strategy-grid div:last-child {
+    border-right: 0;
+  }
+
+  .strategy-grid span,
+  .strategy-grid small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .strategy-grid strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mail-updates-panel {
@@ -2409,16 +2555,19 @@
   @media (max-width: 820px) {
     .table-toolbar,
     .utility-panels,
-    .focus-strip {
+    .focus-strip,
+    .strategy-grid {
       grid-template-columns: 1fr;
     }
 
-    .focus-strip div {
+    .focus-strip div,
+    .strategy-grid div {
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
 
-    .focus-strip div:last-child {
+    .focus-strip div:last-child,
+    .strategy-grid div:last-child {
       border-bottom: 0;
     }
 

@@ -229,7 +229,9 @@ normal API startup.
   the ranked panel can keep a candidate as `saved`, move it to `watching`, or archive it as
   not fit while preserving the original source/evidence note, and each row can show source
   quality, timing confidence, deadline confidence, posting date, and review date when the
-  imported discovery metadata is available.
+  imported discovery metadata is available. A compact Strategy Review panel also rolls the
+  same real jobs/actions into next-focus, stale/quiet-record, submitted/high-fit, interview,
+  offer, rejection, and active role-family summaries.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. Career Desk's quick "mark applied" flow writes both the applied job status
