@@ -199,7 +199,8 @@ The Svelte app under `apps/hub` provides these main pages:
 - Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
 - Passive Tasks: durable background watcher dashboard for app health, backups, idle
   compute, research monitor sweeps, career radar, local file intelligence, and project
-  drift detection.
+  drift detection. The page hydrates from a browser snapshot cache first, then refreshes the
+  live API snapshot in the background so route changes and browser refreshes feel warmer.
 - Settings: service and machine control, capability health, endpoint configuration, theme,
   sync status, Data & Recovery persistence map, passive task preferences, legacy
   import/export, dark mode. Machine Mode now keeps everyday presets visible
@@ -361,7 +362,9 @@ changed findings can resurface. Routine cards age out of Today/passive digest su
 7 days, and urgent cards after 30 days, unless marked important or tied to an unresolved
 failed/blocked run; run history and source rows stay inspectable. Settings controls global
 enablement, notification style, idle preference, resource limit, local/cloud AI preference,
-family enablement, max runs per tick, and watched folders/domains/accounts. Background work avoids destructive changes; file/project scans
+family enablement, max runs per tick, and watched folders/domains/accounts. The dashboard
+keeps notification/resource presets visible and places lower-frequency guardrails, family
+switches, and watched scopes under Advanced options. Background work avoids destructive changes; file/project scans
 respect configured folders only, resource limits clamp research/page/file/TODO scan budgets,
 Machine Modes shape due-work selection, and failures stay visible without creating fake queue
 items. Today can run source-backed passive actions where supported, but those actions respect

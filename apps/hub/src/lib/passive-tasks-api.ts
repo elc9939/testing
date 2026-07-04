@@ -9,8 +9,60 @@ import type {
   PassiveWatcher
 } from '@mini-hub/core';
 import { requestApiJson } from './api';
+import { getBrowserStorage } from './browser-storage';
 
 export type PassiveSettingsPatch = Partial<Omit<PassiveEngineSettings, 'updatedAt'>>;
+
+export const passiveSnapshotCacheKey = 'miniHub.passiveTasks.snapshot.v1';
+
+interface PassiveSnapshotCache {
+  version: 1;
+  cachedAt: string;
+  snapshot: PassiveSnapshot;
+}
+
+function validPassiveSnapshot(value: Partial<PassiveSnapshot> | null | undefined): value is PassiveSnapshot {
+  return Boolean(
+    value &&
+      typeof value.checkedAt === 'string' &&
+      Array.isArray(value.watchers) &&
+      Array.isArray(value.triggers) &&
+      Array.isArray(value.tasks) &&
+      Array.isArray(value.runs) &&
+      Array.isArray(value.results) &&
+      Array.isArray(value.notifications) &&
+      Array.isArray(value.digest) &&
+      Array.isArray(value.sources) &&
+      Array.isArray(value.errors)
+  );
+}
+
+export function readCachedPassiveSnapshot(): { cachedAt: string; snapshot: PassiveSnapshot } | null {
+  const storage = getBrowserStorage();
+  if (!storage) return null;
+  try {
+    const parsed = JSON.parse(storage.getItem(passiveSnapshotCacheKey) ?? 'null') as Partial<PassiveSnapshotCache> | null;
+    if (!parsed || parsed.version !== 1 || typeof parsed.cachedAt !== 'string') return null;
+    if (!validPassiveSnapshot(parsed.snapshot)) return null;
+    return { cachedAt: parsed.cachedAt, snapshot: parsed.snapshot };
+  } catch {
+    return null;
+  }
+}
+
+export function writePassiveSnapshotCache(snapshot: PassiveSnapshot): { cachedAt?: string; error?: string } {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return { error: 'Browser Passive Tasks cache is unavailable; live run history is visible but may not survive refresh.' };
+  }
+  const cachedAt = new Date().toISOString();
+  try {
+    storage.setItem(passiveSnapshotCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies PassiveSnapshotCache));
+    return { cachedAt };
+  } catch {
+    return { error: 'Browser Passive Tasks cache could not be updated; live run history is visible but may not survive refresh.' };
+  }
+}
 
 export function passiveFamilyLabel(family: PassiveTaskFamily): string {
   if (family === 'app_health') return 'App Health';

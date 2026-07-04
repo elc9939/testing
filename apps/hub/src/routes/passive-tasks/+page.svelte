@@ -37,6 +37,7 @@
     passiveTaskActive,
     passiveUrgencyLabel,
     pausePassiveTask,
+    readCachedPassiveSnapshot,
     resumePassiveTask,
     runPassiveEvent,
     runPassiveTask,
@@ -44,7 +45,8 @@
     togglePassiveWatcher,
     topPassiveCards,
     triagePassiveCard,
-    visiblePassiveNotifications
+    visiblePassiveNotifications,
+    writePassiveSnapshotCache
   } from '$lib/passive-tasks-api';
   import { getApiUrl } from '$lib/api';
   import { attentionStore } from '$lib/attention-store';
@@ -62,6 +64,9 @@
 
   let snapshot: PassiveSnapshot | null = null;
   let loading = false;
+  let backgroundRefreshing = false;
+  let cachedAt = '';
+  let cacheWarning = '';
   let serviceError = '';
   let actionError = '';
   let message = '';
@@ -94,10 +99,11 @@
   $: familyRows = buildFamilyRows(snapshot, settings);
   $: passiveServiceReady = Boolean(snapshot && settings && !serviceError);
   $: passiveStateKnown = passiveServiceReady;
-  $: passiveWriteTitle = passiveDisabledReason({ loading, busyId, serviceError, serviceReady: passiveServiceReady });
+  $: passiveInitialLoading = loading && !snapshot;
+  $: passiveWriteTitle = passiveDisabledReason({ loading: passiveInitialLoading, busyId, serviceError, serviceReady: passiveServiceReady });
   $: passiveControlDisabled = Boolean(passiveWriteTitle);
   $: passiveWriteDisabled = passiveControlDisabled;
-  $: passiveRefreshBlockedReason = passiveRefreshDisabledReason({ loading, busyId });
+  $: passiveRefreshBlockedReason = passiveRefreshDisabledReason({ loading: loading || backgroundRefreshing, busyId });
   $: worker = snapshot?.worker ?? null;
   $: backupHealth = snapshot?.backupHealth ?? null;
   $: sourceRows = [...(snapshot?.sources ?? [])].sort(
@@ -142,6 +148,18 @@
 
   function displayWhen(value: string | undefined): string {
     if (!value) return 'Not scheduled';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  }
+
+  function displayShortDate(value: string | undefined): string {
+    if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat(undefined, {
@@ -645,21 +663,45 @@
 
   function syncEditor(next: PassiveSnapshot): void {
     snapshot = next;
-    folderText = next.settings.watchedFolders.join('\n');
-    domainText = next.settings.watchedDomains.join('\n');
-    accountText = next.settings.watchedAccounts.join('\n');
+    folderText = next.settings?.watchedFolders.join('\n') ?? '';
+    domainText = next.settings?.watchedDomains.join('\n') ?? '';
+    accountText = next.settings?.watchedAccounts.join('\n') ?? '';
   }
 
-  async function load(): Promise<void> {
-    loading = true;
-    serviceError = '';
+  function syncLiveSnapshot(next: PassiveSnapshot): void {
+    syncEditor(next);
+    const cacheWrite = writePassiveSnapshotCache(next);
+    if (cacheWrite.cachedAt) {
+      cachedAt = cacheWrite.cachedAt;
+      cacheWarning = '';
+    } else if (cacheWrite.error) {
+      cacheWarning = cacheWrite.error;
+    }
+  }
+
+  function hydratePassiveCache(): boolean {
+    const cached = readCachedPassiveSnapshot();
+    if (!cached) return false;
+    syncEditor(cached.snapshot);
+    cachedAt = cached.cachedAt;
+    cacheWarning = '';
+    return true;
+  }
+
+  async function load(options: { background?: boolean } = {}): Promise<void> {
+    const background = options.background === true && Boolean(snapshot);
+    if (background) backgroundRefreshing = true;
+    else loading = true;
+    if (!background) serviceError = '';
     actionError = '';
     try {
-      syncEditor(await getPassiveSnapshot());
+      syncLiveSnapshot(await getPassiveSnapshot());
+      serviceError = '';
     } catch (err) {
       serviceError = err instanceof Error ? err.message : 'Passive task snapshot failed to load.';
     } finally {
-      loading = false;
+      if (background) backgroundRefreshing = false;
+      else loading = false;
     }
   }
 
@@ -669,7 +711,7 @@
     actionError = '';
     message = '';
     try {
-      syncEditor(await action());
+      syncLiveSnapshot(await action());
       serviceError = '';
       message = success;
       attentionStore.invalidate();
@@ -782,7 +824,8 @@
   }
 
   onMount(() => {
-    void load();
+    const hydrated = hydratePassiveCache();
+    void load({ background: hydrated });
   });
 </script>
 
@@ -794,11 +837,23 @@
   <div>
     <p class="eyebrow">Personal AI OS</p>
     <h1>Passive Tasks</h1>
+    {#if cachedAt || backgroundRefreshing || cacheWarning}
+      <p class="header-substatus">
+        {#if backgroundRefreshing}
+          Showing saved snapshot while live Passive Tasks refreshes.
+        {:else if cachedAt}
+          Saved snapshot {displayShortDate(cachedAt)}.
+        {/if}
+        {#if cacheWarning}
+          {cacheWarning}
+        {/if}
+      </p>
+    {/if}
   </div>
   <div class="header-actions">
-    <button class="button" type="button" disabled={Boolean(passiveRefreshBlockedReason)} title={passiveRefreshBlockedReason || 'Reload the latest Passive Tasks snapshot.'} on:click={load}>
+    <button class="button" type="button" disabled={Boolean(passiveRefreshBlockedReason)} title={passiveRefreshBlockedReason || 'Reload the latest Passive Tasks snapshot.'} on:click={() => load()}>
       <RefreshCw size={16} />
-      <span>{loading ? 'Refreshing' : 'Refresh'}</span>
+      <span>{loading || backgroundRefreshing ? 'Refreshing' : 'Refresh'}</span>
     </button>
     <button class="button" type="button" disabled={passiveWriteDisabled} title={passiveRunDueTitle} on:click={() => applyAction('tick', () => runPassiveTick({ reason: 'manual-dashboard' }), 'Due passive tasks checked.')}>
       <Clock3 size={16} />
@@ -1357,77 +1412,83 @@
               <option value="heavy">Heavy</option>
             </select>
           </label>
-          <label class="check-field">
-            <input
-              type="checkbox"
-              checked={settings.idleOnly}
-              disabled={passiveWriteDisabled}
-              title={passivePreferenceTitle('idle')}
-              on:change={(event) => setIdleOnly(event.currentTarget.checked)}
-            />
-            <span>
-              <strong>Idle-only schedule</strong>
-              <small>Scheduled work waits for an idle tick unless run manually.</small>
-            </span>
-          </label>
-          <label class="field">
-            <span>AI preference</span>
-            <select value={settings.localAiPreference} disabled={passiveWriteDisabled} title={passivePreferenceTitle('ai')} on:change={(event) => setLocalAiPreference(event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed')}>
-              <option value="local_first">Local first</option>
-              <option value="local_only">Local only</option>
-              <option value="cloud_allowed">Cloud allowed</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Max runs per tick</span>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={settings.maxRunsPerTick}
-              disabled={passiveWriteDisabled}
-              title={passivePreferenceTitle('maxRuns')}
-              on:change={(event) => setMaxRunsPerTick(Number(event.currentTarget.value))}
-            />
-          </label>
-          <div class="family-control-grid" aria-label="Passive task family controls">
-            {#each familyRows as family}
-              <label class="family-control-row">
-                <input
-                  type="checkbox"
-                  checked={family.familyEnabled}
-                  disabled={passiveWriteDisabled}
-                  title={passiveFamilyControlTitle(family)}
-                  on:change={(event) => setFamilyEnabled(family.family, event.currentTarget.checked)}
-                />
-                <span>
-                  <strong>{family.label}</strong>
-                  <small>{family.description}</small>
-                  <em>{family.activeTaskCount}/{family.taskCount} runnable - watcher {family.watcherEnabled ? 'on' : 'off'}</em>
-                </span>
-              </label>
-            {/each}
-          </div>
-          <p class="settings-note recovery-note" aria-label="Passive settings recovery">
-            <Activity size={15} />
-            Server-backed scopes reload from the Passive Tasks API. Recent runs, digest cards, and Activity handoffs remain recoverable after route changes.
-          </p>
-          <label class="field">
-            <span>Watched folders</span>
-            <textarea bind:value={folderText} disabled={passiveWriteDisabled} title={passiveScopeTitle('folders')} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
-          </label>
-          <label class="field">
-            <span>Watched research</span>
-            <textarea bind:value={domainText} disabled={passiveWriteDisabled} title={passiveScopeTitle('research')} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
-          </label>
-          <label class="field">
-            <span>Watched accounts</span>
-            <textarea bind:value={accountText} disabled={passiveWriteDisabled} title={passiveScopeTitle('accounts')} rows="3" placeholder="personal@example.com"></textarea>
-          </label>
-          <p class="settings-note">
-            <FolderOpen size={15} />
-            Folder and project scans only use paths listed here.
-          </p>
+          <details class="advanced-passive-settings">
+            <summary>
+              <span>Advanced options</span>
+              <small>Idle guardrails, AI fallback, family switches, and watched scopes</small>
+            </summary>
+            <label class="check-field">
+              <input
+                type="checkbox"
+                checked={settings.idleOnly}
+                disabled={passiveWriteDisabled}
+                title={passivePreferenceTitle('idle')}
+                on:change={(event) => setIdleOnly(event.currentTarget.checked)}
+              />
+              <span>
+                <strong>Idle-only schedule</strong>
+                <small>Scheduled work waits for an idle tick unless run manually.</small>
+              </span>
+            </label>
+            <label class="field">
+              <span>AI preference</span>
+              <select value={settings.localAiPreference} disabled={passiveWriteDisabled} title={passivePreferenceTitle('ai')} on:change={(event) => setLocalAiPreference(event.currentTarget.value as 'local_first' | 'local_only' | 'cloud_allowed')}>
+                <option value="local_first">Local first</option>
+                <option value="local_only">Local only</option>
+                <option value="cloud_allowed">Cloud allowed</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Max runs per tick</span>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={settings.maxRunsPerTick}
+                disabled={passiveWriteDisabled}
+                title={passivePreferenceTitle('maxRuns')}
+                on:change={(event) => setMaxRunsPerTick(Number(event.currentTarget.value))}
+              />
+            </label>
+            <div class="family-control-grid" aria-label="Passive task family controls">
+              {#each familyRows as family}
+                <label class="family-control-row">
+                  <input
+                    type="checkbox"
+                    checked={family.familyEnabled}
+                    disabled={passiveWriteDisabled}
+                    title={passiveFamilyControlTitle(family)}
+                    on:change={(event) => setFamilyEnabled(family.family, event.currentTarget.checked)}
+                  />
+                  <span>
+                    <strong>{family.label}</strong>
+                    <small>{family.description}</small>
+                    <em>{family.activeTaskCount}/{family.taskCount} runnable - watcher {family.watcherEnabled ? 'on' : 'off'}</em>
+                  </span>
+                </label>
+              {/each}
+            </div>
+            <p class="settings-note recovery-note" aria-label="Passive settings recovery">
+              <Activity size={15} />
+              Server-backed scopes reload from the Passive Tasks API. Recent runs, digest cards, and Activity handoffs remain recoverable after route changes.
+            </p>
+            <label class="field">
+              <span>Watched folders</span>
+              <textarea bind:value={folderText} disabled={passiveWriteDisabled} title={passiveScopeTitle('folders')} rows="4" placeholder="C:\Users\Edward\Downloads"></textarea>
+            </label>
+            <label class="field">
+              <span>Watched research</span>
+              <textarea bind:value={domainText} disabled={passiveWriteDisabled} title={passiveScopeTitle('research')} rows="5" placeholder={watchedResearchPlaceholder}></textarea>
+            </label>
+            <label class="field">
+              <span>Watched accounts</span>
+              <textarea bind:value={accountText} disabled={passiveWriteDisabled} title={passiveScopeTitle('accounts')} rows="3" placeholder="personal@example.com"></textarea>
+            </label>
+            <p class="settings-note">
+              <FolderOpen size={15} />
+              Folder and project scans only use paths listed here.
+            </p>
+          </details>
         </div>
       {:else}
         <p class="empty-note">{passivePanelEmptyMessage(snapshot, loading, serviceError, 'Settings load with the passive snapshot.', 'Checking passive settings.')}</p>
@@ -1444,6 +1505,13 @@
   .passive-header h1 {
     font-size: 22px;
     letter-spacing: 0;
+  }
+
+  .header-substatus {
+    margin: 4px 0 0;
+    max-width: 700px;
+    color: var(--muted);
+    font-size: 13px;
   }
 
   .header-actions {
@@ -1781,6 +1849,32 @@
     display: grid;
     gap: 10px;
     padding: 10px;
+  }
+
+  .advanced-passive-settings {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .advanced-passive-settings summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--text);
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .advanced-passive-settings summary small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
   }
 
   .worker-grid {
