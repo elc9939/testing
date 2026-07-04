@@ -52,6 +52,7 @@
     targetStartWindow: string;
     targetRoles: string[];
     locations: string[];
+    priorityCompanies: string[];
     excludeCompanies: string[];
   }
 
@@ -141,6 +142,7 @@
   let careerDiscoveryStartWindow = defaultCareerDiscoveryStartWindow;
   let careerDiscoveryRoles = '';
   let careerDiscoveryLocations = '';
+  let careerDiscoveryPriorityCompanies = '';
   let careerDiscoveryExclusions = '';
   let connections: PublicConnection[] = [];
   let careerMailUpdates: GmailThreadInsight[] = [];
@@ -548,6 +550,7 @@
       targetStartWindow: typeof record.targetStartWindow === 'string' && record.targetStartWindow.trim() ? record.targetStartWindow : defaultCareerDiscoveryStartWindow,
       targetRoles: Array.isArray(record.targetRoles) ? record.targetRoles.map(String).filter(Boolean) : [],
       locations: Array.isArray(record.locations) ? record.locations.map(String).filter(Boolean) : [],
+      priorityCompanies: Array.isArray(record.priorityCompanies) ? record.priorityCompanies.map(String).filter(Boolean) : [],
       excludeCompanies: Array.isArray(record.excludeCompanies) ? record.excludeCompanies.map(String).filter(Boolean) : []
     };
   }
@@ -562,6 +565,7 @@
     careerDiscoveryStartWindow = profile.targetStartWindow;
     careerDiscoveryRoles = profile.targetRoles.join('\n');
     careerDiscoveryLocations = profile.locations.join('\n');
+    careerDiscoveryPriorityCompanies = profile.priorityCompanies.join('\n');
     careerDiscoveryExclusions = profile.excludeCompanies.join('\n');
     careerProfileHydrated = true;
   }
@@ -576,6 +580,7 @@
       targetStartWindow: careerDiscoveryStartWindow.trim() || defaultCareerDiscoveryStartWindow,
       targetRoles: splitListField(careerDiscoveryRoles),
       locations: splitListField(careerDiscoveryLocations),
+      priorityCompanies: splitListField(careerDiscoveryPriorityCompanies),
       excludeCompanies: splitListField(careerDiscoveryExclusions)
     };
   }
@@ -1683,6 +1688,10 @@
       <div class="field">
         <label for="career-locations">Locations / modes</label>
         <textarea id="career-locations" aria-label="Career target locations and work modes" bind:value={careerDiscoveryLocations} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} rows="4" placeholder="New York&#10;Remote&#10;Hybrid"></textarea>
+      </div>
+      <div class="field">
+        <label for="career-priority-companies">Priority companies</label>
+        <textarea id="career-priority-companies" aria-label="Career priority companies" bind:value={careerDiscoveryPriorityCompanies} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} rows="4" placeholder="Companies to watch closely, one per line"></textarea>
       </div>
       <div class="field wide">
         <label for="career-exclusions">Extra exclusions</label>

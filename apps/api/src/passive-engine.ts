@@ -964,6 +964,10 @@ function careerDiscoveryRoleSeeds(store: MemoryStore, profile: Record<string, un
   return Array.from(new Set([...configured, ...fromJobs])).slice(0, limit);
 }
 
+function careerDiscoveryPriorityCompanies(profile: Record<string, unknown>, limit = 8): string[] {
+  return compactTextList(profile.priorityCompanies, limit);
+}
+
 function careerDiscoveryIntensity(profile: Record<string, unknown>): 'focused' | 'broad' | 'max' {
   return profile.researchIntensity === 'max' || profile.researchIntensity === 'broad' || profile.researchIntensity === 'focused'
     ? profile.researchIntensity
@@ -980,7 +984,15 @@ function careerDiscoveryEntryLimit(profile: Record<string, unknown>, budget: Pas
 
 function careerDiscoveryExistingCompanies(store: MemoryStore, profile: Record<string, unknown>, limit = 24): string[] {
   const configured = compactTextList(profile.excludeCompanies, limit);
-  const fromJobs = store.jobs.map((job) => job.company.trim()).filter(Boolean);
+  const configuredKeys = new Set(configured.map(normalizeCompanyKey).filter(Boolean));
+  const priorityKeys = new Set(careerDiscoveryPriorityCompanies(profile, limit).map(normalizeCompanyKey).filter(Boolean));
+  const fromJobs = store.jobs
+    .map((job) => job.company.trim())
+    .filter(Boolean)
+    .filter((company) => {
+      const key = normalizeCompanyKey(company);
+      return !priorityKeys.has(key) || configuredKeys.has(key);
+    });
   return Array.from(new Set([...configured, ...fromJobs])).slice(0, limit);
 }
 
@@ -1123,6 +1135,30 @@ function careerDiscoveryLaneEntries(
     }));
 }
 
+function careerDiscoveryPriorityCompanyEntries(
+  sharedMetadata: Record<string, unknown>,
+  priorityCompanies: string[],
+  targetStartWindow: string,
+  intensity: 'focused' | 'broad' | 'max',
+  entryLimit: number
+): PassiveResearchDomainEntry[] {
+  if (!priorityCompanies.length) return [];
+  const companyLimit = intensity === 'max' ? Math.min(8, Math.max(2, entryLimit - 4)) : intensity === 'broad' ? Math.min(5, Math.max(2, entryLimit - 3)) : Math.min(3, Math.max(1, entryLimit - 2));
+  return priorityCompanies.slice(0, companyLimit).map((company) => ({
+    key: `topic:career-discovery-${slugResearchWatchKey(targetStartWindow)}-priority-company-${slugResearchWatchKey(company)}`,
+    kind: 'company' as const,
+    source: 'career_profile' as const,
+    labels: [`${company} ${targetStartWindow} opportunities`],
+    jobIds: [],
+    urls: [],
+    metadata: {
+      ...sharedMetadata,
+      discovery_scope: 'priority_company',
+      priority_company: company
+    }
+  }));
+}
+
 function careerDiscoveryProfileEntries(
   store: MemoryStore,
   budget = resourceBudget(store.passiveSettings ?? defaultPassiveSettings())
@@ -1140,6 +1176,7 @@ function careerDiscoveryProfileEntries(
   const background = typeof profile.background === 'string' ? profile.background.trim() : '';
   const graduationStatus = typeof profile.graduationStatus === 'string' ? profile.graduationStatus.trim() : '';
   const locations = compactTextList(profile.locations, 8);
+  const priorityCompanies = careerDiscoveryPriorityCompanies(profile, 10);
   const excludedCompanies = careerDiscoveryExistingCompanies(store, profile);
   const feedback = careerDiscoveryFeedbackProfile(store);
   const sharedMetadata = compactRecord({
@@ -1150,6 +1187,7 @@ function careerDiscoveryProfileEntries(
     research_intensity: intensity,
     target_roles: roles,
     locations,
+    priority_companies: priorityCompanies,
     excluded_companies: excludedCompanies,
     existing_company_count: store.jobs.length,
     feedback
@@ -1186,6 +1224,7 @@ function careerDiscoveryProfileEntries(
   }
 
   entries.push(...careerDiscoveryLaneEntries(sharedMetadata, roles, targetStartWindow, intensity, entryLimit));
+  entries.push(...careerDiscoveryPriorityCompanyEntries(sharedMetadata, priorityCompanies, targetStartWindow, intensity, entryLimit));
 
   if (intensity === 'max' && locations.length) {
     for (const role of roles) {
@@ -3405,12 +3444,16 @@ function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
     const avoidedRoleTerms = compactTextList(feedback.avoided_role_terms, 12);
     const sourceLaneLabel = typeof metadata.source_lane_label === 'string' ? metadata.source_lane_label : '';
     const sourceLaneInstruction = typeof metadata.source_lane_instruction === 'string' ? metadata.source_lane_instruction : '';
+    const priorityCompany = typeof metadata.priority_company === 'string' ? metadata.priority_company : '';
     return [
       `Find source-backed career opportunities for ${label}.`,
       `Only prioritize roles that explicitly fit a ${startWindow} timeline, new-grad, early-career, analyst, internship, rotational, or upcoming-graduate style eligibility.`,
       `Research intensity: ${intensity}; prefer breadth only when each result still passes the fit and novelty filters.`,
       sourceLaneLabel ? `This monitor is a source lane for ${sourceLaneLabel}.` : '',
       sourceLaneInstruction ? `Source lane instruction: ${sourceLaneInstruction}` : '',
+      priorityCompany
+        ? `Priority company focus: search ${priorityCompany} official career pages, ATS postings, student programs, and new-cycle roles; reject exact duplicate company-role matches already tracked.`
+        : '',
       roles.length ? `Target role families: ${roles.join('; ')}.` : '',
       locations.length ? `Preferred locations/work modes: ${locations.join('; ')}.` : '',
       background ? `Candidate background filter: ${background}.` : '',

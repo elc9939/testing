@@ -201,7 +201,10 @@ normal API startup.
   many bounded discovery monitor variants are prepared; max intensity adds role/location
   combinations and source-lane monitors for direct company/ATS pages, new-grad programs,
   internships/fellowships, data/analytics roles, quant/finance searches, and local-AI or
-  technical analyst searches when those lanes match the saved role profile. The prompt still
+  technical analyst searches when those lanes match the saved role profile. The editable
+  priority-company watchlist adds company-specific monitors for official career pages, ATS
+  postings, student programs, and new-cycle roles while still rejecting exact duplicate
+  company-role matches. The prompt still
   rejects senior-only, closed, vague, duplicate, or unsourced roles. Discovery monitors also
   carry a compact feedback profile learned from
   Career Desk state: saved/watching/applied/interview roles become positive role-signal

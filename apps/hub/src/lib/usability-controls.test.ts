@@ -1647,6 +1647,10 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('researchIntensity');
     expect(career).toContain('careerDiscoveryResearchIntensity');
     expect(career).toContain('Career discovery research intensity');
+    expect(career).toContain('priorityCompanies');
+    expect(career).toContain('careerDiscoveryPriorityCompanies');
+    expect(career).toContain('Career priority companies');
+    expect(career).toContain('Companies to watch closely, one per line');
     expect(career).toContain('<option value="max">Max</option>');
     expect(career).toContain('Mark this job as applied and create a 14-day follow-up action.');
     expect(career).toContain('Follow up on application: ${job.role} at ${job.company}');

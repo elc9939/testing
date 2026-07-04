@@ -16,9 +16,9 @@ Make Career Desk better at remembering what it has already found, ranking new le
 - [x] Add a compact scout-intelligence panel with counts for high-fit leads, duplicate risks, urgent actions, and stale active rows.
 - [x] Add bounded Career Discovery filter memory so repeated low-fit/excluded source fingerprints do not resurface every passive sweep.
 - [x] Add structured import metadata for source URL quality, posting date, deadline confidence, graduation-fit/timing confidence, and duplicate status.
+- [x] Add a company watchlist editor so priority companies can be managed without code edits.
 - [ ] Add a true persisted `seenLeadRegistry` export/import object once scout results are added through an in-app import flow instead of only by seed JSON.
 - [ ] Add a weekly strategy review view that summarizes rejections, interviews, stale leads, and role categories.
-- [ ] Add a company watchlist editor so priority companies can be managed without code edits.
 
 ## Current Approach
 The first pass intentionally uses computed metadata. Existing jobs are not migrated, and localStorage entries are not rewritten until the user edits or marks them. This keeps the tracker low-risk while making the UI smarter immediately.

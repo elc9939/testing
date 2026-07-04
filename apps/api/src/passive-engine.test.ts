@@ -3059,6 +3059,7 @@ describe('passive task engine', () => {
           targetStartWindow: 'May 2027 / Summer 2027 start',
           targetRoles: ['Data Analyst', 'Quant Research Intern'],
           locations: ['New York', 'Remote'],
+          priorityCompanies: ['Clay Labs', 'FieldAI'],
           excludeCompanies: ['Old Applied Co']
         }
       },
@@ -3161,11 +3162,12 @@ describe('passive task engine', () => {
       include_domains: [],
       use_ai: true,
       use_cloud_ai: true,
-      metadata: {
-        career_discovery: true,
-        locations: ['New York', 'Remote'],
-        excluded_companies: expect.arrayContaining(['Old Applied Co', 'Pipeline Co', 'No Fit Co']),
-        feedback: {
+        metadata: {
+          career_discovery: true,
+          locations: ['New York', 'Remote'],
+          priority_companies: ['Clay Labs', 'FieldAI'],
+          excluded_companies: expect.arrayContaining(['Old Applied Co', 'Pipeline Co', 'No Fit Co']),
+          feedback: {
           positive_review_count: 1,
           negative_review_count: 1,
           preferred_role_terms: ['data'],
@@ -3186,13 +3188,27 @@ describe('passive task engine', () => {
       'This monitor is a source lane for company career pages and ATS postings.'
     );
     expect(String((laneBody?.request as Record<string, unknown> | undefined)?.goal)).toContain('Greenhouse, Lever, Ashby, Workday');
+    const priorityCompanyBody = createdBodies.find((body) => body.name === 'Passive career discovery: Clay Labs May 2027 / Summer 2027 start opportunities');
+    expect(priorityCompanyBody).toMatchObject({
+      metadata: {
+        career_discovery: true,
+        discovery_scope: 'priority_company',
+        priority_company: 'Clay Labs'
+      }
+    });
+    expect(String((priorityCompanyBody?.request as Record<string, unknown> | undefined)?.goal)).toContain(
+      'Priority company focus: search Clay Labs official career pages'
+    );
+    expect(String((priorityCompanyBody?.request as Record<string, unknown> | undefined)?.goal)).toContain('reject exact duplicate company-role matches');
     expect(run.metadata).toMatchObject({
       careerDiscoveryTopics: expect.arrayContaining([
         'May 2027 / Summer 2027 start career discovery',
         'May 2027 / Summer 2027 start Data Analyst roles',
         'May 2027 / Summer 2027 start company career pages and ATS postings',
+        'Clay Labs May 2027 / Summer 2027 start opportunities',
         'May 2027 / Summer 2027 start Data Analyst roles in New York'
-      ])
+      ]),
+      watchedCompanies: expect.arrayContaining(['Clay Labs May 2027 / Summer 2027 start opportunities'])
     });
   });
 
