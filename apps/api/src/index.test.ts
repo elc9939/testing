@@ -394,19 +394,23 @@ describe('mini hub api', () => {
     const response = await app.request('/api/passive-tasks/events/app.startup', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ reason: 'test-startup-event' })
+      body: JSON.stringify({ reason: 'test-startup-event', idle: false, idleMinutes: 0, idleSource: 'browser-focus' })
     });
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
-      runs: Array<{ taskId: string; metadata: { eventName?: string; reason?: string } }>;
-      snapshot: { tasks: Array<{ id: string; trigger: { kind: string; eventName?: string } }> };
+      runs: Array<{ taskId: string; metadata: { eventName?: string; reason?: string; idleSource?: string } }>;
+      snapshot: {
+        tasks: Array<{ id: string; trigger: { kind: string; eventName?: string } }>;
+        worker: { lastIdle?: { idle?: boolean; idleMinutes?: number; source?: string } };
+      };
     };
     expect(body.runs).toHaveLength(1);
     expect(body.runs[0]).toMatchObject({
       taskId: 'passive-task:app-health-startup',
-      metadata: { eventName: 'app.startup', reason: 'test-startup-event' }
+      metadata: { eventName: 'app.startup', reason: 'test-startup-event', idleSource: 'browser-focus' }
     });
+    expect(body.snapshot.worker.lastIdle).toMatchObject({ idle: false, idleMinutes: 0, source: 'browser-focus' });
     expect(body.snapshot.tasks).toContainEqual(
       expect.objectContaining({
         id: 'passive-task:app-health-startup',

@@ -10,6 +10,7 @@ import {
   dismissPassiveNotification,
   duePassiveTasks,
   ensurePassiveDefaults,
+  runPassiveEvent,
   startPassiveTaskWorker,
   runPassiveTask,
   setPassiveWatcherEnabled,
@@ -253,6 +254,59 @@ describe('passive task engine', () => {
     expect(idleFamilies).toContain('research_monitor');
     expect(idleFamilies).toContain('file_intelligence');
     expect(idleFamilies).toContain('project_drift');
+  });
+
+  it('uses browser game activity to keep Auto mode heavy work deferred', async () => {
+    const store = createMemoryStore();
+    const now = new Date('2026-06-20T10:00:00.000Z');
+    ensurePassiveDefaults(store, now);
+    setMachineMode(store, 'auto');
+    store.passiveTasks = store.passiveTasks.map((task) => ({
+      ...task,
+      nextRunAt: '2026-06-20T09:00:00.000Z',
+      trigger: { ...task.trigger, nextRunAt: task.trigger.kind === 'event' ? undefined : '2026-06-20T09:00:00.000Z' }
+    }));
+
+    const runs = await runPassiveEvent(store, 'app.game_active', {
+      externalFetch: healthyServiceFetch(),
+      input: {
+        idle: false,
+        idleMinutes: 0,
+        idleSource: 'hub-route:games',
+        reason: 'route:/games'
+      },
+      limit: 1
+    });
+
+    expect(runs).toHaveLength(1);
+    const run = runs[0]!;
+    expect(run.metadata).toMatchObject({
+      eventName: 'app.game_active',
+      idle: false,
+      idleMinutes: 0,
+      idleSource: 'hub-route:games',
+      reason: 'route:/games'
+    });
+    expect(store.passiveWorker?.lastIdle).toMatchObject({
+      idle: false,
+      idleMinutes: 0,
+      source: 'hub-route:games'
+    });
+
+    const activeFamilies = duePassiveTasks(store, now).map((task) => task.family);
+    expect(activeFamilies).not.toContain('idle_compute');
+    expect(activeFamilies).not.toContain('research_monitor');
+    expect(activeFamilies).not.toContain('file_intelligence');
+    expect(activeFamilies).not.toContain('project_drift');
+
+    const researchSource = buildPassiveSnapshot(store).sources.find((source) => source.id === 'research_monitor')!;
+    expect(researchSource.details).toMatchObject({
+      modePolicy: 'deferred',
+      autoIdle: false,
+      autoActiveUse: true,
+      autoActiveReason: 'game route'
+    });
+    expect(String(researchSource.details.modePolicyReason)).toContain('game route');
   });
 
   it('keeps Auto mode heavy passive work deferred under measured resource pressure', async () => {

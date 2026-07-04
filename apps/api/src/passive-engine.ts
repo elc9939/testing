@@ -179,6 +179,8 @@ interface PassiveResourceDecision {
 interface PassiveModePolicyContext {
   idle?: boolean;
   eventName?: string;
+  activeUse?: boolean;
+  activeReason?: string;
   highPressure?: boolean;
   pressureDrivers?: string[];
   profileFresh?: boolean;
@@ -347,6 +349,7 @@ function resourceBudget(settings: PassiveEngineSettings): PassiveResourceBudget 
 const passiveMachineModes = new Set<PassiveMachineMode>(['auto', 'balanced', 'beast', 'quiet', 'offline', 'night', 'maintenance']);
 const quietDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
 const autoDeferredFamilies = new Set<PassiveTaskFamily>(['idle_compute', 'research_monitor', 'file_intelligence', 'project_drift']);
+const passiveActiveUseEvents = new Set(['app.user_active', 'app.game_active']);
 
 function passiveMachineMode(value: unknown): PassiveMachineMode | null {
   return typeof value === 'string' && passiveMachineModes.has(value as PassiveMachineMode) ? (value as PassiveMachineMode) : null;
@@ -379,6 +382,13 @@ function passiveModePolicy(
   }
 
   if (currentMode === 'auto' && autoDeferredFamilies.has(task.family)) {
+    if (context.activeUse) {
+      return {
+        allowed: false,
+        priorityDelta: 0,
+        reason: `Auto waits while ${context.activeReason ?? 'active hub use'} is detected before running heavier passive work.`
+      };
+    }
     if (context.highPressure) {
       return {
         allowed: false,
@@ -436,8 +446,19 @@ function passiveModePolicyContext(store: MemoryStore, date: Date, input: Passive
   };
   const idle = input.idle ?? store.passiveWorker?.lastIdle?.idle;
   const eventName = input.eventName?.trim();
-  if (idle !== undefined) context.idle = idle;
   if (eventName) context.eventName = eventName;
+  const idleSource = input.idleSource ?? store.passiveWorker?.lastIdle?.source;
+  const activeFromEvent = eventName ? passiveActiveUseEvents.has(eventName) : false;
+  const activeFromIdleSource = idleSource === 'hub-route:games' || idleSource === 'hub-route:active' || idleSource === 'browser-focus';
+  if (activeFromEvent || activeFromIdleSource) {
+    context.activeUse = true;
+    context.activeReason = eventName === 'app.game_active' || idleSource === 'hub-route:games' ? 'game route' : 'hub activity';
+  }
+  if (context.activeUse) {
+    context.idle = false;
+  } else if (idle !== undefined) {
+    context.idle = idle;
+  }
   return context;
 }
 
@@ -464,7 +485,15 @@ const defaultTaskDefinitions: DefaultTaskDefinition[] = [
     triggerKind: 'event',
     triggerLabel: 'Startup event',
     eventName: 'app.startup',
-    eventNames: ['app.startup', 'app.reconnect', 'service.reconnect', 'google.oauth.connected', 'google.oauth.revoked'],
+    eventNames: [
+      'app.startup',
+      'app.reconnect',
+      'app.user_active',
+      'app.game_active',
+      'service.reconnect',
+      'google.oauth.connected',
+      'google.oauth.revoked'
+    ],
     priority: 95,
     route: routeMap.settings
   },
@@ -624,6 +653,34 @@ function idleState(input: Omit<PassiveIdleState, 'checkedAt'> & Partial<Pick<Pas
     ...input,
     checkedAt: input.checkedAt ?? nowIso()
   };
+}
+
+function applyPassiveRunIdleInput(store: MemoryStore, input: PassiveRunInput | undefined, date = new Date()): void {
+  if (
+    !input ||
+    (input.idle === undefined && input.idleMinutes === undefined && !input.idleSource && !input.idleError)
+  ) {
+    return;
+  }
+  const existing = store.passiveWorker?.lastIdle;
+  setPassiveWorkerState(
+    store,
+    {
+      lastIdle: idleState({
+        idle: input.idle ?? existing?.idle ?? false,
+        thresholdMinutes: existing?.thresholdMinutes ?? passiveIdleThresholdMinutes(store),
+        source: input.idleSource ?? existing?.source ?? 'passive-run-input',
+        ...(input.idleMinutes !== undefined
+          ? { idleMinutes: input.idleMinutes }
+          : existing?.idleMinutes !== undefined
+            ? { idleMinutes: existing.idleMinutes }
+            : {}),
+        ...(input.idleError ? { error: input.idleError } : existing?.error ? { error: existing.error } : {}),
+        checkedAt: nowIso(date)
+      })
+    },
+    date
+  );
 }
 
 function parseIdlePayload(value: unknown): { idleMs?: number; source?: string } {
@@ -4759,6 +4816,7 @@ export async function runDuePassiveTasks(
   options: { externalFetch?: FetchLike; input?: PassiveRunInput; limit?: number } = {}
 ): Promise<PassiveRun[]> {
   ensurePassiveDefaults(store);
+  applyPassiveRunIdleInput(store, options.input);
   const limit = options.limit ?? store.passiveSettings?.maxRunsPerTick ?? 3;
   const tasks = duePassiveTasks(store, new Date(), options.input).slice(0, Math.max(1, limit));
   const runs: PassiveRun[] = [];
@@ -5512,6 +5570,8 @@ export function buildPassiveSourceStatuses(store: MemoryStore, backupHealth = bu
         ...(currentMode === 'auto'
           ? {
               autoIdle: policyContext.idle,
+              autoActiveUse: policyContext.activeUse,
+              autoActiveReason: policyContext.activeReason,
               autoProfileFresh: policyContext.profileFresh,
               autoHighPressure: policyContext.highPressure,
               autoPressureDrivers: policyContext.pressureDrivers

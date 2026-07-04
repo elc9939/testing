@@ -105,7 +105,17 @@ export async function patchPassiveSettings(patch: PassiveSettingsPatch): Promise
   return result.snapshot;
 }
 
-export async function runPassiveTick(input: { idle?: boolean; limit?: number; reason?: string; eventName?: string } = {}): Promise<PassiveSnapshot> {
+interface PassiveRunRequestInput {
+  idle?: boolean;
+  idleMinutes?: number;
+  idleSource?: string;
+  idleError?: string;
+  limit?: number;
+  reason?: string;
+  eventName?: string;
+}
+
+export async function runPassiveTick(input: PassiveRunRequestInput = {}): Promise<PassiveSnapshot> {
   const result = await requestApiJson<{ runs: PassiveRun[]; snapshot: PassiveSnapshot }>('/api/passive-tasks/tick', {
     method: 'POST',
     body: JSON.stringify(input)
@@ -115,7 +125,7 @@ export async function runPassiveTick(input: { idle?: boolean; limit?: number; re
 
 export async function runPassiveEvent(
   eventName: string,
-  input: { idle?: boolean; limit?: number; reason?: string } = {}
+  input: Omit<PassiveRunRequestInput, 'eventName'> = {}
 ): Promise<PassiveSnapshot> {
   const result = await requestApiJson<{ runs: PassiveRun[]; snapshot: PassiveSnapshot }>(
     `/api/passive-tasks/events/${encodeURIComponent(eventName)}`,

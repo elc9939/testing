@@ -93,8 +93,12 @@ effective mode that shaped the run.
 
 The API worker emits `app.startup` when it starts. The hub browser shell also emits a
 throttled `app.startup` on open and `app.reconnect` after the browser comes back online.
-Google OAuth connect/revoke flows emit `google.oauth.connected` and `google.oauth.revoked`.
-Those lifecycle events all feed the App Health Watchdog event task.
+The shared layout emits throttled `app.user_active` and `app.game_active` events with
+`idle: false`, `idleMinutes: 0`, and an idle source such as `browser-focus`,
+`hub-route:active`, or `hub-route:games`; Auto mode uses that signal to defer heavier work
+while the user is actively browsing or playing. Google OAuth connect/revoke flows emit
+`google.oauth.connected` and `google.oauth.revoked`. Those lifecycle events all feed the App
+Health Watchdog event task.
 
 The API worker also creates non-recursive file watchers for configured watched folders while
 the engine and Local File Intelligence family are enabled. File changes are debounced into a

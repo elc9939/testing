@@ -307,8 +307,10 @@ manually. Direct "Run now" actions are recorded on separate manual triggers, so 
 do not rewrite the scheduled trigger's last-fired state. If a running passive task is cancelled, the cancelled state is preserved when the
 in-flight run finishes, so the task does not silently resume itself. The API worker emits
 `app.startup` when it starts, the browser shell emits throttled `app.startup`/`app.reconnect`
-events on open and reconnect, and Google OAuth connect/revoke flows emit passive lifecycle
-events. It also watches configured local folders with a debounced `file.changed` event while
+events on open and reconnect, and the shared browser layout emits throttled
+`app.user_active`/`app.game_active` events with active idle metadata as you focus the hub or
+enter game routes. Google OAuth connect/revoke flows emit passive lifecycle events. It also
+watches configured local folders with a debounced `file.changed` event while
 the API is running. `POST /api/passive-tasks/events/:eventName` also ingests named events
 directly, and event-only tasks stay out of ordinary scheduled ticks. V1 task families are
 real-data only:
@@ -423,9 +425,10 @@ links and routes into the panels that can fix or inspect each capability. Settin
 stores Machine Modes v1: Auto, Balanced, Beast, Quiet, Offline, Night Shift, and
 Maintenance. These modes are now enforced by AI OS for routed text calls and queued jobs:
 Offline blocks paid/cloud providers, Quiet and Night Shift avoid paid providers unless
-explicitly selected, and Quiet/Maintenance clamp job concurrency. Auto also uses idle state
-and measured resource pressure to defer heavier passive research, indexing, drift, and idle
-compute work until the machine is available. AI OS also exposes Machine Profile/Autotune v1:
+explicitly selected, and Quiet/Maintenance clamp job concurrency. Auto also uses idle state,
+browser active-use signals, game-route activity, and measured resource pressure to defer
+heavier passive research, indexing, drift, and idle compute work until the machine is
+available. AI OS also exposes Machine Profile/Autotune v1:
 OS, CPU/RAM, GPU/VRAM telemetry when available, provider readiness, loaded models, health,
 benchmark history, snapshots, resource pressure, best measured text route, and suggested
 job concurrency. The assistant, Settings, Today, and AI OS dashboard pass the current mode

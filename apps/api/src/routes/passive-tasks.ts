@@ -37,6 +37,9 @@ const settingsPatchSchema = z.object({
 
 const tickBodySchema = z.object({
   idle: z.boolean().optional(),
+  idleMinutes: z.number().nonnegative().optional(),
+  idleSource: z.string().optional(),
+  idleError: z.string().optional(),
   reason: z.string().optional(),
   eventName: z.string().optional(),
   eventFolder: z.string().optional(),
@@ -87,6 +90,9 @@ function compactSettingsPatch(input: z.infer<typeof settingsPatchSchema>): Passi
 function passiveRunInput(input: TickBody, fallbackReason: string): PassiveRunInput {
   const result: PassiveRunInput = { reason: input.reason ?? fallbackReason };
   if (input.idle !== undefined) result.idle = input.idle;
+  if (input.idleMinutes !== undefined) result.idleMinutes = input.idleMinutes;
+  if (input.idleSource !== undefined) result.idleSource = input.idleSource;
+  if (input.idleError !== undefined) result.idleError = input.idleError;
   if (input.eventName !== undefined) result.eventName = input.eventName;
   if (input.eventFolder !== undefined) result.eventFolder = input.eventFolder;
   if (input.eventFileName !== undefined) result.eventFileName = input.eventFileName;
@@ -147,15 +153,11 @@ export function passiveTaskRoutes(store: MemoryStore, options: PassiveTaskRouteO
     const parsed = tickBodySchema.omit({ eventName: true }).safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
     try {
+      const input = passiveRunInput(parsed.data, `api-event:${parsedEventName.data}`);
       const eventOptions: { externalFetch: FetchLike; input: Omit<PassiveRunInput, 'eventName'>; limit?: number } = {
         externalFetch,
-        input: { reason: parsed.data.reason ?? `api-event:${parsedEventName.data}` }
+        input
       };
-      if (parsed.data.idle !== undefined) eventOptions.input.idle = parsed.data.idle;
-      if (parsed.data.eventFolder !== undefined) eventOptions.input.eventFolder = parsed.data.eventFolder;
-      if (parsed.data.eventFileName !== undefined) eventOptions.input.eventFileName = parsed.data.eventFileName;
-      if (parsed.data.eventFilePath !== undefined) eventOptions.input.eventFilePath = parsed.data.eventFilePath;
-      if (parsed.data.eventKind !== undefined) eventOptions.input.eventKind = parsed.data.eventKind;
       if (parsed.data.limit !== undefined) eventOptions.limit = parsed.data.limit;
       const runs = await runPassiveEvent(store, parsedEventName.data, eventOptions);
       return c.json({ runs, snapshot: buildPassiveSnapshot(store) });

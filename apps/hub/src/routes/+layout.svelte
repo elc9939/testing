@@ -51,6 +51,13 @@
   $: syncPillText = layoutSyncPillText($clientData);
   $: syncPillTitle = layoutSyncPillTitle($clientData);
   const passiveEventThrottlePrefix = 'miniHub.passive.event.v1';
+  const gameRoutePrefix = `${routeMap.games}/`;
+
+  interface PassiveBrowserEventInput {
+    idle?: boolean;
+    idleMinutes?: number;
+    idleSource?: string;
+  }
 
   function layoutSyncPillText(state: ClientDataState): string {
     if (!state.initialized) return 'Opening saved data';
@@ -102,14 +109,28 @@
     }
   }
 
-  function emitPassiveBrowserEvent(eventName: string, reason: string, throttleMinutes: number): void {
+  function emitPassiveBrowserEvent(
+    eventName: string,
+    reason: string,
+    throttleMinutes: number,
+    input: PassiveBrowserEventInput = {}
+  ): void {
     if (typeof window === 'undefined' || !navigator.onLine) return;
     const key = `${passiveEventThrottlePrefix}.${eventName}`;
     const lastRun = readPassiveEventLastRun(key);
     if (Number.isFinite(lastRun) && Date.now() - lastRun < throttleMinutes * 60_000) return;
-    void runPassiveEvent(eventName, { reason, limit: 1 })
+    void runPassiveEvent(eventName, { ...input, reason, limit: 1 })
       .then(() => writePassiveEventLastRun(key))
       .catch(() => undefined);
+  }
+
+  function emitPassiveRouteActivity(route: string): void {
+    const gameRoute = route === routeMap.games || route.startsWith(gameRoutePrefix);
+    emitPassiveBrowserEvent(gameRoute ? 'app.game_active' : 'app.user_active', `route:${route}`, gameRoute ? 5 : 15, {
+      idle: false,
+      idleMinutes: 0,
+      idleSource: gameRoute ? 'hub-route:games' : 'hub-route:active'
+    });
   }
 
   async function retireLegacyRootServiceWorker(): Promise<void> {
@@ -153,12 +174,24 @@
     void clientData.init().then(() => emitPassiveBrowserEvent('app.startup', 'hub-layout-startup', 30));
     void attentionStore.init();
     const handleOnline = () => emitPassiveBrowserEvent('app.reconnect', 'browser-online', 10);
+    const handleFocus = () =>
+      emitPassiveBrowserEvent('app.user_active', 'browser-focus', 15, {
+        idle: false,
+        idleMinutes: 0,
+        idleSource: 'browser-focus'
+      });
+    const unsubscribePageActivity = page.subscribe(($page) => {
+      emitPassiveRouteActivity(hubRouteFromPath($page.url.pathname));
+    });
     window.addEventListener('online', handleOnline);
+    window.addEventListener('focus', handleFocus);
     return () => {
       unsubscribeTheme();
       unsubscribeSystemTheme();
       unsubscribeData();
+      unsubscribePageActivity();
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('focus', handleFocus);
     };
   });
 </script>
