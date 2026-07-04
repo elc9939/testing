@@ -1620,6 +1620,15 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('function saveCareerDiscoveryProfile');
     expect(career).toContain('function currentCareerDiscoveryProfile');
     expect(career).toContain('function suggestedCareerDiscoveryRoles');
+    expect(career).toContain("const careerAutomationFamilies: PassiveTaskFamily[] = ['career_radar', 'research_monitor']");
+    expect(career).toContain('function refreshCareerAutomationSnapshot');
+    expect(career).toContain('function runCareerAutomation');
+    expect(career).toContain('runPassiveAutomationTask(row.taskId');
+    expect(career).toContain('readCachedPassiveSnapshot');
+    expect(career).toContain('writePassiveSnapshotCache');
+    expect(career).toContain('Career Automation');
+    expect(career).toContain('aria-label="Career automation status"');
+    expect(career).toContain('No Career automation cards yet. Run Career Radar or wait for scheduled discovery to create source-backed records.');
     expect(career).toContain('autoMarkAppliedFromEvidence');
     expect(career).toContain('careerAutoMarkAppliedFromEvidence');
     expect(career).toContain('Auto-mark applied when Gmail or completed actions match with high confidence');

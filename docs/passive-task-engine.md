@@ -213,7 +213,9 @@ normal API startup.
   excluded, feedback-penalized, or unsourced candidates are counted in run metadata instead
   of being saved; if a sweep finds candidates but saves none, Passive Tasks emits a durable
   Career Discovery filter-summary card so the run is still visible and recoverable. Career
-  Desk then treats imported rows as reviewable discovered leads:
+  Desk reads the real Passive Tasks snapshot for Career Radar and Career Discovery status,
+  cached fallback, latest run/card summaries, next run times, and manual run buttons for the
+  existing tasks. It then treats imported rows as reviewable discovered leads:
   the ranked panel can keep a candidate as `saved`, move it to `watching`, or archive it as
   not fit while preserving the original source/evidence note.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,

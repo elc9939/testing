@@ -1,10 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { CheckCircle2, Download, Edit3, ExternalLink, Mail, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
-  import type { CareerActionRecord, JobRecord } from '@mini-hub/core';
+  import { CheckCircle2, Download, Edit3, ExternalLink, Mail, Play, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
+  import type { CareerActionRecord, JobRecord, PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { getBrowserStorage } from '$lib/browser-storage';
   import { canAutoSave, clientData } from '$lib/client-data';
+  import {
+    getPassiveSnapshot,
+    passiveTaskActive,
+    readCachedPassiveSnapshot,
+    runPassiveTask as runPassiveAutomationTask,
+    writePassiveSnapshotCache
+  } from '$lib/passive-tasks-api';
   import { getConnections, listPriorityGmailThreads, type GmailThreadInsight, type PublicConnection } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import { compactServiceIssueIfRecognized, compactServiceIssueLine } from '$lib/service-issues';
@@ -64,10 +71,25 @@
     careerProfileSaving: boolean;
   }
 
+  interface CareerAutomationRow {
+    family: PassiveTaskFamily;
+    label: string;
+    taskId: string;
+    active: boolean;
+    taskStatus: string;
+    sourceStatus: string;
+    nextRunAt?: string;
+    lastRunAt?: string;
+    lastRunStatus?: string;
+    summary: string;
+    error: string;
+  }
+
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
   const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
   const defaultCareerDiscoveryStartWindow = 'May 2027 / Summer 2027 start';
+  const careerAutomationFamilies: PassiveTaskFamily[] = ['career_radar', 'research_monitor'];
 
   let summary: LegacyImportSummary | null = null;
   let localDevOrigin = false;
@@ -106,6 +128,11 @@
   let careerMailUpdates: GmailThreadInsight[] = [];
   let mailUpdatesLoading = false;
   let mailUpdatesError = '';
+  let passiveSnapshot: PassiveSnapshot | null = null;
+  let passiveCachedAt = '';
+  let passiveLoading = false;
+  let passiveError = '';
+  let passiveBusyFamily: PassiveTaskFamily | '' = '';
 
   $: canSave = canAutoSave($clientData);
   $: jobs = $clientData.jobs;
@@ -146,6 +173,10 @@
   $: visibleRowError = rowError ? compactCareerDeskIssue(rowError, 'Career Desk row') : '';
   $: visibleCareerDeskError = visibleSaveError || visibleRowError;
   $: rawCareerDeskError = saveError || rowError;
+  $: careerAutomationRows = buildCareerAutomationRows(passiveSnapshot);
+  $: careerAutomationCards = careerAutomationResultCards(passiveSnapshot);
+  $: careerAutomationStatusText = careerAutomationStatus(passiveSnapshot, passiveLoading, passiveError);
+  $: visiblePassiveError = passiveError ? compactCareerDeskIssue(passiveError, 'Career automation') : '';
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
   $: if ($clientData.initialized && !careerProfileHydrated) hydrateCareerDiscoveryProfile($clientData.settings?.preferences?.careerDiscovery);
 
@@ -235,6 +266,121 @@
     if (!text) return '';
     const compact = compactServiceIssueIfRecognized(text, label);
     return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
+  }
+
+  function dateMs(value?: string): number {
+    const parsed = Date.parse(value ?? '');
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+  }
+
+  function displayAutomationTime(value?: string): string {
+    if (!value) return 'Not yet';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  }
+
+  function careerAutomationLabel(family: PassiveTaskFamily): string {
+    return family === 'career_radar' ? 'Career Radar' : 'Career Discovery';
+  }
+
+  function hydratePassiveSnapshotFromCache(): void {
+    const cached = readCachedPassiveSnapshot();
+    if (!cached) return;
+    passiveSnapshot = cached.snapshot;
+    passiveCachedAt = cached.cachedAt;
+  }
+
+  function setPassiveSnapshot(snapshot: PassiveSnapshot): void {
+    passiveSnapshot = snapshot;
+    const cacheResult = writePassiveSnapshotCache(snapshot);
+    passiveCachedAt = cacheResult.cachedAt ?? passiveCachedAt;
+  }
+
+  async function refreshCareerAutomationSnapshot(background = false): Promise<void> {
+    if (passiveLoading) return;
+    passiveLoading = true;
+    if (!background) passiveError = '';
+    try {
+      setPassiveSnapshot(await getPassiveSnapshot());
+      passiveError = '';
+    } catch (error) {
+      passiveError = error instanceof Error ? error.message : 'Career automation status refresh failed';
+    } finally {
+      passiveLoading = false;
+    }
+  }
+
+  function latestPassiveRun(snapshot: PassiveSnapshot | null, family: PassiveTaskFamily): PassiveRun | undefined {
+    return [...(snapshot?.runs ?? [])]
+      .filter((run) => run.family === family)
+      .sort((a, b) => dateMs(b.finishedAt ?? b.startedAt) - dateMs(a.finishedAt ?? a.startedAt))[0];
+  }
+
+  function latestPassiveCard(snapshot: PassiveSnapshot | null, family: PassiveTaskFamily): PassiveResultCard | undefined {
+    return [...(snapshot?.results ?? []), ...(snapshot?.digest ?? [])]
+      .filter((card) => card.family === family)
+      .sort((a, b) => dateMs(b.createdAt) - dateMs(a.createdAt))[0];
+  }
+
+  function buildCareerAutomationRows(snapshot: PassiveSnapshot | null): CareerAutomationRow[] {
+    return careerAutomationFamilies.map((family) => {
+      const task = snapshot?.tasks.find((item) => item.family === family);
+      const watcher = task ? snapshot?.watchers.find((item) => item.id === task.watcherId) : undefined;
+      const source = snapshot?.sources.find((item) => item.id === family);
+      const run = latestPassiveRun(snapshot, family);
+      const card = latestPassiveCard(snapshot, family);
+      return {
+        family,
+        label: careerAutomationLabel(family),
+        taskId: task?.id ?? '',
+        active: Boolean(snapshot && task && passiveTaskActive(task, watcher, snapshot.settings)),
+        taskStatus: task?.status ?? 'missing',
+        sourceStatus: source?.status ?? (snapshot ? 'unavailable' : 'unknown'),
+        nextRunAt: task?.nextRunAt ?? task?.trigger.nextRunAt,
+        lastRunAt: run?.finishedAt ?? run?.startedAt ?? card?.createdAt,
+        lastRunStatus: run?.status,
+        summary: card?.title ?? run?.cards[0]?.title ?? source?.label ?? 'No run history yet',
+        error: source?.error ?? run?.error ?? ''
+      };
+    });
+  }
+
+  function careerAutomationResultCards(snapshot: PassiveSnapshot | null): PassiveResultCard[] {
+    return [...(snapshot?.results ?? []), ...(snapshot?.digest ?? [])]
+      .filter((card) => careerAutomationFamilies.includes(card.family))
+      .sort((a, b) => dateMs(b.createdAt) - dateMs(a.createdAt))
+      .slice(0, 4);
+  }
+
+  function careerAutomationStatus(snapshot: PassiveSnapshot | null, loading: boolean, error: string): string {
+    if (loading && !snapshot) return 'Checking automation';
+    if (error && !snapshot) return 'Needs local service';
+    if (!snapshot) return 'No snapshot loaded';
+    const active = buildCareerAutomationRows(snapshot).filter((row) => row.active).length;
+    return `${active} active / ${careerAutomationFamilies.length} career tasks`;
+  }
+
+  function careerAutomationRunTitle(row: CareerAutomationRow): string {
+    if (passiveBusyFamily === row.family) return `${row.label} is already running.`;
+    if (passiveBusyFamily) return 'Another Career automation task is already running.';
+    if (!row.taskId) return 'Passive Tasks has no saved task id for this Career automation.';
+    if (!row.active) return 'Enable the Passive Tasks engine, watcher, and family before running this task.';
+    return `Run ${row.label} now through the Passive Tasks API.`;
+  }
+
+  async function runCareerAutomation(row: CareerAutomationRow): Promise<void> {
+    if (!row.taskId || !row.active || passiveBusyFamily) return;
+    passiveBusyFamily = row.family;
+    passiveError = '';
+    saveMessage = '';
+    try {
+      setPassiveSnapshot(await runPassiveAutomationTask(row.taskId, { manual: true, reason: `career-desk-${row.family}` }));
+      saveMessage = `${row.label} run finished; Career automation status refreshed.`;
+    } catch (error) {
+      passiveError = error instanceof Error ? error.message : `${row.label} run failed`;
+    } finally {
+      passiveBusyFamily = '';
+    }
   }
 
   function emptyJobDraft(): JobDraft {
@@ -959,9 +1105,11 @@
   onMount(() => {
     localDevOrigin = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
     hydrateCareerViewState();
+    hydratePassiveSnapshotFromCache();
     void clientData.init();
     void refreshSummary();
     void refreshCareerMailUpdates();
+    void refreshCareerAutomationSnapshot(true);
   });
 </script>
 
@@ -1006,6 +1154,55 @@
   <div><span>Discovered leads</span><strong>{discoveredCareerLeads.length}</strong></div>
   <div><span>Open updates</span><strong>{openCareerActions.length + unreadCareerMailUpdates.length}</strong></div>
   <div><span>Dated follow-ups</span><strong>{dueCareerActions.length}</strong></div>
+</section>
+
+<section class="card career-automation-panel" aria-label="Career automation status">
+  <div class="table-section-title">
+    <div>
+      <strong>Career Automation</strong>
+      <span>{careerAutomationStatusText}{passiveCachedAt ? ` - cached ${displayAutomationTime(passiveCachedAt)}` : ''}</span>
+    </div>
+    <button class="row-command" type="button" disabled={passiveLoading || !!passiveBusyFamily} title="Refresh real Passive Tasks status for Career Radar and Career Discovery." on:click={() => refreshCareerAutomationSnapshot()}>
+      <RefreshCw size={14} />
+      <span>{passiveLoading ? 'Checking' : 'Refresh'}</span>
+    </button>
+  </div>
+  {#if passiveError}
+    <p class="muted automation-message" title={`Raw Career automation error: ${passiveError}`}>{visiblePassiveError}</p>
+  {/if}
+  <div class="automation-grid">
+    {#each careerAutomationRows as row}
+      <article class:inactive={!row.active} class="automation-row">
+        <div>
+          <strong>{row.label}</strong>
+          <small>{row.active ? 'Active' : row.taskStatus} - source {row.sourceStatus} - next {displayAutomationTime(row.nextRunAt)}</small>
+          <span>{row.summary}</span>
+          {#if row.error}
+            <small title={`Raw ${row.label} error: ${row.error}`}>{compactCareerDeskIssue(row.error, row.label)}</small>
+          {/if}
+        </div>
+        <div class="automation-actions">
+          <small>{row.lastRunAt ? `${row.lastRunStatus ?? 'run'} ${displayAutomationTime(row.lastRunAt)}` : 'No run yet'}</small>
+          <button class="row-command" type="button" disabled={!row.taskId || !row.active || !!passiveBusyFamily} title={careerAutomationRunTitle(row)} on:click={() => runCareerAutomation(row)}>
+            <Play size={14} />
+            <span>{passiveBusyFamily === row.family ? 'Running' : 'Run'}</span>
+          </button>
+        </div>
+      </article>
+    {/each}
+  </div>
+  {#if careerAutomationCards.length}
+    <div class="automation-card-list" aria-label="Recent Career automation results">
+      {#each careerAutomationCards as card}
+        <a href={hubHref(card.route)} title={card.why || `Open ${card.title}.`}>
+          <strong>{card.title}</strong>
+          <small>{card.summary}</small>
+        </a>
+      {/each}
+    </div>
+  {:else}
+    <p class="muted automation-message">No Career automation cards yet. Run Career Radar or wait for scheduled discovery to create source-backed records.</p>
+  {/if}
 </section>
 
 {#if discoveredCareerLeads.length}
@@ -1464,6 +1661,105 @@
   .mail-updates-panel {
     margin-bottom: 12px;
     overflow: hidden;
+  }
+
+  .career-automation-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .career-automation-panel .table-section-title {
+    align-items: start;
+  }
+
+  .career-automation-panel .table-section-title > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .automation-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-bottom: 1px solid var(--border);
+  }
+
+  .automation-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 11px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .automation-row:first-child {
+    border-right: 1px solid var(--border);
+  }
+
+  .automation-row.inactive {
+    background: var(--surface-muted);
+  }
+
+  .automation-row > div:first-child {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .automation-row strong,
+  .automation-row span,
+  .automation-row small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .automation-row span {
+    color: var(--text);
+    font-weight: 750;
+  }
+
+  .automation-row small,
+  .automation-message,
+  .automation-card-list small {
+    color: var(--muted);
+  }
+
+  .automation-actions {
+    display: grid;
+    justify-items: end;
+    gap: 6px;
+  }
+
+  .automation-card-list {
+    display: grid;
+  }
+
+  .automation-card-list a {
+    display: grid;
+    gap: 3px;
+    padding: 9px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .automation-card-list a:hover {
+    background: var(--active);
+  }
+
+  .automation-card-list strong,
+  .automation-card-list small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .automation-message {
+    margin: 0;
+    padding: 11px 14px;
   }
 
   .discovered-leads-panel {
@@ -1937,6 +2233,19 @@
 
     .focus-strip div:last-child {
       border-bottom: 0;
+    }
+
+    .automation-grid,
+    .automation-row {
+      grid-template-columns: 1fr;
+    }
+
+    .automation-row:first-child {
+      border-right: 0;
+    }
+
+    .automation-actions {
+      justify-items: start;
     }
 
     .mail-update-row {
