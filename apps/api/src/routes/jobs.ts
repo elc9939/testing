@@ -1,6 +1,7 @@
 import { jobSchema } from '@mini-hub/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { upsertCareerSeenLeadRegistry } from '../career-seen-registry';
 import { requireUser, type AppBindings } from '../context';
 import type { MemoryStore } from '../store';
 import { appendSyncEvent, ensurePersonalWorkspace, userWorkspaceIds, withBeforeSnapshot } from '../store';
@@ -19,8 +20,17 @@ const jobBody = z.object({
   updatedAt: z.string().min(1).optional()
 });
 
-const jobPatchBody = jobBody.partial().extend({
-  workspaceId: z.string().min(1).optional()
+const jobPatchBody = z.object({
+  workspaceId: z.string().min(1).optional(),
+  company: z.string().min(1).optional(),
+  role: z.string().min(1).optional(),
+  status: z.string().min(1).optional(),
+  applicationUrl: z.string().max(2048).optional(),
+  fitScore: z.number().min(0).max(100).nullable().optional(),
+  notes: z.string().optional(),
+  nextActionAt: z.string().nullable().optional(),
+  deviceId: z.string().min(1).optional(),
+  updatedAt: z.string().min(1).optional()
 });
 
 export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
@@ -75,6 +85,10 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       payload: existingJob ? withBeforeSnapshot(job, existingJob, 'upsert-existing') : job,
       deviceId: job.deviceId
     });
+    upsertCareerSeenLeadRegistry(store, [job], {
+      deviceId: job.deviceId,
+      reason: existingIndex >= 0 ? 'job-upsert-existing-seen-registry' : 'job-insert-seen-registry'
+    });
     return c.json({ job }, existingIndex >= 0 ? 200 : 201);
   });
 
@@ -116,6 +130,10 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       payload: withBeforeSnapshot(job, existing, 'update'),
       deviceId: job.deviceId
     });
+    upsertCareerSeenLeadRegistry(store, [job], {
+      deviceId: job.deviceId,
+      reason: 'job-update-seen-registry'
+    });
     return c.json({ job });
   });
 
@@ -136,6 +154,11 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       operation: 'delete',
       payload: withBeforeSnapshot({ id: job.id }, job, 'delete'),
       deviceId: 'api'
+    });
+    upsertCareerSeenLeadRegistry(store, [job], {
+      deviceId: 'api',
+      reason: 'job-delete-seen-registry',
+      status: 'deleted'
     });
     return c.json({ ok: true });
   });

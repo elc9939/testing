@@ -1639,6 +1639,9 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('interface CareerDiscoveryLearningSummary');
     expect(career).toContain('function buildCareerDiscoveryLearningSummary');
     expect(career).toContain('careerDiscoveryMemory');
+    expect(career).toContain('careerSeenLeadRegistry');
+    expect(career).toContain('function careerSeenLeadRegistryStats');
+    expect(career).toContain('seen leads /');
     expect(career).toContain('Discovery learning');
     expect(career).toContain('previously filtered');
     expect(career).toContain('autoMarkAppliedFromEvidence');

@@ -62,6 +62,7 @@ import { createHash } from 'node:crypto';
 import { platform } from 'node:os';
 import { promisify } from 'node:util';
 import { env } from './env';
+import { careerSeenLeadKeys, careerSeenLeadRegistry, upsertCareerSeenLeadRegistry } from './career-seen-registry';
 import { GoogleGmailConnector } from './integrations/google';
 import {
   appendActionLedgerEvent,
@@ -993,7 +994,14 @@ function careerDiscoveryExistingCompanies(store: MemoryStore, profile: Record<st
       const key = normalizeCompanyKey(company);
       return !priorityKeys.has(key) || configuredKeys.has(key);
     });
-  return Array.from(new Set([...configured, ...fromJobs])).slice(0, limit);
+  const fromSeenRegistry = careerSeenLeadRegistry(store)
+    .map((entry) => entry.company.trim())
+    .filter(Boolean)
+    .filter((company) => {
+      const key = normalizeCompanyKey(company);
+      return !priorityKeys.has(key) || configuredKeys.has(key);
+    });
+  return Array.from(new Set([...configured, ...fromJobs, ...fromSeenRegistry])).slice(0, limit);
 }
 
 const careerSignalStopTerms = new Set([
@@ -4072,9 +4080,10 @@ function careerLeadFitScore(text: string, metadata: Record<string, unknown>, sou
 }
 
 function existingCareerLeadKeys(store: MemoryStore): { urls: Set<string>; companyRoles: Set<string>; companies: Set<string> } {
-  const urls = new Set<string>();
-  const companyRoles = new Set<string>();
-  const companies = new Set<string>();
+  const registryKeys = careerSeenLeadKeys(store);
+  const urls = new Set<string>(registryKeys.urls);
+  const companyRoles = new Set<string>(registryKeys.companyRoles);
+  const companies = new Set<string>(registryKeys.companies);
   for (const job of store.jobs) {
     if (job.applicationUrl) urls.add(canonicalUrlKey(job.applicationUrl));
     const companyKey = normalizeCompanyKey(job.company);
@@ -4221,6 +4230,14 @@ function importCareerLeadsFromResearchRun(
     });
     createdJobs.push(job);
   }
+  const seenRegistry = createdJobs.length
+    ? upsertCareerSeenLeadRegistry(store, createdJobs, {
+        deviceId: 'passive-engine',
+        reason: 'passive-career-discovery-import-seen-registry',
+        source: 'career-discovery',
+        date
+      })
+    : { changed: 0, total: careerSeenLeadRegistry(store).length };
   if (createdJobs.length) {
     appendActionLedgerEvent(store, {
       system: 'mini-hub',
@@ -4246,6 +4263,7 @@ function importCareerLeadsFromResearchRun(
         imported: createdJobs.length,
         skippedReasons,
         rememberedFilters: filteredForMemory.filter((item) => shouldRememberCareerLeadFilter(item.reason)).length,
+        seenRegistry,
         fitScores: createdJobs.map((job) => job.fitScore).filter((score): score is number => typeof score === 'number')
       }
     });
@@ -4497,6 +4515,7 @@ async function recentResearchMonitorRunCards(
     cards: [...importCards, ...cards],
     changed: [
       ...importedJobs.map((job) => `job:${job.id}`),
+      ...(importedJobs.length ? ['settings:career-seen-lead-registry'] : []),
       ...cards
       .map((item) => item.sourceRefs[0]?.metadata.researchRunId)
       .filter((value): value is string => typeof value === 'string')
@@ -4511,6 +4530,7 @@ async function recentResearchMonitorRunCards(
       skippedCareerLeadCandidates: Object.values(skippedReasons).reduce((total, count) => total + count, 0),
       skippedCareerLeadReasons: skippedReasons,
       rememberedCareerLeadFilters: rememberedFilters,
+      careerSeenLeadRegistrySize: careerSeenLeadRegistry(store).length,
       careerDiscoveryFilterMemorySize: careerDiscoveryFilterMemory(store).length
     }
   };
@@ -5108,6 +5128,12 @@ function promoteCareerApplicationEvidence(
     payload: withBeforeSnapshot(updated, before, 'passive-application-confirmation'),
     deviceId: updated.deviceId
   });
+  upsertCareerSeenLeadRegistry(store, [updated], {
+    deviceId: 'passive-engine',
+    reason: 'passive-application-confirmation-seen-registry',
+    source: 'career-radar',
+    date
+  });
   const followUpAction = upsertPassiveApplicationFollowUp(store, updated, followUpDate, date);
   appendActionLedgerEvent(store, {
     system: 'mini-hub',
@@ -5174,6 +5200,12 @@ function promoteCareerStatusEvidence(
     operation: 'update',
     payload: withBeforeSnapshot(updated, before, 'passive-career-status-update'),
     deviceId: updated.deviceId
+  });
+  upsertCareerSeenLeadRegistry(store, [updated], {
+    deviceId: 'passive-engine',
+    reason: 'passive-career-status-update-seen-registry',
+    source: 'career-radar',
+    date
   });
   const followUpAction = followUpDate ? upsertPassiveStatusFollowUp(store, updated, evidence.targetStatus, followUpDate, date) : undefined;
   appendActionLedgerEvent(store, {

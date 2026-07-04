@@ -231,7 +231,11 @@ normal API startup.
   quality, timing confidence, deadline confidence, posting date, and review date when the
   imported discovery metadata is available. A compact Strategy Review panel also rolls the
   same real jobs/actions into next-focus, stale/quiet-record, submitted/high-fit, interview,
-  offer, rejection, and active role-family summaries.
+  offer, rejection, and active role-family summaries. Career Discovery and Career Radar now
+  maintain `preferences.careerSeenLeadRegistry`, a synced compact registry of seen URLs and
+  company-role keys. The registry is consulted before imports, so already applied,
+  archived, deleted, or passively imported roles can still be rejected as duplicates even
+  when the visible row is no longer active.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. Career Desk's quick "mark applied" flow writes both the applied job status

@@ -186,7 +186,8 @@ without kicking every local API or desktop service just because the sidebar is v
   application confirmation and career-status updates, source-backed discovered lead import with fit scores,
   quick save/watch/not-fit review actions, an automation status panel for Career Radar and
   Discovery runs, a compact Strategy Review panel for pipeline risk, role mix, interviews,
-  offers, rejections, and next focus, and legacy career data import.
+  offers, rejections, and next focus, a synced seen-lead registry for duplicate avoidance
+  across manual rows, passive imports, reviews, deletes, and exports, and legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
   browser-side last-good snapshot so calendar/mail views show cached real data while
@@ -388,7 +389,10 @@ real-data only:
   and review date when the imported discovery metadata is available. A compact Strategy
   Review panel summarizes the current pipeline from real jobs/actions: next focus, stale or
   quiet records, submitted/high-fit counts, interview/offer/rejection counts, and active role
-  family mix.
+  family mix. Job writes and passive imports also maintain a synced
+  `preferences.careerSeenLeadRegistry` object, so future discovery sweeps can reject
+  duplicate URLs or company-role matches even if a row was later archived or deleted; the
+  registry travels with normal settings sync, backup, and export/import data.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. High-confidence Gmail confirmations and completed linked apply/submit actions

@@ -163,7 +163,7 @@ describe('mini hub api', () => {
         exists: true,
         recordCounts: {
           jobs: 1,
-          syncEvents: 1
+          syncEvents: 2
         }
       });
       expect(health.storage.coreData.bytes).toBeGreaterThan(0);
@@ -655,6 +655,47 @@ describe('mini hub api', () => {
     );
   });
 
+  it('maintains a synced Career seen-lead registry from job writes', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ useLogger: false, store });
+    const authHeaders = { 'content-type': 'application/json' };
+
+    const jobResponse = await app.request('/api/jobs', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        workspaceId: 'personal',
+        company: 'Registry Labs',
+        role: 'Data Analyst Intern',
+        status: 'lead',
+        applicationUrl: 'https://registry.example.com/jobs/data-analyst-intern?ref=mail',
+        fitScore: 88
+      })
+    });
+    const { job } = (await jobResponse.json()) as { job: { id: string } };
+
+    await app.request(`/api/jobs/${job.id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ status: 'applied', nextActionAt: '2026-07-01' })
+    });
+    await app.request(`/api/jobs/${job.id}`, { method: 'DELETE' });
+
+    const registry = store.settings?.preferences.careerSeenLeadRegistry as { entries?: Array<Record<string, unknown>> } | undefined;
+    expect(registry?.entries).toHaveLength(1);
+    expect(registry?.entries?.[0]).toMatchObject({
+      company: 'Registry Labs',
+      role: 'Data Analyst Intern',
+      status: 'deleted',
+      source: 'career-desk',
+      jobId: job.id,
+      fitScore: 88,
+      seenCount: 3,
+      urlKey: 'https://registry.example.com/jobs/data-analyst-intern'
+    });
+    expect(store.syncEvents.filter((event) => event.entityType === 'settings')).toHaveLength(3);
+  });
+
   it('exposes sync writes through the action ledger with recoverability metadata', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const authHeaders = { 'content-type': 'application/json' };
@@ -799,7 +840,7 @@ describe('mini hub api', () => {
     expect(body.errors).toEqual([]);
     expect(body.sources).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'mini-hub', ok: true, count: 1 }),
+        expect.objectContaining({ id: 'mini-hub', ok: true, count: 2 }),
         expect.objectContaining({ id: 'ai-os', ok: true, count: 2 }),
         expect.objectContaining({ id: 'macro-lab', ok: true, count: 1 })
       ])

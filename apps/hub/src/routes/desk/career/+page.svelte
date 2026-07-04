@@ -88,6 +88,8 @@
 
   interface CareerDiscoveryLearningSummary {
     memorySize: number;
+    seenRegistrySize: number;
+    seenFinalDecisions: number;
     rememberedFilters: number;
     skippedCandidates: number;
     importedLeads: number;
@@ -206,7 +208,11 @@
   $: careerAutomationRows = buildCareerAutomationRows(passiveSnapshot);
   $: careerAutomationCards = careerAutomationResultCards(passiveSnapshot);
   $: careerAutomationStatusText = careerAutomationStatus(passiveSnapshot, passiveLoading, passiveError);
-  $: careerDiscoveryLearning = buildCareerDiscoveryLearningSummary(passiveSnapshot, $clientData.settings?.preferences?.careerDiscoveryMemory);
+  $: careerDiscoveryLearning = buildCareerDiscoveryLearningSummary(
+    passiveSnapshot,
+    $clientData.settings?.preferences?.careerDiscoveryMemory,
+    $clientData.settings?.preferences?.careerSeenLeadRegistry
+  );
   $: visiblePassiveError = passiveError ? compactCareerDeskIssue(passiveError, 'Career automation') : '';
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
   $: if ($clientData.initialized && !careerProfileHydrated) hydrateCareerDiscoveryProfile($clientData.settings?.preferences?.careerDiscovery);
@@ -319,6 +325,15 @@
     return Array.isArray(candidates) ? candidates.length : 0;
   }
 
+  function careerSeenLeadRegistryStats(value: unknown): { total: number; finalDecisions: number } {
+    const registry = plainRecord(value);
+    const entries = registry.entries;
+    if (!Array.isArray(entries)) return { total: 0, finalDecisions: 0 };
+    const finalStatuses = new Set(['applied', 'interview', 'offer', 'rejected', 'archived', 'deleted']);
+    const finalDecisions = entries.filter((entry) => finalStatuses.has(String(plainRecord(entry).status ?? '').toLowerCase())).length;
+    return { total: entries.length, finalDecisions };
+  }
+
   function careerDiscoverySkipReasonLabel(reason: string): string {
     const labels: Record<string, string> = {
       'duplicate-company-role': 'duplicate role',
@@ -393,19 +408,21 @@
       .sort((a, b) => dateMs(b.createdAt) - dateMs(a.createdAt))[0];
   }
 
-  function buildCareerDiscoveryLearningSummary(snapshot: PassiveSnapshot | null, memoryValue: unknown): CareerDiscoveryLearningSummary {
+  function buildCareerDiscoveryLearningSummary(snapshot: PassiveSnapshot | null, memoryValue: unknown, registryValue: unknown): CareerDiscoveryLearningSummary {
     const run = latestPassiveRun(snapshot, 'research_monitor');
     const metadata = plainRecord(run?.metadata);
     const recentResearch = plainRecord(metadata.recentResearch);
     const memorySize = numberField(recentResearch, 'careerDiscoveryFilterMemorySize') || careerDiscoveryMemorySize(memoryValue);
+    const registryStats = careerSeenLeadRegistryStats(registryValue);
+    const seenRegistrySize = numberField(recentResearch, 'careerSeenLeadRegistrySize') || registryStats.total;
     const rememberedFilters = numberField(recentResearch, 'rememberedCareerLeadFilters');
     const skippedCandidates = numberField(recentResearch, 'skippedCareerLeadCandidates');
     const importedLeads = numberField(recentResearch, 'importedCareerLeads');
     const skippedReasonSummary = careerDiscoverySkipReasonSummary(recentResearch.skippedCareerLeadReasons);
     const latestRunAt = run?.finishedAt ?? run?.startedAt ?? '';
     let status = 'No Career Discovery learning data yet.';
-    if (memorySize || rememberedFilters || skippedCandidates || importedLeads) {
-      status = `${memorySize} remembered filter${memorySize === 1 ? '' : 's'} / ${importedLeads} imported / ${skippedCandidates} filtered`;
+    if (seenRegistrySize || memorySize || rememberedFilters || skippedCandidates || importedLeads) {
+      status = `${seenRegistrySize} seen lead${seenRegistrySize === 1 ? '' : 's'} / ${memorySize} remembered filter${memorySize === 1 ? '' : 's'} / ${importedLeads} imported / ${skippedCandidates} filtered`;
     } else if (snapshot && run) {
       status = 'Latest discovery run did not import or filter any candidates.';
     } else if (snapshot) {
@@ -413,6 +430,8 @@
     }
     return {
       memorySize,
+      seenRegistrySize,
+      seenFinalDecisions: registryStats.finalDecisions,
       rememberedFilters,
       skippedCandidates,
       importedLeads,
@@ -1456,6 +1475,7 @@
       <small>{careerDiscoveryLearning.status}</small>
     </div>
     <div>
+      <span>{careerDiscoveryLearning.seenRegistrySize} seen leads / {careerDiscoveryLearning.seenFinalDecisions} final decisions</span>
       <span>{careerDiscoveryLearning.rememberedFilters} remembered this run</span>
       <span>{careerDiscoveryLearning.skippedReasonSummary || 'No skip reasons yet'}</span>
       <span>{careerDiscoveryLearning.latestRunAt ? `Latest ${displayAutomationTime(careerDiscoveryLearning.latestRunAt)}` : 'No discovery run yet'}</span>

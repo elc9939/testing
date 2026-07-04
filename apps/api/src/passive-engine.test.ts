@@ -3593,13 +3593,28 @@ describe('passive task engine', () => {
     expect(run.metadata.recentResearch).toMatchObject({
       importedCareerLeads: 1,
       skippedCareerLeadCandidates: 3,
+      careerSeenLeadRegistrySize: 1,
       skippedCareerLeadReasons: {
         'duplicate-company-role': 1,
         'low-fit-score': 2
       }
     });
+    expect(store.settings?.preferences.careerSeenLeadRegistry).toMatchObject({
+      entries: [
+        expect.objectContaining({
+          company: 'Northstar Analytics',
+          role: 'Data Analyst Intern',
+          source: 'career-discovery',
+          status: 'lead',
+          jobId: imported?.id
+        })
+      ]
+    });
     expect(store.syncEvents).toEqual(
-      expect.arrayContaining([expect.objectContaining({ entityType: 'job', entityId: imported?.id, operation: 'insert' })])
+      expect.arrayContaining([
+        expect.objectContaining({ entityType: 'job', entityId: imported?.id, operation: 'insert' }),
+        expect.objectContaining({ entityType: 'settings', entityId: personalWorkspaceId, operation: 'update' })
+      ])
     );
     expect(store.actionEvents).toEqual(
       expect.arrayContaining([
@@ -3610,6 +3625,106 @@ describe('passive task engine', () => {
         })
       ])
     );
+  });
+
+  it('uses the synced seen-lead registry to reject discovered duplicates even after rows are gone', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.settings = {
+      workspaceId: personalWorkspaceId,
+      highScores: {},
+      recentState: {},
+      preferences: {
+        careerSeenLeadRegistry: {
+          version: 1,
+          limit: 500,
+          updatedAt: '2026-06-22T10:00:00.000Z',
+          entries: [
+            {
+              fingerprint: 'company-role:ghost analytics|data analyst intern',
+              company: 'Ghost Analytics',
+              role: 'Data Analyst Intern',
+              companyKey: 'ghost analytics',
+              companyRoleKey: 'ghost analytics|data analyst intern',
+              status: 'applied',
+              source: 'career-desk',
+              jobId: 'deleted-job-1',
+              firstSeenAt: '2026-06-01T10:00:00.000Z',
+              lastSeenAt: '2026-06-10T10:00:00.000Z',
+              seenCount: 2
+            }
+          ]
+        }
+      },
+      deviceId: 'test',
+      updatedAt: '2026-06-22T10:00:00.000Z'
+    };
+    const researchFetch = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [{ id: 'monitor-career-discovery', metadata: { passive_watch_key: 'topic:career-discovery' } }] });
+      }
+      if (href.includes('/api/ai/research/runs?limit=10')) {
+        return jsonResponse({
+          runs: [
+            {
+              id: 'research-career-registry-duplicate',
+              mode: 'monitor_topic',
+              goal: 'Find Summer 2027 Data Analyst roles.',
+              status: 'succeeded',
+              report: { title: 'Summer 2027 data analyst roles', tldr: 'Ghost Analytics is already remembered.' },
+              sources: [
+                {
+                  id: 'source-seen-registry-duplicate',
+                  url: 'https://ghost.example.com/careers/data-analyst-intern-summer-2027-new-cycle',
+                  canonical_url: 'https://ghost.example.com/careers/data-analyst-intern-summer-2027-new-cycle',
+                  title: 'Data Analyst Intern at Ghost Analytics - Summer 2027',
+                  description: 'Apply for a Summer 2027 Data Analyst Intern opening. Remote. Good fit for Math/CS analytics projects.',
+                  score: 0.94,
+                  rank: 1,
+                  metadata: {
+                    company: 'Ghost Analytics',
+                    role: 'Data Analyst Intern'
+                  }
+                }
+              ],
+              options: {
+                metadata: {
+                  source: 'mini-hub-passive',
+                  career_discovery: true,
+                  passive_watch_key: 'topic:career-discovery-summer-2027-data',
+                  target_start_window: 'May 2027 / Summer 2027 start',
+                  target_roles: ['Data Analyst'],
+                  locations: ['Remote'],
+                  profile_background: 'Math/CS analytics projects'
+                }
+              }
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-seen-registry-duplicate-test' }
+    });
+
+    const filterCard = run.cards.find((item) => item.title === '1 Career Discovery candidate filtered');
+    expect(run.status).toBe('succeeded');
+    expect(store.jobs).toHaveLength(0);
+    expect(filterCard?.summary).toContain('duplicate role: 1');
+    expect(run.metadata.recentResearch).toMatchObject({
+      skippedCareerLeadReasons: { 'duplicate-company-role': 1 },
+      skippedCareerLeadCandidates: 1,
+      careerSeenLeadRegistrySize: 1
+    });
   });
 
   it('surfaces Career Discovery filter summaries when no new leads pass', async () => {
