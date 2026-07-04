@@ -15,6 +15,7 @@ import { requestApiJson } from './api';
 
 type PGliteDatabase = Awaited<ReturnType<typeof import('@mini-hub/db/local').createMiniHubPglite>>;
 type JobPatchInput = Partial<Pick<JobRecord, 'company' | 'role' | 'status' | 'applicationUrl' | 'notes'>> & {
+  fitScore?: number | null;
   nextActionAt?: string | null;
 };
 type StudySessionPatchInput = Partial<Pick<StudySession, 'subject' | 'minutes' | 'source'>>;
@@ -576,7 +577,11 @@ export function createClientDataStore() {
   }
 
   async function saveJob(
-    input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'> & { applicationUrl?: string; nextActionAt?: string | null }
+    input: Pick<JobRecord, 'company' | 'role' | 'status' | 'notes'> & {
+      applicationUrl?: string;
+      fitScore?: number | null;
+      nextActionAt?: string | null;
+    }
   ): Promise<JobRecord> {
     const state = get(store);
     if (!canAutoSave(state)) throw new Error('Offline read-only mode');

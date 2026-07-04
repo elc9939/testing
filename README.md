@@ -179,7 +179,9 @@ without kicking every local API or desktop service just because the sidebar is v
   projects persisted Research runs, AI OS jobs/backups/benchmarks, Passive Task runs, and
   Macro Lab run history into one list with source health, progress, errors, and deep links
   back to the owning feature.
-- Career Desk: job/application tracking, action items, legacy career data import.
+- Career Desk: job/application tracking, manual fit scores, one-click "mark applied"
+  status updates that create a 14-day follow-up action, Gmail update matching for submitted
+  applications, action items, and legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
   browser-side last-good snapshot so calendar/mail views show cached real data while

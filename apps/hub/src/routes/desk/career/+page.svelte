@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Download, Edit3, ExternalLink, Mail, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
+  import { CheckCircle2, Download, Edit3, ExternalLink, Mail, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-svelte';
   import type { CareerActionRecord, JobRecord } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { getBrowserStorage } from '$lib/browser-storage';
@@ -26,6 +26,7 @@
     role: string;
     status: string;
     applicationUrl: string;
+    fitScore: string;
     notes: string;
     nextActionAt: string;
   }
@@ -60,6 +61,7 @@
   let role = '';
   let status = 'lead';
   let applicationUrl = '';
+  let fitScore = '';
   let notes = '';
   let nextActionAt = '';
   let searchQuery = '';
@@ -83,7 +85,7 @@
   $: canSave = canAutoSave($clientData);
   $: jobs = $clientData.jobs;
   $: careerActions = $clientData.careerActions;
-  $: filteredJobs = jobs.filter(matchesJob);
+  $: filteredJobs = jobs.filter(matchesJob).sort(compareCareerJobs);
   $: filteredCareerActions = careerActions.filter(matchesCareerAction);
   $: importedLegacy = (($clientData.settings?.recentState?.legacyImport ?? null) as LegacyImportState | null);
   $: applyQueue = jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status));
@@ -205,7 +207,7 @@
   }
 
   function emptyJobDraft(): JobDraft {
-    return { company: '', role: '', status: 'lead', applicationUrl: '', notes: '', nextActionAt: '' };
+    return { company: '', role: '', status: 'lead', applicationUrl: '', fitScore: '', notes: '', nextActionAt: '' };
   }
 
   function normalizeCareerViewState(value: unknown, fallback: CareerViewState): CareerViewState {
@@ -266,6 +268,22 @@
     return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
   }
 
+  function displayFitScore(job: JobRecord): string {
+    return typeof job.fitScore === 'number' ? `${job.fitScore}` : 'Unranked';
+  }
+
+  function fitInputValue(value?: number): string {
+    return typeof value === 'number' ? String(value) : '';
+  }
+
+  function normalizedFitScore(value: string): number | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const score = Number(trimmed);
+    if (!Number.isFinite(score)) return null;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
   function displayUpdated(value: string): string {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
@@ -279,8 +297,16 @@
       job.company.toLowerCase().includes(query) ||
       job.role.toLowerCase().includes(query) ||
       job.applicationUrl.toLowerCase().includes(query) ||
+      displayFitScore(job).toLowerCase().includes(query) ||
       job.notes.toLowerCase().includes(query);
     return statusMatch && queryMatch;
+  }
+
+  function compareCareerJobs(left: JobRecord, right: JobRecord): number {
+    const leftFit = typeof left.fitScore === 'number' ? left.fitScore : -1;
+    const rightFit = typeof right.fitScore === 'number' ? right.fitScore : -1;
+    if (leftFit !== rightFit) return rightFit - leftFit;
+    return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
   }
 
   function matchesCareerAction(action: CareerActionRecord): boolean {
@@ -395,6 +421,45 @@
 
   function isSubmittedApplication(job: JobRecord): boolean {
     return ['applied', 'interview', 'offer', 'rejected'].includes(job.status);
+  }
+
+  function canMarkJobApplied(job: JobRecord): boolean {
+    return canSave && !editingJobId && !rowBusyId && !['applied', 'interview', 'offer', 'rejected', 'archived'].includes(job.status);
+  }
+
+  function markAppliedTitle(state: CareerControlState, job: JobRecord): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before marking applications applied.';
+    if (state.rowBusyId === job.id) return 'Saving applied status and follow-up action.';
+    if (state.rowBusyId) return 'Another Career row action is already running.';
+    if (state.editingJobId) return 'Finish or cancel the current edit before marking a job applied.';
+    if (job.status === 'applied') return 'This job is already marked applied.';
+    if (['interview', 'offer'].includes(job.status)) return 'This job is already beyond applied status.';
+    if (['rejected', 'archived'].includes(job.status)) return 'Closed jobs are not marked applied from the quick action.';
+    return 'Mark this job as applied and create a 14-day follow-up action.';
+  }
+
+  function localDateInput(daysFromToday = 0): string {
+    const date = new Date();
+    date.setDate(date.getDate() + daysFromToday);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function applicationFollowUpLabel(job: Pick<JobRecord, 'company' | 'role'>): string {
+    return `Follow up on application: ${job.role} at ${job.company}`;
+  }
+
+  function existingOpenApplicationFollowUp(job: JobRecord): CareerActionRecord | undefined {
+    return careerActions.find(
+      (action) => action.jobId === job.id && !action.completedAt && action.label.toLowerCase().startsWith('follow up on application:')
+    );
+  }
+
+  function appendAppliedNote(existingNotes: string, appliedDate: string): string {
+    if (/Applied via Career Desk on \d{4}-\d{2}-\d{2}\./u.test(existingNotes)) return existingNotes;
+    return [existingNotes.trim(), `Applied via Career Desk on ${appliedDate}.`].filter(Boolean).join('\n\n');
   }
 
   function words(value: string): string[] {
@@ -536,6 +601,7 @@
         role: savedRole,
         status,
         applicationUrl: normalizedApplicationUrl(applicationUrl),
+        fitScore: normalizedFitScore(fitScore),
         notes: notes.trim(),
         nextActionAt: nextActionAt || null
       });
@@ -543,6 +609,7 @@
       role = '';
       status = 'lead';
       applicationUrl = '';
+      fitScore = '';
       notes = '';
       nextActionAt = '';
       saveMessage = `Saved ${savedRole} at ${savedCompany}.`;
@@ -563,6 +630,7 @@
       role: job.role,
       status: job.status,
       applicationUrl: job.applicationUrl || legacyJobLink(job),
+      fitScore: fitInputValue(job.fitScore),
       notes: job.notes,
       nextActionAt: dateInputValue(job.nextActionAt)
     };
@@ -589,6 +657,7 @@
         role: savedRole,
         status: jobDraft.status,
         applicationUrl: normalizedApplicationUrl(jobDraft.applicationUrl),
+        fitScore: normalizedFitScore(jobDraft.fitScore),
         notes: jobDraft.notes.trim(),
         nextActionAt: jobDraft.nextActionAt || null
       });
@@ -596,6 +665,42 @@
       saveMessage = `Updated ${savedRole} at ${savedCompany}.`;
     } catch (error) {
       rowError = error instanceof Error ? error.message : 'Save failed';
+    } finally {
+      rowBusyId = '';
+    }
+  }
+
+  async function markJobApplied(job: JobRecord): Promise<void> {
+    if (!canMarkJobApplied(job)) return;
+    rowError = '';
+    saveError = '';
+    saveMessage = '';
+    rowBusyId = job.id;
+    const appliedDate = localDateInput();
+    const followUpDate = localDateInput(14);
+    const nextLabel = applicationFollowUpLabel(job);
+    try {
+      await clientData.updateJob(job.id, {
+        status: 'applied',
+        nextActionAt: followUpDate,
+        notes: appendAppliedNote(job.notes, appliedDate)
+      });
+      const existingFollowUp = existingOpenApplicationFollowUp(job);
+      if (existingFollowUp) {
+        await clientData.updateCareerAction(existingFollowUp.id, {
+          label: nextLabel,
+          dueAt: existingFollowUp.dueAt ?? followUpDate
+        });
+      } else {
+        await clientData.saveCareerAction({
+          jobId: job.id,
+          label: nextLabel,
+          dueAt: followUpDate
+        });
+      }
+      saveMessage = `Marked ${job.role} at ${job.company} as applied; follow-up set for ${displayDate(followUpDate)}.`;
+    } catch (error) {
+      rowError = error instanceof Error ? error.message : 'Mark applied failed';
     } finally {
       rowBusyId = '';
     }
@@ -756,6 +861,7 @@
         <th>Company</th>
         <th>Role</th>
         <th>Application</th>
+        <th>Fit</th>
         <th>Status</th>
         <th>Next</th>
         <th>Notes</th>
@@ -770,6 +876,7 @@
             <td><input class="table-input" bind:value={jobDraft.company} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Company name.', job.id)} /></td>
             <td><input class="table-input" bind:value={jobDraft.role} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Role title.', job.id)} /></td>
             <td><input class="table-input link-input" bind:value={jobDraft.applicationUrl} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Application link.', job.id)} placeholder="https://..." /></td>
+            <td><input class="table-input fit-input" bind:value={jobDraft.fitScore} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Manual fit score from 0 to 100. Leave blank when unknown.', job.id)} inputmode="numeric" type="number" min="0" max="100" /></td>
             <td>
               <select class="table-select" bind:value={jobDraft.status} disabled={!canSave || rowBusyId === job.id} title={careerRowTitle(careerControlState, 'Application status.', job.id)}>
                 {#each statuses as item}
@@ -803,6 +910,7 @@
                 <span class="muted">No link</span>
               {/if}
             </td>
+            <td><span class="fit-score">{displayFitScore(job)}</span></td>
             <td>{job.status}</td>
             <td>{displayDate(job.nextActionAt)}</td>
             <td class="notes-cell">
@@ -838,6 +946,10 @@
             <td>{displayUpdated(job.updatedAt)}</td>
             <td class="actions-cell">
               <div class="row-actions">
+                <button class="row-command" type="button" aria-label={`Mark ${job.company} applied`} title={markAppliedTitle(careerControlState, job)} disabled={!canMarkJobApplied(job)} on:click={() => markJobApplied(job)}>
+                  <CheckCircle2 size={15} />
+                  <span>{job.status === 'applied' ? 'Applied' : 'Mark applied'}</span>
+                </button>
                 <button class="icon-button" type="button" aria-label={`Edit ${job.company}`} title={careerEditRowTitle(careerControlState, job.id)} disabled={!canSave || !!editingJobId || rowBusyId === job.id} on:click={() => startEditJob(job)}>
                   <Edit3 size={16} />
                 </button>
@@ -850,7 +962,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="8" class="muted">
+          <td colspan="9" class="muted">
             {#if jobs.length}
               No jobs match the current filters.
             {:else}
@@ -932,6 +1044,10 @@
       <div class="field">
         <label for="application-url">Application link</label>
         <input id="application-url" aria-label="Application link" bind:value={applicationUrl} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Application link.')} inputmode="url" placeholder="https://..." />
+      </div>
+      <div class="field">
+        <label for="fit-score">Fit</label>
+        <input id="fit-score" aria-label="Fit score" bind:value={fitScore} disabled={!canSave || saving} title={careerSaveTitle(careerControlState, 'Manual fit score from 0 to 100. Leave blank when unknown.')} inputmode="numeric" type="number" min="0" max="100" />
       </div>
       <div class="field">
         <label for="next-action">Next action</label>
@@ -1338,6 +1454,14 @@
     padding: 8px 9px;
   }
 
+  .fit-input {
+    min-width: 84px;
+  }
+
+  .fit-score {
+    font-weight: 850;
+  }
+
   .link-input {
     min-width: 180px;
   }
@@ -1348,12 +1472,29 @@
   }
 
   .actions-cell {
-    min-width: 94px;
+    min-width: 198px;
   }
 
   .row-actions {
     display: flex;
+    align-items: center;
     gap: 6px;
+  }
+
+  .row-command {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 34px;
+    padding: 0 9px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    color: var(--text);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
   }
 
   .icon-button {
@@ -1373,6 +1514,7 @@
   }
 
   .icon-button:disabled,
+  .row-command:disabled,
   .button:disabled {
     cursor: not-allowed;
     opacity: 0.55;

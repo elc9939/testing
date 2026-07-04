@@ -566,7 +566,7 @@ describe('mini hub api', () => {
     const jobResponse = await app.request('/api/jobs', {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ workspaceId: 'personal', company: 'Acme', role: 'Analyst', status: 'lead' })
+      body: JSON.stringify({ workspaceId: 'personal', company: 'Acme', role: 'Analyst', status: 'lead', fitScore: 82 })
     });
     const { job } = (await jobResponse.json()) as { job: { id: string } };
 
@@ -578,14 +578,16 @@ describe('mini hub api', () => {
         role: 'Senior Analyst',
         status: 'interview',
         applicationUrl: 'https://example.com/acme-labs',
+        fitScore: null,
         notes: 'Panel scheduled',
         nextActionAt: '2026-07-01'
       })
     });
     expect(patchedJobResponse.status).toBe(200);
-    const patchedJob = (await patchedJobResponse.json()) as { job: { company: string; applicationUrl: string; nextActionAt?: string } };
+    const patchedJob = (await patchedJobResponse.json()) as { job: { company: string; applicationUrl: string; fitScore?: number; nextActionAt?: string } };
     expect(patchedJob.job.company).toBe('Acme Labs');
     expect(patchedJob.job.applicationUrl).toBe('https://example.com/acme-labs');
+    expect(patchedJob.job.fitScore).toBeUndefined();
     expect(patchedJob.job.nextActionAt).toBe('2026-07-01');
 
     const deleteJobResponse = await app.request(`/api/jobs/${job.id}`, {

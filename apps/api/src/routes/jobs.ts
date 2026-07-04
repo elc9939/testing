@@ -12,7 +12,7 @@ const jobBody = z.object({
   role: z.string().min(1),
   status: z.string().min(1).default('lead'),
   applicationUrl: z.string().max(2048).default(''),
-  fitScore: z.number().min(0).max(100).optional(),
+  fitScore: z.number().min(0).max(100).nullable().optional(),
   notes: z.string().default(''),
   nextActionAt: z.string().nullable().optional(),
   deviceId: z.string().min(1).optional(),
@@ -56,7 +56,7 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
       role: parsed.data.role,
       status: parsed.data.status,
       applicationUrl: parsed.data.applicationUrl,
-      fitScore: parsed.data.fitScore,
+      fitScore: parsed.data.fitScore ?? undefined,
       notes: parsed.data.notes,
       nextActionAt: parsed.data.nextActionAt ?? undefined,
       deviceId: parsed.data.deviceId ?? 'api',
@@ -102,6 +102,9 @@ export function jobRoutes(store: MemoryStore): Hono<AppBindings> {
     };
     if ('nextActionAt' in parsed.data) {
       nextJob.nextActionAt = parsed.data.nextActionAt ?? undefined;
+    }
+    if ('fitScore' in parsed.data) {
+      nextJob.fitScore = parsed.data.fitScore ?? undefined;
     }
     const job = jobSchema.parse(nextJob);
     store.jobs[index] = job;

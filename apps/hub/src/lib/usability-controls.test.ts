@@ -1601,6 +1601,16 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('careerControlState = {');
     expect(career).toContain('addJobButtonTitle = addJobTitle(careerControlState, company, role)');
     expect(career).toContain('saveJobEditButtonTitle = saveJobEditTitle(careerControlState, jobDraft)');
+    expect(career).toContain('function markAppliedTitle');
+    expect(career).toContain('function canMarkJobApplied');
+    expect(career).toContain('function markJobApplied');
+    expect(career).toContain('Mark this job as applied and create a 14-day follow-up action.');
+    expect(career).toContain('Follow up on application: ${job.role} at ${job.company}');
+    expect(career).toContain("status: 'applied'");
+    expect(career).toContain('clientData.saveCareerAction');
+    expect(career).toContain('clientData.updateCareerAction');
+    expect(career).toContain('Manual fit score from 0 to 100. Leave blank when unknown.');
+    expect(career).toContain('filteredJobs = jobs.filter(matchesJob).sort(compareCareerJobs)');
     expect(career).toContain('careerSummaryButtonTitle = careerSummaryTitle(careerControlState)');
     expect(career).toContain('careerMailUpdatesButtonTitle = careerMailUpdatesTitle(careerControlState)');
     expect(career).toContain('careerExportButtonTitle = careerExportTitle(careerControlState)');
@@ -1654,6 +1664,7 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('disabled={!canSave || saving || !company.trim() || !role.trim()}');
     expect(career).toContain('title={addJobButtonTitle}');
     expect(career).toContain('title={saveJobEditButtonTitle}');
+    expect(career).toContain('title={markAppliedTitle(careerControlState, job)}');
     expect(career).toContain('title={careerMailUpdatesButtonTitle}');
     expect(career).toContain('title={careerEditRowTitle(careerControlState, job.id)}');
     expect(career).toContain('title={careerCancelEditTitle(careerControlState, job.id)}');
@@ -1663,6 +1674,7 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('Delete "${job.role}" at ${job.company}?');
     expect(career).toContain('Career delete skipped.');
     expect(career).toContain('Ask for confirmation before deleting this saved job.');
+    expect(career).toContain('aria-label={`Mark ${job.company} applied`}');
     expect(career).toContain('Offline read-only: start or connect the Mini Hub API before saving Career changes.');
     expect(career).toContain("careerViewStorageKey = 'miniHub.career.view.v1'");
     expect(career).toContain("import { getBrowserStorage } from '$lib/browser-storage'");
