@@ -85,6 +85,16 @@
     error: string;
   }
 
+  interface CareerDiscoveryLearningSummary {
+    memorySize: number;
+    rememberedFilters: number;
+    skippedCandidates: number;
+    importedLeads: number;
+    skippedReasonSummary: string;
+    latestRunAt: string;
+    status: string;
+  }
+
   const githubPagesCareerUrl = 'https://elc9939.github.io/testing/desk/career';
   const careerViewStorageKey = 'miniHub.career.view.v1';
   const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
@@ -176,6 +186,7 @@
   $: careerAutomationRows = buildCareerAutomationRows(passiveSnapshot);
   $: careerAutomationCards = careerAutomationResultCards(passiveSnapshot);
   $: careerAutomationStatusText = careerAutomationStatus(passiveSnapshot, passiveLoading, passiveError);
+  $: careerDiscoveryLearning = buildCareerDiscoveryLearningSummary(passiveSnapshot, $clientData.settings?.preferences?.careerDiscoveryMemory);
   $: visiblePassiveError = passiveError ? compactCareerDeskIssue(passiveError, 'Career automation') : '';
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
   $: if ($clientData.initialized && !careerProfileHydrated) hydrateCareerDiscoveryProfile($clientData.settings?.preferences?.careerDiscovery);
@@ -273,6 +284,46 @@
     return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
   }
 
+  function plainRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  }
+
+  function numberField(record: Record<string, unknown>, key: string): number {
+    const value = Number(record[key]);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function careerDiscoveryMemorySize(value: unknown): number {
+    const memory = plainRecord(value);
+    const candidates = memory.rejectedCandidates;
+    return Array.isArray(candidates) ? candidates.length : 0;
+  }
+
+  function careerDiscoverySkipReasonLabel(reason: string): string {
+    const labels: Record<string, string> = {
+      'duplicate-company-role': 'duplicate role',
+      'duplicate-url': 'duplicate URL',
+      'excluded-company': 'excluded company',
+      'low-fit-score': 'low fit',
+      'missing-company-role': 'missing company/role',
+      'missing-url': 'missing URL',
+      'not-opportunity': 'not a role',
+      'previously-filtered': 'previously filtered'
+    };
+    return labels[reason] ?? reason.replaceAll('-', ' ');
+  }
+
+  function careerDiscoverySkipReasonSummary(value: unknown): string {
+    const reasons = plainRecord(value);
+    return Object.entries(reasons)
+      .map(([reason, count]) => [reason, Number(count)] as const)
+      .filter(([, count]) => Number.isFinite(count) && count > 0)
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .slice(0, 4)
+      .map(([reason, count]) => `${careerDiscoverySkipReasonLabel(reason)} ${count}`)
+      .join(' / ');
+  }
+
   function displayAutomationTime(value?: string): string {
     if (!value) return 'Not yet';
     const parsed = new Date(value);
@@ -320,6 +371,35 @@
     return [...(snapshot?.results ?? []), ...(snapshot?.digest ?? [])]
       .filter((card) => card.family === family)
       .sort((a, b) => dateMs(b.createdAt) - dateMs(a.createdAt))[0];
+  }
+
+  function buildCareerDiscoveryLearningSummary(snapshot: PassiveSnapshot | null, memoryValue: unknown): CareerDiscoveryLearningSummary {
+    const run = latestPassiveRun(snapshot, 'research_monitor');
+    const metadata = plainRecord(run?.metadata);
+    const recentResearch = plainRecord(metadata.recentResearch);
+    const memorySize = numberField(recentResearch, 'careerDiscoveryFilterMemorySize') || careerDiscoveryMemorySize(memoryValue);
+    const rememberedFilters = numberField(recentResearch, 'rememberedCareerLeadFilters');
+    const skippedCandidates = numberField(recentResearch, 'skippedCareerLeadCandidates');
+    const importedLeads = numberField(recentResearch, 'importedCareerLeads');
+    const skippedReasonSummary = careerDiscoverySkipReasonSummary(recentResearch.skippedCareerLeadReasons);
+    const latestRunAt = run?.finishedAt ?? run?.startedAt ?? '';
+    let status = 'No Career Discovery learning data yet.';
+    if (memorySize || rememberedFilters || skippedCandidates || importedLeads) {
+      status = `${memorySize} remembered filter${memorySize === 1 ? '' : 's'} / ${importedLeads} imported / ${skippedCandidates} filtered`;
+    } else if (snapshot && run) {
+      status = 'Latest discovery run did not import or filter any candidates.';
+    } else if (snapshot) {
+      status = 'Career Discovery has no run history yet.';
+    }
+    return {
+      memorySize,
+      rememberedFilters,
+      skippedCandidates,
+      importedLeads,
+      skippedReasonSummary,
+      latestRunAt,
+      status
+    };
   }
 
   function buildCareerAutomationRows(snapshot: PassiveSnapshot | null): CareerAutomationRow[] {
@@ -1203,6 +1283,17 @@
   {:else}
     <p class="muted automation-message">No Career automation cards yet. Run Career Radar or wait for scheduled discovery to create source-backed records.</p>
   {/if}
+  <div class="automation-learning" aria-label="Career Discovery learning summary">
+    <div>
+      <strong>Discovery learning</strong>
+      <small>{careerDiscoveryLearning.status}</small>
+    </div>
+    <div>
+      <span>{careerDiscoveryLearning.rememberedFilters} remembered this run</span>
+      <span>{careerDiscoveryLearning.skippedReasonSummary || 'No skip reasons yet'}</span>
+      <span>{careerDiscoveryLearning.latestRunAt ? `Latest ${displayAutomationTime(careerDiscoveryLearning.latestRunAt)}` : 'No discovery run yet'}</span>
+    </div>
+  </div>
 </section>
 
 {#if discoveredCareerLeads.length}
@@ -1762,6 +1853,38 @@
     padding: 11px 14px;
   }
 
+  .automation-learning {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .automation-learning > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    min-width: 0;
+  }
+
+  .automation-learning strong,
+  .automation-learning small,
+  .automation-learning span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .automation-learning small,
+  .automation-learning span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
   .discovered-leads-panel {
     margin-bottom: 12px;
     overflow: hidden;
@@ -2236,7 +2359,8 @@
     }
 
     .automation-grid,
-    .automation-row {
+    .automation-row,
+    .automation-learning {
       grid-template-columns: 1fr;
     }
 

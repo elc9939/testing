@@ -376,7 +376,8 @@ real-data only:
   repeated low-fit or excluded source fingerprints are skipped as `previously-filtered`
   unless a later sweep scores them strongly enough to reconsider. Career Desk exposes
   Career Radar and Discovery status from the real Passive Tasks snapshot, with
-  cached fallback, latest run/card summaries, next run times, and manual run buttons for the
+  cached fallback, latest run/card summaries, next run times, remembered-filter counts,
+  skipped-reason summaries, and manual run buttons for the
   existing tasks. It also exposes discovered leads as a ranked panel where each candidate can
   be moved to `saved`, moved to `watching`, or archived as not fit without opening the full
   table row.

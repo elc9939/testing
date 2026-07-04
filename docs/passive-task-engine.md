@@ -217,7 +217,8 @@ normal API startup.
   `careerDiscoveryMemory` preference and skipped as `previously-filtered` on later sweeps
   unless their score rises enough to justify reconsideration. Career Desk reads the real
   Passive Tasks snapshot for Career Radar and Career Discovery status,
-  cached fallback, latest run/card summaries, next run times, and manual run buttons for the
+  cached fallback, latest run/card summaries, next run times, remembered-filter counts,
+  skipped-reason summaries, and manual run buttons for the
   existing tasks. It then treats imported rows as reviewable discovered leads:
   the ranked panel can keep a candidate as `saved`, move it to `watching`, or archive it as
   not fit while preserving the original source/evidence note.

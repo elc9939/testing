@@ -1629,6 +1629,11 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('Career Automation');
     expect(career).toContain('aria-label="Career automation status"');
     expect(career).toContain('No Career automation cards yet. Run Career Radar or wait for scheduled discovery to create source-backed records.');
+    expect(career).toContain('interface CareerDiscoveryLearningSummary');
+    expect(career).toContain('function buildCareerDiscoveryLearningSummary');
+    expect(career).toContain('careerDiscoveryMemory');
+    expect(career).toContain('Discovery learning');
+    expect(career).toContain('previously filtered');
     expect(career).toContain('autoMarkAppliedFromEvidence');
     expect(career).toContain('careerAutoMarkAppliedFromEvidence');
     expect(career).toContain('Auto-mark applied when Gmail or completed actions match with high confidence');
