@@ -26,6 +26,7 @@
     listMacros,
     panicMacroLab,
     patchMacro,
+    readCachedMacroLabDashboardSnapshot,
     reloadMacroTriggers,
     resetMacroPanic,
     runMacro,
@@ -34,8 +35,10 @@
     stopRecording,
     type ActionSpec,
     type MacroDefinition,
+    type MacroLabDashboardSnapshot,
     type MacroRun,
-    type MacroStatus
+    type MacroStatus,
+    writeMacroLabDashboardCache
   } from '$lib/macro-lab-api';
   import { compactServiceIssueIfRecognized, isLikelyServiceIssue } from '$lib/service-issues';
 
@@ -50,26 +53,35 @@
   let actionError = '';
   let actionMessage = '';
   let loading = false;
+  let backgroundRefreshing = false;
+  let liveStatusReady = false;
+  let cachedAt = '';
+  let cacheWarning = '';
   let busy = false;
 
   $: selectedMacro = macros.find((macro) => macro.id === selectedId) ?? macros[0];
   $: capabilityReady = status?.capabilities.filter((capability) => capability.available).length ?? 0;
   $: highlightedRunId = $page.url.searchParams.get('run') ?? '';
-  $: engineState = status ? (status.engine.panic ? 'panic' : status.ok ? 'ready' : 'check') : loading ? 'checking' : 'connect service';
-  $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : loading ? 'checking' : 'connect service';
-  $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : loading ? 'checking' : 'connect service';
+  $: macroInitialLoading = loading && !status;
+  $: macroRefreshing = loading || backgroundRefreshing;
+  $: macroLiveReady = Boolean(status && liveStatusReady && !serviceError);
+  $: engineState = status ? (status.engine.panic ? 'panic' : status.ok ? 'ready' : 'check') : macroRefreshing ? 'checking' : 'connect service';
+  $: triggerState = status ? (status.triggers.enabled === true ? 'on' : 'off') : macroRefreshing ? 'checking' : 'connect service';
+  $: databaseState = status ? (status.integrity.ok === true ? 'ok' : 'check') : macroRefreshing ? 'checking' : 'connect service';
   $: serviceDetail = status
-    ? `${status.version} at ${getMacroLabApiUrl()}`
-    : loading
+    ? liveStatusReady
+      ? `${status.version} at ${getMacroLabApiUrl()}`
+      : `Saved ${status.version} at ${getMacroLabApiUrl()}`
+    : macroRefreshing
       ? `Checking ${getMacroLabApiUrl()}`
       : serviceError
         ? 'See the Macro Lab service card above.'
         : `Target: ${getMacroLabApiUrl()}`;
-  $: macroServiceReady = Boolean(status && !serviceError);
+  $: macroServiceReady = macroLiveReady;
   $: macroStateKnown = macroServiceReady;
-  $: macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status });
+  $: macroControlTitle = macroDisabledReason({ loading: macroInitialLoading, busy, serviceError, status, liveReady: macroLiveReady });
   $: macroControlDisabled = Boolean(macroControlTitle);
-  $: macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy });
+  $: macroRefreshBlockedReason = macroRefreshDisabledReason({ loading: macroRefreshing, busy });
   $: visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Macro Lab') : '';
   $: visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Macro Lab action') : '';
   $: macroPanicTitle = macroActionTitleForState(macroControlTitle, 'panic', selectedMacro);
@@ -85,7 +97,8 @@
   $: macroStopRecordTitle = macroActionTitleForState(macroControlTitle, 'stop-record', selectedMacro);
 
   onMount(() => {
-    void refresh();
+    const hydrated = hydrateMacroLabCache();
+    void refresh({ background: hydrated });
   });
 
   function stringify(value: unknown): string {
@@ -113,17 +126,32 @@
     editor = stringify(macro);
   }
 
+  function displayShortDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
   function macroRowTitle(macro: MacroDefinition): string {
     return selectedMacro?.id === macro.id ? `${macro.name} is selected.` : `Open ${macro.name} in the Macro Lab editor.`;
   }
 
   function macroDisabledReason(
-    state: { loading: boolean; busy: boolean; serviceError: string; status: MacroStatus | null } = { loading, busy, serviceError, status }
+    state: { loading: boolean; busy: boolean; serviceError: string; status: MacroStatus | null; liveReady: boolean } = {
+      loading: macroInitialLoading,
+      busy,
+      serviceError,
+      status,
+      liveReady: macroLiveReady
+    }
   ): string {
     if (state.loading) return 'Macro Lab is loading the latest desktop automation state.';
     if (state.busy) return 'Another Macro Lab action is already running.';
     if (state.serviceError) return `Macro Lab service is unavailable: ${compactServiceIssueIfRecognized(state.serviceError, 'Macro Lab')}`;
     if (!state.status) return 'Connect Macro Lab before changing macros, triggers, recorder, panic, or run state.';
+    if (!state.liveReady) {
+      return 'Macro Lab is showing saved automation state from this browser. Refresh or reconnect the desktop service before changing macros, triggers, recorder, panic, or run state.';
+    }
     return '';
   }
 
@@ -135,40 +163,40 @@
 
   function macroCapabilitiesDetail(): string {
     if (status) return `${status.engine.action_count} action type${status.engine.action_count === 1 ? '' : 's'}`;
-    if (loading) return 'Checking action catalog and capability state.';
+    if (macroRefreshing) return 'Checking action catalog and capability state.';
     if (serviceError) return 'Capability state will reload after the Macro Lab service card reconnects.';
     return 'Service status above controls action catalog availability.';
   }
 
   function macroTriggersDetail(): string {
     if (status) return `${status.engine.running} running automation${status.engine.running === 1 ? '' : 's'}`;
-    if (loading) return 'Checking trigger and running automation state.';
+    if (macroRefreshing) return 'Checking trigger and running automation state.';
     if (serviceError) return 'Trigger state will reload after the Macro Lab service card reconnects.';
     return 'Service status above controls trigger visibility.';
   }
 
   function macroDatabaseDetail(): string {
     if (status) return 'Macro definitions and run history are reachable.';
-    if (loading) return 'Checking macro definitions and run history.';
+    if (macroRefreshing) return 'Checking macro definitions and run history.';
     if (serviceError) return 'Saved definitions and run history will reload after the Macro Lab service card reconnects.';
     return 'Service status above controls saved definition visibility.';
   }
 
   function macroEditorEmptyDetail(): string {
-    if (loading && !macros.length) return 'Checking macro definitions before enabling edit and run controls.';
+    if (macroRefreshing && !macros.length) return 'Checking macro definitions before enabling edit and run controls.';
     if (serviceError) return 'Saved macro definitions will reload after the Macro Lab service card reconnects.';
     return 'Create or select a macro to edit JSON, dry-run it, run confirmed actions, or reload triggers.';
   }
 
   function macroDefinitionsEmptyMessage(): string {
-    if (loading && !macros.length) return 'Checking saved macro definitions.';
+    if (macroRefreshing && !macros.length) return 'Checking saved macro definitions.';
     if (serviceError) return 'Saved macro definitions will reload after the Macro Lab service card reconnects.';
     if (!status) return 'Connect Macro Lab to load saved macro definitions before creating or editing macros.';
     return 'No macros are registered yet. Use the New macro button above, then save the definition through Macro Lab.';
   }
 
   function macroActionCatalogEmptyMessage(): string {
-    if (loading && !actions.length) return 'Checking action catalog.';
+    if (macroRefreshing && !actions.length) return 'Checking action catalog.';
     if (serviceError) return 'Action catalog will reload after the Macro Lab service card reconnects.';
     if (!status) return 'Connect Macro Lab to inspect available action types.';
     if (status.engine.action_count === 0) return 'Macro Lab is reachable, but its action catalog is empty; check the desktop service install.';
@@ -176,7 +204,7 @@
   }
 
   function macroRunHistoryEmptyMessage(): string {
-    if (loading && !runs.length) return 'Checking recent Macro Lab runs.';
+    if (macroRefreshing && !runs.length) return 'Checking recent Macro Lab runs.';
     if (serviceError) return 'Run history will reload after the Macro Lab service card reconnects.';
     if (!status) return 'Connect Macro Lab to load desktop automation run history.';
     if (highlightedRunId) return `Activity run ${highlightedRunId} is not in Macro Lab's current run history. Refresh or open Activity for the durable record.`;
@@ -260,21 +288,89 @@
     if (macroConnectionError(message)) {
       serviceError = message;
       actionError = '';
+      liveStatusReady = false;
     }
   }
 
-  async function refresh(): Promise<void> {
-    loading = true;
-    serviceError = '';
+  function currentMacroLabDashboardSnapshot(): MacroLabDashboardSnapshot {
+    return {
+      checkedAt: new Date().toISOString(),
+      status,
+      actions,
+      macros,
+      runs
+    };
+  }
+
+  function syncMacroLabDashboardSnapshot(snapshotValue: MacroLabDashboardSnapshot, options: { live?: boolean } = {}): void {
+    status = snapshotValue.status;
+    actions = snapshotValue.actions;
+    macros = snapshotValue.macros;
+    runs = snapshotValue.runs;
+    liveStatusReady = options.live === true && Boolean(snapshotValue.status);
+
+    const nextSelected = selectedId ? macros.find((macro) => macro.id === selectedId) : macros[0];
+    if (nextSelected) {
+      selectMacro(nextSelected);
+    } else {
+      selectedId = '';
+      editor = '';
+    }
+  }
+
+  function writeMacroLabDashboardSnapshot(): void {
+    const cacheWrite = writeMacroLabDashboardCache(currentMacroLabDashboardSnapshot());
+    if (cacheWrite.cachedAt) {
+      cachedAt = cacheWrite.cachedAt;
+      cacheWarning = '';
+    } else if (cacheWrite.error) {
+      cacheWarning = cacheWrite.error;
+    }
+  }
+
+  function hydrateMacroLabCache(): boolean {
+    const cached = readCachedMacroLabDashboardSnapshot();
+    if (!cached) return false;
+    syncMacroLabDashboardSnapshot(cached.snapshot, { live: false });
+    cachedAt = cached.cachedAt;
+    cacheWarning = '';
+    return true;
+  }
+
+  async function refresh(options: { background?: boolean } = {}): Promise<void> {
+    const background = options.background === true && Boolean(status || actions.length || macros.length || runs.length);
+    if (background) backgroundRefreshing = true;
+    else loading = true;
+    if (!background) {
+      serviceError = '';
+      actionMessage = '';
+    }
     actionError = '';
     try {
-      [status, actions, macros, runs] = await Promise.all([getMacroStatus(), listMacroActions(), listMacros(), listMacroRuns(30)]);
-      if (!selectedId && macros[0]) selectMacro(macros[0]);
-      else if (selectedMacro) editor = stringify(selectedMacro);
+      const [nextStatus, nextActions, nextMacros, nextRuns] = await Promise.all([
+        getMacroStatus(),
+        listMacroActions(),
+        listMacros(),
+        listMacroRuns(30)
+      ]);
+      syncMacroLabDashboardSnapshot(
+        {
+          checkedAt: new Date().toISOString(),
+          status: nextStatus,
+          actions: nextActions,
+          macros: nextMacros,
+          runs: nextRuns
+        },
+        { live: true }
+      );
+      serviceError = '';
+      writeMacroLabDashboardSnapshot();
     } catch (caught) {
+      liveStatusReady = false;
       serviceError = caught instanceof Error ? caught.message : 'Failed to load Macro Lab.';
     } finally {
-      loading = false;
+      if (background) backgroundRefreshing = false;
+      else loading = false;
     }
   }
 
@@ -361,6 +457,8 @@
       actionMessage = `${dryRun ? 'Dry run' : 'Confirmed run'} recorded for ${run.macro_name}: ${run.status}.`;
       runs = await listMacroRuns(30);
       status = await getMacroStatus();
+      liveStatusReady = true;
+      writeMacroLabDashboardSnapshot();
     } catch (caught) {
       recordMacroActionError(caught, 'Run failed.');
     } finally {
@@ -407,9 +505,26 @@
   <div>
     <p class="eyebrow">Local desktop automation</p>
     <h1>Macro Lab</h1>
+    {#if cachedAt || backgroundRefreshing || cacheWarning}
+      <p class="header-substatus">
+        {#if backgroundRefreshing}
+          Showing saved Macro Lab state while the desktop service refreshes.
+        {:else if cachedAt && !liveStatusReady}
+          Saved Macro Lab state {displayShortDate(cachedAt)}; actions wait for a live reconnect.
+        {:else if cachedAt}
+          Saved Macro Lab state {displayShortDate(cachedAt)}.
+        {/if}
+        {#if cacheWarning}
+          {cacheWarning}
+        {/if}
+      </p>
+    {/if}
   </div>
   <div class="action-row">
-    <button class="button" type="button" disabled={Boolean(macroRefreshBlockedReason)} title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'} on:click={refresh}><RefreshCw size={16} />Refresh</button>
+    <button class="button" type="button" disabled={Boolean(macroRefreshBlockedReason)} title={macroRefreshBlockedReason || 'Reload Macro Lab state from the desktop service.'} on:click={() => refresh()}>
+      <RefreshCw size={16} />
+      {macroRefreshing ? 'Refreshing' : 'Refresh'}
+    </button>
     <button class="button danger" type="button" disabled={macroControlDisabled} title={macroPanicTitle} on:click={() => callControl('panic')}><AlertTriangle size={16} />Panic</button>
     <button class="button" type="button" disabled={macroControlDisabled} title={macroResetTitle} on:click={() => callControl('reset')}><Power size={16} />Reset</button>
   </div>
@@ -441,7 +556,7 @@
   </div>
   <div class="metric">
     <span>Capabilities</span>
-    <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : loading ? 'checking' : 'connect service'}</strong>
+    <strong>{status ? `${capabilityReady}/${status.capabilities.length}` : macroRefreshing ? 'checking' : 'connect service'}</strong>
     <small>{macroCapabilitiesDetail()}</small>
   </div>
   <div class="metric">
@@ -502,7 +617,7 @@
     {:else}
       <div class="empty-panel">
         <Keyboard size={20} />
-        <strong>{loading ? 'Checking macro editor' : 'No macro selected'}</strong>
+        <strong>{macroRefreshing ? 'Checking macro editor' : 'No macro selected'}</strong>
         <p>{macroEditorEmptyDetail()}</p>
         <div class="action-row">
           <button class="button primary" type="button" disabled title={macroEditorBlockedTitle('save')}><Save size={16} />Save</button>
@@ -572,6 +687,13 @@
 </section>
 
 <style>
+  .header-substatus {
+    margin: 4px 0 0;
+    max-width: 700px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
   .status-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

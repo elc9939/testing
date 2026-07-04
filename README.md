@@ -200,6 +200,9 @@ The Svelte app under `apps/hub` provides these main pages:
   cached status is readable, but service-backed actions stay disabled until a live
   reconnect succeeds.
 - Macro Lab: UI for defining, editing, running, and inspecting local automation macros.
+  It warm-loads the last browser Macro Lab snapshot for saved definitions, action catalog,
+  and run history; cached state is readable, but desktop-control actions stay disabled
+  until the live Macro Lab service reconnects.
 - Passive Tasks: durable background watcher dashboard for app health, backups, idle
   compute, research monitor sweeps, career radar, local file intelligence, and project
   drift detection. The page hydrates from a browser snapshot cache first, then refreshes the

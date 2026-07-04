@@ -1,4 +1,5 @@
 import { env as publicEnv } from '$env/dynamic/public';
+import { getBrowserStorage } from './browser-storage';
 import { requestServiceJson, resolveServiceUrl } from './service-config';
 
 export function getMacroLabApiUrl(): string {
@@ -68,6 +69,60 @@ export interface ActionSpec {
   safety: string;
   description: string;
   config_example: Record<string, unknown>;
+}
+
+export const macroLabDashboardCacheKey = 'miniHub.macroLab.dashboard.v1';
+
+export interface MacroLabDashboardSnapshot {
+  checkedAt: string;
+  status: MacroStatus | null;
+  actions: ActionSpec[];
+  macros: MacroDefinition[];
+  runs: MacroRun[];
+}
+
+interface MacroLabDashboardCache {
+  version: 1;
+  cachedAt: string;
+  snapshot: MacroLabDashboardSnapshot;
+}
+
+function validMacroLabDashboardSnapshot(value: Partial<MacroLabDashboardSnapshot> | null | undefined): value is MacroLabDashboardSnapshot {
+  return Boolean(
+    value &&
+      typeof value.checkedAt === 'string' &&
+      (value.status === null || typeof value.status === 'object') &&
+      Array.isArray(value.actions) &&
+      Array.isArray(value.macros) &&
+      Array.isArray(value.runs)
+  );
+}
+
+export function readCachedMacroLabDashboardSnapshot(): { cachedAt: string; snapshot: MacroLabDashboardSnapshot } | null {
+  const storage = getBrowserStorage();
+  if (!storage) return null;
+  try {
+    const parsed = JSON.parse(storage.getItem(macroLabDashboardCacheKey) ?? 'null') as Partial<MacroLabDashboardCache> | null;
+    if (!parsed || parsed.version !== 1 || typeof parsed.cachedAt !== 'string') return null;
+    if (!validMacroLabDashboardSnapshot(parsed.snapshot)) return null;
+    return { cachedAt: parsed.cachedAt, snapshot: parsed.snapshot };
+  } catch {
+    return null;
+  }
+}
+
+export function writeMacroLabDashboardCache(snapshot: MacroLabDashboardSnapshot): { cachedAt?: string; error?: string } {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return { error: 'Browser Macro Lab cache is unavailable; live automation state is visible but may not survive refresh.' };
+  }
+  const cachedAt = new Date().toISOString();
+  try {
+    storage.setItem(macroLabDashboardCacheKey, JSON.stringify({ version: 1, cachedAt, snapshot } satisfies MacroLabDashboardCache));
+    return { cachedAt };
+  } catch {
+    return { error: 'Browser Macro Lab cache could not be updated; live automation state is visible but may not survive refresh.' };
+  }
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {

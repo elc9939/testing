@@ -839,8 +839,11 @@ describe('Mini Hub usability control gates', () => {
     const macro = await routeSource('../routes/macro-lab/+page.svelte');
     const passive = await routeSource('../routes/passive-tasks/+page.svelte');
 
-    expect(macro).toContain('macroServiceReady = Boolean(status && !serviceError)');
-    expect(macro).toContain('macroControlTitle = macroDisabledReason({ loading, busy, serviceError, status })');
+    expect(macro).toContain('macroInitialLoading = loading && !status');
+    expect(macro).toContain('macroRefreshing = loading || backgroundRefreshing');
+    expect(macro).toContain('macroLiveReady = Boolean(status && liveStatusReady && !serviceError)');
+    expect(macro).toContain('macroServiceReady = macroLiveReady');
+    expect(macro).toContain('macroControlTitle = macroDisabledReason({ loading: macroInitialLoading, busy, serviceError, status, liveReady: macroLiveReady })');
     expect(macro).toContain("visibleServiceError = serviceError ? compactServiceIssueIfRecognized(serviceError, 'Macro Lab') :");
     expect(macro).toContain("visibleActionError = actionError ? compactServiceIssueIfRecognized(actionError, 'Macro Lab action') :");
     expect(macro).toContain('let actionMessage =');
@@ -850,7 +853,15 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('result = stringifyResult(run)');
     expect(macro).toContain('<div class="notice success">{actionMessage}</div>');
     expect(macro).toContain('macroControlDisabled = Boolean(macroControlTitle)');
-    expect(macro).toContain('macroRefreshBlockedReason = macroRefreshDisabledReason({ loading, busy })');
+    expect(macro).toContain('macroRefreshBlockedReason = macroRefreshDisabledReason({ loading: macroRefreshing, busy })');
+    expect(macro).toContain('readCachedMacroLabDashboardSnapshot');
+    expect(macro).toContain('writeMacroLabDashboardCache');
+    expect(macro).toContain('function hydrateMacroLabCache');
+    expect(macro).toContain('function currentMacroLabDashboardSnapshot');
+    expect(macro).toContain('function syncMacroLabDashboardSnapshot');
+    expect(macro).toContain('Showing saved Macro Lab state while the desktop service refreshes.');
+    expect(macro).toContain('Saved Macro Lab state {displayShortDate(cachedAt)}; actions wait for a live reconnect.');
+    expect(macro).toContain('Macro Lab is showing saved automation state from this browser.');
     expect(macro).toContain('function macroRefreshDisabledReason');
     expect(macro).toContain('function macroRowTitle');
     expect(macro).toContain('title={macroRowTitle(macro)}');
@@ -874,7 +885,7 @@ describe('Mini Hub usability control gates', () => {
     expect(macro).toContain('Run ${name} in dry-run mode; Macro Lab should log a preview without desktop side effects.');
     expect(macro).toContain('Ask for confirmation before running ${name} with real desktop side effects; run history records the result.');
     expect(macro).toContain('Ask for confirmation before capturing keyboard and mouse input; Stop ends the recorder.');
-    expect(macro).toContain("loading ? 'checking' : 'connect service'");
+    expect(macro).toContain("macroRefreshing ? 'checking' : 'connect service'");
     expect(macro).toContain("engineState === 'connect service'");
     expect(macro).toContain("triggerState === 'connect service'");
     expect(macro).toContain("databaseState === 'connect service'");
