@@ -2212,7 +2212,7 @@ describe('passive task engine', () => {
     expect(buildPassiveDigest(store)[0]?.id).toBe(applicationCard?.id);
   });
 
-  it('surfaces likely Gmail application confirmations for saved leads', async () => {
+  it('auto-marks high-confidence Gmail application confirmations for saved leads', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
     store.jobs.push({
@@ -2285,23 +2285,198 @@ describe('passive task engine', () => {
         input: { reason: 'gmail-application-confirmation-test' }
       });
 
-      const confirmationCard = run.cards.find((card) => card.title === '1 likely application confirmation found in Gmail');
+      const confirmationCard = run.cards.find((card) => card.title === '1 application auto-marked applied');
       expect(run.status).toBe('succeeded');
       expect(confirmationCard?.summary).toContain('Acme - Data Analyst');
-      expect(confirmationCard?.suggestedAction).toBe('Mark applied');
+      expect(confirmationCard?.suggestedAction).toBe('Review updates');
       expect(confirmationCard?.sourceRefs[0]).toMatchObject({
         id: 'job-gmail-confirmed',
         route: '/desk/career',
         metadata: {
-          status: 'lead',
+          previousStatus: 'lead',
+          status: 'applied',
           gmailSubject: 'Application received - Acme Data Analyst',
-          reason: 'Gmail contains application confirmation language'
+          reason: 'Gmail contains application confirmation language',
+          followUpDueAt: '2026-07-05'
         }
       });
-      expect(run.metadata.gmailApplicationConfirmations).toBe(1);
+      expect(store.jobs[0]).toMatchObject({
+        id: 'job-gmail-confirmed',
+        status: 'applied',
+        nextActionAt: '2026-07-05'
+      });
+      expect(store.jobs[0]?.notes).toContain('Career Radar marked this as applied on 2026-06-21');
+      expect(store.careerActions).toContainEqual(
+        expect.objectContaining({
+          jobId: 'job-gmail-confirmed',
+          label: 'Follow up on application: Data Analyst at Acme',
+          dueAt: '2026-07-05'
+        })
+      );
+      expect(store.syncEvents).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ entityType: 'job', entityId: 'job-gmail-confirmed', operation: 'update' }),
+          expect.objectContaining({ entityType: 'career_action', operation: 'insert' })
+        ])
+      );
+      expect(store.actionEvents).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            source: 'passive-career-radar',
+            actionType: 'career.auto_mark_applied',
+            risk: 'write'
+          })
+        ])
+      );
+      expect(run.metadata).toMatchObject({
+        gmailApplicationConfirmations: 1,
+        gmailAutoMarkedApplied: 1,
+        gmailApplicationConfirmationsNeedingReview: 0
+      });
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('keeps lower-confidence Gmail application confirmations review-only', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-gmail-review',
+      workspaceId: personalWorkspaceId,
+      company: 'Acme',
+      role: 'Data Analyst',
+      status: 'lead',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    store.integrationConnections.set('google-personal', {
+      id: 'google-personal',
+      workspaceId: personalWorkspaceId,
+      provider: 'google',
+      accountLabel: 'personal@example.com',
+      scopes: ['gmail.modify'],
+      encryptedTokenSet: encryptTokenSet({
+        accessToken: 'test-access-token',
+        expiresAt: '2999-01-01T00:00:00.000Z'
+      }),
+      status: 'connected',
+      createdAt: '2026-06-20T10:00:00.000Z',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    vi.stubGlobal(
+      'fetch',
+      (async (input: unknown) => {
+        const href = String(input);
+        if (href.includes('/gmail/v1/users/me/threads?')) {
+          return jsonResponse({ threads: [{ id: 'thread-review' }] });
+        }
+        if (href.includes('/gmail/v1/users/me/threads/thread-review')) {
+          return jsonResponse({
+            id: 'thread-review',
+            snippet: 'Application received from Acme for analyst recruiting.',
+            messages: [
+              {
+                id: 'message-review',
+                threadId: 'thread-review',
+                labelIds: ['INBOX'],
+                internalDate: String(Date.parse('2026-06-21T10:00:00.000Z')),
+                snippet: 'Application received from Acme for analyst recruiting.',
+                payload: {
+                  mimeType: 'text/plain',
+                  headers: [
+                    { name: 'Subject', value: 'Application received - Acme analyst recruiting' },
+                    { name: 'From', value: 'Acme Recruiting <jobs@acme.example>' },
+                    { name: 'Date', value: 'Sun, 21 Jun 2026 10:00:00 -0700' }
+                  ],
+                  body: {
+                    data: base64Url('Application received from Acme for analyst recruiting.')
+                  }
+                }
+              }
+            ]
+          });
+        }
+        return jsonResponse({ ok: true });
+      }) as typeof fetch
+    );
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    try {
+      const run = await runPassiveTask(store, task.id, {
+        externalFetch: healthyServiceFetch(),
+        force: true,
+        input: { reason: 'gmail-application-review-test' }
+      });
+
+      const confirmationCard = run.cards.find((card) => card.title === '1 likely application confirmation need review');
+      expect(run.status).toBe('succeeded');
+      expect(confirmationCard?.suggestedAction).toBe('Mark applied');
+      expect(confirmationCard?.sourceRefs[0]?.metadata).toMatchObject({
+        status: 'lead',
+        confidence: expect.any(Number),
+        reason: 'Gmail contains application confirmation language'
+      });
+      expect(store.jobs[0]?.status).toBe('lead');
+      expect(run.metadata).toMatchObject({
+        gmailApplicationConfirmations: 1,
+        gmailAutoMarkedApplied: 0,
+        gmailApplicationConfirmationsNeedingReview: 1
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('auto-marks saved leads from completed apply actions', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-action-confirmed',
+      workspaceId: personalWorkspaceId,
+      company: 'Signal Labs',
+      role: 'Research Analyst Intern',
+      status: 'saved',
+      applicationUrl: '',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    });
+    store.careerActions.push({
+      id: 'apply-action-confirmed',
+      workspaceId: personalWorkspaceId,
+      jobId: 'job-action-confirmed',
+      label: 'Apply to Signal Labs',
+      completedAt: '2026-06-22T10:00:00.000Z',
+      deviceId: 'test',
+      updatedAt: '2026-06-22T10:00:00.000Z'
+    });
+    const task = store.passiveTasks.find((item) => item.family === 'career_radar')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: healthyServiceFetch(),
+      force: true,
+      input: { reason: 'completed-apply-action-test' }
+    });
+
+    const autoCard = run.cards.find((card) => card.title === '1 application marked applied from completed actions');
+    expect(run.status).toBe('succeeded');
+    expect(autoCard?.summary).toContain('Signal Labs - Research Analyst Intern');
+    expect(store.jobs[0]).toMatchObject({
+      id: 'job-action-confirmed',
+      status: 'applied',
+      nextActionAt: '2026-07-06'
+    });
+    expect(store.careerActions).toContainEqual(
+      expect.objectContaining({
+        jobId: 'job-action-confirmed',
+        label: 'Follow up on application: Research Analyst Intern at Signal Labs',
+        dueAt: '2026-07-06'
+      })
+    );
+    expect(run.metadata.completedApplyActionAutoMarkedApplied).toBe(1);
   });
 
   it('dedupes repeated non-urgent passive notifications while keeping run history', async () => {
@@ -2662,6 +2837,7 @@ describe('passive task engine', () => {
       preferences: {
         careerDiscovery: {
           enabled: true,
+          researchIntensity: 'max',
           background: 'Math/CS student with data, analytics, and local AI projects',
           graduationStatus: 'Upcoming graduate targeting post-graduation roles',
           targetStartWindow: 'May 2027 / Summer 2027 start',
@@ -2732,13 +2908,14 @@ describe('passive task engine', () => {
     });
 
     expect(run.status).toBe('succeeded');
-    expect(createdBodies.length).toBeGreaterThanOrEqual(3);
+    expect(createdBodies.length).toBeGreaterThanOrEqual(8);
     expect(createdBodies[0]).toMatchObject({
       name: 'Passive career discovery: May 2027 / Summer 2027 start career discovery',
       metadata: {
         source: 'mini-hub-passive',
         passive_watch_kind: 'topic',
         career_discovery: true,
+        research_intensity: 'max',
         target_start_window: 'May 2027 / Summer 2027 start',
         profile_background: 'Math/CS student with data, analytics, and local AI projects',
         graduation_status: 'Upcoming graduate targeting post-graduation roles'
@@ -2746,6 +2923,7 @@ describe('passive task engine', () => {
     });
     const firstRequest = createdBodies[0]?.request as Record<string, unknown>;
     expect(String(firstRequest.goal)).toContain('May 2027 / Summer 2027 start');
+    expect(String(firstRequest.goal)).toContain('Research intensity: max');
     expect(String(firstRequest.goal)).toContain('Avoid duplicates');
     expect(String(firstRequest.goal)).toContain('Old Applied Co');
     expect(firstRequest).toMatchObject({
@@ -2762,7 +2940,8 @@ describe('passive task engine', () => {
     expect(run.metadata).toMatchObject({
       careerDiscoveryTopics: expect.arrayContaining([
         'May 2027 / Summer 2027 start career discovery',
-        'May 2027 / Summer 2027 start Data Analyst roles'
+        'May 2027 / Summer 2027 start Data Analyst roles',
+        'May 2027 / Summer 2027 start Data Analyst roles in New York'
       ])
     });
   });
@@ -2833,7 +3012,7 @@ describe('passive task engine', () => {
     });
 
     expect(run.status).toBe('succeeded');
-    expect(createdBodies).toHaveLength(2);
+    expect(createdBodies).toHaveLength(3);
     const careerDomainBody = createdBodies.find((body) => body.name === 'Passive career watch: clay.com');
     const careerDiscoveryBody = createdBodies.find((body) => body.name === 'Passive career discovery: May 2027 / Summer 2027 start career discovery');
     expect(careerDiscoveryBody).toMatchObject({
@@ -2865,7 +3044,7 @@ describe('passive task engine', () => {
       watchedDomains: ['clay.com'],
       watchedDomainSources: { 'clay.com': 'career_job' },
       careerJobDomains: ['clay.com'],
-      careerDiscoveryTopics: ['May 2027 / Summer 2027 start career discovery']
+      careerDiscoveryTopics: expect.arrayContaining(['May 2027 / Summer 2027 start career discovery'])
     });
   });
 

@@ -197,14 +197,20 @@ normal API startup.
   watcher remains source-backed rather than guessed. Career Discovery profile filters saved
   from Career Desk add topic monitors for May 2027/Summer 2027-style role discovery, using
   saved target roles, background/status text, preferred locations, and existing companies as
-  duplicate/exclusion hints.
+  duplicate/exclusion hints. The profile's focused/broad/max research intensity controls how
+  many bounded discovery monitor variants are prepared; max intensity adds role/location
+  combinations while the prompt still rejects senior-only, closed, vague, duplicate, or
+  unsourced roles.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. Career Desk's quick "mark applied" flow writes both the applied job status
   and a dated follow-up action, so the radar has durable data to review later. When Gmail is
-  connected, Career Radar also checks recent high-confidence application-confirmation mail
-  against saved leads and surfaces review cards that point back to the row-level Mark applied
-  action instead of silently changing job status on weak evidence.
+  connected, Career Radar checks recent application-confirmation mail against saved leads.
+  Evidence above the configured confidence threshold can auto-mark the job `applied`, create
+  or update the 14-day follow-up action, append synced before-snapshot events, and write an
+  Action Ledger entry. Completed linked Career actions that look like apply/submit actions
+  can do the same. Lower-confidence mail remains review-only and points back to the row-level
+  Mark applied action instead of silently changing job status.
 - Local File Intelligence: scans only configured watched folders for recent document,
   note/data, and image metadata, with a scheduled task and a debounced `file.changed` event
   task. It adds bounded text previews for text-like files, source-backed metadata summaries

@@ -38,6 +38,8 @@
 
   interface CareerDiscoveryProfile {
     enabled: boolean;
+    autoMarkAppliedFromEvidence: boolean;
+    researchIntensity: 'focused' | 'broad' | 'max';
     background: string;
     graduationStatus: string;
     targetStartWindow: string;
@@ -92,6 +94,8 @@
   let careerProfileHydrated = false;
   let careerProfileSaving = false;
   let careerDiscoveryEnabled = true;
+  let careerAutoMarkAppliedFromEvidence = true;
+  let careerDiscoveryResearchIntensity: CareerDiscoveryProfile['researchIntensity'] = 'max';
   let careerDiscoveryBackground = '';
   let careerDiscoveryGraduationStatus = '';
   let careerDiscoveryStartWindow = defaultCareerDiscoveryStartWindow;
@@ -298,6 +302,11 @@
     const record = value && typeof value === 'object' && !Array.isArray(value) ? (value as Partial<CareerDiscoveryProfile>) : {};
     return {
       enabled: record.enabled !== false,
+      autoMarkAppliedFromEvidence: record.autoMarkAppliedFromEvidence !== false,
+      researchIntensity:
+        record.researchIntensity === 'focused' || record.researchIntensity === 'broad' || record.researchIntensity === 'max'
+          ? record.researchIntensity
+          : 'max',
       background: typeof record.background === 'string' ? record.background : '',
       graduationStatus: typeof record.graduationStatus === 'string' ? record.graduationStatus : '',
       targetStartWindow: typeof record.targetStartWindow === 'string' && record.targetStartWindow.trim() ? record.targetStartWindow : defaultCareerDiscoveryStartWindow,
@@ -310,6 +319,8 @@
   function hydrateCareerDiscoveryProfile(value: unknown): void {
     const profile = normalizeCareerDiscoveryProfile(value);
     careerDiscoveryEnabled = profile.enabled;
+    careerAutoMarkAppliedFromEvidence = profile.autoMarkAppliedFromEvidence;
+    careerDiscoveryResearchIntensity = profile.researchIntensity;
     careerDiscoveryBackground = profile.background;
     careerDiscoveryGraduationStatus = profile.graduationStatus;
     careerDiscoveryStartWindow = profile.targetStartWindow;
@@ -322,6 +333,8 @@
   function currentCareerDiscoveryProfile(): CareerDiscoveryProfile {
     return {
       enabled: careerDiscoveryEnabled,
+      autoMarkAppliedFromEvidence: careerAutoMarkAppliedFromEvidence,
+      researchIntensity: careerDiscoveryResearchIntensity,
       background: careerDiscoveryBackground.trim(),
       graduationStatus: careerDiscoveryGraduationStatus.trim(),
       targetStartWindow: careerDiscoveryStartWindow.trim() || defaultCareerDiscoveryStartWindow,
@@ -1190,6 +1203,18 @@
         <input type="checkbox" bind:checked={careerDiscoveryEnabled} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} />
         <span>Use this profile for routine passive role research</span>
       </label>
+      <label class="check-row">
+        <input type="checkbox" bind:checked={careerAutoMarkAppliedFromEvidence} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} />
+        <span>Auto-mark applied when Gmail or completed actions match with high confidence</span>
+      </label>
+      <div class="field">
+        <label for="career-research-intensity">Research intensity</label>
+        <select id="career-research-intensity" aria-label="Career discovery research intensity" bind:value={careerDiscoveryResearchIntensity} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)}>
+          <option value="focused">Focused</option>
+          <option value="broad">Broad</option>
+          <option value="max">Max</option>
+        </select>
+      </div>
       <div class="field wide">
         <label for="career-background">Background filter</label>
         <textarea id="career-background" aria-label="Career background filter" bind:value={careerDiscoveryBackground} disabled={!canSave || careerProfileSaving} title={careerDiscoveryProfileTitle(careerControlState)} rows="2" placeholder="Math/CS, analytics, local AI projects, coursework, tools..."></textarea>

@@ -1,4 +1,6 @@
 import {
+  careerActionSchema,
+  jobSchema,
   passiveEngineSettingsSchema,
   passiveBackupHealthSchema,
   passiveCardTriageStateSchema,
@@ -16,6 +18,7 @@ import {
   routeMap,
   type GmailThread,
   type JobRecord,
+  type CareerActionRecord,
   type AttentionAction,
   type AttentionItem,
   type IntegrationConnection,
@@ -58,7 +61,14 @@ import { platform } from 'node:os';
 import { promisify } from 'node:util';
 import { env } from './env';
 import { GoogleGmailConnector } from './integrations/google';
-import { appendActionLedgerEvent, persistPassiveTasks, redactActionLedgerEvent, type MemoryStore } from './store';
+import {
+  appendActionLedgerEvent,
+  appendSyncEvent,
+  persistPassiveTasks,
+  redactActionLedgerEvent,
+  withBeforeSnapshot,
+  type MemoryStore
+} from './store';
 
 type FetchLike = typeof fetch;
 type PassiveMachineMode = 'auto' | 'balanced' | 'beast' | 'quiet' | 'offline' | 'night' | 'maintenance';
@@ -952,6 +962,20 @@ function careerDiscoveryRoleSeeds(store: MemoryStore, profile: Record<string, un
   return Array.from(new Set([...configured, ...fromJobs])).slice(0, limit);
 }
 
+function careerDiscoveryIntensity(profile: Record<string, unknown>): 'focused' | 'broad' | 'max' {
+  return profile.researchIntensity === 'max' || profile.researchIntensity === 'broad' || profile.researchIntensity === 'focused'
+    ? profile.researchIntensity
+    : 'focused';
+}
+
+function careerDiscoveryEntryLimit(profile: Record<string, unknown>, budget: PassiveResourceBudget): number {
+  const base = Math.max(1, budget.researchMonitorCreateLimit);
+  const intensity = careerDiscoveryIntensity(profile);
+  if (intensity === 'max') return Math.max(base, 16);
+  if (intensity === 'broad') return Math.max(base, 8);
+  return base;
+}
+
 function careerDiscoveryExistingCompanies(store: MemoryStore, profile: Record<string, unknown>, limit = 24): string[] {
   const configured = compactTextList(profile.excludeCompanies, limit);
   const fromJobs = store.jobs.map((job) => job.company.trim()).filter(Boolean);
@@ -964,8 +988,10 @@ function careerDiscoveryProfileEntries(
 ): PassiveResearchDomainEntry[] {
   if (!careerDiscoveryEnabled(store)) return [];
   const profile = careerDiscoveryPreference(store);
-  const roles = careerDiscoveryRoleSeeds(store, profile, Math.max(3, budget.researchMonitorCreateLimit));
+  const entryLimit = careerDiscoveryEntryLimit(profile, budget);
+  const roles = careerDiscoveryRoleSeeds(store, profile, Math.max(3, Math.min(entryLimit, 12)));
   if (!roles.length) return [];
+  const intensity = careerDiscoveryIntensity(profile);
   const targetStartWindow =
     typeof profile.targetStartWindow === 'string' && profile.targetStartWindow.trim()
       ? profile.targetStartWindow.trim()
@@ -979,6 +1005,7 @@ function careerDiscoveryProfileEntries(
     target_start_window: targetStartWindow,
     profile_background: background || undefined,
     graduation_status: graduationStatus || undefined,
+    research_intensity: intensity,
     target_roles: roles,
     locations,
     excluded_companies: excludedCompanies,
@@ -1015,7 +1042,28 @@ function careerDiscoveryProfileEntries(
     });
   }
 
-  return entries.slice(0, Math.max(1, budget.researchMonitorCreateLimit));
+  if (intensity === 'max' && locations.length) {
+    for (const role of roles) {
+      for (const location of locations.slice(0, 6)) {
+        entries.push({
+          key: `topic:career-discovery-${slugResearchWatchKey(targetStartWindow)}-${slugResearchWatchKey(role)}-${slugResearchWatchKey(location)}`,
+          kind: 'topic',
+          source: 'career_profile',
+          labels: [`${targetStartWindow} ${role} roles in ${location}`],
+          jobIds: [],
+          urls: [],
+          metadata: {
+            ...sharedMetadata,
+            discovery_scope: 'role_location',
+            role,
+            location
+          }
+        });
+      }
+    }
+  }
+
+  return entries.slice(0, entryLimit);
 }
 
 function safeCareerResearchDomainEntries(
@@ -1058,13 +1106,16 @@ function passiveResearchDomainEntries(
   settings: PassiveEngineSettings,
   budget = resourceBudget(settings)
 ): PassiveResearchDomainEntry[] {
-  const limit = Math.max(budget.researchMonitorCreateLimit, budget.researchMonitorRunLimit);
+  const configuredEntries = safeConfiguredDomainEntries(settings, budget);
+  const careerJobEntries = safeCareerResearchDomainEntries(store, budget);
+  const careerProfileEntries = careerDiscoveryProfileEntries(store, budget);
+  const limit = Math.max(
+    budget.researchMonitorCreateLimit,
+    budget.researchMonitorRunLimit,
+    configuredEntries.length + careerJobEntries.length + careerProfileEntries.length
+  );
   const byKey = new Map<string, PassiveResearchDomainEntry>();
-  for (const entry of [
-    ...safeConfiguredDomainEntries(settings, budget),
-    ...safeCareerResearchDomainEntries(store, budget),
-    ...careerDiscoveryProfileEntries(store, budget)
-  ]) {
+  for (const entry of [...configuredEntries, ...careerJobEntries, ...careerProfileEntries]) {
     const existing = byKey.get(entry.key);
     if (!existing) {
       byKey.set(entry.key, entry);
@@ -3201,11 +3252,13 @@ function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
     const roles = compactTextList(metadata.target_roles, 8);
     const locations = compactTextList(metadata.locations, 8);
     const excludedCompanies = compactTextList(metadata.excluded_companies, 24);
+    const intensity = typeof metadata.research_intensity === 'string' ? metadata.research_intensity : 'focused';
     const background = typeof metadata.profile_background === 'string' ? metadata.profile_background : '';
     const graduationStatus = typeof metadata.graduation_status === 'string' ? metadata.graduation_status : '';
     return [
       `Find source-backed career opportunities for ${label}.`,
       `Only prioritize roles that explicitly fit a ${startWindow} timeline, new-grad, early-career, analyst, internship, rotational, or upcoming-graduate style eligibility.`,
+      `Research intensity: ${intensity}; prefer breadth only when each result still passes the fit and novelty filters.`,
       roles.length ? `Target role families: ${roles.join('; ')}.` : '',
       locations.length ? `Preferred locations/work modes: ${locations.join('; ')}.` : '',
       background ? `Candidate background filter: ${background}.` : '',
@@ -3275,7 +3328,7 @@ async function ensureWatchedDomainResearchMonitors(
   const covered = new Set(existing.map(existingResearchWatchKey).filter((value): value is string => typeof value === 'string'));
 
   const created: Record<string, unknown>[] = [];
-  for (const entry of domainEntries.filter((item) => !covered.has(item.key)).slice(0, budget.researchMonitorCreateLimit)) {
+  for (const entry of domainEntries.filter((item) => !covered.has(item.key))) {
     const seedUrls = entry.urls.length ? entry.urls : entry.domain ? [`https://${entry.domain}/`] : [];
     const metadata = passiveResearchWatchMetadata(entry);
     const createPayload = await fetchJsonWithTimeout(
@@ -3667,6 +3720,42 @@ function careerMailConnections(store: MemoryStore): IntegrationConnection[] {
   );
 }
 
+type CareerApplicationEvidenceSource = 'gmail' | 'completed_action';
+
+interface CareerApplicationEvidence {
+  job: JobRecord;
+  source: CareerApplicationEvidenceSource;
+  reason: string;
+  confidence: number;
+  matchedOn: string[];
+  occurredAt?: string;
+  thread?: GmailThread;
+  action?: CareerActionRecord;
+}
+
+interface CareerApplicationAutoUpdate {
+  job: JobRecord;
+  before: JobRecord;
+  followUpAction: CareerActionRecord;
+  evidence: CareerApplicationEvidence;
+}
+
+function careerAutoMarkAppliedEnabled(store: MemoryStore): boolean {
+  const profile = careerDiscoveryPreference(store);
+  return profile.autoMarkAppliedFromEvidence !== false;
+}
+
+function careerAutoMarkConfidenceThreshold(store: MemoryStore): number {
+  const profile = careerDiscoveryPreference(store);
+  const raw = Number(profile.autoMarkConfidenceThreshold);
+  if (!Number.isFinite(raw)) return 0.92;
+  return Math.min(0.99, Math.max(0.88, raw));
+}
+
+function applicationCandidateJobs(store: MemoryStore): JobRecord[] {
+  return store.jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status.trim().toLowerCase()));
+}
+
 function careerMailText(thread: GmailThread): string {
   return [
     thread.subject,
@@ -3688,6 +3777,16 @@ function careerWordTokens(value: string): string[] {
     .filter((item) => item.length >= 3 && !stop.has(item));
 }
 
+function careerUrlTokens(value: string): string[] {
+  if (!value) return [];
+  try {
+    const url = new URL(value);
+    return careerWordTokens(url.hostname.replace(/^www\./iu, '').replace(/\.[a-z]{2,}$/iu, ' '));
+  } catch {
+    return [];
+  }
+}
+
 function applicationConfirmationReason(thread: GmailThread): string | null {
   const text = careerMailText(thread);
   if (/\b(thank you for applying|thanks for applying|application (?:was )?(?:submitted|received)|we (?:have )?received your application|your application (?:has been|was) received|application confirmation|successfully submitted)\b/iu.test(text)) {
@@ -3696,26 +3795,220 @@ function applicationConfirmationReason(thread: GmailThread): string | null {
   return null;
 }
 
-function careerMailMatchesJob(thread: GmailThread, job: JobRecord): boolean {
+function careerMailApplicationEvidence(thread: GmailThread, job: JobRecord): CareerApplicationEvidence | null {
+  const reason = applicationConfirmationReason(thread);
+  if (!reason) return null;
   const text = careerMailText(thread);
   const company = job.company.toLowerCase().trim();
   const role = job.role.toLowerCase().trim();
-  const companyTokens = careerWordTokens(job.company);
+  const companyTokens = Array.from(new Set([...careerWordTokens(job.company), ...careerUrlTokens(job.applicationUrl)]));
   const roleTokens = careerWordTokens(job.role);
-  if (company.length >= 3 && text.includes(company)) return true;
-  if (role.length >= 8 && text.includes(role) && companyTokens.some((token) => text.includes(token))) return true;
-  return companyTokens.some((token) => text.includes(token)) && roleTokens.filter((token) => text.includes(token)).length >= 1;
+  const exactCompany = company.length >= 4 && text.includes(company);
+  const exactRole = role.length >= 8 && text.includes(role);
+  const companyMatches = companyTokens.filter((token) => text.includes(token));
+  const roleMatches = roleTokens.filter((token) => text.includes(token));
+  const matchedOn = [
+    exactCompany ? 'exact-company' : '',
+    exactRole ? 'exact-role' : '',
+    ...companyMatches.map((token) => `company:${token}`),
+    ...roleMatches.map((token) => `role:${token}`)
+  ].filter(Boolean);
+  if (!exactCompany && !companyMatches.length) return null;
+  if (!exactRole && roleMatches.length < 1) return null;
+
+  let confidence = 0.84;
+  if (exactCompany) confidence += 0.06;
+  if (exactRole) confidence += 0.06;
+  if (!exactRole && roleMatches.length >= 2) confidence += 0.04;
+  if (companyMatches.length >= 2) confidence += 0.02;
+  if (/\b(intern|graduate|analyst|engineer|research|quant|data)\b/iu.test(role) && roleMatches.length) confidence += 0.01;
+  confidence = Math.min(0.98, confidence);
+
+  const occurredAt = thread.date || thread.messages[0]?.date;
+  return {
+    job,
+    source: 'gmail',
+    reason,
+    confidence,
+    matchedOn: Array.from(new Set(matchedOn)).slice(0, 8),
+    ...(occurredAt ? { occurredAt } : {}),
+    thread
+  };
+}
+
+function completedApplyActionEvidence(store: MemoryStore): CareerApplicationEvidence[] {
+  const candidateById = new Map(applicationCandidateJobs(store).map((job) => [job.id, job]));
+  const evidence: CareerApplicationEvidence[] = [];
+  for (const action of store.careerActions) {
+    if (!action.jobId || !action.completedAt) continue;
+    const job = candidateById.get(action.jobId);
+    if (!job) continue;
+    const label = action.label.toLowerCase();
+    if (/\bfollow\s*up\b/iu.test(label)) continue;
+    const applySignal =
+      /^\s*(apply|applied|submit|submitted)\b/iu.test(label) ||
+      /\b(application submitted|submitted application|applied to|apply to|submit application)\b/iu.test(label);
+    if (!applySignal) continue;
+    evidence.push({
+      job,
+      source: 'completed_action',
+      reason: 'Completed Career action indicates the application was submitted',
+      confidence: 0.97,
+      matchedOn: [`career-action:${action.id}`],
+      occurredAt: action.completedAt,
+      action
+    });
+  }
+  return evidence;
+}
+
+function dateInputFromEvidence(value: string | undefined, fallback = new Date()): string {
+  const parsed = parseTime(value);
+  const date = Number.isFinite(parsed) ? new Date(parsed) : fallback;
+  return date.toISOString().slice(0, 10);
+}
+
+function addDaysToDateInput(value: string, days: number): string {
+  const parsed = Date.parse(`${value}T12:00:00.000Z`);
+  const date = Number.isFinite(parsed) ? new Date(parsed) : new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function applicationFollowUpLabel(job: Pick<JobRecord, 'company' | 'role'>): string {
+  return `Follow up on application: ${job.role} at ${job.company}`;
+}
+
+function appendPassiveAppliedNote(existingNotes: string, evidence: CareerApplicationEvidence, appliedDate: string): string {
+  if (/Career Radar marked this as applied on \d{4}-\d{2}-\d{2}\./u.test(existingNotes)) return existingNotes;
+  const source =
+    evidence.source === 'gmail'
+      ? `Gmail confirmation${evidence.thread?.subject ? ` "${evidence.thread.subject}"` : ''}`
+      : `completed Career action${evidence.action?.label ? ` "${evidence.action.label}"` : ''}`;
+  return [
+    existingNotes.trim(),
+    `Career Radar marked this as applied on ${appliedDate} from ${source}. Evidence confidence: ${Math.round(evidence.confidence * 100)}%.`
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function upsertPassiveApplicationFollowUp(
+  store: MemoryStore,
+  job: JobRecord,
+  followUpDate: string,
+  date: Date
+): CareerActionRecord {
+  const now = nowIso(date);
+  const label = applicationFollowUpLabel(job);
+  const existingIndex = store.careerActions.findIndex(
+    (action) => action.jobId === job.id && !action.completedAt && action.label.toLowerCase().startsWith('follow up on application:')
+  );
+  const existing = existingIndex >= 0 ? store.careerActions[existingIndex] : undefined;
+  const action = careerActionSchema.parse({
+    ...(existing ?? {}),
+    id: existing?.id ?? id('career-action'),
+    workspaceId: job.workspaceId,
+    jobId: job.id,
+    label,
+    dueAt: followUpDate,
+    completedAt: existing?.completedAt,
+    deviceId: 'passive-engine',
+    updatedAt: now
+  });
+  if (existingIndex >= 0) {
+    store.careerActions[existingIndex] = action;
+  } else {
+    store.careerActions.push(action);
+  }
+  appendSyncEvent(store, {
+    workspaceId: action.workspaceId,
+    entityType: 'career_action',
+    entityId: action.id,
+    operation: existingIndex >= 0 ? 'update' : 'insert',
+    payload: existing ? withBeforeSnapshot(action, existing, 'passive-application-follow-up') : action,
+    deviceId: action.deviceId
+  });
+  return action;
+}
+
+function promoteCareerApplicationEvidence(
+  store: MemoryStore,
+  evidence: CareerApplicationEvidence,
+  runId: string,
+  date = new Date()
+): CareerApplicationAutoUpdate | null {
+  const index = store.jobs.findIndex((job) => job.id === evidence.job.id);
+  const before = index >= 0 ? store.jobs[index] : undefined;
+  if (!before || !applicationCandidateJobs(store).some((job) => job.id === before.id)) return null;
+  const appliedDate = dateInputFromEvidence(evidence.occurredAt, date);
+  const followUpDate = addDaysToDateInput(appliedDate, 14);
+  const updated = jobSchema.parse({
+    ...before,
+    status: 'applied',
+    nextActionAt: followUpDate,
+    notes: appendPassiveAppliedNote(before.notes, evidence, appliedDate),
+    deviceId: 'passive-engine',
+    updatedAt: nowIso(date)
+  });
+  store.jobs[index] = updated;
+  appendSyncEvent(store, {
+    workspaceId: updated.workspaceId,
+    entityType: 'job',
+    entityId: updated.id,
+    operation: 'update',
+    payload: withBeforeSnapshot(updated, before, 'passive-application-confirmation'),
+    deviceId: updated.deviceId
+  });
+  const followUpAction = upsertPassiveApplicationFollowUp(store, updated, followUpDate, date);
+  appendActionLedgerEvent(store, {
+    system: 'mini-hub',
+    source: 'passive-career-radar',
+    actionType: 'career.auto_mark_applied',
+    summary: `Marked ${updated.role} at ${updated.company} applied from ${evidence.source === 'gmail' ? 'Gmail confirmation' : 'completed Career action'}.`,
+    status: 'succeeded',
+    risk: 'write',
+    changed: [`job:${updated.id}`, `career_action:${followUpAction.id}`],
+    recoverability: {
+      kind: 'snapshot',
+      referenceId: runId,
+      route: routeMap.careerDesk,
+      description: 'The sync event stores a before-snapshot for the job update.',
+      reversible: true
+    },
+    rawRef: compactRecord({
+      runId,
+      jobId: updated.id,
+      source: evidence.source,
+      gmailThreadId: evidence.thread?.id,
+      careerActionId: evidence.action?.id
+    }),
+    metadata: compactRecord({
+      confidence: evidence.confidence,
+      matchedOn: evidence.matchedOn,
+      reason: evidence.reason,
+      appliedDate,
+      followUpDate
+    })
+  });
+  return { job: updated, before, followUpAction, evidence };
 }
 
 async function careerApplicationConfirmationCards(
   store: MemoryStore,
   task: PassiveTask,
   runId: string
-): Promise<{ cards: PassiveResultCard[]; matchedCount: number; error?: string }> {
+): Promise<{
+  cards: PassiveResultCard[];
+  matchedCount: number;
+  autoAppliedCount: number;
+  reviewCount: number;
+  error?: string;
+}> {
   const connections = careerMailConnections(store);
-  if (!connections.length) return { cards: [], matchedCount: 0 };
-  const candidateJobs = store.jobs.filter((job) => ['lead', 'saved', 'watching'].includes(job.status));
-  if (!candidateJobs.length) return { cards: [], matchedCount: 0 };
+  if (!connections.length) return { cards: [], matchedCount: 0, autoAppliedCount: 0, reviewCount: 0 };
+  const candidateJobs = applicationCandidateJobs(store);
+  if (!candidateJobs.length) return { cards: [], matchedCount: 0, autoAppliedCount: 0, reviewCount: 0 };
   const results = await Promise.allSettled(
     connections.map((connection) =>
       new GoogleGmailConnector(store, connection.id).listThreads({
@@ -3728,64 +4021,174 @@ async function careerApplicationConfirmationCards(
   const errors = results
     .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
     .map((result) => describeError(result.reason));
-  const matches: Array<{ job: JobRecord; thread: GmailThread; reason: string }> = [];
+  const matches: CareerApplicationEvidence[] = [];
   for (const thread of threads) {
-    const reason = applicationConfirmationReason(thread);
-    if (!reason) continue;
-    const job = candidateJobs.find((item) => careerMailMatchesJob(thread, item));
-    if (!job) continue;
-    if (matches.some((match) => match.job.id === job.id && match.thread.id === thread.id)) continue;
-    matches.push({ job, thread, reason });
+    const evidence = candidateJobs
+      .map((item) => careerMailApplicationEvidence(thread, item))
+      .filter((item): item is CareerApplicationEvidence => Boolean(item))
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    if (!evidence?.thread) continue;
+    if (matches.some((match) => match.job.id === evidence.job.id && match.thread?.id === evidence.thread?.id)) continue;
+    matches.push(evidence);
   }
   if (!matches.length) {
     return {
       cards: [],
       matchedCount: 0,
+      autoAppliedCount: 0,
+      reviewCount: 0,
       ...(errors[0] ? { error: errors[0] } : {})
     };
   }
-  return {
-    matchedCount: matches.length,
-    ...(errors[0] ? { error: errors[0] } : {}),
-    cards: [
+  const threshold = careerAutoMarkConfidenceThreshold(store);
+  const autoEligible = careerAutoMarkAppliedEnabled(store)
+    ? matches.filter((match) => match.confidence >= threshold)
+    : [];
+  const updates = autoEligible
+    .map((match) => promoteCareerApplicationEvidence(store, match, runId))
+    .filter((item): item is CareerApplicationAutoUpdate => Boolean(item));
+  const updatedJobIds = new Set(updates.map((item) => item.job.id));
+  const reviewMatches = matches.filter((match) => !updatedJobIds.has(match.job.id));
+  const cards: PassiveResultCard[] = [];
+  if (updates.length) {
+    cards.push(
       card({
         id: id('passive-card'),
         taskId: task.id,
         runId,
         family: task.family,
-        title: `${matches.length} likely application confirmation${matches.length === 1 ? '' : 's'} found in Gmail`,
-        summary: matches
+        title: `${updates.length} application${updates.length === 1 ? '' : 's'} auto-marked applied`,
+        summary: updates
+          .slice(0, 4)
+          .map((update) => `${update.job.company} - ${update.job.role}`)
+          .join('; '),
+        urgency: 74,
+        confidence: Math.min(0.98, Math.max(...updates.map((update) => update.evidence.confidence))),
+        route: routeMap.careerDesk,
+        sourceRefs: updates.slice(0, 8).map((update) =>
+          stableSourceRef('record', `${update.job.company} - ${update.job.role}`, {
+            id: update.job.id,
+            route: routeMap.careerDesk,
+            metadata: compactRecord({
+              previousStatus: update.before.status,
+              status: update.job.status,
+              source: update.evidence.source,
+              confidence: update.evidence.confidence,
+              matchedOn: update.evidence.matchedOn,
+              gmailThreadId: update.evidence.thread?.id,
+              gmailSubject: update.evidence.thread?.subject,
+              gmailFrom: update.evidence.thread?.from,
+              gmailDate: update.evidence.thread?.date,
+              careerActionId: update.evidence.action?.id,
+              followUpActionId: update.followUpAction.id,
+              followUpDueAt: update.followUpAction.dueAt,
+              reason: update.evidence.reason
+            })
+          })
+        ),
+        suggestedAction: 'Review updates',
+        actionKind: 'inspect',
+        why: `Career Radar found application evidence above the ${Math.round(threshold * 100)}% confidence threshold and updated matching saved leads with synced follow-up actions.`
+      })
+    );
+  }
+  if (reviewMatches.length) {
+    cards.push(
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: `${reviewMatches.length} likely application confirmation${reviewMatches.length === 1 ? '' : 's'} need review`,
+        summary: reviewMatches
           .slice(0, 4)
           .map((match) => `${match.job.company} - ${match.job.role}`)
           .join('; '),
         urgency: 78,
-        confidence: 0.84,
+        confidence: Math.max(...reviewMatches.map((match) => match.confidence)),
         route: routeMap.careerDesk,
-        sourceRefs: matches.slice(0, 8).map((match) =>
+        sourceRefs: reviewMatches.slice(0, 8).map((match) =>
           stableSourceRef('record', `${match.job.company} - ${match.job.role}`, {
             id: match.job.id,
             route: routeMap.careerDesk,
-            metadata: {
+            metadata: compactRecord({
               status: match.job.status,
-              gmailThreadId: match.thread.id,
-              gmailSubject: match.thread.subject,
-              gmailFrom: match.thread.from,
-              gmailDate: match.thread.date,
+              source: match.source,
+              confidence: match.confidence,
+              matchedOn: match.matchedOn,
+              gmailThreadId: match.thread?.id,
+              gmailSubject: match.thread?.subject,
+              gmailFrom: match.thread?.from,
+              gmailDate: match.thread?.date,
               reason: match.reason
-            }
+            })
           })
         ),
         suggestedAction: 'Mark applied',
         actionKind: 'inspect',
-        why: 'Gmail returned recent application-confirmation language that matched saved Career Desk leads. Use the row-level Mark applied action after reviewing the match.'
+        why: 'Gmail returned application-confirmation language that matched saved Career Desk leads, but the match stayed below the auto-update threshold. Use the row-level Mark applied action after reviewing it.'
       })
-    ]
+    );
+  }
+  return {
+    matchedCount: matches.length,
+    autoAppliedCount: updates.length,
+    reviewCount: reviewMatches.length,
+    ...(errors[0] ? { error: errors[0] } : {}),
+    cards
   };
 }
 
 async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: string): Promise<FamilyRunResult> {
   const now = Date.now();
   const soonMs = now + 14 * dayMs;
+  const cards: PassiveResultCard[] = [];
+  const completedActionEvidence = completedApplyActionEvidence(store);
+  const completedActionThreshold = careerAutoMarkConfidenceThreshold(store);
+  const completedActionUpdates = careerAutoMarkAppliedEnabled(store)
+    ? completedActionEvidence
+        .filter((evidence) => evidence.confidence >= completedActionThreshold)
+        .map((evidence) => promoteCareerApplicationEvidence(store, evidence, runId))
+        .filter((item): item is CareerApplicationAutoUpdate => Boolean(item))
+    : [];
+  if (completedActionUpdates.length) {
+    cards.push(
+      card({
+        id: id('passive-card'),
+        taskId: task.id,
+        runId,
+        family: task.family,
+        title: `${completedActionUpdates.length} application${completedActionUpdates.length === 1 ? '' : 's'} marked applied from completed actions`,
+        summary: completedActionUpdates
+          .slice(0, 4)
+          .map((update) => `${update.job.company} - ${update.job.role}`)
+          .join('; '),
+        urgency: 72,
+        confidence: Math.min(0.98, Math.max(...completedActionUpdates.map((update) => update.evidence.confidence))),
+        route: routeMap.careerDesk,
+        sourceRefs: completedActionUpdates.slice(0, 8).map((update) =>
+          stableSourceRef('record', `${update.job.company} - ${update.job.role}`, {
+            id: update.job.id,
+            route: routeMap.careerDesk,
+            metadata: compactRecord({
+              previousStatus: update.before.status,
+              status: update.job.status,
+              source: update.evidence.source,
+              confidence: update.evidence.confidence,
+              careerActionId: update.evidence.action?.id,
+              followUpActionId: update.followUpAction.id,
+              followUpDueAt: update.followUpAction.dueAt,
+              reason: update.evidence.reason
+            })
+          })
+        ),
+        suggestedAction: 'Review updates',
+        actionKind: 'inspect',
+        why: 'A completed linked Career action looked like an apply/submit action, so Career Radar promoted the saved lead and created a synced application follow-up.'
+      })
+    );
+  }
+  const mailConfirmations = await careerApplicationConfirmationCards(store, task, runId);
   const overdueActions = store.careerActions.filter((item) => !item.completedAt && item.dueAt && parseTime(item.dueAt) <= now);
   const dueActions = store.careerActions.filter((item) => !item.completedAt && item.dueAt && parseTime(item.dueAt) > now && parseTime(item.dueAt) <= soonMs);
   const leadJobs = store.jobs.filter((job) => {
@@ -3801,8 +4204,6 @@ async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: stri
     const thresholdDays = job.status === 'applied' ? 14 : 7;
     return parseTime(job.updatedAt) <= now - thresholdDays * dayMs;
   });
-  const cards: PassiveResultCard[] = [];
-  const mailConfirmations = await careerApplicationConfirmationCards(store, task, runId);
 
   if (overdueActions.length || dueActions.length) {
     cards.push(
@@ -3937,6 +4338,9 @@ async function runCareerRadar(store: MemoryStore, task: PassiveTask, runId: stri
       leadFollowUps: leadJobs.length,
       submittedApplicationFollowUps: submittedJobs.length,
       gmailApplicationConfirmations: mailConfirmations.matchedCount,
+      gmailAutoMarkedApplied: mailConfirmations.autoAppliedCount,
+      gmailApplicationConfirmationsNeedingReview: mailConfirmations.reviewCount,
+      completedApplyActionAutoMarkedApplied: completedActionUpdates.length,
       ...(mailConfirmations.error ? { gmailApplicationConfirmationError: mailConfirmations.error } : {})
     }
   };

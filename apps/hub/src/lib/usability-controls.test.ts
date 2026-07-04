@@ -1608,6 +1608,13 @@ describe('Mini Hub usability control gates', () => {
     expect(career).toContain('function saveCareerDiscoveryProfile');
     expect(career).toContain('function currentCareerDiscoveryProfile');
     expect(career).toContain('function suggestedCareerDiscoveryRoles');
+    expect(career).toContain('autoMarkAppliedFromEvidence');
+    expect(career).toContain('careerAutoMarkAppliedFromEvidence');
+    expect(career).toContain('Auto-mark applied when Gmail or completed actions match with high confidence');
+    expect(career).toContain('researchIntensity');
+    expect(career).toContain('careerDiscoveryResearchIntensity');
+    expect(career).toContain('Career discovery research intensity');
+    expect(career).toContain('<option value="max">Max</option>');
     expect(career).toContain('Mark this job as applied and create a 14-day follow-up action.');
     expect(career).toContain('Follow up on application: ${job.role} at ${job.company}');
     expect(career).toContain('May 2027 / Summer 2027 start');

@@ -182,7 +182,8 @@ without kicking every local API or desktop service just because the sidebar is v
 - Career Desk: job/application tracking, manual fit scores, one-click "mark applied"
   status updates that create a 14-day follow-up action, Gmail update matching for submitted
   applications, action items, synced Career Discovery profile filters for routine passive
-  role research, passive Gmail confirmation detection, and legacy career data import.
+  role research with focused/broad/max intensity, high-confidence passive Gmail/completed-action
+  application confirmation updates, and legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
   browser-side last-good snapshot so calendar/mail views show cached real data while
@@ -356,10 +357,15 @@ real-data only:
   domains plus `page:`, `topic:`, `tool:`, and `company:` lines; pages/domains stay
   domain-constrained, while topic/tool/company watches search by goal text. Already
   surfaced research run ids are skipped on later sweeps so completed monitor reports do
-  not repeat endlessly.
+  not repeat endlessly. Career Discovery profile filters can expand role discovery from
+  focused to max intensity, creating bounded role/location monitor variants while still
+  carrying the May 2027/Summer 2027 start window, background/status fit text, and duplicate
+  company exclusions.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
-  next action.
+  next action. High-confidence Gmail confirmations and completed linked apply/submit actions
+  can auto-promote saved leads to `applied`, add a 14-day follow-up action, write sync events,
+  and emit a passive result card explaining the evidence; weaker mail matches stay review-only.
 - Local File Intelligence scans only configured watched folders for recent document,
   note/data, and image metadata; text-like files get bounded previews, suggested tags,
   cleanup hints, and optional AI OS semantic-memory indexing from debounced folder events
