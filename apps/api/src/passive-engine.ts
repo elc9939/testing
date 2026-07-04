@@ -4,6 +4,7 @@ import {
   passiveEngineSettingsSchema,
   passiveBackupHealthSchema,
   passiveCardTriageStateSchema,
+  personalWorkspaceId,
   passiveNotificationSchema,
   passiveResultSchema,
   passiveResultCardSchema,
@@ -3410,6 +3411,401 @@ function researchRunSourceRefs(run: Record<string, unknown>): PassiveSourceRef[]
   });
 }
 
+interface CareerLeadCandidate {
+  company: string;
+  role: string;
+  applicationUrl: string;
+  fitScore: number;
+  notes: string;
+  source: Record<string, unknown>;
+  evidence: string[];
+}
+
+interface CareerLeadImportResult {
+  createdJobs: JobRecord[];
+  skipped: number;
+  skippedReasons: Record<string, number>;
+}
+
+function textValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function sourceMetadata(source: Record<string, unknown>): Record<string, unknown> {
+  return isRecord(source.metadata) ? source.metadata : {};
+}
+
+function sourceField(source: Record<string, unknown>, keys: string[]): string {
+  const metadata = sourceMetadata(source);
+  for (const key of keys) {
+    const direct = textValue(source[key]);
+    if (direct) return direct;
+    const nested = textValue(metadata[key]);
+    if (nested) return nested;
+  }
+  return '';
+}
+
+function sourceUrl(source: Record<string, unknown>): string {
+  return sourceField(source, ['canonical_url', 'url', 'href', 'link', 'application_url', 'applicationUrl']);
+}
+
+function sourceTitle(source: Record<string, unknown>): string {
+  return sourceField(source, ['title', 'name', 'headline']);
+}
+
+function reportTextParts(report: Record<string, unknown>): string[] {
+  return [
+    textValue(report.title),
+    textValue(report.tldr),
+    textValue(report.detailed_summary),
+    ...stringList(report.key_facts, 8),
+    ...stringList(report.next_research_suggestions, 4)
+  ].filter(Boolean);
+}
+
+function sourceText(source: Record<string, unknown>, report: Record<string, unknown>): string {
+  const metadata = sourceMetadata(source);
+  return [
+    sourceTitle(source),
+    sourceField(source, ['description', 'snippet', 'summary', 'text']),
+    sourceUrl(source),
+    ...['company', 'employer', 'organization', 'role', 'job_title', 'jobTitle', 'location', 'start_date', 'startDate'].map((key) =>
+      textValue(metadata[key])
+    ),
+    ...reportTextParts(report)
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function normalizeDedupeText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/gu, ' ').trim();
+}
+
+function normalizeCompanyKey(value: string): string {
+  return normalizeDedupeText(value)
+    .replace(/\b(inc|llc|ltd|corp|corporation|company|co|careers|jobs)\b/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function canonicalUrlKey(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = '';
+    url.search = '';
+    return url.toString().replace(/\/$/u, '').toLowerCase();
+  } catch {
+    return value.trim().toLowerCase();
+  }
+}
+
+function hostCompanyHint(value: string): string {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./u, '');
+    const pathHead = url.pathname.split('/').map((part) => part.trim()).filter(Boolean)[0] ?? '';
+    if (/greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|workdayjobs\.com|smartrecruiters\.com/iu.test(host) && pathHead) {
+      return pathHead.replace(/[-_]+/gu, ' ');
+    }
+    const parts = host.split('.').filter(Boolean);
+    const company = parts.length > 2 ? parts[parts.length - 3] : parts[0];
+    return company ? company.replace(/[-_]+/gu, ' ') : '';
+  } catch {
+    return '';
+  }
+}
+
+function looksLikeRoleText(value: string, targetRoles: string[] = []): boolean {
+  const text = value.toLowerCase();
+  return (
+    targetRoles.some((role) => role && text.includes(role.toLowerCase())) ||
+    /\b(analyst|engineer|developer|researcher|research|quant|data|machine learning|ai|software|product|intern|internship|associate|rotational|new grad|graduate)\b/iu.test(
+      text
+    )
+  );
+}
+
+function parseCompanyRoleFromSource(source: Record<string, unknown>, metadata: Record<string, unknown>): { company: string; role: string } {
+  const title = sourceTitle(source);
+  const targetRoles = compactTextList(metadata.target_roles, 12);
+  const explicitCompany = sourceField(source, ['company', 'employer', 'organization', 'org']);
+  const explicitRole = sourceField(source, ['role', 'job_title', 'jobTitle', 'position']);
+  let company = explicitCompany;
+  let role = explicitRole;
+  const atMatch = title.match(/^\s*(.+?)\s+(?:at|@)\s+(.+?)(?:\s+[-|–]\s+|$)/iu);
+  if (!role && atMatch?.[1]) role = atMatch[1].trim();
+  if (!company && atMatch?.[2]) company = atMatch[2].trim();
+  if ((!role || !company) && title.includes(' - ')) {
+    const [left = '', right = ''] = title.split(' - ').map((part) => part.trim());
+    if (!role && looksLikeRoleText(left, targetRoles)) role = left;
+    if (!company && looksLikeRoleText(left, targetRoles) && right) company = right;
+    if (!company && !looksLikeRoleText(left, targetRoles)) company = left;
+    if (!role && looksLikeRoleText(right, targetRoles)) role = right;
+  }
+  if (!role) {
+    const matchedRole = targetRoles.find((item) => sourceText(source, { title }).toLowerCase().includes(item.toLowerCase()));
+    role = matchedRole ?? title;
+  }
+  if (!company) company = hostCompanyHint(sourceUrl(source));
+  return {
+    company: truncateText(company.replace(/\s+/gu, ' ').trim(), 80),
+    role: truncateText(role.replace(/\s+/gu, ' ').trim(), 120)
+  };
+}
+
+function careerLeadFitScore(text: string, metadata: Record<string, unknown>, source: Record<string, unknown>): { score: number; evidence: string[] } {
+  const lower = text.toLowerCase();
+  const targetRoles = compactTextList(metadata.target_roles, 12);
+  const locations = compactTextList(metadata.locations, 8);
+  const backgroundTerms = compactTextList(metadata.profile_background, 20).filter((term) => term.length >= 4);
+  const startWindow = textValue(metadata.target_start_window) || 'May 2027 / Summer 2027 start';
+  const sourceScore = Number(source.score ?? sourceMetadata(source).score);
+  const evidence: string[] = [];
+  let score = 42;
+  if (targetRoles.some((role) => role && lower.includes(role.toLowerCase()))) {
+    score += 20;
+    evidence.push('target role match');
+  } else if (looksLikeRoleText(text, targetRoles)) {
+    score += 12;
+    evidence.push('role-family match');
+  }
+  if (/\b(2027|summer\s*2027|may\s*2027|class of 2027|new grad|new graduate|upcoming graduate|early career|entry[- ]level|internship|intern)\b/iu.test(lower)) {
+    score += 20;
+    evidence.push(`${startWindow} or early-career timing evidence`);
+  }
+  if (locations.some((location) => location && lower.includes(location.toLowerCase()))) {
+    score += 8;
+    evidence.push('location/work-mode match');
+  }
+  if (backgroundTerms.some((term) => lower.includes(term.toLowerCase()))) {
+    score += 8;
+    evidence.push('background keyword match');
+  }
+  if (Number.isFinite(sourceScore)) {
+    score += Math.round(Math.min(8, Math.max(0, sourceScore * 8)));
+    evidence.push('source ranking signal');
+  }
+  if (/\b(senior|sr\.?|staff|principal|manager|director|head of|vp)\b/iu.test(lower)) {
+    score -= 28;
+    evidence.push('senior-level penalty');
+  }
+  if (/\b(closed|no longer accepting|expired|filled)\b/iu.test(lower)) {
+    score -= 35;
+    evidence.push('closed/expired penalty');
+  }
+  return { score: Math.max(0, Math.min(100, score)), evidence };
+}
+
+function existingCareerLeadKeys(store: MemoryStore): { urls: Set<string>; companyRoles: Set<string>; companies: Set<string> } {
+  const urls = new Set<string>();
+  const companyRoles = new Set<string>();
+  const companies = new Set<string>();
+  for (const job of store.jobs) {
+    if (job.applicationUrl) urls.add(canonicalUrlKey(job.applicationUrl));
+    const companyKey = normalizeCompanyKey(job.company);
+    if (companyKey) companies.add(companyKey);
+    companyRoles.add(`${companyKey}|${normalizeDedupeText(job.role)}`);
+  }
+  return { urls, companyRoles, companies };
+}
+
+function careerLeadDuplicateReason(
+  candidate: Pick<CareerLeadCandidate, 'company' | 'role' | 'applicationUrl'>,
+  existing: { urls: Set<string>; companyRoles: Set<string>; companies: Set<string> },
+  metadata: Record<string, unknown>
+): string | null {
+  const urlKey = canonicalUrlKey(candidate.applicationUrl);
+  if (existing.urls.has(urlKey)) return 'duplicate-url';
+  const companyKey = normalizeCompanyKey(candidate.company);
+  const roleKey = normalizeDedupeText(candidate.role);
+  if (existing.companyRoles.has(`${companyKey}|${roleKey}`)) return 'duplicate-company-role';
+  const excluded = compactTextList(metadata.excluded_companies, 50).map(normalizeCompanyKey).filter(Boolean);
+  if (companyKey && excluded.some((item) => item === companyKey || companyKey.includes(item) || item.includes(companyKey))) {
+    return 'excluded-company';
+  }
+  return null;
+}
+
+function careerLeadCandidateFromSource(
+  source: Record<string, unknown>,
+  researchRun: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+  report: Record<string, unknown>
+): CareerLeadCandidate | { skipped: string } {
+  const applicationUrl = sourceUrl(source);
+  if (!applicationUrl) return { skipped: 'missing-url' };
+  const text = sourceText(source, report);
+  if (!/\b(apply|application|job|jobs|career|careers|opening|role|intern|internship|new grad|graduate|rotational)\b/iu.test(text)) {
+    return { skipped: 'not-opportunity' };
+  }
+  const { company, role } = parseCompanyRoleFromSource(source, metadata);
+  if (!company || !role || role.length < 4) return { skipped: 'missing-company-role' };
+  const fit = careerLeadFitScore(text, metadata, source);
+  const title = sourceTitle(source);
+  const description = sourceField(source, ['description', 'snippet', 'summary']);
+  const researchRunId = textValue(researchRun.id);
+  const notes = [
+    `Discovered by Career Discovery from AI OS research${researchRunId ? ` run ${researchRunId}` : ''}.`,
+    title ? `Source title: ${title}` : '',
+    description ? `Source summary: ${truncateText(description, 260)}` : '',
+    `Source: ${applicationUrl}`,
+    `Fit evidence: ${fit.evidence.join('; ') || 'source-backed candidate'}`
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return {
+    company,
+    role,
+    applicationUrl,
+    fitScore: fit.score,
+    notes,
+    source,
+    evidence: fit.evidence
+  };
+}
+
+function importCareerLeadsFromResearchRun(
+  store: MemoryStore,
+  task: PassiveTask,
+  passiveRunId: string,
+  researchRun: Record<string, unknown>,
+  limit: number,
+  date = new Date()
+): CareerLeadImportResult {
+  const options = nestedRecord(researchRun, 'options');
+  const metadata = nestedRecord(options, 'metadata');
+  if (metadata.career_discovery !== true) return { createdJobs: [], skipped: 0, skippedReasons: {} };
+  const report = nestedRecord(researchRun, 'report');
+  const sources = Array.isArray(researchRun.sources) ? researchRun.sources.filter(isRecord) : [];
+  const existing = existingCareerLeadKeys(store);
+  const skippedReasons: Record<string, number> = {};
+  const createdJobs: JobRecord[] = [];
+  const workspaceId = store.settings?.workspaceId ?? personalWorkspaceId;
+  const now = nowIso(date);
+  const reviewDate = addMilliseconds(date, 3 * dayMs).slice(0, 10);
+  for (const source of sources) {
+    if (createdJobs.length >= limit) break;
+    const candidate = careerLeadCandidateFromSource(source, researchRun, metadata, report);
+    if ('skipped' in candidate) {
+      skippedReasons[candidate.skipped] = (skippedReasons[candidate.skipped] ?? 0) + 1;
+      continue;
+    }
+    const duplicateReason = careerLeadDuplicateReason(candidate, existing, metadata);
+    if (duplicateReason) {
+      skippedReasons[duplicateReason] = (skippedReasons[duplicateReason] ?? 0) + 1;
+      continue;
+    }
+    if (candidate.fitScore < 72) {
+      skippedReasons['low-fit-score'] = (skippedReasons['low-fit-score'] ?? 0) + 1;
+      continue;
+    }
+    const job = jobSchema.parse({
+      id: id('career-job'),
+      workspaceId,
+      company: candidate.company,
+      role: candidate.role,
+      status: 'lead',
+      applicationUrl: candidate.applicationUrl,
+      fitScore: candidate.fitScore,
+      nextActionAt: reviewDate,
+      notes: candidate.notes,
+      deviceId: 'passive-engine',
+      updatedAt: now
+    });
+    store.jobs.push(job);
+    existing.urls.add(canonicalUrlKey(job.applicationUrl));
+    const companyKey = normalizeCompanyKey(job.company);
+    existing.companies.add(companyKey);
+    existing.companyRoles.add(`${companyKey}|${normalizeDedupeText(job.role)}`);
+    appendSyncEvent(store, {
+      workspaceId: job.workspaceId,
+      entityType: 'job',
+      entityId: job.id,
+      operation: 'insert',
+      payload: job,
+      deviceId: job.deviceId
+    });
+    createdJobs.push(job);
+  }
+  if (createdJobs.length) {
+    appendActionLedgerEvent(store, {
+      system: 'mini-hub',
+      source: 'passive-career-discovery',
+      actionType: 'career.import_discovered_leads',
+      summary: `Saved ${createdJobs.length} source-backed Career Discovery lead${createdJobs.length === 1 ? '' : 's'} from AI OS research.`,
+      status: 'succeeded',
+      risk: 'write',
+      changed: createdJobs.map((job) => `job:${job.id}`),
+      recoverability: {
+        kind: 'snapshot',
+        referenceId: passiveRunId,
+        route: routeMap.careerDesk,
+        description: 'Inserted jobs are recorded as sync events and can be deleted from Career Desk.',
+        reversible: true
+      },
+      rawRef: compactRecord({
+        runId: passiveRunId,
+        researchRunId: researchRun.id,
+        taskId: task.id
+      }),
+      metadata: {
+        imported: createdJobs.length,
+        skippedReasons,
+        fitScores: createdJobs.map((job) => job.fitScore).filter((score): score is number => typeof score === 'number')
+      }
+    });
+  }
+  return {
+    createdJobs,
+    skipped: Object.values(skippedReasons).reduce((total, count) => total + count, 0),
+    skippedReasons
+  };
+}
+
+function careerLeadImportCard(
+  task: PassiveTask,
+  passiveRunId: string,
+  researchRun: Record<string, unknown>,
+  result: CareerLeadImportResult
+): PassiveResultCard | null {
+  if (!result.createdJobs.length) return null;
+  return card({
+    id: id('passive-card'),
+    taskId: task.id,
+    runId: passiveRunId,
+    family: task.family,
+    title: `${result.createdJobs.length} source-backed Career lead${result.createdJobs.length === 1 ? '' : 's'} saved`,
+    summary: result.createdJobs
+      .slice(0, 4)
+      .map((job) => `${job.company} - ${job.role}${typeof job.fitScore === 'number' ? ` (${job.fitScore})` : ''}`)
+      .join('; '),
+    urgency: result.createdJobs.some((job) => (job.fitScore ?? 0) >= 86) ? 78 : 66,
+    confidence: 0.82,
+    route: routeMap.careerDesk,
+    sourceRefs: result.createdJobs.slice(0, 8).map((job) =>
+      stableSourceRef('record', `${job.company} - ${job.role}`, {
+        id: job.id,
+        route: routeMap.careerDesk,
+        url: job.applicationUrl,
+        metadata: compactRecord({
+          status: job.status,
+          fitScore: job.fitScore,
+          applicationUrl: job.applicationUrl,
+          nextActionAt: job.nextActionAt,
+          researchRunId: researchRun.id
+        })
+      })
+    ),
+    suggestedAction: 'Review saved leads',
+    actionKind: 'inspect',
+    why: 'A Career Discovery monitor returned source URLs that passed the role, timing, seniority, duplicate, and fit-score filters, so the passive engine saved them as ranked Career Desk leads.'
+  });
+}
+
 function researchRunReportSummary(report: Record<string, unknown>, sources: PassiveSourceRef[]): string {
   const keyFacts = stringList(report.key_facts, 3);
   const tldr = typeof report.tldr === 'string' ? report.tldr.trim() : '';
@@ -3521,21 +3917,38 @@ async function recentResearchMonitorRunCards(
   const monitorRuns = runs.filter((run) => run.mode === 'monitor_topic');
   const alreadySurfaced = surfacedResearchMonitorRunIds(store);
   const freshMonitorRuns = monitorRuns.filter((run) => typeof run.id !== 'string' || !alreadySurfaced.has(run.id));
+  const importResults = freshMonitorRuns.map((run) =>
+    importCareerLeadsFromResearchRun(store, task, passiveRunId, run, Math.max(2, budget.researchPerDomainLimit))
+  );
+  const importCards = freshMonitorRuns
+    .map((run, index) => careerLeadImportCard(task, passiveRunId, run, importResults[index] ?? { createdJobs: [], skipped: 0, skippedReasons: {} }))
+    .filter((item): item is PassiveResultCard => Boolean(item));
   const cards = freshMonitorRuns
     .map((run) => researchRunCard(task, passiveRunId, run))
     .filter((item): item is PassiveResultCard => Boolean(item))
     .slice(0, budget.researchMonitorRunLimit);
+  const importedJobs = importResults.flatMap((result) => result.createdJobs);
+  const skippedReasons = importResults.reduce<Record<string, number>>((acc, result) => {
+    for (const [reason, count] of Object.entries(result.skippedReasons)) acc[reason] = (acc[reason] ?? 0) + count;
+    return acc;
+  }, {});
   return {
-    cards,
-    changed: cards
+    cards: [...importCards, ...cards],
+    changed: [
+      ...importedJobs.map((job) => `job:${job.id}`),
+      ...cards
       .map((item) => item.sourceRefs[0]?.metadata.researchRunId)
       .filter((value): value is string => typeof value === 'string')
-      .map((researchRunId) => `research-run:${researchRunId}`),
+        .map((researchRunId) => `research-run:${researchRunId}`)
+    ],
     metadata: {
       recentRunsChecked: runs.length,
       monitorRunsChecked: monitorRuns.length,
       skippedAlreadySurfaced: monitorRuns.length - freshMonitorRuns.length,
-      surfacedResearchRuns: cards.length
+      surfacedResearchRuns: cards.length,
+      importedCareerLeads: importedJobs.length,
+      skippedCareerLeadCandidates: Object.values(skippedReasons).reduce((total, count) => total + count, 0),
+      skippedCareerLeadReasons: skippedReasons
     }
   };
 }

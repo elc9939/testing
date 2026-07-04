@@ -122,6 +122,8 @@
   $: matchedCareerMailUpdates = careerMailUpdates.filter((insight) => isKnownApplicationMail(insight, submittedJobs));
   $: unreadCareerMailUpdates = matchedCareerMailUpdates.filter((insight) => insight.thread.unread);
   $: visibleCareerMailUpdates = (unreadCareerMailUpdates.length ? unreadCareerMailUpdates : matchedCareerMailUpdates).slice(0, 5);
+  $: discoveredCareerLeads = jobs.filter(isDiscoveredCareerLead).sort(compareCareerJobs);
+  $: topDiscoveredCareerLeads = discoveredCareerLeads.slice(0, 5);
   $: suggestedDiscoveryRoles = suggestedCareerDiscoveryRoles(jobs);
   $: trackedCareerCompanies = trackedCareerCompanyNames(jobs);
   $: careerControlState = {
@@ -531,6 +533,16 @@
     return ['applied', 'interview', 'offer', 'rejected'].includes(job.status);
   }
 
+  function isDiscoveredCareerLead(job: JobRecord): boolean {
+    return job.status === 'lead' && /Discovered by Career Discovery/u.test(job.notes);
+  }
+
+  function discoveredLeadMeta(job: JobRecord): string {
+    return [`Fit ${displayFitScore(job)}`, job.nextActionAt ? `Review ${displayDate(job.nextActionAt)}` : 'No review date']
+      .filter(Boolean)
+      .join(' - ');
+  }
+
   function canMarkJobApplied(job: JobRecord): boolean {
     return canSave && !editingJobId && !rowBusyId && !['applied', 'interview', 'offer', 'rejected', 'archived'].includes(job.status);
   }
@@ -933,9 +945,29 @@
 <section class="focus-strip" aria-label="Career focus">
   <div><span>Apply queue</span><strong>{applyQueue.length}</strong></div>
   <div><span>Active jobs</span><strong>{activeJobs.length}</strong></div>
+  <div><span>Discovered leads</span><strong>{discoveredCareerLeads.length}</strong></div>
   <div><span>Open updates</span><strong>{openCareerActions.length + unreadCareerMailUpdates.length}</strong></div>
   <div><span>Dated follow-ups</span><strong>{dueCareerActions.length}</strong></div>
 </section>
+
+{#if discoveredCareerLeads.length}
+  <section class="card discovered-leads-panel" aria-label="Discovered Career leads">
+    <div class="table-section-title">
+      <strong>Discovered Leads</strong>
+      <span>{discoveredCareerLeads.length} ranked by fit</span>
+    </div>
+    <div class="discovered-lead-list">
+      {#each topDiscoveredCareerLeads as job}
+        <a class="discovered-lead-row" href={jobApplicationHref(job) || '#job-search'} target={jobApplicationHref(job) ? '_blank' : undefined} rel={jobApplicationHref(job) ? 'noreferrer' : undefined} title={`Review discovered lead: ${job.role} at ${job.company}.`}>
+          <span>{displayFitScore(job)}</span>
+          <strong>{job.company}</strong>
+          <small>{job.role}</small>
+          <small>{discoveredLeadMeta(job)}</small>
+        </a>
+      {/each}
+    </div>
+  </section>
+{/if}
 
 <section class="card mail-updates-panel" aria-label="Career mail updates">
   <div class="table-section-title">
@@ -1326,7 +1358,7 @@
 
   .focus-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     margin: 0 0 12px;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -1358,6 +1390,51 @@
   .mail-updates-panel {
     margin-bottom: 12px;
     overflow: hidden;
+  }
+
+  .discovered-leads-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .discovered-lead-list {
+    display: grid;
+  }
+
+  .discovered-lead-row {
+    display: grid;
+    grid-template-columns: 58px minmax(130px, 0.75fr) minmax(0, 1fr) 150px;
+    gap: 3px 10px;
+    padding: 9px 11px;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .discovered-lead-row:hover {
+    background: var(--active);
+  }
+
+  .discovered-lead-row span {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  .discovered-lead-row strong,
+  .discovered-lead-row small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .discovered-lead-row small {
+    color: var(--muted);
+  }
+
+  .discovered-lead-row small:last-child {
+    text-align: right;
   }
 
   .mail-update-list {
@@ -1770,6 +1847,18 @@
 
     .mail-update-row {
       grid-template-columns: 62px minmax(0, 1fr);
+    }
+
+    .discovered-lead-row {
+      grid-template-columns: 52px minmax(0, 1fr);
+    }
+
+    .discovered-lead-row small {
+      grid-column: 2;
+    }
+
+    .discovered-lead-row small:last-child {
+      text-align: left;
     }
 
     .mail-update-row small:last-child {

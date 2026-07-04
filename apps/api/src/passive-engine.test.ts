@@ -3157,6 +3157,155 @@ describe('passive task engine', () => {
     });
   });
 
+  it('imports source-backed Career Discovery research findings as ranked leads', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    store.jobs.push({
+      id: 'job-existing-applied',
+      workspaceId: personalWorkspaceId,
+      company: 'Old Applied Co',
+      role: 'Data Analyst',
+      status: 'applied',
+      applicationUrl: 'https://old.example.com/jobs/data-analyst',
+      notes: '',
+      deviceId: 'test',
+      updatedAt: '2026-06-01T10:00:00.000Z'
+    });
+    const researchFetch = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [{ id: 'monitor-career-discovery', metadata: { passive_watch_key: 'topic:career-discovery' } }] });
+      }
+      if (href.includes('/api/ai/research/runs?limit=10')) {
+        return jsonResponse({
+          runs: [
+            {
+              id: 'research-career-1',
+              mode: 'monitor_topic',
+              goal: 'Find May 2027 / Summer 2027 start Data Analyst roles.',
+              status: 'succeeded',
+              report: {
+                title: 'May 2027 data analyst roles',
+                tldr: 'One source-backed early-career role looks relevant; senior and duplicate listings were filtered.',
+                key_facts: [
+                  'Northstar Analytics lists a Summer 2027 Data Analyst Intern role with remote eligibility.',
+                  'Old Applied Co is already tracked.',
+                  'A senior-only listing is not a fit.'
+                ]
+              },
+              sources: [
+                {
+                  id: 'source-good-role',
+                  url: 'https://northstar.example.com/careers/data-analyst-intern-summer-2027',
+                  canonical_url: 'https://northstar.example.com/careers/data-analyst-intern-summer-2027',
+                  title: 'Data Analyst Intern at Northstar Analytics - Summer 2027',
+                  description: 'Apply for a Summer 2027 Data Analyst Intern opening. Remote or New York. Good fit for Math/CS analytics projects.',
+                  fetched_at: '2026-06-22T10:00:00.000Z',
+                  score: 0.91,
+                  rank: 1,
+                  metadata: {
+                    company: 'Northstar Analytics',
+                    role: 'Data Analyst Intern',
+                    location: 'Remote'
+                  }
+                },
+                {
+                  id: 'source-duplicate-company',
+                  url: 'https://old.example.com/jobs/new-data-analyst',
+                  canonical_url: 'https://old.example.com/jobs/new-data-analyst',
+                  title: 'Data Analyst at Old Applied Co - Summer 2027',
+                  description: 'Apply for a Summer 2027 analyst role.',
+                  score: 0.95,
+                  rank: 2
+                },
+                {
+                  id: 'source-senior-only',
+                  url: 'https://senior.example.com/jobs/senior-data-analyst',
+                  canonical_url: 'https://senior.example.com/jobs/senior-data-analyst',
+                  title: 'Senior Data Analyst at Senior Only Co',
+                  description: 'Senior-only opening requiring 8 years of experience.',
+                  score: 0.9,
+                  rank: 3
+                }
+              ],
+              options: {
+                metadata: {
+                  source: 'mini-hub-passive',
+                  career_discovery: true,
+                  passive_watch_key: 'topic:career-discovery-may-2027-data',
+                  passive_watch_kind: 'topic',
+                  passive_watch_label: 'May 2027 / Summer 2027 start Data Analyst roles',
+                  target_start_window: 'May 2027 / Summer 2027 start',
+                  target_roles: ['Data Analyst', 'Quant Research Intern'],
+                  locations: ['Remote', 'New York'],
+                  profile_background: 'Math/CS analytics projects',
+                  excluded_companies: ['Old Applied Co']
+                }
+              },
+              runtime_ms: 2400,
+              cost_usd: 0,
+              total_tokens: 0
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-lead-import-test' }
+    });
+
+    const imported = store.jobs.find((job) => job.company === 'Northstar Analytics');
+    const importCard = run.cards.find((item) => item.title === '1 source-backed Career lead saved');
+    expect(run.status).toBe('succeeded');
+    expect(imported).toMatchObject({
+      company: 'Northstar Analytics',
+      role: 'Data Analyst Intern',
+      status: 'lead',
+      applicationUrl: 'https://northstar.example.com/careers/data-analyst-intern-summer-2027',
+      nextActionAt: expect.any(String),
+      deviceId: 'passive-engine'
+    });
+    expect(imported?.fitScore).toBeGreaterThanOrEqual(75);
+    expect(imported?.notes).toContain('Discovered by Career Discovery');
+    expect(imported?.notes).toContain('Fit evidence:');
+    expect(store.jobs.some((job) => job.company === 'Senior Only Co')).toBe(false);
+    expect(store.jobs.filter((job) => job.company === 'Old Applied Co')).toHaveLength(1);
+    expect(importCard).toMatchObject({
+      route: '/desk/career',
+      suggestedAction: 'Review saved leads',
+      sourceRefs: [expect.objectContaining({ id: imported?.id, url: imported?.applicationUrl })]
+    });
+    expect(run.changed).toEqual(expect.arrayContaining([`job:${imported?.id}`, 'research-run:research-career-1']));
+    expect(run.metadata.recentResearch).toMatchObject({
+      importedCareerLeads: 1,
+      skippedCareerLeadCandidates: 2,
+      skippedCareerLeadReasons: {
+        'duplicate-company-role': 1,
+        'low-fit-score': 1
+      }
+    });
+    expect(store.syncEvents).toEqual(
+      expect.arrayContaining([expect.objectContaining({ entityType: 'job', entityId: imported?.id, operation: 'insert' })])
+    );
+    expect(store.actionEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'passive-career-discovery',
+          actionType: 'career.import_discovered_leads',
+          risk: 'write'
+        })
+      ])
+    );
+  });
+
   it('surfaces failing project health artifacts without running project scripts', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-project-health-'));
     try {

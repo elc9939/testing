@@ -183,7 +183,8 @@ without kicking every local API or desktop service just because the sidebar is v
   status updates that create a 14-day follow-up action, Gmail update matching for submitted
   applications, action items, synced Career Discovery profile filters for routine passive
   role research with focused/broad/max intensity, high-confidence passive Gmail/completed-action
-  application confirmation updates, and legacy career data import.
+  application confirmation updates, source-backed discovered lead import with fit scores,
+  and legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
 - Productivity Hub: Google Calendar and Gmail actions through real API calls, with a
   browser-side last-good snapshot so calendar/mail views show cached real data while
@@ -360,7 +361,9 @@ real-data only:
   not repeat endlessly. Career Discovery profile filters can expand role discovery from
   focused to max intensity, creating bounded role/location monitor variants while still
   carrying the May 2027/Summer 2027 start window, background/status fit text, and duplicate
-  company exclusions.
+  company exclusions. Completed Career Discovery monitor reports can save source-backed
+  candidates into Career Desk as `lead` rows when a source URL passes opportunity, timing,
+  seniority, duplicate, and fit-score checks; notes preserve the source and evidence.
 - Career Radar reads Career Desk jobs/actions and surfaces stale or overdue follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. High-confidence Gmail confirmations and completed linked apply/submit actions

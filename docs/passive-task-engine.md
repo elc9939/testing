@@ -200,7 +200,12 @@ normal API startup.
   duplicate/exclusion hints. The profile's focused/broad/max research intensity controls how
   many bounded discovery monitor variants are prepared; max intensity adds role/location
   combinations while the prompt still rejects senior-only, closed, vague, duplicate, or
-  unsourced roles.
+  unsourced roles. When completed Career Discovery monitor runs return source URLs that pass
+  the opportunity, timing, seniority, duplicate, and fit-score filters, the passive engine
+  can save them directly into Career Desk as ranked `lead` rows with source/evidence notes,
+  a near-term review date, sync events, and an Action Ledger entry. Lower-fit, senior-only,
+  duplicate, excluded, or unsourced candidates are counted in run metadata instead of being
+  saved.
 - Career Radar: reads Career Desk jobs/actions and surfaces overdue or stale follow-ups,
   including submitted applications, interviews, and offers that have gone quiet without a
   next action. Career Desk's quick "mark applied" flow writes both the applied job status
