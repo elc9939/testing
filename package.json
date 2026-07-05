@@ -32,6 +32,8 @@
     "bridge:firewall:status": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-firewall.ps1 status",
     "bridge:firewall:install": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-firewall.ps1 install",
     "bridge:firewall:remove": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-firewall.ps1 remove",
+    "bridge:repair:lan": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-remote-repair.ps1 repair",
+    "bridge:repair:status": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-remote-repair.ps1 status",
     "dev:api": "pnpm --filter @mini-hub/api dev",
     "api:start:lan": "powershell -ExecutionPolicy Bypass -File scripts/hub-api-lan.ps1",
     "dev:desktop": "pnpm --filter @mini-hub/desktop dev",

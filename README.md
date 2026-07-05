@@ -85,6 +85,7 @@ pnpm bridge:startup:run:lan
 pnpm bridge:status:lan
 pnpm bridge:firewall:status
 pnpm bridge:firewall:install
+pnpm bridge:repair:lan
 ```
 
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
@@ -121,6 +122,14 @@ If the current terminal is not elevated, Windows will ask for administrator appr
 the helper will continue in an elevated PowerShell prompt.
 Do not use these rules on untrusted/public Wi-Fi. The helper intentionally scopes them to
 the Windows Private firewall profile.
+For the common "active network is Public and rules are missing" case, use:
+
+```powershell
+pnpm bridge:repair:lan
+```
+
+That opens one Windows administrator prompt, marks the active trusted network Private, and
+installs the same scoped Private-profile firewall rules.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated
 URL and CORS trusted origins use the host your phone will actually open:

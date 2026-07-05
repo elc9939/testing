@@ -88,6 +88,16 @@ The installed rules are scoped to the Windows Private firewall profile. If the W
 marked Public, mark only your trusted home/private network as Private before testing from
 the phone.
 
+For the common combined case, run:
+
+```powershell
+pnpm bridge:repair:lan
+```
+
+That opens one Windows administrator prompt, marks the active trusted network Private, and
+installs the Mini Hub Private firewall rules for ports `5173`, `8787`, `8791`, `8792`, and
+`11434`.
+
 ## Tailscale Path
 
 1. Install and sign in to Tailscale on the Windows PC and the remote device.
