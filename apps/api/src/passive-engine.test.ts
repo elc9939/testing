@@ -3564,6 +3564,15 @@ describe('passive task engine', () => {
                     company: 'Pitch Systems',
                     role: 'Business Development Analyst'
                   }
+                },
+                {
+                  id: 'source-guide-page',
+                  url: 'https://extern.example.com/post/data-analytics-internships-summer-2027-guide',
+                  canonical_url: 'https://extern.example.com/post/data-analytics-internships-summer-2027-guide',
+                  title: 'Data Analytics Internships Summer 2027: Timeline & Links | Extern',
+                  description: 'A guide and source roundup with links to many data analytics internship applications.',
+                  score: 0.94,
+                  rank: 5
                 }
               ],
               options: {
@@ -3628,6 +3637,7 @@ describe('passive task engine', () => {
     expect(imported?.notes).toContain('"deadlineConfidence":"high"');
     expect(store.jobs.some((job) => job.company === 'Senior Only Co')).toBe(false);
     expect(store.jobs.some((job) => job.company === 'Pitch Systems')).toBe(false);
+    expect(store.jobs.some((job) => job.company.toLowerCase() === 'extern')).toBe(false);
     expect(store.jobs.filter((job) => job.company === 'Old Applied Co')).toHaveLength(1);
     expect(importCard).toMatchObject({
       route: '/desk/career',
@@ -3649,12 +3659,13 @@ describe('passive task engine', () => {
     expect(run.changed).toEqual(expect.arrayContaining([`job:${imported?.id}`, 'research-run:research-career-1']));
     expect(run.metadata.recentResearch).toMatchObject({
       importedCareerLeads: 1,
-      skippedCareerLeadCandidates: 3,
+      skippedCareerLeadCandidates: 4,
       careerSeenLeadRegistrySize: 1,
       skippedCareerLeadReasons: {
         'duplicate-company-role': 1,
         'qualification-mismatch': 1,
-        'low-fit-score': 1
+        'low-fit-score': 1,
+        'unclear-source': 1
       }
     });
     expect(store.settings?.preferences.careerSeenLeadRegistry).toMatchObject({

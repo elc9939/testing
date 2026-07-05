@@ -4083,17 +4083,16 @@ function sourcePath(value: string): string {
   }
 }
 
-function careerLeadSourceQuality(applicationUrl: string, company: string): Pick<CareerLeadQualitySignals, 'sourceQuality' | 'sourceQualityEvidence'> {
+function careerLeadSourceQuality(applicationUrl: string, _company: string): Pick<CareerLeadQualitySignals, 'sourceQuality' | 'sourceQualityEvidence'> {
   const host = sourceHost(applicationUrl);
   const path = sourcePath(applicationUrl);
-  const companyTokens = normalizeCompanyKey(company).split(/\s+/u).filter((token) => token.length >= 4);
-  if (/\b(greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|workdayjobs\.com|smartrecruiters\.com|icims\.com|workable\.com|jobvite\.com|bamboohr\.com)\b/iu.test(host)) {
+  if (/\b(greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|workdayjobs\.com|smartrecruiters\.com|icims\.com|workable\.com|jobvite\.com|bamboohr\.com|tal\.net|successfactors\.com|oraclecloud\.com)\b/iu.test(host)) {
     return { sourceQuality: 'ats-posting', sourceQualityEvidence: `ATS posting on ${host}` };
   }
   if (/\b(linkedin\.com|indeed\.com|glassdoor\.com|builtin\.com|simplify\.jobs|handshake\.com|wayup\.com|ziprecruiter\.com)\b/iu.test(host)) {
     return { sourceQuality: 'job-board', sourceQualityEvidence: `job-board mirror on ${host}` };
   }
-  if ((/\/(careers?|jobs?|openings?|roles?)\b/iu.test(path) || companyTokens.some((token) => host.includes(token))) && host) {
+  if (/\/(careers?|jobs?|openings?|roles?|students?|programs?|internships?)\b/iu.test(path) && host) {
     return { sourceQuality: 'direct-career-page', sourceQualityEvidence: `direct employer/career source on ${host}` };
   }
   return { sourceQuality: 'unclear', sourceQualityEvidence: host ? `unclear source host ${host}` : 'source host unavailable' };
