@@ -97,6 +97,7 @@ pnpm bridge:tunnel:startup:install
 pnpm bridge:tunnel:startup:status
 pnpm bridge:tunnel:startup:remove
 pnpm bridge:tunnel:stop
+pnpm qa:hub:phone:tunnel
 ```
 
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
@@ -164,6 +165,10 @@ checks the saved HTTPS tunnel and reruns the repair path when the quick-tunnel U
 stale. Use `bridge:tunnel:startup:install` once if that watcher should relaunch after
 Windows login. The status commands show redacted links and log file paths, while the full
 private phone link stays in `remote-tunnel-link.txt`.
+Use `qa:hub:phone:tunnel` for a phone-like end-to-end check: it reads that saved private
+link, verifies the public tunnel endpoints, launches a mobile-sized Chromium session,
+saves the embedded bridge token, and route-hops through Settings, Today, Activity,
+Research, and AI OS without printing the token.
 Stop the temporary tunnel with `pnpm bridge:tunnel:stop`.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated

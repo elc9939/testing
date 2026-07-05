@@ -139,6 +139,17 @@ The full private phone URL remains in `remote-tunnel-link.txt`; status output re
 bridge token. Stop the watcher with `pnpm bridge:tunnel:watch:stop`, and remove the
 startup entry with `pnpm bridge:tunnel:startup:remove`.
 
+To test the saved tunnel with a phone-sized browser from the PC:
+
+```powershell
+pnpm qa:hub:phone:tunnel
+```
+
+That smoke check reads `remote-tunnel-link.txt`, verifies Mini Hub API, AI OS, Macro Lab,
+and Ollama through the HTTPS tunnel, then launches headless Chromium in a mobile viewport
+and route-hops through Settings, Today, Activity, Research, and AI OS. It prints the tunnel
+origin and pass/fail evidence, but never prints the bridge token.
+
 Settings -> Remote Access / Connection Mode also reads the active tunnel state from the
 Mini Hub API. When the tunnel is running, the Phone / Private Remote Link panel prefers
 the HTTPS tunnel link, shows a QR code for phone testing, and marks the current
