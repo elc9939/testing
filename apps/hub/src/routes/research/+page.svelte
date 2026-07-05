@@ -110,12 +110,12 @@
     {
       id: 'deep',
       label: 'Deep',
-      hint: 'More source comparison and follow-ups.',
+      hint: 'Heavy local-first sweep with broad source comparison.',
       mode: 'compare_sources',
-      depth: 3,
-      maxPages: 24,
-      perDomainLimit: 6,
-      timeBudget: 300,
+      depth: 5,
+      maxPages: 80,
+      perDomainLimit: 16,
+      timeBudget: 1200,
       useAi: true
     }
   ];
@@ -161,6 +161,7 @@
   let runActionId = '';
   let serviceProbePending = true;
   let draftHydrated = false;
+  let reportPanelElement: HTMLElement | null = null;
   let requestedRunId = '';
   let persistedRunId = '';
   let selectedMonitorId = '';
@@ -540,7 +541,7 @@
     message = '';
     try {
       const run = await createResearchRun(currentResearchInput());
-      setSelectedRun(run);
+      setSelectedRun(run, { reveal: true });
       runs = [run, ...runs.filter((item) => item.id !== run.id)].slice(0, 20);
       message = `Queued ${currentEffort.label.toLowerCase()} research. The report will update as sources arrive.`;
     } catch (err) {
@@ -618,7 +619,7 @@
       const result = await runResearchMonitor(monitor.id);
       monitors = [result.monitor, ...monitors.filter((item) => item.id !== result.monitor.id)].slice(0, 30);
       selectedMonitorId = result.monitor.id;
-      setSelectedRun(result.run);
+      setSelectedRun(result.run, { reveal: true });
       runs = [result.run, ...runs.filter((item) => item.id !== result.run.id)].slice(0, 20);
       monitorMessage = `Queued monitor run for ${displayResearchTitle(result.monitor.name, 'routine research monitor', 140)}.`;
     } catch (err) {
@@ -642,7 +643,7 @@
       const result = await runDueResearchMonitors({ limit: 8 });
       if (result.runs.length) {
         runs = [...result.runs, ...runs.filter((run) => !result.runs.some((item) => item.id === run.id))].slice(0, 20);
-        setSelectedRun(result.runs[0]);
+        setSelectedRun(result.runs[0], { reveal: true });
       }
       await refreshMonitors();
       monitorMessage = result.queued_count
@@ -941,10 +942,13 @@
     return new URL(window.location.href).searchParams.get('run') ?? '';
   }
 
-  function setSelectedRun(run: ResearchRun, options: { updateUrl?: boolean } = {}): void {
+  function setSelectedRun(run: ResearchRun, options: { updateUrl?: boolean; reveal?: boolean } = {}): void {
     selectedRun = run;
     persistedRunId = run.id;
     if (options.updateUrl !== false) updateSelectedRunUrl(run.id);
+    if (options.reveal && typeof window !== 'undefined') {
+      window.setTimeout(() => reportPanelElement?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
   }
 
   function updateSelectedRunUrl(runId: string): void {
@@ -1347,15 +1351,15 @@
         <div class="advanced-grid">
           <label>
             <span>Max pages</span>
-            <input bind:value={maxPages} min="1" max="50" type="number" title="Maximum pages this research run may fetch." />
+            <input bind:value={maxPages} min="1" max="100" type="number" title="Maximum pages this research run may fetch." />
           </label>
           <label>
             <span>Depth</span>
-            <input bind:value={depth} min="1" max="5" type="number" title="Maximum crawl depth for this research run." />
+            <input bind:value={depth} min="1" max="8" type="number" title="Maximum crawl depth for this research run." />
           </label>
           <label>
             <span>Time budget</span>
-            <input bind:value={timeBudget} min="5" max="900" type="number" title="Time budget in seconds for the research run." />
+            <input bind:value={timeBudget} min="5" max="1800" type="number" title="Time budget in seconds for the research run." />
           </label>
           <label>
             <span>Per-domain limit</span>
@@ -1417,12 +1421,15 @@
     <aside class="runs-panel">
       <div class="panel-heading">
         <FileText size={17} />
-        <strong>Reports</strong>
+        <div>
+          <strong>Reports</strong>
+          <small>Saved in AI OS and recoverable here or Activity.</small>
+        </div>
       </div>
       {#if runs.length}
         <div class="run-list">
           {#each runs as run}
-            <button class:active={selectedRun?.id === run.id} type="button" title={researchRunSelectionTitle(run)} on:click={() => setSelectedRun(run)}>
+            <button class:active={selectedRun?.id === run.id} type="button" title={researchRunSelectionTitle(run)} on:click={() => setSelectedRun(run, { reveal: true })}>
               <span class={`status ${run.status}`}>{statusLabel(run)}</span>
               <strong>{displayRunTitle(run, 120)}</strong>
               <small>{runMeta(run)}</small>
@@ -1616,7 +1623,7 @@
   </section>
 
   {#if selectedRun}
-    <section class="report-panel">
+    <section class="report-panel" bind:this={reportPanelElement}>
       <div class="report-heading">
         <div>
           <span class={`status ${selectedRun.status}`}>{statusLabel(selectedRun)}</span>
@@ -1686,6 +1693,11 @@
           </div>
         </div>
         <p class="answer-lead">{reportOutcomeLine(selectedRun)}</p>
+        {#if selectedRun.sources.length === 0}
+          <p class="empty-note">
+            This report is saved, but it has no source evidence yet. Check Diagnostics for search counts, add seed URLs, or use Deep for a heavier run.
+          </p>
+        {/if}
         <div class="report-handoff">
           <button type="button" on:click={addSelectedRunSourcesAsSeeds} title="Use the strongest sources from this report as seed URLs for the next query.">
             <Search size={15} />
@@ -1971,6 +1983,23 @@
     gap: 18px;
   }
 
+  .workbench {
+    order: 1;
+  }
+
+  .report-panel {
+    order: 2;
+    scroll-margin-top: 18px;
+  }
+
+  .monitor-panel {
+    order: 3;
+  }
+
+  .source-library-panel {
+    order: 4;
+  }
+
   .desk-header,
   .workbench,
   .monitor-panel,
@@ -2076,6 +2105,10 @@
 
   .runs-panel {
     border-left: 1px solid var(--border);
+    display: grid;
+    align-content: start;
+    max-height: min(76vh, 760px);
+    overflow: hidden;
   }
 
   .query-intro {
@@ -2214,6 +2247,9 @@
   .monitor-list {
     display: grid;
     gap: 10px;
+    max-height: min(56vh, 520px);
+    overflow: auto;
+    padding-right: 4px;
   }
 
   .monitor-card {
@@ -2397,6 +2433,9 @@
   .source-library-list {
     display: grid;
     gap: 8px;
+    max-height: min(56vh, 520px);
+    overflow: auto;
+    padding-right: 4px;
   }
 
   .source-library-card {
@@ -2542,6 +2581,12 @@
   .citation-list {
     display: grid;
     gap: 8px;
+  }
+
+  .run-list {
+    max-height: min(62vh, 620px);
+    overflow: auto;
+    padding-right: 4px;
   }
 
   .run-list button,

@@ -116,6 +116,95 @@ def extract_urls_from_text(text: str) -> list[str]:
     return [normalized for normalized in (normalize_url(match.rstrip(".,;:")) for match in matches) if normalized]
 
 
+def _text_list(value: Any, limit: int = 8) -> list[str]:
+    raw = value if isinstance(value, list) else re.split(r"[\n,;]+", value) if isinstance(value, str) else []
+    compacted: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        text = _clean_text(str(item))
+        key = text.lower()
+        if not text or key in seen:
+            continue
+        compacted.append(text)
+        seen.add(key)
+        if len(compacted) >= limit:
+            break
+    return compacted
+
+
+def _clip_search_query(value: str, limit: int = 180) -> str:
+    compacted = _clean_text(value).strip(" .")
+    if len(compacted) <= limit:
+        return compacted
+    clipped = compacted[:limit].rsplit(" ", 1)[0].strip(" .")
+    return clipped or compacted[:limit].strip(" .")
+
+
+def _append_query(queries: list[str], value: str, *, limit: int = 180) -> None:
+    query = _clip_search_query(value, limit=limit)
+    if query and query.lower() not in {item.lower() for item in queries}:
+        queries.append(query)
+
+
+def _career_discovery_search_queries(request: ResearchRunRequest, clean_goal: str) -> list[str]:
+    metadata = request.metadata if isinstance(request.metadata, dict) else {}
+    if metadata.get("career_discovery") is not True:
+        return []
+
+    roles = _text_list(metadata.get("target_roles"), 6)
+    role = _clean_text(str(metadata.get("role") or (roles[0] if roles else "Data Analyst")))
+    locations = _text_list(metadata.get("locations"), 4)
+    location = locations[0] if locations else ""
+    target_window = _clean_text(str(metadata.get("target_start_window") or "May 2027 / Summer 2027 start"))
+    source_lane = _clean_text(str(metadata.get("source_lane") or ""))
+    priority_company = _clean_text(str(metadata.get("priority_company") or ""))
+    queries: list[str] = []
+
+    if priority_company:
+        _append_query(queries, f"{priority_company} careers {role} Summer 2027")
+        _append_query(queries, f"{priority_company} {role} new grad 2027 application")
+        _append_query(queries, f"{priority_company} {role} internship 2027")
+    elif source_lane == "company-career-pages":
+        for domain in ["greenhouse.io", "lever.co", "ashbyhq.com", "myworkdayjobs.com", "smartrecruiters.com"]:
+            _append_query(queries, f"site:{domain} {role} 2027")
+    elif source_lane == "application-deadlines-cycles":
+        _append_query(queries, f"{target_window} {role} application deadline")
+        _append_query(queries, f"Summer 2027 {role} recruiting cycle")
+        _append_query(queries, f"2027 {role} analyst program deadline")
+    elif source_lane == "student-program-directories":
+        _append_query(queries, f"Summer 2027 {role} student program")
+        _append_query(queries, f"Class of 2027 {role} internship")
+        _append_query(queries, f"university recruiting {role} 2027")
+    elif source_lane == "early-career-job-boards":
+        _append_query(queries, f"{role} new grad 2027 jobs")
+        _append_query(queries, f"{role} early career 2027")
+        _append_query(queries, f"{role} Summer 2027 internship")
+    elif source_lane == "quant-finance":
+        _append_query(queries, "Summer 2027 quant research intern application")
+        _append_query(queries, "2027 quant trading intern careers")
+        _append_query(queries, "new grad quant 2027 analyst")
+    elif source_lane == "finance-summer-analyst":
+        _append_query(queries, "Summer 2027 analyst finance application")
+        _append_query(queries, "2027 summer analyst investment research")
+        _append_query(queries, "2027 analyst program finance careers")
+    elif source_lane == "ai-research-labs":
+        _append_query(queries, "2027 machine learning intern applied AI lab")
+        _append_query(queries, "new grad AI research 2027 careers")
+        _append_query(queries, "Summer 2027 ML intern research")
+    else:
+        _append_query(queries, f"{role} Summer 2027 internship application")
+        _append_query(queries, f"{role} new grad 2027 careers")
+        _append_query(queries, f"{role} early career analyst program 2027")
+
+    for extra_role in roles[1:4]:
+        _append_query(queries, f"{extra_role} Summer 2027 application")
+    if location:
+        _append_query(queries, f"{role} Summer 2027 {location}")
+    if not queries:
+        _append_query(queries, clean_goal)
+    return queries[:8]
+
+
 def domain_of(url: str) -> str:
     return (urlparse(url).hostname or "").lower()
 
@@ -270,14 +359,21 @@ def plan_research(request: ResearchRunRequest) -> ResearchPlan:
     clean_goal = _clean_text(re.sub(r"https?://[^\s<>)\]}\"']+", "", request.goal)).strip(" .\n\t") or request.goal.strip()
 
     search_queries: list[str] = []
-    if request.mode in {"quick_search", "deep_research", "compare_sources", "monitor_topic"}:
+    metadata_queries = _text_list((request.metadata if isinstance(request.metadata, dict) else {}).get("search_queries"), 8)
+    career_queries = _career_discovery_search_queries(request, clean_goal)
+    if metadata_queries:
+        search_queries.extend(_clip_search_query(query) for query in metadata_queries)
+    elif career_queries:
+        search_queries.extend(career_queries)
+    elif request.mode in {"quick_search", "deep_research", "compare_sources", "monitor_topic"}:
         search_queries.append(clean_goal)
-    if request.mode == "deep_research":
-        search_queries.extend([f"{clean_goal} background", f"{clean_goal} analysis evidence"])
-    elif request.mode == "compare_sources":
-        search_queries.extend([f"{clean_goal} comparison", f"{clean_goal} criticism"])
-    elif request.mode == "monitor_topic":
-        search_queries.extend([f"{clean_goal} latest", f"{clean_goal} site:news OR update"])
+    if not (metadata_queries or career_queries):
+        if request.mode == "deep_research":
+            search_queries.extend([f"{clean_goal} background", f"{clean_goal} analysis evidence"])
+        elif request.mode == "compare_sources":
+            search_queries.extend([f"{clean_goal} comparison", f"{clean_goal} criticism"])
+        elif request.mode == "monitor_topic":
+            search_queries.extend([f"{clean_goal} latest", f"{clean_goal} site:news OR update"])
     if request.mode in {"url_scrape", "site_crawl"} and not crawl_targets:
         crawl_targets.extend(inline_urls)
 

@@ -123,11 +123,21 @@ readable **Quick Report** before diagnostics:
   source disclosures
 - Pause, Resume, and Cancel controls for long-running reports
 
+Reports are persisted in the AI OS SQLite database at
+`apps/ai-os-api/.ai-os-data/ai-os.sqlite3`, primarily in the `research_runs` table, with
+deduplicated fetched pages in `research_pages`. The user-facing recovery paths are the
+Reports rail on `/research`, deep links such as `/research?run=<id>`, the global Activity
+surface, and Markdown/JSON/HTML export links.
+
 On load, Research Desk rehydrates the last draft workbench settings from browser storage,
 fetches recent runs from AI OS, and restores the requested `?run=<id>`, current selection, or
 latest queued/running/paused run before falling back to the latest archived report. The
 selected run ID is written back to the URL, so a refresh, tab switch, or Activity handoff does
 not make an existing run look lost.
+
+The Reports rail, recurring monitor list, and Source Library list are intentionally scrollable
+inside bounded panels. Selecting a report scrolls the selected report panel directly under the
+workbench so large monitor/source collections do not make the selected result look missing.
 
 The same route also includes a Source Library panel backed by the local `research_pages`
 archive. It can search archived source cards by text, filter by domain, show preview text and
@@ -150,6 +160,17 @@ The backend still persists the concrete AI OS mode for compatibility and diagnos
 `quick_search`, `deep_research`, `url_scrape`, `site_crawl`, `compare_sources`, and
 `monitor_topic`. The hub no longer exposes those as six primary choices; normal user-created
 runs use the effort selector, while saved recurring runs use monitor semantics.
+
+Deep effort is allowed to request a heavier local-first run budget (`max_pages` up to 100,
+`depth` up to 8, and `time_budget_s` up to 1800). The default Deep preset now uses a broad
+comparison sweep rather than a small balanced crawl.
+
+Career Discovery / Max Power Search monitor goals keep the long profile text as filtering
+context, but the AI OS planner emits compact search-engine-friendly queries such as
+`Data Analyst Summer 2027 internship application` and
+`Quant Research Intern Summer 2027 application`. After collection, the passive engine applies
+strict saved-profile filters for May/Summer 2027 graduation/start dates, source authority,
+qualifications, duplicate companies, and not-fit memory before importing any Career Desk lead.
 
 ## Safety Boundaries
 

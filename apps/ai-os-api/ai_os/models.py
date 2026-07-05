@@ -380,10 +380,10 @@ class ResearchRunRequest(BaseModel):
     mode: ResearchMode = "quick_search"
     goal: str = Field(min_length=1, max_length=50_000)
     seed_urls: list[str] = Field(default_factory=list, max_length=50)
-    depth: int = Field(default=1, ge=1, le=5)
-    max_pages: int = Field(default=6, ge=1, le=50)
+    depth: int = Field(default=1, ge=1, le=8)
+    max_pages: int = Field(default=6, ge=1, le=100)
     per_domain_limit: int = Field(default=4, ge=1, le=20)
-    time_budget_s: int = Field(default=90, ge=5, le=900)
+    time_budget_s: int = Field(default=90, ge=5, le=1800)
     date_range_start: str | None = Field(default=None, max_length=40)
     date_range_end: str | None = Field(default=None, max_length=40)
     include_domains: list[str] = Field(default_factory=list, max_length=50)

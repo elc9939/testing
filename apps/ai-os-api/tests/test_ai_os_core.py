@@ -642,6 +642,37 @@ def test_research_planner_normalizes_urls_and_knobs():
     assert normalize_url("HTTPS://Example.com:443/path/?utm_campaign=x&b=2&a=1#frag") == "https://example.com/path?a=1&b=2"
 
 
+def test_research_planner_compacts_career_discovery_searches():
+    request = ResearchRunRequest(
+        mode="monitor_topic",
+        goal=(
+            "Find source-backed career opportunities for May 2027 / Summer 2027 start data and analytics "
+            "role boards. Only prioritize roles that explicitly fit the saved profile. Hard profile guardrail: "
+            "reject roles whose source-local graduation year, class year, start date, or eligibility conflicts "
+            "with the May/Summer 2027 profile."
+        ),
+        max_pages=80,
+        time_budget_s=1200,
+        metadata={
+            "career_discovery": True,
+            "target_start_window": "May 2027 / Summer 2027 start",
+            "source_lane": "data-analytics",
+            "target_roles": ["Data Analyst", "Quant Research Intern", "Machine Learning Intern"],
+            "locations": ["New York", "Remote"],
+        },
+    )
+
+    plan = plan_research(request)
+
+    assert plan.search_queries
+    assert all(len(query) <= 180 for query in plan.search_queries)
+    assert any("Data Analyst" in query for query in plan.search_queries)
+    assert any("Summer 2027" in query for query in plan.search_queries)
+    assert all("Hard profile guardrail" not in query for query in plan.search_queries)
+    assert plan.knobs["max_pages"] == 80
+    assert plan.knobs["time_budget_s"] == 1200
+
+
 def test_research_extractor_keeps_metadata_tables_links_and_canonical():
     extracted = extract_clean_content(
         """

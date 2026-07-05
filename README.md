@@ -211,11 +211,18 @@ without kicking every local API or desktop service just because the sidebar is v
   study, and game data. It shows loading, offline cached, and healthy-empty states instead
   of sample metrics.
 - Research Desk: AI OS-backed web intelligence workbench with one query box, Quick/Standard/
-  Deep effort presets, a compact Reports rail for active/finished runs, readable Quick
-  Report briefs, export links, source handoff actions, and a Routine Research monitor
-  section for recurring manual/daily/weekly runs. Source Library cards, monitor cards, and
-  report source previews stay compact by default; diagnostics and raw extraction details
-  remain recoverable behind disclosure controls.
+  Deep effort presets, a compact scrollable Reports rail for active/finished runs,
+  readable Quick Report briefs, export links, source handoff actions, and a Routine Research
+  monitor section for recurring manual/daily/weekly runs. Reports are saved by AI OS in
+  `apps/ai-os-api/.ai-os-data/ai-os.sqlite3` (`research_runs`) and can be reopened from
+  `/research`, `/research?run=<id>`, Activity, or Markdown/JSON/HTML exports. Selecting a
+  report reveals the report panel directly under the workbench; long report, monitor, and
+  source-library lists scroll internally so they do not bury the selected result. Deep mode
+  is a heavy local-first run budget, while Career Discovery/Max Power uses broad compact
+  search queries plus strict May/Summer 2027 graduation/start-date/qualification filters
+  after source collection. Source Library cards, monitor cards, and report source previews
+  stay compact by default; diagnostics and raw extraction details remain recoverable behind
+  disclosure controls.
 - AI Lab: small browser-side local AI experiments such as classification and code parsing.
   It shows whether the local browser assets are configured, distinguishes loading,
   healthy-empty, and error states, and does not require the AI OS API.
