@@ -4,7 +4,9 @@ param(
   [ValidateSet('local', 'lan')]
   [string]$Profile = 'local',
   [switch]$HubUi,
-  [string]$BridgeToken = ''
+  [string]$BridgeToken = '',
+  [string]$RemoteHost = '',
+  [string]$ExtraTrustedOrigins = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,8 +38,7 @@ function Get-LanIPv4 {
 }
 
 function Get-BridgeHost {
-  if ($Profile -eq 'lan') { return Get-LanIPv4 }
-  return '127.0.0.1'
+  return Get-MiniHubBridgeHost $Profile $RemoteHost
 }
 
 function Get-ServiceUrl([int]$Port) {
@@ -61,6 +62,36 @@ function Get-PortPid([int]$Port) {
   return $null
 }
 
+function Get-ProcessCommandLine([int]$ProcessId) {
+  try {
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction Stop
+    return [string]$process.CommandLine
+  } catch {
+    return ''
+  }
+}
+
+function Test-HttpEndpoint([string]$Url) {
+  try {
+    Invoke-WebRequest -Uri $Url -TimeoutSec 4 -UseBasicParsing | Out-Null
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Test-ManagedHubUiProcess([int]$ProcessId) {
+  $commandLine = Get-ProcessCommandLine $ProcessId
+  if (-not $commandLine) { return $false }
+  return $commandLine -match '(?i)(vite|svelte-kit|@mini-hub/hub|pnpm|node)'
+}
+
+function Test-ManagedHubApiProcess([int]$ProcessId) {
+  $commandLine = Get-ProcessCommandLine $ProcessId
+  if (-not $commandLine) { return $false }
+  return $commandLine -match '(?i)(@mini-hub/api|apps\\api|src/index\.ts|tsx)'
+}
+
 function Get-JsonEndpointStatus([string]$Url, [string]$Token = '') {
   try {
     $headers = @{}
@@ -74,6 +105,15 @@ function Get-JsonEndpointStatus([string]$Url, [string]$Token = '') {
 
 function Test-JsonEndpoint([string]$Url, [string]$Token = '') {
   return (Get-JsonEndpointStatus $Url $Token).Ok
+}
+
+function Wait-JsonEndpoint([string]$Url, [string]$Token = '', [int]$TimeoutSeconds = 30) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-JsonEndpoint $Url $Token) { return $true }
+    Start-Sleep -Seconds 2
+  }
+  return $false
 }
 
 function Stop-PidFile([string]$PidFile, [string]$Label) {
@@ -91,8 +131,25 @@ function Stop-PidFile([string]$PidFile, [string]$Label) {
 
 function Start-Ollama {
   if (Test-JsonEndpoint 'http://127.0.0.1:11434/api/tags') {
-    Write-Output 'Ollama already reachable on 127.0.0.1:11434'
-    return
+    if ($Profile -ne 'lan') {
+      Write-Output 'Ollama already reachable on 127.0.0.1:11434'
+      return
+    }
+    $lanOllamaUrl = "$(Get-ServiceUrl 11434)/api/tags"
+    if (Test-JsonEndpoint $lanOllamaUrl) {
+      Write-Output "Ollama already reachable on $lanOllamaUrl"
+      return
+    }
+    $ollamaPid = Get-PortPid 11434
+    $ollamaCommandLine = if ($ollamaPid) { Get-ProcessCommandLine $ollamaPid } else { '' }
+    if ($ollamaPid -and $ollamaCommandLine -match '(?i)ollama') {
+      Write-Output "Restarting Ollama for LAN/private-network access from PID $ollamaPid"
+      Stop-Process -Id $ollamaPid -Force
+      Start-Sleep -Seconds 1
+    } else {
+      Write-Output 'Ollama is reachable locally, but not on the private host. AI OS can still use local Ollama; direct phone Ollama checks may stay offline until Ollama is restarted with OLLAMA_HOST=0.0.0.0:11434.'
+      return
+    }
   }
   $ollama = Get-Command ollama -ErrorAction SilentlyContinue
   if (-not $ollama) {
@@ -100,6 +157,10 @@ function Start-Ollama {
     return
   }
   Ensure-BridgeDir
+  if ($Profile -eq 'lan') {
+    $env:OLLAMA_HOST = '0.0.0.0:11434'
+    $env:OLLAMA_ORIGINS = Get-MiniHubTrustedOrigins @(Get-MiniHubPrivateHosts $RemoteHost) $ExtraTrustedOrigins 5173
+  }
   $process = Start-Process -FilePath $ollama.Source -ArgumentList 'serve' -WindowStyle Hidden -PassThru
   Set-Content -Path $OllamaPidFile -Value $process.Id
   Start-Sleep -Seconds 2
@@ -112,18 +173,33 @@ function Start-Ollama {
 
 function Start-HubApi {
   if (Test-JsonEndpoint 'http://127.0.0.1:8787/api/health' $BridgeToken) {
-    Write-Output 'Mini Hub API already reachable on 127.0.0.1:8787'
-    return
+    if ($Profile -ne 'lan') {
+      Write-Output 'Mini Hub API already reachable on 127.0.0.1:8787'
+      return
+    }
+    $pidToRestart = Get-PortPid 8787
+    if ($pidToRestart) {
+      Write-Output "Restarting Mini Hub API in LAN/remote mode from PID $pidToRestart"
+      Stop-Process -Id $pidToRestart -Force
+      Start-Sleep -Seconds 1
+    }
   }
   $existingPid = Get-PortPid 8787
   if ($existingPid) {
-    throw "Port 8787 is already in use by PID $existingPid and Mini Hub API did not answer health."
+    if (Test-ManagedHubApiProcess $existingPid) {
+      Write-Output "Restarting stale Mini Hub API process on port 8787 from PID $existingPid"
+      Stop-Process -Id $existingPid -Force
+      Start-Sleep -Seconds 1
+    } else {
+      throw "Port 8787 is already in use by PID $existingPid and Mini Hub API did not answer health."
+    }
   }
   Ensure-BridgeDir
   $lanHost = Get-BridgeHost
+  $privateHosts = @(Get-MiniHubPrivateHosts $RemoteHost)
   $env:PORT = '8787'
   $env:HUB_PUBLIC_URL = "http://${lanHost}:5173"
-  $env:TRUSTED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://${lanHost}:5173,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"
+  $env:TRUSTED_ORIGINS = Get-MiniHubTrustedOrigins $privateHosts $ExtraTrustedOrigins 5173
   if ($BridgeToken) { $env:MINI_HUB_BRIDGE_TOKEN = $BridgeToken }
   $process = Start-Process -FilePath $Pnpm `
     -ArgumentList '--filter', '@mini-hub/api', 'start' `
@@ -142,15 +218,38 @@ function Start-HubUi {
   if (Test-Path $HubUiPidFile) {
     $existing = Get-Content -LiteralPath $HubUiPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($existing -match '^\d+$' -and (Get-Process -Id ([int]$existing) -ErrorAction SilentlyContinue)) {
-      Write-Output "Hub UI already started as PID $existing"
-      return
+      if ($Profile -eq 'lan') {
+        Stop-Process -Id ([int]$existing) -Force
+        Remove-Item -LiteralPath $HubUiPidFile -Force -ErrorAction SilentlyContinue
+        Write-Output "Restarting Hub UI in LAN/remote mode from PID $existing"
+        Start-Sleep -Seconds 1
+      } else {
+        Write-Output "Hub UI already started as PID $existing"
+        return
+      }
     }
   }
   Ensure-BridgeDir
   $hostArg = if ($Profile -eq 'lan') { '0.0.0.0' } else { '127.0.0.1' }
+  $portPid = Get-PortPid 5173
+  if ($portPid) {
+    $lanUiUrl = Get-ServiceUrl 5173
+    if ($Profile -eq 'lan' -and -not (Test-HttpEndpoint $lanUiUrl)) {
+      if (Test-ManagedHubUiProcess $portPid) {
+        Write-Output "Restarting localhost-only Hub UI in LAN/remote mode from PID $portPid"
+        Stop-Process -Id $portPid -Force
+        Start-Sleep -Seconds 1
+      } else {
+        throw "Hub UI port 5173 is already in use by PID $portPid and $lanUiUrl is not reachable. Stop that process, then rerun bridge:start:lan."
+      }
+    } else {
+      Write-Output "Hub UI port 5173 is already reachable by PID $portPid. Reusing it."
+      return
+    }
+  }
   $process = Start-Process -FilePath $Pnpm `
-    -ArgumentList '--filter', '@mini-hub/hub', 'dev', '--', '--host', $hostArg, '--port', '5173' `
-    -WorkingDirectory $Root `
+    -ArgumentList 'exec', 'vite', '--host', $hostArg, '--port', '5173' `
+    -WorkingDirectory (Join-Path $Root 'apps\hub') `
     -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $BridgeDir 'hub-ui.out.log') `
     -RedirectStandardError (Join-Path $BridgeDir 'hub-ui.err.log') `
@@ -159,15 +258,38 @@ function Start-HubUi {
   Write-Output "Hub UI started as PID $($process.Id)"
 }
 
+function Invoke-BridgeChildScript([string]$ScriptPath, [string[]]$Arguments) {
+  & powershell -ExecutionPolicy Bypass -File $ScriptPath @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    $healthUrl = ''
+    if ($ScriptPath -like '*ai-os.ps1') {
+      $healthUrl = 'http://127.0.0.1:8791/api/ai/health'
+    } elseif ($ScriptPath -like '*macro-lab.ps1') {
+      $healthUrl = 'http://127.0.0.1:8792/api/macro-lab/health'
+    }
+    if ($healthUrl -and (Wait-JsonEndpoint $healthUrl $BridgeToken 45)) {
+      Write-Output "Launcher returned exit code $LASTEXITCODE, but service health is reachable at $healthUrl. Continuing."
+      return
+    }
+    throw "Launcher failed: $ScriptPath $($Arguments -join ' ')"
+  }
+}
+
 function Start-Bridge {
   Start-Ollama
   Start-HubApi
+  Remove-Item Env:PORT -ErrorAction SilentlyContinue
+  $aiScript = Join-Path $Root 'scripts\ai-os.ps1'
+  $macroScript = Join-Path $Root 'scripts\macro-lab.ps1'
   if ($Profile -eq 'lan') {
-    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\ai-os.ps1') start -Lan
-    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\macro-lab.ps1') start -Lan
+    $lanArgs = @('start', '-Lan')
+    if ($RemoteHost) { $lanArgs += @('-RemoteHost', $RemoteHost) }
+    if ($ExtraTrustedOrigins) { $lanArgs += @('-ExtraTrustedOrigins', $ExtraTrustedOrigins) }
+    Invoke-BridgeChildScript -ScriptPath $aiScript -Arguments $lanArgs
+    Invoke-BridgeChildScript -ScriptPath $macroScript -Arguments $lanArgs
   } else {
-    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\ai-os.ps1') start
-    & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\macro-lab.ps1') start
+    Invoke-BridgeChildScript -ScriptPath $aiScript -Arguments @('start')
+    Invoke-BridgeChildScript -ScriptPath $macroScript -Arguments @('start')
   }
   Start-HubUi
   $url = Get-BridgeUrl

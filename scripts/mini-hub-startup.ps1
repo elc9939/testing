@@ -2,7 +2,11 @@ param(
   [ValidateSet('install', 'remove', 'status', 'run-now')]
   [string]$Action = 'status',
   [ValidateSet('local', 'lan')]
-  [string]$Profile = 'local'
+  [string]$Profile = 'local',
+  [switch]$HubUi,
+  [string]$BridgeToken = '',
+  [string]$RemoteHost = '',
+  [string]$ExtraTrustedOrigins = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,7 +55,11 @@ function Install-StartupCommandFile {
     New-Item -ItemType Directory -Path $StartupFolder -Force | Out-Null
   }
 
-  $command = "@echo off`r`nstart `"`" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$BridgeScript`" start -Profile $Profile`r`n"
+  $hubUiArg = if ($HubUi) { ' -HubUi' } else { '' }
+  $bridgeTokenArg = if ($BridgeToken) { " -BridgeToken `"$BridgeToken`"" } else { '' }
+  $remoteHostArg = if ($RemoteHost) { " -RemoteHost `"$RemoteHost`"" } else { '' }
+  $extraOriginsArg = if ($ExtraTrustedOrigins) { " -ExtraTrustedOrigins `"$ExtraTrustedOrigins`"" } else { '' }
+  $command = "@echo off`r`nstart `"`" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$BridgeScript`" start -Profile $Profile$hubUiArg$bridgeTokenArg$remoteHostArg$extraOriginsArg`r`n"
   Set-Content -LiteralPath $StartupCommandFile -Value $command -Encoding ASCII
   Write-Output "Installed Mini Hub Bridge startup entry in the current user's Startup folder."
 }
@@ -62,6 +70,10 @@ function Install-Task {
   }
 
   $arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$BridgeScript`" start -Profile $Profile"
+  if ($HubUi) { $arguments += ' -HubUi' }
+  if ($BridgeToken) { $arguments += " -BridgeToken `"$BridgeToken`"" }
+  if ($RemoteHost) { $arguments += " -RemoteHost `"$RemoteHost`"" }
+  if ($ExtraTrustedOrigins) { $arguments += " -ExtraTrustedOrigins `"$ExtraTrustedOrigins`"" }
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory $Root
   $trigger = New-ScheduledTaskTrigger -AtLogOn
   $settings = New-ScheduledTaskSettingsSet `
@@ -130,7 +142,12 @@ switch ($Action) {
       Start-ScheduledTask -TaskName $TaskName
       Write-Output 'Started Mini Hub Bridge startup task.'
     } else {
-      & powershell -NoProfile -ExecutionPolicy Bypass -File $BridgeScript start -Profile $Profile
+      $bridgeArgs = @('start', '-Profile', $Profile)
+      if ($HubUi) { $bridgeArgs += '-HubUi' }
+      if ($BridgeToken) { $bridgeArgs += @('-BridgeToken', $BridgeToken) }
+      if ($RemoteHost) { $bridgeArgs += @('-RemoteHost', $RemoteHost) }
+      if ($ExtraTrustedOrigins) { $bridgeArgs += @('-ExtraTrustedOrigins', $ExtraTrustedOrigins) }
+      & powershell -NoProfile -ExecutionPolicy Bypass -File $BridgeScript @bridgeArgs
     }
     Start-Sleep -Seconds 2
     Show-TaskStatus

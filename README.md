@@ -70,19 +70,30 @@ pnpm bridge:status
 pnpm bridge:start
 pnpm bridge:start:lan
 pnpm bridge:restart
+pnpm bridge:restart:lan
 pnpm bridge:stop
 pnpm bridge:startup:install
+pnpm bridge:startup:install:lan
 pnpm bridge:startup:status
+pnpm bridge:startup:run:lan
 ```
 
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
 starts the local Hub UI on the LAN address and writes a ready URL with `apiUrl`, `aiOsUrl`,
 `macroLabUrl`, and `ollamaUrl` query parameters to `bridge-link.txt`. The status action shows
-Mini Hub API, AI OS, Macro Lab, and Ollama health plus PIDs. `bridge:startup:install`
-registers a per-user Windows logon starter named `Mini Hub Bridge` so the local bridge starts
-quietly after reboot instead of requiring several terminals. If Windows blocks Scheduled Task
-registration from a non-admin shell, the installer falls back to the current user's Startup
-folder.
+Mini Hub API, AI OS, Macro Lab, and Ollama health plus PIDs. Use
+`bridge:startup:install:lan` when you want the phone/private-network bridge to start after
+Windows login; it includes the LAN Hub UI instead of only loopback services.
+`bridge:startup:run:lan` starts that registered task immediately for a quick check.
+If Windows blocks Scheduled Task registration from a non-admin shell, the installer falls
+back to the current user's Startup folder.
+
+For Tailscale or another private hostname, run the bridge script directly so the generated
+URL and CORS trusted origins use the host your phone will actually open:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/mini-hub-bridge.ps1 start -Profile lan -HubUi -RemoteHost <pc-name-or-100.x-ip>
+```
 
 The older Windows LAN helper still works:
 
@@ -99,10 +110,9 @@ Start Mini Hub Phone Mode.cmd
 That launcher starts the Hub API, AI OS, Macro Lab, and Svelte hub with trusted private
 origins for the detected desktop IP, copies a ready-to-open URL to the clipboard, and writes
 it to `phone-link.txt`. For Tailscale, keep the PC awake, connect both devices to the same
-tailnet, then use the same ports on the PC's Tailscale name or `100.x` address. Add any
-extra private origins to `TRUSTED_ORIGINS`, `AI_OS_TRUSTED_ORIGINS`, and
-`MACRO_LAB_TRUSTED_ORIGINS` if you serve the UI from a private hostname that the launcher
-did not detect.
+tailnet, then use the bridge `-RemoteHost` form above so the PC's Tailscale name or `100.x`
+address is trusted automatically. If you serve the UI from another private hostname, pass it
+through `-RemoteHost` or add comma-separated entries with `-ExtraTrustedOrigins`.
 
 For optional bridge hardening, set the same shared secret before starting services:
 
@@ -797,8 +807,8 @@ After that, Windows starts the local bridge at login. The task is named `Mini Hu
 folder entry.
 
 Use `pnpm bridge:start:lan` when another device on LAN/Tailscale should reach this PC, then
-open the URL written to `bridge-link.txt` or save those endpoint values in Settings on the
-hosted GitHub Pages app.
+open the URL written to `bridge-link.txt`. Use `pnpm bridge:startup:install:lan` once if
+that phone/private-network bridge should come back after Windows login.
 
 For the core web app and data API:
 
@@ -839,15 +849,14 @@ pnpm macro-lab:start
 pnpm macro-lab:status
 ```
 
-For a phone/LAN development session that starts the hub, API, AI OS, and Macro Lab with
-LAN-safe URLs:
+The older visible-terminal phone/LAN helper is still available:
 
 ```powershell
 pnpm stack:start:lan
 ```
 
 That script writes the generated phone URL to `phone-link.txt` and tries to copy it to the
-clipboard.
+clipboard. Prefer `pnpm bridge:start:lan` for the current bridge/status/startup flow.
 
 ## GitHub Pages Deployment
 

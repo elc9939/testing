@@ -393,7 +393,7 @@ export function serviceEndpointResolutions(): ServiceEndpointResolution[] {
 }
 
 export function localNetworkHint(): string {
-  return 'For full private-network access, run pnpm bridge:start:lan, or use the older pnpm stack:start:lan helper, and keep the PC awake. The bridge command checks Mini Hub API, AI OS, Macro Lab, Ollama, and the hub, then writes a LAN URL with the desktop service addresses already filled in. For Tailscale, use the same service ports on your PC name or 100.x address.';
+  return 'For full private-network access, run pnpm bridge:start:lan and keep the PC awake. Use pnpm bridge:startup:install:lan if the bridge should start after Windows login. The bridge checks Mini Hub API, AI OS, Macro Lab, Ollama, and the hub, then writes bridge-link.txt with service addresses filled in. For Tailscale, run scripts/mini-hub-bridge.ps1 start -Profile lan -HubUi -RemoteHost <pc-name-or-100.x-ip>. GitHub Pages is only the static shell; use the private hub URL when browser mixed-content rules block HTTPS-to-HTTP service calls.';
 }
 
 export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string, expected = 'JSON'): string {

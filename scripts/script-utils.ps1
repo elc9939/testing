@@ -78,3 +78,108 @@ function Import-ProjectDotEnv([string]$Root) {
   Import-DotEnvFile (Join-Path $Root '.env')
   Import-DotEnvFile (Join-Path $Root '.env.local') -Override
 }
+
+function Get-MiniHubLanIPv4 {
+  $address = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.IPAddress -notlike '127.*' -and
+      $_.IPAddress -notlike '169.254.*' -and
+      $_.PrefixOrigin -ne 'WellKnown'
+    } |
+    Select-Object -First 1 -ExpandProperty IPAddress
+  if ($address) { return $address }
+  return 'YOUR-DESKTOP-IP'
+}
+
+function Get-MiniHubTailscaleIPv4 {
+  $tailscale = Get-Command tailscale -ErrorAction SilentlyContinue
+  if (-not $tailscale) { return '' }
+  try {
+    $ip = (& $tailscale.Source ip -4 2>$null | Select-Object -First 1).Trim()
+    if ($ip -match '^100\.') { return $ip }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
+function Normalize-MiniHubHost([string]$HostValue) {
+  $value = ''
+  if ($HostValue) { $value = $HostValue.Trim() }
+  if (-not $value) { return '' }
+  if ($value -match '^https?://') {
+    try { return ([System.Uri]$value).Host } catch { return $value }
+  }
+  return ($value -replace '/+$', '')
+}
+
+function Get-MiniHubPrivateHosts([string]$RemoteHost = '') {
+  $hosts = New-Object System.Collections.Generic.List[string]
+  $lanIp = Get-MiniHubLanIPv4
+  if ($lanIp -and $lanIp -ne 'YOUR-DESKTOP-IP') { $hosts.Add($lanIp) }
+  $tailscaleIp = Get-MiniHubTailscaleIPv4
+  if ($tailscaleIp) { $hosts.Add($tailscaleIp) }
+  $normalizedRemote = Normalize-MiniHubHost $RemoteHost
+  if ($normalizedRemote) { $hosts.Add($normalizedRemote) }
+  if (-not $hosts.Count) { $hosts.Add('YOUR-DESKTOP-IP') }
+  return $hosts | Select-Object -Unique
+}
+
+function Get-MiniHubBridgeHost([string]$Profile = 'local', [string]$RemoteHost = '') {
+  if ($Profile -ne 'lan') { return '127.0.0.1' }
+  $normalizedRemote = Normalize-MiniHubHost $RemoteHost
+  if ($normalizedRemote) { return $normalizedRemote }
+  return (Get-MiniHubPrivateHosts | Select-Object -First 1)
+}
+
+function Get-MiniHubTrustedOriginList(
+  [string[]]$Hosts,
+  [string]$ExtraTrustedOrigins = '',
+  [int]$HubPort = 5173
+) {
+  $origins = New-Object System.Collections.Generic.List[string]
+  @(
+    "http://localhost:$HubPort",
+    "http://127.0.0.1:$HubPort",
+    'http://localhost:1420',
+    'http://127.0.0.1:1420',
+    'https://elc9939.github.io'
+  ) | ForEach-Object { $origins.Add($_) }
+
+  foreach ($hostValue in $Hosts) {
+    $hostName = Normalize-MiniHubHost $hostValue
+    if ($hostName -and $hostName -ne '127.0.0.1' -and $hostName -ne 'localhost') {
+      $origins.Add("http://${hostName}:$HubPort")
+    }
+  }
+
+  if ($ExtraTrustedOrigins) {
+    $ExtraTrustedOrigins.Split(',') |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { $_ } |
+      ForEach-Object { $origins.Add($_) }
+  }
+
+  return @($origins | Select-Object -Unique)
+}
+
+function Get-MiniHubTrustedOrigins(
+  [string[]]$Hosts,
+  [string]$ExtraTrustedOrigins = '',
+  [int]$HubPort = 5173
+) {
+  return (@(Get-MiniHubTrustedOriginList $Hosts $ExtraTrustedOrigins $HubPort) -join ',')
+}
+
+function Get-MiniHubTrustedOriginsJson(
+  [string[]]$Hosts,
+  [string]$ExtraTrustedOrigins = '',
+  [int]$HubPort = 5173
+) {
+  return (@(Get-MiniHubTrustedOriginList $Hosts $ExtraTrustedOrigins $HubPort) | ConvertTo-Json -Compress)
+}
+
+function Get-MiniHubServiceUrl([string]$HostValue, [int]$Port) {
+  $hostName = Normalize-MiniHubHost $HostValue
+  return "http://${hostName}:$Port"
+}

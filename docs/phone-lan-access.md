@@ -14,15 +14,30 @@ Mini Hub supports three practical modes:
 
 ## Quick LAN Setup
 
-1. Double-click this file in the repo folder:
+1. Start the current bridge launcher:
+
+```powershell
+pnpm bridge:start:lan
+```
+
+This starts/checks the Mini Hub API, AI OS, Macro Lab, Ollama, and the Svelte hub, then
+prints a phone URL. It also copies that URL to the clipboard and saves it to
+`bridge-link.txt`.
+
+To have that same phone/private-network bridge start after Windows login:
+
+```powershell
+pnpm bridge:startup:install:lan
+pnpm bridge:startup:run:lan
+```
+
+The older helper still works if you want a visible terminal that stays open:
 
 ```text
 Start Mini Hub Phone Mode.cmd
 ```
 
-This starts the Mini Hub API, AI OS, Macro Lab, and the Svelte hub, then prints a phone URL. It also copies that URL to the clipboard and saves it to `phone-link.txt`.
-
-If you prefer the terminal, this is the same thing:
+or:
 
 ```powershell
 pnpm stack:start:lan
@@ -55,8 +70,13 @@ LAN mode intentionally disables loopback-only protection for AI OS and Macro Lab
 
 1. Install and sign in to Tailscale on the Windows PC and the remote device.
 2. Keep the PC awake.
-3. Start Mini Hub in LAN mode with `pnpm stack:start:lan` or `Start Mini Hub Phone Mode.cmd`.
-4. Open `http://<pc-tailscale-name-or-100.x-address>:5173` from the remote device.
+3. Start Mini Hub in LAN mode with the host your remote device will open:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/mini-hub-bridge.ps1 start -Profile lan -HubUi -RemoteHost <pc-tailscale-name-or-100.x-address>
+```
+
+4. Open the printed URL from the remote device.
 5. In Settings -> Remote Access / Connection Mode, use current-host URLs if the page was opened through the same Tailscale host, or enter:
 
 ```text
@@ -67,12 +87,8 @@ Macro Lab API: http://<pc-tailscale-name-or-100.x-address>:8792
 
 6. Save Service URLs, then Check Services.
 
-If the browser reports CORS or Private Network Access blocks, add the hub origin you are using, such as `http://<pc-tailscale-name>:5173`, to these environment variables before starting the services:
-
-```text
-TRUSTED_ORIGINS
-AI_OS_TRUSTED_ORIGINS
-MACRO_LAB_TRUSTED_ORIGINS
-```
+If the browser reports CORS or Private Network Access blocks, rerun the bridge with the
+same `-RemoteHost` value the browser uses. If you have an extra private origin that is not
+the host in the URL, pass it with `-ExtraTrustedOrigins`, comma-separated.
 
 Do not expose AI OS or Macro Lab publicly. Private Remote is meant for LAN/Tailscale-style access only, because Macro Lab can control Windows and AI OS can touch local models, files, tools, and research routes.

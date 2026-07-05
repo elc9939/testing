@@ -2,7 +2,9 @@ param(
   [ValidateSet('start', 'stop', 'restart', 'status', 'health', 'backup', 'verify', 'restore-test', 'integrity', 'cleanup')]
   [string]$Action = 'status',
   [string]$BackupId = '',
-  [switch]$Lan
+  [switch]$Lan,
+  [string]$RemoteHost = '',
+  [string]$ExtraTrustedOrigins = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +14,7 @@ Import-ProjectDotEnv $Root
 $ApiDir = Join-Path $Root 'apps\ai-os-api'
 $Python = Join-Path $ApiDir '.venv\Scripts\python.exe'
 $PidFile = Join-Path $ApiDir '.ai-os.pid'
+$SupervisorStopFile = Join-Path $ApiDir '.ai-os-supervisor.stop'
 $OutLog = Join-Path $ApiDir 'dev-server.out.log'
 $ErrLog = Join-Path $ApiDir 'dev-server.err.log'
 $HealthUrl = 'http://127.0.0.1:8791/api/ai/health'
@@ -30,19 +33,38 @@ function Get-LanIPv4 {
   return 'YOUR-DESKTOP-IP'
 }
 
-function Get-AiOsPid {
-  $conn = Get-NetTCPConnection -LocalPort 8791 -ErrorAction SilentlyContinue |
+function Get-AiOsPids {
+  $pids = New-Object System.Collections.Generic.List[int]
+  Get-NetTCPConnection -LocalPort 8791 -ErrorAction SilentlyContinue |
     Where-Object { $_.State -eq 'Listen' } |
-    Select-Object -First 1
-  if ($conn) { return [int]$conn.OwningProcess }
+    ForEach-Object {
+      if ($_.OwningProcess -and -not $pids.Contains([int]$_.OwningProcess)) {
+        $pids.Add([int]$_.OwningProcess)
+      }
+    }
   if (Test-Path $PidFile) {
     $pidText = (Get-Content $PidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
     if ($pidText -match '^\d+$') {
       $process = Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
-      if ($process) { return [int]$process.Id }
+      if ($process -and -not $pids.Contains([int]$process.Id)) { $pids.Add([int]$process.Id) }
     }
   }
-  return $null
+  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match '(?i)(^| )-m ai_os( |$)' } |
+    ForEach-Object {
+      if (-not $pids.Contains([int]$_.ProcessId)) { $pids.Add([int]$_.ProcessId) }
+    }
+  return $pids
+}
+
+function Get-AiOsPid {
+  return Get-AiOsPids | Select-Object -First 1
+}
+
+function Get-AiOsSupervisorPids {
+  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'ai-os-supervisor\.ps1' } |
+    ForEach-Object { [int]$_.ProcessId }
 }
 
 function Test-AiOsApi {
@@ -70,11 +92,20 @@ function Test-Ollama {
 }
 
 function Start-OllamaIfAvailable {
-  if (Test-Ollama) { return }
+  if (Test-Ollama) {
+    if ($Lan) {
+      Write-Output 'Ollama is reachable locally. If direct phone Ollama checks fail, restart Ollama with OLLAMA_HOST=0.0.0.0:11434 and matching OLLAMA_ORIGINS; AI OS can still use local Ollama.'
+    }
+    return
+  }
   $ollama = Get-Command ollama -ErrorAction SilentlyContinue
   if (-not $ollama) {
     Write-Output 'Ollama is not reachable and the ollama command was not found. AI OS will start, but the local model provider will show offline.'
     return
+  }
+  if ($Lan) {
+    $env:OLLAMA_HOST = '0.0.0.0:11434'
+    $env:OLLAMA_ORIGINS = Get-MiniHubTrustedOrigins @(Get-MiniHubPrivateHosts $RemoteHost) $ExtraTrustedOrigins
   }
   Start-Process -FilePath $ollama.Source -ArgumentList 'serve' -WindowStyle Hidden | Out-Null
   Start-Sleep -Seconds 2
@@ -97,24 +128,23 @@ function Start-AiOs {
       }
       Write-Output "Restarting AI OS in LAN mode from PID $aiOsPid"
       Stop-AiOs | Out-Null
+    } elseif ($Lan) {
+      Write-Output "Stopping stale AI OS process before LAN restart (PID $aiOsPid)"
+      Stop-AiOs | Out-Null
     } else {
       throw "Port 8791 is already in use by PID $aiOsPid, but it does not answer as $ServiceName. Stop that process or change AI_OS_PORT."
     }
   }
   if ($Lan) {
-    $lanIp = Get-LanIPv4
+    $hosts = @(Get-MiniHubPrivateHosts $RemoteHost)
+    $lanIp = Get-MiniHubBridgeHost 'lan' $RemoteHost
     $env:AI_OS_HOST = '0.0.0.0'
+    $env:AI_OS_PORT = '8791'
     $env:AI_OS_REQUIRE_LOOPBACK = 'false'
-    $env:AI_OS_TRUSTED_ORIGINS = @(
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      "http://${lanIp}:5173",
-      'http://localhost:1420',
-      'http://127.0.0.1:1420',
-      'https://elc9939.github.io'
-    ) | ConvertTo-Json -Compress
+    $env:AI_OS_TRUSTED_ORIGINS = Get-MiniHubTrustedOriginsJson $hosts $ExtraTrustedOrigins
     Write-Output "AI OS LAN mode: use http://${lanIp}:8791 from your phone."
   }
+  Remove-Item Env:PORT -ErrorAction SilentlyContinue
   $process = Start-Process -FilePath $Python `
     -ArgumentList '-m', 'ai_os' `
     -WorkingDirectory $ApiDir `
@@ -135,14 +165,24 @@ function Start-AiOs {
 }
 
 function Stop-AiOs {
-  $aiOsPid = Get-AiOsPid
-  if (-not $aiOsPid) {
+  $supervisorPids = @(Get-AiOsSupervisorPids)
+  if ($supervisorPids.Count) {
+    Set-Content -LiteralPath $SupervisorStopFile -Value (Get-Date -Format o) -Encoding ASCII
+    foreach ($supervisorPid in $supervisorPids) {
+      Stop-Process -Id $supervisorPid -Force -ErrorAction SilentlyContinue
+    }
+    Write-Output "AI OS supervisor stopped (PID $($supervisorPids -join ', '))"
+  }
+  $aiOsPids = @(Get-AiOsPids)
+  if (-not $aiOsPids.Count) {
     Write-Output 'AI OS is not running'
     return
   }
-  Stop-Process -Id $aiOsPid -Force
+  foreach ($aiOsPid in $aiOsPids) {
+    Stop-Process -Id $aiOsPid -Force -ErrorAction SilentlyContinue
+  }
   if (Test-Path $PidFile) { Remove-Item -LiteralPath $PidFile -Force }
-  Write-Output "AI OS stopped (PID $aiOsPid)"
+  Write-Output "AI OS stopped (PID $($aiOsPids -join ', '))"
 }
 
 function Invoke-Maintenance([string[]]$ArgsList) {

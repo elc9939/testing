@@ -1,5 +1,7 @@
 param(
-  [int]$Port = 8787
+  [int]$Port = 8787,
+  [string]$RemoteHost = '',
+  [string]$ExtraTrustedOrigins = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,10 +21,11 @@ function Get-LanIPv4 {
   return 'YOUR-DESKTOP-IP'
 }
 
-$lanIp = Get-LanIPv4
+$privateHosts = @(Get-MiniHubPrivateHosts $RemoteHost)
+$lanIp = Get-MiniHubBridgeHost 'lan' $RemoteHost
 $env:PORT = "$Port"
 $env:HUB_PUBLIC_URL = "http://$lanIp`:5173"
-$env:TRUSTED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://$lanIp`:5173,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"
+$env:TRUSTED_ORIGINS = Get-MiniHubTrustedOrigins $privateHosts $ExtraTrustedOrigins 5173
 
 Write-Output "Mini Hub API LAN mode: use http://$lanIp`:$Port from your phone."
 Push-Location $Root

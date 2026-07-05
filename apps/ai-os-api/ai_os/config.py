@@ -4,10 +4,10 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 def _json_env(name: str, fallback: Any) -> Any:
@@ -24,7 +24,14 @@ def _csv_env(name: str, fallback: list[str]) -> list[str]:
     raw = os.getenv(name)
     if not raw:
         return fallback
+    if raw.strip().startswith("["):
+        parsed = _json_env(name, fallback)
+        if isinstance(parsed, list):
+            return [str(part).strip() for part in parsed if str(part).strip()]
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+TrustedOriginList = Annotated[list[str], NoDecode]
 
 
 class Settings(BaseSettings):
@@ -69,7 +76,7 @@ class Settings(BaseSettings):
         validation_alias="AI_OS_WEB_USER_AGENT",
     )
     web_browser_executable_path: Path | None = Field(default=None, validation_alias="AI_OS_WEB_BROWSER_EXECUTABLE_PATH")
-    trusted_origins: list[str] = Field(
+    trusted_origins: TrustedOriginList = Field(
         default_factory=lambda: _csv_env(
             "AI_OS_TRUSTED_ORIGINS",
             [
@@ -81,6 +88,23 @@ class Settings(BaseSettings):
             ],
         )
     )
+
+    @field_validator("trusted_origins", mode="before")
+    @classmethod
+    def parse_trusted_origins(cls, value: Any) -> list[str] | Any:
+        if not isinstance(value, str):
+            return value
+        raw = value.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(part).strip() for part in parsed if str(part).strip()]
+            except json.JSONDecodeError:
+                pass
+        return [part.strip() for part in raw.split(",") if part.strip()]
 
     ollama_base_url: str = Field(default="http://127.0.0.1:11434", validation_alias="OLLAMA_BASE_URL")
     ollama_chat_model: str = Field(default="llama3.1:8b", validation_alias="OLLAMA_CHAT_MODEL")

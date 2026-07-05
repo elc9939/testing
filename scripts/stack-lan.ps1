@@ -1,6 +1,8 @@
 param(
   [int]$HubPort = 5173,
-  [int]$ApiPort = 8787
+  [int]$ApiPort = 8787,
+  [string]$RemoteHost = '',
+  [string]$ExtraTrustedOrigins = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,8 +42,9 @@ function Test-MiniHubApi([int]$Port) {
   }
 }
 
-$lanIp = Get-LanIPv4
-$serviceUrl = "http://$lanIp`:$HubPort/?apiUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:$ApiPort"))&aiOsUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8791"))&macroLabUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:8792"))&ollamaUrl=$([System.Uri]::EscapeDataString("http://$lanIp`:11434"))"
+$privateHosts = @(Get-MiniHubPrivateHosts $RemoteHost)
+$lanIp = Get-MiniHubBridgeHost 'lan' $RemoteHost
+$serviceUrl = "$(Get-MiniHubServiceUrl $lanIp $HubPort)/?apiUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp $ApiPort)))&aiOsUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp 8791)))&macroLabUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp 8792)))&ollamaUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp 11434)))"
 Set-Content -Path $PhoneLinkFile -Value $serviceUrl
 try {
   Set-Clipboard -Value $serviceUrl
@@ -67,7 +70,7 @@ try {
   if (-not $apiPid) {
     $env:PORT = "$ApiPort"
     $env:HUB_PUBLIC_URL = "http://$lanIp`:$HubPort"
-    $env:TRUSTED_ORIGINS = "http://localhost:$HubPort,http://127.0.0.1:$HubPort,http://$lanIp`:$HubPort,http://localhost:1420,http://127.0.0.1:1420,https://elc9939.github.io"
+    $env:TRUSTED_ORIGINS = Get-MiniHubTrustedOrigins $privateHosts $ExtraTrustedOrigins $HubPort
     $apiProcess = Start-Process -FilePath $Pnpm `
       -ArgumentList '--filter', '@mini-hub/api', 'start' `
       -WorkingDirectory $Root `
@@ -78,8 +81,14 @@ try {
     Write-Output "Mini Hub API LAN mode started as PID $($apiProcess.Id)"
   }
 
-  & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\ai-os.ps1') start -Lan
-  & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\macro-lab.ps1') start -Lan
+  $serviceArgs = @('start', '-Lan')
+  if ($RemoteHost) { $serviceArgs += @('-RemoteHost', $RemoteHost) }
+  if ($ExtraTrustedOrigins) { $serviceArgs += @('-ExtraTrustedOrigins', $ExtraTrustedOrigins) }
+
+  & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\ai-os.ps1') @serviceArgs
+  if ($LASTEXITCODE -ne 0) { throw 'AI OS LAN launcher failed.' }
+  & powershell -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\macro-lab.ps1') @serviceArgs
+  if ($LASTEXITCODE -ne 0) { throw 'Macro Lab LAN launcher failed.' }
 
   Write-Output ""
   Write-Output "Open this from your phone while this terminal stays running:"
@@ -87,7 +96,12 @@ try {
   Write-Output $clipboardMessage
   Write-Output "The same URL is saved in phone-link.txt."
   Write-Output ""
-  & $Pnpm --filter @mini-hub/hub dev -- --host 0.0.0.0 --port $HubPort
+  Push-Location (Join-Path $Root 'apps\hub')
+  try {
+    & $Pnpm exec vite --host 0.0.0.0 --port $HubPort
+  } finally {
+    Pop-Location
+  }
 } finally {
   Pop-Location
 }

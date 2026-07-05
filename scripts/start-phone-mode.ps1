@@ -1,3 +1,8 @@
+param(
+  [string]$RemoteHost = '',
+  [string]$ExtraTrustedOrigins = ''
+)
+
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $PSScriptRoot
@@ -10,7 +15,11 @@ Write-Output ""
 
 Push-Location $Root
 try {
-  & powershell -NoLogo -ExecutionPolicy Bypass -File $StackScript
+  $stackArgs = @()
+  if ($RemoteHost) { $stackArgs += @('-RemoteHost', $RemoteHost) }
+  if ($ExtraTrustedOrigins) { $stackArgs += @('-ExtraTrustedOrigins', $ExtraTrustedOrigins) }
+  & powershell -NoLogo -ExecutionPolicy Bypass -File $StackScript @stackArgs
+  if ($LASTEXITCODE -ne 0) { throw 'Mini Hub Phone Mode failed to start.' }
 } finally {
   Pop-Location
 }

@@ -29,7 +29,12 @@ Write-Output "Keep this terminal running while using the phone UI."
 
 Push-Location $Root
 try {
-  & $Pnpm --filter @mini-hub/hub dev -- --host 0.0.0.0 --port $Port
+  Push-Location (Join-Path $Root 'apps\hub')
+  try {
+    & $Pnpm exec vite --host 0.0.0.0 --port $Port
+  } finally {
+    Pop-Location
+  }
 } finally {
   Pop-Location
 }

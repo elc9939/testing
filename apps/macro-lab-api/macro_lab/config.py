@@ -1,18 +1,30 @@
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated, Any
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 def _csv_env(name: str, fallback: list[str]) -> list[str]:
     raw = os.getenv(name)
     if not raw:
         return fallback
+    if raw.strip().startswith("["):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(part).strip() for part in parsed if str(part).strip()]
+        except json.JSONDecodeError:
+            pass
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+TrustedOriginList = Annotated[list[str], NoDecode]
 
 
 class Settings(BaseSettings):
@@ -26,7 +38,7 @@ class Settings(BaseSettings):
     require_loopback: bool = Field(default=True, validation_alias="MACRO_LAB_REQUIRE_LOOPBACK")
     bridge_token: str | None = Field(default=None, validation_alias="MINI_HUB_BRIDGE_TOKEN")
     max_request_bytes: int = Field(default=10_000_000, validation_alias="MACRO_LAB_MAX_REQUEST_BYTES")
-    trusted_origins: list[str] = Field(
+    trusted_origins: TrustedOriginList = Field(
         default_factory=lambda: _csv_env(
             "MACRO_LAB_TRUSTED_ORIGINS",
             [
@@ -38,6 +50,23 @@ class Settings(BaseSettings):
             ],
         )
     )
+
+    @field_validator("trusted_origins", mode="before")
+    @classmethod
+    def parse_trusted_origins(cls, value: Any) -> list[str] | Any:
+        if not isinstance(value, str):
+            return value
+        raw = value.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(part).strip() for part in parsed if str(part).strip()]
+            except json.JSONDecodeError:
+                pass
+        return [part.strip() for part in raw.split(",") if part.strip()]
 
     panic_hotkey: str = Field(default="<ctrl>+<alt>+<pause>", validation_alias="MACRO_LAB_PANIC_HOTKEY")
     clipboard_poll_interval_s: float = Field(default=1.0, validation_alias="MACRO_LAB_CLIPBOARD_POLL_INTERVAL_S")
