@@ -25,6 +25,7 @@
   import { canAutoSave, clientData, type ClientDataState } from '$lib/client-data';
   import { runPassiveEvent } from '$lib/passive-tasks-api';
   import { hubHref, hubRouteFromPath } from '$lib/routes';
+  import { applyQueryServiceEndpoints } from '$lib/service-config';
   import { compactServiceIssueIfRecognized } from '$lib/service-issues';
   import { applyTheme, normalizeTheme, setTheme, theme, watchSystemTheme, type ThemeMode } from '$lib/theme';
 
@@ -170,6 +171,7 @@
       }
     });
     applyTheme($theme);
+    applyQueryServiceEndpoints();
     void retireLegacyRootServiceWorker().catch(() => undefined);
     void clientData.init().then(() => emitPassiveBrowserEvent('app.startup', 'hub-layout-startup', 30));
     void attentionStore.init();

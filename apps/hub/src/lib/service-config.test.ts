@@ -4,9 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildServiceUrlFromHubOrigin,
+  buildPrivateRemoteBridgeLink,
   connectionModeForOrigin,
   defaultServiceRequestTimeoutMs,
   looksLikeHostedStaticEndpoint,
+  privateRemoteLinks,
   requestServiceJson,
   requestServiceResponse,
   remoteEndpointSuggestions,
@@ -140,6 +142,26 @@ describe('service endpoint resolution', () => {
       'http://192.168.1.25:11434'
     ]);
     expect(remoteEndpointSuggestions('https://elc9939.github.io/testing')).toEqual([]);
+  });
+
+  it('builds a phone bridge URL that carries every desktop service endpoint', () => {
+    const link = buildPrivateRemoteBridgeLink('http://192.168.1.25:5173/settings');
+    const parsed = new URL(link);
+
+    expect(parsed.origin).toBe('http://192.168.1.25:5173');
+    expect(parsed.searchParams.get('apiUrl')).toBe('http://192.168.1.25:8787');
+    expect(parsed.searchParams.get('aiOsUrl')).toBe('http://192.168.1.25:8791');
+    expect(parsed.searchParams.get('macroLabUrl')).toBe('http://192.168.1.25:8792');
+    expect(parsed.searchParams.get('ollamaUrl')).toBe('http://192.168.1.25:11434');
+  });
+
+  it('offers private remote links from the current host and detected LAN addresses only', () => {
+    expect(privateRemoteLinks('http://127.0.0.1:5173', ['192.168.1.25']).map((link) => link.host)).toEqual(['192.168.1.25']);
+    expect(privateRemoteLinks('http://mini-hub-pc.tailnet.ts.net:5173', ['192.168.1.25']).map((link) => link.host)).toEqual([
+      'mini-hub-pc.tailnet.ts.net',
+      '192.168.1.25'
+    ]);
+    expect(privateRemoteLinks('https://elc9939.github.io/testing', [])).toEqual([]);
   });
 
   it('persists bridge-link query endpoints before Settings diagnostics read storage', async () => {

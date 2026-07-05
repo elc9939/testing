@@ -31,6 +31,13 @@ export interface ConnectionMode {
   fullPower: boolean;
 }
 
+export interface PrivateRemoteLink {
+  label: string;
+  host: string;
+  url: string;
+  detail: string;
+}
+
 const storageKey = 'miniHub.serviceEndpoints.v1';
 const bridgeTokenStorageKey = 'miniHub.bridgeToken.v1';
 
@@ -251,6 +258,52 @@ export function buildServiceUrlFromHubOrigin(id: ServiceId, origin: string): str
   if (!parsed || isGithubPagesHost(parsed.hostname)) return '';
   const protocol = parsed.protocol === 'https:' ? 'http:' : parsed.protocol || 'http:';
   return `${protocol}//${parsed.hostname}:${servicePorts[id]}`;
+}
+
+function hostFromPrivateTarget(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`).hostname;
+  } catch {
+    return trimmed.replace(/^https?:\/\//iu, '').replace(/\/.*$/u, '').replace(/:\d+$/u, '');
+  }
+}
+
+export function buildPrivateRemoteBridgeLink(hostValue: string): string {
+  const host = hostFromPrivateTarget(hostValue);
+  if (!host) return '';
+  const hubUrl = `http://${host}:5173/`;
+  const params = new URLSearchParams({
+    apiUrl: `http://${host}:8787`,
+    aiOsUrl: `http://${host}:8791`,
+    macroLabUrl: `http://${host}:8792`,
+    ollamaUrl: `http://${host}:11434`
+  });
+  return `${hubUrl}?${params.toString()}`;
+}
+
+export function privateRemoteLinks(origin: string, lanIpv4: string[] = []): PrivateRemoteLink[] {
+  const links: PrivateRemoteLink[] = [];
+  const seen = new Set<string>();
+
+  function add(hostValue: string, label: string, detail: string): void {
+    const host = hostFromPrivateTarget(hostValue);
+    if (!host || seen.has(host) || isLoopbackHost(host) || isGithubPagesHost(host)) return;
+    seen.add(host);
+    links.push({ label, host, url: buildPrivateRemoteBridgeLink(host), detail });
+  }
+
+  const parsed = parseUrlOrigin(origin);
+  if (parsed && isPrivateRemoteHost(parsed.hostname)) {
+    add(parsed.hostname, 'Current private host', 'Use this when the page is already open through LAN, Tailscale, or another private host.');
+  }
+
+  for (const address of lanIpv4) {
+    add(address, 'Detected LAN phone link', 'Use this on your phone while it is on the same Wi-Fi or private LAN as the PC.');
+  }
+
+  return links;
 }
 
 export function remoteEndpointSuggestions(origin: string): ServiceEndpoint[] {

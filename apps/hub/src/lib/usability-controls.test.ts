@@ -99,6 +99,8 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function layoutSyncPillText');
     expect(source).toContain('function layoutSyncPillTitle');
     expect(source).toContain("import { compactServiceIssueIfRecognized } from '$lib/service-issues'");
+    expect(source).toContain("import { applyQueryServiceEndpoints } from '$lib/service-config'");
+    expect(source).toContain('applyQueryServiceEndpoints()');
     expect(source).toContain('syncPillText = layoutSyncPillText($clientData)');
     expect(source).toContain('function layoutCompactSyncIssue');
     expect(source).toContain("compactServiceIssueIfRecognized(text, 'Mini Hub sync/cache')");
@@ -2315,6 +2317,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('title={restoreActionTitle(action)}');
     expect(source).toContain('function endpointInputTitle');
     expect(source).toContain("title={endpointInputTitle('AI OS API')}");
+    expect(source).toContain('privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? [])');
+    expect(source).toContain('Phone / Private Remote Link');
+    expect(source).toContain('copyPhoneRemoteLink(primaryPhoneRemoteLink.url)');
+    expect(source).toContain('Open it on your phone while the PC bridge is running.');
     expect(source).toContain('machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions)');
     expect(source).toContain("machineProfileControlBlockedReason('autotune', {");
     expect(source).toContain('function machineProfileControlBlockedReason');

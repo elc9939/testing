@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Activity, ArrowRight, Cloud, Database, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
+  import { Activity, ArrowRight, Cloud, Copy, Database, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
   import type { ActionLedgerEntry, PassiveBackupHealth, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
   import {
     actionLedgerDetail,
@@ -51,6 +51,7 @@
     connectionModeForOrigin,
     getBridgeToken,
     localNetworkHint,
+    privateRemoteLinks,
     remoteEndpointSuggestions,
     serviceEndpointResolution,
     serviceFallbackUrl,
@@ -198,6 +199,8 @@
   $: endpointSuggestionMap = new Map(endpointSuggestions.map((suggestion) => [suggestion.id, suggestion]));
   $: connectionModeClass = connectionMode.id;
   $: lanAddressInfo = lanAddressSummary(hubHealth);
+  $: phoneRemoteLinks = privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? []);
+  $: primaryPhoneRemoteLink = phoneRemoteLinks[0];
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
     endpointIssue: machineAiOsEndpointIssue,
@@ -598,6 +601,19 @@
       return 'This can be full power if your PC is awake, the LAN/Tailscale stack is running, and service origins are trusted.';
     }
     return 'This is the best full-power mode because the browser and desktop services are on the same PC.';
+  }
+
+  async function copyPhoneRemoteLink(url: string): Promise<void> {
+    endpointError = '';
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard) {
+        throw new Error('Clipboard is unavailable in this browser. Select and copy the URL manually.');
+      }
+      await navigator.clipboard.writeText(url);
+      endpointMessage = 'Copied the private remote link. Open it on your phone while the PC bridge is running.';
+    } catch (error) {
+      endpointError = error instanceof Error ? error.message : 'Could not copy private remote link.';
+    }
   }
 
   function lanAddressSummary(health: HubHealth | null): { label: string; detail: string } {
@@ -1310,6 +1326,37 @@
         <span>Bridge token</span>
         <strong>{bridgeTokenConfigured() ? 'Saved in this browser' : 'Not saved'}</strong>
         <small>{bridgeTokenConfigured() ? 'Sent to Hub API, AI OS, and Macro Lab when configured server-side.' : 'Optional; set MINI_HUB_BRIDGE_TOKEN before exposing services beyond loopback.'}</small>
+      </div>
+    </div>
+    <div class="phone-remote-panel" aria-label="Phone private remote link">
+      <div>
+        <span>Phone / Private Remote Link</span>
+        {#if primaryPhoneRemoteLink}
+          <strong>{primaryPhoneRemoteLink.label}: {primaryPhoneRemoteLink.host}</strong>
+          <small>{primaryPhoneRemoteLink.detail}</small>
+          <code>{primaryPhoneRemoteLink.url}</code>
+        {:else}
+          <strong>Run Check Services</strong>
+          <small>Start the LAN bridge, then check services so Mini Hub can detect the PC address and build the phone link.</small>
+          <code>pnpm bridge:start:lan</code>
+        {/if}
+      </div>
+      <div class="phone-remote-actions">
+        {#if primaryPhoneRemoteLink}
+          <button class="button compact" type="button" title="Copy the full private remote URL with Hub API, AI OS, Macro Lab, and Ollama endpoints embedded." on:click={() => copyPhoneRemoteLink(primaryPhoneRemoteLink.url)}>
+            <Copy size={15} />
+            <span>Copy</span>
+          </button>
+          <a class="button compact" href={primaryPhoneRemoteLink.url} target="_blank" rel="noreferrer" title="Open the private remote hub URL in a new tab on this browser.">
+            <ArrowRight size={15} />
+            <span>Open</span>
+          </a>
+        {:else}
+          <button class="button compact" type="button" disabled={serviceChecking} title={serviceCheckButtonTitle} on:click={checkServices}>
+            <RefreshCw size={15} />
+            <span>{serviceChecking ? 'Checking' : 'Check'}</span>
+          </button>
+        {/if}
       </div>
     </div>
     <div class="endpoint-diagnostic-list" aria-label="Service targets for this browser">
@@ -2143,6 +2190,53 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .phone-remote-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: start;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .phone-remote-panel > div:first-child {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .phone-remote-panel span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .phone-remote-panel small {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .phone-remote-panel code {
+    overflow-wrap: anywhere;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--code-bg);
+    color: var(--code-text);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .phone-remote-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
   }
 
   .endpoint-diagnostic-list {
@@ -3193,6 +3287,14 @@
 
     .mode-heading {
       flex-direction: column;
+    }
+
+    .phone-remote-panel {
+      grid-template-columns: 1fr;
+    }
+
+    .phone-remote-actions {
+      justify-content: flex-start;
     }
 
     .mode-segment {
