@@ -199,10 +199,14 @@ normal API startup.
   `careerDiscoveryConfigured: false` in the passive snapshot and only watches configured
   entries plus active saved-job domains. Career Desk's Max Scout action saves the profile,
   enables the research monitor family, raises the passive resource limit, and can run the
-  monitor immediately. Career Discovery profile filters saved
+  monitor immediately. Career Desk's Max Power Search action saves the same profile with
+  `maxPowerSearch: true`, switches passive research toward a heavy local-first budget, raises
+  bounded monitor/run/page budgets, and uses a 15-minute repeated research cadence while the
+  local API/AI OS/passive worker are running. Career Discovery profile filters saved
   from Career Desk add topic monitors for May 2027/Summer 2027-style role discovery, using
-  saved target roles, background/status text, preferred locations, and existing companies as
-  duplicate/exclusion hints. The profile's focused/broad/max research intensity controls how
+  the saved B.S. May 2026 / M.S. expected May 2027 profile, target roles,
+  background/status text, preferred locations, and existing companies as duplicate/exclusion
+  hints. The profile's focused/broad/max research intensity controls how
   many bounded discovery monitor variants are prepared; max intensity now raises the bounded
   monitor target and adds role/location combinations plus source-lane monitors for direct
   company/ATS pages, new-grad programs, internships/fellowships, application deadlines and
@@ -218,22 +222,27 @@ normal API startup.
   Career Desk state: saved/watching/applied/interview roles become positive role-signal
   hints, while archived/rejected or "not fit" discovery reviews become avoidance hints.
   When completed Career Discovery monitor runs return source URLs that pass the opportunity,
-  source-quality, timing, seniority, duplicate, feedback, and fit-score filters, the passive engine can save
+  source-quality, timing, profile-fit, seniority, duplicate, feedback, and fit-score filters, the passive engine can save
   them directly into Career Desk as ranked `lead` rows with source/evidence notes, a near-term
   review date, sync events, and an Action Ledger entry. Imported notes include source quality,
   timing confidence, deadline confidence, posting date when available, duplicate status, and
   a parseable `Discovery metadata` line; Passive result source refs expose the same key
   metadata. Job-board mirrors and unclear hosts can guide research but are not auto-saved as
   leads until a direct company/ATS-style source is found; sources whose May/Summer 2027 timing
-  only appears in the surrounding research context are also filtered. Lower-fit, senior-only, duplicate,
-  excluded, feedback-penalized, weak-timing, weak-source, or unsourced candidates are counted in run metadata instead
+  only appears in the surrounding research context are also filtered. Sources whose
+  source-local graduation/class year, start date, or requirements conflict with the saved
+  May/Summer 2027 profile are rejected before fit-score ranking with explicit reasons such as
+  wrong graduation year, wrong start date, qualification mismatch, or weak profile fit.
+  Lower-fit, senior-only, duplicate,
+  excluded, feedback-penalized, weak-profile-fit, weak-timing, weak-source, or unsourced candidates are counted in run metadata instead
   of being saved; if a sweep finds candidates but saves none, Passive Tasks emits a durable
   Career Discovery filter-summary card so the run is still visible and recoverable. Repeated
-  low-fit, weak-timing, weak-source, excluded, or already filtered source fingerprints are stored in a bounded
+  low-fit, weak-profile-fit, profile-mismatched, weak-timing, weak-source, excluded, or already filtered source fingerprints are stored in a bounded
   `careerDiscoveryMemory` preference and skipped as `previously-filtered` on later sweeps
   unless their score rises enough to justify reconsideration. Career Desk reads the real
   Passive Tasks snapshot for Career Radar and Career Discovery status,
-  cached fallback, passive-worker state, configured/unconfigured Max Scout state, active
+  cached fallback, passive-worker state, configured/unconfigured Max Scout and Max Power
+  Search state, active
   discovery topics, source lanes, priority-company monitors, latest run/card summaries,
   next run times, remembered-filter counts, imported/filtered counts, skipped-reason summaries,
   and manual run buttons for the

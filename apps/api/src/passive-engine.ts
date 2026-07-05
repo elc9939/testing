@@ -269,6 +269,7 @@ const attentionUrgency = 65;
 const maxTaskErrorLogEntries = 12;
 const passiveNotificationDedupeMs = dayMs;
 const passiveMachineProfileFreshMs = 60 * minuteMs;
+const careerDiscoveryMaxPowerIntervalMinutes = 15;
 const windowsIdleScript = `
 $ErrorActionPreference = "Stop"
 Add-Type @"
@@ -961,6 +962,12 @@ function careerDiscoveryEnabled(store: MemoryStore): boolean {
   return profile.enabled !== false;
 }
 
+function careerDiscoveryMaxPowerSearchEnabled(store: MemoryStore): boolean {
+  if (!careerDiscoveryEnabled(store)) return false;
+  const profile = careerDiscoveryPreference(store);
+  return profile.maxPowerSearch === true;
+}
+
 function careerDiscoveryRoleSeeds(store: MemoryStore, profile: Record<string, unknown>, limit = 6): string[] {
   const configured = compactTextList(profile.targetRoles, limit);
   const fromJobs = activeCareerRoleSeedJobs(store)
@@ -983,9 +990,23 @@ function careerDiscoveryIntensity(profile: Record<string, unknown>): 'focused' |
 function careerDiscoveryEntryLimit(profile: Record<string, unknown>, budget: PassiveResourceBudget): number {
   const base = Math.max(1, budget.researchMonitorCreateLimit);
   const intensity = careerDiscoveryIntensity(profile);
+  if (profile.maxPowerSearch === true) return Math.max(base, 48);
   if (intensity === 'max') return Math.max(base, 24);
   if (intensity === 'broad') return Math.max(base, 8);
   return base;
+}
+
+function researchMonitorBudget(settings: PassiveEngineSettings, store: MemoryStore): PassiveResourceBudget {
+  const budget = resourceBudget(settings);
+  if (!careerDiscoveryMaxPowerSearchEnabled(store)) return budget;
+  return {
+    ...budget,
+    researchMonitorCreateLimit: Math.max(budget.researchMonitorCreateLimit, 18),
+    researchMonitorRunLimit: Math.max(budget.researchMonitorRunLimit, 10),
+    researchMaxPages: Math.max(budget.researchMaxPages, 18),
+    researchPerDomainLimit: Math.max(budget.researchPerDomainLimit, 10),
+    researchTimeBudgetSeconds: Math.max(budget.researchTimeBudgetSeconds, 300)
+  };
 }
 
 function careerDiscoveryExistingCompanies(store: MemoryStore, profile: Record<string, unknown>, limit = 24): string[] {
@@ -1232,6 +1253,7 @@ function careerDiscoveryProfileEntries(
     profile_background: background || undefined,
     graduation_status: graduationStatus || undefined,
     research_intensity: intensity,
+    max_power_search: profile.maxPowerSearch === true,
     target_roles: roles,
     locations,
     priority_companies: priorityCompanies,
@@ -1404,7 +1426,8 @@ function careerDiscoverySourceDetails(
   const configured = careerDiscoveryProfileConfigured(store);
   const profile = careerDiscoveryPreference(store);
   const enabled = careerDiscoveryEnabled(store);
-  const entries = enabled ? careerDiscoveryProfileEntries(store, resourceBudget(settings)) : [];
+  const maxPowerSearch = careerDiscoveryMaxPowerSearchEnabled(store);
+  const entries = enabled ? careerDiscoveryProfileEntries(store, researchMonitorBudget(settings, store)) : [];
   const topics = entries.filter((entry) => entry.kind === 'topic');
   const companies = entries.filter((entry) => entry.kind === 'company');
   const lanes = entries.filter((entry) => entry.metadata?.discovery_scope === 'source_lane');
@@ -1422,6 +1445,8 @@ function careerDiscoverySourceDetails(
     careerDiscoveryNeedsSetup: !configured,
     careerDiscoverySetupReason: setupReason,
     careerDiscoveryResearchIntensity: configured ? careerDiscoveryIntensity(profile) : undefined,
+    careerDiscoveryMaxPowerSearch: configured ? maxPowerSearch : false,
+    careerDiscoveryMaxPowerIntervalMinutes: maxPowerSearch ? careerDiscoveryMaxPowerIntervalMinutes : undefined,
     careerDiscoveryTargetStartWindow: configured
       ? textValue(profile.targetStartWindow) || 'May 2027 / Summer 2027 start'
       : undefined,
@@ -1814,6 +1839,16 @@ export function computeNextRunAt(task: PassiveTask, date = new Date()): string |
   return addMinutes(date, intervalMinutes);
 }
 
+function computeNextRunAtForStore(store: MemoryStore, task: PassiveTask, date = new Date()): string | undefined {
+  if (task.family === 'research_monitor' && careerDiscoveryMaxPowerSearchEnabled(store)) {
+    if (task.status === 'cancelled') return undefined;
+    if (task.status === 'paused') return task.nextRunAt;
+    if (task.trigger.kind === 'event' || task.trigger.kind === 'manual') return undefined;
+    return addMinutes(date, careerDiscoveryMaxPowerIntervalMinutes);
+  }
+  return computeNextRunAt(task, date);
+}
+
 function retryDelayMinutesFor(task: PassiveTask, attempts: number): number {
   const normalizedAttempts = Math.max(1, attempts);
   return task.retry.backoffMinutes * 2 ** Math.min(4, normalizedAttempts - 1);
@@ -1827,12 +1862,12 @@ function retryScheduleFor(task: PassiveTask, attempts: number, date: Date): { ex
   };
 }
 
-function nextRunAfterResult(task: PassiveTask, status: PassiveRunStatus, date: Date): string | undefined {
+function nextRunAfterResultForStore(store: MemoryStore, task: PassiveTask, status: PassiveRunStatus, date: Date): string | undefined {
   if (status === 'cancelled') return undefined;
   if (status === 'failed' || status === 'blocked') {
     return retryScheduleFor(task, task.retry.attempts + 1, date).nextRetryAt;
   }
-  return computeNextRunAt(task, date);
+  return computeNextRunAtForStore(store, task, date);
 }
 
 function errorLogMessage(run: PassiveRun): string {
@@ -3551,6 +3586,7 @@ function passiveResearchWatchGoal(entry: PassiveResearchDomainEntry): string {
       locations.length ? `Preferred locations/work modes: ${locations.join('; ')}.` : '',
       background ? `Candidate background filter: ${background}.` : '',
       graduationStatus ? `Current school/work status: ${graduationStatus}.` : '',
+      'Hard profile guardrail: reject roles whose source-local graduation year, class year, start date, or eligibility conflicts with the May/Summer 2027 profile; reject senior-only, 3+ years professional experience, PhD-only, MBA-only, and undergraduate-only listings unless the source explicitly fits the saved status.',
       preferredRoleTerms.length ? `Career Desk feedback prefers role signals: ${preferredRoleTerms.join('; ')}.` : '',
       avoidedRoleTerms.length ? `Career Desk not-fit feedback should de-prioritize role signals: ${avoidedRoleTerms.join('; ')}.` : '',
       excludedCompanies.length
@@ -3716,6 +3752,9 @@ interface CareerLeadQualitySignals {
   sourceQualityEvidence: string;
   timingConfidence: 'high' | 'medium' | 'low';
   timingEvidence: string;
+  profileFitConfidence: 'high' | 'medium' | 'low';
+  profileFitEvidence: string;
+  profileRejectReason?: 'graduation-year-mismatch' | 'start-date-mismatch' | 'qualification-mismatch' | 'weak-profile-fit';
   deadlineConfidence: 'high' | 'medium' | 'unknown';
   deadlineEvidence: string;
   duplicateStatus: string;
@@ -3791,9 +3830,24 @@ function sourceText(source: Record<string, unknown>, report: Record<string, unkn
     sourceTitle(source),
     sourceField(source, ['description', 'snippet', 'summary', 'text']),
     sourceUrl(source),
-    ...['company', 'employer', 'organization', 'role', 'job_title', 'jobTitle', 'location', 'start_date', 'startDate'].map((key) =>
-      textValue(metadata[key])
-    ),
+    ...[
+      'company',
+      'employer',
+      'organization',
+      'role',
+      'job_title',
+      'jobTitle',
+      'location',
+      'start_date',
+      'startDate',
+      'eligibility',
+      'qualifications',
+      'requirements',
+      'graduation_year',
+      'graduationYear',
+      'class_year',
+      'classYear'
+    ].map((key) => textValue(metadata[key])),
     ...reportTextParts(report)
   ]
     .filter(Boolean)
@@ -3875,9 +3929,18 @@ function careerLeadPreviouslyFilteredReason(
 }
 
 function shouldRememberCareerLeadFilter(reason: string): boolean {
-  return ['low-fit-score', 'excluded-company', 'previously-filtered', 'low-timing-confidence', 'job-board-mirror', 'unclear-source'].includes(
-    reason
-  );
+  return [
+    'low-fit-score',
+    'excluded-company',
+    'previously-filtered',
+    'low-timing-confidence',
+    'job-board-mirror',
+    'unclear-source',
+    'graduation-year-mismatch',
+    'start-date-mismatch',
+    'qualification-mismatch',
+    'weak-profile-fit'
+  ].includes(reason);
 }
 
 function upsertCareerDiscoveryFilterMemory(
@@ -4054,6 +4117,114 @@ function careerLeadTimingSignal(
   return { timingConfidence: 'low', timingEvidence: 'no explicit May/Summer 2027 timing found in source text' };
 }
 
+function careerProfileTargetYears(metadata: Record<string, unknown>): number[] {
+  const startText = textValue(metadata.target_start_window);
+  const startYears = Array.from(startText.matchAll(/\b20\d{2}\b/gu))
+    .map((match) => Number(match[0]))
+    .filter((year) => Number.isFinite(year));
+  if (startYears.length) return Array.from(new Set(startYears)).sort((left, right) => left - right);
+
+  const statusText = textValue(metadata.graduation_status);
+  const expectedYears = Array.from(
+    statusText.matchAll(/\b(?:expected|target(?:ing)?|current|continuing|graduate|master'?s?|m\.s\.)\b.{0,80}?\b(20\d{2})\b/giu)
+  )
+    .map((match) => Number(match[1]))
+    .filter((year) => Number.isFinite(year));
+  if (expectedYears.length) return Array.from(new Set(expectedYears)).sort((left, right) => left - right);
+
+  const years = Array.from(statusText.matchAll(/\b20\d{2}\b/gu))
+    .map((match) => Number(match[0]))
+    .filter((year) => Number.isFinite(year));
+  return Array.from(new Set(years.length ? years : [2027])).sort((left, right) => left - right);
+}
+
+function findCareerProfileYearMismatch(text: string, targetYears: number[]): { year: number; kind: 'graduation' | 'start'; evidence: string } | null {
+  const normalized = text.replace(/\s+/gu, ' ');
+  const contextualYearPattern =
+    /\b(?:(class of|graduat(?:e|ing|ion|es)|expected graduation|grad date|students? graduating|new grad|graduate program|analyst program|internship|intern|start(?:ing)? date|start(?:ing)?|summer|spring|fall|winter)\b.{0,90}?\b(20\d{2})\b|\b(20\d{2})\b.{0,90}?\b(class of|graduat(?:e|ing|ion|es)|new grad|graduate program|analyst program|internship|intern|start(?:ing)? date|start(?:ing)?|summer analyst|summer internship)\b)/giu;
+  for (const match of normalized.matchAll(contextualYearPattern)) {
+    const prefix = String(match[1] ?? match[4] ?? '').toLowerCase();
+    const rawYear = match[2] ?? match[3];
+    const year = Number(rawYear);
+    if (!Number.isFinite(year) || targetYears.includes(year)) continue;
+    const index = typeof match.index === 'number' ? match.index : 0;
+    const snippet = normalized.slice(Math.max(0, index - 40), index + match[0].length + 40).trim();
+    if (/\b(deadline|apply by|applications? (?:close|due)|posting|posted|published)\b/iu.test(snippet) && !/\b(class of|graduat|start|summer analyst|internship|new grad)\b/iu.test(snippet)) {
+      continue;
+    }
+    const kind = /\b(class of|graduat|new grad|graduate)\b/iu.test(prefix) ? 'graduation' : 'start';
+    return {
+      year,
+      kind,
+      evidence: truncateText(snippet, 180)
+    };
+  }
+  return null;
+}
+
+function careerProfileQualificationMismatch(text: string): string | null {
+  const normalized = text.replace(/\s+/gu, ' ');
+  const seniorMatch = normalized.match(/\b(?:senior|sr\.?|staff|principal|manager|director|head of|vp)\b.{0,80}\b(?:analyst|research|engineer|scientist|trader|developer|role|position)?\b/iu);
+  if (seniorMatch?.[0]) return truncateText(seniorMatch[0], 180);
+  const experienceMatch = normalized.match(/\b(?:[3-9]|1[0-9])\+?\s*(?:years|yrs)\s+(?:of\s+)?(?:professional\s+)?experience\b/iu);
+  if (experienceMatch?.[0]) return truncateText(experienceMatch[0], 180);
+  const credentialMatch = normalized.match(/\b(?:phd|ph\.d\.|doctorate|mba|cpa)\s+(?:required|is required|only)\b/iu);
+  if (credentialMatch?.[0]) return truncateText(credentialMatch[0], 180);
+  const studentLevelMatch = normalized.match(/\b(?:sophomore|rising junior|junior only|undergraduate students only|penultimate year students only)\b/iu);
+  if (studentLevelMatch?.[0]) return truncateText(studentLevelMatch[0], 180);
+  return null;
+}
+
+function careerLeadProfileFitSignal(
+  sourceOnlyText: string,
+  fullText: string,
+  metadata: Record<string, unknown>
+): Pick<CareerLeadQualitySignals, 'profileFitConfidence' | 'profileFitEvidence' | 'profileRejectReason'> {
+  const targetYears = careerProfileTargetYears(metadata);
+  const targetLine = targetYears.join('/');
+  const sourceTextForRules = sourceOnlyText || fullText;
+  const mismatch = findCareerProfileYearMismatch(sourceTextForRules, targetYears);
+  if (mismatch) {
+    return {
+      profileFitConfidence: 'low',
+      profileFitEvidence: `${mismatch.kind === 'graduation' ? 'graduation/class year' : 'start-date'} mismatch: found ${mismatch.year}, target ${targetLine}. ${mismatch.evidence}`,
+      profileRejectReason: mismatch.kind === 'graduation' ? 'graduation-year-mismatch' : 'start-date-mismatch'
+    };
+  }
+  const qualificationMismatch = careerProfileQualificationMismatch(sourceTextForRules);
+  if (qualificationMismatch) {
+    return {
+      profileFitConfidence: 'low',
+      profileFitEvidence: `qualification mismatch for current May 2027 early-career profile: ${qualificationMismatch}`,
+      profileRejectReason: 'qualification-mismatch'
+    };
+  }
+  const targetYearPattern = new RegExp(`\\b(?:${targetYears.join('|')})\\b`, 'u');
+  if (targetYearPattern.test(sourceOnlyText)) {
+    return {
+      profileFitConfidence: 'high',
+      profileFitEvidence: `source-local eligibility references target year ${targetLine}`
+    };
+  }
+  if (/\b(new grad|new graduate|upcoming graduate|early career|entry[- ]level|internship|intern|rotational|analyst program)\b/iu.test(sourceOnlyText)) {
+    return {
+      profileFitConfidence: 'medium',
+      profileFitEvidence: `source-local early-career/student eligibility fits target year ${targetLine} unless a stricter class year appears`
+    };
+  }
+  if (targetYearPattern.test(fullText)) {
+    return {
+      profileFitConfidence: 'medium',
+      profileFitEvidence: `research context references target year ${targetLine}, but source-local profile evidence is limited`
+    };
+  }
+  return {
+    profileFitConfidence: 'low',
+    profileFitEvidence: `no source-local graduation year, start-date, or student/early-career eligibility matched target year ${targetLine}`,
+    profileRejectReason: 'weak-profile-fit'
+  };
+}
+
 function careerLeadPostingDate(source: Record<string, unknown>): string | undefined {
   const value = sourceField(source, ['posted_at', 'posting_date', 'postingDate', 'date_posted', 'datePosted', 'published_at', 'publishedAt']);
   return value ? truncateText(value, 80) : undefined;
@@ -4087,6 +4258,7 @@ function careerLeadQualitySignals(
   const signals: CareerLeadQualitySignals = {
     ...careerLeadSourceQuality(applicationUrl, company),
     ...careerLeadTimingSignal(sourceOnlyText, fullText, metadata),
+    ...careerLeadProfileFitSignal(sourceOnlyText, fullText, metadata),
     ...careerLeadDeadlineSignal(source, sourceOnlyText),
     duplicateStatus: 'new-source'
   };
@@ -4098,6 +4270,8 @@ function careerLeadQualityMetadata(quality: CareerLeadQualitySignals): Record<st
   return compactRecord({
     sourceQuality: quality.sourceQuality,
     timingConfidence: quality.timingConfidence,
+    profileFitConfidence: quality.profileFitConfidence,
+    profileRejectReason: quality.profileRejectReason,
     deadlineConfidence: quality.deadlineConfidence,
     postingDate: quality.postingDate,
     duplicateStatus: quality.duplicateStatus
@@ -4198,9 +4372,13 @@ function careerLeadDuplicateReason(
 }
 
 function careerLeadQualityRejectReason(candidate: CareerLeadCandidate): string | null {
+  if (candidate.quality.profileFitConfidence === 'low' && candidate.quality.profileRejectReason !== 'weak-profile-fit') {
+    return candidate.quality.profileRejectReason ?? 'weak-profile-fit';
+  }
   if (candidate.quality.timingConfidence === 'low') return 'low-timing-confidence';
   if (candidate.quality.sourceQuality === 'job-board') return 'job-board-mirror';
   if (candidate.quality.sourceQuality === 'unclear') return 'unclear-source';
+  if (candidate.quality.profileFitConfidence === 'low') return candidate.quality.profileRejectReason ?? 'weak-profile-fit';
   return null;
 }
 
@@ -4231,6 +4409,7 @@ function careerLeadCandidateFromSource(
     `Source: ${applicationUrl}`,
     `Source quality: ${quality.sourceQuality} (${quality.sourceQualityEvidence})`,
     `Timing confidence: ${quality.timingConfidence} (${quality.timingEvidence})`,
+    `Profile fit: ${quality.profileFitConfidence} (${quality.profileFitEvidence})`,
     `Deadline confidence: ${quality.deadlineConfidence} (${quality.deadlineEvidence})`,
     quality.postingDate ? `Posting date: ${quality.postingDate}` : '',
     `Duplicate status: ${quality.duplicateStatus}`,
@@ -4291,15 +4470,15 @@ function importCareerLeadsFromResearchRun(
       filteredForMemory.push({ candidate, reason: memoryReason });
       continue;
     }
-    if (candidate.fitScore < 72) {
-      skippedReasons['low-fit-score'] = (skippedReasons['low-fit-score'] ?? 0) + 1;
-      filteredForMemory.push({ candidate, reason: 'low-fit-score' });
-      continue;
-    }
     const qualityReason = careerLeadQualityRejectReason(candidate);
     if (qualityReason) {
       skippedReasons[qualityReason] = (skippedReasons[qualityReason] ?? 0) + 1;
       filteredForMemory.push({ candidate, reason: qualityReason });
+      continue;
+    }
+    if (candidate.fitScore < 72) {
+      skippedReasons['low-fit-score'] = (skippedReasons['low-fit-score'] ?? 0) + 1;
+      filteredForMemory.push({ candidate, reason: 'low-fit-score' });
       continue;
     }
     const job = jobSchema.parse({
@@ -4382,6 +4561,7 @@ function careerLeadSkipReasonLabel(reason: string): string {
     'duplicate-company-role': 'duplicate role',
     'duplicate-url': 'duplicate URL',
     'excluded-company': 'excluded company',
+    'graduation-year-mismatch': 'wrong graduation year',
     'job-board-mirror': 'job-board mirror',
     'low-fit-score': 'low fit score',
     'low-timing-confidence': 'weak timing evidence',
@@ -4389,7 +4569,10 @@ function careerLeadSkipReasonLabel(reason: string): string {
     'missing-url': 'missing source URL',
     'not-opportunity': 'not a role listing',
     'previously-filtered': 'previously filtered',
-    'unclear-source': 'unclear source'
+    'qualification-mismatch': 'qualification mismatch',
+    'start-date-mismatch': 'wrong start date',
+    'unclear-source': 'unclear source',
+    'weak-profile-fit': 'weak profile fit'
   };
   return labels[reason] ?? reason.replaceAll('-', ' ');
 }
@@ -4641,7 +4824,7 @@ async function recentResearchMonitorRunCards(
 
 async function runResearchMonitor(store: MemoryStore, task: PassiveTask, runId: string, fetchImpl: FetchLike): Promise<FamilyRunResult> {
   const settings = store.passiveSettings ?? defaultPassiveSettings();
-  const budget = resourceBudget(settings);
+  const budget = researchMonitorBudget(settings, store);
   const domainEntries = passiveResearchDomainEntries(store, settings, budget);
   const domainMetadata = researchDomainMetadata(domainEntries);
   try {
@@ -6915,8 +7098,11 @@ export async function runPassiveTask(
   }
 
   const finished = new Date();
-  const preserveSchedule = manualRun && ['succeeded', 'skipped'].includes(result.status);
-  const nextRunAt = preserveSchedule ? previousNextRunAt : nextRunAfterResult(task, result.status, finished);
+  const preserveSchedule =
+    manualRun &&
+    ['succeeded', 'skipped'].includes(result.status) &&
+    !(task.family === 'research_monitor' && careerDiscoveryMaxPowerSearchEnabled(store));
+  const nextRunAt = preserveSchedule ? previousNextRunAt : nextRunAfterResultForStore(store, task, result.status, finished);
   const run = passiveRunSchema.parse({
     id: runId,
     taskId: task.id,
@@ -6954,7 +7140,7 @@ export async function runPassiveTask(
 
   const appliedTask = applyRunOutcomeToTask(taskAfterExecution.status === 'cancelled' ? taskAfterExecution : task, run, finished);
   const nextTask =
-    preserveSchedule && nextRunAt
+    nextRunAt !== appliedTask.nextRunAt || nextRunAt !== appliedTask.trigger.nextRunAt
       ? passiveTaskSchema.parse({ ...appliedTask, nextRunAt, trigger: { ...appliedTask.trigger, nextRunAt } })
       : appliedTask;
   store.passiveTasks[taskIndex] = nextTask;

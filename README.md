@@ -183,13 +183,16 @@ without kicking every local API or desktop service just because the sidebar is v
   status updates that create a 14-day follow-up action, Gmail update matching for submitted
   applications, action items, a visible Career Discovery status panel that separates
   Career Radar (existing jobs/actions/statuses) from Max Scout Career Discovery (new-role
-  scouting), synced Career Discovery profile filters for routine passive
-  role research with focused/broad/max intensity, high-confidence passive Gmail/completed-action
+  scouting) and Max Power Search (heavy local-first repeated discovery while local services
+  are running), synced Career Discovery profile filters for routine passive role research
+  with focused/broad/max intensity, strict May/Summer 2027 graduation/start-date/
+  qualification guardrails, high-confidence passive Gmail/completed-action
   application confirmation and career-status updates, source-backed discovered lead import with fit scores,
   a ranked Apply Queue with application-angle guidance and quick open/save/watch/applied
   actions, quick save/watch/not-fit review actions, an automation status panel for Career Radar and
   Discovery runs, active discovery topics/source lanes, last/next run times, filtered/imported
-  counts, a one-click Enable/Refresh Max Scout setup action, a manual Run Discovery Now action,
+  counts, one-click Enable/Refresh Max Scout and Max Power Search setup actions,
+  a manual Run Discovery Now action,
   a compact Strategy Review panel for pipeline risk, role mix, interviews,
   offers, rejections, and next focus, a synced seen-lead registry for duplicate avoidance
   across manual rows, passive imports, reviews, deletes, and exports, and legacy career data import.
@@ -371,8 +374,11 @@ real-data only:
   entries and active saved-job domains, and the Career page explains that no new
   recommendations can appear yet. Career Discovery profile filters can expand role discovery from
   focused to max intensity, creating bounded role/location monitor variants while still
-  carrying the May 2027/Summer 2027 start window, background/status fit text, and duplicate
-  company exclusions. Broad/max discovery also creates source-lane monitors for direct
+  carrying the B.S. May 2026 / M.S. expected May 2027 profile, May 2027/Summer 2027 start
+  window, background/status fit text, and duplicate company exclusions. Max Power Search is
+  an explicit Career Desk mode that saves the same profile with a heavy local-first budget,
+  a larger bounded monitor set, and a short 15-minute repeated research cadence while the
+  local API/AI OS/passive worker are running. Broad/max discovery also creates source-lane monitors for direct
   company/ATS pages, new-grad programs, internships/fellowships, application-deadline and
   recruiting-cycle pages, early-career boards used as source indexes, student-program
   directories, data/analytics searches, data-vendor/startup searches, quant/finance searches,
@@ -383,9 +389,13 @@ real-data only:
   saved/watching/applied roles become positive ranking hints, while archived/rejected and
   "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports can
   save source-backed candidates into Career Desk as `lead` rows when a source URL passes
-  opportunity, source-quality, timing, seniority, duplicate, feedback, and fit-score checks;
+  opportunity, source-quality, timing, profile-fit, seniority, duplicate, feedback, and fit-score checks;
   job-board mirrors, unclear hosts, and listings whose May/Summer 2027 timing only appears
   in surrounding research context stay filtered until a stronger direct/ATS source is found.
+  Listings whose source-local class year, graduation year, start date, or qualification
+  requirements conflict with the saved May/Summer 2027 profile are filtered before fit-score
+  ranking, with skip reasons such as wrong graduation year, wrong start date, qualification
+  mismatch, or weak profile fit.
   Notes preserve the source and evidence, plus parseable discovery metadata for source quality, timing
   confidence, deadline confidence, posting date, and duplicate status. When a sweep finds candidates but saves none, a durable filter
   summary card shows what was rejected, such as duplicate roles or low-fit listings. The
@@ -393,7 +403,8 @@ real-data only:
   repeated low-fit, weak-timing, weak-source, or excluded source fingerprints are skipped as `previously-filtered`
   unless a later sweep scores them strongly enough to reconsider. Career Desk exposes
   Career Radar and Discovery status from the real Passive Tasks snapshot, with
-  cached fallback, passive-worker state, configured/unconfigured Max Scout state, active
+  cached fallback, passive-worker state, configured/unconfigured Max Scout and Max Power
+  Search state, active
   discovery topics/source lanes/priority companies, latest run/card summaries, next run times,
   remembered-filter counts, imported/filtered counts, skipped-reason summaries, and manual run buttons for the
   existing tasks. It also exposes discovered leads as a ranked panel where each candidate can

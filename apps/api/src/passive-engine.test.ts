@@ -3053,9 +3053,10 @@ describe('passive task engine', () => {
       preferences: {
         careerDiscovery: {
           enabled: true,
+          maxPowerSearch: true,
           researchIntensity: 'max',
           background: 'Math/CS student with data, analytics, and local AI projects',
-          graduationStatus: 'Upcoming graduate targeting post-graduation roles',
+          graduationStatus: 'B.S. Mathematics completed May 2026; M.S. Mathematics expected May 2027',
           targetStartWindow: 'May 2027 / Summer 2027 start',
           targetRoles: ['Data Analyst', 'Quant Research Intern'],
           locations: ['New York', 'Remote'],
@@ -3144,10 +3145,11 @@ describe('passive task engine', () => {
         source: 'mini-hub-passive',
         passive_watch_kind: 'topic',
         career_discovery: true,
+        max_power_search: true,
         research_intensity: 'max',
         target_start_window: 'May 2027 / Summer 2027 start',
         profile_background: 'Math/CS student with data, analytics, and local AI projects',
-        graduation_status: 'Upcoming graduate targeting post-graduation roles'
+        graduation_status: 'B.S. Mathematics completed May 2026; M.S. Mathematics expected May 2027'
       }
     });
     const firstRequest = createdBodies[0]?.request as Record<string, unknown>;
@@ -3164,6 +3166,7 @@ describe('passive task engine', () => {
       use_cloud_ai: true,
         metadata: {
           career_discovery: true,
+          max_power_search: true,
           locations: ['New York', 'Remote'],
           priority_companies: ['Clay Labs', 'FieldAI'],
           excluded_companies: expect.arrayContaining(['Old Applied Co', 'Pipeline Co', 'No Fit Co']),
@@ -3250,11 +3253,17 @@ describe('passive task engine', () => {
     expect(researchSource.details).toMatchObject({
       careerDiscoveryConfigured: true,
       careerDiscoveryEnabled: true,
+      careerDiscoveryMaxPowerSearch: true,
+      careerDiscoveryMaxPowerIntervalMinutes: 15,
       careerDiscoveryResearchIntensity: 'max',
       careerDiscoveryActiveTopicCount: expect.any(Number),
       careerDiscoveryActiveSourceLaneCount: expect.any(Number),
       careerDiscoveryTargetRoles: expect.arrayContaining(['Data Analyst', 'Quant Research Intern'])
     });
+    expect(run.nextRunAt).toEqual(expect.any(String));
+    const nextRunDelayMs = Date.parse(run.nextRunAt ?? '') - Date.parse(run.finishedAt ?? '');
+    expect(nextRunDelayMs).toBeGreaterThanOrEqual(14 * 60 * 1000);
+    expect(nextRunDelayMs).toBeLessThanOrEqual(16 * 60 * 1000);
   });
 
   it('prepares research monitors from active saved career job URLs', async () => {
@@ -3644,7 +3653,8 @@ describe('passive task engine', () => {
       careerSeenLeadRegistrySize: 1,
       skippedCareerLeadReasons: {
         'duplicate-company-role': 1,
-        'low-fit-score': 2
+        'qualification-mismatch': 1,
+        'low-fit-score': 1
       }
     });
     expect(store.settings?.preferences.careerSeenLeadRegistry).toMatchObject({
@@ -3793,6 +3803,130 @@ describe('passive task engine', () => {
       }
     });
     expect(memory?.rejectedCandidates?.map((entry) => entry.reason).sort()).toEqual(['job-board-mirror', 'low-timing-confidence', 'unclear-source']);
+  });
+
+  it('filters Career Discovery findings whose graduation year, start date, or qualifications conflict with the saved profile', async () => {
+    const store = createMemoryStore();
+    ensurePassiveDefaults(store);
+    const researchFetch = (async (input: unknown) => {
+      const href = String(input);
+      if (href.includes('/api/ai/research/monitors?limit=50')) {
+        return jsonResponse({ monitors: [{ id: 'monitor-career-profile-fit', metadata: { passive_watch_key: 'topic:career-profile-fit' } }] });
+      }
+      if (href.includes('/api/ai/research/runs?limit=10')) {
+        return jsonResponse({
+          runs: [
+            {
+              id: 'research-career-profile-fit',
+              mode: 'monitor_topic',
+              goal: 'Find May 2027 / Summer 2027 start early-career Data Analyst, Quant Research Intern, and Data Scientist roles.',
+              status: 'succeeded',
+              report: {
+                title: 'Career discovery profile-fit sweep',
+                tldr: 'The sweep found roles that conflict with the saved May/Summer 2027 graduate profile.',
+                key_facts: ['Class of 2026, Summer 2028, and senior-only eligibility should not pass.']
+              },
+              sources: [
+                {
+                  id: 'source-wrong-grad-year',
+                  url: 'https://wronggrad.example.com/careers/data-analyst-new-grad',
+                  canonical_url: 'https://wronggrad.example.com/careers/data-analyst-new-grad',
+                  title: 'Data Analyst New Grad at WrongGrad Analytics',
+                  description: 'Class of 2026 candidates only. Good fit for Math/CS analytics projects.',
+                  score: 0.97,
+                  rank: 1,
+                  metadata: {
+                    company: 'WrongGrad Analytics',
+                    role: 'Data Analyst New Grad',
+                    eligibility: 'Class of 2026 candidates only'
+                  }
+                },
+                {
+                  id: 'source-wrong-start-year',
+                  url: 'https://startshift.example.com/careers/quant-research-intern',
+                  canonical_url: 'https://startshift.example.com/careers/quant-research-intern',
+                  title: 'Quant Research Intern at StartShift - Summer 2028',
+                  description: 'Apply for a Summer 2028 Quant Research Intern opening. Remote. Good fit for Math/CS quant projects.',
+                  score: 0.96,
+                  rank: 2,
+                  metadata: {
+                    company: 'StartShift',
+                    role: 'Quant Research Intern',
+                    start_date: 'Summer 2028'
+                  }
+                },
+                {
+                  id: 'source-senior-qualification',
+                  url: 'https://apex.example.com/careers/senior-data-scientist',
+                  canonical_url: 'https://apex.example.com/careers/senior-data-scientist',
+                  title: 'Senior Data Scientist at Apex Systems - Summer 2027',
+                  description: 'Senior role requiring 5+ years professional experience. Apply for a Summer 2027 start.',
+                  score: 0.95,
+                  rank: 3,
+                  metadata: {
+                    company: 'Apex Systems',
+                    role: 'Senior Data Scientist',
+                    requirements: '5+ years professional experience required'
+                  }
+                }
+              ],
+              options: {
+                metadata: {
+                  source: 'mini-hub-passive',
+                  career_discovery: true,
+                  passive_watch_key: 'topic:career-profile-fit',
+                  passive_watch_kind: 'topic',
+                  passive_watch_label: 'May 2027 / Summer 2027 profile-fit gate',
+                  target_start_window: 'May 2027 / Summer 2027 start',
+                  graduation_status: 'B.S. Mathematics completed May 2026; M.S. Mathematics expected May 2027',
+                  target_roles: ['Data Analyst', 'Quant Research Intern', 'Data Scientist'],
+                  locations: ['Remote', 'New York'],
+                  profile_background: 'Math/CS analytics and quant projects',
+                  excluded_companies: []
+                }
+              },
+              runtime_ms: 2200,
+              cost_usd: 0,
+              total_tokens: 0
+            }
+          ]
+        });
+      }
+      if (href.includes('/api/ai/research/monitors/due')) {
+        return jsonResponse({ monitors: [] });
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const task = store.passiveTasks.find((item) => item.family === 'research_monitor')!;
+
+    const run = await runPassiveTask(store, task.id, {
+      externalFetch: researchFetch,
+      force: true,
+      input: { reason: 'career-profile-fit-test' }
+    });
+    const filterCard = run.cards.find((item) => item.title === '3 Career Discovery candidates filtered');
+    const memory = store.settings?.preferences.careerDiscoveryMemory as { rejectedCandidates?: Array<Record<string, unknown>> } | undefined;
+
+    expect(run.status).toBe('succeeded');
+    expect(store.jobs).toHaveLength(0);
+    expect(filterCard?.summary).toContain('wrong graduation year: 1');
+    expect(filterCard?.summary).toContain('wrong start date: 1');
+    expect(filterCard?.summary).toContain('qualification mismatch: 1');
+    expect(run.metadata.recentResearch).toMatchObject({
+      importedCareerLeads: 0,
+      skippedCareerLeadCandidates: 3,
+      rememberedCareerLeadFilters: 3,
+      skippedCareerLeadReasons: {
+        'graduation-year-mismatch': 1,
+        'start-date-mismatch': 1,
+        'qualification-mismatch': 1
+      }
+    });
+    expect(memory?.rejectedCandidates?.map((entry) => entry.reason).sort()).toEqual([
+      'graduation-year-mismatch',
+      'qualification-mismatch',
+      'start-date-mismatch'
+    ]);
   });
 
   it('uses the synced seen-lead registry to reject discovered duplicates even after rows are gone', async () => {
@@ -3989,7 +4123,7 @@ describe('passive task engine', () => {
       suggestedAction: 'Review filters',
       summary: expect.stringContaining('duplicate URL: 1')
     });
-    expect(filterCard?.summary).toContain('low fit score: 1');
+    expect(filterCard?.summary).toContain('qualification mismatch: 1');
     expect(filterCard?.why).toContain('feedback');
     expect(filterCard?.sourceRefs[0]).toMatchObject({
       id: 'research-career-filtered',
@@ -3999,7 +4133,7 @@ describe('passive task engine', () => {
         skippedCareerLeadCandidates: 2,
         skippedCareerLeadReasons: {
           'duplicate-url': 1,
-          'low-fit-score': 1
+          'qualification-mismatch': 1
         }
       }
     });

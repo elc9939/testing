@@ -21,6 +21,8 @@ Make Career Desk better at remembering what it has already found, ranking new le
 - [x] Expand max-intensity discovery lanes across deadlines/cycles, student programs, early-career indexes, startups, finance programs, and AI research labs.
 - [x] Require imported Career Discovery leads to have direct/ATS-style source authority and source-local May/Summer 2027 or early-career timing evidence.
 - [x] Add an explicit Max Scout setup/status panel so broad new-role discovery is visibly configured before passive runs try to scout.
+- [x] Add strict source-local profile-fit filters for wrong graduation/class years, wrong start dates, senior-only roles, 3+ years requirements, and incompatible credential requirements.
+- [x] Add Max Power Search as an explicit heavy local-first Career Discovery mode with short-cadence repeated research while local services are running.
 - [x] Add a true persisted `seenLeadRegistry` export/import object once scout results are added through an in-app import flow instead of only by seed JSON.
 - [x] Add a weekly strategy review view that summarizes rejections, interviews, stale leads, and role categories.
 
@@ -37,9 +39,11 @@ repeat findings.
 ## Scout Rules To Preserve
 - Search in rotating lanes rather than repeating the same famous companies every run.
 - Do not rely on implicit defaults for broad scouting; the Career page must show whether Max Scout is configured, what it is searching, and why no recommendations appeared.
+- Treat Max Power Search as an opt-in local-services mode, not a hosted GitHub Pages feature; it should raise bounded local budgets and cadence only while the API/AI OS/passive worker are running.
 - Avoid adding duplicates unless the posting is clearly a new cycle, new location, or new role.
 - Treat job boards and broad web pages as research indexes, not enough evidence to auto-save a lead without an employer/ATS source.
 - Do not save roles whose 2027 start evidence only appears in the research prompt/report instead of the listing source.
+- Do not save roles whose source-local graduation/class year, start date, or qualification requirements conflict with the saved B.S. May 2026 / M.S. expected May 2027 profile.
 - Keep ordinary to-dos concrete: apply, respond, schedule, complete assessment, prepare, decide, follow up, or archive.
 - Do not create to-dos that merely tell Edward to check email or portals.
 - Rank leads by fit and urgency, not just brand prestige.

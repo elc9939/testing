@@ -43,3 +43,9 @@ Last updated: 2026-06-09
 - Does the work use math, statistics, modeling, research, Python/data, finance, or risk in a material way?
 - Does the location match the priority order strongly enough?
 - Is it not a duplicate/prior application unless it is clearly a new cycle?
+
+## Auto-Reject Guardrails
+- Reject roles whose listing-specific class year, graduation year, or start date conflicts with the May/Summer 2027 target.
+- Reject senior/staff/principal/manager roles and listings requiring 3+ years of professional experience.
+- Reject PhD-only, MBA-only, CPA-only, undergraduate-only, sophomore-only, or junior-only listings unless the source explicitly fits the saved master's timeline.
+- Treat broad job boards as research indexes; require an employer or ATS source before auto-saving a lead.
