@@ -101,14 +101,47 @@ function writeStoredEndpoints(endpoints: Partial<Record<ServiceId, string>>): vo
   }
 }
 
+function endpointsFromStored(stored: Partial<Record<ServiceId, string>>): ServiceEndpoint[] {
+  return (Object.keys(serviceLabels) as ServiceId[])
+    .map((id) => ({ id, label: serviceLabels[id], url: normalizeServiceUrl(stored[id] ?? '') }))
+    .filter((endpoint) => endpoint.url);
+}
+
 function queryEndpoint(id: ServiceId): string {
-  if (!browser) return '';
+  if (!browser || typeof window === 'undefined') return '';
   const params = new URLSearchParams(window.location.search);
   for (const name of queryNames[id]) {
     const value = normalizeServiceUrl(params.get(name) ?? '');
     if (value) return value;
   }
   return '';
+}
+
+export function applyQueryServiceEndpoints(): ServiceEndpoint[] {
+  if (!browser) return endpointsFromStored(readStoredEndpoints());
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const stored = readStoredEndpoints();
+  let changed = false;
+
+  for (const id of Object.keys(serviceLabels) as ServiceId[]) {
+    const fromQuery = queryEndpoint(id);
+    if (!fromQuery) continue;
+    const resolved = serviceEndpointResolution(id, fromQuery, desktopFallbacks[id], currentOrigin);
+    if (resolved.state === 'misconfigured') {
+      if (stored[id]) {
+        delete stored[id];
+        changed = true;
+      }
+      continue;
+    }
+    if (stored[id] !== resolved.resolvedUrl) {
+      stored[id] = resolved.resolvedUrl;
+      changed = true;
+    }
+  }
+
+  if (changed) writeStoredEndpoints(stored);
+  return endpointsFromStored(stored);
 }
 
 export function normalizeServiceUrl(value: string): string {
@@ -378,14 +411,13 @@ export function bridgeAuthHeaders(serviceId: ServiceId): Record<string, string> 
 }
 
 export function getStoredServiceEndpoints(): ServiceEndpoint[] {
-  const stored = readStoredEndpoints();
-  return (Object.keys(serviceLabels) as ServiceId[])
-    .map((id) => ({ id, label: serviceLabels[id], url: normalizeServiceUrl(stored[id] ?? '') }))
-    .filter((endpoint) => endpoint.url);
+  applyQueryServiceEndpoints();
+  return endpointsFromStored(readStoredEndpoints());
 }
 
 export function serviceEndpointResolutions(): ServiceEndpointResolution[] {
   const currentOrigin = browser && typeof window !== 'undefined' ? window.location.origin : '';
+  applyQueryServiceEndpoints();
   const stored = readStoredEndpoints();
   return (Object.keys(serviceLabels) as ServiceId[]).map((id) =>
     serviceEndpointResolution(id, stored[id], desktopFallbacks[id], currentOrigin)

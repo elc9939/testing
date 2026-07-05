@@ -142,6 +142,52 @@ describe('service endpoint resolution', () => {
     expect(remoteEndpointSuggestions('https://elc9939.github.io/testing')).toEqual([]);
   });
 
+  it('persists bridge-link query endpoints before Settings diagnostics read storage', async () => {
+    vi.resetModules();
+    vi.doMock('$app/environment', () => ({ browser: true }));
+    const storage = new Map<string, string>([
+      [
+        'miniHub.serviceEndpoints.v1',
+        JSON.stringify({
+          hubApi: 'http://127.0.0.1:8787',
+          aiOs: 'http://127.0.0.1:8791',
+          macroLab: 'http://127.0.0.1:8792',
+          ollama: 'http://127.0.0.1:11434'
+        })
+      ]
+    ]);
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+      clear: () => storage.clear(),
+      key: () => null,
+      length: storage.size
+    });
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'http://192.168.86.29:5173',
+        search:
+          '?apiUrl=http%3A%2F%2F192.168.86.29%3A8787&aiOsUrl=http%3A%2F%2F192.168.86.29%3A8791&macroLabUrl=http%3A%2F%2F192.168.86.29%3A8792&ollamaUrl=http%3A%2F%2F192.168.86.29%3A11434'
+      }
+    });
+
+    const { getStoredServiceEndpoints, serviceEndpointResolutions } = await import('./service-config');
+
+    expect(getStoredServiceEndpoints().map((endpoint) => endpoint.url)).toEqual([
+      'http://192.168.86.29:8787',
+      'http://192.168.86.29:8791',
+      'http://192.168.86.29:8792',
+      'http://192.168.86.29:11434'
+    ]);
+    expect(serviceEndpointResolutions().map((endpoint) => endpoint.resolvedUrl)).toEqual([
+      'http://192.168.86.29:8787',
+      'http://192.168.86.29:8791',
+      'http://192.168.86.29:8792',
+      'http://192.168.86.29:11434'
+    ]);
+  });
+
   it('stores an optional bridge token and sends it only to Mini Hub-controlled services', async () => {
     vi.resetModules();
     vi.doMock('$app/environment', () => ({ browser: true }));
