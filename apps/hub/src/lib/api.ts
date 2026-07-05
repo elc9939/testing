@@ -93,6 +93,40 @@ export interface RemoteAccessTunnel {
     errorLog: string;
     checkedAt: string;
   };
+  phoneSmoke?: {
+    version: number;
+    checkedAt: string;
+    ok: boolean;
+    origin?: string;
+    linkFile?: string;
+    resultFile: string;
+    endpoints: Array<{
+      id: string;
+      label: string;
+      ok: boolean;
+      status: number;
+      latencyMs: number;
+      detail: string;
+    }>;
+    settings: {
+      ok: boolean;
+      clicked: string;
+    };
+    routes: Array<{
+      id: string;
+      path: string;
+      ok: boolean;
+      heading: string;
+      expectedHeading: string;
+      tokenSaved: boolean;
+      viewport?: {
+        width: number;
+        height: number;
+      };
+      rawNotFound: boolean;
+    }>;
+    failures: string[];
+  };
   checkedAt: string;
 }
 

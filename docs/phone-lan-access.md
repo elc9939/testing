@@ -148,7 +148,9 @@ pnpm qa:hub:phone:tunnel
 That smoke check reads `remote-tunnel-link.txt`, verifies Mini Hub API, AI OS, Macro Lab,
 and Ollama through the HTTPS tunnel, then launches headless Chromium in a mobile viewport
 and route-hops through Settings, Today, Activity, Research, and AI OS. It prints the tunnel
-origin and pass/fail evidence, but never prints the bridge token.
+origin and pass/fail evidence, but never prints the bridge token. It also writes a redacted
+`.mini-hub-bridge/phone-tunnel-smoke.json` result that Settings shows as **Last phone
+tunnel smoke result** after Check Services.
 
 Settings -> Remote Access / Connection Mode also reads the active tunnel state from the
 Mini Hub API. When the tunnel is running, the Phone / Private Remote Link panel prefers

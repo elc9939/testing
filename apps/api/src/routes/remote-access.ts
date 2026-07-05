@@ -13,6 +13,7 @@ const tunnelPidPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared.pid');
 const tunnelWatchPidPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared-watch.pid');
 const tunnelWatchOutputLogPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared-watch.out.log');
 const tunnelWatchErrorLogPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared-watch.err.log');
+const phoneTunnelSmokePath = resolve(repoRoot, '.mini-hub-bridge/phone-tunnel-smoke.json');
 const tunnelStartupCommandPath =
   process.platform === 'win32' && process.env.APPDATA
     ? resolve(process.env.APPDATA, 'Microsoft/Windows/Start Menu/Programs/Startup/Mini Hub Remote Tunnel Watch.cmd')
@@ -68,6 +69,48 @@ export const remoteAccessTunnelSchema = z.object({
       outputLog: z.string(),
       errorLog: z.string(),
       checkedAt: z.string()
+    })
+    .optional(),
+  phoneSmoke: z
+    .object({
+      version: z.number(),
+      checkedAt: z.string(),
+      ok: z.boolean(),
+      origin: z.string().optional(),
+      linkFile: z.string().optional(),
+      resultFile: z.string(),
+      endpoints: z.array(
+        z.object({
+          id: z.string(),
+          label: z.string(),
+          ok: z.boolean(),
+          status: z.number(),
+          latencyMs: z.number(),
+          detail: z.string()
+        })
+      ),
+      settings: z.object({
+        ok: z.boolean(),
+        clicked: z.string()
+      }),
+      routes: z.array(
+        z.object({
+          id: z.string(),
+          path: z.string(),
+          ok: z.boolean(),
+          heading: z.string(),
+          expectedHeading: z.string(),
+          tokenSaved: z.boolean(),
+          viewport: z
+            .object({
+              width: z.number(),
+              height: z.number()
+            })
+            .optional(),
+          rawNotFound: z.boolean()
+        })
+      ),
+      failures: z.array(z.string())
     })
     .optional(),
   checkedAt: z.string()
@@ -138,6 +181,16 @@ function tunnelLinkHasToken(value: string): boolean {
   }
 }
 
+function readPhoneTunnelSmoke(): RemoteAccessTunnel['phoneSmoke'] {
+  if (!existsSync(phoneTunnelSmokePath)) return undefined;
+  try {
+    const parsed = JSON.parse(readFileSync(phoneTunnelSmokePath, 'utf8')) as unknown;
+    return remoteAccessTunnelSchema.shape.phoneSmoke.parse(parsed);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function readLocalRemoteAccessStatus(): Promise<RemoteAccessStatus> {
   if (process.platform !== 'win32') {
     return unavailableStatus('Private remote firewall checks are only available on Windows.', 'Run the Hub API on the Windows PC that hosts Mini Hub services.');
@@ -159,6 +212,7 @@ export async function readLocalRemoteAccessTunnel(): Promise<RemoteAccessTunnel>
   const watchPidText = readFirstLine(tunnelWatchPidPath);
   const watchPid = /^\d+$/u.test(watchPidText) ? Number(watchPidText) : undefined;
   const watcherRunning = watchPid !== undefined ? processIsRunning(watchPid) : false;
+  const phoneSmoke = readPhoneTunnelSmoke();
   return remoteAccessTunnelSchema.parse({
     running,
     ...(pid !== undefined ? { pid } : {}),
@@ -174,6 +228,7 @@ export async function readLocalRemoteAccessTunnel(): Promise<RemoteAccessTunnel>
       errorLog: tunnelWatchErrorLogPath,
       checkedAt: new Date().toISOString()
     },
+    ...(phoneSmoke ? { phoneSmoke } : {}),
     checkedAt: new Date().toISOString()
   });
 }

@@ -232,6 +232,10 @@
   $: displayedPhoneRemoteLink = activeTunnelRemoteLink ?? primaryPhoneRemoteLink;
   $: displayedPhoneRemoteSetupUrl = phoneRemoteSetupUrl(displayedPhoneRemoteLink?.url ?? '');
   $: bridgeTokenSaved = Boolean(bridgeTokenInput.trim());
+  $: phoneTunnelSmoke = remoteAccessTunnel?.phoneSmoke ?? null;
+  $: phoneTunnelSmokeEndpointReady = phoneTunnelSmoke?.endpoints.filter((endpoint) => endpoint.ok).length ?? 0;
+  $: phoneTunnelSmokeRouteReady = phoneTunnelSmoke?.routes.filter((route) => route.ok).length ?? 0;
+  $: phoneTunnelSmokeViewport = phoneTunnelSmoke?.routes.find((route) => route.viewport)?.viewport;
   $: void refreshPhoneRemoteQr(displayedPhoneRemoteSetupUrl);
   $: privateRemoteReadiness = summarizeRemoteAccess(remoteAccessStatus, visibleRemoteAccessError, remoteAccessLoading);
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
@@ -1573,6 +1577,19 @@
             <small>{remoteAccessTunnel.watcher.startupInstalled ? `Startup entry: ${remoteAccessTunnel.watcher.startupFile}` : 'Run pnpm bridge:tunnel:startup:install to relaunch the watcher after Windows login.'}</small>
             <small>Logs: {remoteAccessTunnel.watcher.outputLog}</small>
             <small>Checked: {remoteAccessTunnel.watcher.checkedAt}</small>
+          </div>
+        </div>
+      {/if}
+      {#if phoneTunnelSmoke}
+        <div class="phone-readiness-row" aria-label="Last phone tunnel smoke result">
+          <span class={`state-chip ${phoneTunnelSmoke.ok ? 'ready' : 'blocked'}`}>
+            {phoneTunnelSmoke.ok ? 'Phone Smoke OK' : 'Phone Smoke Failed'}
+          </span>
+          <div>
+            <strong>{phoneTunnelSmoke.ok ? 'Phone-like tunnel check passed' : 'Phone-like tunnel check needs review'}</strong>
+            <small>{phoneTunnelSmokeEndpointReady}/{phoneTunnelSmoke.endpoints.length} endpoints and {phoneTunnelSmokeRouteReady}/{phoneTunnelSmoke.routes.length} phone-sized routes passed.</small>
+            <small>{phoneTunnelSmokeViewport ? `Viewport checked: ${phoneTunnelSmokeViewport.width}x${phoneTunnelSmokeViewport.height}.` : 'Viewport evidence was not recorded.'} Checked: {phoneTunnelSmoke.checkedAt}</small>
+            <small>{phoneTunnelSmoke.failures.length ? `Issue: ${phoneTunnelSmoke.failures[0]}` : `Result file: ${phoneTunnelSmoke.resultFile}`}</small>
           </div>
         </div>
       {/if}

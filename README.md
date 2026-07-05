@@ -168,7 +168,9 @@ private phone link stays in `remote-tunnel-link.txt`.
 Use `qa:hub:phone:tunnel` for a phone-like end-to-end check: it reads that saved private
 link, verifies the public tunnel endpoints, launches a mobile-sized Chromium session,
 saves the embedded bridge token, and route-hops through Settings, Today, Activity,
-Research, and AI OS without printing the token.
+Research, and AI OS without printing the token. It writes a redacted
+`.mini-hub-bridge/phone-tunnel-smoke.json` result that Settings can surface on later
+service checks.
 Stop the temporary tunnel with `pnpm bridge:tunnel:stop`.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const defaultLinkFile = path.join(repoRoot, 'remote-tunnel-link.txt');
+const defaultResultFile = path.join(repoRoot, '.mini-hub-bridge', 'phone-tunnel-smoke.json');
 
 const routes = [
   { id: 'settings', path: '/settings', heading: 'Settings' },
@@ -30,6 +31,17 @@ function delay(ms) {
 
 function linkFilePath() {
   return process.env.MINI_HUB_REMOTE_LINK_FILE || process.env.HUB_PHONE_REMOTE_LINK_FILE || defaultLinkFile;
+}
+
+function resultFilePath() {
+  return process.env.HUB_PHONE_SMOKE_RESULT_FILE || defaultResultFile;
+}
+
+async function writeSmokeResult(result) {
+  const file = resultFilePath();
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, `${JSON.stringify({ resultFile: file, ...result }, null, 2)}\n`, 'utf8');
+  return file;
 }
 
 async function readRemoteLink() {
@@ -493,6 +505,7 @@ async function runBrowserChecks(remote) {
 }
 
 async function main() {
+  const checkedAt = new Date().toISOString();
   const remote = await readRemoteLink();
   console.log(`Mini Hub phone tunnel smoke target: ${remote.origin}`);
   console.log(`Link file: ${remote.file}`);
@@ -510,19 +523,61 @@ async function main() {
     ...(browserResult.settingsReadiness.ok ? [] : ['Settings did not show remote readiness with saved service state.']),
     ...browserResult.routeRows.filter((row) => !row.ok).map((row) => `${row.path}: heading=${row.heading || 'missing'}, token=${row.tokenSaved ? 'saved' : 'missing'}`)
   ];
+  const resultFile = await writeSmokeResult({
+    version: 1,
+    checkedAt,
+    ok: failures.length === 0,
+    origin: remote.origin,
+    linkFile: remote.file,
+    endpoints: endpointRows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      ok: row.ok,
+      status: row.status,
+      latencyMs: row.latencyMs,
+      detail: row.detail
+    })),
+    settings: {
+      ok: browserResult.settingsReadiness.ok,
+      clicked: browserResult.settingsReadiness.clicked || ''
+    },
+    routes: browserResult.routeRows.map((row) => ({
+      id: row.id,
+      path: row.path,
+      ok: row.ok,
+      heading: row.heading,
+      expectedHeading: row.expectedHeading,
+      tokenSaved: row.tokenSaved,
+      viewport: row.viewport,
+      rawNotFound: row.rawNotFound
+    })),
+    failures
+  });
 
   if (failures.length) {
     console.error('');
     console.error(`Phone tunnel smoke found ${failures.length} issue(s):`);
     for (const failure of failures) console.error(`- ${failure}`);
+    console.error(`Saved phone smoke result: ${resultFile}`);
     process.exitCode = 1;
   } else {
     console.log('');
     console.log('Phone tunnel smoke passed: endpoint health, mobile hydration, saved bridge token, and route handoff all look reachable.');
+    console.log(`Saved phone smoke result: ${resultFile}`);
   }
 }
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
+  writeSmokeResult({
+    version: 1,
+    checkedAt: new Date().toISOString(),
+    ok: false,
+    origin: '',
+    endpoints: [],
+    settings: { ok: false, clicked: '' },
+    routes: [],
+    failures: [error instanceof Error ? error.message : String(error)]
+  }).catch(() => null);
   process.exitCode = 1;
 });

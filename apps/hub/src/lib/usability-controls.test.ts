@@ -2330,6 +2330,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('Self-healing tunnel startup is installed');
     expect(source).toContain('pnpm bridge:tunnel:startup:install');
     expect(source).toContain('remoteAccessTunnel.watcher.outputLog');
+    expect(source).toContain('phoneTunnelSmokeEndpointReady');
+    expect(source).toContain('Last phone tunnel smoke result');
+    expect(source).toContain('Phone-like tunnel check passed');
+    expect(source).toContain('phoneTunnelSmoke.resultFile');
     expect(source).toContain('Windows is treating this network as Public');
     expect(source).toContain('firewall rule');
     expect(source).toContain('Phone / Private Remote Link');

@@ -175,6 +175,29 @@ describe('mini hub api', () => {
           errorLog: 'C:\\testing\\.mini-hub-bridge\\cloudflared-watch.err.log',
           checkedAt: '2026-07-05T12:01:30.000Z'
         },
+        phoneSmoke: {
+          version: 1,
+          checkedAt: '2026-07-05T12:02:00.000Z',
+          ok: true,
+          origin: 'https://ready.trycloudflare.com',
+          linkFile: 'C:\\testing\\remote-tunnel-link.txt',
+          resultFile: 'C:\\testing\\.mini-hub-bridge\\phone-tunnel-smoke.json',
+          endpoints: [{ id: 'hub-api', label: 'Mini Hub API', ok: true, status: 200, latencyMs: 50, detail: 'ok' }],
+          settings: { ok: true, clicked: 'Check Services' },
+          routes: [
+            {
+              id: 'settings',
+              path: '/settings',
+              ok: true,
+              heading: 'Settings',
+              expectedHeading: 'Settings',
+              tokenSaved: true,
+              viewport: { width: 390, height: 844 },
+              rawNotFound: false
+            }
+          ],
+          failures: []
+        },
         checkedAt: '2026-07-05T12:01:00.000Z'
       })
     });
@@ -199,6 +222,11 @@ describe('mini hub api', () => {
           running: true,
           startupInstalled: true,
           outputLog: expect.stringContaining('cloudflared-watch.out.log')
+        },
+        phoneSmoke: {
+          ok: true,
+          origin: 'https://ready.trycloudflare.com',
+          resultFile: expect.stringContaining('phone-tunnel-smoke.json')
         }
       }
     });
