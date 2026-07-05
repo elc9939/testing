@@ -87,6 +87,9 @@ pnpm bridge:status:lan
 pnpm bridge:firewall:status
 pnpm bridge:firewall:install
 pnpm bridge:repair:lan
+pnpm bridge:tunnel:start
+pnpm bridge:tunnel:status
+pnpm bridge:tunnel:stop
 ```
 
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
@@ -132,6 +135,20 @@ pnpm bridge:repair:lan
 
 That opens one Windows administrator prompt, marks the active trusted network Private, and
 installs the same scoped Private-profile gateway firewall rule.
+
+If Windows inbound access remains blocked or you want to test from outside the home LAN,
+use the temporary outbound tunnel path:
+
+```powershell
+pnpm bridge:tunnel:start
+```
+
+This starts the single-port Hub gateway with a generated bridge token, downloads
+`cloudflared.exe` under `.mini-hub-bridge/tools` if needed, opens a Cloudflare Quick Tunnel
+to `http://127.0.0.1:5173`, and writes `remote-tunnel-link.txt`. The generated URL includes
+`bridgeToken=...`, which the hub stores in this browser and sends as
+`X-Mini-Hub-Bridge-Token` for proxied Hub API, AI OS, Macro Lab, and gatewayed Ollama calls.
+Stop the temporary tunnel with `pnpm bridge:tunnel:stop`.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated
 URL and CORS trusted origins use the host your phone will actually open:

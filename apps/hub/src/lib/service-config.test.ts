@@ -157,11 +157,12 @@ describe('service endpoint resolution', () => {
   });
 
   it('builds a single-port gateway phone link for private remote mode', () => {
-    const link = buildPrivateRemoteGatewayLink('http://192.168.1.25:5173/settings');
+    const link = buildPrivateRemoteGatewayLink('http://192.168.1.25:5173/settings', 'secret-bridge-token');
     const parsed = new URL(link);
 
     expect(parsed.origin).toBe('http://192.168.1.25:5173');
     expect(parsed.searchParams.get('gateway')).toBe('single-port');
+    expect(parsed.searchParams.get('bridgeToken')).toBe('secret-bridge-token');
     expect(parsed.searchParams.get('apiUrl')).toBe('http://192.168.1.25:5173');
     expect(parsed.searchParams.get('aiOsUrl')).toBe('http://192.168.1.25:5173');
     expect(parsed.searchParams.get('macroLabUrl')).toBe('http://192.168.1.25:5173');
@@ -223,6 +224,32 @@ describe('service endpoint resolution', () => {
     ]);
   });
 
+  it('persists bridge tokens from private gateway links before service requests', async () => {
+    vi.resetModules();
+    vi.doMock('$app/environment', () => ({ browser: true }));
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+      clear: () => storage.clear(),
+      key: () => null,
+      length: 0
+    });
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'https://example.trycloudflare.com',
+        search: '?apiUrl=https%3A%2F%2Fexample.trycloudflare.com&bridgeToken=secret-bridge-token'
+      }
+    });
+
+    const { applyQueryServiceEndpoints, bridgeAuthHeaders } = await import('./service-config');
+
+    applyQueryServiceEndpoints();
+    expect(bridgeAuthHeaders('hubApi')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
+    expect(bridgeAuthHeaders('aiOs')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
+  });
+
   it('stores an optional bridge token and sends it only to Mini Hub-controlled services', async () => {
     vi.resetModules();
     vi.doMock('$app/environment', () => ({ browser: true }));
@@ -244,6 +271,34 @@ describe('service endpoint resolution', () => {
     expect(bridgeAuthHeaders('aiOs')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
     expect(bridgeAuthHeaders('macroLab')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
     expect(bridgeAuthHeaders('ollama')).toEqual({});
+  });
+
+  it('sends the bridge token to Ollama when Ollama is behind the same-origin gateway', async () => {
+    vi.resetModules();
+    vi.doMock('$app/environment', () => ({ browser: true }));
+    const storage = new Map<string, string>([
+      ['miniHub.serviceEndpoints.v1', JSON.stringify({ ollama: 'https://example.trycloudflare.com' })]
+    ]);
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+      clear: () => storage.clear(),
+      key: () => null,
+      length: storage.size
+    });
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'https://example.trycloudflare.com',
+        search: ''
+      }
+    });
+
+    const { bridgeAuthHeaders, setBridgeToken } = await import('./service-config');
+
+    setBridgeToken('secret-bridge-token');
+
+    expect(bridgeAuthHeaders('ollama')).toEqual({ 'X-Mini-Hub-Bridge-Token': 'secret-bridge-token' });
   });
 
   it('explains hosted HTTPS failures against local desktop services', () => {

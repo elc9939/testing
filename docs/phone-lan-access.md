@@ -100,6 +100,28 @@ pnpm bridge:repair:lan
 That opens one Windows administrator prompt, marks the active trusted network Private, and
 installs the Mini Hub Private gateway firewall rule for port `5173`.
 
+## No-Inbound Temporary Tunnel
+
+If Windows inbound firewall/profile setup is annoying or you want to test from outside the
+home Wi-Fi, use the outbound tunnel launcher:
+
+```powershell
+pnpm bridge:tunnel:start
+```
+
+This keeps the same single-port Hub gateway on the PC, starts it with a generated bridge
+token, downloads `cloudflared.exe` into `.mini-hub-bridge/tools` if needed, and opens a
+temporary Cloudflare Quick Tunnel to `http://127.0.0.1:5173`. The launcher writes the full
+phone URL to `remote-tunnel-link.txt` and tries to copy it to the clipboard.
+
+The URL includes `bridgeToken=...`; the hub stores that in the browser and sends it as
+`X-Mini-Hub-Bridge-Token` before the gateway proxies Hub API, AI OS, Macro Lab, or Ollama
+requests. Treat the URL like a temporary private key. Stop the tunnel when you are done:
+
+```powershell
+pnpm bridge:tunnel:stop
+```
+
 ## Tailscale Path
 
 1. Install and sign in to Tailscale on the Windows PC and the remote device.

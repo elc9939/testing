@@ -35,4 +35,5 @@ Thumbs.db
 *.log
 phone-link.txt
 bridge-link.txt
+remote-tunnel-link.txt
 .mini-hub-bridge/

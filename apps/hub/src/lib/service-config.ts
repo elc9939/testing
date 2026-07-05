@@ -124,11 +124,19 @@ function queryEndpoint(id: ServiceId): string {
   return '';
 }
 
+function queryBridgeToken(): string {
+  if (!browser || typeof window === 'undefined') return '';
+  const params = new URLSearchParams(window.location.search);
+  return (params.get('bridgeToken') ?? params.get('gatewayToken') ?? '').trim();
+}
+
 export function applyQueryServiceEndpoints(): ServiceEndpoint[] {
   if (!browser) return endpointsFromStored(readStoredEndpoints());
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const stored = readStoredEndpoints();
   let changed = false;
+  const bridgeToken = queryBridgeToken();
+  if (bridgeToken) setBridgeToken(bridgeToken);
 
   for (const id of Object.keys(serviceLabels) as ServiceId[]) {
     const fromQuery = queryEndpoint(id);
@@ -284,7 +292,7 @@ export function buildPrivateRemoteBridgeLink(hostValue: string): string {
   return `${hubUrl}?${params.toString()}`;
 }
 
-export function buildPrivateRemoteGatewayLink(hostValue: string): string {
+export function buildPrivateRemoteGatewayLink(hostValue: string, bridgeToken = ''): string {
   const host = hostFromPrivateTarget(hostValue);
   if (!host) return '';
   const gatewayUrl = `http://${host}:5173`;
@@ -295,6 +303,7 @@ export function buildPrivateRemoteGatewayLink(hostValue: string): string {
     ollamaUrl: gatewayUrl,
     gateway: 'single-port'
   });
+  if (bridgeToken.trim()) params.set('bridgeToken', bridgeToken.trim());
   return `${gatewayUrl}/?${params.toString()}`;
 }
 
@@ -474,9 +483,17 @@ export function bridgeTokenConfigured(): boolean {
   return Boolean(getBridgeToken());
 }
 
+function serviceEndpointIsCurrentOrigin(id: ServiceId): boolean {
+  if (!browser || typeof window === 'undefined') return false;
+  const stored = normalizeServiceUrl(readStoredEndpoints()[id] ?? '');
+  const queried = queryEndpoint(id);
+  const endpoint = stored || queried;
+  return Boolean(endpoint && endpoint === normalizeServiceUrl(window.location.origin));
+}
+
 export function bridgeAuthHeaders(serviceId: ServiceId): Record<string, string> {
-  if (serviceId === 'ollama') return {};
   const token = getBridgeToken();
+  if (serviceId === 'ollama' && !serviceEndpointIsCurrentOrigin('ollama')) return {};
   return token ? { 'X-Mini-Hub-Bridge-Token': token } : {};
 }
 

@@ -207,6 +207,12 @@ function Start-HubUi {
     }
   }
   Ensure-BridgeDir
+  if ($BridgeToken) {
+    $env:MINI_HUB_GATEWAY_TOKEN = $BridgeToken
+    $env:MINI_HUB_BRIDGE_TOKEN = $BridgeToken
+  } else {
+    Remove-Item Env:MINI_HUB_GATEWAY_TOKEN -ErrorAction SilentlyContinue
+  }
   $hostArg = if ($Profile -eq 'lan') { '0.0.0.0' } else { '127.0.0.1' }
   $portPid = Get-PortPid 5173
   if ($portPid) {
