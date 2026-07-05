@@ -12,6 +12,7 @@ import {
 
 const fallbackDraft: ResearchDraftState = {
   mode: 'quick_search',
+  effort: 'standard',
   goal: '',
   seedUrlsText: '',
   includeDomainsText: '',
@@ -100,6 +101,7 @@ describe('research draft and state helpers', () => {
     const draft = normalizeResearchDraft(
       {
         mode: 'deep_research',
+        effort: 'deep',
         goal: 'persist this question',
         seedUrlsText: 'https://example.com',
         depth: 99,
@@ -115,6 +117,7 @@ describe('research draft and state helpers', () => {
 
     expect(draft).toMatchObject({
       mode: 'deep_research',
+      effort: 'deep',
       goal: 'persist this question',
       seedUrlsText: 'https://example.com',
       depth: 5,
@@ -125,6 +128,13 @@ describe('research draft and state helpers', () => {
       selectedRunId: 'run_123',
       selectedMonitorId: ''
     });
+  });
+
+  it('maps old mode-only drafts into the simplified effort selector', () => {
+    expect(normalizeResearchDraft({ mode: 'quick_search' }, fallbackDraft).effort).toBe('quick');
+    expect(normalizeResearchDraft({ mode: 'deep_research' }, fallbackDraft).effort).toBe('standard');
+    expect(normalizeResearchDraft({ mode: 'compare_sources' }, fallbackDraft).effort).toBe('deep');
+    expect(normalizeResearchDraft({ mode: 'monitor_topic' }, fallbackDraft).effort).toBe('standard');
   });
 
   it('distinguishes loading, unavailable, and healthy-empty run states', () => {

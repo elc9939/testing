@@ -44,7 +44,18 @@
 
   type SourceLike = Pick<ResearchSource, 'url' | 'canonical_url'>;
 
-  type ResearchModeOption = { id: ResearchMode; label: string; hint: string };
+  type ResearchEffort = 'quick' | 'standard' | 'deep';
+  type ResearchEffortOption = {
+    id: ResearchEffort;
+    label: string;
+    hint: string;
+    mode: ResearchMode;
+    depth: number;
+    maxPages: number;
+    perDomainLimit: number;
+    timeBudget: number;
+    useAi: boolean;
+  };
 
   interface ResearchMonitorActionState {
     aiOsUnavailable: boolean;
@@ -73,16 +84,44 @@
     | 'runLog'
     | 'citations';
 
-  const modes: ResearchModeOption[] = [
-    { id: 'quick_search', label: 'Quick Search', hint: 'Search, rank, summarize.' },
-    { id: 'deep_research', label: 'Deep Research', hint: 'More queries and source comparison.' },
-    { id: 'url_scrape', label: 'URL Scrape', hint: 'Read exact pages.' },
-    { id: 'site_crawl', label: 'Site Crawl', hint: 'Follow same-site links.' },
-    { id: 'compare_sources', label: 'Compare Sources', hint: 'Look for agreement and gaps.' },
-    { id: 'monitor_topic', label: 'Monitor Topic', hint: 'Topic run shaped for later monitors.' }
+  const effortOptions: ResearchEffortOption[] = [
+    {
+      id: 'quick',
+      label: 'Quick',
+      hint: 'Fast scan for a first answer.',
+      mode: 'quick_search',
+      depth: 1,
+      maxPages: 6,
+      perDomainLimit: 3,
+      timeBudget: 75,
+      useAi: false
+    },
+    {
+      id: 'standard',
+      label: 'Standard',
+      hint: 'Balanced report with citations.',
+      mode: 'deep_research',
+      depth: 2,
+      maxPages: 12,
+      perDomainLimit: 4,
+      timeBudget: 150,
+      useAi: true
+    },
+    {
+      id: 'deep',
+      label: 'Deep',
+      hint: 'More source comparison and follow-ups.',
+      mode: 'compare_sources',
+      depth: 3,
+      maxPages: 24,
+      perDomainLimit: 6,
+      timeBudget: 300,
+      useAi: true
+    }
   ];
 
   let mode: ResearchMode = 'quick_search';
+  let effort: ResearchEffort = 'standard';
   let goal = '';
   let seedUrlsText = '';
   let includeDomainsText = '';
@@ -127,7 +166,7 @@
   let selectedMonitorId = '';
   let restoredMonitorSummaryId = '';
 
-  $: currentMode = modes.find((item) => item.id === mode) ?? modes[0];
+  $: currentEffort = effortOptions.find((item) => item.id === effort) ?? effortOptions[1];
   $: seedUrls = splitList(seedUrlsText);
   $: includeDomains = splitList(includeDomainsText);
   $: excludeDomains = splitList(excludeDomainsText);
@@ -150,7 +189,7 @@
       ? 'Checking AI OS'
       : loading
         ? 'Queueing'
-        : `Run ${currentMode?.label ?? 'Research'}`;
+        : 'Run Research';
   $: sourceLibrarySearchDisabled = sourceLibraryLoading || aiOsUnavailable || serviceProbePending;
   $: sourceLibrarySearchTitle = aiOsUnavailable
     ? 'Connect AI OS before searching the archived source library.'
@@ -183,7 +222,7 @@
   };
   $: researchRunButtonTitle = runResearchTitle({
     blockedReason: researchRunBlockedReason,
-    label: currentMode?.label ?? 'Research'
+    effort: currentEffort
   });
   $: refreshRunsButtonTitle = refreshRunsTitle(refreshing);
   $: refreshMonitorsButtonTitle = refreshMonitorsTitle(monitorActionState);
@@ -192,6 +231,7 @@
   $: advancedToggleButtonTitle = advancedToggleTitle(advancedOpen);
   $: researchDraftForPersistence = {
     mode,
+    effort,
     goal,
     seedUrlsText,
     includeDomainsText,
@@ -221,9 +261,9 @@
   $: if (!selectedMonitorId && restoredMonitorSummaryId) restoredMonitorSummaryId = '';
   $: if (draftHydrated) persistResearchDraft(researchDraftForPersistence);
 
-  function runResearchTitle(state: { blockedReason: string; label: string }): string {
+  function runResearchTitle(state: { blockedReason: string; effort: ResearchEffortOption }): string {
     if (state.blockedReason) return state.blockedReason;
-    return `Start a ${state.label} run.`;
+    return `Start a ${state.effort.label.toLowerCase()} research run.`;
   }
 
   function researchRunDisabledReason(state: {
@@ -329,18 +369,18 @@
     return monitorActionTitle(state, 'Save the current workbench as a reusable monitor.');
   }
 
-  function researchModeTitle(item: ResearchModeOption): string {
-    return mode === item.id ? `${item.label} mode is selected.` : `Use ${item.label}: ${item.hint}`;
+  function researchEffortTitle(item: ResearchEffortOption): string {
+    return effort === item.id ? `${item.label} effort is selected.` : `Use ${item.label} effort: ${item.hint}`;
   }
 
   function advancedToggleTitle(isOpen: boolean): string {
     return isOpen
       ? 'Hide advanced research knobs; current values stay saved in this browser.'
-      : 'Show advanced research knobs for provider, model, domains, limits, and indexing.';
+      : 'Show optional source, provider, model, domain, limit, and indexing controls.';
   }
 
   function researchRunSelectionTitle(run: ResearchRun): string {
-    const title = run.report.title || 'this research run';
+    const title = displayRunTitle(run, 160);
     return selectedRun?.id === run.id ? `${title} is the selected report.` : `Open ${title} from saved research runs.`;
   }
 
@@ -358,6 +398,24 @@
     if (!next) return 'This archived source does not have a usable URL.';
     if (sourceSeedAlreadyAdded(url)) return 'This source is already listed in Seed URLs.';
     return 'Add this archived source URL to Seed URLs.';
+  }
+
+  function selectEffort(next: ResearchEffort): void {
+    const option = effortOptions.find((item) => item.id === next) ?? effortOptions[1];
+    effort = option.id;
+    mode = option.mode;
+    depth = option.depth;
+    maxPages = option.maxPages;
+    perDomainLimit = option.perDomainLimit;
+    timeBudget = option.timeBudget;
+    useAi = option.useAi;
+  }
+
+  function effortFromResearchMode(value: ResearchMode | undefined): ResearchEffort {
+    if (value === 'quick_search' || value === 'url_scrape') return 'quick';
+    if (value === 'deep_research') return 'standard';
+    if (value === 'site_crawl' || value === 'compare_sources') return 'deep';
+    return 'standard';
   }
 
   function monitorActionBusy(monitor: ResearchMonitor, action: 'run' | 'toggle' | 'delete'): boolean {
@@ -444,9 +502,10 @@
     }
   }
 
-  function currentResearchInput(modeOverride: ResearchMode = mode): ResearchRunInput {
+  function currentResearchInput(modeOverride?: ResearchMode): ResearchRunInput {
+    const selectedMode = modeOverride ?? currentEffort.mode;
     return {
-      mode: modeOverride,
+      mode: selectedMode,
       goal: goal.trim(),
       seed_urls: seedUrls,
       include_domains: includeDomains,
@@ -483,7 +542,7 @@
       const run = await createResearchRun(currentResearchInput());
       setSelectedRun(run);
       runs = [run, ...runs.filter((item) => item.id !== run.id)].slice(0, 20);
-      message = `Queued ${currentMode?.label ?? 'research'} run. The report will update as sources arrive.`;
+      message = `Queued ${currentEffort.label.toLowerCase()} research. The report will update as sources arrive.`;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Research run failed.';
     } finally {
@@ -561,7 +620,7 @@
       selectedMonitorId = result.monitor.id;
       setSelectedRun(result.run);
       runs = [result.run, ...runs.filter((item) => item.id !== result.run.id)].slice(0, 20);
-      monitorMessage = `Queued monitor run for ${result.monitor.name}.`;
+      monitorMessage = `Queued monitor run for ${displayResearchTitle(result.monitor.name, 'routine research monitor', 140)}.`;
     } catch (err) {
       monitorError = err instanceof Error ? err.message : 'Could not run monitor.';
     } finally {
@@ -606,7 +665,7 @@
     monitorActionId = `${monitor.id}:delete`;
     monitorError = '';
     monitorMessage = '';
-    if (!window.confirm(`Delete research monitor "${monitor.name}"? Archived reports stay saved.`)) {
+    if (!window.confirm(`Delete research monitor "${displayMonitorName(monitor, 140)}"? Archived reports stay saved.`)) {
       monitorActionId = '';
       return;
     }
@@ -630,6 +689,7 @@
     restoredMonitorSummaryId = monitor.id;
     const request = monitor.request;
     mode = request.mode ?? 'monitor_topic';
+    effort = effortFromResearchMode(request.mode);
     goal = request.goal ?? '';
     seedUrlsText = (request.seed_urls ?? []).join('\n');
     includeDomainsText = (request.include_domains ?? []).join(', ');
@@ -646,14 +706,14 @@
     screenshot = Boolean(request.screenshot);
     provider = request.provider ?? '';
     model = request.model ?? '';
-    monitorName = monitor.name;
+    monitorName = displayMonitorName(monitor, 160);
     monitorSchedule = monitor.schedule;
     monitorMessage = 'Loaded monitor settings into the workbench.';
   }
 
   function restoreSelectedMonitorSummary(monitor: ResearchMonitor): void {
     restoredMonitorSummaryId = monitor.id;
-    monitorName = monitorName.trim() ? monitorName : monitor.name;
+    monitorName = monitorName.trim() ? monitorName : displayMonitorName(monitor, 160);
     monitorSchedule = monitor.schedule;
     const request = monitor.request;
     if (!goal.trim()) goal = request.goal ?? '';
@@ -661,6 +721,7 @@
     if (!includeDomainsText.trim() && request.include_domains?.length) includeDomainsText = request.include_domains.join(', ');
     if (!excludeDomainsText.trim() && request.exclude_domains?.length) excludeDomainsText = request.exclude_domains.join(', ');
     mode = mode || request.mode || 'monitor_topic';
+    effort = effortFromResearchMode(request.mode);
   }
 
   async function pollLiveRuns(): Promise<void> {
@@ -794,6 +855,7 @@
   function defaultResearchDraft(): ResearchDraftState {
     return {
       mode,
+      effort,
       goal,
       seedUrlsText,
       includeDomainsText,
@@ -824,6 +886,7 @@
 
   function applyResearchDraft(draft: ResearchDraftState): void {
     mode = draft.mode;
+    effort = draft.effort;
     goal = draft.goal;
     seedUrlsText = draft.seedUrlsText;
     includeDomainsText = draft.includeDomainsText;
@@ -892,10 +955,30 @@
     window.history.replaceState({}, '', url.toString());
   }
 
+  function displayResearchTitle(value: string | undefined, fallback = 'Saved research report', maxLength = 180): string {
+    const raw = (value ?? '').trim() || fallback;
+    const cleaned = raw
+      .replace(/^(?:quick search|deep research|url scrape|site crawl|compare sources|monitor topic)\s*:\s*/iu, '')
+      .trim();
+    return compactDisplayText(cleaned || raw, maxLength);
+  }
+
+  function displayRunTitle(run: ResearchRun, maxLength = 150): string {
+    return displayResearchTitle(run.report.title, 'Saved research report', maxLength);
+  }
+
+  function displayMonitorName(monitor: ResearchMonitor, maxLength = 120): string {
+    return displayResearchTitle(monitor.name, 'Routine research monitor', maxLength);
+  }
+
+  function displayMonitorGoal(monitor: ResearchMonitor): string {
+    return compactDisplayText(monitor.request.goal, 260);
+  }
+
   function runMeta(run: ResearchRun): string {
     const providerLabel = [run.provider, run.model].filter(Boolean).join('/');
     const parts = [
-      run.mode.replace('_', ' '),
+      runEffortLabel(run),
       isLiveRun(run) ? `${progressPercent(run)}%` : '',
       `${run.sources.length} source${run.sources.length === 1 ? '' : 's'}`,
       `${Math.round(run.runtime_ms)} ms`,
@@ -904,6 +987,14 @@
       providerLabel || 'extractive'
     ].filter(Boolean);
     return parts.join(' - ');
+  }
+
+  function runEffortLabel(run: Pick<ResearchRun, 'mode' | 'options'>): string {
+    if (run.mode === 'monitor_topic') return 'monitor';
+    if (run.mode === 'quick_search' || run.mode === 'url_scrape') return 'quick';
+    if (run.mode === 'deep_research') return 'standard';
+    if (run.mode === 'site_crawl' || run.mode === 'compare_sources') return 'deep';
+    return 'research';
   }
 
   function isLiveRun(run: ResearchRun): boolean {
@@ -958,6 +1049,56 @@
     const text = (value ?? '').trim();
     if (!text) return fallback;
     return compactDisplayText(text, 1800);
+  }
+
+  function reportParagraphs(value: string | undefined, fallback: string): string[] {
+    const text = reportText(value, fallback);
+    return text
+      .split(/\n{2,}|(?<=\.)\s+(?=[A-Z0-9])/u)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 5);
+  }
+
+  function conciseList(items: string[], fallbackSection: ResearchReportSection, limit = 6): string[] {
+    const cleaned = items.map((item) => compactBlockedExternalSourceText(item).trim()).filter(Boolean);
+    return cleaned.length ? cleaned.slice(0, limit) : [selectedReportSectionEmptyMessage(fallbackSection)];
+  }
+
+  function topResearchSources(run: ResearchRun, limit = 5): ResearchSource[] {
+    return [...run.sources].sort((a, b) => b.score - a.score || a.rank - b.rank).slice(0, limit);
+  }
+
+  function reportOutcomeLine(run: ResearchRun): string {
+    if (isResearchRunActive(run)) return run.current_step || 'Research is still running; this brief will keep updating.';
+    if (run.status === 'paused') return run.current_step || 'Research is paused and can be resumed from this page or Activity.';
+    if (run.status === 'failed') return run.error || 'This run failed before a complete report was recorded.';
+    if (run.status === 'cancelled') return run.error || 'This run was cancelled; partial evidence remains saved.';
+    return run.report.tldr || run.report.detailed_summary || 'Saved report with source-backed evidence.';
+  }
+
+  function addRunSourcesAsSeeds(run: ResearchRun): void {
+    const urls = topResearchSources(run, 8).map((source) => source.canonical_url || source.url).filter(Boolean);
+    const existing = new Set(seedUrls.map(normalizeTextUrl));
+    const next = urls.filter((url) => !existing.has(normalizeTextUrl(url)));
+    if (!next.length) {
+      message = 'The selected report sources are already in the next query seed list.';
+      return;
+    }
+    seedUrlsText = [seedUrlsText.trim(), ...next].filter(Boolean).join('\n');
+    message = `Added ${next.length} report source${next.length === 1 ? '' : 's'} to the next query.`;
+  }
+
+  function addSelectedRunSourcesAsSeeds(): void {
+    if (!selectedRun) return;
+    addRunSourcesAsSeeds(selectedRun);
+  }
+
+  function useFollowUpSuggestion(item: string): void {
+    const next = compactBlockedExternalSourceText(item).trim();
+    if (!next) return;
+    goal = next;
+    message = 'Loaded follow-up suggestion as the next query.';
   }
 
   function sourcePreview(source: ResearchSource): string {
@@ -1162,48 +1303,56 @@
 
   <section class="workbench">
     <form class="query-panel" on:submit|preventDefault={runResearch}>
-      <div class="mode-grid" aria-label="Research mode">
-        {#each modes as item}
-          <button class:active={mode === item.id} type="button" title={researchModeTitle(item)} on:click={() => (mode = item.id)}>
+      <div class="query-intro">
+        <div>
+          <span class="eyebrow">New Research</span>
+          <h2>Ask once, get a readable brief</h2>
+        </div>
+        <small>Runs stay recoverable in the report list and Activity after you leave this page.</small>
+      </div>
+
+      <label class="goal-field">
+        <span>Query</span>
+        <textarea
+          id="research-goal"
+          aria-label="Research goal"
+          bind:value={goal}
+          rows="4"
+          placeholder="Example: Compare Clay Labs and FieldAI data analyst roles, cite sources, and list open questions."
+          title="Describe the research question or report you want AI OS to run. This draft is saved in this browser."
+        ></textarea>
+      </label>
+
+      <div class="effort-grid" aria-label="Research effort">
+        {#each effortOptions as item}
+          <button class:active={effort === item.id} type="button" title={researchEffortTitle(item)} on:click={() => selectEffort(item.id)}>
             <strong>{item.label}</strong>
             <small>{item.hint}</small>
           </button>
         {/each}
       </div>
 
-      <label>
-        <span>Goal</span>
-        <textarea
-          id="research-goal"
-          aria-label="Research goal"
-          bind:value={goal}
-          rows="5"
-          placeholder="Example: Compare Clay Labs and FieldAI data analyst roles, cite sources, and list open questions."
-          title="Describe the research question or report you want AI OS to run. This draft is saved in this browser."
-        ></textarea>
-      </label>
-
-      <div class="inline-fields">
+      <div class="source-seeds-row">
         <label>
-          <span>Seed URLs</span>
-          <textarea id="research-seed-urls" aria-label="Research seed URLs" bind:value={seedUrlsText} rows="3" placeholder="Optional URLs, one per line" title="Optional starting URLs for the run, one per line. This draft is saved in this browser."></textarea>
-        </label>
-        <label>
-          <span>Max pages</span>
-          <input bind:value={maxPages} min="1" max="50" type="number" title="Maximum pages this research run may fetch." />
-        </label>
-        <label>
-          <span>Depth</span>
-          <input bind:value={depth} min="1" max="5" type="number" title="Maximum crawl depth for this research run." />
+          <span>Optional source URLs</span>
+          <textarea id="research-seed-urls" aria-label="Research seed URLs" bind:value={seedUrlsText} rows="2" placeholder="Paste exact URLs here when you want the run grounded in specific pages." title="Optional starting URLs for the run, one per line. This draft is saved in this browser."></textarea>
         </label>
       </div>
 
       <button class="link-button" type="button" title={advancedToggleButtonTitle} on:click={() => (advancedOpen = !advancedOpen)}>
-        {advancedOpen ? 'Hide knobs' : 'Show knobs'}
+        {advancedOpen ? 'Hide advanced options' : 'Advanced options'}
       </button>
 
       {#if advancedOpen}
         <div class="advanced-grid">
+          <label>
+            <span>Max pages</span>
+            <input bind:value={maxPages} min="1" max="50" type="number" title="Maximum pages this research run may fetch." />
+          </label>
+          <label>
+            <span>Depth</span>
+            <input bind:value={depth} min="1" max="5" type="number" title="Maximum crawl depth for this research run." />
+          </label>
           <label>
             <span>Time budget</span>
             <input bind:value={timeBudget} min="5" max="900" type="number" title="Time budget in seconds for the research run." />
@@ -1275,7 +1424,7 @@
           {#each runs as run}
             <button class:active={selectedRun?.id === run.id} type="button" title={researchRunSelectionTitle(run)} on:click={() => setSelectedRun(run)}>
               <span class={`status ${run.status}`}>{statusLabel(run)}</span>
-              <strong>{run.report.title}</strong>
+              <strong>{displayRunTitle(run, 120)}</strong>
               <small>{runMeta(run)}</small>
               {#if isLiveRun(run)}
                 <span class="progress-track" aria-label={`Research progress ${progressPercent(run)}%`}>
@@ -1312,9 +1461,9 @@
   <section class="monitor-panel">
     <div class="monitor-heading">
       <div>
-        <span class="eyebrow">Topic Watch</span>
-        <h2>Monitors</h2>
-        <p>Save a reusable research setup, then run it again when you want a fresh report.</p>
+        <span class="eyebrow">Routine Research</span>
+        <h2>Recurring monitors</h2>
+        <p>Turn the current query into a reusable watch. Manual monitors wait for you; daily and weekly monitors can be swept when due.</p>
       </div>
       <div class="monitor-heading-actions">
         <button class="link-button compact" type="button" disabled={monitorActionDisabled(monitorActionState)} title={monitorActionTitle(monitorActionState, 'Run due daily and weekly monitors.')} on:click={runDueMonitors}>
@@ -1330,7 +1479,7 @@
     <div class="monitor-create-row">
       <label>
         <span>Monitor name</span>
-        <input bind:value={monitorName} placeholder="Optional name for this topic watch" title="Optional name for the saved research monitor." />
+        <input bind:value={monitorName} placeholder="Optional name for this routine" title="Optional name for the saved research monitor." />
       </label>
       <label>
         <span>Cadence</span>
@@ -1342,7 +1491,7 @@
       </label>
       <button class="link-button" type="button" disabled={monitorActionDisabled(monitorActionState) || !goal.trim()} title={saveCurrentMonitorButtonTitle} on:click={saveCurrentMonitor}>
         <Bell size={15} />
-        <span>{aiOsUnavailable ? 'Connect AI OS' : 'Save Current Setup'}</span>
+        <span>{aiOsUnavailable ? 'Connect AI OS' : 'Save as Monitor'}</span>
       </button>
     </div>
 
@@ -1359,11 +1508,11 @@
             <div class="monitor-card-main">
               <span class={`status ${monitor.last_status ?? (monitor.enabled ? 'queued' : 'cancelled')}`}>{monitor.enabled ? 'on' : 'off'}</span>
               <div>
-                <strong>{monitor.name}</strong>
+                <strong>{displayMonitorName(monitor)}</strong>
                 <small>{monitorMeta(monitor)}</small>
               </div>
             </div>
-            <p>{monitor.request.goal}</p>
+            <p>{displayMonitorGoal(monitor)}</p>
             {#if monitor.last_error}
               <p class="error-message compact-message" title={`Raw Research monitor last error: ${monitor.last_error}`}>{monitorLastErrorDetail(monitor)}</p>
             {/if}
@@ -1471,7 +1620,7 @@
       <div class="report-heading">
         <div>
           <span class={`status ${selectedRun.status}`}>{statusLabel(selectedRun)}</span>
-          <h2>{selectedRun.report.title}</h2>
+          <h2>{displayRunTitle(selectedRun, 220)}</h2>
           <p>{runMeta(selectedRun)}</p>
           {#if isLiveRun(selectedRun)}
             <div class="report-progress">
@@ -1524,100 +1673,211 @@
         </div>
       </div>
 
-      <div class="report-grid">
-        <article>
-          <h3>TLDR</h3>
-          <p>{reportText(selectedRun.report.tldr, selectedReportSectionEmptyMessage('tldr'))}</p>
-        </article>
-        <article>
-          <h3>Reliability</h3>
-          {#if selectedRun.report.reliability_notes.length}
-            {#each selectedRun.report.reliability_notes as note}
-              <p>{compactBlockedExternalSourceText(note)}</p>
-            {/each}
+      <article class="quick-report">
+        <div class="quick-report-head">
+          <div>
+            <span class="eyebrow">Quick Report</span>
+            <h3>Result</h3>
+          </div>
+          <div class="report-stats" aria-label="Research report stats">
+            <span>{selectedRun.sources.length} source{selectedRun.sources.length === 1 ? '' : 's'}</span>
+            <span>{selectedRun.citations.length} citation{selectedRun.citations.length === 1 ? '' : 's'}</span>
+            <span>{selectedRun.cost_usd ? `$${selectedRun.cost_usd.toFixed(4)}` : 'local/free'}</span>
+          </div>
+        </div>
+        <p class="answer-lead">{reportOutcomeLine(selectedRun)}</p>
+        <div class="report-handoff">
+          <button type="button" on:click={addSelectedRunSourcesAsSeeds} title="Use the strongest sources from this report as seed URLs for the next query.">
+            <Search size={15} />
+            <span>Use Sources Next</span>
+          </button>
+          <a href={hubHref('/activity')} title="Open Activity to recover this and other long-running work.">Open Activity</a>
+          {#if selectedRun.memory_chunks}
+            <span>Memory: {selectedRun.memory_chunks} chunk{selectedRun.memory_chunks === 1 ? '' : 's'}</span>
           {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('reliability')}</p>
+            <span>Memory: not indexed</span>
           {/if}
-        </article>
-      </div>
-
-      <article class="full-summary">
-        <h3>Detailed Summary</h3>
-        <p>{reportText(selectedRun.report.detailed_summary, selectedReportSectionEmptyMessage('detailedSummary'))}</p>
+        </div>
       </article>
 
-      <div class="report-grid">
+      <section class="brief-layout" aria-label="Readable research brief">
+        <article class="full-summary">
+          <h3>Answer</h3>
+          {#each reportParagraphs(selectedRun.report.detailed_summary || selectedRun.report.tldr, selectedReportSectionEmptyMessage('detailedSummary')) as paragraph}
+            <p>{paragraph}</p>
+          {/each}
+        </article>
+
         <article>
           <h3>Key Facts</h3>
-          {#if selectedRun.report.key_facts.length}
-            <ul>
-              {#each selectedRun.report.key_facts as fact}
-                <li>{compactBlockedExternalSourceText(fact)}</li>
-              {/each}
-            </ul>
-          {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('keyFacts')}</p>
-          {/if}
+          <ul class="clean-list">
+            {#each conciseList(selectedRun.report.key_facts, 'keyFacts') as fact}
+              <li>{fact}</li>
+            {/each}
+          </ul>
         </article>
+
         <article>
           <h3>Open Questions</h3>
-          {#if selectedRun.report.open_questions.length}
-            {#each selectedRun.report.open_questions as item}
-              <p>{compactBlockedExternalSourceText(item)}</p>
+          <ul class="clean-list">
+            {#each conciseList(selectedRun.report.open_questions, 'openQuestions', 5) as item}
+              <li>{item}</li>
             {/each}
-          {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('openQuestions')}</p>
-          {/if}
+          </ul>
         </article>
-      </div>
 
-      <div class="report-grid">
         <article>
-          <h3>Contradictions</h3>
-          {#if selectedRun.report.disagreements.length}
-            <ul>
-              {#each selectedRun.report.disagreements as item}
-                <li>{compactBlockedExternalSourceText(item)}</li>
-              {/each}
-            </ul>
-          {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('disagreements')}</p>
-          {/if}
-        </article>
-        <article>
-          <h3>Next Research</h3>
+          <h3>Next Moves</h3>
           {#if selectedRun.report.next_research_suggestions.length}
-            <ul>
-              {#each selectedRun.report.next_research_suggestions as item}
-                <li>{compactBlockedExternalSourceText(item)}</li>
+            <div class="next-move-list">
+              {#each selectedRun.report.next_research_suggestions.slice(0, 5) as item}
+                <button type="button" title="Load this follow-up as the next research query." on:click={() => useFollowUpSuggestion(item)}>
+                  {compactBlockedExternalSourceText(item)}
+                </button>
               {/each}
-            </ul>
+            </div>
           {:else}
             <p class="empty-note">{selectedReportSectionEmptyMessage('nextResearch')}</p>
           {/if}
         </article>
-      </div>
+      </section>
 
-      <div class="report-grid">
+      <section class="evidence-layout" aria-label="Research evidence">
         <article>
-          <h3>Timeline</h3>
-          {#if selectedRun.report.timeline.length}
-            <div class="timeline-list">
-              {#each selectedRun.report.timeline as item}
-                <div>
-                  <strong>{formatValue(item.title)}</strong>
-                  <span>{formatValue(item.date)}</span>
-                  <small>{formatValue(item.source_id)}</small>
-                </div>
+          <h3>Best Sources</h3>
+          {#if topResearchSources(selectedRun).length}
+            <div class="source-evidence-list">
+              {#each topResearchSources(selectedRun) as source}
+                <a href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open source URL ${source.canonical_url}.`}>
+                  <strong>{researchSourceTitle(source)}</strong>
+                  <small>{sourceHost(source)} - score {sourceScore(source)}{source.cached ? ' - cached' : ''}</small>
+                </a>
               {/each}
             </div>
           {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('timeline')}</p>
+            <p class="empty-note">No source evidence was saved for this report yet.</p>
           {/if}
         </article>
+
         <article>
-          <h3>Source Table</h3>
-          {#if selectedRun.report.source_table.length}
+          <h3>Reliability</h3>
+          <ul class="clean-list">
+            {#each conciseList(selectedRun.report.reliability_notes, 'reliability', 4) as note}
+              <li>{note}</li>
+            {/each}
+          </ul>
+          {#if selectedRun.report.disagreements.length}
+            <strong class="section-subhead">Conflicts</strong>
+            <ul class="clean-list">
+              {#each selectedRun.report.disagreements.slice(0, 4) as item}
+                <li>{compactBlockedExternalSourceText(item)}</li>
+              {/each}
+            </ul>
+          {/if}
+        </article>
+      </section>
+
+      <details class="report-details" open={selectedRun.citations.length > 0}>
+        <summary>Citations and timeline</summary>
+        <div class="report-grid">
+          <article>
+            <h3>Citations</h3>
+            {#if selectedRun.citations.length}
+              <div class="citation-list">
+                {#each selectedRun.citations as citation}
+                  <div>
+                    <strong>{citation.id}</strong>
+                    <p>{compactBlockedExternalSourceText(citation.claim)}</p>
+                    {#if citation.quote}<small>{compactBlockedExternalSourceText(citation.quote)}</small>{/if}
+                    {#if citationSources(selectedRun, citation).length}
+                      <div class="citation-sources">
+                        {#each citationSources(selectedRun, citation) as source}
+                          <a href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open report source ${source.canonical_url}.`}>{source.id}: {sourceHost(source)}</a>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <p class="empty-note">{selectedReportSectionEmptyMessage('citations')}</p>
+            {/if}
+          </article>
+
+          <article>
+            <h3>Timeline</h3>
+            {#if selectedRun.report.timeline.length}
+              <div class="timeline-list">
+                {#each selectedRun.report.timeline as item}
+                  <div>
+                    <strong>{formatValue(item.title)}</strong>
+                    <span>{formatValue(item.date)}</span>
+                    <small>{formatValue(item.source_id)}</small>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <p class="empty-note">{selectedReportSectionEmptyMessage('timeline')}</p>
+            {/if}
+          </article>
+        </div>
+      </details>
+
+      <details class="report-details">
+        <summary>Diagnostics and raw run data</summary>
+        <div class="report-grid">
+          <article>
+            <h3>Query Plan</h3>
+            {#if searchQueries(selectedRun).length || crawlTargets(selectedRun).length}
+              {#if searchQueries(selectedRun).length}
+                <strong class="section-subhead">Search queries</strong>
+                <ul>
+                  {#each searchQueries(selectedRun) as query}
+                    <li>{query}</li>
+                  {/each}
+                </ul>
+              {/if}
+              {#if crawlTargets(selectedRun).length}
+                <strong class="section-subhead">Crawl targets</strong>
+                <ul>
+                  {#each crawlTargets(selectedRun) as target}
+                    <li>{target}</li>
+                  {/each}
+                </ul>
+              {/if}
+            {:else}
+              <p class="empty-note">{selectedReportSectionEmptyMessage('queryPlan')}</p>
+            {/if}
+            <details class="json-details">
+              <summary>Raw plan JSON</summary>
+              <pre>{formatJson(selectedRun.query_plan)}</pre>
+            </details>
+          </article>
+          <article>
+            <h3>Run Log</h3>
+            {#if selectedRun.logs.length}
+              <p class="empty-note">Run log warnings are diagnostics for this selected report, not a Research Desk page failure.</p>
+              <div class="log-list">
+                {#each selectedRun.logs as log}
+                  <div>
+                    <span class={`log-level ${logLevel(log)}`}>{logLevel(log)}</span>
+                    <strong>{logMessage(log)}</strong>
+                    <small>{logTime(log)}</small>
+                    <details class="json-details compact">
+                      <summary>Details</summary>
+                      <pre>{formatJson(log)}</pre>
+                    </details>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <p class="empty-note">{selectedReportSectionEmptyMessage('runLog')}</p>
+            {/if}
+          </article>
+        </div>
+        {#if selectedRun.report.source_table.length}
+          <article>
+            <h3>Source Table</h3>
             <div class="compact-table" role="table" aria-label="Research source table">
               <div class="compact-table-head" role="row">
                 <span>ID</span>
@@ -1634,89 +1894,13 @@
                 </div>
               {/each}
             </div>
-          {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('sourceTable')}</p>
-          {/if}
-        </article>
-      </div>
-
-      <div class="report-grid">
-        <article>
-          <h3>Query Plan</h3>
-          {#if searchQueries(selectedRun).length || crawlTargets(selectedRun).length}
-            {#if searchQueries(selectedRun).length}
-              <strong class="section-subhead">Search queries</strong>
-              <ul>
-                {#each searchQueries(selectedRun) as query}
-                  <li>{query}</li>
-                {/each}
-              </ul>
-            {/if}
-            {#if crawlTargets(selectedRun).length}
-              <strong class="section-subhead">Crawl targets</strong>
-              <ul>
-                {#each crawlTargets(selectedRun) as target}
-                  <li>{target}</li>
-                {/each}
-              </ul>
-            {/if}
-          {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('queryPlan')}</p>
-          {/if}
-          <details class="json-details">
-            <summary>Raw plan JSON</summary>
-            <pre>{formatJson(selectedRun.query_plan)}</pre>
-          </details>
-        </article>
-        <article>
-          <h3>Run Log</h3>
-          {#if selectedRun.logs.length}
-            <p class="empty-note">Run log warnings are diagnostics for this selected report, not a Research Desk page failure.</p>
-            <div class="log-list">
-              {#each selectedRun.logs as log}
-                <div>
-                  <span class={`log-level ${logLevel(log)}`}>{logLevel(log)}</span>
-                  <strong>{logMessage(log)}</strong>
-                  <small>{logTime(log)}</small>
-                  <details class="json-details compact">
-                    <summary>Details</summary>
-                    <pre>{formatJson(log)}</pre>
-                  </details>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="empty-note">{selectedReportSectionEmptyMessage('runLog')}</p>
-          {/if}
-        </article>
-      </div>
-
-      <article>
-        <h3>Citations</h3>
-        {#if selectedRun.citations.length}
-          <div class="citation-list">
-            {#each selectedRun.citations as citation}
-              <div>
-                <strong>{citation.id}</strong>
-                <p>{compactBlockedExternalSourceText(citation.claim)}</p>
-                {#if citation.quote}<small>{compactBlockedExternalSourceText(citation.quote)}</small>{/if}
-                {#if citationSources(selectedRun, citation).length}
-                  <div class="citation-sources">
-                    {#each citationSources(selectedRun, citation) as source}
-                      <a href={source.canonical_url} target="_blank" rel="noreferrer" title={`Open report source ${source.canonical_url}.`}>{source.id}: {sourceHost(source)}</a>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <p class="empty-note">{selectedReportSectionEmptyMessage('citations')}</p>
+          </article>
         {/if}
-      </article>
+      </details>
 
-      <article>
-        <h3>Raw Extracted Sources</h3>
+      <details class="report-details">
+        <summary>Raw extracted sources</summary>
+        <article>
         <div class="source-list">
           {#each selectedRun.sources as source}
             <details class="source-card">
@@ -1775,7 +1959,8 @@
             <p class="empty-note">No raw sources were archived for this run.</p>
           {/each}
         </div>
-      </article>
+        </article>
+      </details>
     </section>
   {/if}
 </main>
@@ -1893,36 +2078,62 @@
     border-left: 1px solid var(--border);
   }
 
-  .mode-grid {
+  .query-intro {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .query-intro h2 {
+    margin-top: 3px;
+  }
+
+  .query-intro small {
+    max-width: 280px;
+    text-align: right;
+  }
+
+  .goal-field textarea {
+    min-height: 118px;
+  }
+
+  .effort-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
-    margin-bottom: 14px;
+    margin-top: 12px;
   }
 
-  .mode-grid button,
+  .source-seeds-row {
+    margin-top: 12px;
+  }
+
+  .effort-grid button,
   .run-list button,
   .source-list a,
+  .source-evidence-list a,
   .citation-list div,
   article {
     border: 1px solid var(--border);
     background: var(--surface-soft);
   }
 
-  .mode-grid button,
+  .effort-grid button,
   .run-list button {
     text-align: left;
     cursor: pointer;
   }
 
-  .mode-grid button {
+  .effort-grid button {
     display: grid;
     gap: 4px;
-    min-height: 72px;
+    min-height: 68px;
     padding: 10px;
   }
 
-  .mode-grid button.active,
+  .effort-grid button.active,
   .run-list button.active {
     border-color: var(--accent);
     background: var(--active);
@@ -1948,16 +2159,12 @@
     resize: vertical;
   }
 
-  .inline-fields,
   .advanced-grid,
-  .report-grid {
+  .report-grid,
+  .brief-layout,
+  .evidence-layout {
     display: grid;
     gap: 12px;
-  }
-
-  .inline-fields {
-    grid-template-columns: minmax(0, 1fr) 120px 100px;
-    margin-top: 12px;
   }
 
   .advanced-grid {
@@ -2378,6 +2585,121 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .quick-report {
+    gap: 12px;
+    padding: 14px;
+    border-color: var(--accent);
+    background: var(--active);
+  }
+
+  .quick-report-head,
+  .report-handoff,
+  .report-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .quick-report-head {
+    justify-content: space-between;
+  }
+
+  .answer-lead {
+    max-width: 78ch;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .report-stats span,
+  .report-handoff span,
+  .report-handoff a,
+  .report-handoff button {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.76rem;
+    font-weight: 800;
+  }
+
+  .report-stats span,
+  .report-handoff span {
+    padding: 4px 8px;
+  }
+
+  .report-handoff a,
+  .report-handoff button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 9px;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .brief-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
+  }
+
+  .brief-layout .full-summary {
+    grid-row: span 3;
+    gap: 9px;
+    padding: 14px;
+  }
+
+  .evidence-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .clean-list {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  .next-move-list,
+  .source-evidence-list {
+    display: grid;
+    gap: 7px;
+  }
+
+  .next-move-list button,
+  .source-evidence-list a {
+    display: grid;
+    gap: 3px;
+    padding: 8px 10px;
+    color: var(--text);
+    background: var(--surface);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .next-move-list button {
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .report-details {
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+  }
+
+  .report-details > summary {
+    padding: 10px 12px;
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 900;
+  }
+
+  .report-details > .report-grid,
+  .report-details > article {
+    padding: 0 10px 10px;
+  }
+
   .source-list a {
     color: inherit;
   }
@@ -2636,7 +2958,8 @@
   @media (max-width: 900px) {
     .workbench,
     .report-grid,
-    .inline-fields,
+    .brief-layout,
+    .evidence-layout,
     .source-library-controls,
     .monitor-create-row,
     .advanced-grid {
@@ -2648,8 +2971,18 @@
       border-top: 1px solid var(--border);
     }
 
-    .mode-grid {
+    .effort-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .query-intro {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .query-intro small {
+      max-width: none;
+      text-align: left;
     }
 
     .report-heading {
@@ -2668,7 +3001,7 @@
   }
 
   @media (max-width: 540px) {
-    .mode-grid {
+    .effort-grid {
       grid-template-columns: 1fr;
     }
 

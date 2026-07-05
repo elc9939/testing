@@ -101,19 +101,26 @@ semantic memory search can later retrieve the report and source excerpts through
 
 ## Research Desk UI
 
-The hub route `/research` is the current Deep Research Report artifact viewer. A run can be
-reopened from the Reports rail and inspected without rerunning the crawl. The report view now
-shows:
+The hub route `/research` is the current Research Desk artifact viewer and runner. The
+primary workflow is intentionally simple: one query box, optional seed URLs, a Quick/
+Standard/Deep effort selector, and a single **Run Research** action. The effort selector maps
+to the AI OS research modes and bounded crawl budgets, while advanced options keep provider,
+model, domain, date, limit, screenshot, cloud fallback, and semantic-memory indexing controls
+available for power use.
 
-- final TLDR and detailed summary
-- key facts, contradictions, open questions, and next research suggestions
-- citation cards with links back to archived source URLs
-- reliability notes, dated source timeline, and source table
-- query plan search queries and crawl targets
-- run logs with raw JSON detail for troubleshooting
-- raw extracted source cards with canonical URL, author/date/fetch metadata, text preview,
-  links, tables, optional screenshot thumbnails, and metadata
-- Markdown, JSON, and HTML export links
+A run can be reopened from the Reports rail and inspected without rerunning the crawl. The
+Reports rail and recurring monitor cards display compact, mode-free titles even when older
+AI OS artifacts still store raw mode-prefixed report names. The report view prioritizes a
+readable **Quick Report** before diagnostics:
+
+- result/outcome line, report stats, Markdown/JSON/HTML export links, Activity link, and
+  source handoff action
+- formatted Answer paragraphs rather than one large text block
+- key facts, open questions, and next-move buttons that can become the next query
+- best-source evidence links, reliability notes, and conflicts
+- citation cards and dated timeline inside a disclosure section
+- query plan, run logs, source table, and raw extracted source cards behind diagnostics/raw
+  source disclosures
 - Pause, Resume, and Cancel controls for long-running reports
 
 On load, Research Desk rehydrates the last draft workbench settings from browser storage,
@@ -127,30 +134,22 @@ archive. It can search archived source cards by text, filter by domain, show pre
 first/last seen metadata, open the original URL, or add an archived source URL back into the
 Seed URLs box for a follow-up run.
 
-The route also includes a Topic Watch / Monitors panel. It saves the current workbench goal
-and knobs as a durable monitor, lists saved monitors, enables/disables them, reloads a monitor
-into the form, deletes a monitor without deleting archived reports, runs a monitor on demand,
-and runs any due daily/weekly monitors. A monitor run is just a normal report artifact, so
-exports, citations, source cache, Action Ledger visibility, and semantic-memory opt-in all
-continue to work.
+The route also includes a Routine Research / Recurring Monitors panel. It saves the current
+query and options as a durable monitor, lists saved monitors, enables/disables them, reloads
+a monitor into the form, deletes a monitor without deleting archived reports, runs a monitor
+on demand, and runs any due daily/weekly monitors. A monitor run is just a normal report
+artifact, so exports, citations, source cache, Action Ledger visibility, and semantic-memory
+opt-in all continue to work.
 
 Mini Hub's Passive Task Engine can also prepare AI OS monitor templates from configured
 watched research entries: plain domains, exact `page:` URLs, and `topic:`, `tool:`, or
 `company:` lines. Those templates are tagged with `source: mini-hub-passive`, use the same
 daily monitor scheduler, and do not run a crawl during the setup step.
 
-Advanced run knobs currently sent by the UI include depth, max pages, per-domain limit, time
-budget, date range, include/exclude domains, local AI synthesis, cloud fallback, explicit
-provider/model, screenshot preference, and opt-in semantic memory indexing.
-
-Modes:
-
-- `quick_search`
-- `deep_research`
-- `url_scrape`
-- `site_crawl`
-- `compare_sources`
-- `monitor_topic`
+The backend still persists the concrete AI OS mode for compatibility and diagnostics:
+`quick_search`, `deep_research`, `url_scrape`, `site_crawl`, `compare_sources`, and
+`monitor_topic`. The hub no longer exposes those as six primary choices; normal user-created
+runs use the effort selector, while saved recurring runs use monitor semantics.
 
 ## Safety Boundaries
 

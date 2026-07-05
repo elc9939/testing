@@ -28,10 +28,10 @@ const routes = [
     path: '/research',
     title: 'Research Desk - Mini Hub',
     heading: 'Research Desk',
-    safeActionLabels: ['Connect AI OS', 'Run Quick Search', 'Retry Service'],
+    safeActionLabels: ['Connect AI OS', 'Run Research', 'Retry Service'],
     safeActionFallbacks: {
       'Connect AI OS': ['Checking AI OS', 'Setup', 'Checking saved research monitors'],
-      'Run Quick Search': ['Connect AI OS', 'Checking AI OS', 'Setup', 'Checking saved research monitors'],
+      'Run Research': ['Connect AI OS', 'Checking AI OS', 'Setup', 'Checking saved research monitors'],
       'Retry Service': ['Checking AI OS', 'Setup', 'Checking saved research monitors']
     }
   },
@@ -1594,7 +1594,7 @@ async function runResearchActionChecks(client, baseUrl) {
       if (label.includes('Checking AI OS')) {
         return { ok: false, state: 'checking', detail: 'Research Desk is still probing AI OS.' };
       }
-      if (label.includes('Run Quick Search')) {
+      if (label.includes('Run Research')) {
         return {
           ok: true,
           state: 'online-ready',
@@ -1626,7 +1626,7 @@ async function runResearchOnlineRecoveryChecks(client, baseUrl) {
           const title = button?.getAttribute('title') || '';
           const body = document.body?.innerText || '';
           return {
-            ok: Boolean(button && !button.disabled && label.includes('Run Quick Search') && !/AI OS service needs attention/i.test(body)),
+            ok: Boolean(button && !button.disabled && label.includes('Run Research') && !/AI OS service needs attention/i.test(body)),
             state: button?.disabled ? 'blocked' : 'ready',
             detail: \`label="\${label}"; title="\${title}"\`
           };
@@ -1636,7 +1636,7 @@ async function runResearchOnlineRecoveryChecks(client, baseUrl) {
     });
     if (!checks.at(-1)?.ok) return checks;
 
-    await clickButtonByText(client, 'Run Quick Search');
+    await clickButtonByText(client, 'Run Research');
     checks.push({
       id: 'research-online-run-created',
       route: '/research',

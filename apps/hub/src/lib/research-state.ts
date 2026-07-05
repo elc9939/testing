@@ -3,6 +3,7 @@ import { compactServiceIssueLine, isLikelyServiceIssue } from './service-issues'
 
 export interface ResearchDraftState {
   mode: ResearchMode;
+  effort: 'quick' | 'standard' | 'deep';
   goal: string;
   seedUrlsText: string;
   includeDomainsText: string;
@@ -69,6 +70,7 @@ export function normalizeResearchDraft(value: unknown, fallback: ResearchDraftSt
   return {
     ...fallback,
     mode: isMode(record.mode) ? record.mode : fallback.mode,
+    effort: isEffort(record.effort) ? record.effort : effortFromMode(isMode(record.mode) ? record.mode : fallback.mode, fallback.effort),
     goal: stringValue(record.goal, fallback.goal),
     seedUrlsText: stringValue(record.seedUrlsText, fallback.seedUrlsText),
     includeDomainsText: stringValue(record.includeDomainsText, fallback.includeDomainsText),
@@ -95,6 +97,17 @@ export function normalizeResearchDraft(value: unknown, fallback: ResearchDraftSt
 
 function isMode(value: unknown): value is ResearchMode {
   return ['quick_search', 'deep_research', 'url_scrape', 'site_crawl', 'compare_sources', 'monitor_topic'].includes(String(value));
+}
+
+function isEffort(value: unknown): value is ResearchDraftState['effort'] {
+  return value === 'quick' || value === 'standard' || value === 'deep';
+}
+
+function effortFromMode(mode: ResearchMode, fallback: ResearchDraftState['effort']): ResearchDraftState['effort'] {
+  if (mode === 'quick_search' || mode === 'url_scrape') return 'quick';
+  if (mode === 'deep_research') return 'standard';
+  if (mode === 'site_crawl' || mode === 'compare_sources') return 'deep';
+  return fallback;
 }
 
 function isSchedule(value: unknown): value is ResearchDraftState['monitorSchedule'] {
