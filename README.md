@@ -49,11 +49,11 @@ Mini Hub now treats access mode as a first-class diagnostic, not as guesswork.
 Settings -> Remote Access / Connection Mode shows the current page origin, detected mode,
 detected LAN IPv4 addresses when the Hub API is reachable, service health targets, current
 endpoint state, current-host endpoint suggestions, and a **Phone / Private Remote Link**
-that embeds the Hub API, AI OS, Macro Lab, and Ollama service URLs. If you are on the PC,
-run **Check Services** and copy that phone link after the LAN bridge is running. If you open
-the hub through a LAN or Tailscale address, use **Use Current Host URLs**, then **Save
-Service URLs** and **Check Services**. If you are on GitHub Pages, enter private remote
-endpoints manually or open Local Full Power on the PC.
+with a local QR code that embeds the Hub API, AI OS, Macro Lab, and Ollama service URLs. If
+you are on the PC, run **Check Services** and scan or copy that phone link after the LAN
+bridge is running. If you open the hub through a LAN or Tailscale address, use **Use Current
+Host URLs**, then **Save Service URLs** and **Check Services**. If you are on GitHub Pages,
+enter private remote endpoints manually or open Local Full Power on the PC.
 
 The standard private remote service URLs are:
 
@@ -83,7 +83,7 @@ pnpm bridge:startup:run:lan
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
 starts the local Hub UI on the LAN address and writes a ready URL with `apiUrl`, `aiOsUrl`,
 `macroLabUrl`, and `ollamaUrl` query parameters to `bridge-link.txt`. Settings -> Remote
-Access also shows a copyable phone link once Check Services can read the PC LAN IP. The
+Access also shows a scan-ready QR code and copyable phone link once Check Services can read the PC LAN IP. The
 status action shows
 Mini Hub API, AI OS, Macro Lab, and Ollama health plus PIDs. Use
 `bridge:startup:install:lan` when you want the phone/private-network bridge to start after

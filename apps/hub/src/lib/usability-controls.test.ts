@@ -2319,6 +2319,10 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain("title={endpointInputTitle('AI OS API')}");
     expect(source).toContain('privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? [])');
     expect(source).toContain('Phone / Private Remote Link');
+    expect(source).toContain("import QRCode from 'qrcode'");
+    expect(source).toContain('QRCode.toDataURL(url');
+    expect(source).toContain('Scan from your phone');
+    expect(source).toContain('QR code for the private remote Mini Hub phone link');
     expect(source).toContain('copyPhoneRemoteLink(primaryPhoneRemoteLink.url)');
     expect(source).toContain('Open it on your phone while the PC bridge is running.');
     expect(source).toContain('machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions)');

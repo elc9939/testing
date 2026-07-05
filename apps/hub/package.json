@@ -21,6 +21,7 @@
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "lucide-svelte": "^1.0.1",
+    "qrcode": "^1.5.4",
     "svelte": "^5.56.3",
     "tree-sitter-javascript": "0.25.0"
   },
@@ -29,6 +30,7 @@
     "@sveltejs/kit": "^2.65.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@types/node": "^25.9.3",
+    "@types/qrcode": "^1.5.6",
     "svelte-check": "^4.6.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",

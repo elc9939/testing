@@ -52,7 +52,7 @@ pnpm ai-os:start:lan
 pnpm macro-lab:start:lan
 ```
 
-2. Open the URL printed by the launcher on the phone. It includes query parameters that store the desktop service URLs automatically. You can also open Settings -> Remote Access / Connection Mode on the PC after Check Services and copy the **Phone / Private Remote Link** shown there.
+2. Open the URL printed by the launcher on the phone. It includes query parameters that store the desktop service URLs automatically. You can also open Settings -> Remote Access / Connection Mode on the PC after Check Services and scan or copy the **Phone / Private Remote Link** shown there.
 
 3. If needed, open Settings -> Remote Access / Connection Mode on the phone and confirm the URLs match the desktop IPv4 shown by the scripts or the detected LAN IPv4 row:
 

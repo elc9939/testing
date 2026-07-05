@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Activity, ArrowRight, Cloud, Copy, Database, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
+  import QRCode from 'qrcode';
   import type { ActionLedgerEntry, PassiveBackupHealth, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
   import {
     actionLedgerDetail,
@@ -144,6 +145,9 @@
   let passiveFolders = '';
   let passiveDomains = '';
   let passiveAccounts = '';
+  let phoneRemoteQrDataUrl = '';
+  let phoneRemoteQrError = '';
+  let phoneRemoteQrSource = '';
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: currentMachineModeDetails = formatMachineModeContext(currentMachineMode);
@@ -201,6 +205,7 @@
   $: lanAddressInfo = lanAddressSummary(hubHealth);
   $: phoneRemoteLinks = privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? []);
   $: primaryPhoneRemoteLink = phoneRemoteLinks[0];
+  $: void refreshPhoneRemoteQr(primaryPhoneRemoteLink?.url ?? '');
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
     endpointIssue: machineAiOsEndpointIssue,
@@ -613,6 +618,30 @@
       endpointMessage = 'Copied the private remote link. Open it on your phone while the PC bridge is running.';
     } catch (error) {
       endpointError = error instanceof Error ? error.message : 'Could not copy private remote link.';
+    }
+  }
+
+  async function refreshPhoneRemoteQr(url: string): Promise<void> {
+    if (url === phoneRemoteQrSource) return;
+    phoneRemoteQrSource = url;
+    phoneRemoteQrDataUrl = '';
+    phoneRemoteQrError = '';
+    if (!url) return;
+    try {
+      const next = await QRCode.toDataURL(url, {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 188,
+        color: {
+          dark: '#20211f',
+          light: '#ffffff'
+        }
+      });
+      if (phoneRemoteQrSource === url) phoneRemoteQrDataUrl = next;
+    } catch (error) {
+      if (phoneRemoteQrSource === url) {
+        phoneRemoteQrError = error instanceof Error ? error.message : 'Could not generate the phone QR code.';
+      }
     }
   }
 
@@ -1341,6 +1370,18 @@
           <code>pnpm bridge:start:lan</code>
         {/if}
       </div>
+      {#if primaryPhoneRemoteLink}
+        <div class="phone-remote-qr" aria-label="Scan this QR code from your phone to open the private remote hub">
+          {#if phoneRemoteQrDataUrl}
+            <img src={phoneRemoteQrDataUrl} alt="QR code for the private remote Mini Hub phone link" />
+            <small>Scan from your phone</small>
+          {:else if phoneRemoteQrError}
+            <small>{phoneRemoteQrError}</small>
+          {:else}
+            <small>Generating QR</small>
+          {/if}
+        </div>
+      {/if}
       <div class="phone-remote-actions">
         {#if primaryPhoneRemoteLink}
           <button class="button compact" type="button" title="Copy the full private remote URL with Hub API, AI OS, Macro Lab, and Ollama endpoints embedded." on:click={() => copyPhoneRemoteLink(primaryPhoneRemoteLink.url)}>
@@ -2194,7 +2235,7 @@
 
   .phone-remote-panel {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 10px;
     align-items: start;
     padding: 9px;
@@ -2237,6 +2278,27 @@
     flex-wrap: wrap;
     gap: 6px;
     justify-content: flex-end;
+  }
+
+  .phone-remote-qr {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    min-width: 112px;
+  }
+
+  .phone-remote-qr img {
+    width: 112px;
+    height: 112px;
+    padding: 5px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #ffffff;
+  }
+
+  .phone-remote-qr small {
+    max-width: 120px;
+    text-align: center;
   }
 
   .endpoint-diagnostic-list {
@@ -3295,6 +3357,14 @@
 
     .phone-remote-actions {
       justify-content: flex-start;
+    }
+
+    .phone-remote-qr {
+      justify-items: start;
+    }
+
+    .phone-remote-qr small {
+      text-align: left;
     }
 
     .mode-segment {
