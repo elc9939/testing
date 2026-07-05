@@ -11,7 +11,15 @@
     loadActionLedger,
     type ActionLedgerSnapshot
   } from '$lib/action-ledger';
-  import { getApiUrl, getHealth, getRemoteAccessStatus, restoreHubActionLedgerEntry, type HubHealth, type RemoteAccessStatus } from '$lib/api';
+  import {
+    getApiUrl,
+    getHealth,
+    getRemoteAccessStatus,
+    restoreHubActionLedgerEntry,
+    type HubHealth,
+    type RemoteAccessStatus,
+    type RemoteAccessTunnel
+  } from '$lib/api';
   import { getAiOsApiUrl, getMachineProfile, restoreAiActionSnapshot, runAutotune, snapshotMachineProfile, type AiMachineProfile, type AiMachineProfileSnapshot } from '$lib/ai-os-api';
   import {
     capabilityServiceLabel,
@@ -59,6 +67,7 @@
     serviceHealthPath,
     setBridgeToken,
     setServiceEndpoints,
+    type PrivateRemoteLink,
     type ServiceEndpoint,
     type ServiceId
   } from '$lib/service-config';
@@ -158,6 +167,7 @@
   let phoneRemoteQrError = '';
   let phoneRemoteQrSource = '';
   let remoteAccessStatus: RemoteAccessStatus | null = null;
+  let remoteAccessTunnel: RemoteAccessTunnel | null = null;
   let remoteAccessLoading = false;
   let remoteAccessError = '';
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
@@ -218,7 +228,9 @@
   $: lanAddressInfo = lanAddressSummary(hubHealth);
   $: phoneRemoteLinks = privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? []);
   $: primaryPhoneRemoteLink = phoneRemoteLinks[0];
-  $: void refreshPhoneRemoteQr(primaryPhoneRemoteLink?.url ?? '');
+  $: activeTunnelRemoteLink = remoteAccessTunnelLink(remoteAccessTunnel);
+  $: displayedPhoneRemoteLink = activeTunnelRemoteLink ?? primaryPhoneRemoteLink;
+  $: void refreshPhoneRemoteQr(displayedPhoneRemoteLink?.url ?? '');
   $: privateRemoteReadiness = summarizeRemoteAccess(remoteAccessStatus, visibleRemoteAccessError, remoteAccessLoading);
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
@@ -350,8 +362,10 @@
     try {
       const result = await getRemoteAccessStatus();
       remoteAccessStatus = result.status;
+      remoteAccessTunnel = result.tunnel ?? null;
     } catch (error) {
       remoteAccessStatus = null;
+      remoteAccessTunnel = null;
       remoteAccessError = error instanceof Error ? error.message : 'Private remote readiness check failed.';
     } finally {
       remoteAccessLoading = false;
@@ -705,6 +719,26 @@
       detail: status.message || 'Mini Hub could not fully classify the current network/firewall state.',
       fixAction: status.fixAction || 'Run Check Services again after starting the LAN bridge.',
       title: 'Mini Hub could not classify phone/private remote readiness.'
+    };
+  }
+
+  function remoteAccessTunnelLink(tunnel: RemoteAccessTunnel | null): PrivateRemoteLink | null {
+    if (!tunnel?.remoteLink) return null;
+    let host = 'HTTPS tunnel';
+    try {
+      host = new URL(tunnel.tunnelUrl || tunnel.remoteLink).host;
+    } catch {
+      host = tunnel.tunnelUrl || 'HTTPS tunnel';
+    }
+    return {
+      label: tunnel.running ? 'Active HTTPS tunnel' : 'Saved HTTPS tunnel',
+      host,
+      url: tunnel.remoteLink,
+      detail: tunnel.running
+        ? tunnel.tokenEmbedded
+          ? 'Use this from your phone or another device while the PC tunnel is running. The private bridge token is embedded in the link.'
+          : 'The tunnel is running, but this link does not include the bridge token; API calls may be rejected.'
+        : `A tunnel link is saved at ${tunnel.linkFile}, but the tunnel process is not running.`
     };
   }
 
@@ -1460,17 +1494,17 @@
     <div class="phone-remote-panel" aria-label="Phone private remote link">
       <div>
         <span>Phone / Private Remote Link</span>
-        {#if primaryPhoneRemoteLink}
-          <strong>{primaryPhoneRemoteLink.label}: {primaryPhoneRemoteLink.host}</strong>
-          <small>{primaryPhoneRemoteLink.detail}</small>
-          <code>{primaryPhoneRemoteLink.url}</code>
+        {#if displayedPhoneRemoteLink}
+          <strong>{displayedPhoneRemoteLink.label}: {displayedPhoneRemoteLink.host}</strong>
+          <small>{displayedPhoneRemoteLink.detail}</small>
+          <code>{displayedPhoneRemoteLink.url}</code>
         {:else}
           <strong>Run Check Services</strong>
           <small>Start the LAN bridge, then check services so Mini Hub can detect the PC address and build the phone link.</small>
           <code>pnpm bridge:start:lan</code>
         {/if}
       </div>
-      {#if primaryPhoneRemoteLink}
+      {#if displayedPhoneRemoteLink}
         <div class="phone-remote-qr" aria-label="Scan this QR code from your phone to open the private remote hub">
           {#if phoneRemoteQrDataUrl}
             <img src={phoneRemoteQrDataUrl} alt="QR code for the private remote Mini Hub phone link" />
@@ -1483,12 +1517,12 @@
         </div>
       {/if}
       <div class="phone-remote-actions">
-        {#if primaryPhoneRemoteLink}
-          <button class="button compact" type="button" title="Copy the full private remote URL with Hub API, AI OS, Macro Lab, and Ollama endpoints embedded." on:click={() => copyPhoneRemoteLink(primaryPhoneRemoteLink.url)}>
+        {#if displayedPhoneRemoteLink}
+          <button class="button compact" type="button" title="Copy the full private remote URL with Hub API, AI OS, Macro Lab, and Ollama endpoints embedded." on:click={() => copyPhoneRemoteLink(displayedPhoneRemoteLink.url)}>
             <Copy size={15} />
             <span>Copy</span>
           </button>
-          <a class="button compact" href={primaryPhoneRemoteLink.url} target="_blank" rel="noreferrer" title="Open the private remote hub URL in a new tab on this browser.">
+          <a class="button compact" href={displayedPhoneRemoteLink.url} target="_blank" rel="noreferrer" title="Open the private remote hub URL in a new tab on this browser.">
             <ArrowRight size={15} />
             <span>Open</span>
           </a>
@@ -1500,6 +1534,19 @@
         {/if}
       </div>
     </div>
+    {#if remoteAccessTunnel}
+      <div class="phone-readiness-row" aria-label="Outbound tunnel readiness">
+        <span class={`state-chip ${remoteAccessTunnel.running ? 'ready' : remoteAccessTunnel.remoteLink ? 'unknown' : 'needs_setup'}`}>
+          {remoteAccessTunnel.running ? 'Tunnel Live' : remoteAccessTunnel.remoteLink ? 'Tunnel Saved' : 'No Tunnel'}
+        </span>
+        <div>
+          <strong>{remoteAccessTunnel.tunnelUrl || 'Remote tunnel'}</strong>
+          <small>{remoteAccessTunnel.running ? 'Cloudflare tunnel process is running on this PC.' : 'No running tunnel process was detected from the saved PID.'}</small>
+          <small>{remoteAccessTunnel.tokenEmbedded ? 'Bridge token is embedded in the phone link.' : 'Bridge token is not embedded in the saved tunnel link.'}</small>
+          <small>Checked: {remoteAccessTunnel.checkedAt}</small>
+        </div>
+      </div>
+    {/if}
     <div class="phone-readiness-row" aria-label="Phone private remote readiness" title={privateRemoteReadiness.title}>
       <span class={`state-chip ${privateRemoteReadiness.state}`}>{privateRemoteReadiness.chip}</span>
       <div>

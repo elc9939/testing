@@ -157,6 +157,16 @@ describe('mini hub api', () => {
         publicNetwork: false,
         fixAction: 'Run pnpm bridge:firewall:install and approve the Windows administrator prompt.',
         checkedAt: '2026-07-05T12:00:00.000Z'
+      }),
+      remoteAccessTunnelProvider: async () => ({
+        running: true,
+        pid: 4242,
+        tunnelUrl: 'https://ready.trycloudflare.com',
+        remoteLink:
+          'https://ready.trycloudflare.com/?apiUrl=https%3A%2F%2Fready.trycloudflare.com&aiOsUrl=https%3A%2F%2Fready.trycloudflare.com&macroLabUrl=https%3A%2F%2Fready.trycloudflare.com&ollamaUrl=https%3A%2F%2Fready.trycloudflare.com&gateway=single-port&bridgeToken=test-token',
+        linkFile: 'C:\\testing\\remote-tunnel-link.txt',
+        tokenEmbedded: true,
+        checkedAt: '2026-07-05T12:01:00.000Z'
       })
     });
 
@@ -170,6 +180,12 @@ describe('mini hub api', () => {
         ports: [5173],
         missingRuleCount: 1,
         fixAction: expect.stringContaining('bridge:firewall:install')
+      },
+      tunnel: {
+        running: true,
+        tunnelUrl: 'https://ready.trycloudflare.com',
+        tokenEmbedded: true,
+        remoteLink: expect.stringContaining('bridgeToken=')
       }
     });
   });

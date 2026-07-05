@@ -2318,10 +2318,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function endpointInputTitle');
     expect(source).toContain("title={endpointInputTitle('AI OS API')}");
     expect(source).toContain('privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? [])');
-    expect(source).toContain("import { getApiUrl, getHealth, getRemoteAccessStatus");
+    expect(source).toContain('getRemoteAccessStatus,');
     expect(source).toContain('let remoteAccessStatus: RemoteAccessStatus | null = null');
+    expect(source).toContain('let remoteAccessTunnel: RemoteAccessTunnel | null = null');
+    expect(source).toContain('displayedPhoneRemoteLink = activeTunnelRemoteLink ?? primaryPhoneRemoteLink');
+    expect(source).toContain('function remoteAccessTunnelLink');
     expect(source).toContain('function summarizeRemoteAccess');
     expect(source).toContain('Phone private remote readiness');
+    expect(source).toContain('Outbound tunnel readiness');
     expect(source).toContain('Windows is treating this network as Public');
     expect(source).toContain('firewall rule');
     expect(source).toContain('Phone / Private Remote Link');
@@ -2329,7 +2333,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('QRCode.toDataURL(url');
     expect(source).toContain('Scan from your phone');
     expect(source).toContain('QR code for the private remote Mini Hub phone link');
-    expect(source).toContain('copyPhoneRemoteLink(primaryPhoneRemoteLink.url)');
+    expect(source).toContain('copyPhoneRemoteLink(displayedPhoneRemoteLink.url)');
     expect(source).toContain('Open it on your phone while the PC bridge is running.');
     expect(source).toContain('machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions)');
     expect(source).toContain("machineProfileControlBlockedReason('autotune', {");

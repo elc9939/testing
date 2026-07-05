@@ -77,6 +77,16 @@ export interface RemoteAccessStatus {
   checkedAt: string;
 }
 
+export interface RemoteAccessTunnel {
+  running: boolean;
+  pid?: number;
+  tunnelUrl?: string;
+  remoteLink?: string;
+  linkFile: string;
+  tokenEmbedded: boolean;
+  checkedAt: string;
+}
+
 export async function requestApiJson<T>(
   path: string,
   init: RequestInit = {},
@@ -96,8 +106,8 @@ export async function getHealth(): Promise<HubHealth> {
   return requestApiJson<HubHealth>('/api/health');
 }
 
-export async function getRemoteAccessStatus(): Promise<{ status: RemoteAccessStatus }> {
-  return requestApiJson<{ status: RemoteAccessStatus }>('/api/remote-access/status', {}, { timeoutMs: 12_000 });
+export async function getRemoteAccessStatus(): Promise<{ status: RemoteAccessStatus; tunnel?: RemoteAccessTunnel }> {
+  return requestApiJson<{ status: RemoteAccessStatus; tunnel?: RemoteAccessTunnel }>('/api/remote-access/status', {}, { timeoutMs: 12_000 });
 }
 
 export async function getHubActionLedger(limit = 50): Promise<ActionLedgerEntry[]> {

@@ -1,11 +1,15 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireUser, type AppBindings } from '../context';
 
 const firewallScriptPath = fileURLToPath(new URL('../../../../scripts/mini-hub-firewall.ps1', import.meta.url));
+const repoRoot = resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
+const tunnelLinkPath = resolve(repoRoot, 'remote-tunnel-link.txt');
+const tunnelPidPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared.pid');
 
 const remoteAccessRuleSchema = z.object({
   service: z.string(),
@@ -41,8 +45,20 @@ export const remoteAccessStatusSchema = z.object({
   checkedAt: z.string()
 });
 
+export const remoteAccessTunnelSchema = z.object({
+  running: z.boolean(),
+  pid: z.number().optional(),
+  tunnelUrl: z.string().optional(),
+  remoteLink: z.string().optional(),
+  linkFile: z.string(),
+  tokenEmbedded: z.boolean(),
+  checkedAt: z.string()
+});
+
 export type RemoteAccessStatus = z.infer<typeof remoteAccessStatusSchema>;
 export type RemoteAccessStatusProvider = () => Promise<RemoteAccessStatus>;
+export type RemoteAccessTunnel = z.infer<typeof remoteAccessTunnelSchema>;
+export type RemoteAccessTunnelProvider = () => Promise<RemoteAccessTunnel>;
 
 function unavailableStatus(message: string, fixAction: string): RemoteAccessStatus {
   return {
@@ -74,6 +90,36 @@ function execFileText(file: string, args: string[], timeoutMs: number): Promise<
   });
 }
 
+function readFirstLine(path: string): string {
+  if (!existsSync(path)) return '';
+  return readFileSync(path, 'utf8').split(/\r?\n/u)[0]?.trim() ?? '';
+}
+
+function processIsRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function tunnelUrlFromLink(value: string): string {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return '';
+  }
+}
+
+function tunnelLinkHasToken(value: string): boolean {
+  try {
+    return Boolean(new URL(value).searchParams.get('bridgeToken'));
+  } catch {
+    return false;
+  }
+}
+
 export async function readLocalRemoteAccessStatus(): Promise<RemoteAccessStatus> {
   if (process.platform !== 'win32') {
     return unavailableStatus('Private remote firewall checks are only available on Windows.', 'Run the Hub API on the Windows PC that hosts Mini Hub services.');
@@ -87,21 +133,48 @@ export async function readLocalRemoteAccessStatus(): Promise<RemoteAccessStatus>
   return remoteAccessStatusSchema.parse(parsed);
 }
 
-export function remoteAccessRoutes(statusProvider: RemoteAccessStatusProvider = readLocalRemoteAccessStatus): Hono<AppBindings> {
+export async function readLocalRemoteAccessTunnel(): Promise<RemoteAccessTunnel> {
+  const remoteLink = readFirstLine(tunnelLinkPath);
+  const pidText = readFirstLine(tunnelPidPath);
+  const pid = /^\d+$/u.test(pidText) ? Number(pidText) : undefined;
+  const running = pid !== undefined ? processIsRunning(pid) : false;
+  return remoteAccessTunnelSchema.parse({
+    running,
+    ...(pid !== undefined ? { pid } : {}),
+    ...(remoteLink ? { remoteLink, tunnelUrl: tunnelUrlFromLink(remoteLink) } : {}),
+    linkFile: tunnelLinkPath,
+    tokenEmbedded: tunnelLinkHasToken(remoteLink),
+    checkedAt: new Date().toISOString()
+  });
+}
+
+export function remoteAccessRoutes(
+  statusProvider: RemoteAccessStatusProvider = readLocalRemoteAccessStatus,
+  tunnelProvider: RemoteAccessTunnelProvider = readLocalRemoteAccessTunnel
+): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
 
   app.get('/status', async (c) => {
     const user = requireUser(c);
     if (user instanceof Response) return user;
+    const tunnel = await tunnelProvider().catch(() =>
+      remoteAccessTunnelSchema.parse({
+        running: false,
+        linkFile: tunnelLinkPath,
+        tokenEmbedded: false,
+        checkedAt: new Date().toISOString()
+      })
+    );
     try {
       const status = await statusProvider();
-      return c.json({ status });
+      return c.json({ status, tunnel });
     } catch (error) {
       return c.json({
         status: unavailableStatus(
           error instanceof Error ? error.message : 'Private remote readiness check failed.',
           'Retry Check Services. If this persists, run pnpm bridge:firewall:status on the Windows PC.'
-        )
+        ),
+        tunnel
       });
     }
   });
