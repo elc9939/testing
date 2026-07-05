@@ -44,7 +44,8 @@ Mini Hub now treats access mode as a first-class diagnostic, not as guesswork.
 | --- | --- | --- |
 | Local Full Power | `http://127.0.0.1:5173` | Best mode. The browser is on the Windows PC that also hosts Hub API, AI OS/Ollama, Macro Lab, telemetry, Google integration callbacks, and local automation. |
 | Private Remote | `http://<pc-tailscale-name-or-ip>:5173` | Full-power mode from another device when the PC is awake, the local stack is running in LAN mode, and the browser can reach trusted Hub API, AI OS, and Macro Lab endpoints. Tailscale is the preferred path. |
-| Hosted Light | `https://elc9939.github.io/testing/` | Static GitHub Pages shell. It can show browser-local/cached state and setup guidance. It is not the compute host and cannot make `github.io/testing/api/*` become the local backend. |
+| Hosted Shell + Tunnel | `https://elc9939.github.io/testing/?apiUrl=<https-tunnel>&...` | GitHub Pages can be the phone UI when the URL embeds the active HTTPS tunnel endpoint and bridge token. GitHub Pages is still not the compute host, but it can call the PC through the tunnel. |
+| Hosted Light | `https://elc9939.github.io/testing/` | Static GitHub Pages shell with no saved service endpoints. It can show browser-local/cached state and setup guidance, but `github.io/testing/api/*` is not the local backend. |
 
 Settings -> Remote Access / Connection Mode shows the current page origin, detected mode,
 detected LAN IPv4 addresses when the Hub API is reachable, service health targets, current
@@ -53,8 +54,10 @@ with a local QR code that embeds the single Hub gateway URL for Hub API, AI OS, 
 and Ollama. If
 you are on the PC, run **Check Services** and scan or copy that phone link after the LAN
 bridge is running. If you open the hub through a LAN or Tailscale address, use **Use Current
-Host URLs**, then **Save Service URLs** and **Check Services**. If you are on GitHub Pages,
-enter private remote endpoints manually or open Local Full Power on the PC.
+Host URLs**, then **Save Service URLs** and **Check Services**. If you want the familiar
+GitHub Pages URL on a phone, open GitHub Pages with the active tunnel query parameters from
+`remote-tunnel-link.txt` or the Settings phone link; that stores the HTTPS tunnel endpoint
+and bridge token in that phone browser.
 The same Settings panel now shows **Phone readiness** from `/api/remote-access/status`,
 which wraps the Windows firewall helper and reports whether the active network is Private,
 whether the private gateway port is allowed, and what to fix before testing from a
@@ -156,6 +159,9 @@ This starts the single-port Hub gateway with a generated bridge token, downloads
 to `http://127.0.0.1:5173`, and writes `remote-tunnel-link.txt`. The generated URL includes
 `bridgeToken=...`, which the hub stores in this browser and sends as
 `X-Mini-Hub-Bridge-Token` for proxied Hub API, AI OS, Macro Lab, and gatewayed Ollama calls.
+You can either open that `trycloudflare.com` link directly, or use the GitHub Pages app as
+the shell by opening `https://elc9939.github.io/testing/` with the same `apiUrl`, `aiOsUrl`,
+`macroLabUrl`, `ollamaUrl`, `gateway`, and `bridgeToken` query parameters.
 If an old quick-tunnel process is still running but Cloudflare has dropped the URL,
 `bridge:tunnel:start` replaces it and writes a fresh phone link.
 `bridge:tunnel:status` redacts that token; `bridge:tunnel:verify` checks the public tunnel

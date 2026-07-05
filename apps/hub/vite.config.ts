@@ -14,6 +14,13 @@ const extraAllowedHosts = (process.env.MINI_HUB_ALLOWED_HOSTS ?? '')
   .split(',')
   .map((host) => host.trim())
   .filter(Boolean);
+const gatewayCorsOrigins = [
+  'https://elc9939.github.io',
+  ...(process.env.MINI_HUB_GATEWAY_CORS_ORIGINS ?? process.env.TRUSTED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+];
 const forwardedHeaders = [
   'cf-connecting-ip',
   'cf-ipcountry',
@@ -34,16 +41,39 @@ function readGatewayTokenFile(): string {
   }
 }
 
-function serviceProxy(target: string): ProxyOptions {
+function serviceProxy(target: string, options: { stripOrigin?: boolean } = {}): ProxyOptions {
   return {
     target,
     changeOrigin: true,
     configure(proxy) {
       proxy.on('proxyReq', (proxyReq) => {
         for (const header of forwardedHeaders) proxyReq.removeHeader(header);
+        if (options.stripOrigin) proxyReq.removeHeader('origin');
       });
     }
   };
+}
+
+function gatewayCorsOrigin(origin: string | undefined): string {
+  if (!origin) return '';
+  return gatewayCorsOrigins.includes(origin) ? origin : '';
+}
+
+function setGatewayCorsHeaders(req: { headers: Record<string, string | string[] | undefined> }, res: { setHeader: (name: string, value: string) => void }): void {
+  const originHeader = req.headers.origin;
+  const origin = gatewayCorsOrigin(Array.isArray(originHeader) ? originHeader[0] : originHeader);
+  if (!origin) return;
+  const requestedHeaders = req.headers['access-control-request-headers'];
+  res.setHeader('access-control-allow-origin', origin);
+  res.setHeader('access-control-allow-credentials', 'true');
+  res.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader(
+    'access-control-allow-headers',
+    Array.isArray(requestedHeaders) ? requestedHeaders.join(', ') : requestedHeaders || 'Content-Type, Authorization, X-Mini-Hub-Return-To, X-Mini-Hub-Bridge-Token'
+  );
+  res.setHeader('access-control-allow-private-network', 'true');
+  res.setHeader('access-control-max-age', '600');
+  res.setHeader('vary', 'Origin, Access-Control-Request-Headers');
 }
 
 function gatewayAuthPlugin(): Plugin {
@@ -54,6 +84,12 @@ function gatewayAuthPlugin(): Plugin {
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith('/api')) {
           next();
+          return;
+        }
+        setGatewayCorsHeaders(req, res);
+        if (req.method?.toUpperCase() === 'OPTIONS') {
+          res.statusCode = 204;
+          res.end();
           return;
         }
         const header = req.headers['x-mini-hub-bridge-token'];
@@ -87,7 +123,7 @@ export default defineConfig({
     proxy: {
       '/api/ai': serviceProxy(aiOsTarget),
       '/api/macro-lab': serviceProxy(macroLabTarget),
-      '^/api/(blobs|chat|copy|create|delete|embed|embeddings|generate|ps|pull|push|show|tags|version)(/.*)?$': serviceProxy(ollamaTarget),
+      '^/api/(blobs|chat|copy|create|delete|embed|embeddings|generate|ps|pull|push|show|tags|version)(/.*)?$': serviceProxy(ollamaTarget, { stripOrigin: true }),
       '/api': serviceProxy(hubApiTarget)
     }
   },

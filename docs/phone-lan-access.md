@@ -1,8 +1,8 @@
 # Private Remote / Phone LAN Access
 
-The GitHub Pages hub is a static site. When a phone opens it, `127.0.0.1` points at the phone, not the desktop. Also, GitHub Pages is served over HTTPS while these private desktop services use local HTTP, so the most reliable full-control remote mode is to open the hub from the desktop over a private network.
+The GitHub Pages hub is a static site. When a phone opens it, `127.0.0.1` points at the phone, not the desktop. GitHub Pages also cannot run Hub API, AI OS, Macro Lab, or Ollama by itself. For full power from GitHub Pages, the hosted shell must store service endpoints that point at an active HTTPS tunnel or another reachable private gateway.
 
-The same HTTPS-to-local-HTTP browser protection can affect desktop-only service pages like AI OS and Macro Lab. If a service page on GitHub Pages says `Failed to fetch`, open the local hub URL printed by the launcher instead of the GitHub Pages URL.
+The same HTTPS-to-local-HTTP browser protection can affect desktop-only service pages like AI OS and Macro Lab. If a service page on plain GitHub Pages says `Failed to fetch`, open the active tunnel link, or open GitHub Pages with the tunnel query parameters so the browser calls the PC through HTTPS.
 
 Mini Hub supports three practical modes:
 
@@ -10,7 +10,8 @@ Mini Hub supports three practical modes:
 | --- | --- | --- |
 | Local Full Power | `http://127.0.0.1:5173` | Best mode on the Windows PC itself. |
 | Private Remote | `http://<desktop-lan-or-tailscale-host>:5173` | Full-power mode from your phone/laptop while the PC is awake and services are running. |
-| Hosted Light | `https://elc9939.github.io/testing/` | Static shell. It needs saved private endpoints before heavy local features can work. |
+| Hosted Shell + Tunnel | `https://elc9939.github.io/testing/?apiUrl=<https-tunnel>&...` | GitHub Pages shell using the PC's active HTTPS tunnel for full-power services. |
+| Hosted Light | `https://elc9939.github.io/testing/` | Static shell with no saved private endpoints. Heavy local features will explain what is missing. |
 
 ## Quick LAN Setup
 
@@ -113,6 +114,10 @@ This keeps the same single-port Hub gateway on the PC, starts it with a generate
 token, downloads `cloudflared.exe` into `.mini-hub-bridge/tools` if needed, and opens a
 temporary Cloudflare Quick Tunnel to `http://127.0.0.1:5173`. The launcher writes the full
 phone URL to `remote-tunnel-link.txt` and tries to copy it to the clipboard.
+You can open the `trycloudflare.com` URL directly, or use the GitHub Pages app as the
+static shell by opening `https://elc9939.github.io/testing/` with the same `apiUrl`,
+`aiOsUrl`, `macroLabUrl`, `ollamaUrl`, `gateway`, and `bridgeToken` query parameters from
+`remote-tunnel-link.txt`.
 If Cloudflare has dropped an older quick-tunnel URL while the old process is still around,
 running `pnpm bridge:tunnel:start` again replaces it and writes a fresh phone link.
 Use `pnpm bridge:tunnel:status` for a redacted status view, or
