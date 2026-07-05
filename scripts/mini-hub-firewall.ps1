@@ -1,7 +1,8 @@
 param(
   [ValidateSet('status', 'install', 'remove')]
   [string]$Action = 'status',
-  [switch]$Quiet
+  [switch]$Quiet,
+  [switch]$Json
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,19 +63,88 @@ function Get-StatusRows {
   $Ports | ForEach-Object { Get-RuleStatus $_ }
 }
 
-function Show-Status {
+function Get-StatusPayload {
   $profiles = @(Get-ActiveNetworkProfiles)
   $rows = @(Get-StatusRows)
   $missing = @($rows | Where-Object { $_.Detail -ne 'ready' })
   $publicProfiles = @($profiles | Where-Object { $_.NetworkCategory -eq 'Public' })
   $privateProfiles = @($profiles | Where-Object { $_.NetworkCategory -in @('Private', 'DomainAuthenticated') })
+  $readiness = if ($missing.Count -eq 0 -and $privateProfiles.Count) {
+    'ready'
+  } elseif ($publicProfiles.Count -and -not $privateProfiles.Count) {
+    'public-network'
+  } elseif ($missing.Count -gt 0) {
+    'rules-missing'
+  } else {
+    'unknown'
+  }
+  $message = switch ($readiness) {
+    'ready' { 'Private-network inbound rules look ready for phone/LAN access.' }
+    'public-network' { 'Active network is Public. Windows may block Private-profile rules until this trusted Wi-Fi/network is marked Private.' }
+    'rules-missing' { 'Firewall rules are missing or incomplete. Install rules from an elevated terminal.' }
+    default { 'Check network profile and firewall rules before phone access.' }
+  }
+
+  return [pscustomobject]@{
+    ok = $readiness -eq 'ready'
+    readiness = $readiness
+    message = $message
+    admin = Test-Admin
+    ruleGroup = $RuleGroup
+    ports = @($Ports | ForEach-Object { [int]$_.Port })
+    profiles = @(
+      $profiles | ForEach-Object {
+        [pscustomobject]@{
+          name = [string]$_.Name
+          interfaceAlias = [string]$_.InterfaceAlias
+          networkCategory = [string]$_.NetworkCategory
+          ipv4Connectivity = [string]$_.IPv4Connectivity
+          ipv6Connectivity = [string]$_.IPv6Connectivity
+        }
+      }
+    )
+    rules = @(
+      $rows | ForEach-Object {
+        [pscustomobject]@{
+          service = [string]$_.Service
+          port = [int]$_.Port
+          installed = [bool]$_.Installed
+          enabled = [bool]$_.Enabled
+          profile = [string]$_.Profile
+          action = [string]$_.Action
+          detail = [string]$_.Detail
+        }
+      }
+    )
+    missingRuleCount = [int]$missing.Count
+    publicNetwork = [bool]($publicProfiles.Count -gt 0 -and -not $privateProfiles.Count)
+    fixAction = if ($readiness -eq 'ready') {
+      'No action needed.'
+    } elseif ($publicProfiles.Count -gt 0 -and -not $privateProfiles.Count) {
+      'Mark this trusted Wi-Fi/network as Private, then run pnpm bridge:firewall:install if rules are still missing.'
+    } else {
+      'Run pnpm bridge:firewall:install and approve the Windows administrator prompt.'
+    }
+    checkedAt = (Get-Date).ToUniversalTime().ToString('o')
+  }
+}
+
+function Show-Status {
+  $payload = Get-StatusPayload
+  if ($Json) {
+    $payload | ConvertTo-Json -Depth 8
+    return
+  }
+  $profiles = @($payload.profiles)
+  $rows = @($payload.rules)
+  $missing = @($rows | Where-Object { $_.detail -ne 'ready' })
 
   if ($Quiet) {
     $ruleText = if ($missing.Count -eq 0) { 'rules ready' } else { "$($missing.Count) rule(s) need install/fix" }
-    $profileText = if ($privateProfiles.Count) { 'private network active' } elseif ($publicProfiles.Count) { 'active network is Public' } else { 'network profile unknown' }
-    $adminText = if (Test-Admin) { 'elevated' } else { 'not elevated' }
-    Write-Output "Firewall: $ruleText; $profileText; $adminText. Private remote ports: $(@($Ports | ForEach-Object { $_.Port }) -join ', ')."
-    if ($missing.Count -gt 0 -or $publicProfiles.Count -gt 0) {
+    $profileText = if (@($profiles | Where-Object { $_.networkCategory -in @('Private', 'DomainAuthenticated') }).Count) { 'private network active' } elseif ($payload.publicNetwork) { 'active network is Public' } else { 'network profile unknown' }
+    $adminText = if ($payload.admin) { 'elevated' } else { 'not elevated' }
+    Write-Output "Firewall: $ruleText; $profileText; $adminText. Private remote ports: $($payload.ports -join ', ')."
+    if ($missing.Count -gt 0 -or $payload.publicNetwork) {
       Write-Output 'Firewall fix: run pnpm bridge:firewall:install from an elevated terminal and set trusted home Wi-Fi to Private before phone access.'
     }
     return
@@ -94,17 +164,11 @@ function Show-Status {
   }
   Write-Output ''
   Write-Output 'Firewall rules:'
-  $rows | Format-Table -AutoSize
+  $rows |
+    Select-Object @{ Name = 'Service'; Expression = { $_.service } }, Port, Installed, Enabled, Profile, Action, @{ Name = 'Detail'; Expression = { $_.detail } } |
+    Format-Table -AutoSize
   Write-Output ''
-  if ($missing.Count -eq 0 -and $privateProfiles.Count) {
-    Write-Output 'Readiness: private-network inbound rules look ready for phone/LAN access.'
-  } elseif ($publicProfiles.Count -and -not $privateProfiles.Count) {
-    Write-Output 'Readiness: active network is Public. Windows may block Private-profile rules until this trusted Wi-Fi/network is marked Private.'
-  } elseif ($missing.Count -gt 0) {
-    Write-Output 'Readiness: firewall rules are missing or incomplete. Install rules from an elevated terminal.'
-  } else {
-    Write-Output 'Readiness: check network profile and firewall rules before phone access.'
-  }
+  Write-Output "Readiness: $($payload.message)"
 }
 
 function Request-ElevatedSelf([string]$RequestedAction) {
