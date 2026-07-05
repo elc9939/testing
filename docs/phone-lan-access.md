@@ -62,7 +62,7 @@ AI OS API:     http://<desktop-ip>:8791
 Macro Lab API: http://<desktop-ip>:8792
 ```
 
-4. Save service URLs and use Check Services. Feature Wiring should show whether Hub API, AI OS, Macro Lab, Research, Passive Tasks, Productivity, and browser cache are reachable from that browser.
+4. Save service URLs and use Check Services. Feature Wiring should show whether Hub API, AI OS, Macro Lab, Research, Passive Tasks, Productivity, and browser cache are reachable from that browser. The Phone readiness row should also explain whether the private remote path is ready, blocked by a Public Windows network profile, missing firewall rules, or unable to reach the Hub API.
 
 LAN mode intentionally disables loopback-only protection for AI OS and Macro Lab, so only use it on a trusted private network.
 
@@ -71,6 +71,9 @@ If the phone cannot open the link even though the PC can, run:
 ```powershell
 pnpm bridge:firewall:status
 ```
+
+The same diagnosis is visible in Settings -> Remote Access / Connection Mode after Check
+Services through the Hub API `/api/remote-access/status` endpoint.
 
 This checks whether Windows sees the active network as Private and whether Mini Hub inbound
 rules exist for ports `5173`, `8787`, `8791`, `8792`, and `11434`. If rules are missing, run:

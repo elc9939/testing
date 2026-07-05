@@ -11,7 +11,7 @@
     loadActionLedger,
     type ActionLedgerSnapshot
   } from '$lib/action-ledger';
-  import { getApiUrl, getHealth, restoreHubActionLedgerEntry, type HubHealth } from '$lib/api';
+  import { getApiUrl, getHealth, getRemoteAccessStatus, restoreHubActionLedgerEntry, type HubHealth, type RemoteAccessStatus } from '$lib/api';
   import { getAiOsApiUrl, getMachineProfile, restoreAiActionSnapshot, runAutotune, snapshotMachineProfile, type AiMachineProfile, type AiMachineProfileSnapshot } from '$lib/ai-os-api';
   import {
     capabilityServiceLabel,
@@ -95,6 +95,15 @@
     exportBusy: boolean;
   }
 
+  interface RemoteAccessSummary {
+    state: 'ready' | 'checking' | 'unknown' | 'blocked' | 'needs_setup';
+    chip: string;
+    heading: string;
+    detail: string;
+    fixAction: string;
+    title: string;
+  }
+
   let apiStatus = 'Run Check Services';
   let hubHealth: HubHealth | null = null;
   let settingsError = '';
@@ -148,6 +157,9 @@
   let phoneRemoteQrDataUrl = '';
   let phoneRemoteQrError = '';
   let phoneRemoteQrSource = '';
+  let remoteAccessStatus: RemoteAccessStatus | null = null;
+  let remoteAccessLoading = false;
+  let remoteAccessError = '';
   $: legacyImport = $clientData.settings?.recentState?.legacyImport as { importedAt?: string } | undefined;
   $: currentMachineMode = machineModeFromPreferences($clientData.settings?.preferences);
   $: currentMachineModeDetails = formatMachineModeContext(currentMachineMode);
@@ -164,6 +176,7 @@
   $: visibleSettingsError = settingsError ? compactSettingsIssue(settingsError, 'Settings') : '';
   $: visibleClientDataError = $clientData.error ? compactSettingsIssue($clientData.error, 'Mini Hub cache') : '';
   $: visibleEndpointError = endpointError ? compactSettingsIssue(endpointError, 'Desktop Services') : '';
+  $: visibleRemoteAccessError = remoteAccessError ? compactSettingsIssue(remoteAccessError, 'Private remote readiness') : '';
   $: visibleCapabilityError = capabilityError ? compactSettingsIssue(capabilityError, 'Capability Registry') : '';
   $: visibleMachineProfileError = machineProfileError ? compactServiceIssueIfRecognized(machineProfileError, 'AI OS machine profile') : '';
   $: actionLedgerItems = actionLedgerSnapshot?.actions ?? [];
@@ -206,6 +219,7 @@
   $: phoneRemoteLinks = privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? []);
   $: primaryPhoneRemoteLink = phoneRemoteLinks[0];
   $: void refreshPhoneRemoteQr(primaryPhoneRemoteLink?.url ?? '');
+  $: privateRemoteReadiness = summarizeRemoteAccess(remoteAccessStatus, visibleRemoteAccessError, remoteAccessLoading);
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
     endpointIssue: machineAiOsEndpointIssue,
@@ -330,12 +344,27 @@
     }
   }
 
+  async function checkRemoteAccess(): Promise<void> {
+    remoteAccessLoading = true;
+    remoteAccessError = '';
+    try {
+      const result = await getRemoteAccessStatus();
+      remoteAccessStatus = result.status;
+    } catch (error) {
+      remoteAccessStatus = null;
+      remoteAccessError = error instanceof Error ? error.message : 'Private remote readiness check failed.';
+    } finally {
+      remoteAccessLoading = false;
+    }
+  }
+
   async function checkServices(): Promise<void> {
     if (serviceChecking) return;
     serviceChecking = true;
     try {
       await Promise.all([
         checkApi(),
+        checkRemoteAccess(),
         checkOllama(),
         refreshCapabilities({ background: Boolean(capabilitySnapshot) }),
         refreshMachineProfile(),
@@ -606,6 +635,77 @@
       return 'This can be full power if your PC is awake, the LAN/Tailscale stack is running, and service origins are trusted.';
     }
     return 'This is the best full-power mode because the browser and desktop services are on the same PC.';
+  }
+
+  function summarizeRemoteAccess(status: RemoteAccessStatus | null, error: string, loading: boolean): RemoteAccessSummary {
+    if (loading && !status) {
+      return {
+        state: 'checking',
+        chip: 'Checking',
+        heading: 'Checking phone readiness',
+        detail: 'Mini Hub is asking the Windows PC for active network profile and firewall rule status.',
+        fixAction: 'Wait for Check Services to finish.',
+        title: 'Checking whether the phone/private remote URL can reach this PC.'
+      };
+    }
+    if (error) {
+      return {
+        state: 'blocked',
+        chip: 'Offline',
+        heading: 'Remote readiness unavailable',
+        detail: error,
+        fixAction: 'Start the Mini Hub API on the Windows PC, then run Check Services again.',
+        title: `Private remote readiness check failed: ${error}`
+      };
+    }
+    if (!status) {
+      return {
+        state: 'unknown',
+        chip: 'Unknown',
+        heading: 'Run Check Services',
+        detail: 'Mini Hub has not checked the Windows network/firewall state for phone access yet.',
+        fixAction: 'Run Check Services after starting the LAN bridge.',
+        title: 'Run Check Services to inspect phone/private remote readiness.'
+      };
+    }
+    if (status.readiness === 'ready') {
+      return {
+        state: 'ready',
+        chip: 'Ready',
+        heading: 'Phone access looks ready',
+        detail: status.message,
+        fixAction: status.fixAction,
+        title: `Ready for phone/private remote access. Checked ${status.checkedAt}.`
+      };
+    }
+    if (status.readiness === 'public-network') {
+      return {
+        state: 'blocked',
+        chip: 'Network Public',
+        heading: 'Windows is treating this network as Public',
+        detail: status.message,
+        fixAction: status.fixAction,
+        title: 'Phone access is likely blocked until this trusted network is marked Private.'
+      };
+    }
+    if (status.readiness === 'rules-missing') {
+      return {
+        state: 'needs_setup',
+        chip: 'Firewall Setup',
+        heading: `${status.missingRuleCount} firewall rule${status.missingRuleCount === 1 ? '' : 's'} need attention`,
+        detail: status.message,
+        fixAction: status.fixAction,
+        title: 'Phone access needs Mini Hub private remote firewall rules.'
+      };
+    }
+    return {
+      state: 'unknown',
+      chip: 'Unknown',
+      heading: 'Phone readiness is inconclusive',
+      detail: status.message || 'Mini Hub could not fully classify the current network/firewall state.',
+      fixAction: status.fixAction || 'Run Check Services again after starting the LAN bridge.',
+      title: 'Mini Hub could not classify phone/private remote readiness.'
+    };
   }
 
   async function copyPhoneRemoteLink(url: string): Promise<void> {
@@ -1397,6 +1497,17 @@
             <RefreshCw size={15} />
             <span>{serviceChecking ? 'Checking' : 'Check'}</span>
           </button>
+        {/if}
+      </div>
+    </div>
+    <div class="phone-readiness-row" aria-label="Phone private remote readiness" title={privateRemoteReadiness.title}>
+      <span class={`state-chip ${privateRemoteReadiness.state}`}>{privateRemoteReadiness.chip}</span>
+      <div>
+        <strong>{privateRemoteReadiness.heading}</strong>
+        <small>{privateRemoteReadiness.detail}</small>
+        <small>{privateRemoteReadiness.fixAction}</small>
+        {#if remoteAccessStatus}
+          <small>Ports: {remoteAccessStatus.ports.join(', ')} - Checked: {remoteAccessStatus.checkedAt}</small>
         {/if}
       </div>
     </div>
@@ -2299,6 +2410,33 @@
   .phone-remote-qr small {
     max-width: 120px;
     text-align: center;
+  }
+
+  .phone-readiness-row {
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .phone-readiness-row > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .phone-readiness-row strong,
+  .phone-readiness-row small {
+    overflow-wrap: anywhere;
+  }
+
+  .phone-readiness-row small {
+    color: var(--muted);
+    line-height: 1.35;
   }
 
   .endpoint-diagnostic-list {
@@ -3352,6 +3490,10 @@
     }
 
     .phone-remote-panel {
+      grid-template-columns: 1fr;
+    }
+
+    .phone-readiness-row {
       grid-template-columns: 1fr;
     }
 

@@ -47,6 +47,35 @@ export interface HubHealth {
   };
 }
 
+export interface RemoteAccessStatus {
+  ok: boolean;
+  readiness: 'ready' | 'public-network' | 'rules-missing' | 'unknown';
+  message: string;
+  admin: boolean;
+  ruleGroup: string;
+  ports: number[];
+  profiles: Array<{
+    name: string;
+    interfaceAlias: string;
+    networkCategory: string;
+    ipv4Connectivity: string;
+    ipv6Connectivity: string;
+  }>;
+  rules: Array<{
+    service: string;
+    port: number;
+    installed: boolean;
+    enabled: boolean;
+    profile: string;
+    action: string;
+    detail: string;
+  }>;
+  missingRuleCount: number;
+  publicNetwork: boolean;
+  fixAction: string;
+  checkedAt: string;
+}
+
 export async function requestApiJson<T>(
   path: string,
   init: RequestInit = {},
@@ -64,6 +93,10 @@ export async function requestApiJsonWithTimeout<T>(path: string, init: RequestIn
 
 export async function getHealth(): Promise<HubHealth> {
   return requestApiJson<HubHealth>('/api/health');
+}
+
+export async function getRemoteAccessStatus(): Promise<{ status: RemoteAccessStatus }> {
+  return requestApiJson<{ status: RemoteAccessStatus }>('/api/remote-access/status', {}, { timeoutMs: 12_000 });
 }
 
 export async function getHubActionLedger(limit = 50): Promise<ActionLedgerEntry[]> {

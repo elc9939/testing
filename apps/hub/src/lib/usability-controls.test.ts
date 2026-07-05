@@ -2318,6 +2318,12 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function endpointInputTitle');
     expect(source).toContain("title={endpointInputTitle('AI OS API')}");
     expect(source).toContain('privateRemoteLinks(currentOrigin(), hubHealth?.network?.lanIpv4 ?? [])');
+    expect(source).toContain("import { getApiUrl, getHealth, getRemoteAccessStatus");
+    expect(source).toContain('let remoteAccessStatus: RemoteAccessStatus | null = null');
+    expect(source).toContain('function summarizeRemoteAccess');
+    expect(source).toContain('Phone private remote readiness');
+    expect(source).toContain('Windows is treating this network as Public');
+    expect(source).toContain('firewall rule');
     expect(source).toContain('Phone / Private Remote Link');
     expect(source).toContain("import QRCode from 'qrcode'");
     expect(source).toContain('QRCode.toDataURL(url');

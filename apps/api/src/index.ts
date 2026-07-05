@@ -17,6 +17,7 @@ import { careerActionRoutes } from './routes/career-actions';
 import { careerScoutRoutes } from './routes/career-scout';
 import { assistantRoutes } from './routes/assistant';
 import { jobRoutes } from './routes/jobs';
+import { remoteAccessRoutes, type RemoteAccessStatusProvider } from './routes/remote-access';
 import { settingsRoutes } from './routes/settings';
 import { studyRoutes } from './routes/study';
 import { syncRoutes } from './routes/sync';
@@ -44,6 +45,7 @@ export interface CreateAppOptions {
   syncMode?: string;
   useLogger?: boolean;
   store?: MemoryStore;
+  remoteAccessStatusProvider?: RemoteAccessStatusProvider;
 }
 
 function devUser(): SessionUser {
@@ -184,6 +186,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route('/api/workspaces', workspaceRoutes(store));
   app.route('/api/sync', syncRoutes(store));
   app.route('/api/settings', settingsRoutes(store));
+  app.route('/api/remote-access', remoteAccessRoutes(options.remoteAccessStatusProvider));
   app.route('/api/action-ledger', actionLedgerRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/attention', attentionRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/passive-tasks', passiveTaskRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));

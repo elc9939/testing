@@ -54,6 +54,10 @@ you are on the PC, run **Check Services** and scan or copy that phone link after
 bridge is running. If you open the hub through a LAN or Tailscale address, use **Use Current
 Host URLs**, then **Save Service URLs** and **Check Services**. If you are on GitHub Pages,
 enter private remote endpoints manually or open Local Full Power on the PC.
+The same Settings panel now shows **Phone readiness** from `/api/remote-access/status`,
+which wraps the Windows firewall helper and reports whether the active network is Private,
+whether the five private remote ports are allowed, and what to fix before testing from a
+phone.
 
 The standard private remote service URLs are:
 
@@ -100,6 +104,10 @@ If the phone link opens on the PC but not from the phone, check Windows inbound 
 ```powershell
 pnpm bridge:firewall:status
 ```
+
+You can also see this from Settings -> Remote Access / Connection Mode after **Check
+Services**. The **Phone readiness** row says whether the blocker is a Public network,
+missing firewall rules, an unreachable Hub API, or a ready private remote path.
 
 The helper reports whether the trusted Wi-Fi/network is marked Private and whether inbound
 Private-profile rules exist for ports `5173`, `8787`, `8791`, `8792`, and `11434`. To add

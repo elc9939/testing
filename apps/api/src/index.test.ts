@@ -121,6 +121,57 @@ describe('mini hub api', () => {
     expect(Array.isArray(health.network.lanIpv4)).toBe(true);
   });
 
+  it('serves private remote readiness status', async () => {
+    const app = createApp({
+      useLogger: false,
+      store: createMemoryStore(),
+      remoteAccessStatusProvider: async () => ({
+        ok: false,
+        readiness: 'rules-missing',
+        message: 'Firewall rules are missing or incomplete.',
+        admin: false,
+        ruleGroup: 'Mini Hub Private Remote',
+        ports: [5173, 8787, 8791, 8792, 11434],
+        profiles: [
+          {
+            name: 'Home Wi-Fi',
+            interfaceAlias: 'Wi-Fi',
+            networkCategory: 'Private',
+            ipv4Connectivity: 'Internet',
+            ipv6Connectivity: 'NoTraffic'
+          }
+        ],
+        rules: [
+          {
+            service: 'Hub UI',
+            port: 5173,
+            installed: false,
+            enabled: false,
+            profile: '',
+            action: '',
+            detail: 'missing'
+          }
+        ],
+        missingRuleCount: 1,
+        publicNetwork: false,
+        fixAction: 'Run pnpm bridge:firewall:install and approve the Windows administrator prompt.',
+        checkedAt: '2026-07-05T12:00:00.000Z'
+      })
+    });
+
+    const response = await app.request('/api/remote-access/status');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: {
+        ok: false,
+        readiness: 'rules-missing',
+        ports: [5173, 8787, 8791, 8792, 11434],
+        missingRuleCount: 1,
+        fixAction: expect.stringContaining('bridge:firewall:install')
+      }
+    });
+  });
+
   it('reports core data persistence health when disk persistence is enabled', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mini-hub-health-core-data-'));
     const path = coreDataPath(dir);
