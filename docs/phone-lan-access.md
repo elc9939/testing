@@ -66,6 +66,25 @@ Macro Lab API: http://<desktop-ip>:8792
 
 LAN mode intentionally disables loopback-only protection for AI OS and Macro Lab, so only use it on a trusted private network.
 
+If the phone cannot open the link even though the PC can, run:
+
+```powershell
+pnpm bridge:firewall:status
+```
+
+This checks whether Windows sees the active network as Private and whether Mini Hub inbound
+rules exist for ports `5173`, `8787`, `8791`, `8792`, and `11434`. If rules are missing, run:
+
+```powershell
+pnpm bridge:firewall:install
+```
+
+If the current terminal is not elevated, Windows will ask for administrator approval and
+continue the helper in an elevated PowerShell prompt.
+The installed rules are scoped to the Windows Private firewall profile. If the Wi-Fi is
+marked Public, mark only your trusted home/private network as Private before testing from
+the phone.
+
 ## Tailscale Path
 
 1. Install and sign in to Tailscale on the Windows PC and the remote device.

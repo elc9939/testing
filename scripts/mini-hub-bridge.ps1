@@ -18,6 +18,7 @@ $HubApiPidFile = Join-Path $BridgeDir 'hub-api.pid'
 $HubUiPidFile = Join-Path $BridgeDir 'hub-ui.pid'
 $OllamaPidFile = Join-Path $BridgeDir 'ollama.pid'
 $BridgeLinkFile = Join-Path $Root 'bridge-link.txt'
+$FirewallScript = Join-Path $PSScriptRoot 'mini-hub-firewall.ps1'
 
 function Ensure-BridgeDir {
   if (-not (Test-Path $BridgeDir)) {
@@ -341,6 +342,9 @@ function Show-BridgeStatus {
   Write-Output "Bridge profile URL: $(Get-BridgeUrl)"
   Write-Output "Saved bridge link file: $BridgeLinkFile"
   Write-Output "Launcher logs: $BridgeDir"
+  if ($Profile -eq 'lan' -and (Test-Path $FirewallScript)) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $FirewallScript status -Quiet
+  }
 }
 
 Push-Location $Root

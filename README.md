@@ -78,6 +78,9 @@ pnpm bridge:startup:install
 pnpm bridge:startup:install:lan
 pnpm bridge:startup:status
 pnpm bridge:startup:run:lan
+pnpm bridge:status:lan
+pnpm bridge:firewall:status
+pnpm bridge:firewall:install
 ```
 
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
@@ -91,6 +94,25 @@ Windows login; it includes the LAN Hub UI instead of only loopback services.
 `bridge:startup:run:lan` starts that registered task immediately for a quick check.
 If Windows blocks Scheduled Task registration from a non-admin shell, the installer falls
 back to the current user's Startup folder.
+
+If the phone link opens on the PC but not from the phone, check Windows inbound access:
+
+```powershell
+pnpm bridge:firewall:status
+```
+
+The helper reports whether the trusted Wi-Fi/network is marked Private and whether inbound
+Private-profile rules exist for ports `5173`, `8787`, `8791`, `8792`, and `11434`. To add
+those Private-profile rules, run:
+
+```powershell
+pnpm bridge:firewall:install
+```
+
+If the current terminal is not elevated, Windows will ask for administrator approval and
+the helper will continue in an elevated PowerShell prompt.
+Do not use these rules on untrusted/public Wi-Fi. The helper intentionally scopes them to
+the Windows Private firewall profile.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated
 URL and CORS trusted origins use the host your phone will actually open:
