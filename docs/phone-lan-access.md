@@ -119,6 +119,26 @@ Use `pnpm bridge:tunnel:status` for a redacted status view, or
 `pnpm bridge:tunnel:verify` to check that Mini Hub API, AI OS, Macro Lab, and Ollama are
 reachable through the public tunnel without printing the private bridge token.
 
+For a less manual phone setup, keep the tunnel watcher running:
+
+```powershell
+pnpm bridge:tunnel:watch:start
+pnpm bridge:tunnel:watch:status
+```
+
+The watcher runs hidden, checks the saved HTTPS tunnel while the PC is awake, and repairs
+the Cloudflare Quick Tunnel when the old URL goes stale. To have that watcher come back
+after Windows login, install the current-user startup entry once:
+
+```powershell
+pnpm bridge:tunnel:startup:install
+pnpm bridge:tunnel:startup:status
+```
+
+The full private phone URL remains in `remote-tunnel-link.txt`; status output redacts the
+bridge token. Stop the watcher with `pnpm bridge:tunnel:watch:stop`, and remove the
+startup entry with `pnpm bridge:tunnel:startup:remove`.
+
 Settings -> Remote Access / Connection Mode also reads the active tunnel state from the
 Mini Hub API. When the tunnel is running, the Phone / Private Remote Link panel prefers
 the HTTPS tunnel link, shows a QR code for phone testing, and marks the current

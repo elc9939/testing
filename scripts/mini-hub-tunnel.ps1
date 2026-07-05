@@ -1,7 +1,8 @@
 param(
-  [ValidateSet('start', 'stop', 'status', 'verify')]
+  [ValidateSet('start', 'stop', 'status', 'verify', 'watch', 'watch-start', 'watch-stop', 'watch-status', 'startup-install', 'startup-remove', 'startup-status')]
   [string]$Action = 'status',
   [string]$BridgeToken = '',
+  [int]$WatchIntervalSeconds = 60,
   [switch]$NoDownload
 )
 
@@ -17,6 +18,12 @@ $TunnelOutLog = Join-Path $BridgeDir 'cloudflared.out.log'
 $TunnelErrLog = Join-Path $BridgeDir 'cloudflared.err.log'
 $TunnelLinkFile = Join-Path $Root 'remote-tunnel-link.txt'
 $TunnelTokenFile = Join-Path $BridgeDir 'remote-tunnel-token.txt'
+$TunnelWatchPidFile = Join-Path $BridgeDir 'cloudflared-watch.pid'
+$TunnelWatchStopFile = Join-Path $BridgeDir 'cloudflared-watch.stop'
+$TunnelWatchOutLog = Join-Path $BridgeDir 'cloudflared-watch.out.log'
+$TunnelWatchErrLog = Join-Path $BridgeDir 'cloudflared-watch.err.log'
+$StartupFolder = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
+$TunnelStartupCommandFile = Join-Path $StartupFolder 'Mini Hub Remote Tunnel Watch.cmd'
 
 function Ensure-Dir([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -94,6 +101,27 @@ function Get-RemoteLink {
   return $link.Trim()
 }
 
+function Get-SavedTunnelConfig {
+  $link = Get-RemoteLink
+  if (-not $link) { return $null }
+  $token = Get-QueryParam $link 'bridgeToken'
+  $baseUrl = Get-QueryParam $link 'apiUrl'
+  if (-not $baseUrl) {
+    try {
+      $uri = [System.Uri]$link
+      $baseUrl = "$($uri.Scheme)://$($uri.Host)"
+    } catch {
+      $baseUrl = ''
+    }
+  }
+  if (-not $baseUrl -or -not $token) { return $null }
+  return [pscustomobject]@{
+    Link = $link
+    BaseUrl = $baseUrl.TrimEnd('/')
+    Token = $token
+  }
+}
+
 function Get-QueryParam([string]$Url, [string]$Name) {
   $uri = [System.Uri]$Url
   $query = $uri.Query.TrimStart('?')
@@ -141,6 +169,12 @@ function Test-RemoteTunnelReachable([string]$BaseUrl, [string]$Token) {
   }
 }
 
+function Test-SavedTunnelReachable {
+  $config = Get-SavedTunnelConfig
+  if (-not $config) { return $false }
+  return Test-RemoteTunnelReachable $config.BaseUrl $config.Token
+}
+
 function Start-RemoteTunnel {
   $token = Get-OrCreateBridgeToken
   Ensure-Dir $BridgeDir
@@ -156,7 +190,8 @@ function Start-RemoteTunnel {
       if (Test-RemoteTunnelReachable $url $token) {
         Set-Content -LiteralPath $TunnelLinkFile -Value $remoteUrl
         Write-Output "Cloudflare tunnel already running as PID $($existing.Id)"
-        Write-Output "Open: $remoteUrl"
+        Write-Output "Open: $(Redact-RemoteUrl $remoteUrl)"
+        Write-Output "Full private phone link: $TunnelLinkFile"
         return
       }
       Write-Output "Existing Cloudflare tunnel PID $($existing.Id) is stale; restarting it."
@@ -208,7 +243,8 @@ function Start-RemoteTunnel {
   if (-not $remoteReady) {
     Write-Output 'Cloudflare tunnel URL was created, but the public endpoint did not answer the health check yet. Run pnpm bridge:tunnel:verify in a moment.'
   }
-  Write-Output "Open: $remoteUrl"
+  Write-Output "Open: $(Redact-RemoteUrl $remoteUrl)"
+  Write-Output "Full private phone link: $TunnelLinkFile"
 }
 
 function Stop-RemoteTunnel {
@@ -238,20 +274,12 @@ function Show-RemoteTunnelStatus {
 }
 
 function Verify-RemoteTunnel {
-  $link = Get-RemoteLink
-  if (-not $link) {
+  $config = Get-SavedTunnelConfig
+  if (-not $config) {
     throw "No remote tunnel link found at $TunnelLinkFile. Run pnpm bridge:tunnel:start first."
   }
-  $token = Get-QueryParam $link 'bridgeToken'
-  if (-not $token) {
-    throw "The saved tunnel link does not contain a bridge token. Restart the tunnel with pnpm bridge:tunnel:start."
-  }
-  $baseUrl = Get-QueryParam $link 'apiUrl'
-  if (-not $baseUrl) {
-    $uri = [System.Uri]$link
-    $baseUrl = "$($uri.Scheme)://$($uri.Host)"
-  }
-  $baseUrl = $baseUrl.TrimEnd('/')
+  $baseUrl = $config.BaseUrl
+  $token = $config.Token
   Write-Output "Verifying remote tunnel endpoints at $baseUrl"
   Write-Output "Full private phone link: $TunnelLinkFile"
   @(
@@ -262,9 +290,122 @@ function Verify-RemoteTunnel {
   ) | Format-Table -AutoSize
 }
 
+function Watch-RemoteTunnel {
+  Ensure-Dir $BridgeDir
+  Remove-Item -LiteralPath $TunnelWatchStopFile -Force -ErrorAction SilentlyContinue
+  $interval = [Math]::Max(15, $WatchIntervalSeconds)
+  Write-Output "Mini Hub remote tunnel watcher started. Interval: $interval seconds. Link file: $TunnelLinkFile"
+  while (-not (Test-Path -LiteralPath $TunnelWatchStopFile)) {
+    try {
+      if (-not (Test-SavedTunnelReachable)) {
+        Write-Output "$(Get-Date -Format o) Remote tunnel is missing or stale; repairing."
+        Start-RemoteTunnel
+      } else {
+        Write-Output "$(Get-Date -Format o) Remote tunnel healthy."
+      }
+    } catch {
+      Write-Output "$(Get-Date -Format o) Remote tunnel repair failed: $($_.Exception.Message)"
+    }
+    Start-Sleep -Seconds $interval
+  }
+  Write-Output "Mini Hub remote tunnel watcher stopped."
+  Remove-Item -LiteralPath $TunnelWatchStopFile -Force -ErrorAction SilentlyContinue
+}
+
+function Start-RemoteTunnelWatch {
+  Ensure-Dir $BridgeDir
+  $existing = Get-PidFileProcess $TunnelWatchPidFile
+  if ($existing) {
+    Write-Output "Remote tunnel watcher already running as PID $($existing.Id)"
+    return
+  }
+  Remove-Item -LiteralPath $TunnelWatchStopFile -Force -ErrorAction SilentlyContinue
+  $interval = [Math]::Max(15, $WatchIntervalSeconds)
+  $noDownloadArg = if ($NoDownload) { ' -NoDownload' } else { '' }
+  $arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" watch -WatchIntervalSeconds $interval$noDownloadArg"
+  $process = Start-Process -FilePath 'powershell.exe' `
+    -ArgumentList $arguments `
+    -WorkingDirectory $Root `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput $TunnelWatchOutLog `
+    -RedirectStandardError $TunnelWatchErrLog `
+    -PassThru
+  Set-Content -LiteralPath $TunnelWatchPidFile -Value $process.Id
+  Write-Output "Remote tunnel watcher started as PID $($process.Id)."
+  Write-Output "Watcher logs: $TunnelWatchOutLog"
+}
+
+function Stop-RemoteTunnelWatch {
+  Set-Content -LiteralPath $TunnelWatchStopFile -Value (Get-Date -Format o) -Encoding ASCII
+  $process = Get-PidFileProcess $TunnelWatchPidFile
+  if ($process) {
+    Start-Sleep -Seconds 2
+    if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+    Write-Output "Remote tunnel watcher stopped (PID $($process.Id))."
+  } else {
+    Write-Output 'Remote tunnel watcher is not running.'
+  }
+  Remove-Item -LiteralPath $TunnelWatchPidFile, $TunnelWatchStopFile -Force -ErrorAction SilentlyContinue
+}
+
+function Show-RemoteTunnelWatchStatus {
+  $process = Get-PidFileProcess $TunnelWatchPidFile
+  [pscustomobject]@{
+    Running = [bool]$process
+    PID = if ($process) { $process.Id } else { $null }
+    IntervalSeconds = [Math]::Max(15, $WatchIntervalSeconds)
+    StartupEntry = if (Test-Path -LiteralPath $TunnelStartupCommandFile) { $TunnelStartupCommandFile } else { '' }
+    OutputLog = $TunnelWatchOutLog
+    ErrorLog = $TunnelWatchErrLog
+    LastHealth = if (Test-SavedTunnelReachable) { 'reachable' } else { 'stale or missing' }
+  } | Format-List
+}
+
+function Install-RemoteTunnelStartup {
+  if (-not (Test-Path -LiteralPath $StartupFolder)) {
+    New-Item -ItemType Directory -Path $StartupFolder -Force | Out-Null
+  }
+  $interval = [Math]::Max(15, $WatchIntervalSeconds)
+  $noDownloadArg = if ($NoDownload) { ' -NoDownload' } else { '' }
+  $command = "@echo off`r`nstart `"`" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" watch-start -WatchIntervalSeconds $interval$noDownloadArg`r`n"
+  Set-Content -LiteralPath $TunnelStartupCommandFile -Value $command -Encoding ASCII
+  Write-Output "Installed Mini Hub Remote Tunnel Watch startup entry for this Windows user."
+  Show-RemoteTunnelWatchStatus
+}
+
+function Remove-RemoteTunnelStartup {
+  if (Test-Path -LiteralPath $TunnelStartupCommandFile) {
+    Remove-Item -LiteralPath $TunnelStartupCommandFile -Force
+    Write-Output "Removed Mini Hub Remote Tunnel Watch startup entry."
+  } else {
+    Write-Output "Mini Hub Remote Tunnel Watch startup entry is already absent."
+  }
+}
+
+function Show-RemoteTunnelStartupStatus {
+  if (Test-Path -LiteralPath $TunnelStartupCommandFile) {
+    [pscustomobject]@{
+      Type = 'Startup Folder'
+      File = $TunnelStartupCommandFile
+      State = 'Installed for this Windows user'
+    } | Format-List
+  } else {
+    Write-Output 'Mini Hub Remote Tunnel Watch startup is not installed.'
+  }
+}
+
 switch ($Action) {
   'start' { Start-RemoteTunnel }
   'stop' { Stop-RemoteTunnel }
   'status' { Show-RemoteTunnelStatus }
   'verify' { Verify-RemoteTunnel }
+  'watch' { Watch-RemoteTunnel }
+  'watch-start' { Start-RemoteTunnelWatch }
+  'watch-stop' { Stop-RemoteTunnelWatch }
+  'watch-status' { Show-RemoteTunnelWatchStatus }
+  'startup-install' { Install-RemoteTunnelStartup }
+  'startup-remove' { Remove-RemoteTunnelStartup }
+  'startup-status' { Show-RemoteTunnelStartupStatus }
 }

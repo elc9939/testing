@@ -90,6 +90,12 @@ pnpm bridge:repair:lan
 pnpm bridge:tunnel:start
 pnpm bridge:tunnel:status
 pnpm bridge:tunnel:verify
+pnpm bridge:tunnel:watch:start
+pnpm bridge:tunnel:watch:status
+pnpm bridge:tunnel:watch:stop
+pnpm bridge:tunnel:startup:install
+pnpm bridge:tunnel:startup:status
+pnpm bridge:tunnel:startup:remove
 pnpm bridge:tunnel:stop
 ```
 
@@ -153,6 +159,11 @@ If an old quick-tunnel process is still running but Cloudflare has dropped the U
 `bridge:tunnel:start` replaces it and writes a fresh phone link.
 `bridge:tunnel:status` redacts that token; `bridge:tunnel:verify` checks the public tunnel
 can reach Mini Hub API, AI OS, Macro Lab, and Ollama without printing the private link.
+Use `bridge:tunnel:watch:start` to keep a hidden watcher running while the PC is awake; it
+checks the saved HTTPS tunnel and reruns the repair path when the quick-tunnel URL goes
+stale. Use `bridge:tunnel:startup:install` once if that watcher should relaunch after
+Windows login. The status commands show redacted links and log file paths, while the full
+private phone link stays in `remote-tunnel-link.txt`.
 Stop the temporary tunnel with `pnpm bridge:tunnel:stop`.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated
