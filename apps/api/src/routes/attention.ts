@@ -189,6 +189,65 @@ function compactAttentionServiceText(value: unknown, serviceLabel = 'Service', m
   return text.length > maxLength ? `${text.slice(0, maxLength - 3).trim()}...` : text;
 }
 
+function failedSourceResult(input: {
+  id: AttentionSource;
+  label: string;
+  error: unknown;
+  fetchedAt?: string;
+}): SourceResult {
+  const rawMessage = describeError(input.error);
+  const visibleMessage = compactAttentionServiceText(rawMessage, input.label);
+  return {
+    items: [],
+    source: sourceStatus({
+      id: input.id,
+      label: input.label,
+      status: 'error',
+      fetchedAt: input.fetchedAt ?? new Date().toISOString(),
+      error: visibleMessage
+    }),
+    error: `${input.label}: ${visibleMessage}`
+  };
+}
+
+async function collectSourceWithTimeout(input: {
+  id: AttentionSource;
+  label: string;
+  collect: () => Promise<SourceResult>;
+  timeoutMs?: number;
+}): Promise<SourceResult> {
+  const timeoutMs = Math.max(1000, input.timeoutMs ?? env.attentionSourceTimeoutMs);
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const source = input
+    .collect()
+    .catch((error) =>
+      failedSourceResult({
+        id: input.id,
+        label: input.label,
+        error
+      })
+    );
+  const timeout = new Promise<SourceResult>((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      resolve(
+        failedSourceResult({
+          id: input.id,
+          label: input.label,
+          error: new Error(`${input.label} timed out after ${timeoutMs}ms.`)
+        })
+      );
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([source, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (timedOut) void source;
+  }
+}
+
 function action(
   kind: AttentionActionKind,
   label: string,
@@ -1315,11 +1374,31 @@ async function buildAttentionSnapshot(
   const manual = manualItems(store);
   const passive = collectPassiveTaskItems(store);
   const [calendar, gmail, ai, research, macro] = await Promise.all([
-    collectCalendarItems(store, now),
-    collectGmailItems(store),
-    collectAiOsItems(externalFetch),
-    collectResearchItems(externalFetch),
-    collectMacroItems(externalFetch)
+    collectSourceWithTimeout({
+      id: 'google_calendar',
+      label: 'Google Calendar',
+      collect: () => collectCalendarItems(store, now)
+    }),
+    collectSourceWithTimeout({
+      id: 'gmail',
+      label: 'Gmail',
+      collect: () => collectGmailItems(store)
+    }),
+    collectSourceWithTimeout({
+      id: 'ai_os',
+      label: 'AI OS',
+      collect: () => collectAiOsItems(externalFetch)
+    }),
+    collectSourceWithTimeout({
+      id: 'research',
+      label: 'Research',
+      collect: () => collectResearchItems(externalFetch)
+    }),
+    collectSourceWithTimeout({
+      id: 'macro_lab',
+      label: 'Macro Lab',
+      collect: () => collectMacroItems(externalFetch)
+    })
   ]);
 
   for (const result of [calendar, gmail, career, study, ai, research, macro, passive, manual]) {

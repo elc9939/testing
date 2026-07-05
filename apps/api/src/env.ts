@@ -70,6 +70,10 @@ export const env = {
   aiOsApiUrl: process.env.AI_OS_API_URL ?? process.env.PUBLIC_AI_OS_API_URL ?? 'http://127.0.0.1:8791',
   macroLabApiUrl: process.env.MACRO_LAB_API_URL ?? process.env.PUBLIC_MACRO_LAB_API_URL ?? 'http://127.0.0.1:8792',
   actionLedgerFederationTimeoutMs: Number(process.env.MINI_HUB_ACTION_LEDGER_TIMEOUT_MS ?? 8000),
+  attentionSourceTimeoutMs: Number(
+    process.env.MINI_HUB_ATTENTION_SOURCE_TIMEOUT_MS ??
+      Math.min(Number(process.env.MINI_HUB_ACTION_LEDGER_TIMEOUT_MS ?? 8000), 6000)
+  ),
   brightspaceBaseUrl: process.env.BRIGHTSPACE_BASE_URL,
   brightspaceClientId: process.env.BRIGHTSPACE_CLIENT_ID,
   brightspaceClientSecret: process.env.BRIGHTSPACE_CLIENT_SECRET,

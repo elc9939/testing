@@ -2177,6 +2177,38 @@ describe('mini hub api', () => {
     expect(body.items).toContainEqual(expect.objectContaining({ id: 'service:ai-os-unavailable', status: 'blocked' }));
   });
 
+  it('times out slow attention sources without blocking the whole snapshot', async () => {
+    const previousTimeout = env.attentionSourceTimeoutMs;
+    env.attentionSourceTimeoutMs = 25;
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => new Promise<Response>(() => undefined))
+      );
+      const app = createApp({ externalFetch: quietAttentionFetch(), useLogger: false, store: connectedGoogleStore() });
+
+      const response = await app.request('/api/attention/snapshot');
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        sources: Array<{ id: string; status: string; error?: string }>;
+        errors: string[];
+      };
+
+      expect(body.sources.find((source) => source.id === 'gmail')).toMatchObject({
+        status: 'error',
+        error: 'Gmail timed out. Cached data stays visible when available; retry after the service settles.'
+      });
+      expect(body.sources.find((source) => source.id === 'google_calendar')).toMatchObject({
+        status: 'error',
+        error: 'Google Calendar timed out. Cached data stays visible when available; retry after the service settles.'
+      });
+      expect(body.sources.find((source) => source.id === 'career_action')).toMatchObject({ status: 'ok' });
+      expect(body.errors).toContain('Gmail: Gmail timed out. Cached data stays visible when available; retry after the service settles.');
+    } finally {
+      env.attentionSourceTimeoutMs = previousTimeout;
+    }
+  });
+
   it('compacts raw AI OS service errors in attention snapshots', async () => {
     const rawGpuError =
       "GPU telemetry unavailable: nvidia-smi unavailable: [WinError 2] The system cannot find the file specified; Windows GPU telemetry unavailable: Command '['powershell', '-NoProfile', 'Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine']' timed out after 3 seconds";
