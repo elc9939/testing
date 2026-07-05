@@ -194,7 +194,12 @@ normal API startup.
   domains plus `page:`, `topic:`, `tool:`, and `company:` lines; pages/domains stay
   domain-constrained, while topic/tool/company watches search by goal text without invented
   seed URLs. Career-derived monitors carry the source job ids and labels in metadata so the
-  watcher remains source-backed rather than guessed. Career Discovery profile filters saved
+  watcher remains source-backed rather than guessed. New-role scouting is intentionally
+  explicit: if no Career Discovery profile is saved, the research monitor reports
+  `careerDiscoveryConfigured: false` in the passive snapshot and only watches configured
+  entries plus active saved-job domains. Career Desk's Max Scout action saves the profile,
+  enables the research monitor family, raises the passive resource limit, and can run the
+  monitor immediately. Career Discovery profile filters saved
   from Career Desk add topic monitors for May 2027/Summer 2027-style role discovery, using
   saved target roles, background/status text, preferred locations, and existing companies as
   duplicate/exclusion hints. The profile's focused/broad/max research intensity controls how
@@ -228,8 +233,10 @@ normal API startup.
   `careerDiscoveryMemory` preference and skipped as `previously-filtered` on later sweeps
   unless their score rises enough to justify reconsideration. Career Desk reads the real
   Passive Tasks snapshot for Career Radar and Career Discovery status,
-  cached fallback, latest run/card summaries, next run times, remembered-filter counts,
-  skipped-reason summaries, and manual run buttons for the
+  cached fallback, passive-worker state, configured/unconfigured Max Scout state, active
+  discovery topics, source lanes, priority-company monitors, latest run/card summaries,
+  next run times, remembered-filter counts, imported/filtered counts, skipped-reason summaries,
+  and manual run buttons for the
   existing tasks. It then treats imported rows as reviewable discovered leads:
   the ranked panel can keep a candidate as `saved`, move it to `watching`, or archive it as
   not fit while preserving the original source/evidence note, and each row can show source

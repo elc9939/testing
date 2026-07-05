@@ -951,7 +951,12 @@ function careerDiscoveryPreference(store: MemoryStore): Record<string, unknown> 
   return isRecord(raw) ? raw : {};
 }
 
+function careerDiscoveryProfileConfigured(store: MemoryStore): boolean {
+  return isRecord(store.settings?.preferences?.careerDiscovery);
+}
+
 function careerDiscoveryEnabled(store: MemoryStore): boolean {
+  if (!careerDiscoveryProfileConfigured(store)) return false;
   const profile = careerDiscoveryPreference(store);
   return profile.enabled !== false;
 }
@@ -1389,6 +1394,52 @@ function researchDomainMetadata(entries: PassiveResearchDomainEntry[]): Record<s
     watchedCompanies: nonDomainEntries.filter((entry) => entry.kind === 'company').map((entry) => entry.labels[0] ?? entry.key),
     watchedPages: nonDomainEntries.filter((entry) => entry.kind === 'page').map((entry) => entry.urls[0]).filter(Boolean)
   };
+}
+
+function careerDiscoverySourceDetails(
+  store: MemoryStore,
+  settings: PassiveEngineSettings,
+  run: PassiveRun | undefined
+): Record<string, unknown> {
+  const configured = careerDiscoveryProfileConfigured(store);
+  const profile = careerDiscoveryPreference(store);
+  const enabled = careerDiscoveryEnabled(store);
+  const entries = enabled ? careerDiscoveryProfileEntries(store, resourceBudget(settings)) : [];
+  const topics = entries.filter((entry) => entry.kind === 'topic');
+  const companies = entries.filter((entry) => entry.kind === 'company');
+  const lanes = entries.filter((entry) => entry.metadata?.discovery_scope === 'source_lane');
+  const recentResearch = isRecord(run?.metadata.recentResearch) ? run.metadata.recentResearch : {};
+  const setupReason = !configured
+    ? 'No saved Career Discovery profile. Use Career Desk Max Scout to create broad new-role monitors.'
+    : !enabled
+      ? 'Career Discovery profile is saved but disabled.'
+      : !entries.length
+        ? 'Career Discovery profile is enabled, but no target roles produced monitors.'
+        : undefined;
+  return compactRecord({
+    careerDiscoveryConfigured: configured,
+    careerDiscoveryEnabled: enabled,
+    careerDiscoveryNeedsSetup: !configured,
+    careerDiscoverySetupReason: setupReason,
+    careerDiscoveryResearchIntensity: configured ? careerDiscoveryIntensity(profile) : undefined,
+    careerDiscoveryTargetStartWindow: configured
+      ? textValue(profile.targetStartWindow) || 'May 2027 / Summer 2027 start'
+      : undefined,
+    careerDiscoveryTargetRoles: configured ? careerDiscoveryRoleSeeds(store, profile, 12) : undefined,
+    careerDiscoveryLocations: configured ? compactTextList(profile.locations, 8) : undefined,
+    careerDiscoveryPriorityCompanies: configured ? careerDiscoveryPriorityCompanies(profile, 10) : undefined,
+    careerDiscoveryActiveTopicCount: topics.length,
+    careerDiscoveryActiveCompanyCount: companies.length,
+    careerDiscoveryActiveSourceLaneCount: lanes.length,
+    careerDiscoveryTopics: topics.slice(0, 16).map((entry) => entry.labels[0] ?? entry.key),
+    careerDiscoveryCompanies: companies.slice(0, 10).map((entry) => entry.labels[0] ?? entry.key),
+    careerDiscoverySourceLanes: lanes.slice(0, 12).map((entry) => entry.labels[0] ?? entry.key),
+    importedCareerLeads: recentResearch.importedCareerLeads,
+    skippedCareerLeadCandidates: recentResearch.skippedCareerLeadCandidates,
+    skippedCareerLeadReasons: recentResearch.skippedCareerLeadReasons,
+    careerDiscoveryFilterMemorySize: recentResearch.careerDiscoveryFilterMemorySize,
+    careerSeenLeadRegistrySize: recentResearch.careerSeenLeadRegistrySize
+  });
 }
 
 function normalizeWatchedAccount(value: string): string | null {
@@ -7732,6 +7783,7 @@ export function buildPassiveSourceStatuses(store: MemoryStore, backupHealth = bu
               lastIdleError: run?.metadata.idleError ?? store.passiveWorker?.lastIdle?.error
             }
           : {}),
+        ...(task.family === 'research_monitor' ? careerDiscoverySourceDetails(store, settings, run) : {}),
         ...(task.family === 'backup_snapshot' ? backupSourceDetails(backupHealth) : {})
       }
     });

@@ -3246,6 +3246,15 @@ describe('passive task engine', () => {
       ]),
       watchedCompanies: expect.arrayContaining(['Clay Labs May 2027 / Summer 2027 start opportunities'])
     });
+    const researchSource = buildPassiveSnapshot(store).sources.find((source) => source.id === 'research_monitor')!;
+    expect(researchSource.details).toMatchObject({
+      careerDiscoveryConfigured: true,
+      careerDiscoveryEnabled: true,
+      careerDiscoveryResearchIntensity: 'max',
+      careerDiscoveryActiveTopicCount: expect.any(Number),
+      careerDiscoveryActiveSourceLaneCount: expect.any(Number),
+      careerDiscoveryTargetRoles: expect.arrayContaining(['Data Analyst', 'Quant Research Intern'])
+    });
   });
 
   it('prepares research monitors from active saved career job URLs', async () => {
@@ -3314,16 +3323,10 @@ describe('passive task engine', () => {
     });
 
     expect(run.status).toBe('succeeded');
-    expect(createdBodies).toHaveLength(3);
+    expect(createdBodies).toHaveLength(1);
     const careerDomainBody = createdBodies.find((body) => body.name === 'Passive career watch: clay.com');
     const careerDiscoveryBody = createdBodies.find((body) => body.name === 'Passive career discovery: May 2027 / Summer 2027 start career discovery');
-    expect(careerDiscoveryBody).toMatchObject({
-      metadata: {
-        career_discovery: true,
-        target_start_window: 'May 2027 / Summer 2027 start',
-        target_roles: ['GTM Data Analyst']
-      }
-    });
+    expect(careerDiscoveryBody).toBeUndefined();
     expect(careerDomainBody).toMatchObject({
       name: 'Passive career watch: clay.com',
       metadata: {
@@ -3346,7 +3349,16 @@ describe('passive task engine', () => {
       watchedDomains: ['clay.com'],
       watchedDomainSources: { 'clay.com': 'career_job' },
       careerJobDomains: ['clay.com'],
-      careerDiscoveryTopics: expect.arrayContaining(['May 2027 / Summer 2027 start career discovery'])
+      careerDiscoveryTopics: []
+    });
+    const researchSource = buildPassiveSnapshot(store).sources.find((source) => source.id === 'research_monitor')!;
+    expect(researchSource.details).toMatchObject({
+      careerDiscoveryConfigured: false,
+      careerDiscoveryEnabled: false,
+      careerDiscoveryNeedsSetup: true,
+      careerDiscoverySetupReason: 'No saved Career Discovery profile. Use Career Desk Max Scout to create broad new-role monitors.',
+      careerDiscoveryActiveTopicCount: 0,
+      careerDiscoveryActiveSourceLaneCount: 0
     });
   });
 

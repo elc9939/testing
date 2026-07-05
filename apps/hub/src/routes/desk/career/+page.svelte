@@ -8,6 +8,7 @@
   import {
     getPassiveSnapshot,
     passiveTaskActive,
+    patchPassiveSettings,
     readCachedPassiveSnapshot,
     runPassiveTask as runPassiveAutomationTask,
     writePassiveSnapshotCache
@@ -70,6 +71,7 @@
     careerExportLoading: boolean;
     mailUpdatesLoading: boolean;
     careerProfileSaving: boolean;
+    careerDiscoverySetupBusy: boolean;
   }
 
   interface CareerAutomationRow {
@@ -96,6 +98,25 @@
     skippedReasonSummary: string;
     latestRunAt: string;
     status: string;
+  }
+
+  interface CareerDiscoveryReadiness {
+    configured: boolean;
+    enabled: boolean;
+    status: string;
+    detail: string;
+    whyNoRecommendations: string;
+    activeTopicCount: number;
+    activeSourceLaneCount: number;
+    activeCompanyCount: number;
+    topics: string[];
+    sourceLanes: string[];
+    companies: string[];
+    importedLeads: number;
+    filteredCandidates: number;
+    lastRunAt: string;
+    nextRunAt: string;
+    workerLine: string;
   }
 
   interface CareerDiscoveryLeadMetadata {
@@ -128,6 +149,30 @@
   const careerViewStorageKey = 'miniHub.career.view.v1';
   const careerEditRowEnabledTitle = 'Edit this saved job inline; save or cancel the row to keep changes.';
   const defaultCareerDiscoveryStartWindow = 'May 2027 / Summer 2027 start';
+  const defaultCareerDiscoveryRoles = [
+    'Quant Research Intern',
+    'Quant Trading Intern',
+    'Data Analyst',
+    'Data Scientist',
+    'Machine Learning Intern',
+    'ML/Data Analyst',
+    'Technical Analyst',
+    'Early-career finance data analyst'
+  ];
+  const defaultCareerDiscoveryLocations = [
+    'New York',
+    'San Francisco Bay Area',
+    'California',
+    'Remote',
+    'Hybrid',
+    'Chicago',
+    'Boston',
+    'Jersey City',
+    'Stamford'
+  ];
+  const defaultCareerDiscoveryBackground =
+    'Math/CS background with analytics, quant, Python, machine learning, research, data projects, technical tooling, and local AI/automation projects.';
+  const defaultCareerDiscoveryGraduationStatus = 'Current graduate student targeting May 2027 / Summer 2027 starts and early-career or student-eligible roles.';
   const careerAutomationFamilies: PassiveTaskFamily[] = ['career_radar', 'research_monitor'];
 
   let summary: LegacyImportSummary | null = null;
@@ -154,6 +199,7 @@
   let jobDraft: JobDraft = emptyJobDraft();
   let careerProfileHydrated = false;
   let careerProfileSaving = false;
+  let careerDiscoverySetupBusy = false;
   let careerDiscoveryEnabled = true;
   let careerAutoMarkAppliedFromEvidence = true;
   let careerDiscoveryResearchIntensity: CareerDiscoveryProfile['researchIntensity'] = 'max';
@@ -203,7 +249,8 @@
     careerSummaryLoading,
     careerExportLoading,
     mailUpdatesLoading,
-    careerProfileSaving
+    careerProfileSaving,
+    careerDiscoverySetupBusy
   };
   $: addJobButtonTitle = addJobTitle(careerControlState, company, role);
   $: saveJobEditButtonTitle = saveJobEditTitle(careerControlState, jobDraft);
@@ -216,12 +263,19 @@
   $: visibleCareerDeskError = visibleSaveError || visibleRowError;
   $: rawCareerDeskError = saveError || rowError;
   $: careerAutomationRows = buildCareerAutomationRows(passiveSnapshot);
+  $: careerDiscoveryAutomationRow = careerAutomationRows.find((row) => row.family === 'research_monitor');
   $: careerAutomationCards = careerAutomationResultCards(passiveSnapshot);
   $: careerAutomationStatusText = careerAutomationStatus(passiveSnapshot, passiveLoading, passiveError);
   $: careerDiscoveryLearning = buildCareerDiscoveryLearningSummary(
     passiveSnapshot,
     $clientData.settings?.preferences?.careerDiscoveryMemory,
     $clientData.settings?.preferences?.careerSeenLeadRegistry
+  );
+  $: careerDiscoveryReadiness = buildCareerDiscoveryReadiness(
+    passiveSnapshot,
+    $clientData.settings?.preferences?.careerDiscovery,
+    careerDiscoveryLearning,
+    careerDiscoveryAutomationRow
   );
   $: visiblePassiveError = passiveError ? compactCareerDeskIssue(passiveError, 'Career automation') : '';
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
@@ -327,6 +381,26 @@
   function numberField(record: Record<string, unknown>, key: string): number {
     const value = Number(record[key]);
     return Number.isFinite(value) ? value : 0;
+  }
+
+  function booleanField(record: Record<string, unknown>, key: string): boolean {
+    return record[key] === true;
+  }
+
+  function stringArrayField(value: unknown, limit = 12): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => String(item).trim())
+      .filter(Boolean)
+      .slice(0, limit);
+  }
+
+  function uniqueStringList(values: string[], limit = 50): string[] {
+    return Array.from(new Set(values.map((item) => item.trim().replace(/\s+/g, ' ')).filter(Boolean))).slice(0, limit);
+  }
+
+  function passiveSourceDetails(snapshot: PassiveSnapshot | null, family: PassiveTaskFamily): Record<string, unknown> {
+    return plainRecord(snapshot?.sources.find((source) => source.id === family)?.details);
   }
 
   function careerDiscoveryMemorySize(value: unknown): number {
@@ -454,6 +528,105 @@
     };
   }
 
+  function buildCareerDiscoveryReadiness(
+    snapshot: PassiveSnapshot | null,
+    profileValue: unknown,
+    learning: CareerDiscoveryLearningSummary,
+    row: CareerAutomationRow | undefined
+  ): CareerDiscoveryReadiness {
+    const profile = plainRecord(profileValue);
+    const localConfigured = Boolean(profileValue && typeof profileValue === 'object' && !Array.isArray(profileValue));
+    const researchSource = snapshot?.sources.find((source) => source.id === 'research_monitor');
+    const sourceDetails = passiveSourceDetails(snapshot, 'research_monitor');
+    const sourceConfigured = booleanField(sourceDetails, 'careerDiscoveryConfigured');
+    const configured = localConfigured || sourceConfigured;
+    const enabled = configured && profile.enabled !== false && (sourceConfigured ? booleanField(sourceDetails, 'careerDiscoveryEnabled') : true);
+    const run = latestPassiveRun(snapshot, 'research_monitor');
+    const runMetadata = plainRecord(run?.metadata);
+    const recentResearch = plainRecord(runMetadata.recentResearch);
+    const topics = uniqueStringList([
+      ...stringArrayField(sourceDetails.careerDiscoveryTopics, 16),
+      ...stringArrayField(runMetadata.careerDiscoveryTopics, 16)
+    ]);
+    const sourceLanes = stringArrayField(sourceDetails.careerDiscoverySourceLanes, 12);
+    const companies = uniqueStringList([
+      ...stringArrayField(sourceDetails.careerDiscoveryCompanies, 10),
+      ...stringArrayField(runMetadata.watchedCompanies, 10)
+    ]);
+    const activeTopicCount = numberField(sourceDetails, 'careerDiscoveryActiveTopicCount') || topics.length;
+    const activeSourceLaneCount = numberField(sourceDetails, 'careerDiscoveryActiveSourceLaneCount') || sourceLanes.length;
+    const activeCompanyCount = numberField(sourceDetails, 'careerDiscoveryActiveCompanyCount') || companies.length;
+    const importedLeads = learning.importedLeads || numberField(sourceDetails, 'importedCareerLeads') || numberField(recentResearch, 'importedCareerLeads');
+    const filteredCandidates =
+      learning.skippedCandidates || numberField(sourceDetails, 'skippedCareerLeadCandidates') || numberField(recentResearch, 'skippedCareerLeadCandidates');
+    const lastRunAt = learning.latestRunAt || run?.finishedAt || run?.startedAt || row?.lastRunAt || '';
+    const nextRunAt = row?.nextRunAt ?? String(sourceDetails.nextRunAt ?? '');
+    const workerLine = snapshot
+      ? snapshot.worker.enabled
+        ? `Worker ${snapshot.worker.running ? 'running' : 'idle'}; next tick ${displayAutomationTime(snapshot.worker.nextTickAt)}`
+        : 'Passive worker is disabled'
+      : 'Passive worker status unknown';
+    const setupReason = String(sourceDetails.careerDiscoverySetupReason ?? '');
+
+    let status = 'Checking Career Discovery';
+    let detail = 'Loading passive task state.';
+    let whyNoRecommendations = 'Career Discovery has not reported a reason yet.';
+    if (!snapshot) {
+      status = 'Needs local API';
+      detail = 'Career Discovery needs the local Mini Hub API and Passive Tasks snapshot.';
+      whyNoRecommendations = 'No passive snapshot is loaded, so the app cannot confirm scouting state.';
+    } else if (!configured) {
+      status = 'Career Discovery is not configured';
+      detail = setupReason || 'Enable Max Scout to save a real scouting profile and create broad new-role monitors.';
+      whyNoRecommendations = 'No saved Max Scout profile exists, so passive runs only watch existing saved-job domains.';
+    } else if (!enabled) {
+      status = 'Career Discovery is off';
+      detail = setupReason || 'The saved Career Discovery profile is disabled.';
+      whyNoRecommendations = 'The saved scouting profile is disabled.';
+    } else if (researchSource?.status === 'error') {
+      status = 'Career Discovery needs service';
+      detail = researchSource.error ? compactCareerDeskIssue(researchSource.error, 'Career Discovery') : 'The research monitor source is reporting an error.';
+      whyNoRecommendations = 'The saved scouting profile exists, but the research monitor cannot complete until the local AI OS/research service is reachable.';
+    } else if (!activeTopicCount && !activeSourceLaneCount && !activeCompanyCount) {
+      status = 'Career Discovery needs targets';
+      detail = setupReason || 'The profile is saved, but no active topics, source lanes, or companies were generated.';
+      whyNoRecommendations = 'The profile did not produce active discovery monitors.';
+    } else {
+      status = `Max Scout ready: ${activeTopicCount} topics / ${activeSourceLaneCount} lanes`;
+      detail = activeCompanyCount
+        ? `${activeCompanyCount} priority-company monitor${activeCompanyCount === 1 ? '' : 's'} included.`
+        : 'Broad source-lane monitors are active.';
+      if (importedLeads) {
+        whyNoRecommendations = `${importedLeads} source-backed lead${importedLeads === 1 ? '' : 's'} imported from the latest Career Discovery data.`;
+      } else if (filteredCandidates) {
+        whyNoRecommendations = `${filteredCandidates} candidate${filteredCandidates === 1 ? '' : 's'} found but filtered by strict fit/source/timing rules.`;
+      } else if (!lastRunAt) {
+        whyNoRecommendations = 'Max Scout is configured, but the research monitor has not run yet.';
+      } else {
+        whyNoRecommendations = 'Latest run did not return a new source-backed candidate that passed import checks.';
+      }
+    }
+
+    return {
+      configured,
+      enabled,
+      status,
+      detail,
+      whyNoRecommendations,
+      activeTopicCount,
+      activeSourceLaneCount,
+      activeCompanyCount,
+      topics,
+      sourceLanes,
+      companies,
+      importedLeads,
+      filteredCandidates,
+      lastRunAt,
+      nextRunAt,
+      workerLine
+    };
+  }
+
   function buildCareerAutomationRows(snapshot: PassiveSnapshot | null): CareerAutomationRow[] {
     return careerAutomationFamilies.map((family) => {
       const task = snapshot?.tasks.find((item) => item.family === family);
@@ -513,6 +686,11 @@
     } finally {
       passiveBusyFamily = '';
     }
+  }
+
+  async function runCareerDiscoveryNow(): Promise<void> {
+    if (!careerDiscoveryAutomationRow || !careerDiscoveryReadiness.configured) return;
+    await runCareerAutomation(careerDiscoveryAutomationRow);
   }
 
   function emptyJobDraft(): JobDraft {
@@ -578,27 +756,34 @@
     );
   }
 
-  function normalizeCareerDiscoveryProfile(value: unknown): CareerDiscoveryProfile {
-    const record = value && typeof value === 'object' && !Array.isArray(value) ? (value as Partial<CareerDiscoveryProfile>) : {};
+  function careerDiscoveryExcludedCompaniesFromJobs(records: JobRecord[]): string[] {
+    const finalStatuses = new Set(['applied', 'interview', 'offer', 'rejected', 'archived']);
+    return uniqueStringList(
+      records
+        .filter((job) => finalStatuses.has(job.status))
+        .map((job) => job.company)
+        .filter(Boolean),
+      80
+    );
+  }
+
+  function maxScoutCareerDiscoveryProfile(records: JobRecord[]): CareerDiscoveryProfile {
+    const existingPriorityCompanies = splitListField(careerDiscoveryPriorityCompanies);
     return {
-      enabled: record.enabled !== false,
-      autoMarkAppliedFromEvidence: record.autoMarkAppliedFromEvidence !== false,
-      researchIntensity:
-        record.researchIntensity === 'focused' || record.researchIntensity === 'broad' || record.researchIntensity === 'max'
-          ? record.researchIntensity
-          : 'max',
-      background: typeof record.background === 'string' ? record.background : '',
-      graduationStatus: typeof record.graduationStatus === 'string' ? record.graduationStatus : '',
-      targetStartWindow: typeof record.targetStartWindow === 'string' && record.targetStartWindow.trim() ? record.targetStartWindow : defaultCareerDiscoveryStartWindow,
-      targetRoles: Array.isArray(record.targetRoles) ? record.targetRoles.map(String).filter(Boolean) : [],
-      locations: Array.isArray(record.locations) ? record.locations.map(String).filter(Boolean) : [],
-      priorityCompanies: Array.isArray(record.priorityCompanies) ? record.priorityCompanies.map(String).filter(Boolean) : [],
-      excludeCompanies: Array.isArray(record.excludeCompanies) ? record.excludeCompanies.map(String).filter(Boolean) : []
+      enabled: true,
+      autoMarkAppliedFromEvidence: true,
+      researchIntensity: 'max',
+      background: careerDiscoveryBackground.trim() || defaultCareerDiscoveryBackground,
+      graduationStatus: careerDiscoveryGraduationStatus.trim() || defaultCareerDiscoveryGraduationStatus,
+      targetStartWindow: careerDiscoveryStartWindow.trim() || defaultCareerDiscoveryStartWindow,
+      targetRoles: uniqueStringList([...splitListField(careerDiscoveryRoles), ...defaultCareerDiscoveryRoles], 18),
+      locations: uniqueStringList([...splitListField(careerDiscoveryLocations), ...defaultCareerDiscoveryLocations], 18),
+      priorityCompanies: existingPriorityCompanies,
+      excludeCompanies: uniqueStringList([...splitListField(careerDiscoveryExclusions), ...careerDiscoveryExcludedCompaniesFromJobs(records)], 120)
     };
   }
 
-  function hydrateCareerDiscoveryProfile(value: unknown): void {
-    const profile = normalizeCareerDiscoveryProfile(value);
+  function applyCareerDiscoveryProfileToForm(profile: CareerDiscoveryProfile): void {
     careerDiscoveryEnabled = profile.enabled;
     careerAutoMarkAppliedFromEvidence = profile.autoMarkAppliedFromEvidence;
     careerDiscoveryResearchIntensity = profile.researchIntensity;
@@ -609,6 +794,31 @@
     careerDiscoveryLocations = profile.locations.join('\n');
     careerDiscoveryPriorityCompanies = profile.priorityCompanies.join('\n');
     careerDiscoveryExclusions = profile.excludeCompanies.join('\n');
+  }
+
+  function normalizeCareerDiscoveryProfile(value: unknown): CareerDiscoveryProfile {
+    const configured = Boolean(value && typeof value === 'object' && !Array.isArray(value));
+    const record = configured ? (value as Partial<CareerDiscoveryProfile>) : {};
+    return {
+      enabled: configured ? record.enabled !== false : false,
+      autoMarkAppliedFromEvidence: record.autoMarkAppliedFromEvidence !== false,
+      researchIntensity:
+        record.researchIntensity === 'focused' || record.researchIntensity === 'broad' || record.researchIntensity === 'max'
+          ? record.researchIntensity
+          : 'max',
+      background: typeof record.background === 'string' ? record.background : defaultCareerDiscoveryBackground,
+      graduationStatus: typeof record.graduationStatus === 'string' ? record.graduationStatus : defaultCareerDiscoveryGraduationStatus,
+      targetStartWindow: typeof record.targetStartWindow === 'string' && record.targetStartWindow.trim() ? record.targetStartWindow : defaultCareerDiscoveryStartWindow,
+      targetRoles: Array.isArray(record.targetRoles) ? record.targetRoles.map(String).filter(Boolean) : defaultCareerDiscoveryRoles,
+      locations: Array.isArray(record.locations) ? record.locations.map(String).filter(Boolean) : defaultCareerDiscoveryLocations,
+      priorityCompanies: Array.isArray(record.priorityCompanies) ? record.priorityCompanies.map(String).filter(Boolean) : [],
+      excludeCompanies: Array.isArray(record.excludeCompanies) ? record.excludeCompanies.map(String).filter(Boolean) : []
+    };
+  }
+
+  function hydrateCareerDiscoveryProfile(value: unknown): void {
+    const profile = normalizeCareerDiscoveryProfile(value);
+    applyCareerDiscoveryProfileToForm(profile);
     careerProfileHydrated = true;
   }
 
@@ -643,10 +853,22 @@
     return Array.from(new Set(records.map((job) => job.company.trim()).filter(Boolean))).slice(0, 12);
   }
 
-  function careerDiscoveryProfileTitle(state: Pick<CareerControlState, 'canSave' | 'careerProfileSaving'>): string {
+  function careerDiscoveryProfileTitle(state: Pick<CareerControlState, 'canSave' | 'careerProfileSaving' | 'careerDiscoverySetupBusy'>): string {
     if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before saving Career Discovery settings.';
-    if (state.careerProfileSaving) return 'Career Discovery profile is already saving.';
+    if (state.careerProfileSaving || state.careerDiscoverySetupBusy) return 'Career Discovery profile is already saving.';
     return 'Save Career Discovery filters for passive role research and dedupe.';
+  }
+
+  function careerDiscoverySetupTitle(state: CareerControlState): string {
+    if (!state.canSave) return 'Start or connect the local Mini Hub API before enabling Max Scout.';
+    if (state.careerProfileSaving || state.careerDiscoverySetupBusy) return 'Max Scout setup is already running.';
+    return 'Save the default Max Scout profile, enable passive discovery, and run the research monitor now.';
+  }
+
+  function runDiscoveryNowTitle(row: CareerAutomationRow | undefined): string {
+    if (!row) return 'Passive Tasks snapshot has not loaded the Career Discovery task yet.';
+    if (!careerDiscoveryReadiness.configured) return 'Enable Max Scout before running broad Career Discovery.';
+    return careerAutomationRunTitle(row);
   }
 
   function dateInputValue(value?: string): string {
@@ -1375,8 +1597,8 @@
     }
   }
 
-  async function saveCareerDiscoveryProfile(): Promise<void> {
-    if (!canSave || careerProfileSaving) return;
+  async function persistCareerDiscoveryProfile(profile: CareerDiscoveryProfile, message: string): Promise<boolean> {
+    if (!canSave || careerProfileSaving) return false;
     rowError = '';
     saveError = '';
     saveMessage = '';
@@ -1385,14 +1607,56 @@
       await clientData.saveSettings({
         preferences: {
           ...($clientData.settings?.preferences ?? {}),
-          careerDiscovery: currentCareerDiscoveryProfile()
+          careerDiscovery: profile
         }
       });
-      saveMessage = 'Saved Career Discovery filters for passive role research.';
+      saveMessage = message;
+      applyCareerDiscoveryProfileToForm(profile);
+      return true;
     } catch (error) {
       saveError = error instanceof Error ? error.message : 'Career Discovery profile save failed';
+      return false;
     } finally {
       careerProfileSaving = false;
+    }
+  }
+
+  async function saveCareerDiscoveryProfile(): Promise<void> {
+    await persistCareerDiscoveryProfile(currentCareerDiscoveryProfile(), 'Saved Career Discovery filters for passive role research.');
+  }
+
+  async function enableMaxScout(): Promise<void> {
+    if (!canSave || careerProfileSaving || careerDiscoverySetupBusy) return;
+    careerDiscoverySetupBusy = true;
+    passiveError = '';
+    saveError = '';
+    rowError = '';
+    saveMessage = '';
+    const profile = maxScoutCareerDiscoveryProfile(jobs);
+    try {
+      const saved = await persistCareerDiscoveryProfile(profile, 'Saved Max Scout profile for broad Career Discovery.');
+      if (!saved) return;
+      const enabledSnapshot = await patchPassiveSettings({
+        enabled: true,
+        resourceLimit: 'heavy',
+        maxRunsPerTick: 5,
+        enabledFamilies: {
+          career_radar: true,
+          research_monitor: true
+        }
+      });
+      setPassiveSnapshot(enabledSnapshot);
+      const researchRow = buildCareerAutomationRows(enabledSnapshot).find((row) => row.family === 'research_monitor');
+      if (researchRow?.taskId && researchRow.active) {
+        setPassiveSnapshot(await runPassiveAutomationTask(researchRow.taskId, { manual: true, reason: 'career-desk-enable-max-scout' }));
+        saveMessage = 'Max Scout enabled and Career Discovery ran. Review active topics and any filtered/imported results above.';
+      } else {
+        saveMessage = 'Max Scout profile saved. Passive Tasks is enabled, but the Career Discovery task was not runnable yet.';
+      }
+    } catch (error) {
+      passiveError = error instanceof Error ? error.message : 'Max Scout setup failed';
+    } finally {
+      careerDiscoverySetupBusy = false;
     }
   }
 
@@ -1499,6 +1763,80 @@
   <div><span>Discovered leads</span><strong>{discoveredCareerLeads.length}</strong></div>
   <div><span>Open updates</span><strong>{openCareerActions.length + unreadCareerMailUpdates.length}</strong></div>
   <div><span>Dated follow-ups</span><strong>{dueCareerActions.length}</strong></div>
+</section>
+
+<section class:needs-setup={!careerDiscoveryReadiness.configured} class="card career-discovery-panel" aria-label="Career Discovery scouting status">
+  <div class="table-section-title">
+    <div>
+      <strong>Career Discovery</strong>
+      <span>{careerDiscoveryReadiness.status}</span>
+    </div>
+    <div class="discovery-actions">
+      <button class="button primary" type="button" disabled={!canSave || careerProfileSaving || careerDiscoverySetupBusy} title={careerDiscoverySetupTitle(careerControlState)} on:click={enableMaxScout}>
+        <Search size={16} />
+        <span>{careerDiscoverySetupBusy ? 'Enabling' : careerDiscoveryReadiness.configured ? 'Refresh Max Scout' : 'Enable Max Scout'}</span>
+      </button>
+      <button class="button" type="button" disabled={!careerDiscoveryAutomationRow || !careerDiscoveryAutomationRow.active || !careerDiscoveryReadiness.configured || !!passiveBusyFamily || careerDiscoverySetupBusy} title={runDiscoveryNowTitle(careerDiscoveryAutomationRow)} on:click={runCareerDiscoveryNow}>
+        <Play size={16} />
+        <span>{passiveBusyFamily === 'research_monitor' ? 'Running' : 'Run Discovery Now'}</span>
+      </button>
+    </div>
+  </div>
+  <p class="discovery-detail">{careerDiscoveryReadiness.detail}</p>
+  <div class="discovery-metrics">
+    <div>
+      <span>Worker</span>
+      <strong>{careerDiscoveryReadiness.workerLine}</strong>
+    </div>
+    <div>
+      <span>Last discovery run</span>
+      <strong>{careerDiscoveryReadiness.lastRunAt ? displayAutomationTime(careerDiscoveryReadiness.lastRunAt) : 'Not yet'}</strong>
+    </div>
+    <div>
+      <span>Next discovery run</span>
+      <strong>{careerDiscoveryReadiness.nextRunAt ? displayAutomationTime(careerDiscoveryReadiness.nextRunAt) : 'Not scheduled'}</strong>
+    </div>
+    <div>
+      <span>Latest result</span>
+      <strong>{careerDiscoveryReadiness.importedLeads} imported / {careerDiscoveryReadiness.filteredCandidates} filtered</strong>
+    </div>
+  </div>
+  <div class="discovery-reason">
+    <strong>Why no new recommendations?</strong>
+    <span>{careerDiscoveryReadiness.whyNoRecommendations}</span>
+  </div>
+  {#if careerDiscoveryReadiness.topics.length || careerDiscoveryReadiness.sourceLanes.length || careerDiscoveryReadiness.companies.length}
+    <div class="discovery-chip-groups" aria-label="Active Career Discovery searches">
+      <div>
+        <span>Topics</span>
+        <div>
+          {#each careerDiscoveryReadiness.topics.slice(0, 8) as item}
+            <small>{item}</small>
+          {/each}
+        </div>
+      </div>
+      <div>
+        <span>Source lanes</span>
+        <div>
+          {#each careerDiscoveryReadiness.sourceLanes.slice(0, 8) as item}
+            <small>{item}</small>
+          {/each}
+        </div>
+      </div>
+      {#if careerDiscoveryReadiness.companies.length}
+        <div>
+          <span>Companies</span>
+          <div>
+            {#each careerDiscoveryReadiness.companies.slice(0, 6) as item}
+              <small>{item}</small>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </div>
+  {:else}
+    <p class="muted discovery-empty">No active Career Discovery topics or source lanes are saved yet.</p>
+  {/if}
 </section>
 
 <section class="card career-strategy-panel" aria-label="Career strategy review">
@@ -2096,6 +2434,110 @@
 
   .focus-strip strong {
     font-size: 18px;
+  }
+
+  .career-discovery-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .career-discovery-panel.needs-setup {
+    border-color: var(--warning-border);
+  }
+
+  .career-discovery-panel .table-section-title {
+    align-items: start;
+  }
+
+  .career-discovery-panel .table-section-title > div:first-child {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .discovery-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .discovery-detail,
+  .discovery-empty {
+    margin: 0;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .discovery-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--border);
+  }
+
+  .discovery-metrics div {
+    display: grid;
+    gap: 3px;
+    padding: 9px 11px;
+    border-right: 1px solid var(--border);
+  }
+
+  .discovery-metrics div:last-child {
+    border-right: 0;
+  }
+
+  .discovery-metrics span,
+  .discovery-chip-groups > div > span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .discovery-metrics strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .discovery-reason {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .discovery-reason span {
+    color: var(--muted);
+  }
+
+  .discovery-chip-groups {
+    display: grid;
+    gap: 9px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .discovery-chip-groups > div {
+    display: grid;
+    gap: 6px;
+  }
+
+  .discovery-chip-groups > div > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .discovery-chip-groups small {
+    padding: 3px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-soft);
+    background: var(--surface-muted);
+    font-size: 12px;
   }
 
   .career-strategy-panel {
@@ -2808,18 +3250,21 @@
     .table-toolbar,
     .utility-panels,
     .focus-strip,
-    .strategy-grid {
+    .strategy-grid,
+    .discovery-metrics {
       grid-template-columns: 1fr;
     }
 
     .focus-strip div,
-    .strategy-grid div {
+    .strategy-grid div,
+    .discovery-metrics div {
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
 
     .focus-strip div:last-child,
-    .strategy-grid div:last-child {
+    .strategy-grid div:last-child,
+    .discovery-metrics div:last-child {
       border-bottom: 0;
     }
 
@@ -2849,6 +3294,15 @@
 
     .automation-actions {
       justify-items: start;
+    }
+
+    .discovery-actions,
+    .discovery-reason {
+      justify-content: start;
+    }
+
+    .discovery-reason {
+      display: grid;
     }
 
     .mail-update-row {

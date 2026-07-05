@@ -181,12 +181,16 @@ without kicking every local API or desktop service just because the sidebar is v
   back to the owning feature.
 - Career Desk: job/application tracking, manual fit scores, one-click "mark applied"
   status updates that create a 14-day follow-up action, Gmail update matching for submitted
-  applications, action items, synced Career Discovery profile filters for routine passive
+  applications, action items, a visible Career Discovery status panel that separates
+  Career Radar (existing jobs/actions/statuses) from Max Scout Career Discovery (new-role
+  scouting), synced Career Discovery profile filters for routine passive
   role research with focused/broad/max intensity, high-confidence passive Gmail/completed-action
   application confirmation and career-status updates, source-backed discovered lead import with fit scores,
   a ranked Apply Queue with application-angle guidance and quick open/save/watch/applied
   actions, quick save/watch/not-fit review actions, an automation status panel for Career Radar and
-  Discovery runs, a compact Strategy Review panel for pipeline risk, role mix, interviews,
+  Discovery runs, active discovery topics/source lanes, last/next run times, filtered/imported
+  counts, a one-click Enable/Refresh Max Scout setup action, a manual Run Discovery Now action,
+  a compact Strategy Review panel for pipeline risk, role mix, interviews,
   offers, rejections, and next focus, a synced seen-lead registry for duplicate avoidance
   across manual rows, passive imports, reviews, deletes, and exports, and legacy career data import.
 - Study Desk: study sessions, daily progress, linked career actions, legacy study data.
@@ -362,7 +366,10 @@ real-data only:
   domains plus `page:`, `topic:`, `tool:`, and `company:` lines; pages/domains stay
   domain-constrained, while topic/tool/company watches search by goal text. Already
   surfaced research run ids are skipped on later sweeps so completed monitor reports do
-  not repeat endlessly. Career Discovery profile filters can expand role discovery from
+  not repeat endlessly. Broad new-role scouting is explicit: until Career Desk saves a
+  Career Discovery/Max Scout profile, the passive research monitor only watches configured
+  entries and active saved-job domains, and the Career page explains that no new
+  recommendations can appear yet. Career Discovery profile filters can expand role discovery from
   focused to max intensity, creating bounded role/location monitor variants while still
   carrying the May 2027/Summer 2027 start window, background/status fit text, and duplicate
   company exclusions. Broad/max discovery also creates source-lane monitors for direct
@@ -386,8 +393,9 @@ real-data only:
   repeated low-fit, weak-timing, weak-source, or excluded source fingerprints are skipped as `previously-filtered`
   unless a later sweep scores them strongly enough to reconsider. Career Desk exposes
   Career Radar and Discovery status from the real Passive Tasks snapshot, with
-  cached fallback, latest run/card summaries, next run times, remembered-filter counts,
-  skipped-reason summaries, and manual run buttons for the
+  cached fallback, passive-worker state, configured/unconfigured Max Scout state, active
+  discovery topics/source lanes/priority companies, latest run/card summaries, next run times,
+  remembered-filter counts, imported/filtered counts, skipped-reason summaries, and manual run buttons for the
   existing tasks. It also exposes discovered leads as a ranked panel where each candidate can
   be moved to `saved`, moved to `watching`, or archived as not fit without opening the full
   table row; rows show source quality, timing confidence, deadline confidence, posting date,

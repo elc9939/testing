@@ -20,6 +20,7 @@ Make Career Desk better at remembering what it has already found, ranking new le
 - [x] Add a company watchlist editor so priority companies can be managed without code edits.
 - [x] Expand max-intensity discovery lanes across deadlines/cycles, student programs, early-career indexes, startups, finance programs, and AI research labs.
 - [x] Require imported Career Discovery leads to have direct/ATS-style source authority and source-local May/Summer 2027 or early-career timing evidence.
+- [x] Add an explicit Max Scout setup/status panel so broad new-role discovery is visibly configured before passive runs try to scout.
 - [x] Add a true persisted `seenLeadRegistry` export/import object once scout results are added through an in-app import flow instead of only by seed JSON.
 - [x] Add a weekly strategy review view that summarizes rejections, interviews, stale leads, and role categories.
 
@@ -35,6 +36,7 @@ repeat findings.
 
 ## Scout Rules To Preserve
 - Search in rotating lanes rather than repeating the same famous companies every run.
+- Do not rely on implicit defaults for broad scouting; the Career page must show whether Max Scout is configured, what it is searching, and why no recommendations appeared.
 - Avoid adding duplicates unless the posting is clearly a new cycle, new location, or new role.
 - Treat job boards and broad web pages as research indexes, not enough evidence to auto-save a lead without an employer/ATS source.
 - Do not save roles whose 2027 start evidence only appears in the research prompt/report instead of the listing source.
