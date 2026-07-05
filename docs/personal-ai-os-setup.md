@@ -56,7 +56,7 @@ Optional paid providers:
 
 ```bash
 OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4.1-mini
+OPENAI_MODEL=gpt-4o-mini
 OPENAI_IMAGE_MODEL=gpt-image-1
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 OPENAI_STT_MODEL=gpt-4o-mini-transcribe
@@ -68,10 +68,12 @@ ANTHROPIC_MODEL=claude-sonnet-4-5
 Optional cost estimates:
 
 ```bash
-AI_OS_PROVIDER_COSTS_JSON={"ollama":{"input_per_1m":0,"output_per_1m":0},"lmstudio":{"input_per_1m":0,"output_per_1m":0},"llamacpp":{"input_per_1m":0,"output_per_1m":0},"vllm":{"input_per_1m":0,"output_per_1m":0},"openai":{"input_per_1m":0,"output_per_1m":0},"anthropic":{"input_per_1m":0,"output_per_1m":0}}
+AI_OS_PROVIDER_COSTS_JSON={"ollama":{"input_per_1m":0,"output_per_1m":0},"lmstudio":{"input_per_1m":0,"output_per_1m":0},"llamacpp":{"input_per_1m":0,"output_per_1m":0},"vllm":{"input_per_1m":0,"output_per_1m":0},"openai":{"input_per_1m":0.15,"output_per_1m":0.60},"anthropic":{"input_per_1m":0,"output_per_1m":0}}
 ```
 
-Those values are your configurable estimates, not authoritative billing records.
+Those values are your configurable estimates, not authoritative billing records. The
+OpenAI default is intended as the cheap paid fallback behind Ollama; leave
+`OPENAI_API_KEY` blank if you want the system to remain local-only.
 
 Optional app-control endpoints:
 

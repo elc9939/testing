@@ -90,7 +90,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     openai_base_url: str = Field(default="https://api.openai.com/v1", validation_alias="OPENAI_BASE_URL")
-    openai_model: str = Field(default="gpt-4.1-mini", validation_alias="OPENAI_MODEL")
+    openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
     openai_image_model: str = Field(default="gpt-image-1", validation_alias="OPENAI_IMAGE_MODEL")
     openai_tts_model: str = Field(default="gpt-4o-mini-tts", validation_alias="OPENAI_TTS_MODEL")
     openai_stt_model: str = Field(default="gpt-4o-mini-transcribe", validation_alias="OPENAI_STT_MODEL")
@@ -116,7 +116,7 @@ class Settings(BaseSettings):
                 "lmstudio": {"input_per_1m": 0.0, "output_per_1m": 0.0},
                 "llamacpp": {"input_per_1m": 0.0, "output_per_1m": 0.0},
                 "vllm": {"input_per_1m": 0.0, "output_per_1m": 0.0},
-                "openai": {"input_per_1m": 0.0, "output_per_1m": 0.0},
+                "openai": {"input_per_1m": 0.15, "output_per_1m": 0.60},
                 "anthropic": {"input_per_1m": 0.0, "output_per_1m": 0.0},
             },
         )

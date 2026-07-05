@@ -7,6 +7,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'script-utils.ps1')
+Import-ProjectDotEnv $Root
 $ApiDir = Join-Path $Root 'apps\ai-os-api'
 $Python = Join-Path $ApiDir '.venv\Scripts\python.exe'
 $PidFile = Join-Path $ApiDir '.ai-os.pid'

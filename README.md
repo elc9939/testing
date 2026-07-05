@@ -618,6 +618,8 @@ Current capabilities include:
 
 - Unified inference routing across Ollama, OpenAI-compatible local servers, OpenAI,
   Anthropic, and specialist providers.
+- Default cheap-power stack: Ollama runs first for private/free local work, and OpenAI
+  `gpt-4o-mini` is the configured paid fallback when `OPENAI_API_KEY` is present.
 - Streaming responses and per-call usage/cost/latency logs.
 - Batch jobs: map, self-consistency, chunk summarization, retry loops.
 - Local semantic memory/RAG with pluggable ingestion.
