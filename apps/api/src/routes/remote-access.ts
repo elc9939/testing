@@ -10,6 +10,13 @@ const firewallScriptPath = fileURLToPath(new URL('../../../../scripts/mini-hub-f
 const repoRoot = resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
 const tunnelLinkPath = resolve(repoRoot, 'remote-tunnel-link.txt');
 const tunnelPidPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared.pid');
+const tunnelWatchPidPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared-watch.pid');
+const tunnelWatchOutputLogPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared-watch.out.log');
+const tunnelWatchErrorLogPath = resolve(repoRoot, '.mini-hub-bridge/cloudflared-watch.err.log');
+const tunnelStartupCommandPath =
+  process.platform === 'win32' && process.env.APPDATA
+    ? resolve(process.env.APPDATA, 'Microsoft/Windows/Start Menu/Programs/Startup/Mini Hub Remote Tunnel Watch.cmd')
+    : '';
 
 const remoteAccessRuleSchema = z.object({
   service: z.string(),
@@ -52,6 +59,17 @@ export const remoteAccessTunnelSchema = z.object({
   remoteLink: z.string().optional(),
   linkFile: z.string(),
   tokenEmbedded: z.boolean(),
+  watcher: z
+    .object({
+      running: z.boolean(),
+      pid: z.number().optional(),
+      startupInstalled: z.boolean(),
+      startupFile: z.string().optional(),
+      outputLog: z.string(),
+      errorLog: z.string(),
+      checkedAt: z.string()
+    })
+    .optional(),
   checkedAt: z.string()
 });
 
@@ -138,12 +156,24 @@ export async function readLocalRemoteAccessTunnel(): Promise<RemoteAccessTunnel>
   const pidText = readFirstLine(tunnelPidPath);
   const pid = /^\d+$/u.test(pidText) ? Number(pidText) : undefined;
   const running = pid !== undefined ? processIsRunning(pid) : false;
+  const watchPidText = readFirstLine(tunnelWatchPidPath);
+  const watchPid = /^\d+$/u.test(watchPidText) ? Number(watchPidText) : undefined;
+  const watcherRunning = watchPid !== undefined ? processIsRunning(watchPid) : false;
   return remoteAccessTunnelSchema.parse({
     running,
     ...(pid !== undefined ? { pid } : {}),
     ...(remoteLink ? { remoteLink, tunnelUrl: tunnelUrlFromLink(remoteLink) } : {}),
     linkFile: tunnelLinkPath,
     tokenEmbedded: tunnelLinkHasToken(remoteLink),
+    watcher: {
+      running: watcherRunning,
+      ...(watchPid !== undefined ? { pid: watchPid } : {}),
+      startupInstalled: tunnelStartupCommandPath ? existsSync(tunnelStartupCommandPath) : false,
+      ...(tunnelStartupCommandPath ? { startupFile: tunnelStartupCommandPath } : {}),
+      outputLog: tunnelWatchOutputLogPath,
+      errorLog: tunnelWatchErrorLogPath,
+      checkedAt: new Date().toISOString()
+    },
     checkedAt: new Date().toISOString()
   });
 }

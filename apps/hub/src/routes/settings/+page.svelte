@@ -1562,6 +1562,20 @@
           <small>Checked: {remoteAccessTunnel.checkedAt}</small>
         </div>
       </div>
+      {#if remoteAccessTunnel.watcher}
+        <div class="phone-readiness-row" aria-label="Tunnel watcher and startup readiness">
+          <span class={`state-chip ${remoteAccessTunnel.watcher.running && remoteAccessTunnel.watcher.startupInstalled ? 'ready' : remoteAccessTunnel.watcher.running ? 'unknown' : 'needs_setup'}`}>
+            {remoteAccessTunnel.watcher.running ? 'Watcher Live' : 'Watcher Off'}
+          </span>
+          <div>
+            <strong>{remoteAccessTunnel.watcher.startupInstalled ? 'Self-healing tunnel startup is installed' : 'Tunnel watcher startup is not installed'}</strong>
+            <small>{remoteAccessTunnel.watcher.running ? 'Mini Hub is checking the saved HTTPS tunnel and repairing stale Cloudflare URLs in the background.' : 'Start the watcher so stale Cloudflare tunnel URLs are repaired while the PC is awake.'}</small>
+            <small>{remoteAccessTunnel.watcher.startupInstalled ? `Startup entry: ${remoteAccessTunnel.watcher.startupFile}` : 'Run pnpm bridge:tunnel:startup:install to relaunch the watcher after Windows login.'}</small>
+            <small>Logs: {remoteAccessTunnel.watcher.outputLog}</small>
+            <small>Checked: {remoteAccessTunnel.watcher.checkedAt}</small>
+          </div>
+        </div>
+      {/if}
     {/if}
     <div class="phone-readiness-row" aria-label="Phone private remote readiness" title={privateRemoteReadiness.title}>
       <span class={`state-chip ${privateRemoteReadiness.state}`}>{privateRemoteReadiness.chip}</span>

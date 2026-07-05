@@ -84,6 +84,15 @@ export interface RemoteAccessTunnel {
   remoteLink?: string;
   linkFile: string;
   tokenEmbedded: boolean;
+  watcher?: {
+    running: boolean;
+    pid?: number;
+    startupInstalled: boolean;
+    startupFile?: string;
+    outputLog: string;
+    errorLog: string;
+    checkedAt: string;
+  };
   checkedAt: string;
 }
 

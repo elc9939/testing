@@ -154,7 +154,9 @@ Settings -> Remote Access / Connection Mode also reads the active tunnel state f
 Mini Hub API. When the tunnel is running, the Phone / Private Remote Link panel prefers
 the HTTPS tunnel link, shows a QR code for phone testing, and marks the current
 `trycloudflare.com` origin as an HTTPS Tunnel even after you navigate away from the long
-query-string URL.
+query-string URL. The same panel also shows **Tunnel watcher and startup readiness**, so
+you can tell whether stale Cloudflare URLs will be repaired in the background and whether
+the watcher will relaunch after Windows login.
 
 The URL includes `bridgeToken=...`; the hub stores that in the browser and sends it as
 `X-Mini-Hub-Bridge-Token` before the gateway proxies Hub API, AI OS, Macro Lab, or Ollama

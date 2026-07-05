@@ -166,6 +166,15 @@ describe('mini hub api', () => {
           'https://ready.trycloudflare.com/?apiUrl=https%3A%2F%2Fready.trycloudflare.com&aiOsUrl=https%3A%2F%2Fready.trycloudflare.com&macroLabUrl=https%3A%2F%2Fready.trycloudflare.com&ollamaUrl=https%3A%2F%2Fready.trycloudflare.com&gateway=single-port&bridgeToken=test-token',
         linkFile: 'C:\\testing\\remote-tunnel-link.txt',
         tokenEmbedded: true,
+        watcher: {
+          running: true,
+          pid: 5252,
+          startupInstalled: true,
+          startupFile: 'C:\\Users\\Edward\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Mini Hub Remote Tunnel Watch.cmd',
+          outputLog: 'C:\\testing\\.mini-hub-bridge\\cloudflared-watch.out.log',
+          errorLog: 'C:\\testing\\.mini-hub-bridge\\cloudflared-watch.err.log',
+          checkedAt: '2026-07-05T12:01:30.000Z'
+        },
         checkedAt: '2026-07-05T12:01:00.000Z'
       })
     });
@@ -185,7 +194,12 @@ describe('mini hub api', () => {
         running: true,
         tunnelUrl: 'https://ready.trycloudflare.com',
         tokenEmbedded: true,
-        remoteLink: expect.stringContaining('bridgeToken=')
+        remoteLink: expect.stringContaining('bridgeToken='),
+        watcher: {
+          running: true,
+          startupInstalled: true,
+          outputLog: expect.stringContaining('cloudflared-watch.out.log')
+        }
       }
     });
   });
