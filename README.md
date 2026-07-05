@@ -187,10 +187,11 @@ without kicking every local API or desktop service just because the sidebar is v
   are running), synced Career Discovery profile filters for routine passive role research
   with focused/broad/max intensity, strict May/Summer 2027 graduation/start-date/
   qualification guardrails, high-confidence passive Gmail/completed-action
-  application confirmation and career-status updates, source-backed discovered lead import with fit scores,
+  application confirmation and career-status updates, a durable Career Scout candidate pool that
+  keeps wide-discovery findings separate from the visible application table until promoted,
   a ranked Apply Queue with application-angle guidance and quick open/save/watch/applied
   actions, quick save/watch/not-fit review actions, an automation status panel for Career Radar and
-  Discovery runs, active discovery topics/source lanes, last/next run times, filtered/imported
+  Discovery runs, active discovery topics/source lanes, last/next run times, pooled/filtered
   counts, one-click Enable/Refresh Max Scout and Max Power Search setup actions,
   a manual Run Discovery Now action,
   a compact Strategy Review panel for pipeline risk, role mix, interviews,
@@ -396,17 +397,19 @@ real-data only:
   search official career pages, ATS postings, student programs, and new-cycle roles while
   still rejecting exact duplicate company-role matches. The monitor metadata also learns from Career Desk review state:
   saved/watching/applied roles become positive ranking hints, while archived/rejected and
-  "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports can
-  save source-backed candidates into Career Desk as `lead` rows when a source URL passes
+  "not fit" reviews become avoidance hints. Completed Career Discovery monitor reports now
+  save source-backed findings into a durable `career_scout_candidate` pool first when a source URL passes
   opportunity, source-quality, timing, profile-fit, seniority, duplicate, feedback, and fit-score checks;
+  promoting a candidate is the explicit second step that creates a normal Career Desk `lead` row,
+  while rejected candidates remain inspectable for debugging the search;
   job-board mirrors, unclear hosts, and listings whose May/Summer 2027 timing only appears
   in surrounding research context stay filtered until a stronger direct/ATS source is found.
   Listings whose source-local class year, graduation year, start date, or qualification
   requirements conflict with the saved May/Summer 2027 profile are filtered before fit-score
   ranking, with skip reasons such as wrong graduation year, wrong start date, qualification
   mismatch, or weak profile fit.
-  Notes preserve the source and evidence, plus parseable discovery metadata for source quality, timing
-  confidence, deadline confidence, posting date, and duplicate status. When a sweep finds candidates but saves none, a durable filter
+  Candidate records preserve the source and evidence, plus parseable discovery metadata for source quality, timing
+  confidence, deadline confidence, posting date, and duplicate status. When a sweep finds candidates but promotes none, a durable filter
   summary card shows what was rejected, such as duplicate roles or low-fit listings. The
   passive engine also keeps a bounded Career Discovery filter memory in synced settings, so
   repeated low-fit, weak-timing, weak-source, or excluded source fingerprints are skipped as `previously-filtered`
@@ -415,8 +418,8 @@ real-data only:
   cached fallback, passive-worker state, configured/unconfigured Max Scout and Max Power
   Search state, active
   discovery topics/source lanes/priority companies, latest run/card summaries, next run times,
-  remembered-filter counts, imported/filtered counts, skipped-reason summaries, and manual run buttons for the
-  existing tasks. It also exposes discovered leads as a ranked panel where each candidate can
+  remembered-filter counts, pooled/filtered counts, skipped-reason summaries, and manual run buttons for the
+  existing tasks. It also exposes discovered leads and the Career Scout pool as ranked panels where each candidate can
   be moved to `saved`, moved to `watching`, or archived as not fit without opening the full
   table row; rows show source quality, timing confidence, deadline confidence, posting date,
   and review date when the imported discovery metadata is available. A ranked Apply Queue

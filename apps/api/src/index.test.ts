@@ -696,6 +696,80 @@ describe('mini hub api', () => {
     expect(store.syncEvents.filter((event) => event.entityType === 'settings')).toHaveLength(3);
   });
 
+  it('keeps Career Scout candidates durable until they are promoted or rejected', async () => {
+    const store = createMemoryStore();
+    const app = createApp({ useLogger: false, store });
+    const authHeaders = { 'content-type': 'application/json' };
+
+    const createResponse = await app.request('/api/career-scout/candidates', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        sourceUrl: 'https://scout.example.com/careers/data-analyst-intern-summer-2027',
+        company: 'Scout Labs',
+        role: 'Data Analyst Intern',
+        status: 'enriched',
+        fitScore: 91,
+        rawSummary: 'Summer 2027 data role with analytics projects.'
+      })
+    });
+    expect(createResponse.status).toBe(201);
+    const created = (await createResponse.json()) as { candidate: { id: string } };
+
+    const listResponse = await app.request('/api/career-scout?status=enriched');
+    expect(listResponse.status).toBe(200);
+    const listed = (await listResponse.json()) as {
+      candidates: Array<{ id: string; company: string; status: string }>;
+      summary: { enriched: number; total: number };
+    };
+    expect(listed.candidates).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: created.candidate.id, company: 'Scout Labs', status: 'enriched' })])
+    );
+    expect(listed.summary).toMatchObject({ enriched: 1, total: 1 });
+
+    const promoteResponse = await app.request(`/api/career-scout/candidates/${created.candidate.id}/promote`, { method: 'POST' });
+    expect(promoteResponse.status).toBe(200);
+    const promoted = (await promoteResponse.json()) as { candidate: { status: string; promotedJobId: string }; job: { id: string; company: string; status: string } };
+    expect(promoted.candidate).toMatchObject({ status: 'promoted', promotedJobId: promoted.job.id });
+    expect(promoted.job).toMatchObject({ company: 'Scout Labs', status: 'lead' });
+    expect(store.syncEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entityType: 'career_scout_candidate', entityId: created.candidate.id, operation: 'insert' }),
+        expect.objectContaining({ entityType: 'career_scout_candidate', entityId: created.candidate.id, operation: 'update' }),
+        expect.objectContaining({ entityType: 'job', entityId: promoted.job.id, operation: 'insert' })
+      ])
+    );
+    expect(store.actionEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'career-scout',
+          actionType: 'career_scout.promote_candidate',
+          changed: expect.arrayContaining([`career_scout_candidate:${created.candidate.id}`, `job:${promoted.job.id}`])
+        })
+      ])
+    );
+
+    const rejectCreateResponse = await app.request('/api/career-scout/candidates', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        sourceUrl: 'https://scout.example.com/careers/business-development-analyst',
+        company: 'Scout Labs',
+        role: 'Business Development Analyst',
+        status: 'plausible'
+      })
+    });
+    const rejectCreated = (await rejectCreateResponse.json()) as { candidate: { id: string } };
+    const rejectResponse = await app.request(`/api/career-scout/candidates/${rejectCreated.candidate.id}/reject`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ reason: 'not-my-profile' })
+    });
+    expect(rejectResponse.status).toBe(200);
+    const rejected = (await rejectResponse.json()) as { candidate: { status: string; rejectionReason: string } };
+    expect(rejected.candidate).toMatchObject({ status: 'rejected', rejectionReason: 'not-my-profile' });
+  });
+
   it('exposes sync writes through the action ledger with recoverability metadata', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const authHeaders = { 'content-type': 'application/json' };

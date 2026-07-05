@@ -3480,7 +3480,7 @@ describe('passive task engine', () => {
     });
   });
 
-  it('imports source-backed Career Discovery research findings as ranked leads', async () => {
+  it('pools source-backed Career Discovery findings before manual promotion', async () => {
     const store = createMemoryStore();
     ensurePassiveDefaults(store);
     store.jobs.push({
@@ -3613,39 +3613,43 @@ describe('passive task engine', () => {
       input: { reason: 'career-lead-import-test' }
     });
 
-    const imported = store.jobs.find((job) => job.company === 'Northstar Analytics');
-    const importCard = run.cards.find((item) => item.title === '1 source-backed Career lead saved');
+    const pooled = store.careerScoutCandidates.find((candidate) => candidate.company === 'Northstar Analytics');
+    const importCard = run.cards.find((item) => item.title === '1 Career Scout candidate enriched');
     expect(run.status).toBe('succeeded');
-    expect(imported).toMatchObject({
+    expect(pooled).toMatchObject({
       company: 'Northstar Analytics',
       role: 'Data Analyst Intern',
-      status: 'lead',
+      status: 'enriched',
+      stage: 'refine_rank',
       applicationUrl: 'https://northstar.example.com/careers/data-analyst-intern-summer-2027',
-      nextActionAt: expect.any(String),
+      sourceQuality: 'direct-career-page',
+      timingConfidence: 'high',
+      deadlineConfidence: 'high',
+      postingDate: '2026-06-15',
       deviceId: 'passive-engine'
     });
-    expect(imported?.fitScore).toBeGreaterThanOrEqual(75);
-    expect(imported?.notes).toContain('Discovered by Career Discovery');
-    expect(imported?.notes).toContain('Source quality: direct-career-page');
-    expect(imported?.notes).toContain('Timing confidence: high');
-    expect(imported?.notes).toContain('Deadline confidence: high (2026-09-01)');
-    expect(imported?.notes).toContain('Posting date: 2026-06-15');
-    expect(imported?.notes).toContain('Duplicate status: new-source');
-    expect(imported?.notes).toContain('Fit evidence:');
-    expect(imported?.notes).toContain('"sourceQuality":"direct-career-page"');
-    expect(imported?.notes).toContain('"timingConfidence":"high"');
-    expect(imported?.notes).toContain('"deadlineConfidence":"high"');
+    expect(pooled?.fitScore).toBeGreaterThanOrEqual(75);
+    expect(pooled?.structured).toMatchObject({
+      applicationDeadline: '2026-09-01',
+      officialApplyUrl: 'https://northstar.example.com/careers/data-analyst-intern-summer-2027'
+    });
+    expect(pooled?.metadata).toMatchObject({
+      duplicateStatus: 'new-source',
+      wideDiscoveryGate: 'passed-basic-gates'
+    });
+    expect(store.jobs.some((job) => job.company === 'Northstar Analytics')).toBe(false);
     expect(store.jobs.some((job) => job.company === 'Senior Only Co')).toBe(false);
     expect(store.jobs.some((job) => job.company === 'Pitch Systems')).toBe(false);
     expect(store.jobs.some((job) => job.company.toLowerCase() === 'extern')).toBe(false);
     expect(store.jobs.filter((job) => job.company === 'Old Applied Co')).toHaveLength(1);
+    expect(store.careerScoutCandidates.filter((candidate) => candidate.status === 'rejected')).toHaveLength(4);
     expect(importCard).toMatchObject({
       route: '/desk/career',
-      suggestedAction: 'Review saved leads',
+      suggestedAction: 'Review candidate pool',
       sourceRefs: [
         expect.objectContaining({
-          id: imported?.id,
-          url: imported?.applicationUrl,
+          id: pooled?.id,
+          url: pooled?.applicationUrl,
           metadata: expect.objectContaining({
             sourceQuality: 'direct-career-page',
             timingConfidence: 'high',
@@ -3656,11 +3660,14 @@ describe('passive task engine', () => {
         })
       ]
     });
-    expect(run.changed).toEqual(expect.arrayContaining([`job:${imported?.id}`, 'research-run:research-career-1']));
+    expect(run.changed).toEqual(expect.arrayContaining([`career_scout_candidate:${pooled?.id}`, 'research-run:research-career-1']));
     expect(run.metadata.recentResearch).toMatchObject({
-      importedCareerLeads: 1,
+      importedCareerLeads: 0,
+      careerScoutCandidatesPooled: 5,
+      enrichedCareerScoutCandidates: 1,
+      rejectedCareerScoutCandidates: 4,
       skippedCareerLeadCandidates: 4,
-      careerSeenLeadRegistrySize: 1,
+      careerSeenLeadRegistrySize: 0,
       skippedCareerLeadReasons: {
         'duplicate-company-role': 1,
         'qualification-mismatch': 1,
@@ -3668,28 +3675,17 @@ describe('passive task engine', () => {
         'unclear-source': 1
       }
     });
-    expect(store.settings?.preferences.careerSeenLeadRegistry).toMatchObject({
-      entries: [
-        expect.objectContaining({
-          company: 'Northstar Analytics',
-          role: 'Data Analyst Intern',
-          source: 'career-discovery',
-          status: 'lead',
-          jobId: imported?.id
-        })
-      ]
-    });
+    expect(store.settings?.preferences.careerSeenLeadRegistry).toBeUndefined();
     expect(store.syncEvents).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ entityType: 'job', entityId: imported?.id, operation: 'insert' }),
-        expect.objectContaining({ entityType: 'settings', entityId: personalWorkspaceId, operation: 'update' })
+        expect.objectContaining({ entityType: 'career_scout_candidate', entityId: pooled?.id, operation: 'insert' })
       ])
     );
     expect(store.actionEvents).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           source: 'passive-career-discovery',
-          actionType: 'career.import_discovered_leads',
+          actionType: 'career_scout.pool_discovered_candidates',
           risk: 'write'
         })
       ])

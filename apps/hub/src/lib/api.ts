@@ -35,6 +35,7 @@ export interface HubHealth {
         jobs: number;
         studySessions: number;
         careerActions: number;
+        careerScoutCandidates: number;
         gameRuns: number;
         gameStates: number;
         settings: number;

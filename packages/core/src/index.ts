@@ -120,6 +120,7 @@ export const entityTypeSchema = z.enum([
   'job',
   'study_session',
   'career_action',
+  'career_scout_candidate',
   'game_run',
   'game_state',
   'achievement',
@@ -669,6 +670,74 @@ export const jobSchema = z.object({
   updatedAt: z.string().min(1)
 });
 
+export const careerScoutCandidateStatusSchema = z.enum([
+  'discovered',
+  'plausible',
+  'enriched',
+  'needs_review',
+  'promoted',
+  'rejected'
+]);
+
+export const careerScoutCandidateSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: z.string().min(1),
+  status: careerScoutCandidateStatusSchema.default('discovered'),
+  stage: z.enum(['wide_discovery', 'refine_rank', 'manual_review']).default('wide_discovery'),
+  sourceUrl: z.string().min(1),
+  canonicalUrl: z.string().default(''),
+  applicationUrl: z.string().default(''),
+  company: z.string().default(''),
+  role: z.string().default(''),
+  location: z.string().default(''),
+  rawTitle: z.string().default(''),
+  rawSummary: z.string().default(''),
+  discoveredQuery: z.string().default(''),
+  discoveredAt: z.string().min(1),
+  researchRunId: z.string().optional(),
+  passiveRunId: z.string().optional(),
+  fitScore: z.number().min(0).max(100).optional(),
+  confidence: z.number().min(0).max(1).default(0.5),
+  rejectionReason: z.string().optional(),
+  rejectionDetail: z.string().optional(),
+  sourceQuality: z.string().default('unknown'),
+  sourceQualityEvidence: z.string().default(''),
+  timingConfidence: z.string().default('unknown'),
+  timingEvidence: z.string().default(''),
+  profileFitConfidence: z.string().default('unknown'),
+  profileFitEvidence: z.string().default(''),
+  deadlineConfidence: z.string().default('unknown'),
+  deadlineEvidence: z.string().default(''),
+  postingDate: z.string().optional(),
+  evidence: z.array(z.string()).default([]),
+  structured: z
+    .object({
+      startDate: z.string().optional(),
+      graduationEligibility: z.string().optional(),
+      degreeRequirements: z.string().optional(),
+      workAuthorizationHints: z.string().optional(),
+      applicationDeadline: z.string().optional(),
+      officialApplyUrl: z.string().optional(),
+      fitRationale: z.string().optional()
+    })
+    .default({}),
+  modelUsage: z
+    .object({
+      provider: z.string().optional(),
+      model: z.string().optional(),
+      costUsd: z.number().nonnegative().default(0),
+      latencyMs: z.number().nonnegative().optional(),
+      inputTokens: z.number().int().nonnegative().optional(),
+      outputTokens: z.number().int().nonnegative().optional()
+    })
+    .default({ costUsd: 0 }),
+  promotedJobId: z.string().optional(),
+  reviewedAt: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  deviceId: z.string().min(1),
+  updatedAt: z.string().min(1)
+});
+
 export const studySessionSchema = z.object({
   id: z.string().min(1),
   workspaceId: z.string().min(1),
@@ -793,6 +862,8 @@ export type PassiveSnapshot = z.infer<typeof passiveSnapshotSchema>;
 export type PassiveEnginePersistedState = z.infer<typeof passiveEnginePersistedStateSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type JobRecord = z.infer<typeof jobSchema>;
+export type CareerScoutCandidate = z.infer<typeof careerScoutCandidateSchema>;
+export type CareerScoutCandidateStatus = z.infer<typeof careerScoutCandidateStatusSchema>;
 export type StudySession = z.infer<typeof studySessionSchema>;
 export type CareerActionRecord = z.infer<typeof careerActionSchema>;
 export type GameRun = z.infer<typeof gameRunSchema>;

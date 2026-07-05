@@ -222,20 +222,21 @@ normal API startup.
   Career Desk state: saved/watching/applied/interview roles become positive role-signal
   hints, while archived/rejected or "not fit" discovery reviews become avoidance hints.
   When completed Career Discovery monitor runs return source URLs that pass the opportunity,
-  source-quality, timing, profile-fit, seniority, duplicate, feedback, and fit-score filters, the passive engine can save
-  them directly into Career Desk as ranked `lead` rows with source/evidence notes, a near-term
-  review date, sync events, and an Action Ledger entry. Imported notes include source quality,
-  timing confidence, deadline confidence, posting date when available, duplicate status, and
-  a parseable `Discovery metadata` line; Passive result source refs expose the same key
-  metadata. Job-board mirrors and unclear hosts can guide research but are not auto-saved as
+  source-quality, timing, profile-fit, seniority, duplicate, feedback, and fit-score filters, the passive engine saves
+  them into the durable `career_scout_candidate` pool first, with source/evidence metadata,
+  sync events, and an Action Ledger entry. Promotion is the explicit second step that creates
+  a normal Career Desk `lead` row with preserved source notes and updates the seen-lead
+  registry. Candidate records include source quality, timing confidence, deadline confidence,
+  posting date when available, duplicate status, and parseable discovery metadata; Passive result source refs expose the same key
+  metadata. Job-board mirrors and unclear hosts can guide research but are not promoted as
   leads until a direct company/ATS-style source is found; sources whose May/Summer 2027 timing
   only appears in the surrounding research context are also filtered. Sources whose
   source-local graduation/class year, start date, or requirements conflict with the saved
   May/Summer 2027 profile are rejected before fit-score ranking with explicit reasons such as
   wrong graduation year, wrong start date, qualification mismatch, or weak profile fit.
   Lower-fit, senior-only, duplicate,
-  excluded, feedback-penalized, weak-profile-fit, weak-timing, weak-source, or unsourced candidates are counted in run metadata instead
-  of being saved; if a sweep finds candidates but saves none, Passive Tasks emits a durable
+  excluded, feedback-penalized, weak-profile-fit, weak-timing, weak-source, or unsourced candidates are counted in run metadata and retained as rejected pool entries where useful
+  instead of being shown in the main application table; if a sweep finds candidates but promotes none, Passive Tasks emits a durable
   Career Discovery filter-summary card so the run is still visible and recoverable. Repeated
   low-fit, weak-profile-fit, profile-mismatched, weak-timing, weak-source, excluded, or already filtered source fingerprints are stored in a bounded
   `careerDiscoveryMemory` preference and skipped as `previously-filtered` on later sweeps

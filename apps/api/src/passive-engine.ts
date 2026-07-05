@@ -19,6 +19,7 @@ import {
   passiveWatcherSchema,
   routeMap,
   type GmailThread,
+  type CareerScoutCandidate,
   type JobRecord,
   type CareerActionRecord,
   type AttentionAction,
@@ -62,6 +63,7 @@ import { createHash } from 'node:crypto';
 import { platform } from 'node:os';
 import { promisify } from 'node:util';
 import { env } from './env';
+import { upsertCareerScoutCandidate, type CareerScoutUpsertInput } from './career-scout';
 import { careerSeenLeadKeys, careerSeenLeadRegistry, upsertCareerSeenLeadRegistry } from './career-seen-registry';
 import { GoogleGmailConnector } from './integrations/google';
 import {
@@ -1460,6 +1462,9 @@ function careerDiscoverySourceDetails(
     careerDiscoveryCompanies: companies.slice(0, 10).map((entry) => entry.labels[0] ?? entry.key),
     careerDiscoverySourceLanes: lanes.slice(0, 12).map((entry) => entry.labels[0] ?? entry.key),
     importedCareerLeads: recentResearch.importedCareerLeads,
+    careerScoutCandidatesPooled: recentResearch.careerScoutCandidatesPooled,
+    enrichedCareerScoutCandidates: recentResearch.enrichedCareerScoutCandidates,
+    rejectedCareerScoutCandidates: recentResearch.rejectedCareerScoutCandidates,
     skippedCareerLeadCandidates: recentResearch.skippedCareerLeadCandidates,
     skippedCareerLeadReasons: recentResearch.skippedCareerLeadReasons,
     careerDiscoveryFilterMemorySize: recentResearch.careerDiscoveryFilterMemorySize,
@@ -3781,7 +3786,7 @@ interface CareerDiscoveryFilterMemoryEntry {
 }
 
 interface CareerLeadImportResult {
-  createdJobs: JobRecord[];
+  pooledCandidates: CareerScoutCandidate[];
   skipped: number;
   skippedReasons: Record<string, number>;
   rememberedFilters: number;
@@ -4429,6 +4434,97 @@ function careerLeadCandidateFromSource(
   };
 }
 
+function careerScoutUpsertInputFromLead(
+  candidate: CareerLeadCandidate,
+  researchRun: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+  passiveRunId: string,
+  status: CareerScoutCandidate['status'],
+  rejectionReason?: string
+): CareerScoutUpsertInput {
+  const sourceMetadataRecord = sourceMetadata(candidate.source);
+  const researchRunId = textValue(researchRun.id);
+  const sourceOnlyText = sourceText(candidate.source, {});
+  const rawTitle = sourceTitle(candidate.source);
+  const rawSummary = sourceField(candidate.source, ['description', 'snippet', 'summary']);
+  const applicationDeadline = sourceField(candidate.source, [
+    'deadline',
+    'application_deadline',
+    'applicationDeadline',
+    'closing_date',
+    'closingDate',
+    'close_date',
+    'closeDate'
+  ]);
+  const input: CareerScoutUpsertInput = {
+    workspaceId: personalWorkspaceId,
+    status,
+    stage: status === 'enriched' || status === 'needs_review' ? 'refine_rank' : 'wide_discovery',
+    sourceUrl: candidate.applicationUrl,
+    canonicalUrl: canonicalUrlKey(candidate.applicationUrl),
+    applicationUrl: candidate.applicationUrl,
+    company: candidate.company,
+    role: candidate.role,
+    location: textValue(sourceMetadataRecord.location),
+    rawTitle,
+    rawSummary,
+    discoveredQuery: textValue(researchRun.goal) || textValue(metadata.passive_watch_label),
+    discoveredAt: textValue(candidate.source.fetched_at) || nowIso(),
+    researchRunId,
+    passiveRunId,
+    fitScore: candidate.fitScore,
+    confidence: Math.max(0.1, Math.min(0.99, 0.45 + candidate.fitScore / 200)),
+    sourceQuality: candidate.quality.sourceQuality,
+    sourceQualityEvidence: candidate.quality.sourceQualityEvidence,
+    timingConfidence: candidate.quality.timingConfidence,
+    timingEvidence: candidate.quality.timingEvidence,
+    profileFitConfidence: candidate.quality.profileFitConfidence,
+    profileFitEvidence: candidate.quality.profileFitEvidence,
+    deadlineConfidence: candidate.quality.deadlineConfidence,
+    deadlineEvidence: candidate.quality.deadlineEvidence,
+    evidence: candidate.evidence,
+    structured: {
+      startDate: sourceField(candidate.source, ['start_date', 'startDate']),
+      graduationEligibility: sourceField(candidate.source, ['eligibility', 'graduation_year', 'graduationYear', 'class_year', 'classYear']),
+      degreeRequirements: sourceField(candidate.source, ['degree', 'degree_requirements', 'degreeRequirements', 'requirements', 'qualifications']),
+      workAuthorizationHints: sourceField(candidate.source, ['work_authorization', 'workAuthorization', 'visa', 'sponsorship']),
+      applicationDeadline,
+      officialApplyUrl: candidate.applicationUrl,
+      fitRationale: candidate.evidence.join('; ') || candidate.quality.profileFitEvidence
+    },
+    modelUsage: {
+      provider: 'local-rules',
+      model: 'career-scout-rules-v1',
+      costUsd: 0
+    },
+    metadata: compactRecord({
+      sourceId: candidate.source.id,
+      sourceRank: candidate.source.rank,
+      sourceScore: candidate.source.score,
+      sourceTextPreview: truncateText(sourceOnlyText, 500),
+      passiveWatchKey: metadata.passive_watch_key,
+      passiveWatchKind: metadata.passive_watch_kind,
+      passiveWatchLabel: metadata.passive_watch_label,
+      targetStartWindow: metadata.target_start_window,
+      targetRoles: metadata.target_roles,
+      locations: metadata.locations,
+      quality: careerLeadQualityMetadata(candidate.quality),
+      duplicateStatus: candidate.quality.duplicateStatus,
+      profileRejectReason: candidate.quality.profileRejectReason,
+      researchCostUsd: researchRun.cost_usd,
+      researchTotalTokens: researchRun.total_tokens,
+      wideDiscoveryGate: rejectionReason ? 'rejected' : 'passed-basic-gates'
+    }),
+    deviceId: 'passive-engine'
+  };
+  if (rejectionReason) {
+    input.rejectionReason = rejectionReason;
+    input.rejectionDetail = careerLeadSkipReasonLabel(rejectionReason);
+  }
+  if (candidate.quality.postingDate) input.postingDate = candidate.quality.postingDate;
+  return input;
+}
+
 function importCareerLeadsFromResearchRun(
   store: MemoryStore,
   task: PassiveTask,
@@ -4439,19 +4535,25 @@ function importCareerLeadsFromResearchRun(
 ): CareerLeadImportResult {
   const options = nestedRecord(researchRun, 'options');
   const metadata = nestedRecord(options, 'metadata');
-  if (metadata.career_discovery !== true) return { createdJobs: [], skipped: 0, skippedReasons: {}, rememberedFilters: 0 };
+  if (metadata.career_discovery !== true) return { pooledCandidates: [], skipped: 0, skippedReasons: {}, rememberedFilters: 0 };
   const report = nestedRecord(researchRun, 'report');
   const sources = Array.isArray(researchRun.sources) ? researchRun.sources.filter(isRecord) : [];
   const existing = existingCareerLeadKeys(store);
   const memoryFingerprints = new Set(careerDiscoveryFilterMemory(store).map((entry) => entry.fingerprint));
   const skippedReasons: Record<string, number> = {};
   const filteredForMemory: CareerLeadFilteredCandidate[] = [];
-  const createdJobs: JobRecord[] = [];
-  const workspaceId = store.settings?.workspaceId ?? personalWorkspaceId;
-  const now = nowIso(date);
-  const reviewDate = addMilliseconds(date, 3 * dayMs).slice(0, 10);
+  const pooledCandidates: CareerScoutCandidate[] = [];
+  let enrichedCount = 0;
+  const poolRejectedCandidate = (candidate: CareerLeadCandidate, reason: string): void => {
+    const { candidate: pooled } = upsertCareerScoutCandidate(
+      store,
+      careerScoutUpsertInputFromLead(candidate, researchRun, metadata, passiveRunId, 'rejected', reason),
+      date
+    );
+    pooledCandidates.push(pooled);
+  };
   for (const source of sources) {
-    if (createdJobs.length >= limit) break;
+    if (enrichedCount >= limit) break;
     const candidate = careerLeadCandidateFromSource(source, researchRun, metadata, report);
     if ('skipped' in candidate) {
       skippedReasons[candidate.skipped] = (skippedReasons[candidate.skipped] ?? 0) + 1;
@@ -4460,76 +4562,52 @@ function importCareerLeadsFromResearchRun(
     const duplicateReason = careerLeadDuplicateReason(candidate, existing, metadata);
     if (duplicateReason) {
       skippedReasons[duplicateReason] = (skippedReasons[duplicateReason] ?? 0) + 1;
+      poolRejectedCandidate(candidate, duplicateReason);
       if (shouldRememberCareerLeadFilter(duplicateReason)) filteredForMemory.push({ candidate, reason: duplicateReason });
       continue;
     }
     const memoryReason = careerLeadPreviouslyFilteredReason(candidate, memoryFingerprints);
     if (memoryReason) {
       skippedReasons[memoryReason] = (skippedReasons[memoryReason] ?? 0) + 1;
+      poolRejectedCandidate(candidate, memoryReason);
       filteredForMemory.push({ candidate, reason: memoryReason });
       continue;
     }
     const qualityReason = careerLeadQualityRejectReason(candidate);
     if (qualityReason) {
       skippedReasons[qualityReason] = (skippedReasons[qualityReason] ?? 0) + 1;
+      poolRejectedCandidate(candidate, qualityReason);
       filteredForMemory.push({ candidate, reason: qualityReason });
       continue;
     }
     if (candidate.fitScore < 72) {
       skippedReasons['low-fit-score'] = (skippedReasons['low-fit-score'] ?? 0) + 1;
+      poolRejectedCandidate(candidate, 'low-fit-score');
       filteredForMemory.push({ candidate, reason: 'low-fit-score' });
       continue;
     }
-    const job = jobSchema.parse({
-      id: id('career-job'),
-      workspaceId,
-      company: candidate.company,
-      role: candidate.role,
-      status: 'lead',
-      applicationUrl: candidate.applicationUrl,
-      fitScore: candidate.fitScore,
-      nextActionAt: reviewDate,
-      notes: candidate.notes,
-      deviceId: 'passive-engine',
-      updatedAt: now
-    });
-    store.jobs.push(job);
-    existing.urls.add(canonicalUrlKey(job.applicationUrl));
-    const companyKey = normalizeCompanyKey(job.company);
-    existing.companies.add(companyKey);
-    existing.companyRoles.add(`${companyKey}|${normalizeDedupeText(job.role)}`);
-    appendSyncEvent(store, {
-      workspaceId: job.workspaceId,
-      entityType: 'job',
-      entityId: job.id,
-      operation: 'insert',
-      payload: job,
-      deviceId: job.deviceId
-    });
-    createdJobs.push(job);
+    const { candidate: pooled } = upsertCareerScoutCandidate(
+      store,
+      careerScoutUpsertInputFromLead(candidate, researchRun, metadata, passiveRunId, 'enriched'),
+      date
+    );
+    pooledCandidates.push(pooled);
+    enrichedCount += 1;
   }
-  const seenRegistry = createdJobs.length
-    ? upsertCareerSeenLeadRegistry(store, createdJobs, {
-        deviceId: 'passive-engine',
-        reason: 'passive-career-discovery-import-seen-registry',
-        source: 'career-discovery',
-        date
-      })
-    : { changed: 0, total: careerSeenLeadRegistry(store).length };
-  if (createdJobs.length) {
+  if (pooledCandidates.length) {
     appendActionLedgerEvent(store, {
       system: 'mini-hub',
       source: 'passive-career-discovery',
-      actionType: 'career.import_discovered_leads',
-      summary: `Saved ${createdJobs.length} source-backed Career Discovery lead${createdJobs.length === 1 ? '' : 's'} from AI OS research.`,
+      actionType: 'career_scout.pool_discovered_candidates',
+      summary: `Saved ${pooledCandidates.length} Career Scout candidate${pooledCandidates.length === 1 ? '' : 's'} from AI OS research.`,
       status: 'succeeded',
       risk: 'write',
-      changed: createdJobs.map((job) => `job:${job.id}`),
+      changed: pooledCandidates.map((candidate) => `career_scout_candidate:${candidate.id}`),
       recoverability: {
         kind: 'snapshot',
         referenceId: passiveRunId,
         route: routeMap.careerDesk,
-        description: 'Inserted jobs are recorded as sync events and can be deleted from Career Desk.',
+        description: 'Career Scout candidates are durable pool records; promote them manually before they appear in Career Desk.',
         reversible: true
       },
       rawRef: compactRecord({
@@ -4538,17 +4616,18 @@ function importCareerLeadsFromResearchRun(
         taskId: task.id
       }),
       metadata: {
-        imported: createdJobs.length,
+        pooled: pooledCandidates.length,
+        enriched: pooledCandidates.filter((candidate) => candidate.status === 'enriched').length,
+        rejected: pooledCandidates.filter((candidate) => candidate.status === 'rejected').length,
         skippedReasons,
         rememberedFilters: filteredForMemory.filter((item) => shouldRememberCareerLeadFilter(item.reason)).length,
-        seenRegistry,
-        fitScores: createdJobs.map((job) => job.fitScore).filter((score): score is number => typeof score === 'number')
+        fitScores: pooledCandidates.map((candidate) => candidate.fitScore).filter((score): score is number => typeof score === 'number')
       }
     });
   }
   const rememberedFilters = upsertCareerDiscoveryFilterMemory(store, filteredForMemory, passiveRunId, date);
   return {
-    createdJobs,
+    pooledCandidates,
     skipped: Object.values(skippedReasons).reduce((total, count) => total + count, 0),
     skippedReasons,
     rememberedFilters
@@ -4584,17 +4663,6 @@ function careerLeadSkipReasonSummary(skippedReasons: Record<string, number>, lim
     .join('; ');
 }
 
-function careerLeadDiscoveryMetadataFromJob(job: JobRecord): Record<string, unknown> {
-  const match = job.notes.match(/^Discovery metadata:\s*(\{.+\})\s*$/imu);
-  if (!match?.[1]) return {};
-  try {
-    const parsed = JSON.parse(match[1]) as unknown;
-    return isRecord(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
 function careerLeadImportCard(
   task: PassiveTask,
   passiveRunId: string,
@@ -4602,7 +4670,9 @@ function careerLeadImportCard(
   result: CareerLeadImportResult
 ): PassiveResultCard | null {
   const skippedSummary = careerLeadSkipReasonSummary(result.skippedReasons);
-  if (!result.createdJobs.length) {
+  const enrichedCandidates = result.pooledCandidates.filter((candidate) => candidate.status === 'enriched');
+  const rejectedCandidates = result.pooledCandidates.filter((candidate) => candidate.status === 'rejected');
+  if (!enrichedCandidates.length) {
     if (!result.skipped) return null;
     return card({
       id: id('passive-card'),
@@ -4611,8 +4681,8 @@ function careerLeadImportCard(
       family: task.family,
       title: `${result.skipped} Career Discovery candidate${result.skipped === 1 ? '' : 's'} filtered`,
       summary: skippedSummary
-        ? `No new Career Desk rows were saved. Filtered by ${skippedSummary}.`
-        : 'No new Career Desk rows were saved after source, duplicate, timing, and fit checks.',
+        ? `No enriched Career Scout candidates were created. Filtered by ${skippedSummary}.`
+        : 'No enriched Career Scout candidates were created after source, duplicate, timing, and fit checks.',
       urgency: 34,
       confidence: 0.76,
       route: routeMap.careerDesk,
@@ -4624,13 +4694,14 @@ function careerLeadImportCard(
             researchRunId: researchRun.id,
             skippedCareerLeadCandidates: result.skipped,
             skippedCareerLeadReasons: result.skippedReasons,
-            rememberedCareerLeadFilters: result.rememberedFilters
+            rememberedCareerLeadFilters: result.rememberedFilters,
+            rejectedCareerScoutCandidates: rejectedCandidates.length
           })
         })
       ],
       suggestedAction: 'Review filters',
       actionKind: 'inspect',
-      why: 'Career Discovery returned source-backed candidates, but the passive engine rejected them before saving because they did not pass opportunity, timing, seniority, duplicate, feedback, or fit-score filters.'
+      why: 'Career Discovery returned source-backed candidates, but the passive engine rejected them before promotion because they did not pass opportunity, timing, seniority, duplicate, feedback, or fit-score filters.'
     });
   }
   return card({
@@ -4638,32 +4709,36 @@ function careerLeadImportCard(
     taskId: task.id,
     runId: passiveRunId,
     family: task.family,
-    title: `${result.createdJobs.length} source-backed Career lead${result.createdJobs.length === 1 ? '' : 's'} saved`,
-    summary: result.createdJobs
+    title: `${enrichedCandidates.length} Career Scout candidate${enrichedCandidates.length === 1 ? '' : 's'} enriched`,
+    summary: enrichedCandidates
       .slice(0, 4)
-      .map((job) => `${job.company} - ${job.role}${typeof job.fitScore === 'number' ? ` (${job.fitScore})` : ''}`)
+      .map((candidate) => `${candidate.company} - ${candidate.role}${typeof candidate.fitScore === 'number' ? ` (${candidate.fitScore})` : ''}`)
       .join('; ') + (result.skipped && skippedSummary ? `; filtered ${result.skipped} (${skippedSummary})` : ''),
-    urgency: result.createdJobs.some((job) => (job.fitScore ?? 0) >= 86) ? 78 : 66,
+    urgency: enrichedCandidates.some((candidate) => (candidate.fitScore ?? 0) >= 86) ? 78 : 66,
     confidence: 0.82,
     route: routeMap.careerDesk,
-    sourceRefs: result.createdJobs.slice(0, 8).map((job) =>
-      stableSourceRef('record', `${job.company} - ${job.role}`, {
-        id: job.id,
+    sourceRefs: enrichedCandidates.slice(0, 8).map((candidate) =>
+      stableSourceRef('record', `${candidate.company} - ${candidate.role}`, {
+        id: candidate.id,
         route: routeMap.careerDesk,
-        url: job.applicationUrl,
+        url: candidate.applicationUrl || candidate.sourceUrl,
         metadata: compactRecord({
-          status: job.status,
-          fitScore: job.fitScore,
-          applicationUrl: job.applicationUrl,
-          nextActionAt: job.nextActionAt,
+          status: candidate.status,
+          fitScore: candidate.fitScore,
+          applicationUrl: candidate.applicationUrl,
           researchRunId: researchRun.id,
-          ...careerLeadDiscoveryMetadataFromJob(job)
+          sourceQuality: candidate.sourceQuality,
+          timingConfidence: candidate.timingConfidence,
+          deadlineConfidence: candidate.deadlineConfidence,
+          postingDate: candidate.postingDate,
+          profileFitConfidence: candidate.profileFitConfidence,
+          duplicateStatus: candidate.metadata.duplicateStatus
         })
       })
     ),
-    suggestedAction: 'Review saved leads',
+    suggestedAction: 'Review candidate pool',
     actionKind: 'inspect',
-    why: 'A Career Discovery monitor returned source URLs that passed the role, timing, seniority, duplicate, feedback, and fit-score filters, so the passive engine saved them as ranked Career Desk leads.'
+    why: 'A Career Discovery monitor returned source URLs that passed the role, timing, seniority, duplicate, feedback, and fit-score filters, so the passive engine saved them to the hidden Career Scout pool for manual promotion.'
   });
 }
 
@@ -4783,14 +4858,16 @@ async function recentResearchMonitorRunCards(
   );
   const importCards = freshMonitorRuns
     .map((run, index) =>
-      careerLeadImportCard(task, passiveRunId, run, importResults[index] ?? { createdJobs: [], skipped: 0, skippedReasons: {}, rememberedFilters: 0 })
+      careerLeadImportCard(task, passiveRunId, run, importResults[index] ?? { pooledCandidates: [], skipped: 0, skippedReasons: {}, rememberedFilters: 0 })
     )
     .filter((item): item is PassiveResultCard => Boolean(item));
   const cards = freshMonitorRuns
     .map((run) => researchRunCard(task, passiveRunId, run))
     .filter((item): item is PassiveResultCard => Boolean(item))
     .slice(0, budget.researchMonitorRunLimit);
-  const importedJobs = importResults.flatMap((result) => result.createdJobs);
+  const pooledCandidates = importResults.flatMap((result) => result.pooledCandidates);
+  const enrichedCandidates = pooledCandidates.filter((candidate) => candidate.status === 'enriched');
+  const rejectedCandidates = pooledCandidates.filter((candidate) => candidate.status === 'rejected');
   const skippedReasons = importResults.reduce<Record<string, number>>((acc, result) => {
     for (const [reason, count] of Object.entries(result.skippedReasons)) acc[reason] = (acc[reason] ?? 0) + count;
     return acc;
@@ -4799,8 +4876,7 @@ async function recentResearchMonitorRunCards(
   return {
     cards: [...importCards, ...cards],
     changed: [
-      ...importedJobs.map((job) => `job:${job.id}`),
-      ...(importedJobs.length ? ['settings:career-seen-lead-registry'] : []),
+      ...pooledCandidates.map((candidate) => `career_scout_candidate:${candidate.id}`),
       ...cards
       .map((item) => item.sourceRefs[0]?.metadata.researchRunId)
       .filter((value): value is string => typeof value === 'string')
@@ -4811,7 +4887,10 @@ async function recentResearchMonitorRunCards(
       monitorRunsChecked: monitorRuns.length,
       skippedAlreadySurfaced: monitorRuns.length - freshMonitorRuns.length,
       surfacedResearchRuns: cards.length,
-      importedCareerLeads: importedJobs.length,
+      importedCareerLeads: 0,
+      careerScoutCandidatesPooled: pooledCandidates.length,
+      enrichedCareerScoutCandidates: enrichedCandidates.length,
+      rejectedCareerScoutCandidates: rejectedCandidates.length,
       skippedCareerLeadCandidates: Object.values(skippedReasons).reduce((total, count) => total + count, 0),
       skippedCareerLeadReasons: skippedReasons,
       rememberedCareerLeadFilters: rememberedFilters,

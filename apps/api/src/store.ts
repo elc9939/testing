@@ -4,6 +4,7 @@ import {
   actionLedgerEntrySchema,
   achievementSchema,
   careerActionSchema,
+  careerScoutCandidateSchema,
   gameRunSchema,
   gameStateSchema,
   integrationConnectionSchema,
@@ -18,6 +19,7 @@ import {
   type ActionLedgerEntry,
   type Achievement,
   type CareerActionRecord,
+  type CareerScoutCandidate,
   type GameRun,
   type GameState,
   type IntegrationConnection,
@@ -54,6 +56,7 @@ const coreDataPersistedStateSchema = z.object({
   jobs: z.array(jobSchema).default([]),
   studySessions: z.array(studySessionSchema).default([]),
   careerActions: z.array(careerActionSchema).default([]),
+  careerScoutCandidates: z.array(careerScoutCandidateSchema).default([]),
   gameRuns: z.array(gameRunSchema).default([]),
   settings: personalSettingsSchema.nullable().default(null),
   gameStates: z.array(gameStateSchema).default([]),
@@ -87,6 +90,7 @@ export interface CoreDataHealth {
     jobs: number;
     studySessions: number;
     careerActions: number;
+    careerScoutCandidates: number;
     gameRuns: number;
     gameStates: number;
     settings: number;
@@ -102,6 +106,7 @@ export interface MemoryStore {
   jobs: JobRecord[];
   studySessions: StudySession[];
   careerActions: CareerActionRecord[];
+  careerScoutCandidates: CareerScoutCandidate[];
   gameRuns: GameRun[];
   settings: PersonalSettings | null;
   gameStates: Map<string, GameState>;
@@ -131,6 +136,7 @@ export function createMemoryStore(): MemoryStore {
     jobs: [],
     studySessions: [],
     careerActions: [],
+    careerScoutCandidates: [],
     gameRuns: [],
     settings: null,
     gameStates: new Map(),
@@ -185,6 +191,7 @@ export function enableCoreDataPersistence(store: MemoryStore, path: string): voi
     store.jobs = parsed.jobs;
     store.studySessions = parsed.studySessions;
     store.careerActions = parsed.careerActions;
+    store.careerScoutCandidates = parsed.careerScoutCandidates;
     store.gameRuns = parsed.gameRuns;
     store.settings = parsed.settings;
     store.gameStates = new Map(parsed.gameStates.map((state) => [state.gameId, state]));
@@ -205,6 +212,7 @@ export function persistCoreData(store: MemoryStore): void {
     jobs: store.jobs,
     studySessions: store.studySessions,
     careerActions: store.careerActions,
+    careerScoutCandidates: store.careerScoutCandidates,
     gameRuns: store.gameRuns,
     settings: store.settings,
     gameStates: Array.from(store.gameStates.values()),
@@ -222,6 +230,7 @@ export function coreDataHealth(store: MemoryStore): CoreDataHealth {
     jobs: store.jobs.length,
     studySessions: store.studySessions.length,
     careerActions: store.careerActions.length,
+    careerScoutCandidates: store.careerScoutCandidates.length,
     gameRuns: store.gameRuns.length,
     gameStates: store.gameStates.size,
     settings: store.settings ? 1 : 0,

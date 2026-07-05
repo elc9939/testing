@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { CheckCircle2, Download, Edit3, ExternalLink, Mail, Play, Plus, RefreshCw, Save, Search, Trash2, X, Zap } from 'lucide-svelte';
-  import type { CareerActionRecord, JobRecord, PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
+  import type { CareerActionRecord, CareerScoutCandidate, JobRecord, PassiveResultCard, PassiveRun, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
   import type { LegacyImportSummary } from '@mini-hub/db/migration';
   import { getBrowserStorage } from '$lib/browser-storage';
   import { canAutoSave, clientData } from '$lib/client-data';
@@ -14,6 +14,14 @@
     writePassiveSnapshotCache
   } from '$lib/passive-tasks-api';
   import { getConnections, listPriorityGmailThreads, type GmailThreadInsight, type PublicConnection } from '$lib/productivity-api';
+  import {
+    listCareerScoutCandidates,
+    promoteCareerScoutCandidate,
+    refineCareerScoutCandidate,
+    rejectCareerScoutCandidate,
+    runCareerScoutMaxPowerSearch,
+    type CareerScoutSummary
+  } from '$lib/career-scout-api';
   import { hubHref } from '$lib/routes';
   import { compactServiceIssueIfRecognized, compactServiceIssueLine } from '$lib/service-issues';
 
@@ -96,6 +104,9 @@
     rememberedFilters: number;
     skippedCandidates: number;
     importedLeads: number;
+    pooledCandidates: number;
+    enrichedCandidates: number;
+    rejectedCandidates: number;
     skippedReasonSummary: string;
     latestRunAt: string;
     status: string;
@@ -119,6 +130,14 @@
     lastRunAt: string;
     nextRunAt: string;
     workerLine: string;
+  }
+
+  interface CareerScoutControlState {
+    canSave: boolean;
+    loading: boolean;
+    busyId: string;
+    passiveBusyFamily: PassiveTaskFamily | '';
+    careerDiscoverySetupBusy: boolean;
   }
 
   interface CareerDiscoveryLeadMetadata {
@@ -223,6 +242,11 @@
   let passiveLoading = false;
   let passiveError = '';
   let passiveBusyFamily: PassiveTaskFamily | '' = '';
+  let careerScoutCandidates: CareerScoutCandidate[] = [];
+  let careerScoutSummary: CareerScoutSummary = emptyCareerScoutSummary();
+  let careerScoutLoading = false;
+  let careerScoutError = '';
+  let careerScoutBusyId = '';
 
   $: canSave = canAutoSave($clientData);
   $: jobs = $clientData.jobs;
@@ -281,6 +305,20 @@
     careerDiscoveryLearning,
     careerDiscoveryAutomationRow
   );
+  $: actionableCareerScoutCandidates = careerScoutCandidates
+    .filter((candidate) => ['enriched', 'needs_review', 'plausible'].includes(candidate.status))
+    .sort(compareCareerScoutCandidates)
+    .slice(0, 6);
+  $: rejectedCareerScoutPreview = careerScoutCandidates.filter((candidate) => candidate.status === 'rejected').slice(0, 4);
+  $: careerScoutControlState = {
+    canSave,
+    loading: careerScoutLoading,
+    busyId: careerScoutBusyId,
+    passiveBusyFamily,
+    careerDiscoverySetupBusy
+  };
+  $: careerScoutStatusText = careerScoutPanelStatus(careerScoutSummary, careerScoutLoading, careerScoutError);
+  $: visibleCareerScoutError = careerScoutError ? compactCareerDeskIssue(careerScoutError, 'Career Scout') : '';
   $: visiblePassiveError = passiveError ? compactCareerDeskIssue(passiveError, 'Career automation') : '';
   $: if (viewHydrated) persistCareerViewState(searchQuery, statusFilter);
   $: if ($clientData.initialized && !careerProfileHydrated) hydrateCareerDiscoveryProfile($clientData.settings?.preferences?.careerDiscovery);
@@ -371,6 +409,68 @@
     if (!text) return '';
     const compact = compactServiceIssueIfRecognized(text, label);
     return compact === text && text.length > 140 ? `${text.slice(0, 137)}...` : compact;
+  }
+
+  function emptyCareerScoutSummary(): CareerScoutSummary {
+    return {
+      discovered: 0,
+      plausible: 0,
+      enriched: 0,
+      promoted: 0,
+      rejected: 0,
+      needsReview: 0,
+      total: 0
+    };
+  }
+
+  function careerScoutPanelStatus(summary: CareerScoutSummary, loading: boolean, error: string): string {
+    if (loading && !summary.total) return 'Loading candidate pool';
+    if (error) return 'Needs attention';
+    if (!summary.total) return 'No candidates pooled yet';
+    return `${summary.enriched + summary.needsReview + summary.plausible} reviewable / ${summary.total} pooled`;
+  }
+
+  function compareCareerScoutCandidates(a: CareerScoutCandidate, b: CareerScoutCandidate): number {
+    return (b.fitScore ?? -1) - (a.fitScore ?? -1) || dateMs(b.updatedAt) - dateMs(a.updatedAt);
+  }
+
+  function careerScoutCandidateTitle(candidate: CareerScoutCandidate): string {
+    const bits = [
+      candidate.sourceQuality ? `source ${candidate.sourceQuality}` : '',
+      candidate.timingConfidence ? `timing ${candidate.timingConfidence}` : '',
+      candidate.profileFitConfidence ? `profile ${candidate.profileFitConfidence}` : '',
+      candidate.deadlineConfidence ? `deadline ${candidate.deadlineConfidence}` : ''
+    ].filter(Boolean);
+    return bits.join(' / ') || 'Candidate metadata not available yet';
+  }
+
+  function careerScoutCandidateSummary(candidate: CareerScoutCandidate): string {
+    const score = typeof candidate.fitScore === 'number' ? `fit ${candidate.fitScore}` : 'fit unknown';
+    const source = candidate.sourceQuality || 'source unknown';
+    const timing = candidate.timingConfidence || 'timing unknown';
+    return `${score} - ${source} - ${timing}`;
+  }
+
+  function careerScoutActionTitle(
+    state: CareerScoutControlState,
+    candidate: CareerScoutCandidate,
+    action: 'promote' | 'reject' | 'refine'
+  ): string {
+    if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Career Scout candidates.';
+    if (state.loading) return 'Career Scout candidate pool is still loading.';
+    if (state.busyId === candidate.id) return 'This Career Scout candidate action is already running.';
+    if (state.busyId) return 'Another Career Scout candidate action is already running.';
+    if (action === 'promote' && candidate.status === 'promoted') return 'This candidate is already promoted.';
+    if (action === 'promote' && (!candidate.company.trim() || !candidate.role.trim())) return 'Candidate needs a company and role before promotion.';
+    if (action === 'reject' && candidate.status === 'rejected') return 'This candidate is already rejected.';
+    if (action === 'refine') return 'Refresh this candidate with the local refine/ranking path; paid GPT fallback remains budget-gated.';
+    return action === 'promote' ? 'Promote this candidate into the visible Career Desk table.' : 'Reject this candidate but keep it inspectable in the pool.';
+  }
+
+  function maxPowerButtonTitle(state: CareerScoutControlState): string {
+    if (!state.canSave) return 'Start or connect the local Mini Hub API before starting Max Power Search.';
+    if (state.careerDiscoverySetupBusy || state.passiveBusyFamily) return 'Career Discovery is already running.';
+    return 'Run a heavy bounded local-first Career Scout discovery sweep and save results to the candidate pool.';
   }
 
   function dateMs(value?: string): number {
@@ -491,6 +591,71 @@
     }
   }
 
+  async function refreshCareerScoutPool(background = false): Promise<void> {
+    if (careerScoutLoading) return;
+    careerScoutLoading = true;
+    if (!background) careerScoutError = '';
+    try {
+      const result = await listCareerScoutCandidates('', 120);
+      careerScoutCandidates = result.candidates;
+      careerScoutSummary = result.summary;
+      careerScoutError = '';
+    } catch (error) {
+      careerScoutError = error instanceof Error ? error.message : 'Career Scout pool refresh failed';
+    } finally {
+      careerScoutLoading = false;
+    }
+  }
+
+  async function promoteCareerScout(candidate: CareerScoutCandidate): Promise<void> {
+    if (!canSave || careerScoutBusyId) return;
+    careerScoutBusyId = candidate.id;
+    careerScoutError = '';
+    saveMessage = '';
+    try {
+      const result = await promoteCareerScoutCandidate(candidate.id);
+      await clientData.syncNow();
+      await refreshCareerScoutPool(true);
+      saveMessage = `Promoted ${result.job.role} at ${result.job.company} from Career Scout.`;
+    } catch (error) {
+      careerScoutError = error instanceof Error ? error.message : 'Career Scout promotion failed';
+    } finally {
+      careerScoutBusyId = '';
+    }
+  }
+
+  async function rejectCareerScout(candidate: CareerScoutCandidate): Promise<void> {
+    if (!canSave || careerScoutBusyId) return;
+    careerScoutBusyId = candidate.id;
+    careerScoutError = '';
+    saveMessage = '';
+    try {
+      await rejectCareerScoutCandidate(candidate.id, 'manual-not-fit');
+      await refreshCareerScoutPool(true);
+      saveMessage = `Rejected Career Scout candidate ${candidate.company || candidate.rawTitle || candidate.id}.`;
+    } catch (error) {
+      careerScoutError = error instanceof Error ? error.message : 'Career Scout reject failed';
+    } finally {
+      careerScoutBusyId = '';
+    }
+  }
+
+  async function refineCareerScout(candidate: CareerScoutCandidate): Promise<void> {
+    if (!canSave || careerScoutBusyId) return;
+    careerScoutBusyId = candidate.id;
+    careerScoutError = '';
+    saveMessage = '';
+    try {
+      await refineCareerScoutCandidate(candidate.id, { usePaidProvider: false, costCeilingUsd: 0.05 });
+      await refreshCareerScoutPool(true);
+      saveMessage = `Refreshed local Career Scout ranking for ${candidate.company || candidate.rawTitle || candidate.id}.`;
+    } catch (error) {
+      careerScoutError = error instanceof Error ? error.message : 'Career Scout refine failed';
+    } finally {
+      careerScoutBusyId = '';
+    }
+  }
+
   function latestPassiveRun(snapshot: PassiveSnapshot | null, family: PassiveTaskFamily): PassiveRun | undefined {
     return [...(snapshot?.runs ?? [])]
       .filter((run) => run.family === family)
@@ -513,13 +678,16 @@
     const rememberedFilters = numberField(recentResearch, 'rememberedCareerLeadFilters');
     const skippedCandidates = numberField(recentResearch, 'skippedCareerLeadCandidates');
     const importedLeads = numberField(recentResearch, 'importedCareerLeads');
+    const pooledCandidates = numberField(recentResearch, 'careerScoutCandidatesPooled');
+    const enrichedCandidates = numberField(recentResearch, 'enrichedCareerScoutCandidates');
+    const rejectedCandidates = numberField(recentResearch, 'rejectedCareerScoutCandidates');
     const skippedReasonSummary = careerDiscoverySkipReasonSummary(recentResearch.skippedCareerLeadReasons);
     const latestRunAt = run?.finishedAt ?? run?.startedAt ?? '';
     let status = 'No Career Discovery learning data yet.';
-    if (seenRegistrySize || memorySize || rememberedFilters || skippedCandidates || importedLeads) {
-      status = `${seenRegistrySize} seen lead${seenRegistrySize === 1 ? '' : 's'} / ${memorySize} remembered filter${memorySize === 1 ? '' : 's'} / ${importedLeads} imported / ${skippedCandidates} filtered`;
+    if (seenRegistrySize || memorySize || rememberedFilters || skippedCandidates || importedLeads || pooledCandidates) {
+      status = `${pooledCandidates} pooled / ${enrichedCandidates} enriched / ${rejectedCandidates || skippedCandidates} rejected-filtered`;
     } else if (snapshot && run) {
-      status = 'Latest discovery run did not import or filter any candidates.';
+      status = 'Latest discovery run did not pool or filter any candidates.';
     } else if (snapshot) {
       status = 'Career Discovery has no run history yet.';
     }
@@ -530,6 +698,9 @@
       rememberedFilters,
       skippedCandidates,
       importedLeads,
+      pooledCandidates,
+      enrichedCandidates,
+      rejectedCandidates,
       skippedReasonSummary,
       latestRunAt,
       status
@@ -566,6 +737,10 @@
     const activeSourceLaneCount = numberField(sourceDetails, 'careerDiscoveryActiveSourceLaneCount') || sourceLanes.length;
     const activeCompanyCount = numberField(sourceDetails, 'careerDiscoveryActiveCompanyCount') || companies.length;
     const importedLeads = learning.importedLeads || numberField(sourceDetails, 'importedCareerLeads') || numberField(recentResearch, 'importedCareerLeads');
+    const enrichedCandidates =
+      learning.enrichedCandidates || numberField(sourceDetails, 'enrichedCareerScoutCandidates') || numberField(recentResearch, 'enrichedCareerScoutCandidates');
+    const pooledCandidates =
+      learning.pooledCandidates || numberField(sourceDetails, 'careerScoutCandidatesPooled') || numberField(recentResearch, 'careerScoutCandidatesPooled');
     const filteredCandidates =
       learning.skippedCandidates || numberField(sourceDetails, 'skippedCareerLeadCandidates') || numberField(recentResearch, 'skippedCareerLeadCandidates');
     const lastRunAt = learning.latestRunAt || run?.finishedAt || run?.startedAt || row?.lastRunAt || '';
@@ -605,14 +780,18 @@
       detail = activeCompanyCount
         ? `${activeCompanyCount} priority-company monitor${activeCompanyCount === 1 ? '' : 's'} included.${maxPowerSearch ? ' Continuous heavy cadence is on.' : ''}`
         : `Broad source-lane monitors are active.${maxPowerSearch ? ' Continuous heavy cadence is on.' : ''}`;
-      if (importedLeads) {
+      if (enrichedCandidates) {
+        whyNoRecommendations = `${enrichedCandidates} candidate${enrichedCandidates === 1 ? '' : 's'} enriched into the Career Scout pool; promote the clean ones when ready.`;
+      } else if (pooledCandidates) {
+        whyNoRecommendations = `${pooledCandidates} candidate${pooledCandidates === 1 ? '' : 's'} pooled, but none reached enriched status yet.`;
+      } else if (importedLeads) {
         whyNoRecommendations = `${importedLeads} source-backed lead${importedLeads === 1 ? '' : 's'} imported from the latest Career Discovery data.`;
       } else if (filteredCandidates) {
         whyNoRecommendations = `${filteredCandidates} candidate${filteredCandidates === 1 ? '' : 's'} found but filtered by strict fit/source/timing rules.`;
       } else if (!lastRunAt) {
         whyNoRecommendations = 'Max Scout is configured, but the research monitor has not run yet.';
       } else {
-        whyNoRecommendations = 'Latest run did not return a new source-backed candidate that passed import checks.';
+        whyNoRecommendations = 'Latest run did not return a new source-backed candidate that passed pool checks.';
       }
     }
 
@@ -690,6 +869,7 @@
     saveMessage = '';
     try {
       setPassiveSnapshot(await runPassiveAutomationTask(row.taskId, { manual: true, reason: `career-desk-${row.family}` }));
+      if (row.family === 'research_monitor') await refreshCareerScoutPool(true);
       saveMessage = `${row.label} run finished; Career automation status refreshed.`;
     } catch (error) {
       passiveError = error instanceof Error ? error.message : `${row.label} run failed`;
@@ -1673,15 +1853,23 @@
       setPassiveSnapshot(enabledSnapshot);
       const researchRow = buildCareerAutomationRows(enabledSnapshot).find((row) => row.family === 'research_monitor');
       if (researchRow?.taskId && researchRow.active) {
-        setPassiveSnapshot(
-          await runPassiveAutomationTask(researchRow.taskId, {
-            manual: true,
-            reason: maxPowerSearch ? 'career-desk-max-power-search' : 'career-desk-enable-max-scout'
-          })
-        );
+        if (maxPowerSearch) {
+          const result = await runCareerScoutMaxPowerSearch();
+          setPassiveSnapshot(result.snapshot);
+          careerScoutSummary = result.summary;
+          await refreshCareerScoutPool(true);
+        } else {
+          setPassiveSnapshot(
+            await runPassiveAutomationTask(researchRow.taskId, {
+              manual: true,
+              reason: 'career-desk-enable-max-scout'
+            })
+          );
+          await refreshCareerScoutPool(true);
+        }
         saveMessage = maxPowerSearch
-          ? 'Max Power Search is on. Career Discovery ran once and will keep using a short heavy cadence while local services are running.'
-          : 'Max Scout enabled and Career Discovery ran. Review active topics and any filtered/imported results above.';
+          ? 'Max Power Search is on. Career Scout ran once and saved findings to the candidate pool while the short heavy cadence remains enabled.'
+          : 'Max Scout enabled and Career Discovery ran. Review active topics and any filtered/pooled results above.';
       } else {
         saveMessage = maxPowerSearch
           ? 'Max Power Search profile saved. Passive Tasks is enabled, but the Career Discovery task was not runnable yet.'
@@ -1761,6 +1949,7 @@
     void refreshSummary();
     void refreshCareerMailUpdates();
     void refreshCareerAutomationSnapshot(true);
+    void refreshCareerScoutPool(true);
   });
 </script>
 
@@ -1886,6 +2075,97 @@
     </div>
   {:else}
     <p class="muted discovery-empty">No active Career Discovery topics or source lanes are saved yet.</p>
+  {/if}
+</section>
+
+<section class="card career-scout-panel" aria-label="Career Scout candidate pool">
+  <div class="table-section-title">
+    <div>
+      <strong>Career Scout Pool</strong>
+      <span>{careerScoutStatusText}</span>
+    </div>
+    <div class="discovery-actions">
+      <button class="button" type="button" disabled={careerScoutLoading} title="Refresh the durable Career Scout candidate pool from the Mini Hub API." on:click={() => refreshCareerScoutPool()}>
+        <RefreshCw size={16} />
+        <span>{careerScoutLoading ? 'Refreshing' : 'Refresh Pool'}</span>
+      </button>
+      <button class="button max-power" type="button" disabled={!canSave || careerDiscoverySetupBusy || !!passiveBusyFamily} title={maxPowerButtonTitle(careerScoutControlState)} on:click={enableMaxPowerSearch}>
+        <Zap size={16} />
+        <span>{careerDiscoverySetupBusy && careerDiscoveryMaxPowerSearch ? 'Powering' : 'Max Power Search'}</span>
+      </button>
+    </div>
+  </div>
+  <p class="discovery-detail">
+    Wide discovery saves plausible and rejected findings here first. Promote only the clean, reviewed roles into the main Career Desk table.
+  </p>
+  {#if visibleCareerScoutError}
+    <p class="muted career-scout-error">{visibleCareerScoutError}</p>
+  {/if}
+  <div class="career-scout-grid">
+    <div><span>Total pooled</span><strong>{careerScoutSummary.total}</strong></div>
+    <div><span>Reviewable</span><strong>{careerScoutSummary.enriched + careerScoutSummary.needsReview + careerScoutSummary.plausible}</strong></div>
+    <div><span>Rejected-filtered</span><strong>{careerScoutSummary.rejected}</strong></div>
+    <div><span>Promoted</span><strong>{careerScoutSummary.promoted}</strong></div>
+  </div>
+  {#if actionableCareerScoutCandidates.length}
+    <div class="career-scout-list" aria-label="Reviewable Career Scout candidates">
+      {#each actionableCareerScoutCandidates as candidate}
+        <article class="career-scout-row" title={careerScoutCandidateTitle(candidate)}>
+          <div class="career-scout-score">
+            <strong>{typeof candidate.fitScore === 'number' ? candidate.fitScore : '--'}</strong>
+            <small>{candidate.status.replace('_', ' ')}</small>
+          </div>
+          <div class="career-scout-main">
+            <div>
+              <strong>{candidate.company || 'Unknown company'}</strong>
+              <span>{candidate.role || candidate.rawTitle || 'Unknown role'}</span>
+            </div>
+            <p>{careerScoutCandidateSummary(candidate)}</p>
+            <small>
+              {candidate.location || 'Location unknown'}
+              {#if candidate.structured?.applicationDeadline}
+                · deadline {candidate.structured.applicationDeadline}
+              {/if}
+              {#if candidate.modelUsage?.provider}
+                · {candidate.modelUsage.provider}
+              {/if}
+            </small>
+          </div>
+          <div class="career-scout-actions">
+            {#if candidate.applicationUrl || candidate.sourceUrl}
+              <a class="button subtle" href={candidate.applicationUrl || candidate.sourceUrl} target="_blank" rel="noreferrer" title="Open the source or application page.">
+                <ExternalLink size={16} />
+                <span>Open</span>
+              </a>
+            {/if}
+            <button class="button primary" type="button" disabled={!canSave || !!careerScoutBusyId || careerScoutLoading || candidate.status === 'promoted' || !candidate.company.trim() || !candidate.role.trim()} title={careerScoutActionTitle(careerScoutControlState, candidate, 'promote')} on:click={() => promoteCareerScout(candidate)}>
+              <Plus size={16} />
+              <span>Promote</span>
+            </button>
+            <button class="button" type="button" disabled={!canSave || !!careerScoutBusyId || careerScoutLoading} title={careerScoutActionTitle(careerScoutControlState, candidate, 'refine')} on:click={() => refineCareerScout(candidate)}>
+              <Search size={16} />
+              <span>Refine</span>
+            </button>
+            <button class="button subtle" type="button" disabled={!canSave || !!careerScoutBusyId || careerScoutLoading || candidate.status === 'rejected'} title={careerScoutActionTitle(careerScoutControlState, candidate, 'reject')} on:click={() => rejectCareerScout(candidate)}>
+              <X size={16} />
+              <span>Not fit</span>
+            </button>
+          </div>
+        </article>
+      {/each}
+    </div>
+  {:else if careerScoutLoading}
+    <p class="muted career-scout-empty">Loading the candidate pool...</p>
+  {:else}
+    <p class="muted career-scout-empty">No reviewable candidates are pooled yet. Run Max Power Search or leave Career Discovery running, and broad findings will appear here before they reach your main table.</p>
+  {/if}
+  {#if rejectedCareerScoutPreview.length}
+    <div class="career-scout-rejected" aria-label="Recently filtered Career Scout candidates">
+      <span>Recently filtered</span>
+      {#each rejectedCareerScoutPreview as candidate}
+        <small>{candidate.company || candidate.rawTitle || 'Unknown'} · {candidate.rejectionReason || 'filtered'}</small>
+      {/each}
+    </div>
   {/if}
 </section>
 
@@ -2601,6 +2881,131 @@
     font-size: 12px;
   }
 
+  .career-scout-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .career-scout-error,
+  .career-scout-empty {
+    padding: 0 14px 12px;
+    margin: 0;
+  }
+
+  .career-scout-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--border);
+  }
+
+  .career-scout-grid div {
+    display: grid;
+    gap: 4px;
+    padding: 10px 14px;
+    border-right: 1px solid var(--border);
+  }
+
+  .career-scout-grid div:last-child {
+    border-right: 0;
+  }
+
+  .career-scout-grid span,
+  .career-scout-main p,
+  .career-scout-main small,
+  .career-scout-score small,
+  .career-scout-rejected {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .career-scout-list {
+    display: grid;
+    border-top: 1px solid var(--border);
+  }
+
+  .career-scout-row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .career-scout-row:last-child {
+    border-bottom: 0;
+  }
+
+  .career-scout-row:hover {
+    background: var(--active);
+  }
+
+  .career-scout-score {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .career-scout-score strong {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .career-scout-main {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .career-scout-main div {
+    display: grid;
+    grid-template-columns: minmax(100px, 0.34fr) minmax(0, 1fr);
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .career-scout-main strong,
+  .career-scout-main span,
+  .career-scout-main p,
+  .career-scout-main small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .career-scout-main p {
+    margin: 0;
+  }
+
+  .career-scout-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .career-scout-rejected {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .career-scout-rejected span {
+    color: var(--text-soft);
+    font-weight: 750;
+  }
+
+  .career-scout-rejected small {
+    padding: 3px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-muted);
+  }
+
   .career-strategy-panel {
     margin-bottom: 12px;
     overflow: hidden;
@@ -3312,20 +3717,23 @@
     .utility-panels,
     .focus-strip,
     .strategy-grid,
-    .discovery-metrics {
+    .discovery-metrics,
+    .career-scout-grid {
       grid-template-columns: 1fr;
     }
 
     .focus-strip div,
     .strategy-grid div,
-    .discovery-metrics div {
+    .discovery-metrics div,
+    .career-scout-grid div {
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
 
     .focus-strip div:last-child,
     .strategy-grid div:last-child,
-    .discovery-metrics div:last-child {
+    .discovery-metrics div:last-child,
+    .career-scout-grid div:last-child {
       border-bottom: 0;
     }
 
@@ -3338,6 +3746,20 @@
     .apply-queue-row {
       grid-template-columns: 1fr;
       align-items: start;
+    }
+
+    .career-scout-row {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+
+    .career-scout-main div {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+
+    .career-scout-actions {
+      justify-content: flex-start;
     }
 
     .apply-main div {

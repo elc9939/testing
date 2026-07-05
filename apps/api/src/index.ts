@@ -14,6 +14,7 @@ import { actionLedgerRoutes } from './routes/action-ledger';
 import { attentionRoutes } from './routes/attention';
 import { passiveTaskRoutes } from './routes/passive-tasks';
 import { careerActionRoutes } from './routes/career-actions';
+import { careerScoutRoutes } from './routes/career-scout';
 import { assistantRoutes } from './routes/assistant';
 import { jobRoutes } from './routes/jobs';
 import { settingsRoutes } from './routes/settings';
@@ -186,6 +187,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route('/api/action-ledger', actionLedgerRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/attention', attentionRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/passive-tasks', passiveTaskRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
+  app.route('/api/career-scout', careerScoutRoutes(store, options.externalFetch ? { externalFetch: options.externalFetch } : {}));
   app.route('/api/integrations', integrationRoutes(store));
   app.route('/api/productivity', productivityRoutes(store));
   app.route('/api/assistant', assistantRoutes());
