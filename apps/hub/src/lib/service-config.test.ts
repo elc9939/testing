@@ -119,6 +119,15 @@ describe('service endpoint resolution', () => {
     expect(resolved.resolvedUrl).toBe('http://127.0.0.1:8787');
   });
 
+  it('defaults empty endpoints to the current private or tunnel gateway origin', () => {
+    expect(serviceEndpointResolution('hubApi', '', serviceFallbackUrl('hubApi'), 'https://example.trycloudflare.com').resolvedUrl).toBe(
+      'https://example.trycloudflare.com'
+    );
+    expect(serviceEndpointResolution('aiOs', '', serviceFallbackUrl('aiOs'), 'http://192.168.1.25:5173').resolvedUrl).toBe(
+      'http://192.168.1.25:5173'
+    );
+  });
+
   it('detects same-origin static endpoints before they make /api calls', () => {
     expect(looksLikeHostedStaticEndpoint('https://elc9939.github.io/testing', 'https://elc9939.github.io')).toBe(true);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:5173', 'http://127.0.0.1:5173')).toBe(false);
@@ -129,6 +138,7 @@ describe('service endpoint resolution', () => {
     expect(connectionModeForOrigin('http://127.0.0.1:5173').id).toBe('local-full-power');
     expect(connectionModeForOrigin('http://mini-hub-pc.tailnet.ts.net:5173').id).toBe('private-remote');
     expect(connectionModeForOrigin('http://192.168.1.25:5173').id).toBe('private-remote');
+    expect(connectionModeForOrigin('https://example.trycloudflare.com').label).toBe('HTTPS Tunnel');
     expect(connectionModeForOrigin('https://elc9939.github.io/testing/').id).toBe('hosted-light');
   });
 
@@ -141,6 +151,12 @@ describe('service endpoint resolution', () => {
       'http://192.168.1.25:5173',
       'http://192.168.1.25:5173',
       'http://192.168.1.25:5173'
+    ]);
+    expect(remoteEndpointSuggestions('https://example.trycloudflare.com').map((endpoint) => endpoint.url)).toEqual([
+      'https://example.trycloudflare.com',
+      'https://example.trycloudflare.com',
+      'https://example.trycloudflare.com',
+      'https://example.trycloudflare.com'
     ]);
     expect(remoteEndpointSuggestions('https://elc9939.github.io/testing')).toEqual([]);
   });
@@ -169,12 +185,32 @@ describe('service endpoint resolution', () => {
     expect(parsed.searchParams.get('ollamaUrl')).toBe('http://192.168.1.25:5173');
   });
 
+  it('builds an HTTPS tunnel gateway phone link without downgrading to local port 5173', () => {
+    const link = buildPrivateRemoteGatewayLink('https://example.trycloudflare.com/settings', 'secret-bridge-token');
+    const parsed = new URL(link);
+
+    expect(parsed.origin).toBe('https://example.trycloudflare.com');
+    expect(parsed.searchParams.get('gateway')).toBe('cloudflare');
+    expect(parsed.searchParams.get('bridgeToken')).toBe('secret-bridge-token');
+    expect(parsed.searchParams.get('apiUrl')).toBe('https://example.trycloudflare.com');
+    expect(parsed.searchParams.get('aiOsUrl')).toBe('https://example.trycloudflare.com');
+    expect(parsed.searchParams.get('macroLabUrl')).toBe('https://example.trycloudflare.com');
+    expect(parsed.searchParams.get('ollamaUrl')).toBe('https://example.trycloudflare.com');
+  });
+
   it('offers private remote links from the current host and detected LAN addresses only', () => {
     expect(privateRemoteLinks('http://127.0.0.1:5173', ['192.168.1.25']).map((link) => link.host)).toEqual(['192.168.1.25']);
     expect(privateRemoteLinks('http://mini-hub-pc.tailnet.ts.net:5173', ['192.168.1.25']).map((link) => link.host)).toEqual([
       'mini-hub-pc.tailnet.ts.net',
       '192.168.1.25'
     ]);
+    const tunnelLinks = privateRemoteLinks('https://example.trycloudflare.com/settings', []);
+    expect(tunnelLinks).toHaveLength(1);
+    expect(tunnelLinks[0]).toMatchObject({
+      label: 'Current HTTPS tunnel',
+      host: 'example.trycloudflare.com'
+    });
+    expect(new URL(tunnelLinks[0]?.url ?? '').origin).toBe('https://example.trycloudflare.com');
     expect(privateRemoteLinks('https://elc9939.github.io/testing', [])).toEqual([]);
   });
 

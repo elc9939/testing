@@ -114,6 +114,12 @@ token, downloads `cloudflared.exe` into `.mini-hub-bridge/tools` if needed, and 
 temporary Cloudflare Quick Tunnel to `http://127.0.0.1:5173`. The launcher writes the full
 phone URL to `remote-tunnel-link.txt` and tries to copy it to the clipboard.
 
+Settings -> Remote Access / Connection Mode also reads the active tunnel state from the
+Mini Hub API. When the tunnel is running, the Phone / Private Remote Link panel prefers
+the HTTPS tunnel link, shows a QR code for phone testing, and marks the current
+`trycloudflare.com` origin as an HTTPS Tunnel even after you navigate away from the long
+query-string URL.
+
 The URL includes `bridgeToken=...`; the hub stores that in the browser and sends it as
 `X-Mini-Hub-Bridge-Token` before the gateway proxies Hub API, AI OS, Macro Lab, or Ollama
 requests. Treat the URL like a temporary private key. Stop the tunnel when you are done:

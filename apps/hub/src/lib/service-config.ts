@@ -204,6 +204,10 @@ function isGithubPagesHost(hostname: string): boolean {
   return /(?:^|\.)github\.io$/iu.test(hostname);
 }
 
+function isHttpsTunnelHost(hostname: string): boolean {
+  return /(?:^|\.)trycloudflare\.com$/iu.test(hostname);
+}
+
 function isPrivateIpv4(hostname: string): boolean {
   const octets = hostname.split('.').map((part) => Number(part));
   if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
@@ -225,7 +229,7 @@ function isPrivateHostname(hostname: string): boolean {
 
 function isPrivateRemoteHost(hostname: string): boolean {
   if (isLoopbackHost(hostname)) return false;
-  return isPrivateIpv4(hostname) || isPrivateHostname(hostname);
+  return isPrivateIpv4(hostname) || isPrivateHostname(hostname) || isHttpsTunnelHost(hostname);
 }
 
 export function connectionModeForOrigin(origin: string): ConnectionMode {
@@ -242,6 +246,16 @@ export function connectionModeForOrigin(origin: string): ConnectionMode {
     };
   }
   if (hostname && isPrivateRemoteHost(hostname)) {
+    if (isHttpsTunnelHost(hostname)) {
+      return {
+        id: 'private-remote',
+        label: 'HTTPS Tunnel',
+        summary: 'This browser appears to be reaching your PC through the private HTTPS tunnel.',
+        detail: 'Full-power features can work while the PC is awake, the tunnel is running, and the bridge token is saved in this browser.',
+        setupAction: 'Use the active tunnel link from Settings or the remote-tunnel-link.txt file, then run Check Services.',
+        fullPower: true
+      };
+    }
     return {
       id: 'private-remote',
       label: 'Private Remote',
@@ -267,6 +281,12 @@ export function buildServiceUrlFromHubOrigin(id: ServiceId, origin: string): str
   if (parsed.port === '5173' || parsed.port === '') return parsed.origin;
   const protocol = parsed.protocol === 'https:' ? 'http:' : parsed.protocol || 'http:';
   return `${protocol}//${parsed.hostname}:${servicePorts[id]}`;
+}
+
+function privateOriginServiceFallback(id: ServiceId, origin: string): string {
+  const parsed = parseUrlOrigin(origin);
+  if (!parsed || !isPrivateRemoteHost(parsed.hostname)) return '';
+  return buildServiceUrlFromHubOrigin(id, origin);
 }
 
 function hostFromPrivateTarget(value: string): string {
@@ -295,13 +315,15 @@ export function buildPrivateRemoteBridgeLink(hostValue: string): string {
 export function buildPrivateRemoteGatewayLink(hostValue: string, bridgeToken = ''): string {
   const host = hostFromPrivateTarget(hostValue);
   if (!host) return '';
-  const gatewayUrl = `http://${host}:5173`;
+  const parsed = parseUrlOrigin(hostValue);
+  const tunnelLike = isHttpsTunnelHost(host) || (parsed?.protocol === 'https:' && !parsed.port);
+  const gatewayUrl = tunnelLike || parsed?.port === '5173' ? (parsed?.origin ?? `https://${host}`) : `http://${host}:5173`;
   const params = new URLSearchParams({
     apiUrl: gatewayUrl,
     aiOsUrl: gatewayUrl,
     macroLabUrl: gatewayUrl,
     ollamaUrl: gatewayUrl,
-    gateway: 'single-port'
+    gateway: tunnelLike ? 'cloudflare' : 'single-port'
   });
   if (bridgeToken.trim()) params.set('bridgeToken', bridgeToken.trim());
   return `${gatewayUrl}/?${params.toString()}`;
@@ -310,17 +332,24 @@ export function buildPrivateRemoteGatewayLink(hostValue: string, bridgeToken = '
 export function privateRemoteLinks(origin: string, lanIpv4: string[] = []): PrivateRemoteLink[] {
   const links: PrivateRemoteLink[] = [];
   const seen = new Set<string>();
+  const bridgeToken = getBridgeToken();
 
   function add(hostValue: string, label: string, detail: string): void {
     const host = hostFromPrivateTarget(hostValue);
     if (!host || seen.has(host) || isLoopbackHost(host) || isGithubPagesHost(host)) return;
     seen.add(host);
-    links.push({ label, host, url: buildPrivateRemoteGatewayLink(host), detail });
+    links.push({ label, host, url: buildPrivateRemoteGatewayLink(hostValue, bridgeToken), detail });
   }
 
   const parsed = parseUrlOrigin(origin);
   if (parsed && isPrivateRemoteHost(parsed.hostname)) {
-    add(parsed.hostname, 'Current private host', 'Use this when the page is already open through LAN, Tailscale, or another private host.');
+    add(
+      parsed.origin,
+      isHttpsTunnelHost(parsed.hostname) ? 'Current HTTPS tunnel' : 'Current private host',
+      isHttpsTunnelHost(parsed.hostname)
+        ? 'Use this on your phone while this HTTPS tunnel is running on the PC.'
+        : 'Use this when the page is already open through LAN, Tailscale, or another private host.'
+    );
   }
 
   for (const address of lanIpv4) {
@@ -361,7 +390,7 @@ export function serviceEndpointResolution(
   currentOrigin = ''
 ): ServiceEndpointResolution {
   const requestedUrl = normalizeServiceUrl(requestedValue ?? '');
-  const fallbackUrl = normalizeServiceUrl(fallback);
+  const fallbackUrl = normalizeServiceUrl(privateOriginServiceFallback(id, currentOrigin) || fallback);
   if (requestedUrl && looksLikeHostedStaticEndpoint(requestedUrl, currentOrigin)) {
     return {
       id,
@@ -428,6 +457,9 @@ export function resolveServiceUrl(id: ServiceId, envValue: string | undefined, f
 
   const fromEnv = normalizeServiceUrl(envValue ?? '');
   if (fromEnv) return serviceEndpointResolution(id, fromEnv, fallback, currentOrigin).resolvedUrl;
+
+  const fromPrivateOrigin = privateOriginServiceFallback(id, currentOrigin);
+  if (fromPrivateOrigin) return normalizeServiceUrl(fromPrivateOrigin);
 
   return normalizeServiceUrl(fallback);
 }
