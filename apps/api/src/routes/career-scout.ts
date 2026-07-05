@@ -8,6 +8,7 @@ import {
   upsertCareerScoutCandidate,
   type CareerScoutUpsertInput
 } from '../career-scout';
+import { refineCareerScoutCandidateWithAi } from '../career-scout-refine';
 import { requireUser, type AppBindings } from '../context';
 import { buildPassiveSnapshot, runPassiveTask } from '../passive-engine';
 import { ensurePersonalWorkspace, userWorkspaceIds, type MemoryStore } from '../store';
@@ -138,28 +139,19 @@ export function careerScoutRoutes(store: MemoryStore, options: CareerScoutRouteO
     ensurePersonalWorkspace(store);
     const parsed = refineBodySchema.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json({ error: 'Invalid request', issues: parsed.error.issues }, 400);
-    const candidate = store.careerScoutCandidates.find((item) => item.id === c.req.param('id'));
-    if (!candidate) return c.json({ error: 'Career Scout candidate not found.' }, 404);
     if (parsed.data.usePaidProvider && parsed.data.costCeilingUsd <= 0) {
       return c.json({ error: 'Paid refinement requires a positive cost ceiling.' }, 400);
     }
-    const result = upsertCareerScoutCandidate(store, {
-      id: candidate.id,
-      workspaceId: candidate.workspaceId,
-      sourceUrl: candidate.sourceUrl,
-      status: candidate.status === 'rejected' ? 'needs_review' : 'enriched',
-      stage: 'refine_rank',
-      metadata: {
-        ...candidate.metadata,
-        refineRequestedAt: new Date().toISOString(),
-        paidProviderAllowed: parsed.data.usePaidProvider,
-        costCeilingUsd: parsed.data.costCeilingUsd,
-        refineNote: parsed.data.usePaidProvider
-          ? 'Queued for paid-provider-capable refinement infrastructure; API key availability and budget cap are enforced before paid calls.'
-          : 'Refreshed with local rules only; paid provider was not allowed for this refinement request.'
-      }
-    });
-    return c.json(result);
+    try {
+      const result = await refineCareerScoutCandidateWithAi(store, c.req.param('id'), {
+        externalFetch,
+        usePaidProvider: parsed.data.usePaidProvider,
+        costCeilingUsd: parsed.data.costCeilingUsd
+      });
+      return c.json(result);
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, 404);
+    }
   });
 
   app.post('/max-power-search', async (c) => {

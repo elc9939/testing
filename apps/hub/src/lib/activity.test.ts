@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PassiveSnapshot } from '@mini-hub/core';
+import type { ActionLedgerEntry, PassiveSnapshot } from '@mini-hub/core';
 import type { AiStatus, ResearchRun } from './ai-os-api';
 import { activityHasActiveWork, buildActivityRecords } from './activity';
 import type { MacroRun } from './macro-lab-api';
@@ -181,6 +181,49 @@ describe('buildActivityRecords', () => {
     expect(record.progress).toBe(0.5);
     expect(record.actions.find((action) => action.kind === 'resume')?.enabled).toBe(true);
     expect(record.actions.find((action) => action.kind === 'cancel')?.enabled).toBe(true);
+  });
+
+  it('keeps Mini Hub action ledger writes recoverable in Activity', () => {
+    const action: ActionLedgerEntry = {
+      id: 'action_career_scout_refine',
+      occurredAt: '2026-06-20T12:00:00.000Z',
+      system: 'mini-hub',
+      source: 'career-scout',
+      actionType: 'career_scout.refine_candidate',
+      summary: 'Refined Refine Labs with openai.',
+      status: 'succeeded',
+      risk: 'write',
+      changed: ['career_scout_candidate:candidate_1'],
+      recoverability: {
+        kind: 'snapshot',
+        referenceId: 'candidate_1',
+        route: '/desk/career',
+        description: 'Candidate remains inspectable.',
+        reversible: true
+      },
+      rawRef: {},
+      metadata: { provider: 'openai', model: 'gpt-4o-mini', costUsd: 0.0002 }
+    };
+    const records = buildActivityRecords({ hubActions: [action] });
+
+    expect(records[0]).toMatchObject({
+      id: 'hub-action:action_career_scout_refine',
+      source: 'mini-hub',
+      sourceLabel: 'Mini Hub',
+      title: 'Refined Refine Labs with openai.',
+      status: 'succeeded',
+      route: '/desk/career',
+      metadata: {
+        actionId: 'action_career_scout_refine',
+        actionType: 'career_scout.refine_candidate',
+        risk: 'write'
+      }
+    });
+    expect(records[0]?.detail).toContain('career-scout career_scout.refine_candidate');
+    expect(records[0]?.actions.find((item) => item.kind === 'view_logs')).toMatchObject({
+      enabled: true,
+      route: '/settings#action-ledger'
+    });
   });
 
   it('keeps completed research reports findable and locally dismissible', () => {

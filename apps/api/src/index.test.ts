@@ -770,6 +770,120 @@ describe('mini hub api', () => {
     expect(rejected.candidate).toMatchObject({ status: 'rejected', rejectionReason: 'not-my-profile' });
   });
 
+  it('refines Career Scout candidates through AI OS with explicit paid fallback budget', async () => {
+    const store = createMemoryStore();
+    let inferenceRequest: Record<string, unknown> | undefined;
+    const externalFetch = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const href = String(input);
+      if (href.includes('/api/ai/infer')) {
+        inferenceRequest = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        return jsonResponse({
+          result: {
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            text: JSON.stringify({
+              company: 'Refine Labs',
+              role: 'Data Analyst Intern',
+              location: 'New York',
+              startDate: 'Summer 2027',
+              graduationEligibility: 'Open to May 2027 graduates',
+              applicationDeadline: '2026-09-15',
+              officialApplyUrl: 'https://refine.example.com/jobs/data-analyst-intern',
+              sourceQuality: 'direct-career-page',
+              sourceQualityEvidence: 'Official careers page',
+              timingConfidence: 'high',
+              timingEvidence: 'Posting states Summer 2027',
+              profileFitConfidence: 'high',
+              profileFitEvidence: 'Data analytics internship aligns with Math/CS profile',
+              deadlineConfidence: 'high',
+              deadlineEvidence: 'Deadline is listed',
+              fitScore: 93,
+              confidence: 0.91,
+              fitRationale: 'Strong fit for the saved May/Summer 2027 analytics target.',
+              evidence: ['Summer 2027', 'Data Analyst Intern', 'Official careers page']
+            }),
+            usage: { input_tokens: 800, output_tokens: 220, total_tokens: 1020 },
+            latency_ms: 850,
+            cost_usd: 0.000252
+          }
+        });
+      }
+      if (href.includes('refine.example.com/jobs/data-analyst-intern')) {
+        return new Response(
+          '<html><body><h1>Data Analyst Intern</h1><p>Summer 2027 role for May 2027 graduates. Deadline 2026-09-15.</p></body></html>',
+          { headers: { 'content-type': 'text/html' } }
+        );
+      }
+      return jsonResponse({ ok: true });
+    }) as typeof fetch;
+    const app = createApp({ useLogger: false, store, externalFetch });
+
+    const createResponse = await app.request('/api/career-scout/candidates', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sourceUrl: 'https://refine.example.com/jobs/data-analyst-intern',
+        company: 'Refine Labs',
+        role: 'Analyst Intern',
+        status: 'plausible',
+        fitScore: 76
+      })
+    });
+    const created = (await createResponse.json()) as { candidate: { id: string } };
+
+    const blocked = await app.request(`/api/career-scout/candidates/${created.candidate.id}/refine`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ usePaidProvider: true, costCeilingUsd: 0 })
+    });
+    expect(blocked.status).toBe(400);
+
+    const refineResponse = await app.request(`/api/career-scout/candidates/${created.candidate.id}/refine`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ usePaidProvider: true, costCeilingUsd: 0.05 })
+    });
+    expect(refineResponse.status).toBe(200);
+    const refined = (await refineResponse.json()) as {
+      candidate: { status: string; role: string; fitScore: number; modelUsage: Record<string, unknown>; structured: Record<string, unknown> };
+      refinement: { provider: string; model: string; costUsd: number };
+    };
+    expect(inferenceRequest).toMatchObject({
+      task_type: 'career.refine_rank',
+      local_first: true,
+      allow_fallback: true,
+      cost_ceiling_usd: 0.05
+    });
+    expect(refined.candidate).toMatchObject({
+      status: 'enriched',
+      role: 'Data Analyst Intern',
+      fitScore: 93,
+      structured: expect.objectContaining({
+        startDate: 'Summer 2027',
+        graduationEligibility: 'Open to May 2027 graduates',
+        applicationDeadline: '2026-09-15'
+      }),
+      modelUsage: expect.objectContaining({
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        costUsd: 0.000252,
+        inputTokens: 800,
+        outputTokens: 220
+      })
+    });
+    expect(refined.refinement).toMatchObject({ provider: 'openai', model: 'gpt-4o-mini', costUsd: 0.000252 });
+    expect(store.actionEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'career-scout',
+          actionType: 'career_scout.refine_candidate',
+          changed: [`career_scout_candidate:${created.candidate.id}`],
+          metadata: expect.objectContaining({ costCeilingUsd: 0.05, paidProviderAllowed: true })
+        })
+      ])
+    );
+  });
+
   it('exposes sync writes through the action ledger with recoverability metadata', async () => {
     const app = createApp({ useLogger: false, store: createMemoryStore() });
     const authHeaders = { 'content-type': 'application/json' };

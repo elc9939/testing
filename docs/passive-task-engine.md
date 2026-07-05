@@ -228,7 +228,11 @@ normal API startup.
   a normal Career Desk `lead` row with preserved source notes and updates the seen-lead
   registry. Candidate records include source quality, timing confidence, deadline confidence,
   posting date when available, duplicate status, and parseable discovery metadata; Passive result source refs expose the same key
-  metadata. Job-board mirrors and unclear hosts can guide research but are not promoted as
+  metadata. Career Desk's pool actions can fetch the original source page and refine/rank
+  through AI OS: local refine keeps fallback disabled, while GPT Rank permits paid fallback
+  under the request cost ceiling and records provider/model/cost/latency in the candidate and
+  Mini Hub action ledger. Activity loads those Mini Hub action records with the rest of the
+  durable work sources. Job-board mirrors and unclear hosts can guide research but are not promoted as
   leads until a direct company/ATS-style source is found; sources whose May/Summer 2027 timing
   only appears in the surrounding research context are also filtered. Sources whose
   source-local graduation/class year, start date, or requirements conflict with the saved

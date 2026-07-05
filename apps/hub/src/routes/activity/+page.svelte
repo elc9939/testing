@@ -24,7 +24,8 @@
   const expectedActivitySources = [
     { id: 'ai-os', label: 'AI OS' },
     { id: 'passive', label: 'Passive Tasks' },
-    { id: 'macro-lab', label: 'Macro Lab' }
+    { id: 'macro-lab', label: 'Macro Lab' },
+    { id: 'mini-hub', label: 'Mini Hub actions' }
   ];
 
   let snapshot: ActivitySnapshot | null = null;

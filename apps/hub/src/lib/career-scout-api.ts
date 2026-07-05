@@ -42,8 +42,38 @@ export async function rejectCareerScoutCandidate(candidateId: string, reason = '
 export async function refineCareerScoutCandidate(
   candidateId: string,
   input: { usePaidProvider?: boolean; costCeilingUsd?: number } = {}
-): Promise<{ candidate: CareerScoutCandidate; inserted: boolean; duplicateOf?: string }> {
-  return requestApiJson<{ candidate: CareerScoutCandidate; inserted: boolean; duplicateOf?: string }>(
+): Promise<{
+  candidate: CareerScoutCandidate;
+  inserted: boolean;
+  duplicateOf?: string;
+  refinement: {
+    provider: string;
+    model: string;
+    costUsd: number;
+    latencyMs: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    fallback: boolean;
+    fetchError?: string;
+    inferenceError?: string;
+  };
+}> {
+  return requestApiJson<{
+    candidate: CareerScoutCandidate;
+    inserted: boolean;
+    duplicateOf?: string;
+    refinement: {
+      provider: string;
+      model: string;
+      costUsd: number;
+      latencyMs: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      fallback: boolean;
+      fetchError?: string;
+      inferenceError?: string;
+    };
+  }>(
     `/api/career-scout/candidates/${encodeURIComponent(candidateId)}/refine`,
     {
       method: 'POST',

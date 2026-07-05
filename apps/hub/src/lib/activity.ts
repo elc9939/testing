@@ -1,4 +1,4 @@
-import type { PassiveRun, PassiveSnapshot } from '@mini-hub/core';
+import type { ActionLedgerEntry, PassiveRun, PassiveSnapshot } from '@mini-hub/core';
 import type {
   AiBackupSummary,
   AiBenchmarkRun,
@@ -11,7 +11,7 @@ import type {
 import type { MacroRun } from './macro-lab-api';
 
 export type ActivityStatus = 'queued' | 'running' | 'paused' | 'succeeded' | 'failed' | 'cancelled' | 'blocked' | 'skipped' | 'info';
-export type ActivitySource = 'research' | 'ai-os' | 'passive' | 'macro-lab';
+export type ActivitySource = 'research' | 'ai-os' | 'passive' | 'macro-lab' | 'mini-hub';
 export type ActivityActionKind = 'open' | 'resume' | 'cancel' | 'retry' | 'dismiss' | 'view_logs';
 
 export interface ActivityAction {
@@ -41,6 +41,7 @@ export interface ActivityBuildInput {
   aiStatus?: AiStatus | null;
   passiveSnapshot?: PassiveSnapshot | null;
   macroRuns?: MacroRun[];
+  hubActions?: ActionLedgerEntry[];
 }
 
 export function buildActivityRecords(input: ActivityBuildInput, limit = 40): ActivityRecord[] {
@@ -51,6 +52,7 @@ export function buildActivityRecords(input: ActivityBuildInput, limit = 40): Act
     ...benchmarkRecords(input.aiStatus?.benchmark_runs ?? []),
     ...backupRecords(input.aiStatus?.backups ?? []),
     ...generationAssetRecords(input.aiStatus?.generation_assets ?? []),
+    ...hubActionRecords(input.hubActions ?? []),
     ...passiveRecords(input.passiveSnapshot?.runs ?? []),
     ...macroRecords(input.macroRuns ?? [])
   ];
@@ -212,6 +214,35 @@ function generationAssetRecords(assets: AiGenerationAsset[]): ActivityRecord[] {
   });
 }
 
+function hubActionRecords(actions: ActionLedgerEntry[]): ActivityRecord[] {
+  return actions.map((entry) => {
+    const route = entry.recoverability.route || '/settings#action-ledger';
+    const status = normalizeStatus(entry.status);
+    return {
+      id: `hub-action:${entry.id}`,
+      source: 'mini-hub',
+      sourceLabel: 'Mini Hub',
+      title: entry.summary,
+      detail: hubActionDetail(entry),
+      status,
+      startedAt: entry.occurredAt,
+      updatedAt: entry.occurredAt,
+      route,
+      actions: dismissibleActions(status, [
+        action('open', 'Open', true, route),
+        action('view_logs', 'View Logs', true, '/settings#action-ledger')
+      ]),
+      metadata: {
+        actionId: entry.id,
+        actionType: entry.actionType,
+        source: entry.source,
+        risk: entry.risk,
+        changed: entry.changed
+      }
+    };
+  });
+}
+
 function passiveRecords(runs: PassiveRun[]): ActivityRecord[] {
   return runs.map((run) => {
     const route = `/passive-tasks?run=${encodeURIComponent(run.id)}`;
@@ -308,6 +339,12 @@ function generationAssetDetail(asset: AiGenerationAsset): string {
   const provider = [asset.provider, asset.model].filter(Boolean).join('/');
   const location = asset.asset_path || asset.content_type || 'metadata logged';
   return `${provider || 'generation adapter'} - ${location}.`;
+}
+
+function hubActionDetail(entry: ActionLedgerEntry): string {
+  const changed = entry.changed.length ? `, ${entry.changed.length} changed` : '';
+  const reversible = entry.recoverability.reversible ? ', reversible' : '';
+  return `${entry.source} ${entry.actionType}${changed}${reversible}.`;
 }
 
 function passiveDetail(run: PassiveRun): string {

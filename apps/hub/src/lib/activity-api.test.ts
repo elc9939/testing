@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getAiStatusMock = vi.hoisted(() => vi.fn());
 const cancelAiJobMock = vi.hoisted(() => vi.fn());
@@ -7,6 +7,7 @@ const resumeResearchRunMock = vi.hoisted(() => vi.fn());
 const getPassiveSnapshotMock = vi.hoisted(() => vi.fn());
 const runPassiveTaskMock = vi.hoisted(() => vi.fn());
 const listMacroRunsMock = vi.hoisted(() => vi.fn());
+const getUnifiedActionLedgerMock = vi.hoisted(() => vi.fn());
 
 vi.mock('./ai-os-api', () => ({
   getAiStatus: getAiStatusMock,
@@ -24,9 +25,17 @@ vi.mock('./macro-lab-api', () => ({
   listMacroRuns: listMacroRunsMock
 }));
 
+vi.mock('./api', () => ({
+  getUnifiedActionLedger: getUnifiedActionLedgerMock
+}));
+
 import { clearDismissedActivityRecords, dismissActivityRecord, loadActivitySnapshot, readDismissedActivityIds, settleActivitySource } from './activity-api';
 
 describe('activity source loading', () => {
+  beforeEach(() => {
+    getUnifiedActionLedgerMock.mockResolvedValue({ checkedAt: '2026-06-23T10:00:00.000Z', actions: [], errors: [], sources: [] });
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
     Reflect.deleteProperty(globalThis, 'localStorage');
@@ -97,6 +106,7 @@ describe('activity source loading', () => {
     getAiStatusMock.mockRejectedValue(new Error('AI OS offline'));
     getPassiveSnapshotMock.mockRejectedValue(new Error('Passive offline'));
     listMacroRunsMock.mockRejectedValue(new Error('Macro offline'));
+    getUnifiedActionLedgerMock.mockRejectedValue(new Error('Mini Hub actions offline'));
 
     const snapshot = await loadActivitySnapshot(20, { sourceTimeoutMs: 2 });
 
@@ -179,6 +189,7 @@ describe('activity source loading', () => {
     getAiStatusMock.mockRejectedValue(new Error('AI OS offline'));
     getPassiveSnapshotMock.mockRejectedValue(new Error('Passive offline'));
     listMacroRunsMock.mockRejectedValue(new Error('Macro offline'));
+    getUnifiedActionLedgerMock.mockRejectedValue(new Error('Mini Hub actions offline'));
 
     const snapshot = await loadActivitySnapshot(20, { sourceTimeoutMs: 2 });
 
@@ -186,10 +197,11 @@ describe('activity source loading', () => {
     expect(snapshot.stale).toBe(false);
     expect(snapshot.records).toEqual([]);
     expect(snapshot.sources.every((source) => !source.ok)).toBe(true);
-    expect(snapshot.errors.slice(0, 3)).toEqual([
+    expect(snapshot.errors.slice(0, 4)).toEqual([
       expect.stringContaining('AI OS'),
       expect.stringContaining('Passive Tasks'),
-      expect.stringContaining('Macro Lab')
+      expect.stringContaining('Macro Lab'),
+      expect.stringContaining('Mini Hub actions')
     ]);
     expect(snapshot.errors.at(-1)).toContain('Browser Activity cache is unavailable');
   });

@@ -1,6 +1,7 @@
 import { getAiStatus, cancelAiJob, cancelResearchRun, resumeResearchRun } from './ai-os-api';
 import { getPassiveSnapshot, runPassiveTask } from './passive-tasks-api';
 import { listMacroRuns } from './macro-lab-api';
+import { getUnifiedActionLedger } from './api';
 import { activityHasActiveWork, buildActivityRecords, type ActivityRecord } from './activity';
 import { compactServiceIssueIfRecognized } from './service-issues';
 
@@ -175,21 +176,24 @@ export async function loadActivitySnapshot(
 ): Promise<ActivitySnapshot> {
   const checkedAt = new Date().toISOString();
   const timeoutMs = options.sourceTimeoutMs ?? defaultActivitySourceTimeoutMs;
-  const [ai, passive, macro] = await Promise.all([
+  const [ai, passive, macro, hubLedger] = await Promise.all([
     settleActivitySource('AI OS activity source', getAiStatus(), timeoutMs),
     settleActivitySource('Passive Tasks activity source', getPassiveSnapshot(), timeoutMs),
-    settleActivitySource('Macro Lab activity source', listMacroRuns(30), timeoutMs)
+    settleActivitySource('Macro Lab activity source', listMacroRuns(30), timeoutMs),
+    settleActivitySource('Mini Hub action ledger source', getUnifiedActionLedger(limit), timeoutMs)
   ]);
 
   const aiStatus = ai.status === 'fulfilled' ? ai.value : null;
   const passiveSnapshot = passive.status === 'fulfilled' ? passive.value : null;
   const macroRuns = macro.status === 'fulfilled' ? macro.value : [];
+  const hubActions = hubLedger.status === 'fulfilled' ? hubLedger.value.actions : [];
   const errors = [
     ai.status === 'rejected' ? errorMessage(ai.reason, 'AI OS') : '',
     passive.status === 'rejected' ? errorMessage(passive.reason, 'Passive Tasks') : '',
-    macro.status === 'rejected' ? errorMessage(macro.reason, 'Macro Lab') : ''
+    macro.status === 'rejected' ? errorMessage(macro.reason, 'Macro Lab') : '',
+    hubLedger.status === 'rejected' ? errorMessage(hubLedger.reason, 'Mini Hub actions') : ''
   ].filter(Boolean);
-  const liveRecords = buildActivityRecords({ aiStatus, passiveSnapshot, macroRuns }, limit);
+  const liveRecords = buildActivityRecords({ aiStatus, passiveSnapshot, macroRuns, hubActions }, limit);
   const snapshot: ActivitySnapshot = {
     checkedAt,
     stale: false,
@@ -199,7 +203,14 @@ export async function loadActivitySnapshot(
     sources: [
       source('ai-os', 'AI OS', ai.status === 'fulfilled', 0, ai.status === 'rejected' ? errorMessage(ai.reason, 'AI OS') : undefined),
       source('passive', 'Passive Tasks', passive.status === 'fulfilled', 0, passive.status === 'rejected' ? errorMessage(passive.reason, 'Passive Tasks') : undefined),
-      source('macro-lab', 'Macro Lab', macro.status === 'fulfilled', 0, macro.status === 'rejected' ? errorMessage(macro.reason, 'Macro Lab') : undefined)
+      source('macro-lab', 'Macro Lab', macro.status === 'fulfilled', 0, macro.status === 'rejected' ? errorMessage(macro.reason, 'Macro Lab') : undefined),
+      source(
+        'mini-hub',
+        'Mini Hub actions',
+        hubLedger.status === 'fulfilled',
+        0,
+        hubLedger.status === 'rejected' ? errorMessage(hubLedger.reason, 'Mini Hub actions') : undefined
+      )
     ],
     errors
   };
@@ -208,7 +219,8 @@ export async function loadActivitySnapshot(
   const failedSourceIds = new Set([
     ai.status === 'rejected' ? 'ai-os' : '',
     passive.status === 'rejected' ? 'passive' : '',
-    macro.status === 'rejected' ? 'macro-lab' : ''
+    macro.status === 'rejected' ? 'macro-lab' : '',
+    hubLedger.status === 'rejected' ? 'mini-hub' : ''
   ].filter(Boolean));
   const cachedFallbackRecords = cached?.records.filter((record) => failedSourceIds.has(activitySourceId(record))) ?? [];
   if (cachedFallbackRecords.length) {
@@ -255,9 +267,10 @@ export async function performActivityAction(record: ActivityRecord, actionKind: 
   }
 }
 
-function activitySourceId(record: ActivityRecord): 'ai-os' | 'passive' | 'macro-lab' {
+function activitySourceId(record: ActivityRecord): 'ai-os' | 'passive' | 'macro-lab' | 'mini-hub' {
   if (record.source === 'research' || record.source === 'ai-os') return 'ai-os';
   if (record.source === 'passive') return 'passive';
+  if (record.source === 'mini-hub') return 'mini-hub';
   return 'macro-lab';
 }
 

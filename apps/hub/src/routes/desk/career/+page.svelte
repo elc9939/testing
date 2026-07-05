@@ -454,7 +454,7 @@
   function careerScoutActionTitle(
     state: CareerScoutControlState,
     candidate: CareerScoutCandidate,
-    action: 'promote' | 'reject' | 'refine'
+    action: 'promote' | 'reject' | 'refine' | 'paid-refine'
   ): string {
     if (!state.canSave) return 'Offline read-only: start or connect the Mini Hub API before changing Career Scout candidates.';
     if (state.loading) return 'Career Scout candidate pool is still loading.';
@@ -464,6 +464,7 @@
     if (action === 'promote' && (!candidate.company.trim() || !candidate.role.trim())) return 'Candidate needs a company and role before promotion.';
     if (action === 'reject' && candidate.status === 'rejected') return 'This candidate is already rejected.';
     if (action === 'refine') return 'Refresh this candidate with the local refine/ranking path; paid GPT fallback remains budget-gated.';
+    if (action === 'paid-refine') return 'Run local-first refinement with paid GPT-4o mini fallback allowed up to a $0.05 cap.';
     return action === 'promote' ? 'Promote this candidate into the visible Career Desk table.' : 'Reject this candidate but keep it inspectable in the pool.';
   }
 
@@ -640,15 +641,15 @@
     }
   }
 
-  async function refineCareerScout(candidate: CareerScoutCandidate): Promise<void> {
+  async function refineCareerScout(candidate: CareerScoutCandidate, usePaidProvider = false): Promise<void> {
     if (!canSave || careerScoutBusyId) return;
     careerScoutBusyId = candidate.id;
     careerScoutError = '';
     saveMessage = '';
     try {
-      await refineCareerScoutCandidate(candidate.id, { usePaidProvider: false, costCeilingUsd: 0.05 });
+      const result = await refineCareerScoutCandidate(candidate.id, { usePaidProvider, costCeilingUsd: usePaidProvider ? 0.05 : 0 });
       await refreshCareerScoutPool(true);
-      saveMessage = `Refreshed local Career Scout ranking for ${candidate.company || candidate.rawTitle || candidate.id}.`;
+      saveMessage = `Refined ${candidate.company || candidate.rawTitle || candidate.id} with ${result.refinement.provider}/${result.refinement.model}; cost $${result.refinement.costUsd.toFixed(4)}.`;
     } catch (error) {
       careerScoutError = error instanceof Error ? error.message : 'Career Scout refine failed';
     } finally {
@@ -2145,6 +2146,10 @@
             <button class="button" type="button" disabled={!canSave || !!careerScoutBusyId || careerScoutLoading} title={careerScoutActionTitle(careerScoutControlState, candidate, 'refine')} on:click={() => refineCareerScout(candidate)}>
               <Search size={16} />
               <span>Refine</span>
+            </button>
+            <button class="button" type="button" disabled={!canSave || !!careerScoutBusyId || careerScoutLoading} title={careerScoutActionTitle(careerScoutControlState, candidate, 'paid-refine')} on:click={() => refineCareerScout(candidate, true)}>
+              <Zap size={16} />
+              <span>GPT Rank</span>
             </button>
             <button class="button subtle" type="button" disabled={!canSave || !!careerScoutBusyId || careerScoutLoading || candidate.status === 'rejected'} title={careerScoutActionTitle(careerScoutControlState, candidate, 'reject')} on:click={() => rejectCareerScout(candidate)}>
               <X size={16} />

@@ -177,8 +177,8 @@ without kicking every local API or desktop service just because the sidebar is v
   does not start from a blank service panel.
 - Activity: a durable recovery surface for long-running or recently finished work. It
   projects persisted Research runs, AI OS jobs/backups/benchmarks, Passive Task runs, and
-  Macro Lab run history into one list with source health, progress, errors, and deep links
-  back to the owning feature.
+  Macro Lab run history plus Mini Hub action-ledger writes into one list with source health,
+  progress, errors, and deep links back to the owning feature.
 - Career Desk: job/application tracking, manual fit scores, one-click "mark applied"
   status updates that create a 14-day follow-up action, Gmail update matching for submitted
   applications, action items, a visible Career Discovery status panel that separates
@@ -189,6 +189,8 @@ without kicking every local API or desktop service just because the sidebar is v
   qualification guardrails, high-confidence passive Gmail/completed-action
   application confirmation and career-status updates, a durable Career Scout candidate pool that
   keeps wide-discovery findings separate from the visible application table until promoted,
+  local Refine and explicit GPT Rank actions that route through AI OS with a paid fallback
+  cost ceiling before writing provider/model/cost evidence back to the candidate,
   a ranked Apply Queue with application-angle guidance and quick open/save/watch/applied
   actions, quick save/watch/not-fit review actions, an automation status panel for Career Radar and
   Discovery runs, active discovery topics/source lanes, last/next run times, pooled/filtered
@@ -409,7 +411,13 @@ real-data only:
   ranking, with skip reasons such as wrong graduation year, wrong start date, qualification
   mismatch, or weak profile fit.
   Candidate records preserve the source and evidence, plus parseable discovery metadata for source quality, timing
-  confidence, deadline confidence, posting date, and duplicate status. When a sweep finds candidates but promotes none, a durable filter
+  confidence, deadline confidence, posting date, and duplicate status. The candidate pool can
+  fetch the original source page and refine/rank through AI OS: bulk/local work stays on
+  Ollama where possible, while the explicit GPT Rank action permits GPT-4o mini fallback up
+  to the displayed budget cap and records provider/model/cost/latency on the candidate and
+  Mini Hub action ledger. Activity includes Mini Hub action-ledger records, so Career Scout
+  refine/promote/reject writes remain recoverable beside AI OS, Passive Tasks, and Macro Lab work.
+  When a sweep finds candidates but promotes none, a durable filter
   summary card shows what was rejected, such as duplicate roles or low-fit listings. The
   passive engine also keeps a bounded Career Discovery filter memory in synced settings, so
   repeated low-fit, weak-timing, weak-source, or excluded source fingerprints are skipped as `previously-filtered`
