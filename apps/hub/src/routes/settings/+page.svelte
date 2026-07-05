@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { Activity, ArrowRight, Cloud, Copy, Database, Download, ListChecks, Monitor, Moon, RefreshCw, Save, Sun } from 'lucide-svelte';
   import QRCode from 'qrcode';
-  import type { ActionLedgerEntry, PassiveBackupHealth, PassiveSnapshot, PassiveTaskFamily } from '@mini-hub/core';
+  import { routeMap, type ActionLedgerEntry, type PassiveBackupHealth, type PassiveSnapshot, type PassiveTaskFamily } from '@mini-hub/core';
   import {
     actionLedgerDetail,
     actionLedgerRiskLabel,
@@ -56,7 +56,6 @@
   import { getConnections, listCalendars, listGmailLabels } from '$lib/productivity-api';
   import { hubHref } from '$lib/routes';
   import {
-    bridgeTokenConfigured,
     connectionModeForOrigin,
     getBridgeToken,
     localNetworkHint,
@@ -67,6 +66,7 @@
     serviceHealthPath,
     setBridgeToken,
     setServiceEndpoints,
+    applyQueryServiceEndpoints,
     type PrivateRemoteLink,
     type ServiceEndpoint,
     type ServiceId
@@ -230,7 +230,9 @@
   $: primaryPhoneRemoteLink = phoneRemoteLinks[0];
   $: activeTunnelRemoteLink = remoteAccessTunnelLink(remoteAccessTunnel);
   $: displayedPhoneRemoteLink = activeTunnelRemoteLink ?? primaryPhoneRemoteLink;
-  $: void refreshPhoneRemoteQr(displayedPhoneRemoteLink?.url ?? '');
+  $: displayedPhoneRemoteSetupUrl = phoneRemoteSetupUrl(displayedPhoneRemoteLink?.url ?? '');
+  $: bridgeTokenSaved = Boolean(bridgeTokenInput.trim());
+  $: void refreshPhoneRemoteQr(displayedPhoneRemoteSetupUrl);
   $: privateRemoteReadiness = summarizeRemoteAccess(remoteAccessStatus, visibleRemoteAccessError, remoteAccessLoading);
   $: machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions);
   $: machineAutotuneBlockedReason = machineProfileControlBlockedReason('autotune', {
@@ -733,13 +735,26 @@
     return {
       label: tunnel.running ? 'Active HTTPS tunnel' : 'Saved HTTPS tunnel',
       host,
-      url: tunnel.remoteLink,
+      url: phoneRemoteSetupUrl(tunnel.remoteLink),
       detail: tunnel.running
         ? tunnel.tokenEmbedded
-          ? 'Use this from your phone or another device while the PC tunnel is running. The private bridge token is embedded in the link.'
+          ? 'Use this from your phone or another device while the PC tunnel is running. The private bridge token is embedded in the Settings link.'
           : 'The tunnel is running, but this link does not include the bridge token; API calls may be rejected.'
         : `A tunnel link is saved at ${tunnel.linkFile}, but the tunnel process is not running.`
     };
+  }
+
+  function phoneRemoteSetupUrl(url: string): string {
+    if (!url) return '';
+    try {
+      const parsed = new URL(url);
+      const settingsPath = hubHref(routeMap.settings);
+      parsed.pathname = settingsPath.startsWith('/') ? settingsPath : `/${settingsPath}`;
+      parsed.hash = 'connection-mode';
+      return parsed.toString();
+    } catch {
+      return url;
+    }
   }
 
   async function copyPhoneRemoteLink(url: string): Promise<void> {
@@ -1422,6 +1437,7 @@
   }
 
   onMount(() => {
+    applyQueryServiceEndpoints();
     loadEndpointInputs();
     hydrateCapabilityCache();
     void clientData.init();
@@ -1487,8 +1503,8 @@
       </div>
       <div>
         <span>Bridge token</span>
-        <strong>{bridgeTokenConfigured() ? 'Saved in this browser' : 'Not saved'}</strong>
-        <small>{bridgeTokenConfigured() ? 'Sent to Hub API, AI OS, and Macro Lab when configured server-side.' : 'Optional; set MINI_HUB_BRIDGE_TOKEN before exposing services beyond loopback.'}</small>
+        <strong>{bridgeTokenSaved ? 'Saved in this browser' : 'Not saved'}</strong>
+        <small>{bridgeTokenSaved ? 'Sent to Hub API, AI OS, Macro Lab, and gatewayed Ollama when configured server-side.' : 'Optional; set MINI_HUB_BRIDGE_TOKEN before exposing services beyond loopback.'}</small>
       </div>
     </div>
     <div class="phone-remote-panel" aria-label="Phone private remote link">
@@ -1497,7 +1513,7 @@
         {#if displayedPhoneRemoteLink}
           <strong>{displayedPhoneRemoteLink.label}: {displayedPhoneRemoteLink.host}</strong>
           <small>{displayedPhoneRemoteLink.detail}</small>
-          <code>{displayedPhoneRemoteLink.url}</code>
+          <code>{displayedPhoneRemoteSetupUrl}</code>
         {:else}
           <strong>Run Check Services</strong>
           <small>Start the LAN bridge, then check services so Mini Hub can detect the PC address and build the phone link.</small>
@@ -1518,11 +1534,11 @@
       {/if}
       <div class="phone-remote-actions">
         {#if displayedPhoneRemoteLink}
-          <button class="button compact" type="button" title="Copy the full private remote URL with Hub API, AI OS, Macro Lab, and Ollama endpoints embedded." on:click={() => copyPhoneRemoteLink(displayedPhoneRemoteLink.url)}>
+          <button class="button compact" type="button" title="Copy the full private remote URL with Hub API, AI OS, Macro Lab, and Ollama endpoints embedded." on:click={() => copyPhoneRemoteLink(displayedPhoneRemoteSetupUrl)}>
             <Copy size={15} />
             <span>Copy</span>
           </button>
-          <a class="button compact" href={displayedPhoneRemoteLink.url} target="_blank" rel="noreferrer" title="Open the private remote hub URL in a new tab on this browser.">
+          <a class="button compact" href={displayedPhoneRemoteSetupUrl} target="_blank" rel="noreferrer" title="Open the private remote hub URL in a new tab on this browser.">
             <ArrowRight size={15} />
             <span>Open</span>
           </a>

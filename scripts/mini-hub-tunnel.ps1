@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('start', 'stop', 'status')]
+  [ValidateSet('start', 'stop', 'status', 'verify')]
   [string]$Action = 'status',
   [string]$BridgeToken = '',
   [switch]$NoDownload
@@ -82,6 +82,65 @@ function Build-RemoteUrl([string]$BaseUrl, [string]$Token) {
   return "$BaseUrl/?apiUrl=$encodedBase&aiOsUrl=$encodedBase&macroLabUrl=$encodedBase&ollamaUrl=$encodedBase&gateway=cloudflare&bridgeToken=$encodedToken"
 }
 
+function Redact-RemoteUrl([string]$Url) {
+  if (-not $Url) { return '' }
+  return [regex]::Replace($Url, '([?&]bridgeToken=)[^&]+', '${1}<redacted>')
+}
+
+function Get-RemoteLink {
+  if (-not (Test-Path -LiteralPath $TunnelLinkFile)) { return '' }
+  $link = Get-Content -LiteralPath $TunnelLinkFile -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $link) { return '' }
+  return $link.Trim()
+}
+
+function Get-QueryParam([string]$Url, [string]$Name) {
+  $uri = [System.Uri]$Url
+  $query = $uri.Query.TrimStart('?')
+  if (-not $query) { return '' }
+  foreach ($part in $query.Split('&')) {
+    if (-not $part) { continue }
+    $pair = $part.Split('=', 2)
+    $key = [System.Uri]::UnescapeDataString($pair[0])
+    if ($key -ne $Name) { continue }
+    if ($pair.Count -lt 2) { return '' }
+    return [System.Uri]::UnescapeDataString($pair[1])
+  }
+  return ''
+}
+
+function Test-TunnelEndpoint([string]$Label, [string]$Url, [string]$Token) {
+  try {
+    $response = Invoke-WebRequest -Uri $Url -Headers @{ 'X-Mini-Hub-Bridge-Token' = $Token } -TimeoutSec 15 -UseBasicParsing
+    [pscustomobject]@{
+      Service = $Label
+      Status = 'reachable'
+      Http = [int]$response.StatusCode
+      Url = $Url
+      Detail = 'ok'
+    }
+  } catch {
+    $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { $null }
+    [pscustomobject]@{
+      Service = $Label
+      Status = 'failed'
+      Http = $statusCode
+      Url = $Url
+      Detail = $_.Exception.Message
+    }
+  }
+}
+
+function Test-RemoteTunnelReachable([string]$BaseUrl, [string]$Token) {
+  if (-not $BaseUrl -or -not $Token) { return $false }
+  try {
+    $response = Invoke-WebRequest -Uri "$($BaseUrl.TrimEnd('/'))/api/health" -Headers @{ 'X-Mini-Hub-Bridge-Token' = $Token } -TimeoutSec 12 -UseBasicParsing
+    return [int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -lt 300
+  } catch {
+    return $false
+  }
+}
+
 function Start-RemoteTunnel {
   $token = Get-OrCreateBridgeToken
   Ensure-Dir $BridgeDir
@@ -94,10 +153,13 @@ function Start-RemoteTunnel {
     $url = Get-TunnelUrlFromLogs
     if ($url) {
       $remoteUrl = Build-RemoteUrl $url $token
-      Set-Content -LiteralPath $TunnelLinkFile -Value $remoteUrl
-      Write-Output "Cloudflare tunnel already running as PID $($existing.Id)"
-      Write-Output "Open: $remoteUrl"
-      return
+      if (Test-RemoteTunnelReachable $url $token) {
+        Set-Content -LiteralPath $TunnelLinkFile -Value $remoteUrl
+        Write-Output "Cloudflare tunnel already running as PID $($existing.Id)"
+        Write-Output "Open: $remoteUrl"
+        return
+      }
+      Write-Output "Existing Cloudflare tunnel PID $($existing.Id) is stale; restarting it."
     }
     Stop-Process -Id $existing.Id -Force
     Remove-Item -LiteralPath $TunnelPidFile -Force -ErrorAction SilentlyContinue
@@ -127,6 +189,15 @@ function Start-RemoteTunnel {
 
   $remoteUrl = Build-RemoteUrl $url $token
   Set-Content -LiteralPath $TunnelLinkFile -Value $remoteUrl
+  $readyDeadline = (Get-Date).AddSeconds(25)
+  $remoteReady = $false
+  while ((Get-Date) -lt $readyDeadline) {
+    if (Test-RemoteTunnelReachable $url $token) {
+      $remoteReady = $true
+      break
+    }
+    Start-Sleep -Seconds 2
+  }
   try {
     Set-Clipboard -Value $remoteUrl
     Write-Output 'Remote tunnel URL copied to clipboard.'
@@ -134,6 +205,9 @@ function Start-RemoteTunnel {
     Write-Output 'Could not copy remote tunnel URL to the clipboard.'
   }
   Write-Output "Cloudflare tunnel started as PID $($process.Id)"
+  if (-not $remoteReady) {
+    Write-Output 'Cloudflare tunnel URL was created, but the public endpoint did not answer the health check yet. Run pnpm bridge:tunnel:verify in a moment.'
+  }
   Write-Output "Open: $remoteUrl"
 }
 
@@ -151,23 +225,46 @@ function Stop-RemoteTunnel {
 function Show-RemoteTunnelStatus {
   $process = Get-PidFileProcess $TunnelPidFile
   $url = Get-TunnelUrlFromLogs
-  $link = if (Test-Path -LiteralPath $TunnelLinkFile) {
-    Get-Content -LiteralPath $TunnelLinkFile -ErrorAction SilentlyContinue | Select-Object -First 1
-  } else {
-    ''
-  }
+  $link = Get-RemoteLink
   [pscustomobject]@{
     Running = [bool]$process
     PID = if ($process) { $process.Id } else { $null }
     TunnelUrl = $url
     LinkFile = $TunnelLinkFile
-    RemoteLink = $link
+    RemoteLink = Redact-RemoteUrl $link
+    FullLink = if ($link) { "Saved in $TunnelLinkFile" } else { '' }
     Cloudflared = if (Test-Path -LiteralPath $CloudflaredExe) { $CloudflaredExe } else { '' }
   } | Format-List
+}
+
+function Verify-RemoteTunnel {
+  $link = Get-RemoteLink
+  if (-not $link) {
+    throw "No remote tunnel link found at $TunnelLinkFile. Run pnpm bridge:tunnel:start first."
+  }
+  $token = Get-QueryParam $link 'bridgeToken'
+  if (-not $token) {
+    throw "The saved tunnel link does not contain a bridge token. Restart the tunnel with pnpm bridge:tunnel:start."
+  }
+  $baseUrl = Get-QueryParam $link 'apiUrl'
+  if (-not $baseUrl) {
+    $uri = [System.Uri]$link
+    $baseUrl = "$($uri.Scheme)://$($uri.Host)"
+  }
+  $baseUrl = $baseUrl.TrimEnd('/')
+  Write-Output "Verifying remote tunnel endpoints at $baseUrl"
+  Write-Output "Full private phone link: $TunnelLinkFile"
+  @(
+    Test-TunnelEndpoint 'Mini Hub API' "$baseUrl/api/health" $token
+    Test-TunnelEndpoint 'AI OS API' "$baseUrl/api/ai/health" $token
+    Test-TunnelEndpoint 'Macro Lab API' "$baseUrl/api/macro-lab/health" $token
+    Test-TunnelEndpoint 'Ollama' "$baseUrl/api/tags" $token
+  ) | Format-Table -AutoSize
 }
 
 switch ($Action) {
   'start' { Start-RemoteTunnel }
   'stop' { Stop-RemoteTunnel }
   'status' { Show-RemoteTunnelStatus }
+  'verify' { Verify-RemoteTunnel }
 }

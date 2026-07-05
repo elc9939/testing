@@ -113,6 +113,11 @@ This keeps the same single-port Hub gateway on the PC, starts it with a generate
 token, downloads `cloudflared.exe` into `.mini-hub-bridge/tools` if needed, and opens a
 temporary Cloudflare Quick Tunnel to `http://127.0.0.1:5173`. The launcher writes the full
 phone URL to `remote-tunnel-link.txt` and tries to copy it to the clipboard.
+If Cloudflare has dropped an older quick-tunnel URL while the old process is still around,
+running `pnpm bridge:tunnel:start` again replaces it and writes a fresh phone link.
+Use `pnpm bridge:tunnel:status` for a redacted status view, or
+`pnpm bridge:tunnel:verify` to check that Mini Hub API, AI OS, Macro Lab, and Ollama are
+reachable through the public tunnel without printing the private bridge token.
 
 Settings -> Remote Access / Connection Mode also reads the active tunnel state from the
 Mini Hub API. When the tunnel is running, the Phone / Private Remote Link panel prefers

@@ -2333,7 +2333,7 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('QRCode.toDataURL(url');
     expect(source).toContain('Scan from your phone');
     expect(source).toContain('QR code for the private remote Mini Hub phone link');
-    expect(source).toContain('copyPhoneRemoteLink(displayedPhoneRemoteLink.url)');
+    expect(source).toContain('copyPhoneRemoteLink(displayedPhoneRemoteSetupUrl)');
     expect(source).toContain('Open it on your phone while the PC bridge is running.');
     expect(source).toContain('machineAiOsEndpointIssue = aiOsEndpointIssue(endpointResolutions)');
     expect(source).toContain("machineProfileControlBlockedReason('autotune', {");
@@ -2440,6 +2440,14 @@ describe('Mini Hub usability control gates', () => {
     expect(source).toContain('function endpointReloadTitle');
     expect(source).toContain('title={endpointSaveButtonTitle}');
     expect(source).toContain('title={endpointReloadButtonTitle}');
+    expect(source).toContain('applyQueryServiceEndpoints,');
+    expect(source.indexOf('applyQueryServiceEndpoints();')).toBeLessThan(source.indexOf('loadEndpointInputs();'));
+    expect(source).toContain('displayedPhoneRemoteSetupUrl = phoneRemoteSetupUrl(displayedPhoneRemoteLink?.url ?? \'\')');
+    expect(source).toContain('bridgeTokenSaved = Boolean(bridgeTokenInput.trim())');
+    expect(source).toContain('function phoneRemoteSetupUrl');
+    expect(source).toContain('url: phoneRemoteSetupUrl(tunnel.remoteLink)');
+    expect(source).toContain("parsed.hash = 'connection-mode'");
+    expect(source).toContain('copyPhoneRemoteLink(displayedPhoneRemoteSetupUrl)');
     expect(source).toContain('hosted pages use this to avoid calling the wrong /api route');
     expect(source).toContain('Save service URLs in this browser, then run Check Services so Feature Wiring reflects the new targets.');
     expect(source).toContain('Loading passive task settings.');

@@ -36,6 +36,7 @@
     "bridge:repair:status": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-remote-repair.ps1 status",
     "bridge:tunnel:start": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-tunnel.ps1 start",
     "bridge:tunnel:status": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-tunnel.ps1 status",
+    "bridge:tunnel:verify": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-tunnel.ps1 verify",
     "bridge:tunnel:stop": "powershell -ExecutionPolicy Bypass -File scripts/mini-hub-tunnel.ps1 stop",
     "dev:api": "pnpm --filter @mini-hub/api dev",
     "api:start:lan": "powershell -ExecutionPolicy Bypass -File scripts/hub-api-lan.ps1",

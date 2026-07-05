@@ -89,6 +89,7 @@ pnpm bridge:firewall:install
 pnpm bridge:repair:lan
 pnpm bridge:tunnel:start
 pnpm bridge:tunnel:status
+pnpm bridge:tunnel:verify
 pnpm bridge:tunnel:stop
 ```
 
@@ -148,6 +149,10 @@ This starts the single-port Hub gateway with a generated bridge token, downloads
 to `http://127.0.0.1:5173`, and writes `remote-tunnel-link.txt`. The generated URL includes
 `bridgeToken=...`, which the hub stores in this browser and sends as
 `X-Mini-Hub-Bridge-Token` for proxied Hub API, AI OS, Macro Lab, and gatewayed Ollama calls.
+If an old quick-tunnel process is still running but Cloudflare has dropped the URL,
+`bridge:tunnel:start` replaces it and writes a fresh phone link.
+`bridge:tunnel:status` redacts that token; `bridge:tunnel:verify` checks the public tunnel
+can reach Mini Hub API, AI OS, Macro Lab, and Ollama without printing the private link.
 Stop the temporary tunnel with `pnpm bridge:tunnel:stop`.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated
