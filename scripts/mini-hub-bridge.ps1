@@ -48,11 +48,8 @@ function Get-ServiceUrl([int]$Port) {
 
 function Get-BridgeUrl {
   $hub = Get-ServiceUrl 5173
-  $api = [System.Uri]::EscapeDataString((Get-ServiceUrl 8787))
-  $ai = [System.Uri]::EscapeDataString((Get-ServiceUrl 8791))
-  $macro = [System.Uri]::EscapeDataString((Get-ServiceUrl 8792))
-  $ollama = [System.Uri]::EscapeDataString((Get-ServiceUrl 11434))
-  return "$hub/?apiUrl=$api&aiOsUrl=$ai&macroLabUrl=$macro&ollamaUrl=$ollama"
+  $gateway = [System.Uri]::EscapeDataString($hub)
+  return "$hub/?apiUrl=$gateway&aiOsUrl=$gateway&macroLabUrl=$gateway&ollamaUrl=$gateway&gateway=single-port"
 }
 
 function Get-PortPid([int]$Port) {
@@ -132,25 +129,8 @@ function Stop-PidFile([string]$PidFile, [string]$Label) {
 
 function Start-Ollama {
   if (Test-JsonEndpoint 'http://127.0.0.1:11434/api/tags') {
-    if ($Profile -ne 'lan') {
-      Write-Output 'Ollama already reachable on 127.0.0.1:11434'
-      return
-    }
-    $lanOllamaUrl = "$(Get-ServiceUrl 11434)/api/tags"
-    if (Test-JsonEndpoint $lanOllamaUrl) {
-      Write-Output "Ollama already reachable on $lanOllamaUrl"
-      return
-    }
-    $ollamaPid = Get-PortPid 11434
-    $ollamaCommandLine = if ($ollamaPid) { Get-ProcessCommandLine $ollamaPid } else { '' }
-    if ($ollamaPid -and $ollamaCommandLine -match '(?i)ollama') {
-      Write-Output "Restarting Ollama for LAN/private-network access from PID $ollamaPid"
-      Stop-Process -Id $ollamaPid -Force
-      Start-Sleep -Seconds 1
-    } else {
-      Write-Output 'Ollama is reachable locally, but not on the private host. AI OS can still use local Ollama; direct phone Ollama checks may stay offline until Ollama is restarted with OLLAMA_HOST=0.0.0.0:11434.'
-      return
-    }
+    Write-Output 'Ollama already reachable on 127.0.0.1:11434; the Hub gateway will proxy phone requests.'
+    return
   }
   $ollama = Get-Command ollama -ErrorAction SilentlyContinue
   if (-not $ollama) {
@@ -158,10 +138,6 @@ function Start-Ollama {
     return
   }
   Ensure-BridgeDir
-  if ($Profile -eq 'lan') {
-    $env:OLLAMA_HOST = '0.0.0.0:11434'
-    $env:OLLAMA_ORIGINS = Get-MiniHubTrustedOrigins @(Get-MiniHubPrivateHosts $RemoteHost) $ExtraTrustedOrigins 5173
-  }
   $process = Start-Process -FilePath $ollama.Source -ArgumentList 'serve' -WindowStyle Hidden -PassThru
   Set-Content -Path $OllamaPidFile -Value $process.Id
   Start-Sleep -Seconds 2
@@ -282,16 +258,8 @@ function Start-Bridge {
   Remove-Item Env:PORT -ErrorAction SilentlyContinue
   $aiScript = Join-Path $Root 'scripts\ai-os.ps1'
   $macroScript = Join-Path $Root 'scripts\macro-lab.ps1'
-  if ($Profile -eq 'lan') {
-    $lanArgs = @('start', '-Lan')
-    if ($RemoteHost) { $lanArgs += @('-RemoteHost', $RemoteHost) }
-    if ($ExtraTrustedOrigins) { $lanArgs += @('-ExtraTrustedOrigins', $ExtraTrustedOrigins) }
-    Invoke-BridgeChildScript -ScriptPath $aiScript -Arguments $lanArgs
-    Invoke-BridgeChildScript -ScriptPath $macroScript -Arguments $lanArgs
-  } else {
-    Invoke-BridgeChildScript -ScriptPath $aiScript -Arguments @('start')
-    Invoke-BridgeChildScript -ScriptPath $macroScript -Arguments @('start')
-  }
+  Invoke-BridgeChildScript -ScriptPath $aiScript -Arguments @('start')
+  Invoke-BridgeChildScript -ScriptPath $macroScript -Arguments @('start')
   Start-HubUi
   $url = Get-BridgeUrl
   Set-Content -Path $BridgeLinkFile -Value $url

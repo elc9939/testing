@@ -49,25 +49,26 @@ Mini Hub now treats access mode as a first-class diagnostic, not as guesswork.
 Settings -> Remote Access / Connection Mode shows the current page origin, detected mode,
 detected LAN IPv4 addresses when the Hub API is reachable, service health targets, current
 endpoint state, current-host endpoint suggestions, and a **Phone / Private Remote Link**
-with a local QR code that embeds the Hub API, AI OS, Macro Lab, and Ollama service URLs. If
+with a local QR code that embeds the single Hub gateway URL for Hub API, AI OS, Macro Lab,
+and Ollama. If
 you are on the PC, run **Check Services** and scan or copy that phone link after the LAN
 bridge is running. If you open the hub through a LAN or Tailscale address, use **Use Current
 Host URLs**, then **Save Service URLs** and **Check Services**. If you are on GitHub Pages,
 enter private remote endpoints manually or open Local Full Power on the PC.
 The same Settings panel now shows **Phone readiness** from `/api/remote-access/status`,
 which wraps the Windows firewall helper and reports whether the active network is Private,
-whether the five private remote ports are allowed, and what to fix before testing from a
+whether the private gateway port is allowed, and what to fix before testing from a
 phone.
 
-The standard private remote service URLs are:
+The standard private remote URL is now a single gateway:
 
 ```text
-Hub UI:        http://<pc-private-host>:5173
-Mini Hub API:  http://<pc-private-host>:8787
-AI OS API:     http://<pc-private-host>:8791
-Macro Lab API: http://<pc-private-host>:8792
-Ollama:        http://<pc-private-host>:11434
+Hub gateway: http://<pc-private-host>:5173
 ```
+
+The Hub gateway proxies `/api/*`, AI OS, Macro Lab, and Ollama calls back to localhost on
+the PC, so the phone does not need direct access to ports `8787`, `8791`, `8792`, or
+`11434`.
 
 For the current one-command bridge launcher, use:
 
@@ -90,7 +91,8 @@ pnpm bridge:repair:lan
 
 `bridge:start` starts/checks the local service bridge for this PC. `bridge:start:lan` also
 starts the local Hub UI on the LAN address and writes a ready URL with `apiUrl`, `aiOsUrl`,
-`macroLabUrl`, and `ollamaUrl` query parameters to `bridge-link.txt`. Settings -> Remote
+`macroLabUrl`, and `ollamaUrl` all pointed at the single Hub gateway to `bridge-link.txt`.
+Settings -> Remote
 Access also shows a scan-ready QR code and copyable phone link once Check Services can read the PC LAN IP. The
 status action shows
 Mini Hub API, AI OS, Macro Lab, and Ollama health plus PIDs. Use
@@ -111,8 +113,8 @@ Services**. The **Phone readiness** row says whether the blocker is a Public net
 missing firewall rules, an unreachable Hub API, or a ready private remote path.
 
 The helper reports whether the trusted Wi-Fi/network is marked Private and whether inbound
-Private-profile rules exist for ports `5173`, `8787`, `8791`, `8792`, and `11434`. To add
-those Private-profile rules, run:
+Private-profile rules exist for the gateway port `5173`. To add that Private-profile rule,
+run:
 
 ```powershell
 pnpm bridge:firewall:install
@@ -129,7 +131,7 @@ pnpm bridge:repair:lan
 ```
 
 That opens one Windows administrator prompt, marks the active trusted network Private, and
-installs the same scoped Private-profile firewall rules.
+installs the same scoped Private-profile gateway firewall rule.
 
 For Tailscale or another private hostname, run the bridge script directly so the generated
 URL and CORS trusted origins use the host your phone will actually open:

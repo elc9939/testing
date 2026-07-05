@@ -131,7 +131,8 @@ describe('mini hub api', () => {
         message: 'Firewall rules are missing or incomplete.',
         admin: false,
         ruleGroup: 'Mini Hub Private Remote',
-        ports: [5173, 8787, 8791, 8792, 11434],
+        gatewayOnly: true,
+        ports: [5173],
         profiles: [
           {
             name: 'Home Wi-Fi',
@@ -165,7 +166,8 @@ describe('mini hub api', () => {
       status: {
         ok: false,
         readiness: 'rules-missing',
-        ports: [5173, 8787, 8791, 8792, 11434],
+        gatewayOnly: true,
+        ports: [5173],
         missingRuleCount: 1,
         fixAction: expect.stringContaining('bridge:firewall:install')
       }

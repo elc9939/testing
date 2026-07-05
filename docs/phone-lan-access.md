@@ -52,19 +52,22 @@ pnpm ai-os:start:lan
 pnpm macro-lab:start:lan
 ```
 
-2. Open the URL printed by the launcher on the phone. It includes query parameters that store the desktop service URLs automatically. You can also open Settings -> Remote Access / Connection Mode on the PC after Check Services and scan or copy the **Phone / Private Remote Link** shown there.
+2. Open the URL printed by the launcher on the phone. It includes query parameters that store the desktop gateway URL automatically for Hub API, AI OS, Macro Lab, and Ollama. You can also open Settings -> Remote Access / Connection Mode on the PC after Check Services and scan or copy the **Phone / Private Remote Link** shown there.
 
-3. If needed, open Settings -> Remote Access / Connection Mode on the phone and confirm the URLs match the desktop IPv4 shown by the scripts or the detected LAN IPv4 row:
+3. If needed, open Settings -> Remote Access / Connection Mode on the phone and confirm the URLs match the desktop IPv4 shown by the scripts or the detected LAN IPv4 row. In the default gateway mode, every service URL should use the Hub gateway:
 
 ```text
-Mini Hub API:  http://<desktop-ip>:8787
-AI OS API:     http://<desktop-ip>:8791
-Macro Lab API: http://<desktop-ip>:8792
+Mini Hub API:  http://<desktop-ip>:5173
+AI OS API:     http://<desktop-ip>:5173
+Macro Lab API: http://<desktop-ip>:5173
+Ollama:        http://<desktop-ip>:5173
 ```
 
 4. Save service URLs and use Check Services. Feature Wiring should show whether Hub API, AI OS, Macro Lab, Research, Passive Tasks, Productivity, and browser cache are reachable from that browser. The Phone readiness row should also explain whether the private remote path is ready, blocked by a Public Windows network profile, missing firewall rules, or unable to reach the Hub API.
 
-LAN mode intentionally disables loopback-only protection for AI OS and Macro Lab, so only use it on a trusted private network.
+LAN mode now exposes the Hub gateway on the trusted network while AI OS, Macro Lab, and
+Ollama remain localhost services behind that gateway. Still use it only on a trusted
+private network because the Hub gateway can invoke those local services.
 
 If the phone cannot open the link even though the PC can, run:
 
@@ -75,8 +78,8 @@ pnpm bridge:firewall:status
 The same diagnosis is visible in Settings -> Remote Access / Connection Mode after Check
 Services through the Hub API `/api/remote-access/status` endpoint.
 
-This checks whether Windows sees the active network as Private and whether Mini Hub inbound
-rules exist for ports `5173`, `8787`, `8791`, `8792`, and `11434`. If rules are missing, run:
+This checks whether Windows sees the active network as Private and whether the Mini Hub
+gateway inbound rule exists for port `5173`. If the rule is missing, run:
 
 ```powershell
 pnpm bridge:firewall:install
@@ -95,8 +98,7 @@ pnpm bridge:repair:lan
 ```
 
 That opens one Windows administrator prompt, marks the active trusted network Private, and
-installs the Mini Hub Private firewall rules for ports `5173`, `8787`, `8791`, `8792`, and
-`11434`.
+installs the Mini Hub Private gateway firewall rule for port `5173`.
 
 ## Tailscale Path
 
@@ -112,9 +114,10 @@ powershell -ExecutionPolicy Bypass -File scripts/mini-hub-bridge.ps1 start -Prof
 5. In Settings -> Remote Access / Connection Mode, use current-host URLs if the page was opened through the same Tailscale host, or enter:
 
 ```text
-Mini Hub API:  http://<pc-tailscale-name-or-100.x-address>:8787
-AI OS API:     http://<pc-tailscale-name-or-100.x-address>:8791
-Macro Lab API: http://<pc-tailscale-name-or-100.x-address>:8792
+Mini Hub API:  http://<pc-tailscale-name-or-100.x-address>:5173
+AI OS API:     http://<pc-tailscale-name-or-100.x-address>:5173
+Macro Lab API: http://<pc-tailscale-name-or-100.x-address>:5173
+Ollama:        http://<pc-tailscale-name-or-100.x-address>:5173
 ```
 
 6. Save Service URLs, then Check Services.

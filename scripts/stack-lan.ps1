@@ -44,7 +44,9 @@ function Test-MiniHubApi([int]$Port) {
 
 $privateHosts = @(Get-MiniHubPrivateHosts $RemoteHost)
 $lanIp = Get-MiniHubBridgeHost 'lan' $RemoteHost
-$serviceUrl = "$(Get-MiniHubServiceUrl $lanIp $HubPort)/?apiUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp $ApiPort)))&aiOsUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp 8791)))&macroLabUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp 8792)))&ollamaUrl=$([System.Uri]::EscapeDataString((Get-MiniHubServiceUrl $lanIp 11434)))"
+$hubUrl = Get-MiniHubServiceUrl $lanIp $HubPort
+$gateway = [System.Uri]::EscapeDataString($hubUrl)
+$serviceUrl = "$hubUrl/?apiUrl=$gateway&aiOsUrl=$gateway&macroLabUrl=$gateway&ollamaUrl=$gateway&gateway=single-port"
 Set-Content -Path $PhoneLinkFile -Value $serviceUrl
 try {
   Set-Clipboard -Value $serviceUrl

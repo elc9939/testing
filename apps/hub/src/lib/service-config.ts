@@ -256,6 +256,7 @@ export function connectionModeForOrigin(origin: string): ConnectionMode {
 export function buildServiceUrlFromHubOrigin(id: ServiceId, origin: string): string {
   const parsed = parseUrlOrigin(origin);
   if (!parsed || isGithubPagesHost(parsed.hostname)) return '';
+  if (parsed.port === '5173' || parsed.port === '') return parsed.origin;
   const protocol = parsed.protocol === 'https:' ? 'http:' : parsed.protocol || 'http:';
   return `${protocol}//${parsed.hostname}:${servicePorts[id]}`;
 }
@@ -283,6 +284,20 @@ export function buildPrivateRemoteBridgeLink(hostValue: string): string {
   return `${hubUrl}?${params.toString()}`;
 }
 
+export function buildPrivateRemoteGatewayLink(hostValue: string): string {
+  const host = hostFromPrivateTarget(hostValue);
+  if (!host) return '';
+  const gatewayUrl = `http://${host}:5173`;
+  const params = new URLSearchParams({
+    apiUrl: gatewayUrl,
+    aiOsUrl: gatewayUrl,
+    macroLabUrl: gatewayUrl,
+    ollamaUrl: gatewayUrl,
+    gateway: 'single-port'
+  });
+  return `${gatewayUrl}/?${params.toString()}`;
+}
+
 export function privateRemoteLinks(origin: string, lanIpv4: string[] = []): PrivateRemoteLink[] {
   const links: PrivateRemoteLink[] = [];
   const seen = new Set<string>();
@@ -291,7 +306,7 @@ export function privateRemoteLinks(origin: string, lanIpv4: string[] = []): Priv
     const host = hostFromPrivateTarget(hostValue);
     if (!host || seen.has(host) || isLoopbackHost(host) || isGithubPagesHost(host)) return;
     seen.add(host);
-    links.push({ label, host, url: buildPrivateRemoteBridgeLink(host), detail });
+    links.push({ label, host, url: buildPrivateRemoteGatewayLink(host), detail });
   }
 
   const parsed = parseUrlOrigin(origin);
@@ -322,7 +337,9 @@ export function looksLikeHostedStaticEndpoint(value: string, currentOrigin = '')
   try {
     const url = new URL(normalized);
     if (/github\.io$/iu.test(url.hostname)) return true;
-    return Boolean(currentOrigin && normalized === normalizeServiceUrl(currentOrigin));
+    if (!currentOrigin || normalized !== normalizeServiceUrl(currentOrigin)) return false;
+    const current = new URL(normalizeServiceUrl(currentOrigin));
+    return isGithubPagesHost(current.hostname);
   } catch {
     return false;
   }
@@ -478,7 +495,7 @@ export function serviceEndpointResolutions(): ServiceEndpointResolution[] {
 }
 
 export function localNetworkHint(): string {
-  return 'For full private-network access, run pnpm bridge:start:lan and keep the PC awake. Use pnpm bridge:startup:install:lan if the bridge should start after Windows login. The bridge checks Mini Hub API, AI OS, Macro Lab, Ollama, and the hub, then writes bridge-link.txt with service addresses filled in. For Tailscale, run scripts/mini-hub-bridge.ps1 start -Profile lan -HubUi -RemoteHost <pc-name-or-100.x-ip>. GitHub Pages is only the static shell; use the private hub URL when browser mixed-content rules block HTTPS-to-HTTP service calls.';
+  return 'For full private-network access, run pnpm bridge:start:lan and keep the PC awake. Use pnpm bridge:startup:install:lan if the bridge should start after Windows login. The bridge checks Mini Hub API, AI OS, Macro Lab, Ollama, and the hub, then writes bridge-link.txt with a single-port gateway URL; the Hub UI proxies service calls back to localhost on the PC. For Tailscale, run scripts/mini-hub-bridge.ps1 start -Profile lan -HubUi -RemoteHost <pc-name-or-100.x-ip>. GitHub Pages is only the static shell; use the private hub URL or an HTTPS tunnel/proxy when browser mixed-content rules block HTTPS-to-HTTP service calls.';
 }
 
 export function serviceHtmlFallbackMessage(serviceId: ServiceId, path: string, baseUrl: string, expected = 'JSON'): string {

@@ -1,6 +1,7 @@
 param(
   [ValidateSet('status', 'install', 'remove')]
   [string]$Action = 'status',
+  [switch]$DirectServices,
   [switch]$Quiet,
   [switch]$Json
 )
@@ -8,13 +9,17 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $RuleGroup = 'Mini Hub Private Remote'
-$Ports = @(
+$GatewayPorts = @(
+  @{ Name = 'Hub Gateway'; Port = 5173 }
+)
+$DirectServicePorts = @(
   @{ Name = 'Hub UI'; Port = 5173 },
   @{ Name = 'Mini Hub API'; Port = 8787 },
   @{ Name = 'AI OS API'; Port = 8791 },
   @{ Name = 'Macro Lab API'; Port = 8792 },
   @{ Name = 'Ollama'; Port = 11434 }
 )
+$Ports = if ($DirectServices) { $DirectServicePorts } else { $GatewayPorts }
 
 function Test-Admin {
   $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -91,6 +96,7 @@ function Get-StatusPayload {
     message = $message
     admin = Test-Admin
     ruleGroup = $RuleGroup
+    gatewayOnly = -not [bool]$DirectServices
     ports = @($Ports | ForEach-Object { [int]$_.Port })
     profiles = @(
       $profiles | ForEach-Object {
@@ -143,7 +149,8 @@ function Show-Status {
     $ruleText = if ($missing.Count -eq 0) { 'rules ready' } else { "$($missing.Count) rule(s) need install/fix" }
     $profileText = if (@($profiles | Where-Object { $_.networkCategory -in @('Private', 'DomainAuthenticated') }).Count) { 'private network active' } elseif ($payload.publicNetwork) { 'active network is Public' } else { 'network profile unknown' }
     $adminText = if ($payload.admin) { 'elevated' } else { 'not elevated' }
-    Write-Output "Firewall: $ruleText; $profileText; $adminText. Private remote ports: $($payload.ports -join ', ')."
+    $modeText = if ($payload.gatewayOnly) { 'single gateway port' } else { 'direct service ports' }
+    Write-Output "Firewall: $ruleText; $profileText; $adminText. Private remote $modeText`: $($payload.ports -join ', ')."
     if ($missing.Count -gt 0 -or $payload.publicNetwork) {
       Write-Output 'Firewall fix: run pnpm bridge:firewall:install from an elevated terminal and set trusted home Wi-Fi to Private before phone access.'
     }
@@ -163,7 +170,7 @@ function Show-Status {
     Write-Output 'Active network profiles: none reported'
   }
   Write-Output ''
-  Write-Output 'Firewall rules:'
+  Write-Output "Firewall rules ($(if ($DirectServices) { 'direct service mode' } else { 'single gateway mode' })):"
   $rows |
     Select-Object @{ Name = 'Service'; Expression = { $_.service } }, Port, Installed, Enabled, Profile, Action, @{ Name = 'Detail'; Expression = { $_.detail } } |
     Format-Table -AutoSize
@@ -173,10 +180,11 @@ function Show-Status {
 
 function Request-ElevatedSelf([string]$RequestedAction) {
   $quotedPath = '"' + $PSCommandPath + '"'
+  $directArg = if ($DirectServices) { ' -DirectServices' } else { '' }
   Start-Process `
     -FilePath 'powershell.exe' `
     -Verb RunAs `
-    -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File $quotedPath $RequestedAction"
+    -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File $quotedPath $RequestedAction$directArg"
   Write-Output "Opened an elevated PowerShell prompt to run firewall action '$RequestedAction'. Approve the Windows prompt to continue."
 }
 

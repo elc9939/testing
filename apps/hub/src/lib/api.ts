@@ -53,6 +53,7 @@ export interface RemoteAccessStatus {
   message: string;
   admin: boolean;
   ruleGroup: string;
+  gatewayOnly?: boolean;
   ports: number[];
   profiles: Array<{
     name: string;

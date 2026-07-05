@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildServiceUrlFromHubOrigin,
   buildPrivateRemoteBridgeLink,
+  buildPrivateRemoteGatewayLink,
   connectionModeForOrigin,
   defaultServiceRequestTimeoutMs,
   looksLikeHostedStaticEndpoint,
@@ -120,7 +121,7 @@ describe('service endpoint resolution', () => {
 
   it('detects same-origin static endpoints before they make /api calls', () => {
     expect(looksLikeHostedStaticEndpoint('https://elc9939.github.io/testing', 'https://elc9939.github.io')).toBe(true);
-    expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:5173', 'http://127.0.0.1:5173')).toBe(true);
+    expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:5173', 'http://127.0.0.1:5173')).toBe(false);
     expect(looksLikeHostedStaticEndpoint('http://127.0.0.1:8791', 'http://127.0.0.1:5173')).toBe(false);
   });
 
@@ -133,18 +134,18 @@ describe('service endpoint resolution', () => {
 
   it('builds current-host service URL suggestions for private remote mode', () => {
     expect(buildServiceUrlFromHubOrigin('aiOs', 'http://mini-hub-pc.tailnet.ts.net:5173/testing')).toBe(
-      'http://mini-hub-pc.tailnet.ts.net:8791'
+      'http://mini-hub-pc.tailnet.ts.net:5173'
     );
     expect(remoteEndpointSuggestions('http://192.168.1.25:5173').map((endpoint) => endpoint.url)).toEqual([
-      'http://192.168.1.25:8787',
-      'http://192.168.1.25:8791',
-      'http://192.168.1.25:8792',
-      'http://192.168.1.25:11434'
+      'http://192.168.1.25:5173',
+      'http://192.168.1.25:5173',
+      'http://192.168.1.25:5173',
+      'http://192.168.1.25:5173'
     ]);
     expect(remoteEndpointSuggestions('https://elc9939.github.io/testing')).toEqual([]);
   });
 
-  it('builds a phone bridge URL that carries every desktop service endpoint', () => {
+  it('builds a direct phone bridge URL that carries every desktop service endpoint', () => {
     const link = buildPrivateRemoteBridgeLink('http://192.168.1.25:5173/settings');
     const parsed = new URL(link);
 
@@ -153,6 +154,18 @@ describe('service endpoint resolution', () => {
     expect(parsed.searchParams.get('aiOsUrl')).toBe('http://192.168.1.25:8791');
     expect(parsed.searchParams.get('macroLabUrl')).toBe('http://192.168.1.25:8792');
     expect(parsed.searchParams.get('ollamaUrl')).toBe('http://192.168.1.25:11434');
+  });
+
+  it('builds a single-port gateway phone link for private remote mode', () => {
+    const link = buildPrivateRemoteGatewayLink('http://192.168.1.25:5173/settings');
+    const parsed = new URL(link);
+
+    expect(parsed.origin).toBe('http://192.168.1.25:5173');
+    expect(parsed.searchParams.get('gateway')).toBe('single-port');
+    expect(parsed.searchParams.get('apiUrl')).toBe('http://192.168.1.25:5173');
+    expect(parsed.searchParams.get('aiOsUrl')).toBe('http://192.168.1.25:5173');
+    expect(parsed.searchParams.get('macroLabUrl')).toBe('http://192.168.1.25:5173');
+    expect(parsed.searchParams.get('ollamaUrl')).toBe('http://192.168.1.25:5173');
   });
 
   it('offers private remote links from the current host and detected LAN addresses only', () => {
@@ -190,23 +203,23 @@ describe('service endpoint resolution', () => {
       location: {
         origin: 'http://192.168.86.29:5173',
         search:
-          '?apiUrl=http%3A%2F%2F192.168.86.29%3A8787&aiOsUrl=http%3A%2F%2F192.168.86.29%3A8791&macroLabUrl=http%3A%2F%2F192.168.86.29%3A8792&ollamaUrl=http%3A%2F%2F192.168.86.29%3A11434'
+          '?apiUrl=http%3A%2F%2F192.168.86.29%3A5173&aiOsUrl=http%3A%2F%2F192.168.86.29%3A5173&macroLabUrl=http%3A%2F%2F192.168.86.29%3A5173&ollamaUrl=http%3A%2F%2F192.168.86.29%3A5173&gateway=single-port'
       }
     });
 
     const { getStoredServiceEndpoints, serviceEndpointResolutions } = await import('./service-config');
 
     expect(getStoredServiceEndpoints().map((endpoint) => endpoint.url)).toEqual([
-      'http://192.168.86.29:8787',
-      'http://192.168.86.29:8791',
-      'http://192.168.86.29:8792',
-      'http://192.168.86.29:11434'
+      'http://192.168.86.29:5173',
+      'http://192.168.86.29:5173',
+      'http://192.168.86.29:5173',
+      'http://192.168.86.29:5173'
     ]);
     expect(serviceEndpointResolutions().map((endpoint) => endpoint.resolvedUrl)).toEqual([
-      'http://192.168.86.29:8787',
-      'http://192.168.86.29:8791',
-      'http://192.168.86.29:8792',
-      'http://192.168.86.29:11434'
+      'http://192.168.86.29:5173',
+      'http://192.168.86.29:5173',
+      'http://192.168.86.29:5173',
+      'http://192.168.86.29:5173'
     ]);
   });
 
