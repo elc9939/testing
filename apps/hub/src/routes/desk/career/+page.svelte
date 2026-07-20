@@ -1979,6 +1979,14 @@
   </div>
 </section>
 
+<section class="card card-pad board-banner">
+  <div class="board-banner-copy">
+    <strong>New: Job Board</strong>
+    <span>32 curated leads (physics + Python fit) with star/applied/pass, Ollama fetch. Works offline; no bridge token needed.</span>
+  </div>
+  <a class="board-banner-cta" href={hubHref('/desk/career/board')}>Open board →</a>
+</section>
+
 {#if !canSave}
   <section class="card card-pad offline-banner">Offline: cached jobs are readable, saving is disabled.</section>
 {/if}
@@ -3692,6 +3700,31 @@
     cursor: not-allowed;
     opacity: 0.55;
   }
+
+  .board-banner {
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-color: var(--border-strong);
+    background: var(--surface-muted);
+  }
+  .board-banner-copy { display: flex; flex-direction: column; gap: 3px; }
+  .board-banner-copy strong { font-size: 13.5px; color: var(--text); }
+  .board-banner-copy span { font-size: 12.5px; color: var(--text-soft); }
+  .board-banner-cta {
+    background: var(--primary-bg);
+    color: var(--primary-text);
+    text-decoration: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .board-banner-cta:hover { filter: brightness(1.08); }
 
   .offline-banner {
     margin-bottom: 14px;
